@@ -9,7 +9,10 @@ wheels/
 # Virtual environments
 .venv
 
-# env files
+# .env file
 .env
+
+# uv file
+uv.lock
 
 

@@ -38,8 +38,14 @@ def main():
         
     openai_ef = embedding_functions.OpenAIEmbeddingFunction(**kwargs)
     
-    # Get or create collection
-    collection = client.get_or_create_collection(
+    # Recreate collection to ensure clean overwrite
+    try:
+        client.delete_collection(name="rag_collection")
+        print("Existing collection deleted for a clean rebuild.")
+    except Exception:
+        pass
+        
+    collection = client.create_collection(
         name="rag_collection", 
         embedding_function=openai_ef
     )
