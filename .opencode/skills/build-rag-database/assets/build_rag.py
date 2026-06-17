@@ -1,105 +1,85 @@
-import os
+import argparse
 from pathlib import Path
-from dotenv import load_dotenv
 from markitdown import MarkItDown
-import chromadb
-import chromadb.utils.embedding_functions as embedding_functions
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from utils import (
+    load_embedding_config,
+    get_supported_extensions,
+    is_supported_file,
+    init_chroma_collection,
+    process_file
+)
 
-def main():
-    # Load environment variables
-    load_dotenv()
+def build_rag(input_dir: Path, output_dir: Path):
+    """
+    从指定的输入目录中读取支持的文档，提取并嵌入后构建 RAG Chroma 向量数据库存入指定输出目录。
     
-    api_key = os.getenv("EMBEDDING_API_KEY")
-    api_url = os.getenv("EMBEDDING_API_URL")
-    model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    参数:
+        input_dir (Path): 存放原始文档的输入目录。
+        output_dir (Path): 存放向量数据库的输出目录。
+    """
+    # 加载 embedding 相关的环境变量配置
+    try:
+        api_key, api_url, model_name = load_embedding_config()
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
+
+    # 确定配置文件的路径并读取支持的后缀类型
+    config_path = Path(__file__).parent / "config.json"
+    supported_extensions = get_supported_extensions(config_path)
+    print(f"Supported document extensions loaded from config: {supported_extensions}")
+
+    # 确保输入目录存在
+    input_dir.mkdir(parents=True, exist_ok=True)
     
-    if not api_key or api_key == "sk-your-api-key-here":
-        print("Error: Please set a valid EMBEDDING_API_KEY in .env")
+    # 扫描输入目录，并按照支持的后缀过滤合法文件
+    files = list(input_dir.rglob("*"))
+    valid_files = [f for f in files if f.is_file() and is_supported_file(f, supported_extensions)]
+    
+    if not valid_files:
+        print(f"No valid files matching {supported_extensions} found in {input_dir}")
         return
         
-    input_dir = Path("input")
-    knowledge_dir = Path("src/knowledge")
-    
-    # Ensure directories exist
-    input_dir.mkdir(exist_ok=True)
-    knowledge_dir.mkdir(parents=True, exist_ok=True)
-    
     print(f"Initializing MarkItDown...")
     md = MarkItDown()
     
-    print(f"Initializing ChromaDB...")
-    client = chromadb.PersistentClient(path=str(knowledge_dir))
+    # 初始化 ChromaDB 集合
+    collection = init_chroma_collection(output_dir, api_key, api_url, model_name)
     
-    # Configure OpenAI embedding function
-    kwargs = {"api_key": api_key, "model_name": model_name}
-    if api_url:
-        kwargs["api_base"] = api_url
-        
-    openai_ef = embedding_functions.OpenAIEmbeddingFunction(**kwargs)
-    
-    # Recreate collection to ensure clean overwrite
-    try:
-        client.delete_collection(name="rag_collection")
-        print("Existing collection deleted for a clean rebuild.")
-    except Exception:
-        pass
-        
-    collection = client.create_collection(
-        name="rag_collection", 
-        embedding_function=openai_ef
-    )
-    
-    # Setup text splitter from langchain-text-splitters
+    # 设置 LangChain 文本切分器：单块大小为 1000 字符，重叠 200 字符
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200
     )
     
-    # Find files to process
-    files = list(input_dir.rglob("*"))
-    valid_files = [f for f in files if f.is_file() and not f.name.startswith('.')]
-    
-    if not valid_files:
-        print("No files found in input/")
-        return
-        
+    # 循环处理每一份有效的文件
     for file_path in valid_files:
-        print(f"Processing {file_path}...")
-        try:
-            # Convert file to markdown
-            result = md.convert(str(file_path))
-            text_content = result.text_content
-            
-            # Split text into chunks
-            chunks = text_splitter.split_text(text_content)
-            
-            # Prepare data for ChromaDB
-            documents = []
-            metadatas = []
-            ids = []
-            
-            for i, chunk in enumerate(chunks):
-                chunk_stripped = chunk.strip()
-                if not chunk_stripped:
-                    continue
-                documents.append(chunk_stripped)
-                metadatas.append({"source": str(file_path)})
-                ids.append(f"{file_path.name}_chunk_{i}")
-                
-            # Add to vector store
-            if documents:
-                collection.add(
-                    documents=documents,
-                    metadatas=metadatas,
-                    ids=ids
-                )
-                print(f"Added {len(documents)} chunks from {file_path}")
-                
-        except Exception as e:
-            print(f"Error processing {file_path}: {e}")
-            
+        process_file(file_path, md, collection, text_splitter)
+        
     print("RAG database build completed successfully.")
+
+def main():
+    parser = argparse.ArgumentParser(description="Build RAG database from input files.")
+    parser.add_argument(
+        "--input-dir", "-i",
+        type=str,
+        default="input",
+        help="Input directory containing PDF/Word/Markdown/Text files (default: input)"
+    )
+    parser.add_argument(
+        "--output-dir", "-o",
+        type=str,
+        default="src/knowledge",
+        help="Output directory for Chroma RAG database (default: src/knowledge)"
+    )
+    
+    args = parser.parse_args()
+    
+    input_dir = Path(args.input_dir)
+    output_dir = Path(args.output_dir)
+    
+    build_rag(input_dir, output_dir)
 
 if __name__ == "__main__":
     main()
