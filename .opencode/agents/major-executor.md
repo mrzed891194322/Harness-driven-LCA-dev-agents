@@ -71,6 +71,14 @@ color: success
    - 每次追加修改完成并取得验证结论后，必须根据交付标准判断是否继续下一轮优化。
    - 同样需要将修改结果完整归档后再进行交付输出。
 
+
+## 情形 3：仅执行外部命令/指令 (例如通过 `opencode run --command` 执行的命令，包括 `init-rag-database` 等)
+
+当用户指定执行特定命令（如 `init-rag-database` 或其他未来通过 `opencode run --command` 执行的命令）时：
+- 在对应的代理（如 `subagents/tools/doc-handler` 等）执行完该指令所定义的步骤后，`major-executor` 必须立即终止并结束会话。
+- **绝对不要**加载 `main-workflow` 技能，也不要自动开展任何后续的标准工作流推进或执行其他多余工作。
+
+
 # 交付标准
 
 完成任务后，只能汇总各技能或子 agent 已产生的信息，说明：

@@ -1,5 +1,5 @@
 ---
-name: workflow
+name: main-workflow
 description: "定义了 harness LCA 输出任务的标准工作流及各个步骤的执行规范。供 major-executor 等 agent 参考，以按需或完整调用相应的子 agent 执行任务。"
 ---
 
