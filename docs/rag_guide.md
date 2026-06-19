@@ -26,7 +26,7 @@ opencode run --command init-rag-database
 
 ### 方式二：通过与 Agent 交互
 您可以直接在 OpenCode 客户端中以自然语言对 Agent 下达指令。下达指令时，请注意**指明文件来源目录与目标输出目录**。例如：
-- *“帮我把 `docs/knowledge_base` 目录下的文件构建并写入到 `src/knowledge/reference` RAG 数据库”*
+- *“帮我把 `docs/knowledge_base/standards` 目录下的文件构建并写入到 `src/knowledge/standards` RAG 数据库”*
 - *“处理 `input/files` 文件夹中的输入文件并写入到 `src/knowledge/input` 中”*
 - *“初始化 LCA 知识库，输入目录为 `input/`，输出目录为 `src/knowledge/`”*
 
@@ -65,7 +65,7 @@ uv run python .opencode/skills/query-rag-database/assets/query_rag.py "您的查
 - `--db-dir` 或 `-d`：要查询的 RAG 数据库目录（默认值为 `src/knowledge`）。
 - *示例*：
   ```bash
-  uv run python .opencode/skills/query-rag-database/assets/query_rag.py "生命周期评价标准" --db-dir src/knowledge/reference
+  uv run python .opencode/skills/query-rag-database/assets/query_rag.py "生命周期评价标准" --db-dir src/knowledge/standards
   ```
 
 

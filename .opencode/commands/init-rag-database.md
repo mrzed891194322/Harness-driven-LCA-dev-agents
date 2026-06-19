@@ -1,5 +1,5 @@
 ---
-description: 初始化 RAG 数据库，将 docs/knowledge_base 和 input/files 目录下的文档转换并写入 RAG 数据库
+description: 初始化 RAG 数据库，将指定目录下的文档转换并写入 RAG 数据库
 agent: subagents/tools/doc-handler
 ---
 
@@ -12,17 +12,15 @@ agent: subagents/tools/doc-handler
    uv run python -c "import shutil; from pathlib import Path; d = Path('src/knowledge'); [shutil.rmtree(p) if p.is_dir() else p.unlink() for p in d.iterdir() if p.name != 'README.md']"
    ```
 
-2. **将 `docs/knowledge_base` 目录中的文件转化为 RAG，写入 `src/knowledge/reference` 子目录**：
-   运行以下命令：
+2. **读取并遵循 `knowledgebase-mapping` 映射规则**：
+   加载 `knowledgebase-mapping` 技能中的 `assets/mapping-rules.md` 以获取原始目录与 RAG 目标子目录的映射关系。
+
+3. **利用 `build-rag-database` 技能执行转化任务**：
+   对于在 `knowledgebase-mapping` 中查阅到的所有映射关系，使用 `build-rag-database` 技能运行转化以生成向量数据库。运行代码示例如下：
    ```bash
-   uv run python .opencode/skills/build-rag-database/assets/build_rag.py --input-dir docs/knowledge_base --output-dir src/knowledge/reference
+   uv run python .opencode/skills/build-rag-database/assets/build_rag.py --input-dir <映射中的输入目录> --output-dir <映射中的输出目录>
    ```
 
-3. **将 `input/files` 目录中的文件转化为 RAG，写入 `src/knowledge/input` 子目录**：
-   运行以下命令：
-   ```bash
-   uv run python .opencode/skills/build-rag-database/assets/build_rag.py --input-dir input/files --output-dir src/knowledge/input
-   ```
 
 4. **立即停止**：
-   在执行完上述步骤后，立即停止，不要进行任何多余的工作（例如：不要调用 `main-workflow`  等任何其他技能，不要创建任何额外的待办任务或输出总结文件，直接结束并向用户报告任务已完成）。
+   在执行完上述步骤后，立即停止，不要进行任何多余的工作（例如：不要调用 `main-workflow`  等任何其他技能，不要创建任何额外的待办任务或输出总结文件，直接结束并向用户报告任务已完成）。如果是 `major-executor` agent读到这段话，请执行“触发情形3”，不执行任何工作流并立即终止工作，结束当前会话。

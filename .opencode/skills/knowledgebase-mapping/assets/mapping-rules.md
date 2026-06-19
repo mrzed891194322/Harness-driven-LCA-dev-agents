@@ -1,0 +1,19 @@
+# 知识库路径映射规则 (mapping-rules.md)
+
+以下定义了项目中不同目录下的原始文件在转化为 RAG 数据库时的具体目标路径映射。
+
+## 映射表
+
+| 原始输入目录 | RAG 数据库目标子目录 | 用途描述 |
+|---|---|---|
+| `docs/knowledge_base/standards` | `src/knowledge/standards` | 静态项目知识库：参考标准 |
+| `docs/knowledge_base/openlca_manual` | `src/knowledge/openlca_manual` | 静态项目知识库：OpenLCA 使用说明 |
+| `input/files` | `src/knowledge/input` | 动态输入的特定 LCA 任务原始数据文件 |
+
+## 转化执行命令参考
+
+使用 `build-rag-database` 技能的转化脚本执行 RAG 数据库的转化。运行代码示例如下：
+
+```bash
+uv run python .opencode/skills/build-rag-database/assets/build_rag.py --input-dir <映射中的输入目录> --output-dir <映射中的输出目录>
+```
