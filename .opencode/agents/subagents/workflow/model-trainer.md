@@ -1,8 +1,6 @@
 ---
 description: 负责基于整体训练流水线设计和已有数据，执行模型搭建与训练工作（通过调用 code-builder 实际编写代码）。
 mode: subagent
-model: deepseek/deepseek-v4-pro
-temperature: 0.2
 permission:
   edit: deny
   bash: allow

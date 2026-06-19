@@ -1,8 +1,6 @@
 ---
 description: 面向harness LCA输出任务的工作流编排主 agent。
 mode: primary
-model: deepseek/deepseek-v4-pro
-temperature: 0.25
 permission:
   edit: deny
   bash: deny

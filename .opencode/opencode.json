@@ -9,6 +9,46 @@
     },
     "build": {
       "disable": true
+    },
+    "major-executor": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.25
+    },
+    "project-explorer": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.25
+    },
+    "subagents/tools/code-builder": {
+      "model": "deepseek/deepseek-v4-flash",
+      "temperature": 0.1
+    },
+    "subagents/tools/doc-handler": {
+      "model": "deepseek/deepseek-v4-flash",
+      "temperature": 0.1
+    },
+    "subagents/workflow/data-processor": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.2
+    },
+    "subagents/workflow/eval-reviewer": {
+      "model": "openai/gpt-5.5",
+      "temperature": 0.1
+    },
+    "subagents/workflow/model-trainer": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.2
+    },
+    "subagents/workflow/output-checker": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.1
+    },
+    "subagents/workflow/pipeline-designer": {
+      "model": "openai/gpt-5.5",
+      "temperature": 0.45
+    },
+    "subagents/workflow/plan-maker": {
+      "model": "openai/gpt-5.5",
+      "temperature": 0.2
     }
   }
 }

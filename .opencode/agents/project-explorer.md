@@ -1,8 +1,6 @@
 ---
 description: 纯聊天agent，读取项目内容作为知识库，解答用户关于模型训练的各类问题。
 mode: primary
-model: deepseek/deepseek-v4-pro
-temperature: 0.25
 permission:
   edit: deny
   bash: allow

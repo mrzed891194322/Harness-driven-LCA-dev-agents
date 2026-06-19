@@ -19,8 +19,7 @@ agent: subagents/tools/doc-handler
    对于在 `knowledgebase-mapping` 中查阅到的所有映射关系，使用 `build-rag-database` 技能运行转化以生成向量数据库。运行代码示例如下：
    ```bash
    uv run python .opencode/skills/build-rag-database/assets/build_rag.py --input-dir <映射中的输入目录> --output-dir <映射中的输出目录>
-   ```
-
+   ```   
 
 4. **立即停止**：
    在执行完上述步骤后，立即停止，不要进行任何多余的工作（例如：不要调用 `main-workflow`  等任何其他技能，不要创建任何额外的待办任务或输出总结文件，直接结束并向用户报告任务已完成）。如果是 `major-executor` agent读到这段话，请执行“触发情形3”，不执行任何工作流并立即终止工作，结束当前会话。

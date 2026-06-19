@@ -1,8 +1,6 @@
 ---
 description: 基于主 agent 任务、评估反馈和数据理解结果，为环境工程 AI 模型训练生成整体训练流水线设计（数据处理、算法模型、评估方案）。
 mode: subagent
-model: openai/gpt-5.5
-temperature: 0.45
 permission:
   edit: deny
   bash: allow

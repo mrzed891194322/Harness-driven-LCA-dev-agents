@@ -1,8 +1,6 @@
 ---
 description: 面向环境工程领域人工智能模型训练的方案制定、任务拆解和风险评审子 agent。
 mode: subagent
-model: openai/gpt-5.5
-temperature: 0.2
 permission:
   edit: deny
   bash: allow

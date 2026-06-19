@@ -1,8 +1,6 @@
 ---
 description: 面向环境工程人工智能模型训练任务的数据清洗、划分、预处理、特征构造和数据泄漏风险控制。
 mode: subagent
-model: deepseek/deepseek-v4-pro
-temperature: 0.2
 permission:
   edit: deny
   bash: allow

@@ -1,8 +1,6 @@
 ---
 description: 编写和整理中文实验文档、README、计划文档、模型说明和结果报告。
 mode: subagent
-model: deepseek/deepseek-v4-flash
-temperature: 0.1
 permission:
   edit: allow
   bash: allow

@@ -1,8 +1,6 @@
 ---
 description: 按既定方案实现 Python、PyTorch、数据加载、训练入口和工具函数。
 mode: subagent
-model: deepseek/deepseek-v4-flash
-temperature: 0.1
 permission:
   edit: allow
   bash: allow

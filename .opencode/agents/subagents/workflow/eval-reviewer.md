@@ -1,8 +1,6 @@
 ---
 description: 面向环境工程人工智能模型训练任务的效果评估、指标解释、误差诊断和优化建议评审。
 mode: subagent
-model: openai/gpt-5.5
-temperature: 0.1
 permission:
   edit: deny
   bash: allow

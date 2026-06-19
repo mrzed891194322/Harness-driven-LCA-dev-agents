@@ -1,8 +1,6 @@
 ---
 description: 面向环境工程人工智能模型训练任务的输出检查与分支判定代理，决定是继续训练循环还是交付输出。
 mode: subagent
-model: deepseek/deepseek-v4-pro
-temperature: 0.1
 permission:
   edit: deny
   bash: allow
