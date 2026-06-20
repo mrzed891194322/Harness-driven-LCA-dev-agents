@@ -10,21 +10,17 @@
 
 ```text
 .
-├── .venv/                  # Python 虚拟环境（由 uv 管理，勿提交）
-├── .opencode/              # opencode 配置与 skills
+├── .opencode/              # opencode 配置与 agent-skills
 │   ├── agents/             # agent 定义文件
 │   └── skills/             # 本地 skills
-├── docs/                   # 全局文档与知识库
+├── docs/                   # 全局文档与说明
 ├── input/                  # 外部输入目录
 ├── output/                 # 最终确定的交付物及对外输出
 ├── src/                    # 项目核心执行代码与运行状态
-├── main.py                 # 主运行脚本（如有）
-├── pyproject.toml          # uv 项目配置与依赖声明
-├── uv.lock                 # uv 依赖锁定
-├── .gitignore              # Git 忽略规则
-├── .python-version         # Python 版本声明
 ├── AGENT.md                # 针对所有 agent 的最高优先级行为准则
-└── README.md               # 项目总说明
+├── README.md               # 项目总说明
+└── (其他环境/配置文件)       # .venv/, .env, pyproject.toml, uv.lock, .gitignore, .python-version 等
+
 ```
 
 ---
@@ -38,12 +34,12 @@
 
 ### 2.2 `input/` 与 `output/`
 
-- **`input/`**：统一存放由外部用户给到的输入内容。原始数据放置在 `input/data/`，零散文件放置在 `input/files/`，全局规划或外部需求文档放置在 `input/plan.md`，一般只能读取不能修改。
+- **`input/`**：统一存放由外部用户给到的输入内容。原始数据放置在 `input/data/`，零散文件放置在 `input/files/`，全局静态知识库放置在 `input/knowledge_base/`，全局规划或外部需求文档放置在 `input/plan.md`。
 - **`output/`**：只存放对外交付或最终合规验证的结果。过程中的临时文件绝不能放在此处。
 
-### 2.3 `docs/` — 全局文档与知识库
+### 2.3 `docs/` — 全局文档与说明
 
-- **用途**：仓库级别的静态说明文档与知识累积。包含用于理解业务或 LCA 规范的基础资料库（`knowledge_base/`）。
+- **用途**：仓库级别的静态说明文档与知识累积。
 
 ### 2.4 `src/` — 核心代码与状态
 

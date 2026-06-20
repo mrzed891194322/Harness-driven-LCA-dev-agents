@@ -39,7 +39,7 @@ src/
 
 ### 2.4 `knowledge/` — 动态生成的 RAG 知识库
 
-- **职责**：这个目录下放的是以 RAG（Retrieval-Augmented Generation）形式构建的知识库。它通过 embedding 模型动态生成与读取，用于供 Agent 在解决特定 LCA 问题时作为“运行时热知识”进行检索，这与 `docs/knowledge_base/` 中沉淀的基础静态规范不同。
+- **职责**：这个目录下放的是以 RAG（Retrieval-Augmented Generation）形式构建的知识库。它通过 embedding 模型动态生成与读取，用于供 Agent 在解决特定 LCA 问题时作为“运行时热知识”进行检索，其内容直接来源于 `input/knowledge_base/` 中沉淀的基础静态规范。
 
 ### 2.5 `plan/` — 具体执行规划与策略
 

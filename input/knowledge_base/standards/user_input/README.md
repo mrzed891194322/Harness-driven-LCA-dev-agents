@@ -1,0 +1,1 @@
+Users can place the files here that they wish to use to supplement the knowledge base.

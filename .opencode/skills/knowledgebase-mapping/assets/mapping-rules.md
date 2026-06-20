@@ -6,8 +6,8 @@
 
 | 原始输入目录 | RAG 数据库目标子目录 | 用途描述 |
 |---|---|---|
-| `docs/knowledge_base/standards` | `src/knowledge/standards` | 静态项目知识库：参考标准 |
-| `docs/knowledge_base/openlca_manual` | `src/knowledge/openlca_manual` | 静态项目知识库：OpenLCA 使用说明 |
+| `input/knowledge_base/standards` | `src/knowledge/standards` | 静态项目知识库：参考标准 |
+| `input/knowledge_base/openlca_manual` | `src/knowledge/openlca_manual` | 静态项目知识库：OpenLCA 使用说明 |
 | `input/files` | `src/knowledge/input` | 动态输入的特定 LCA 任务原始数据文件 |
 
 ## 转化执行命令参考
