@@ -11,4 +11,4 @@
 
 - [ ] 完善项目架构技能
 
-- [ ] 
+- [ ] LCI-designer agent-skill
