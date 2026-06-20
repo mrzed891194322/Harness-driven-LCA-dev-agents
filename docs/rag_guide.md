@@ -7,7 +7,7 @@
 ## 💡 RAG 系统概述
 
 本项目使用 **ChromaDB** 作为本地向量数据库（Collection 名称为 `rag_collection`），并结合 **Embedding 模型** 实现知识检索。
-- **文本提取**：采用 Microsoft 的 `markitdown` 提取 PDF、Word 等格式文件的文本；对 `.md` 和 `.txt` 文件直接读取。
+- **文本提取与转换**：采用 Microsoft 的 `markitdown` 将各类源文件（PDF、Word、Excel、CSV 等）在源目录下转换为 `.md` 文件，随后系统统一读取并提取所有 `.md` 文件的文本内容。对于图片等非文本文件，`markitdown` 会记录其相对路径，确保 RAG 系统在检索时能关联引用文件。
 - **文本分块**：采用 LangChain 的 `RecursiveCharacterTextSplitter`，分块大小（`chunk_size`）为 1000 字符，重叠大小（`chunk_overlap`）为 200 字符。
 - **Embedding API**：通过配置 `.env` 环境变量中的 API Key 与 API Base 支持任意 OpenAI 兼容的 Embedding 接口。
 
@@ -82,4 +82,4 @@ uv run python .opencode/skills/query-rag-database/assets/query_rag.py "您的查
    EMBEDDING_MODEL="使用的 Embedding 模型名称"
    ```
 2. **支持的文件格式**：
-   支持的文件类型由 [.opencode/skills/build-rag-database/assets/config.json](../.opencode/skills/build-rag-database/assets/config.json) 中的 `supported_file_types` 列表定义。默认支持 `.pdf`、`.docx`、`.doc`、`.md`、`.txt` 等格式。
+   支持的文件类型由 [.opencode/skills/build-rag-database/assets/config.json](../.opencode/skills/build-rag-database/assets/config.json) 中的 `supported_file_types` 列表定义。默认支持 `.pdf`、`.docx`、`.doc`、`.md`、`.txt`、`.xlsx`、`.xls`、`.csv`、`.json`、`.xml`、`.html`、`.pptx`、`.epub` 等格式。

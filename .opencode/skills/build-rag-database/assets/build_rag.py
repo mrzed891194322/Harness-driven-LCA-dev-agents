@@ -37,12 +37,38 @@ def build_rag(input_dir: Path, output_dir: Path):
     files = list(input_dir.rglob("*"))
     valid_files = [f for f in files if f.is_file() and is_supported_file(f, supported_extensions)]
     
-    if not valid_files:
-        print(f"No valid files matching {supported_extensions} found in {input_dir}")
+    if valid_files:
+        print(f"Initializing MarkItDown for disk conversion...")
+        md = MarkItDown()
+        
+        # 调用 markitdown 将所有支持的文件在原目录下转化为 .md 文件
+        for file_path in valid_files:
+            if file_path.suffix.lower() == ".md":
+                continue
+            try:
+                print(f"Converting {file_path} to markdown on disk...")
+                result = md.convert(str(file_path))
+                md_content = result.text_content
+                output_md_path = file_path.with_suffix(".md")
+                with open(output_md_path, "w", encoding="utf-8") as out_f:
+                    out_f.write(md_content)
+                print(f"Successfully converted and saved to {output_md_path}")
+            except Exception as e:
+                print(f"Error converting {file_path} to markdown: {e}")
+    else:
+        print(f"No original files matching {supported_extensions} found in {input_dir} for conversion.")
+
+    # 接下来只读取所有 md 文件并写入 RAG 知识库
+    md_files = [
+        f for f in input_dir.rglob("*")
+        if f.is_file() and f.suffix.lower() == ".md" and not f.name.startswith('.')
+    ]
+    
+    if not md_files:
+        print(f"No .md files found in {input_dir} to write to RAG database.")
         return
         
-    print(f"Initializing MarkItDown...")
-    md = MarkItDown()
+    print(f"Found {len(md_files)} .md files to index. Initializing database...")
     
     # 初始化 ChromaDB 集合
     collection = init_chroma_collection(output_dir, api_key, api_url, model_name)
@@ -53,9 +79,10 @@ def build_rag(input_dir: Path, output_dir: Path):
         chunk_overlap=200
     )
     
-    # 循环处理每一份有效的文件
-    for file_path in valid_files:
-        process_file(file_path, md, collection, text_splitter)
+    # 循环处理并写入每一份 md 文件
+    md_instance = MarkItDown()
+    for file_path in md_files:
+        process_file(file_path, md_instance, collection, text_splitter)
         
     print("RAG database build completed successfully.")
 

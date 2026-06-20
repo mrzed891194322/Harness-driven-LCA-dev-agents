@@ -1,11 +1,11 @@
 ---
 name: build-rag-database
-description: 使用此技能将指定输入目录中的 PDF、Word、Markdown 和文本文件等通过 markitdown 处理并提取文本，然后将其嵌入（embeddings）存储在指定输出目录的 Chroma RAG 数据库中。
+description: 使用此技能将指定输入目录中各种支持的文档和数据文件通过 markitdown 处理并提取文本，然后将其嵌入（embeddings）存储在指定输出目录的 Chroma RAG 数据库中。
 ---
 
 # 构建 RAG 数据库
 
-此技能将原始文件（支持 PDF、Word、Markdown 及 TXT 文本等类型）转换为 Markdown 格式或直接提取文本，并将其嵌入（embeddings）存储在向量数据库中。其他类型的文件（如图片）不进行转化，但如果在md中引用则会记录文件路径。
+此技能将原始文件（支持各种常见的文档、表格、演示文稿以及结构化数据等格式，具体见 config.json）转换为 Markdown 格式或直接提取文本，并将其嵌入（embeddings）存储在向量数据库中。其他类型的文件（如图片）不进行转化，但如果在md中引用则会记录文件路径。
 
 ## 适用场景
 

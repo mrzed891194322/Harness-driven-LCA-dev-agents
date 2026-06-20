@@ -1,3 +1,16 @@
 {
-  "supported_file_types": [".pdf", ".docx", ".doc", ".md", ".txt"]
+  "supported_file_types": [
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".txt",
+    ".xlsx",
+    ".xls",
+    ".csv",
+    ".json",
+    ".xml",
+    ".html",
+    ".pptx",
+    ".epub"
+  ]
 }
