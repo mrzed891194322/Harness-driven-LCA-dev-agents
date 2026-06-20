@@ -22,17 +22,22 @@ assets/
 │   ├── main.py                     # 入口主程序
 │   ├── README.md                   # 该计算任务的配置使用文档
 │   └── private_utils/              # 产品系统局部的私有工具目录
-│       ├── __init__.py             # 初始化标识文件
-│       ├── calculation.py          # 包含特定语境日志的计算逻辑
-│       └── cli.py                  # 专属参数解析器 [NEW]
 │
-└── calculate_process_direct/       # 任务：直接计算过程 (Process) 目录
+├── calculate_process_direct/       # 任务：直接计算过程 (Process) 目录
+│   ├── main.py                     # 入口主程序
+│   ├── README.md                   # 该计算任务的配置使用文档
+│   └── private_utils/              # 过程计算局部的私有工具目录
+│
+├── import_from_json/               # 任务：从 JSON 配置文件批量导入 Flow/Process 目录
+│   ├── main.py                     # 入口主程序
+│   ├── README.md                   # 该导入任务的配置使用文档
+│   ├── examples/                   # 示例 JSON 配置目录
+│   └── private_utils/              # 导入任务局部的私有工具目录
+│
+└── get_model_graph/                # 任务：获取产品系统的模型图依赖及连线拓扑目录
     ├── main.py                     # 入口主程序
-    ├── README.md                   # 该计算任务的配置使用文档
-    └── private_utils/              # 过程计算局部的私有工具目录
-        ├── __init__.py             # 初始化标识文件
-        ├── calculation.py          # 包含特定语境日志的计算逻辑
-        └── cli.py                  # 专属参数解析器 [NEW]
+    ├── README.md                   # 该提取任务的配置使用文档
+    └── private_utils/              # 提取任务局部的私有工具目录
 ```
 
 ---
