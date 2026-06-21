@@ -33,17 +33,18 @@
   - 在过程的 `exchanges` 列表中，若某项输入明确由特定的背景数据集（如 ecoinvent 或区域数据库中的已知过程）提供，应当在相应的 `exchange` 对象中添加 `defaultProvider` 字段，并指定提供该物质的目标过程的 UUID。
 
 - **产品系统构建配置 (Product Systems)**：
-  - 为了后续能顺利在 openLCA 中构建拓扑网络，必须在 `src/LCI/` 中输出一个 `product_systems.json` 配置文件。
-  - 该配置文件需要明确指定**根过程 (Root Process)** 以及自动连接偏好。请参照如下 JSON 结构生成：
+  - 为了后续能顺利在 openLCA 中构建拓扑网络，必须在 `src/LCI/product_systems/` 目录下输出符合 JSON-LD 规范的配置文件。
+  - 该配置文件需要明确指定**参考过程 (Reference Process)** 以及自动连接偏好。请参照如下 JSON 结构生成（切勿使用 `rootProcess` 等非标准字段）：
     ```json
     {
-      "product_systems": [
-        {
-          "root_process_id": "<你的核心目标过程的 UUID>",
-          "name": "<产品系统的名称，通常与主过程相关>",
-          "prefer_default_providers": true
-        }
-      ]
+      "@type": "ProductSystem",
+      "@id": "<为你建立的产品系统分配一个全局唯一的 UUID>",
+      "name": "<产品系统的名称，通常与主过程相关>",
+      "refProcess": {
+        "@type": "Process",
+        "@id": "<你的核心目标过程的 UUID>"
+      },
+      "preferDefaultProviders": true
     }
     ```
 

@@ -1,0 +1,10 @@
+{
+  "@type": "ProductSystem",
+  "@id": "b3f4a1d2-c5e6-7890-abcd-ef1234567890",
+  "name": "Target Product System Example",
+  "refProcess": {
+    "@type": "Process",
+    "@id": "c20e522a-f2a3-4f99-b09e-ba701b2bd147"
+  },
+  "preferDefaultProviders": true
+}

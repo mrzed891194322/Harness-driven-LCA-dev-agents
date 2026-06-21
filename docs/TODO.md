@@ -3,7 +3,11 @@
 
 - [ ] 完善项目架构技能
 
+- [ ] flow process 等json导出的命名规范
+
 - [ ] eval agent-skill
+
+- [ ] 更新 使用方法 readme
 
 - [x] LCI-designer agent-skill
 
