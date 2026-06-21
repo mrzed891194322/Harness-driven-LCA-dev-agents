@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import olca_schema
 
-def import_json_files(client, json_dir: Path):
+def import_json_files(client, json_dir: Path, project_name: str = None):
     if not json_dir.exists():
         print(f"[错误] 指定的目录不存在: {json_dir}")
         sys.exit(1)
@@ -45,7 +45,14 @@ def import_json_files(client, json_dir: Path):
                 except AttributeError:
                     print(f"[错误] olca_schema 中不存在类型: {entity_type}，跳过此文件。")
                     continue
-            
+            # 设置 category（命名方式：时间+项目）
+            from datetime import datetime
+            time_str = datetime.now().strftime("%Y%m%d")
+            proj = project_name if project_name else Path.cwd().name
+            category_name = f"{time_str}_{proj}"
+            if hasattr(entity, "category"):
+                entity.category = category_name
+
             # 使用 client.put 导入/更新
             ref = client.put(entity)
             if ref:

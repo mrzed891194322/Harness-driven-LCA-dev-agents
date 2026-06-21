@@ -19,4 +19,10 @@ def add_arguments(parser):
         default=8080,
         help="openLCA IPC Server 的端口号（默认：8080）"
     )
+    parser.add_argument(
+        "--project", "-P",
+        type=str,
+        default=None,
+        help="具体工作任务/项目的名称（由 Agent 根据当前任务上下文决定）"
+    )
     return parser

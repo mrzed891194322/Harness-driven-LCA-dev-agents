@@ -10,14 +10,7 @@
 ## 文件格式与规范
 
 实体必须使用 **camelCase** 的 JSON-LD 格式，并在最顶层以及所有关联的 Ref 中声明正确的 `@type` 和 `@id` (UUID)。
-
-*   **Flow 示例**：参见 [flow_example.json](examples/flow_example.json)
-*   **Process 示例**：参见 [process_example.json](examples/process_example.json)
-
-> [!NOTE]
-> 在配置嵌套的 `Ref` 对象（如 `flowProperty` 或 `unit`）时，`@id` 必须使用 openLCA 中的有效 UUID。常用参考：
-> - 质量 FlowProperty 的 UUID: `bca7e4ea-ad3a-4424-aa61-fb9617300c82`
-> - 千克 (kg) 单元的 UUID: `20a8dd24-3405-47d4-9f50-cd467688c69d`
+详细的 JSON-LD 数据结构模板与构建规范，请参考 `lci-construction` 技能的 `assets` 目录。
 
 ## 运行方式
 
