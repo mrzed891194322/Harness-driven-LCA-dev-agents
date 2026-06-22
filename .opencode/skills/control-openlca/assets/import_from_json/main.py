@@ -44,7 +44,7 @@ def main():
     client = connect_ipc(args.host, args.port, olca_schema.Flow)
 
     # 2. 导入指定文件夹中的 JSON 文件
-    import_json_files(client, Path(args.json_dir), project_name=args.project)
+    import_json_files(client, Path(args.json_dir))
 
 if __name__ == "__main__":
     main()

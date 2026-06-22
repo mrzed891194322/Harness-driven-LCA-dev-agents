@@ -12,5 +12,5 @@ agent: subagents/workflow/LCI-designer
 > $USER_REQUIREMENTS
 
 **任务结束**：
-待 `LCI-designer` 完成所有 JSON 实体文件和人类可读映射报告并向你汇报后，你只需向用户简单汇报结果即可，并立即终止当前会话。严禁执行任何多余工作（包括但不限于调用 `main-workflow`、其他技能或创建新任务）。
+待 `LCI-designer` 完成所有 JSON 实体文件和人类可读映射报告、并成功批量导入至 openLCA 数据库后，你只需向用户汇报生成结果与导入状态即可，并立即终止当前会话。严禁执行任何多余工作（包括但不限于调用 `main-workflow`、其他技能或创建新任务）。
 如果是 `major-executor` 正在读取本命令，请严格执行“触发情形3”，不启动其他工作流并直接结束。

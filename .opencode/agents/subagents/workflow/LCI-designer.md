@@ -36,7 +36,11 @@ color: info
 4. **质量评估 (调用 `eval-reviewer`)**
    - 待所有文件落地后，**必须强制调用** `subagents/workflow/eval-reviewer` 充当质检员。
    - 向其传递待检目录 (`src/LCI/`) 以及规定的质检清单 (`assets/self_check.md`) 以执行交叉核验。
+   - **闭环迭代**：如果检测出任何结构或数据质量问题，必须调用 `subagents/tools/doc-handler` 进行定向修复，并再次进行质量评估，直到全盘达标。
 
-5. **闭环迭代与汇报**
-   - **错误打回**：根据反馈，若存在 UUID 错位或基准量遗漏，须重新召唤 `doc-handler` 执行定向修复。
-   - **结束汇报**：全盘达标后，向人类总结总计生成的实体数量与路径。**（绝对禁止：尝试将数据导入 openLCA）**
+5. **批量导入至 openLCA (调用 `doc-handler`)**
+   - **数据导入**：评估通过且全盘达标后，**必须调用 `subagents/tools/doc-handler`**，要求其加载并严格遵循 `LCI-construction` 技能下的 `assets/import_specification.md` 导入规范将数据批量导入 openLCA 数据库。
+   - **导入异常处理**：若导入过程中发现遗留的数据质量报错，继续召唤 `doc-handler` 进行针对性修正后再次尝试导入。
+
+6. **结束汇报**
+   - 全盘成功导入后，向人类总结生成的实体数量、路径及导入结果，并立即终止当前会话。严禁执行任何多余工作（包括但不限于调用 `main-workflow`、其他技能或创建新任务）。

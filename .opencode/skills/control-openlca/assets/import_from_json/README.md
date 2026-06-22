@@ -14,13 +14,18 @@
 
 ## 运行方式
 
-通过命令行指定存放 JSON 文件的目录（该目录下的所有 `.json` 文件都将被遍历解析并导入）：
+通过命令行指定存放 JSON 文件的目录（支持子目录结构，并支持自动覆盖同名目录/分类）：
 
 ```bash
 uv run python .opencode/skills/control-openlca/assets/import_from_json/main.py <JSON配置文件目录> --host <主机地址> --port <端口>
 ```
 
 **参数说明**：
-*   `json_dir` (位置参数): 存放 JSON 结构化配置文件的文件夹路径。
-*   `--host` (可选): openLCA IPC Server 主机（默认：`localhost`）。
+*   `json_dir` (位置参数): 存放 JSON 结构化配置文件的文件夹路径。如果指定目录中含有 `flows`、`processes`、`product_systems` 等子目录，将按照该依赖顺序依次导入。
+*   `--host` (可选): openLCA IPC Server 主机（默认：`127.0.0.1`）。
 *   `--port` (可选): openLCA IPC Server 端口（默认：`8080`）。
+
+### 特色机制
+
+1. **自动获取项目名称**：脚本会自动从 `src/plan/execution_plan.md` 中解析出项目的英文缩写（如 `gold_plating`），直接作为导入实体的数据库分类目录名称，无须手动传参或进行多余的时间戳拼接。
+2. **同名分类覆盖机制**：如果 openLCA 中已存在同名分类/目录，脚本将在导入前自动清空该分类下的所有已有实体，确保数据最新且不重复。

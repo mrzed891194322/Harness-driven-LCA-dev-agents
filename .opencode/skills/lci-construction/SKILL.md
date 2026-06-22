@@ -1,6 +1,6 @@
 ---
 name: LCI-construction
-description: 规定 agent 如何根据目标与参考文件，发挥大模型文本映射能力，生成符合 openLCA schema 规范的结构化 LCI 数据（如 Flow、Process 的 JSON 配置及相关的链接配置）。注意：此技能是唯一标准，不负责将数据实际导入 openLCA。
+description: 规定 agent 如何根据目标与参考文件，发挥大模型文本映射能力，生成符合 openLCA schema 规范的结构化 LCI 数据（如 Flow、Process 的 JSON 配置及相关的链接配置），并最终将其批量导入 openLCA 数据库。
 allowed-tools: Read File
 ---
 
@@ -10,7 +10,7 @@ allowed-tools: Read File
 
 **核心定位**：作为拥有强大文本理解与推理能力的大语言模型 (LLM)，你需要深刻理解计划文本（如 `execution_plan.md`）中隐式的工艺逻辑、物质流向、单位换算和分配关系，将其精确抽取、转化并映射为高度严谨的 JSON 结构化数据。
 
-**注意**：本规范仅关注如何**生成**结构化数据，后续的“导入”操作由专职工具独立完成。本技能下的 `assets/` 目录存放了系统中唯一的官方 JSON 模板参考。
+**注意**：本技能下的 `assets/` 目录存放了系统中唯一的官方 JSON 模板参考。在生成 JSON 数据并通过质检后，你需要作为本工作流的最后一步将数据批量导入 openLCA 数据库中。
 
 ## 详细参考执行方案
 
@@ -39,6 +39,11 @@ allowed-tools: Read File
 - 仅仅输出供机器（openLCA）读取的 JSON 配置文件是远远不够的。为了确保工作透明度并赋予人类专家判断是否合格、是否需要手动介入或调整数据的能力，你必须将你理解的隐式工艺逻辑、计算转化过程以及推演出的依赖关系转化成人类易读的 Markdown 报告。
 - **请显式读取以下报告模板，并准备随同 JSON 数据一起交由 `doc-handler` 进行写入**：
   👉 **[assets/template/human_readable_mapping.md](assets/template/human_readable_mapping.md)**
+
+### 第五步：批量导入至 openLCA
+- 数据文件自检达标且生成报告后，必须将数据批量导入 openLCA 数据库。
+- **请显式读取并对照此导入规范执行导入操作**：
+  👉 **[assets/import_specification.md](assets/import_specification.md)**
 
 ## 规范化输出目录架构要求
 
