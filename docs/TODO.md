@@ -9,6 +9,12 @@
 
 - [ ] 更新 使用方法 readme
 
+- [ ] product system成功连线 （编号继承逻辑是否正确？是否可以这么修改？）
+
+- [ ] 将LCI的制定/导出更新逻辑合并（修改OpenLCA导出文件夹命名方式）
+
+- [ ] 重要：论文评价指标确定
+
 - [x] LCI-designer agent-skill
 
 - [x] 增加 计划制定 等command，用于调试

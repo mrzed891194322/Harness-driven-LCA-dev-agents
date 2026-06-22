@@ -20,8 +20,10 @@ allowed-tools: Read File
 - 细致研读计划文档，梳理出系统边界内的所有核心工艺阶段（过程）及其相关的原材料、能源、副产品及排放物（流）。
 - 从非结构化文本中精准提取出数据关系：如，为了产出 1 kg 目标产品，需要消耗多少千瓦时电力与原辅料。
 - **按需调用双库检索能力**：
-  - **规则与标准**：遇到术语模糊或缺乏具体工艺支撑时，必须调用 `query-rag-database` 技能，从 RAG 知识库中提取支撑信息。
-  - **背景数据匹配**：当需要将原材料或能源挂载到实际的背景数据集（如 ecoinvent）时，**必须加载并调用** `control-openlca` 技能下的 `query_descriptors` 脚本（即直接通过 IPC 查询正在运行的 openLCA 数据库），检索并获取目标过程极其精确的提供者名称与 UUID，严禁凭空捏造。
+   - **规则与标准**：遇到术语模糊或缺乏具体工艺支撑时，必须调用 `query-rag-database` 技能，从 RAG 知识库中提取支撑信息。
+   - **建立网络连线 (Provider Linking)**：为了确保生成的产品系统能在 openLCA 中正确连线并生成模型图（Model Graph），所有输入流的 Exchange 中都必须指明 `defaultProvider`。
+   - **内部前台工序**：梳理内部工序间的上下游关系（如工序A的产物是工序B的输入），将工序A的 UUID 填入工序B相应输入流的 `defaultProvider` 中。
+   - **外部背景数据**：当需要将原材料或能源挂载到实际的背景数据集（如 ecoinvent）时，**必须加载并调用** `control-openlca` 技能下的 `query_descriptors` 脚本（直接通过 IPC 查询 openLCA），检索并获取目标过程极其精确的 UUID 填入 `defaultProvider`，严禁凭空捏造。
 
 ### 第二步：LCI 核心架构映射与构建
 - 本阶段负责将非结构化计划全面映射为 openLCA 的核心对象体系，具体涵盖：流 (Flows)、过程 (Processes)、背景数据链接 (Provider Linking) 以及产品系统 (Product Systems) 的配置构建。
