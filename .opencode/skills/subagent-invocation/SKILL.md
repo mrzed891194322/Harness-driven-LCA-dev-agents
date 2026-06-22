@@ -23,10 +23,9 @@ description: "Opencode 子 Agent 调用规范。在任何 Agent/子 Agent 需要
 | 子 Agent 简写 (描述使用) | 分类 | 完整调用路径 (系统调用/配置使用) | 对应定义文件 |
 | :--- | :--- | :--- | :--- |
 | `data-processor` | 建模工作流 (workflow) | `subagents/workflow/data-processor` | `subagents/workflow/data-processor.md` |
-| `eval-reviewer` | 建模工作流 (workflow) | `subagents/workflow/eval-reviewer` | `subagents/workflow/eval-reviewer.md` |
-| `model-trainer` | 建模工作流 (workflow) | `subagents/workflow/model-trainer` | `subagents/workflow/model-trainer.md` |
-| `output-checker` | 建模工作流 (workflow) | `subagents/workflow/output-checker` | `subagents/workflow/output-checker.md` |
-| `pipeline-designer` | 建模工作流 (workflow) | `subagents/workflow/pipeline-designer` | `subagents/workflow/pipeline-designer.md` |
+| `plan-maker` | 建模工作流 (workflow) | `subagents/workflow/plan-maker` | `subagents/workflow/plan-maker.md` |
+| `LCI-designer` | 建模工作流 (workflow) | `subagents/workflow/LCI-designer` | `subagents/workflow/LCI-designer.md` |
+| `eval-executor` | 建模工作流 (workflow) | `subagents/workflow/eval-executor` | `subagents/workflow/eval-executor.md` |
 | `doc-handler` | 通用工具 (tools) | `subagents/tools/doc-handler` | `subagents/tools/doc-handler.md` |
 | `code-builder` | 通用工具 (tools) | `subagents/tools/code-builder` | `subagents/tools/code-builder.md` |
 

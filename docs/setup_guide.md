@@ -58,7 +58,7 @@ npm install -g opencode-ai
 * **全局/项目行为规则**：
   本项目智能体的行为与规范遵循根目录下的 [AGENT.md](../AGENT.md)。项目级opencode配置文件位于 [.opencode/opencode.json](../.opencode/opencode.json)。 
 * **智能体模型配置**：
-  项目级 Agent 的模型配置推荐直接在 [.opencode/agents/](../.opencode/agents/) 目录下的各智能体定义文件（例如 [.opencode/agents/major-executor.md](../.opencode/agents/major-executor.md)）中进行修改。
+  项目级 Agent 的模型配置推荐直接在 [.opencode/agents/](../.opencode/agents/) 目录下的各智能体定义文件（例如 [.opencode/agents/major-orchestrator.md](../.opencode/agents/major-orchestrator.md)）中进行修改。
   更详细的配置介绍请参阅 [OpenCode 官方配置文档](https://opencode.ai/)。
 
 ---

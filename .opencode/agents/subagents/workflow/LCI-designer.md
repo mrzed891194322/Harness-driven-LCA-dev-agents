@@ -7,7 +7,7 @@ permission:
   task:
     "*": deny
     subagents/tools/doc-handler: allow
-    subagents/workflow/eval-reviewer: allow
+    subagents/workflow/eval-executor: allow
 color: info
 ---
 
@@ -33,8 +33,8 @@ color: info
    - 将任务清单**拆分并下发给多个** `subagents/tools/doc-handler` 子智能体并发写入。
    - 下发任务时，必须要求它们查阅 `LCI-construction` 提供的模板与标准。同时，必须明确赋予和要求子智能体按需使用 `query-rag-database` 检索知识库的能力，以及调用 `control-openlca` 下的 `query_descriptors` 脚本直连检索 openLCA 背景数据库的能力。
 
-4. **质量评估 (调用 `eval-reviewer`)**
-   - 待所有文件落地后，**必须强制调用** `subagents/workflow/eval-reviewer` 充当质检员。
+4. **质量评估 (调用 `eval-executor`)**
+   - 待所有文件落地后，**必须强制调用** `subagents/workflow/eval-executor` 充当质检员。
    - 向其传递待检目录 (`src/LCI/`) 以及规定的质检清单 (`assets/self_check.md`) 以执行交叉核验。
    - **闭环迭代**：如果检测出任何结构或数据质量问题，必须调用 `subagents/tools/doc-handler` 进行定向修复，并再次进行质量评估，直到全盘达标。
 

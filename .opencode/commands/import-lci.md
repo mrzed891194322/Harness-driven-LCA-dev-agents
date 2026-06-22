@@ -18,4 +18,4 @@ uv run python .opencode/skills/control-openlca/assets/import_from_json/main.py s
 
 **任务结束**：
 待导入执行完毕后，你只需向用户汇报导入结果（如成功导入/覆盖的数量及任何异常报错），并立即终止当前会话。严禁执行任何多余工作（包括但不限于调用 `main-workflow`、其它技能或创建新的任务）。
-如果是 `major-executor` 正在读取本命令，请严格执行“触发情形3”，不启动其他工作流并直接结束。
+如果是 `major-orchestrator` 正在读取本命令，请严格执行“触发情形3”，不启动其他工作流并直接结束。

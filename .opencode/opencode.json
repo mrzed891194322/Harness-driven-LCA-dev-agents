@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "major-executor",
+  "default_agent": "major-orchestrator",
   "share": "manual",
   "instructions": [],
   "agent": {
@@ -10,11 +10,7 @@
     "build": {
       "disable": true
     },
-    "major-executor": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.25
-    },
-    "project-explorer": {
+    "major-orchestrator": {
       "model": "deepseek/deepseek-v4-pro",
       "temperature": 0.25
     },
@@ -30,21 +26,9 @@
       "model": "deepseek/deepseek-v4-pro",
       "temperature": 0.2
     },
-    "subagents/workflow/eval-reviewer": {
+    "subagents/workflow/eval-executor": {
       "model": "deepseek/deepseek-v4-pro",
       "temperature": 0.1
-    },
-    "subagents/workflow/model-trainer": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.2
-    },
-    "subagents/workflow/output-checker": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.1
-    },
-    "subagents/workflow/pipeline-designer": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.45
     },
     "subagents/workflow/LCI-designer": {
       "model": "deepseek/deepseek-v4-pro",

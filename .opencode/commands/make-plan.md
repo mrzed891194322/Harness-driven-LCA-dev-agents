@@ -13,4 +13,4 @@ agent: subagents/workflow/plan-maker
 
 **任务结束**：
 待 `plan-maker` 完成计划制定和文件生成后，你只需向用户简单汇报结果即可，并立即终止当前会话。严禁执行任何多余工作（包括但不限于调用 `main-workflow`、其他技能或创建新任务）。
-如果是 `major-executor` 正在读取本命令，请严格执行“触发情形3”，不启动其他工作流并直接结束。
+如果是 `major-orchestrator` 正在读取本命令，请严格执行“触发情形3”，不启动其他工作流并直接结束。
