@@ -15,7 +15,7 @@ if hasattr(sys.stderr, 'reconfigure'):
     except Exception:
         pass
 
-# 将 assets 目录加入 sys.path 以使用公共的 utils
+# 将 scripts 目录加入 sys.path 以使用公共的 utils
 sys.path.append(str(Path(__file__).parent.parent))
 # 将当前脚本目录加入 sys.path 以使用私有的 private_utils
 sys.path.append(str(Path(__file__).parent))

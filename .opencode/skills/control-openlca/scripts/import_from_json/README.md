@@ -17,7 +17,7 @@
 通过命令行指定存放 JSON 文件的目录（支持子目录结构，并支持自动覆盖同名目录/分类）：
 
 ```bash
-uv run python .opencode/skills/control-openlca/assets/import_from_json/main.py <JSON配置文件目录> --host <主机地址> --port <端口>
+uv run python .opencode/skills/control-openlca/scripts/import_from_json/main.py <JSON配置文件目录> --host <主机地址> --port <端口>
 ```
 
 **参数说明**：

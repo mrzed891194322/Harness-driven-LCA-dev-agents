@@ -12,7 +12,7 @@
     *   **`__init__.py`**：初始化标识文件。
     *   **`calculation.py`**：包含仅针对产品系统计算日志和设置的 `run_calculation` 函数。
     *   **`cli.py`**：专属命令行参数解析定义。
-*   **`assets/utils/` (共享模块)**：存放多个脚本共用的工具函数包，位于上一级资产目录下。
+*   **`scripts/utils/` (共享模块)**：存放多个脚本共用的工具函数包，位于上一级脚本目录下。
     *   **`connection.py`**：负责建立与 openLCA IPC Server 的 HTTP 连接并测试可用性。
     *   **`entity.py`**：实现通用实体查找逻辑（`find_entity`）。
     *   **`export.py`**：负责 LCIA 计算结果的格式化提取、控制台 Markdown 打印与 CSV/JSON 文件导出。
@@ -21,7 +21,7 @@
 ## 运行命令
 
 ```bash
-uv run python .opencode/skills/control-openlca/assets/calculate_product_system/main.py "产品系统名称或UUID" --method "LCIA方法名称或UUID" [可选参数]
+uv run python .opencode/skills/control-openlca/scripts/calculate_product_system/main.py "产品系统名称或UUID" --method "LCIA方法名称或UUID" [可选参数]
 ```
 
 ## 参数说明
@@ -51,16 +51,16 @@ uv run python .opencode/skills/control-openlca/assets/calculate_product_system/m
 ### 1. 基础计算
 计算名为 "Product System A" 的产品系统，使用 "EF 3.1" 评估方法：
 ```bash
-uv run python .opencode/skills/control-openlca/assets/calculate_product_system/main.py "Product System A" --method "EF 3.1"
+uv run python .opencode/skills/control-openlca/scripts/calculate_product_system/main.py "Product System A" --method "EF 3.1"
 ```
 
 ### 2. 带有分配方法与参数覆盖的高级计算
 使用物理分配，重定义 `electricity_ratio` 参数为 `0.8`，并将结果保存至 JSON：
 ```bash
-uv run python .opencode/skills/control-openlca/assets/calculate_product_system/main.py "Product System A" -m "EF 3.1" -al physical -param electricity_ratio=0.8 -o output/result.json
+uv run python .opencode/skills/control-openlca/scripts/calculate_product_system/main.py "Product System A" -m "EF 3.1" -al physical -param electricity_ratio=0.8 -o output/result.json
 ```
 
 ### 3. 启用区域化与成本计算
 ```bash
-uv run python .opencode/skills/control-openlca/assets/calculate_product_system/main.py "Product System A" -m "EF 3.1" -r -c
+uv run python .opencode/skills/control-openlca/scripts/calculate_product_system/main.py "Product System A" -m "EF 3.1" -r -c
 ```

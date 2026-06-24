@@ -17,16 +17,16 @@
     *   **`__init__.py`**：初始化标识文件。
     *   **`calculation.py`**：包含仅针对过程直接计算日志和设置的 `run_calculation` 函数。
     *   **`cli.py`**：专属命令行参数解析定义。
-*   **`assets/utils/` (共享模块)**：存放多个脚本共用的工具函数包，位于上一级资产目录下。
-    *   **`connection.py`**：负责建立与 openLCA IPC Server 的 HTTP 连接并测试可用性。
-    *   **`entity.py`**：实现通用实体查找逻辑（`find_entity`）。
-    *   **`export.py`**：负责 LCIA 计算结果的格式化提取、控制台 Markdown 打印与 CSV/JSON 文件导出。
-    *   **`validation.py`**：负责处理分配方案与参数覆盖输入的预校验（Fail-Fast 逻辑）。
+*   **`scripts/utils/` (共享模块)**：存放多个脚本共用的工具函数包，位于上一级脚本目录下。
+    *   `connection.py`：负责建立与 openLCA IPC Server 的 HTTP 连接并测试可用性。
+    *   `entity.py`：实现通用实体查找逻辑（`find_entity`）。
+    *   `export.py`：负责 LCIA 计算结果的格式化提取、控制台 Markdown 打印与 CSV/JSON 文件导出。
+    *   `validation.py`：负责处理分配方案与参数覆盖输入的预校验（Fail-Fast 逻辑）。
 
 ## 运行命令
 
 ```bash
-uv run python .opencode/skills/control-openlca/assets/calculate_process_direct/main.py "过程名称或UUID" --method "LCIA方法名称或UUID" [可选参数]
+uv run python .opencode/skills/control-openlca/scripts/calculate_process_direct/main.py "过程名称或UUID" --method "LCIA方法名称或UUID" [可选参数]
 ```
 
 ## 参数说明
@@ -56,11 +56,11 @@ uv run python .opencode/skills/control-openlca/assets/calculate_process_direct/m
 ### 1. 基础过程直接计算
 对名为 "Process B" 的过程直接执行生命周期评估，并使用 "EF 3.1" 影响评估方法：
 ```bash
-uv run python .opencode/skills/control-openlca/assets/calculate_process_direct/main.py "Process B" --method "EF 3.1"
+uv run python .opencode/skills/control-openlca/scripts/calculate_process_direct/main.py "Process B" --method "EF 3.1"
 ```
 
 ### 2. 带有分配方法与结果导出的高级计算
 使用经济分配计算过程，并将结果导出为 CSV 文件：
 ```bash
-uv run python .opencode/skills/control-openlca/assets/calculate_process_direct/main.py "Process B" -m "EF 3.1" -al economic -o output/process_results.csv
+uv run python .opencode/skills/control-openlca/scripts/calculate_process_direct/main.py "Process B" -m "EF 3.1" -al economic -o output/process_results.csv
 ```
