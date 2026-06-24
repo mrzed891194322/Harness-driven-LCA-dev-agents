@@ -1,11 +1,6 @@
----
-name: subagent-invocation
-description: "Opencode 子 Agent 调用规范。在任何 Agent/子 Agent 需要调用其他子 Agent 时必须加载并遵循此规范。"
----
+# Opencode 子 Agent 调用规范 (Subagent Invocation Guidance)
 
-# subagent-invocation
-
-本技能定义了在本仓库中调用子 Agent 的路径规范与命名约定。
+本文件由 `project-specification` 技能维护，定义了在本仓库中调用子 Agent 的路径规范与命名约定。
 
 ## 核心原则
 

@@ -34,7 +34,7 @@ permission:
 - **工具调用与执行规范**：
   1. 你写代码和写文档必须全部通过调用 `code-builder` 和 `doc-handler` 工具 agent 执行（如有多个代码和文档编写任务，可以同时调用多个工具 agent 并行执行）。
   2. 涉及代码编写时，你必须亲自在当前环境中执行生成的代码进行验证。如果执行出现报错或不符合预期，你必须将错误信息、调试分析和修改方案再次提供给 `code-builder` 重新修改，如此循环，直到最终确保代码可以成功执行为止。
-- 调用任何子 Agent 时，必须加载并严格遵守 `subagent-invocation` 技能规范，在发起系统或任务调用时使用其完整路径（如 `subagents/tools/code-builder`），而在描述中则使用简写。
+- 调用任何子 Agent 时，必须加载并严格遵守 `project-specification` 技能下的 `assets/subagent-invocation/` 规范，在发起系统或任务调用时使用其完整路径（如 `subagents/tools/code-builder`），而在描述中则使用简写。
 
 
 # 输出要求

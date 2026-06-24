@@ -6,7 +6,7 @@
 
 1. **客户端与 IPC 服务**：请确保本地已开启 openLCA 桌面客户端，并启动了 IPC Server 服务（默认端口 `8080`）。
 2. **导入工具**：使用 `control-openlca` 技能下的导入脚本：
-   👉 `.opencode/skills/control-openlca/scripts/import_from_json/main.py`
+   `.opencode/skills/control-openlca/scripts/import_from_json/main.py`
 
 ## 执行命令
 
