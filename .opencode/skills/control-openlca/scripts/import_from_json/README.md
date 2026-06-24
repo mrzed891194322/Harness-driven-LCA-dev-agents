@@ -10,7 +10,7 @@
 ## 文件格式与规范
 
 实体必须使用 **camelCase** 的 JSON-LD 格式，并在最顶层以及所有关联的 Ref 中声明正确的 `@type` 和 `@id` (UUID)。
-详细的 JSON-LD 数据结构模板与构建规范，请参考 `lci-construction` 技能的 `assets` 目录。
+详细的 JSON-LD 数据结构模板与构建规范，请参考 `project-specification` 技能的 `assets/lci-construction/` 目录。
 
 ## 运行方式
 
