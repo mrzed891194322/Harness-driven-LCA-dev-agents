@@ -1,14 +1,11 @@
-import argparse
 from pathlib import Path
 from markitdown import MarkItDown
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from utils import (
-    load_embedding_config,
-    get_supported_extensions,
-    is_supported_file,
-    init_chroma_collection,
-    process_file
-)
+
+from utils.embedding import load_embedding_config
+from private_utils.db import init_chroma_collection
+from private_utils.file_filter import get_supported_extensions, is_supported_file
+from private_utils.file_indexer import process_file
 
 def build_rag(input_dir: Path, output_dir: Path):
     """
@@ -85,28 +82,3 @@ def build_rag(input_dir: Path, output_dir: Path):
         process_file(file_path, md_instance, collection, text_splitter)
         
     print("RAG database build completed successfully.")
-
-def main():
-    parser = argparse.ArgumentParser(description="Build RAG database from input files.")
-    parser.add_argument(
-        "--input-dir", "-i",
-        type=str,
-        default="input",
-        help="Input directory containing PDF/Word/Markdown/Text files (default: input)"
-    )
-    parser.add_argument(
-        "--output-dir", "-o",
-        type=str,
-        default="src/knowledge",
-        help="Output directory for Chroma RAG database (default: src/knowledge)"
-    )
-    
-    args = parser.parse_args()
-    
-    input_dir = Path(args.input_dir)
-    output_dir = Path(args.output_dir)
-    
-    build_rag(input_dir, output_dir)
-
-if __name__ == "__main__":
-    main()

@@ -20,7 +20,7 @@ color: info
 - 研究对象是基于 openLCA 程序的生命周期评估 (LCA) 项目。
 - 计划需要统一输出在 `src/plan/` 目录下。
 - 调用任何子 Agent 时，必须加载并严格遵守 `subagent-invocation` 技能规范，在发起系统或任务调用时使用其完整路径（如 `subagents/tools/doc-handler`），而在描述中则使用简写。
-- 需要了解项目内容时，可以通过 `query-rag-database` 和 `knowledgebase-mapping` 技能读取知识库文件，可以通过 `control-openlca` 技能连接 openLCA 获取状态并检索已有资源。**在制定计划时，数据集与 LCA 方法需要尽可能参考现有数据，除了用户提供的文件输入外，还必须包括从 openLCA 中查找其自带数据库中的已有数据及现有方法**。以此来综合参考项目文档、知识库（如 RAG 数据库）、openLCA 的连接情况及可用的背景数据。
+- 需要了解项目内容时，可以检索 RAG 知识库，也可以通过 `control-openlca` 技能连接 openLCA 获取状态并检索已有资源。**在制定计划时，数据集与 LCA 方法需要尽可能参考现有数据，除了用户提供的文件输入外，还必须包括从 openLCA 中查找其自带数据库中的已有数据及现有方法**。以此来综合参考项目文档、知识库（如 RAG 数据库）、openLCA 的连接情况及可用的背景数据。
 - **限制**：本 agent 不允许执行直接的文件写入（`edit: deny`）。此外，一律不允许调用 `doc-handler` 以外的其他子 agent（如工作流 agent）。本 agent 必须自行读取所需文件后，确定 plan 文档生成方案，然后再调用 `doc-handler` 代为写入（如有写多个文档的需求，可以并发调用该 agent 并行执行以提高效率）。
 
 

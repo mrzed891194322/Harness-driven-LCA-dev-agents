@@ -1,10 +1,10 @@
 # 知识库来源与用途说明 (knowledge-sources.md)
 
-为了方便其他智能体在调用 `query-rag-database` 技能时进行针对性的数据库选择，本文件说明了 `src/knowledge` 目录下不同路径知识库的来源与用途。
+为了方便其他智能体在调用 `control-rag-database` 技能时进行针对性的数据库选择，本文件说明了 `src/knowledge` 目录下不同路径知识库的来源与用途。
 
 ## 知识库目录指南
 
-在调用 `query-rag-database` 进行检索时，可以通过传递不同的 `--db-dir` 或 `-d` 参数来有针对性地查询对应的知识库。
+在调用 `control-rag-database` 进行检索时，可以通过传递不同的 `--db-dir` 或 `-d` 参数来有针对性地查询对应的知识库。
 
 | RAG 数据库目录 (传给 `--db-dir` 的路径) | 建议查询用途 (Purpose/Usage) |
 | :--- | :--- |
@@ -16,5 +16,5 @@
 
 当智能体需要检索特定目录下的知识库时（以检索“查询关键词”为例）：
 ```bash
-uv run python .opencode/skills/query-rag-database/assets/query_rag.py "查询关键词" --db-dir <RAG数据库目录>
+uv run python .opencode/skills/control-rag-database/scripts/query_rag/main.py "查询关键词" --db-dir <RAG数据库目录>
 ```

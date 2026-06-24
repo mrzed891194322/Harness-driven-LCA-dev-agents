@@ -1,6 +1,7 @@
-import argparse
 from pathlib import Path
-from utils import load_embedding_config, get_chroma_collection
+
+from utils.embedding import load_embedding_config
+from private_utils.db import get_chroma_collection
 
 def query_rag_database(knowledge_dir: Path, query_text: str):
     """
@@ -19,7 +20,7 @@ def query_rag_database(knowledge_dir: Path, query_text: str):
         
     # 检查数据库目录是否存在
     if not knowledge_dir.exists():
-        print(f"Error: Knowledge directory {knowledge_dir} does not exist. Please run the build_rag_database skill first.")
+        print(f"Error: Knowledge directory {knowledge_dir} does not exist. Please run the build_rag_database script first.")
         return
         
     print(f"Initializing ChromaDB at {knowledge_dir}...")
@@ -56,28 +57,3 @@ def query_rag_database(knowledge_dir: Path, query_text: str):
         print(f"--- Result {i+1} [Source: {source}]{distance_str} ---")
         print(doc.strip())
         print("-" * 50 + "\n")
-
-def main():
-    parser = argparse.ArgumentParser(description="Query RAG database.")
-    parser.add_argument(
-        "query",
-        type=str,
-        nargs="+",
-        help="Query string"
-    )
-    parser.add_argument(
-        "--db-dir", "-d",
-        type=str,
-        default="src/knowledge",
-        help="Directory of Chroma RAG database (default: src/knowledge)"
-    )
-    
-    args = parser.parse_args()
-    
-    query_text = " ".join(args.query)
-    knowledge_dir = Path(args.db_dir)
-    
-    query_rag_database(knowledge_dir, query_text)
-
-if __name__ == "__main__":
-    main()

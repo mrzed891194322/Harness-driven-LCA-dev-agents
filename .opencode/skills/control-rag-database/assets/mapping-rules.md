@@ -12,8 +12,8 @@
 
 ## 转化执行命令参考
 
-使用 `build-rag-database` 技能的转化脚本执行 RAG 数据库的转化。运行代码示例如下：
+使用 `control-rag-database` 技能的转化脚本执行 RAG 数据库的转化。运行代码示例如下：
 
 ```bash
-uv run python .opencode/skills/build-rag-database/assets/build_rag.py --input-dir <映射中的输入目录> --output-dir <映射中的输出目录>
+uv run python .opencode/skills/control-rag-database/scripts/build_rag/main.py --input-dir <映射中的输入目录> --output-dir <映射中的输出目录>
 ```
