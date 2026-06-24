@@ -58,7 +58,34 @@ npm install -g opencode-ai
 * **全局/项目行为规则**：
   本项目智能体的行为与规范遵循根目录下的 [AGENT.md](../AGENT.md)。项目级opencode配置文件位于 [.opencode/opencode.json](../.opencode/opencode.json)。 
 * **智能体模型配置**：
-  项目级 Agent 的模型配置推荐直接在 [.opencode/agents/](../.opencode/agents/) 目录下的各智能体定义文件（例如 [.opencode/agents/major-orchestrator.md](../.opencode/agents/major-orchestrator.md)）中进行修改。
+  在启动任何任务之前，首要步骤是为项目中的各个 Agent 配置合适的 LLM 运行模型。这可以有效平衡运行质量与生成速度。
+
+  请打开项目级配置文件：[.opencode/opencode.json](../.opencode/opencode.json)。
+
+  > [!IMPORTANT]
+  > **请务必配置为您自己已拥有并连接的 API 渠道模型**。示例中的模型仅做格式参考，实际运行前请确保您已通过上述指令添加了对应供应商的模型。
+
+  #### 建议配置策略与简略示例：
+  * **核心决策与工作流智能体**（如主编排、计划制定等）：建议配置为用户已拥有且已配置的**高性能推理模型**（如 `openai/gpt-5.5` 或 `deepseek/deepseek-v4-pro`）。
+  * **工具执行智能体**（如文件读写、代码构建）：建议配置为用户已拥有且已配置的**快速且经济的模型**（如 `anthropic/claude-4-5-haiku` 或 `deepseek/deepseek-v4-flash`）。
+
+  ```json
+    "agent": {
+      "major-orchestrator": {
+        "model": "your-provider/your-pro-model", // 替换为您自己已配置的旗舰级模型
+        "temperature": 0.25
+      },
+      "subagents/tools/code-builder": {
+        "model": "your-provider/your-flash-model", // 替换为您自己已配置的快速轻量模型
+        "temperature": 0.1
+      }
+      // 其他子智能体（如 doc-handler, data-processor 等）请对应参照配置...
+    }
+  ```
+
+  > [!TIP]
+  > 示例中的模型名称前缀（如 `your-provider/`）及模型名需与您通过 `opencode auth login` / `/connect` 关联并保存在本地的模型提供商完全匹配。
+
   更详细的配置介绍请参阅 [OpenCode 官方配置文档](https://opencode.ai/)。
 
 ---

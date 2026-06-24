@@ -73,7 +73,7 @@ uv run python .opencode/skills/query-rag-database/assets/query_rag.py "您的查
 
 ## ⚙️ 核心配置文件与环境变量
 
-运行 RAG 相关脚本前，请确保已正确配置了本地环境变量。具体配置步骤与典型服务商案例请参考 [`环境准备与配置详解`文档](setup_guide.md#5-可选服务商配置案例)。
+运行 RAG 相关脚本前，请确保已正确配置了本地环境变量。具体配置步骤与典型服务商案例请参考 [`环境准备与配置详解`文档](env_setup.md#5-可选服务商配置案例)。
 
 1. **`.env` 文件配置**：
    ```env
