@@ -12,7 +12,7 @@
 4. **配置环境变量**：复制并配置本地 `.env` 文件（用于配置 Embedding 模型的 API 环境变量，参考 [.env.example](.env.example)）。
 
 
-> 💡 **详细的安装、配置指南请参考**：[环境准备与配置详解](docs/env_setup.md)
+> 💡 **详细的安装、配置指南请参考**：[环境准备与配置详解](docs/wiki/env_setup.md)
 
 ---
 
@@ -24,7 +24,7 @@
 2. **开启 openLCA IPC Server**：打开 openLCA 桌面客户端，并确保开启了 IPC Server 服务（默认端口 8080）。
 3. **构建 RAG 数据库**：在终端运行 `opencode run --command init-rag-database`，或在 OpenCode CLI/desktop 中直接输入 `/init-rag-database`，以执行 RAG 数据库构建。
 
-> 💡 **详细的项目准备步骤请参考**：[项目准备说明文档](docs/project_prep.md)
+> 💡 **详细的项目准备步骤请参考**：[项目准备说明文档](docs/wiki/project_prep.md)
 
 ---
 
@@ -38,7 +38,7 @@
 * **设计与构建 LCI 模型**：运行 `design-lci` 任务
 * **导入数据至 openLCA**：运行 `import-lci` 任务
 
-> 💡 **常用快捷指令及脚本操作详见**：[常用指令与提示词](docs/常用指令与提示词.md)
+> 💡 **常用快捷指令及脚本操作详见**：[常用指令与提示词](docs/lang_CN/常用指令与提示词.md)
 
 ### 途径二：主智能体自主编排与串联（开发中，尚未成熟）
 您可以在 OpenCode 客户端直接向主智能体（`major-orchestrator`）以自然语言布置总任务。主智能体会尝试自主规划并串联各子智能体完成整个 LCA 评估链路。
