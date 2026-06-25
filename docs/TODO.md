@@ -1,33 +1,17 @@
 
 ## 近期
 
-- [ ] 重要：LCA专家需要给出哪些使用意见？（word格式）
+- [ ] 重要：程序执行作用域（在project-regulation中规范，同时还有 AGENT.md）
 
 - [ ] command：初始化，准备rag文档，检查openlca连接
 
 - [ ] readme ：项目是做什么的，架构是什么？项目需要鸣谢哪些其他项目？
 
-- [ ] 更新导出逻辑：计划与LCI生成后是否进入output？
-
 - [ ] 重要：论文评价指标确定
 
-- [x] 解决查询过程中的乱码问题
+- [x] 重要：LCA专家需要给出哪些使用意见？（word格式）
 
-- [x] 完善project-spec技能（asset细分wf、eval、template，合并subagent）
-
-- [x] 再跑一次完整的流程
-
-- [x] 在工作流中设置 agent loop （写在技能中）
-
-- [x] eval agent-skill （eval需要检查格式，同时按照特别要求检查，检查工作流、输出规范，可以派出多个子agent分别检查格式、内容）
-
-- [x] command：技能引用更新
-
-- [x] 更新 readme 及相关说明文档，解决wiki架构问题
-
-- [x] LCA技能单独提取、控制技能合并
-
-- [x] 重新整理项目架构：例如去除history
+- [x] 更新导出逻辑：计划与LCI生成后是否进入output？——不需要，只需要最终报告
 
 
 ## 中期
