@@ -32,7 +32,15 @@ def main():
         "Process": o.Process,
         "Flow": o.Flow,
         "ProductSystem": o.ProductSystem,
-        "ImpactMethod": o.ImpactMethod
+        "ImpactMethod": o.ImpactMethod,
+        "FlowProperty": o.FlowProperty,
+        "UnitGroup": o.UnitGroup,
+        "Actor": o.Actor,
+        "Source": o.Source,
+        "Project": o.Project,
+        "Location": o.Location,
+        "Currency": o.Currency,
+        "SocialIndicator": o.SocialIndicator,
     }
     model_type = type_map[args.type]
 

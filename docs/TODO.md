@@ -3,13 +3,25 @@
 
 - [x] 完善project-spec技能（asset细分wf、eval、template，合并subagent）
 
+- [x] 再跑一次完整的流程
+
 - [ ] eval agent-skill （eval需要检查格式，同时按照特别要求检查，检查工作流、输出规范，可以派出多个子agent分别检查格式、内容）
+
+- [ ] command：初始化，准备rag文档，检查openlca连接
+
+- [ ] LCA技能单独提取、控制技能转mcp
+
+- [ ] 在工作流中设置 agent loop （写在技能中）
 
 - [ ] 重新整理项目架构：例如去除history
 
-- [ ] 更新 使用方法 readme
+- [ ] readme ：项目是做什么的，架构是什么？项目需要鸣谢哪些其他项目？
+
+- [ ] 更新 readme 及相关说明文档，解决wiki架构问题
 
 - [ ] 更新导出逻辑：计划与LCI生成后是否进入output？
+
+- [ ] 重要：LCA专家需要给出哪些使用意见？
 
 - [ ] 重要：论文评价指标确定
 
