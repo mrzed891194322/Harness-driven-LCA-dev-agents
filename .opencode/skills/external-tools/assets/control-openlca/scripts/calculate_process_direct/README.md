@@ -26,7 +26,7 @@
 ## 运行命令
 
 ```bash
-uv run python .opencode/skills/control-openlca/scripts/calculate_process_direct/main.py "过程名称或UUID" --method "LCIA方法名称或UUID" [可选参数]
+uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/calculate_process_direct/main.py "过程名称或UUID" --method "LCIA方法名称或UUID" [可选参数]
 ```
 
 ## 参数说明
@@ -56,11 +56,11 @@ uv run python .opencode/skills/control-openlca/scripts/calculate_process_direct/
 ### 1. 基础过程直接计算
 对名为 "Process B" 的过程直接执行生命周期评估，并使用 "EF 3.1" 影响评估方法：
 ```bash
-uv run python .opencode/skills/control-openlca/scripts/calculate_process_direct/main.py "Process B" --method "EF 3.1"
+uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/calculate_process_direct/main.py "Process B" --method "EF 3.1"
 ```
 
 ### 2. 带有分配方法与结果导出的高级计算
 使用经济分配计算过程，并将结果导出为 CSV 文件：
 ```bash
-uv run python .opencode/skills/control-openlca/scripts/calculate_process_direct/main.py "Process B" -m "EF 3.1" -al economic -o output/process_results.csv
+uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/calculate_process_direct/main.py "Process B" -m "EF 3.1" -al economic -o output/process_results.csv
 ```

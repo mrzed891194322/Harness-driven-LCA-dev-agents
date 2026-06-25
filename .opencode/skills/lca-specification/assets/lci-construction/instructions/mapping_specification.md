@@ -75,4 +75,4 @@
 - **质量属性 (Mass FlowProperty)**: `bca7e4ea-ad3a-4424-aa61-fb9617300c82`
 - **千克单位 (kg Unit)**: `20a8dd24-3405-47d4-9f50-cd467688c69d`
 
-> 注：若任务中遇到复杂单位换算或其他在计划中不甚明朗的高级 Schema 配置需求，Agent 必须通过 `control-rag-database` 进一步在知识库中进行核对。
+> 注：若任务中遇到复杂单位换算或其他在计划中不甚明朗的高级 Schema 配置需求，Agent 必须通过 `external-tools` 技能（具体参考 `assets/control-rag-database/README.md`）进一步在知识库中进行核对。

@@ -15,7 +15,7 @@
    - **规则与标准**：遇到术语模糊或缺乏具体工艺支撑而产生读取数据库的需求时，应检索 RAG 知识库以提取支撑信息。
    - **建立网络连线 (Provider Linking)**：为了确保生成的产品系统能在 openLCA 中正确连线并生成模型图 (Model Graph)，所有输入流的 Exchange 中都必须指明 `defaultProvider`。
    - **内部前台工序**：梳理内部工序间的上下游关系（如工序A的产物是工序B的输入），将工序A的 UUID 填入工序B相应输入流的 `defaultProvider` 中。
-   - **外部背景数据**：当需要将原材料或能源挂载到实际的背景数据集（如 ecoinvent）时，**必须加载并调用** `control-openlca` 技能下的 `query_descriptors` 脚本，检索获取目标过程的 UUID 并填入 `defaultProvider`，严禁凭空捏造。
+   - **外部背景数据**：当需要将原材料或能源挂载到实际的背景数据集（如 ecoinvent）时，**必须加载并调用** `external-tools` 技能（具体参考 `assets/control-openlca/README.md`）下的 `query_descriptors` 脚本，检索获取目标过程的 UUID 并填入 `defaultProvider`，严禁凭空捏造。
 
 ### 第二步：LCI 核心架构映射与构建
 - 将非结构化计划全面映射为 openLCA 的核心对象体系（Flows, Processes, Provider Linking 以及 Product Systems）。

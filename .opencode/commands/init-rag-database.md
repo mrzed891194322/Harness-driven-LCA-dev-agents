@@ -12,13 +12,13 @@ agent: subagents/tools/doc-handler
    uv run python -c "import shutil; from pathlib import Path; d = Path('src/knowledge'); [shutil.rmtree(p) if p.is_dir() else p.unlink() for p in d.iterdir() if p.name != 'README.md']"
    ```
 
-2. **读取并遵循 `control-rag-database` 映射规则**：
-   加载 `control-rag-database` 技能中的 `assets/mapping-rules.md` 以获取原始目录与 RAG 目标子目录的映射关系。
+2. **读取并遵循 `external-tools` 技能中的 `control-rag-database` 映射规则**：
+   加载 `external-tools` 技能中的 `assets/control-rag-database/instruction/mapping-rules.md` 以获取原始目录与 RAG 目标子目录的映射关系。
 
-3. **利用 `control-rag-database` 技能执行转化任务**：
-   对于在 `control-rag-database` 中查阅到的所有映射关系，使用 `control-rag-database` 技能运行转化以生成向量数据库。运行代码示例如下：
+3. **利用 `external-tools` 技能下的 `control-rag-database` 脚本执行转化任务**：
+   对于在映射规则中查阅到的所有对应关系，使用 `external-tools` 技能下的构建脚本运行转化以生成向量数据库。运行代码示例如下：
    ```bash
-   uv run python .opencode/skills/control-rag-database/scripts/build_rag/main.py --input-dir <映射中的输入目录> --output-dir <映射中的输出目录>
+   uv run python .opencode/skills/external-tools/assets/control-rag-database/scripts/build_rag/main.py --input-dir <映射中的输入目录> --output-dir <映射中的输出目录>
    ```   
 
 4. **立即停止**：

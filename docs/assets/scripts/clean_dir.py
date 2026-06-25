@@ -21,22 +21,24 @@ IGNORED_DIRS = {
     'env'
 }
 
-def is_readme(filename: str) -> bool:
+def should_keep(filename: str) -> bool:
     """
-    判断文件名是否为 README。
-    匹配规则：文件名（不区分大小写）为 'readme'，或者以 'readme.' 开头（例如 readme.md, readme.txt）。
+    判断文件名是否需要保留（例如 README 文件或 .gitignore 文件）。
+    匹配规则：
+    1. 文件名（不区分大小写）为 'readme'，或者以 'readme.' 开头（例如 readme.md, readme.txt）。
+    2. 文件名等于 '.gitignore'。
     """
     name = filename.lower()
-    return name == "readme" or name.startswith("readme.")
+    return name == "readme" or name.startswith("readme.") or name == ".gitignore"
 
 def clean_directory(target_path: Path, dry_run: bool = False) -> tuple:
     """
-    遍历并清理目录，删除除了 README 以外的所有文件。
+    遍历并清理目录，删除除了 README 和 .gitignore 以外的所有文件。
     如果子目录在清理后变为空，则将其一并删除。
     """
     deleted_files = 0
     deleted_dirs = 0
-    kept_readmes = 0
+    kept_files = 0
     failed_files = 0
     failed_dirs = 0
     
@@ -55,8 +57,8 @@ def clean_directory(target_path: Path, dry_run: bool = False) -> tuple:
         # 1. 清理当前目录下的文件
         for file in files:
             file_path = root_path / file
-            if is_readme(file):
-                kept_readmes += 1
+            if should_keep(file):
+                kept_files += 1
                 continue
                 
             if dry_run:
@@ -98,11 +100,11 @@ def clean_directory(target_path: Path, dry_run: bool = False) -> tuple:
                         failed_dirs += 1
                         print(f"删除目录失败: {root_path}，错误: {e}", file=sys.stderr)
                         
-    return deleted_files, deleted_dirs, kept_readmes, failed_files, failed_dirs
+    return deleted_files, deleted_dirs, kept_files, failed_files, failed_dirs
 
 def main():
     parser = argparse.ArgumentParser(
-        description="遍历指定目录（包含其所有子目录），清除除了 README 以外的所有文件，并自动清理清理后产生的空子目录。"
+        description="遍历指定目录（包含其所有子目录），清除除了 README 和 .gitignore 以外的所有文件，并自动清理清理后产生的空子目录。"
     )
     parser.add_argument("dir_path", type=str, help="需要清理的目录相对路径（相对于当前工作目录或项目根目录）")
     parser.add_argument("-y", "--yes", action="store_true", help="跳过二次确认，直接执行删除操作")
@@ -160,13 +162,13 @@ def main():
     
     # 二次确认
     if not args.yes and not args.dry_run:
-        confirm = input(f"警告：这将彻底删除该目录下除了 README 以外的所有文件！\n确定要继续清理目录 '{target_path.relative_to(project_root)}' 吗？(y/N): ")
+        confirm = input(f"警告：这将彻底删除该目录下除了 README 和 .gitignore 以外的所有文件！\n确定要继续清理目录 '{target_path.relative_to(project_root)}' 吗？(y/N): ")
         if confirm.strip().lower() not in ('y', 'yes'):
             print("操作已取消。")
             sys.exit(0)
             
     # 执行清理
-    deleted_files, deleted_dirs, kept_readmes, failed_files, failed_dirs = clean_directory(target_path, dry_run=args.dry_run)
+    deleted_files, deleted_dirs, kept_files, failed_files, failed_dirs = clean_directory(target_path, dry_run=args.dry_run)
     
     # 打印统计结果
     print("=" * 60)
@@ -174,12 +176,12 @@ def main():
         print("演练结果统计：")
         print(f"- 预计删除文件数: {deleted_files}")
         print(f"- 预计删除空目录数: {deleted_dirs}")
-        print(f"- 预计保留 README 文件数: {kept_readmes}")
+        print(f"- 预计保留 README 和 .gitignore 文件数: {kept_files}")
     else:
         print("清理完成！统计结果如下：")
         print(f"- 成功删除文件数: {deleted_files}")
         print(f"- 成功删除空目录数: {deleted_dirs}")
-        print(f"- 保留 README 文件数: {kept_readmes}")
+        print(f"- 保留 README 和 .gitignore 文件数: {kept_files}")
         if failed_files > 0 or failed_dirs > 0:
             print(f"- 删除失败文件数: {failed_files}")
             print(f"- 删除失败目录数: {failed_dirs}")

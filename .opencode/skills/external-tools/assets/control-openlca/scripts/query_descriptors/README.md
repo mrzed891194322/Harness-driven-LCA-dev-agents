@@ -10,7 +10,7 @@
 ## 运行方式
 
 ```bash
-uv run python .opencode/skills/control-openlca/scripts/query_descriptors/main.py <Type> [--search <keyword>] [--limit <number>]
+uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/query_descriptors/main.py <Type> [--search <keyword>] [--limit <number>]
 ```
 
 **参数说明**：
@@ -23,5 +23,5 @@ uv run python .opencode/skills/control-openlca/scripts/query_descriptors/main.py
 
 查找名称中包含 "electricity" 的所有过程：
 ```bash
-uv run python .opencode/skills/control-openlca/scripts/query_descriptors/main.py Process --search electricity
+uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/query_descriptors/main.py Process --search electricity
 ```
