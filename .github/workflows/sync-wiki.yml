@@ -1,0 +1,46 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'docs/wiki/**'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Sync to GitHub Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ../wiki-clone
+          
+          # Clone the GitHub Wiki repository
+          git clone "https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.wiki.git" ../wiki-clone
+          
+          cd ../wiki-clone
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Clean existing files in clone to handle additions/deletions properly
+          find . -maxdepth 1 ! -name '.' ! -name '..' ! -name '.git' -exec rm -rf {} +
+          
+          # Copy new files from docs/wiki/
+          cp -R "$GITHUB_WORKSPACE/docs/wiki/"* .
+          
+          # Stage, commit, and push
+          git add -A
+          if git diff-index --quiet HEAD; then
+            echo "No changes to sync."
+          else
+            git commit -m "Sync wiki from master docs/wiki/ (${{ github.sha }})"
+            git push origin master
+          fi
