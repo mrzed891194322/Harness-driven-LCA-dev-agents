@@ -1,8 +1,3 @@
----
-name: control-openlca
-description: 通过 IPC Server 连接并控制本地运行中的 openLCA，对指定的产品系统或过程进行计算并检索其 LCIA 结果。
----
-
 # 控制 openLCA (control-openlca)
 
 此技能允许通过 Python 客户端连接到运行中的 openLCA IPC Server，对目标对象进行生命周期评估（LCA）计算并获取影响评估（LCIA）结果。

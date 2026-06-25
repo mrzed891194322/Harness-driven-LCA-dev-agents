@@ -2,7 +2,7 @@
 
 > **上下文提示**：如需了解项目整体结构（根目录、输入输出等），请另读同目录下的 `global-structure.md`。
 >
-> 本文件由 `project-specification` skill 维护，聚焦**项目核心代码（src/）内部**的目录结构、模块职责与关键约束。
+> 本文件由 `project-regulation` skill 维护，聚焦**项目核心代码（src/）内部**的目录结构、模块职责与关键约束。
 
 ---
 

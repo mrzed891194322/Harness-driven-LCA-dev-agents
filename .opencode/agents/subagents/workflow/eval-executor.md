@@ -31,13 +31,13 @@ permission:
 - **评估脚本复用**：评估相关的 Python 脚本应尽量可复用，统一放置于 `eval/scripts` 目录下。如果新一轮评估需要更新，尽可能修改该目录下的现有脚本而不是编写新脚本。
 - **严格的文件输出限制**：只允许输出文本文件、代码文件，严格禁止输出模型文件、图片（如可视化图表）等格式的文件。
 - 不直接修改原有训练或数据处理代码。
-- 调用`code-builder`生成评估代码时，必须遵守技能规范 `project-specification` 技能的 `assets/project-convention/` 目录的项目目录规范。
+- 调用`code-builder`生成评估代码时，必须遵守技能规范 `project-regulation` 技能的 `assets/project-convention/` 目录的项目目录规范。
 - 结论必须明确指出：当前模型是否已满足 `delivery_standard.md`，如果不满足，下一轮改进方向是什么。
 - 不允许含糊其辞，必须基于具体数据进行推断。如果数据缺失或脚本崩溃，必须报告错误并建议排查方向。
 - **工具调用与执行规范**：
   1. 你写代码和写文档必须全部通过调用 `code-builder` 和 `doc-handler` 工具 agent 执行（如有多个代码和文档编写任务，可以同时调用多个工具 agent 并行执行）。
   2. 涉及评估代码编写时，你必须亲自在当前环境中执行生成的代码进行验证。如果执行出现报错或不符合预期，你必须将错误信息、调试分析和修改方案再次提供给 `code-builder` 重新修改，如此循环，直到最终确保代码可以成功执行为止。
-- 调用任何子 Agent 时，必须加载并严格遵守 `project-specification` 技能下的 `assets/subagent-invocation/` 规范，在发起系统或任务调用时使用其完整路径（如 `subagents/tools/code-builder`），而在描述中则使用简写。
+- 调用任何子 Agent 时，必须加载并严格遵守 `project-regulation` 技能下的 `assets/subagent-invocation/` 规范，在发起系统或任务调用时使用其完整路径（如 `subagents/tools/code-builder`），而在描述中则使用简写。
 
 
 # 输出要求

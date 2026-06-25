@@ -1,6 +1,6 @@
 # Opencode 子 Agent 调用规范 (Subagent Invocation Guidance)
 
-本文件由 `project-specification` 技能维护，定义了在本仓库中调用子 Agent 的路径规范与命名约定。
+本文件由 `project-regulation` 技能维护，定义了在本仓库中调用子 Agent 的路径规范与命名约定。
 
 ## 核心原则
 
