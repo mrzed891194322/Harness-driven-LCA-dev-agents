@@ -34,6 +34,9 @@ from private_utils.cli import add_arguments
 from private_utils.importer import import_json_files
 
 def main():
+    from utils.encoding import setup_io_encoding
+    setup_io_encoding()
+
     parser = argparse.ArgumentParser(
         description="连接 openLCA IPC Server 并读取结构化 JSON 文件将其导入到数据库中。"
     )

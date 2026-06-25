@@ -24,6 +24,9 @@ from private_utils.calculation import run_calculation
 from private_utils.cli import add_arguments
 
 def main():
+    from utils.encoding import setup_io_encoding
+    setup_io_encoding()
+
     parser = argparse.ArgumentParser(
         description="连接 openLCA IPC Server 并直接对指定过程 (Process) 执行 Direct Calculation (内存中构建临时产品系统并计算)。"
     )

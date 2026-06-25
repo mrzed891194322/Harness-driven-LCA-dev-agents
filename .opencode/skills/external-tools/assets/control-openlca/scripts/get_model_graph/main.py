@@ -22,6 +22,9 @@ from private_utils.cli import add_arguments
 from private_utils.graph_reader import print_model_graph
 
 def main():
+    from utils.encoding import setup_io_encoding
+    setup_io_encoding()
+
     parser = argparse.ArgumentParser(
         description="连接 openLCA IPC Server 并读取目标产品系统的模型图 (Model Graph) 拓扑连接关系。"
     )

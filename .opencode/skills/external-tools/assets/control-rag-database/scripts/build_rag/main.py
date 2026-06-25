@@ -10,6 +10,9 @@ sys.path.append(str(Path(__file__).parent))
 from private_utils.builder import build_rag
 
 def main():
+    from utils.encoding import setup_io_encoding
+    setup_io_encoding()
+
     parser = argparse.ArgumentParser(description="Build RAG database from input files.")
     parser.add_argument(
         "--input-dir", "-i",

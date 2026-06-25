@@ -21,6 +21,9 @@ from private_utils.cli import add_arguments
 from private_utils.query import query_and_print_descriptors
 
 def main():
+    from utils.encoding import setup_io_encoding
+    setup_io_encoding()
+
     parser = argparse.ArgumentParser(
         description="Query descriptors from openLCA active database"
     )

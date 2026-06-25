@@ -10,6 +10,9 @@ sys.path.append(str(Path(__file__).parent))
 from private_utils.query import query_rag_database
 
 def main():
+    from utils.encoding import setup_io_encoding
+    setup_io_encoding()
+
     parser = argparse.ArgumentParser(description="Query RAG database.")
     parser.add_argument(
         "query",
