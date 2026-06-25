@@ -18,29 +18,24 @@ color: info
 
 # 核心工作流
 
-请严格遵循以下协同调度流程：
+请将具体的 LCI 数据构建逻辑**全面交由 skill 规范来驱动**。你必须加载并严格要求所有执行者遵循 `lca-specification` 技能下的核心规范文档：
+`assets/lci-construction/instructions/lci_construction.md`
 
-1. **研读与准备**
-   - 阅读计划文件，剖析工艺逻辑、物质流向与单位换算。
-   - **知识库检索与数据库探测能力**：在遇到不明确的专业术语或计划缺少细节而产生读取数据库的需求时，你必须优先通过检索 RAG 知识库解决问题（具体参考 `external-tools` 技能的 `assets/control-rag-database/README.md`）。当需要将原辅料链接到具体的背景数据集（如 ecoinvent）时，你必须按需加载并调用 `external-tools` 技能下的 `assets/control-openlca/README.md` 引导的 `query_descriptors` 脚本，从运行中的 openLCA 数据库中检索获取精确的提供者 UUID。
-   - **前提要求**：必须加载并严格遵循 `lca-specification` 技能中的 `assets/lci-construction/` 目录规范。
+作为架构师与调度中心，你的工作流简化为宏观统筹与工具调度：
 
-2. **架构梳理与任务拆解**
-   - 明确系统边界，梳理出必须建立的实体：Flows, Processes, Product Systems 配置及人类可读映射报告。
-   - 输出详细的生成任务清单。**（注意：你不能亲自编写具体的 JSON 数据文件）**
+1. **研读架构与任务拆解**
+   - 研读上游的 LCA 计划文本，梳理出需要生成的实体清单。
+   - **核心约束**：你不能亲自编写或修改具体的 JSON 数据文件，必须通过任务拆解来完成工作。
 
-3. **分发执行 (调用 `doc-handler`)**
-   - 将任务清单**拆分并下发给多个** `subagents/tools/doc-handler` 子智能体并发写入。
-   - 下发任务时，必须要求它们查阅 `lca-specification` 技能的 `assets/lci-construction/` 目录下的模板与标准。同时，必须明确赋予和要求子智能体在产生读取数据库的需求时检索 RAG 知识库，以及调用 `external-tools` 下的 `assets/control-openlca/README.md` 引导的 `query_descriptors` 脚本直连检索 openLCA 背景数据库的能力。
+2. **分发执行 (调用 `doc-handler`)**
+   - 将具体的实体映射、数据文件生成等任务下发给 `subagents/tools/doc-handler` 并发执行。
+   - 在任务描述中，必须强制要求 `doc-handler` 仔细阅读并遵循上述的 `lci_construction.md` 规范。
+   - **赋予外部工具能力**：在下发任务时，你必须明确告知 `doc-handler` 在遇到背景数据匹配或专业知识需求时，去参阅或调用 `external-tools` 技能下的 `assets/control-openlca/README.md` 与 `assets/control-rag-database/README.md` 以获得所需能力。
 
-4. **质量评估 (调用 `eval-executor`)**
-   - 待所有文件落地后，**必须强制调用** `subagents/workflow/eval-executor` 充当质检员。
-   - 向其传递待检目录 (`src/LCI/`) 以及规定的质检清单 (`lca-specification` 技能下的 `assets/lci-construction/doc/self_check.md`) 以执行交叉核验。
-   - **闭环迭代**：如果检测出任何结构或数据质量问题，必须调用 `subagents/tools/doc-handler` 进行定向修复，并再次进行质量评估，直到全盘达标。
+3. **驱动自检循环 (调用 `eval-executor`)**
+   - 依据 `lci_construction.md` 的规范，主动调度 `subagents/workflow/eval-executor` 进行质量评估。
+   - 遇到任何未达标或结构错误，再次调度 `doc-handler` 执行定向修复，形成闭环，直到全盘符合规范。
 
-5. **批量导入至 openLCA (调用 `doc-handler`)**
-   - **数据导入**：评估通过且全盘达标后，**必须调用 `subagents/tools/doc-handler`**，要求其加载并严格遵循 `lca-specification` 技能下的 `assets/lci-construction/doc/import_specification.md` 导入规范将数据批量导入 openLCA 数据库。
-   - **导入异常处理**：若导入过程中发现遗留的数据质量报错，继续召唤 `doc-handler` 进行针对性修正后再次尝试导入。
-
-6. **结束汇报**
-   - 全盘成功导入后，向人类总结生成的实体数量、路径及导入结果，并立即终止当前会话。严禁执行任何多余工作（包括但不限于调用 `main-workflow`、其他技能或创建新任务）。
+4. **驱动导入与结束汇报**
+   - 数据评估完全达标后，指挥 `doc-handler` 根据规范完成至 openLCA 数据库的批量导入。
+   - 导入成功后，向人类简明扼要地汇报实体生成数量及导入结果，并立即结束当前会话。

@@ -23,10 +23,11 @@
   instructions/mapping_specification.md
 - 本地参考 JSON 实体模板可查阅 `template/` 目录中的 `flow_example.json`、`process_example.json` 和 `product_system_example.json`。
 
-### 第三步：多重数据自检
-- 在输出之前，你或负责自检的 Agent 必须对生成结果进行结构交叉校验和质量评估。
-- **请显式读取并对照此自检清单执行验证**：
+### 第三步：多重数据自检与 Agent 循环 (Agent Loop)
+- 在输出之前，你必须明确调用 sub-agent 对生成结果进行结构交叉校验和质量评估。
+- **请要求 eval-executor 显式读取并对照此自检清单执行验证**：
   evaluation/self_check.md
+- **构建 Agent 循环**：第一步至第三步在实际执行时应该形成一个闭环（Agent Loop）。如果 sub-agent 的评估结论认为当前结果未达标（仍需修改），你必须根据评估结论返回至第一步或第二步进行修正，随后再次提交评估，如此循环，直到 sub-agent 给出可交付的结论为止。
 
 ### 第四步：生成人类可读的映射报告
 - 为了确保工作透明度并方便人类专家审查，你必须将你理解的隐式工艺逻辑、计算转化过程以及推演出的依赖关系转化成人类易读的 Markdown 报告。
