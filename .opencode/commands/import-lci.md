@@ -3,6 +3,9 @@ description: 批量导入 src/LCI 中的 Flows、Processes 和 Product Systems J
 agent: subagents/tools/doc-handler
 ---
 
+**语言要求**：
+目前，必须使用中文进行模型的思考、输出，调用 subagent 时也必须强调这一点。
+
 **前置检查**：
 请确保本地已开启 openLCA 桌面客户端并启动了 IPC Server 服务（默认端口 8080）。
 
