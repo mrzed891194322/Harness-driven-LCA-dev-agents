@@ -1,12 +1,17 @@
 from utils.data_helper import process_data
+from utils.config_helper import load_config
 
 def main():
     """
     工作脚本的唯一入口，作为总接口。
     """
-    # 示例执行逻辑
-    input_path = "input/data/example.csv"
-    output_path = "src/data/processed_example.csv"
+    # 加载配置
+    config = load_config()
+    
+    # 从配置中读取输入输出路径
+    input_path = config.get("input_path", "input/data/example.csv")
+    output_path = config.get("output_path", "src/data/processed_example.csv")
+    
     process_data(input_path, output_path)
 
 if __name__ == "__main__":

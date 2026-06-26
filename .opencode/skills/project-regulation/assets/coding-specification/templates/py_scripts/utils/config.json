@@ -1,0 +1,4 @@
+{
+  "input_path": "input/data/example.csv",
+  "output_path": "src/data/processed_example.csv"
+}
