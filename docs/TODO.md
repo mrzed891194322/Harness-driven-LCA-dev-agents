@@ -1,7 +1,7 @@
 
 ## 近期
 
-- [ ] 重要：程序执行作用域（在project-regulation中规范，同时还有 AGENT.md）
+- [x] 重要：程序执行作用域（在project-regulation中规范，同时还有 AGENT.md）
 
 - [ ] command：初始化，准备rag文档，检查openlca连接
 

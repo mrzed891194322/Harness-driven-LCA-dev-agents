@@ -10,17 +10,17 @@
 
 ### 1. 准备 input 目录中的文件 (第一步)
 
-在开始 LCA 建模和评估之前，您需要将相关的输入参考资料与您的 LCA 计划需求按以下结构整理并放置到 [input/](../input/) 对应的子目录下：
+在开始 LCA 建模和评估之前，您需要将相关的输入参考资料与您的 LCA 计划需求按以下结构整理并放置到 `input/` 对应的子目录下：
 
 1. **放置评估原始参考文档**：
-   * 将您需要评估的主体项目原始参考文件（如环评报告书的 Word/Markdown/PDF 格式、物料平衡图、物料清单 Excel 等）放置在 [input/files/](../input/files/) 目录下。
-   * 如果有其他特定的原始数据表格，可以放置在 [input/data/](../input/data/) 目录中。
-   * 如果包含与本项目或行业相关的标准/方法说明，可以放置在 [input/knowledge_base/](../input/knowledge_base/) 目录中。
+   * 将您需要评估的主体项目原始参考文件（如环评报告书的 Word/Markdown/PDF 格式、物料平衡图、物料清单 Excel 等）放置在 `input/files/` 目录下。
+   * 如果有其他特定的原始数据表格，可以放置在 `input/data/` 目录中。
+   * 如果包含与本项目或行业相关的标准/方法说明，可以放置在 `input/knowledge_base/` 目录中。
    * *注意：智能体在第四步构建 RAG 数据库时，会自动读取并分块解析这些目录下的文件。*
 
 2. **编写与完成计划需求文件 (`plan.md`)**：
-   * **必须** 复制模板文件 [docs/assets/templates/plan.md](assets/templates/plan.md) 并保存为 [input/plan.md](../input/plan.md)。
-   * **重要**：打开 [input/plan.md](../input/plan.md)，在各个 `✍️ 用户填写内容区` 中，根据您的项目实际情况，填入以下关键信息：
+   * **必须** 复制模板文件 `docs/assets/templates/plan.md` 并保存为 `input/plan.md`。
+   * **重要**：打开 `input/plan.md`，在各个 `✍️ 用户填写内容区` 中，根据您的项目实际情况，填入以下关键信息：
      * **研究主体**：例如“利群表面处理产业园提质升级项目 —— 镀金工艺产线”
      * **功能单位**：例如“处理 1 m² 面积的镀金产品”
      * **系统边界**：例如“Gate-to-Gate (大门到大门)”
@@ -56,7 +56,7 @@
   ```
 
 * **底层执行逻辑**：
-  1. 清理 [src/knowledge/](../src/knowledge/) 目录（保留该目录下的 `README.md`）。
-  2. 读取 [external-tools](../.opencode/skills/external-tools) 技能中的映射规则（具体参考 `assets/control-rag-database/instruction/mapping-rules.md`）。
+  1. 清理 `src/knowledge/` 目录（保留该目录下的 `README.md`）。
+  2. 读取 `external-tools` 技能中的映射规则（具体参考 `assets/control-rag-database/instruction/mapping-rules.md`）。
   3. 通过 `markitdown` 抽取文本并利用指定 Embedding 模型将文档转化为向量写入 ChromaDB 中。
 * **更多 RAG 操作细节**：请参阅 [RAG 数据库构建与查询指南](rag_guide.md)。

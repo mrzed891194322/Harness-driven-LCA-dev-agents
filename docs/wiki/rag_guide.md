@@ -22,7 +22,7 @@
 ```bash
 opencode run --command init-rag-database
 ```
-*执行逻辑参见 [.opencode/commands/init-rag-database.md](../.opencode/commands/init-rag-database.md)*。
+*执行逻辑参见 `.opencode/commands/init-rag-database.md`*。
 
 ### 方式二：通过与 Agent 交互
 您可以直接在 OpenCode 客户端中以自然语言对 Agent 下达指令。下达指令时，请注意**指明文件来源目录与目标输出目录**。例如：
@@ -45,7 +45,7 @@ uv run python .opencode/skills/external-tools/assets/control-rag-database/script
 
 ## 🔍 读取/查询 RAG 数据库
 
-在大多数情况下，工作流中的智能体（Agent）会自动使用 [external-tools](../.opencode/skills/external-tools) 技能下的 RAG 数据库引导文件（具体参考 `assets/control-rag-database/README.md`）读取 RAG 数据库。
+在大多数情况下，工作流中的智能体（Agent）会自动使用 `external-tools` 技能下的 RAG 数据库引导文件（具体参考 `assets/control-rag-database/README.md`）读取 RAG 数据库。
 
 如果用户想要主动了解 RAG 数据库中的内容，或者指导 Agent 进一步利用 RAG 知识开展工作，可以通过以下方式进行：
 
@@ -82,4 +82,4 @@ uv run python .opencode/skills/external-tools/assets/control-rag-database/script
    EMBEDDING_MODEL="使用的 Embedding 模型名称"
    ```
 2. **支持的文件格式**：
-   支持的文件类型由 [.opencode/skills/external-tools/assets/control-rag-database/scripts/build_rag/private_utils/config.json](../.opencode/skills/external-tools/assets/control-rag-database/scripts/build_rag/private_utils/config.json) 中的 `supported_file_types` 列表定义。默认支持 `.pdf`、`.docx`、`.doc`、`.md`、`.txt`、`.xlsx`、`.xls`、`.csv`、`.json`、`.xml`、`.html`、`.pptx`、`.epub` 等格式。
+   支持的文件类型由 `.opencode/skills/external-tools/assets/control-rag-database/scripts/build_rag/private_utils/config.json` 中的 `supported_file_types` 列表定义。默认支持 `.pdf`、`.docx`、`.doc`、`.md`、`.txt`、`.xlsx`、`.xls`、`.csv`、`.json`、`.xml`、`.html`、`.pptx`、`.epub` 等格式。

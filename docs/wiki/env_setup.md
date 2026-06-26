@@ -56,11 +56,11 @@ npm install -g opencode-ai
 
 ### 2.2 项目级 Agent 配置
 * **全局/项目行为规则**：
-  本项目智能体的行为与规范遵循根目录下的 [AGENT.md](../AGENT.md)。项目级opencode配置文件位于 [.opencode/opencode.json](../.opencode/opencode.json)。 
+  本项目智能体的行为与规范遵循根目录下的 `AGENT.md`。项目级opencode配置文件位于 `.opencode/opencode.json`。
 * **智能体模型配置**：
   在启动任何任务之前，首要步骤是为项目中的各个 Agent 配置合适的 LLM 运行模型。这可以有效平衡运行质量与生成速度。
 
-  请打开项目级配置文件：[.opencode/opencode.json](../.opencode/opencode.json)。
+  请打开项目级配置文件：`.opencode/opencode.json`。
 
   > [!IMPORTANT]
   > **请务必配置为您自己已拥有并连接的 API 渠道模型**。示例中的模型仅做格式参考，实际运行前请确保您已通过上述指令添加了对应供应商的模型。
@@ -92,7 +92,7 @@ npm install -g opencode-ai
 
 ## 3. 配置项目虚拟环境
 
-项目基于 [pyproject.toml](../pyproject.toml) 管理 Python 依赖包。在确保安装了 `uv` 之后，在项目根目录下运行以下命令：
+项目基于 `pyproject.toml` 管理 Python 依赖包。在确保安装了 `uv` 之后，在项目根目录下运行以下命令：
 
 ```bash
 uv sync
@@ -100,14 +100,14 @@ uv sync
 
 该命令会自动执行以下操作：
 1. 在项目根目录下自动创建 `.venv` 虚拟环境。
-2. 根据 [pyproject.toml](../pyproject.toml) 的配置，自动下载并同步项目所需的所有 Python 依赖。
+2. 根据 `pyproject.toml` 的配置，自动下载并同步项目所需的所有 Python 依赖。
 
 
 ---
 
 ## 4. 本地环境变量配置
 
-在运行项目前，需要配置本地环境变量（主要用于配置 **Embedding 检索服务商**）。程序在运行时只会读取项目根目录下的 `.env` 文件，因此我们需要通过复制模板文件 [.env.example](../.env.example) 并将其重命名为 `.env` 来存放您自己的配置：
+在运行项目前，需要配置本地环境变量（主要用于配置 **Embedding 检索服务商**）。程序在运行时只会读取项目根目录下的 `.env` 文件，因此我们需要通过复制模板文件 `.env.example` 并将其重命名为 `.env` 来存放您自己的配置：
 
 1. **复制并生成 `.env` 文件**（这一步也可以手动执行）：
    ```bash
