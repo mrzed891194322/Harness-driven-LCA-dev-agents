@@ -144,10 +144,10 @@ uv sync
   2. 访问硅基流动的**模型广场**，选择符合项目要求的合适 Embedding 模型（例如 `Qwen/Qwen3-VL-Embedding-8B`）。
 * **主要参数**：
   * **API URL**：`https://api.siliconflow.cn/v1`
-  * **所用模型 (Model)**：`Qwen/Qwen3-VL-Embedding-8B`
+  * **所用模型 (Model)**：`Qwen/Qwen3-Embedding-8B`
 * **`.env` 配置文件设置**：
   ```env
   EMBEDDING_API_KEY="您的硅基流动 API Key"
   EMBEDDING_API_URL="https://api.siliconflow.cn/v1"
-  EMBEDDING_MODEL="Qwen/Qwen3-VL-Embedding-8B"
+  EMBEDDING_MODEL="Qwen/Qwen3-Embedding-8B"
   ```
