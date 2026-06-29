@@ -2,6 +2,7 @@
 
 # 知识库（含 chroma.sqlite3 向量数据库等生成内容）
 knowledge/
+RAG_KBase/
 
 # 临时文件
 tmp/
@@ -26,6 +27,7 @@ GUI/log/
 
 # 上述目录中的 README 不忽略
 !knowledge/README.md
+!RAG_KBase/README.md
 !tmp/README.md
 !data/README.md
 !output/README.md

@@ -13,9 +13,9 @@
   - 清理因删除文件而变空的子目录（保留被忽略目录本身）
 
 用法：
-    uv run python clean_dir.py              # 交互确认后执行
-    uv run python clean_dir.py --dry-run    # 演练模式，仅打印不删除
-    uv run python clean_dir.py -y           # 跳过确认直接执行
+    uv run python src\scripts\clean_dir\clean_dir.py              # 交互确认后执行
+    uv run python src\scripts\clean_dir\clean_dir.py --dry-run    # 演练模式，仅打印不删除
+    uv run python src\scripts\clean_dir\clean_dir.py -y           # 跳过确认直接执行
 """
 
 import os
@@ -155,7 +155,7 @@ def main():
     # 脚本位于 src/scripts/clean_dir/clean_dir.py
     # src 根目录 = 脚本向上三级
     script_dir = Path(__file__).resolve().parent
-    src_root = script_dir.parent.parent.parent
+    src_root = script_dir.parent.parent
 
     gitignore_path = src_root / ".gitignore"
     if not gitignore_path.exists():
