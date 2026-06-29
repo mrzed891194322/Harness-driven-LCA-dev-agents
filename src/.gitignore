@@ -1,29 +1,33 @@
 # 仅忽略以下选中的文件夹，其余内容默认全部保留
 
 # 知识库（含 chroma.sqlite3 向量数据库等生成内容）
-knowledge/
-RAG_KBase/
+knowledge/**
+RAG_KBase/**
 
 # 临时文件
-tmp/
+tmp/**
 
 # 生成的数据文件
-data/
+data/**
 
 # 生成的输出文件
-output/
+output/**
 
 # 评估相关文件
-eval/
+eval/**
 
 # LCI 数据文件
-LCI/
+LCI/**
 
 # 计划文件
-plan/
+plan/**
 
 # GUI文件
-GUI/log/
+GUI/log/**
+
+# input 目录下的用户数据
+input/user_data/**
+input/user_file/**
 
 # 上述目录中的 README 不忽略
 !knowledge/README.md
@@ -34,3 +38,5 @@ GUI/log/
 !eval/README.md
 !LCI/README.md
 !plan/README.md
+!input/user_data/README.md
+!input/user_file/README.md

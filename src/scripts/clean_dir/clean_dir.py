@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
+r"""
 按照 src/.gitignore 中声明的忽略规则清理文件。
 
 读取 src/.gitignore，解析出：
-  - 被忽略的目录（以 `/` 结尾的行，如 `knowledge/`）
+  - 被忽略的目录（以 `/` 或 `/**` 结尾的行，如 `knowledge/`、`knowledge/**`）
   - 例外保留项（以 `!` 开头的行，如 `!knowledge/README.md`）
 
 然后对每个被忽略的目录执行清理：
@@ -48,11 +48,11 @@ def parse_gitignore(gitignore_path: Path):
             if line.startswith("!"):
                 keep_patterns.append(line[1:].strip())
                 continue
-            # 被忽略的目录（以 / 结尾）
-            if line.endswith("/"):
+            # 被忽略的目录（以 / 结尾 或 /** 结尾）
+            if line.endswith("/") or line.endswith("/**"):
                 ignored_dirs.append(line)
                 continue
-            # 普通忽略项（文件或无斜杠的目录），也加入忽略列表
+            # 普通忽略项（文件），也加入忽略列表
             ignored_dirs.append(line)
 
     return ignored_dirs, keep_patterns
@@ -189,7 +189,7 @@ def main():
 
     total_files = total_dirs = total_kept = total_failed = 0
     for d in ignored_dirs:
-        d_clean = d.strip("/")
+        d_clean = d.replace("/**", "").strip("/")
         target = src_root / d_clean
         if not target.exists():
             print(f"\n跳过（不存在）: {d_clean}/")
