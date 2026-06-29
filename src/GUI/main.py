@@ -11,7 +11,7 @@ main_dir = Path(__file__).resolve().parent
 if str(main_dir) not in sys.path:
     sys.path.insert(0, str(main_dir))
 
-from utils.ui import build_ui
+from ui.ui_main import build_ui
 
 
 def main():

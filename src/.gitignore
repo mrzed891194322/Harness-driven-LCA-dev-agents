@@ -1,12 +1,34 @@
-*
-!*/
-!README.md
-!.gitignore
+# 仅忽略以下选中的文件夹，其余内容默认全部保留
 
+# 知识库（含 chroma.sqlite3 向量数据库等生成内容）
+knowledge/
 
-# GUI directory
-!GUI/
-!GUI/**/
-!GUI/**/*.py
-!GUI/README.md
+# 临时文件
+tmp/
+
+# 生成的数据文件
+data/
+
+# 生成的输出文件
+output/
+
+# 评估相关文件
+eval/
+
+# LCI 数据文件
+LCI/
+
+# 计划文件
+plan/
+
+# GUI文件
 GUI/log/
+
+# 上述目录中的 README 不忽略
+!knowledge/README.md
+!tmp/README.md
+!data/README.md
+!output/README.md
+!eval/README.md
+!LCI/README.md
+!plan/README.md

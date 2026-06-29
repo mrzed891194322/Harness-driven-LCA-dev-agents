@@ -97,7 +97,7 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             cwd=str(project_root),
-            shell=False,
+            shell=(os.name == 'nt'),
             bufsize=1,
             text=True,
             encoding='utf-8',
