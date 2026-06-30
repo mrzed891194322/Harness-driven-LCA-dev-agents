@@ -1,9 +1,7 @@
 from pathlib import Path
 from typing import TextIO
 
-
 RAW_LOG_RELATIVE_PATH = Path("src") / "GUI" / "log" / "raw_command_output.log"
-
 
 class CommandLogExporter:
     """
@@ -36,4 +34,3 @@ class CommandLogExporter:
             return
         self._file.close()
         self._file = None
-

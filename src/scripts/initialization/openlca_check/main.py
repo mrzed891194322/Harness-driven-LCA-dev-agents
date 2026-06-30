@@ -20,45 +20,45 @@ from utils.encoding import setup_io_encoding
 
 def check_openlca(host: str = "localhost", port: int = 8080) -> bool:
     """
-    检查 openLCA IPC Server 是否已启动并可连接。
+    Check if openLCA IPC Server is started and connectable.
 
-    参数:
-        host (str): IPC Server 主机地址。
-        port (int): IPC Server 端口。
+    Parameters:
+        host (str): IPC Server host address.
+        port (int): IPC Server port.
 
-    返回:
-        bool: True 表示连接成功，False 表示失败（失败时已打印诊断信息）。
+    Returns:
+        bool: True if connection is successful, False otherwise.
     """
     endpoint = f"http://{host}:{port}"
-    print(f"正在尝试连接至 openLCA IPC Server ({endpoint})...")
+    print(f"Attempting to connect to openLCA IPC Server ({endpoint})...")
 
     try:
         client = olca_ipc.Client(endpoint)
     except Exception as e:
-        print(f"\n[错误] 创建 IPC 客户端失败：{e}")
+        print(f"\n[Error] Failed to create IPC client: {e}")
         _print_diagnosis(port)
         return False
 
-    # 使用 Process 描述符作为轻量探针（不依赖具体数据库内容是否非空）
+    # Use Process descriptors as a lightweight probe (independent of db content)
     try:
         client.get_descriptors(olca_schema.Process)
     except (AttributeError, TypeError) as e:
-        print(f"\n[代码错误] 传参类型错误：{e}")
+        print(f"\n[Code Error] Parameter type error: {e}")
         raise
     except Exception as e:
-        print(f"\n[错误] 无法连接到 openLCA IPC Server：{e}")
+        print(f"\n[Error] Cannot connect to openLCA IPC Server: {e}")
         _print_diagnosis(port)
         return False
 
-    print("成功建立 IPC 连接！openLCA 已就绪。")
+    print("Successfully established IPC connection! openLCA is ready.")
     return True
 
 
 def _print_diagnosis(port: int):
-    print("请检查：")
-    print("  1. openLCA 桌面端是否正在运行")
-    print(f"  2. Tools -> Developer Tools -> IPC Server 是否已启动 (端口: {port})")
-    print("  3. 防火墙是否放行该端口")
+    print("Please check:")
+    print("  1. Whether openLCA desktop application is running")
+    print(f"  2. Whether Tools -> Developer Tools -> IPC Server is started (Port: {port})")
+    print("  3. Whether the firewall allows access to this port")
 
 
 def main():

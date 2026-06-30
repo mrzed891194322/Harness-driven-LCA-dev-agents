@@ -4,11 +4,9 @@ import os
 from pathlib import Path
 from typing import Generator
 
-from utils.log_exporter import CommandLogExporter, RAW_LOG_RELATIVE_PATH
-
+from functions.utils.log_exporter import CommandLogExporter, RAW_LOG_RELATIVE_PATH
 
 MAX_DISPLAY_CHARS = 240_000
-
 
 def strip_ansi(text: str) -> str:
     """
@@ -22,7 +20,6 @@ def strip_ansi(text: str) -> str:
         r")"
     )
     return ansi_escape.sub("", text)
-
 
 def render_terminal_text(raw_logs: str) -> str:
     """
@@ -65,13 +62,12 @@ def render_terminal_text(raw_logs: str) -> str:
         )
     return rendered
 
-
 def execute_command_stream(command_args: list[str]) -> Generator[str, None, None]:
     """
     运行指定的命令，并以生成器形式实时 yield 进程的标准输出与标准错误。
     同时将所有输出重定向打印到本地控制台，并保存到本地 log 文件中。
     """
-    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    project_root = Path(__file__).resolve().parents[5]
     command_str = subprocess.list2cmdline(command_args)
     
     log_exporter = CommandLogExporter(project_root, command_str)
@@ -81,7 +77,7 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
     yield f"[System] Command: {command_str}\n"
     yield "=" * 80 + "\n"
     
-    # 复制当前环境并添加 SSL 绕过环境变量，以解决部分网络/代理环境下的证书校验问题 (unknown certificate verification error)
+    # 复制当前 environment 并添加 SSL 绕过环境变量，以解决部分网络/代理环境下的证书校验问题 (unknown certificate verification error)
     env = os.environ.copy()
     env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
     env["PYTHONHTTPSVERIFY"] = "0"
@@ -91,6 +87,8 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
     except Exception as e:
         print(f"[GUI Logger ERROR] Failed to create log file: {e}")
     
+    from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
+
     try:
         process = subprocess.Popen(
             command_args,
@@ -104,6 +102,7 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
             errors='replace',
             env=env
         )
+        set_active_process(process)
     except Exception as e:
         msg = f"[System ERROR] Failed to start command process: {e}\n"
         print(f"[GUI Logger ERROR] {msg.strip()}")
@@ -112,25 +111,32 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
         log_exporter.close()
         return
 
-    if process.stdout:
-        while True:
-            line = process.stdout.readline()
-            if not line and process.poll() is not None:
-                break
-            if line:
-                # 打印到当前运行 Gradio 终端的主控制台上
-                print(f"[CLI Output] {line.rstrip()}")
-                
-                log_exporter.write(line)
-                yield line
+    try:
+        if process.stdout:
+            while True:
+                if should_stop():
+                    break
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
+                if line:
+                    # 打印到当前运行 Gradio 终端的主控制台上
+                    print(f"[CLI Output] {line.rstrip()}")
+                    
+                    log_exporter.write(line)
+                    yield line
 
-    return_code = process.wait()
-    msg = f"\n[System] Process finished with exit code {return_code}.\n"
-    print(f"[GUI Logger] {msg.strip()}")
-    yield msg
-    log_exporter.write(msg)
-    log_exporter.close()
-
+        return_code = process.wait()
+        if should_stop():
+            msg = "\n[System] Process terminated by user.\n"
+        else:
+            msg = f"\n[System] Process finished with exit code {return_code}.\n"
+        print(f"[GUI Logger] {msg.strip()}")
+        yield msg
+        log_exporter.write(msg)
+    finally:
+        clear_active_process()
+        log_exporter.close()
 
 def run_init_rag_database_console() -> Generator[tuple[str, str], None, None]:
     """
@@ -142,12 +148,20 @@ def run_init_rag_database_console() -> Generator[tuple[str, str], None, None]:
 
     yield "[System] Preparing to start init-rag-database...\n", "Running"
 
+    from functions.utils.process_manager import should_stop
+
     for chunk in execute_command_stream(command):
+        if should_stop():
+            break
         accumulated_output += chunk
         yield render_terminal_text(accumulated_output), "Running"
 
-    yield render_terminal_text(accumulated_output), "Finished"
-
+    if should_stop():
+        if not accumulated_output.endswith("已停止\n") and not accumulated_output.endswith("已停止"):
+            accumulated_output += "\n[System] 已停止\n"
+        yield render_terminal_text(accumulated_output), "Stopped"
+    else:
+        yield render_terminal_text(accumulated_output), "Finished"
 
 def run_opencode_command_console(
     command_name: str,
@@ -175,22 +189,17 @@ def run_opencode_command_console(
 
     yield f"[System] Preparing to start {command_name}...\n", "Running"
 
+    from functions.utils.process_manager import should_stop
+
     for chunk in execute_command_stream(command):
+        if should_stop():
+            break
         accumulated_output += chunk
         yield render_terminal_text(accumulated_output), "Running"
 
-    yield render_terminal_text(accumulated_output), "Finished"
-
-
-def run_make_plan_console() -> Generator[tuple[str, str], None, None]:
-    """
-    运行 'opencode run --command make-plan'，默认 $USER_REQUIREMENTS 为空。
-    """
-    yield from run_opencode_command_console("make-plan")
-
-
-def run_design_lci_console() -> Generator[tuple[str, str], None, None]:
-    """
-    运行 'opencode run --command design-lci'，默认 $USER_REQUIREMENTS 为空。
-    """
-    yield from run_opencode_command_console("design-lci")
+    if should_stop():
+        if not accumulated_output.endswith("已停止\n") and not accumulated_output.endswith("已停止"):
+            accumulated_output += "\n[System] 已停止\n"
+        yield render_terminal_text(accumulated_output), "Stopped"
+    else:
+        yield render_terminal_text(accumulated_output), "Finished"

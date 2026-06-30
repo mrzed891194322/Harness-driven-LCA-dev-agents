@@ -1,6 +1,6 @@
 import gradio as gr
 from pathlib import Path
-from utils.plan_loader import parse_plan_template, extract_plan_toc
+from functions.plan_loader.main import run_plan_loader_action
 
 def build_plan_input() -> tuple[gr.Tab, gr.Column, list[gr.Textbox], gr.Button, gr.Button, gr.Button, gr.Button]:
     """
@@ -26,13 +26,13 @@ def build_plan_input() -> tuple[gr.Tab, gr.Column, list[gr.Textbox], gr.Button, 
                 plan_path = project_root / "src" / "GUI" / "ui" / "assets" / "template" / "plan.md"
 
                 with gr.Column(scale=1, min_width=220, elem_id="plan-toc-column"):
-                    gr.HTML(extract_plan_toc(plan_path))
+                    gr.HTML(run_plan_loader_action("extract_toc", filepath=plan_path))
 
                 with gr.Column(scale=3, elem_id="plan-template-column"):
                     with gr.Column(elem_id="plan-template-container") as plan_template_container:
                         # 滚动容器只负责高度与滚动；内层保持普通文档流，避免影响 Markdown 渲染。
                         with gr.Column(elem_id="plan-template-content"):
-                            blocks = parse_plan_template(plan_path)
+                            blocks = run_plan_loader_action("parse_template", filepath=plan_path)
 
                             textbox_components = []
 

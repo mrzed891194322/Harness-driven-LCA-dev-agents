@@ -19,16 +19,16 @@ DEFAULT_MAPPING = [
     # 静态项目知识库：参考标准
     {
         "input": "src/input/knowledge_base/standards",
-        "output": "src/knowledge/standards",
+        "output": "src/RAG_KBase/standards",
     },
     # 静态项目知识库：openLCA 使用说明
     {
         "input": "src/input/knowledge_base/openlca_manual",
-        "output": "src/knowledge/openlca_manual",
+        "output": "src/RAG_KBase/openlca_manual",
     },
     # 动态输入的特定 LCA 任务原始数据文件
     {
         "input": "src/input/user_file",
-        "output": "src/knowledge/input",
+        "output": "src/RAG_KBase/input",
     },
 ]

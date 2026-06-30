@@ -1,6 +1,6 @@
 import gradio as gr
 
-def build_terminal_console() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button]:
+def build_terminal_console() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.Button]:
     """
     构建“终端显示” Tab 组件及其内部布局。
     """
@@ -23,11 +23,18 @@ def build_terminal_console() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button]
                         elem_id="status-box",
                     )
                 with gr.Column(scale=2, min_width=250):
-                    clear_btn = gr.Button(
-                        "🧹 清空控制台日志 (Clear Logs)",
-                        variant="secondary",
-                        size="sm",
-                        elem_id="clear-btn",
-                    )
+                    with gr.Row():
+                        clear_btn = gr.Button(
+                            "🧹 清空控制台日志 (Clear Logs)",
+                            variant="secondary",
+                            size="sm",
+                            elem_id="clear-btn",
+                        )
+                        stop_btn = gr.Button(
+                            "🛑 停止工作 (Stop)",
+                            variant="stop",
+                            size="sm",
+                            elem_id="stop-btn",
+                        )
                     
-    return tab, output_console, status, clear_btn
+    return tab, output_console, status, clear_btn, stop_btn
