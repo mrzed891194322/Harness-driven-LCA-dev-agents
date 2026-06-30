@@ -5,6 +5,8 @@ from functions.utils.executor.main import main as run_executor_flow
 from functions.utils.file_loader.main import main as run_file_loader_action
 from functions.project_init.main import main as run_project_init_flow
 from functions.make_plan.main import main as run_plan_executor_flow
+from functions.revise_plan.main import main as run_revise_plan_flow
+
 
 def bind_ui_events(
     # Left sidebar components
@@ -33,6 +35,18 @@ def bind_ui_events(
     clear_modify_btn: gr.Button,
     exec_modify_btn: gr.Button,
     close_modify_btn: gr.Button,
+    download_plan_btn: gr.DownloadButton,
+    modify_plan_btn: gr.Button,
+    confirm_plan_btn: gr.Button,
+    close_output_btn: gr.Button,
+    plan_output_content_row: gr.Row,
+    plan_output_warning_row: gr.Row,
+    plan_output_toc_html: gr.HTML,
+    plan_output_markdown: gr.Markdown,
+    plan_modify_content_row: gr.Row,
+    plan_modify_warning_row: gr.Row,
+    plan_modify_toc_html: gr.HTML,
+    modify_markdown_pool: list[gr.Markdown]
 ):
     """
     绑定 Gradio 的按钮点击与上传等所有 UI 交互事件。
@@ -74,6 +88,12 @@ def bind_ui_events(
     )
     
     close_modify_btn.click(
+        fn=handle_close_plan,
+        inputs=None,
+        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab]
+    )
+
+    close_output_btn.click(
         fn=handle_close_plan,
         inputs=None,
         outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab]
@@ -146,25 +166,25 @@ def bind_ui_events(
     )
 
     def run_exec_modify_flow(*args):
-        # 提取动态输入
-        values = list(args)
-        feedback = values[0] if len(values) > 0 else ""
-        questions = values[1] if len(values) > 1 else ""
-
-        # 切换回终端显示 Tab，并隐藏计划相关 Tab，向终端输出提示信息
-        log_text = (
-            f"[System] 计划修改意见已提交。\n"
-            f"[System] 补充修改意见：{feedback or '（无）'}\n"
-            f"[System] 新加入问题：{questions or '（无）'}\n"
-        )
-        yield (
-            gr.update(selected="terminal_tab"),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            log_text,
-            "Ready"
-        )
+        try:
+            values = list(args)
+            
+            # 切换回终端显示 Tab，并隐藏计划相关 Tab
+            yield (
+                gr.update(selected="terminal_tab"),
+                gr.update(visible=False),
+                gr.update(visible=False),
+                gr.update(visible=False),
+                "[System] 正在保存修改...\n",
+                "Running"
+            )
+            
+            # 调用 revise_plan flow 来保存文件并处理后续流
+            for chunk in run_revise_plan_flow(values):
+                yield gr.update(selected="terminal_tab"), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), chunk[0], chunk[1]
+        except Exception:
+            error_text = "[System ERROR] 执行修改流程异常：\n" + traceback.format_exc()
+            yield gr.update(selected="terminal_tab"), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), error_text, "Failed"
 
     exec_modify_btn.click(
         fn=run_exec_modify_flow,
@@ -205,3 +225,144 @@ def bind_ui_events(
         inputs=[output_console],
         outputs=[output_console, status]
     )
+
+    # 11. 计划输出 Tab 按钮事件
+    # 点击“修改计划”按钮切换到‘计划修改’ tab
+    modify_plan_btn.click(
+        fn=lambda: gr.update(selected="plan_modification_tab"),
+        inputs=None,
+        outputs=right_tabs
+    )
+
+    # “确认计划”按钮功能同“关闭计划制定面板”按钮
+    confirm_plan_btn.click(
+        fn=handle_close_plan,
+        inputs=None,
+        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab]
+    )
+
+    # 12. 动态检测与更新 Tab 页渲染状态事件
+    def check_and_update_output_tab():
+        import config
+        execution_plan_path = config.PLAN_OUTPUT_FILE_PATH
+        metadata = run_file_loader_action("read_template_metadata", filepath=execution_plan_path)
+        is_valid = execution_plan_path.exists() and metadata.get("template_kind") == config.PLAN_OUTPUT_TEMPLATE_KIND
+        
+        if is_valid:
+            try:
+                content = execution_plan_path.read_text(encoding="utf-8")
+                from functions.utils.file_loader.private_utils.template_metadata import split_front_matter
+                _, body = split_front_matter(content)
+                toc_html = run_file_loader_action("extract_toc", filepath=execution_plan_path)
+                return (
+                    gr.update(visible=True),  # plan_output_content_row
+                    gr.update(visible=False), # plan_output_warning_row
+                    toc_html,                 # plan_output_toc_html
+                    body,                     # plan_output_markdown
+                    gr.update(interactive=True, value=str(execution_plan_path)), # download_plan_btn
+                    gr.update(interactive=True), # modify_plan_btn
+                    gr.update(interactive=True)  # confirm_plan_btn
+                )
+            except Exception:
+                pass
+        
+        return (
+            gr.update(visible=False),
+            gr.update(visible=True),
+            "",
+            "",
+            gr.update(interactive=False, value=None),
+            gr.update(interactive=False),
+            gr.update(interactive=False)
+        )
+
+    plan_output_tab.select(
+        fn=check_and_update_output_tab,
+        inputs=None,
+        outputs=[
+            plan_output_content_row,
+            plan_output_warning_row,
+            plan_output_toc_html,
+            plan_output_markdown,
+            download_plan_btn,
+            modify_plan_btn,
+            confirm_plan_btn
+        ]
+    )
+
+    def check_and_update_modify_tab():
+        import config
+        todo_list_path = config.PLAN_MODIFY_FILE_PATH
+        metadata = run_file_loader_action("read_template_metadata", filepath=todo_list_path)
+        is_valid = todo_list_path.exists() and metadata.get("template_kind") == config.PLAN_MODIFY_TEMPLATE_KIND
+        
+        if is_valid:
+            try:
+                blocks = run_file_loader_action("parse_template", filepath=todo_list_path)
+                initial_values = run_file_loader_action("load_values", filepath=todo_list_path)
+                toc_html = run_file_loader_action("extract_toc", filepath=todo_list_path)
+                
+                updates = []
+                tb_idx = 0
+                block_idx = 0
+                
+                for i in range(20):
+                    if block_idx < len(blocks):
+                        block = blocks[block_idx]
+                        if block["type"] == "markdown":
+                            updates.append(gr.update(visible=True, value=block["content"]))
+                            block_idx += 1
+                        else:
+                            updates.append(gr.update(visible=False))
+                        
+                        if block_idx < len(blocks) and blocks[block_idx]["type"] == "textbox":
+                            tb_block = blocks[block_idx]
+                            val = initial_values[tb_idx] if tb_idx < len(initial_values) else ""
+                            updates.append(gr.update(visible=True, label=tb_block["label"], value=val, placeholder=tb_block["placeholder"]))
+                            tb_idx += 1
+                            block_idx += 1
+                        else:
+                            updates.append(gr.update(visible=False))
+                    else:
+                        updates.append(gr.update(visible=False))
+                        updates.append(gr.update(visible=False))
+                
+                return [
+                    gr.update(visible=True),  # plan_modify_content_row
+                    gr.update(visible=False), # plan_modify_warning_row
+                    toc_html,                 # plan_modify_toc_html
+                    gr.update(interactive=True), # clear_modify_btn
+                    gr.update(interactive=True)  # exec_modify_btn
+                ] + updates
+            except Exception:
+                pass
+                
+        updates = []
+        for i in range(20):
+            updates.append(gr.update(visible=False))
+            updates.append(gr.update(visible=False))
+        return [
+            gr.update(visible=False),
+            gr.update(visible=True),
+            "",
+            gr.update(interactive=False),
+            gr.update(interactive=False)
+        ] + updates
+
+    modify_select_outputs = [
+        plan_modify_content_row,
+        plan_modify_warning_row,
+        plan_modify_toc_html,
+        clear_modify_btn,
+        exec_modify_btn
+    ]
+    for md_comp, tb_comp in zip(modify_markdown_pool, modify_textbox_components):
+        modify_select_outputs.append(md_comp)
+        modify_select_outputs.append(tb_comp)
+
+    plan_modify_tab.select(
+        fn=check_and_update_modify_tab,
+        inputs=None,
+        outputs=modify_select_outputs
+    )
+

@@ -10,8 +10,9 @@ def copy_uploaded_files(
     """
     将参考资料文件和参考数据文件分别拷贝到 src/input/user_file 和 src/input/user_data 中。
     """
-    materials_dir = project_root / "src" / "input" / "user_file"
-    data_dir = project_root / "src" / "input" / "user_data"
+    import config
+    materials_dir = config.USER_FILE_DIR
+    data_dir = config.USER_DATA_DIR
     
     def process_file_item(file_item) -> List[Path]:
         paths = []

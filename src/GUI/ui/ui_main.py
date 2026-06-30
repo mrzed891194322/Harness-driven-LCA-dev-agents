@@ -73,7 +73,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
                     (
                         plan_input_tab,
                         plan_output_tab,
-                        plan_modify_tab,
+                        plan_modification_tab,
                         plan_template_container,
                         _plan_output_panel,
                         textbox_components,
@@ -81,10 +81,22 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
                         load_plan_btn,
                         exec_plan_btn,
                         close_btn,
-                        modify_textbox_components,
+                        modify_textbox_pool,
                         clear_modify_btn,
                         exec_modify_btn,
                         close_modify_btn,
+                        download_plan_btn,
+                        modify_plan_btn,
+                        confirm_plan_btn,
+                        close_output_btn,
+                        plan_output_content_row,
+                        plan_output_warning_row,
+                        plan_output_toc_html,
+                        plan_output_markdown,
+                        plan_modify_content_row,
+                        plan_modify_warning_row,
+                        plan_modify_toc_html,
+                        modify_markdown_pool
                     ) = build_plan_input()
                 
         # 绑定事件
@@ -101,16 +113,28 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
             stop_btn=stop_btn,
             plan_input_tab=plan_input_tab,
             plan_output_tab=plan_output_tab,
-            plan_modify_tab=plan_modify_tab,
+            plan_modify_tab=plan_modification_tab,
             textbox_components=textbox_components,
             clear_fields_btn=clear_fields_btn,
             load_plan_btn=load_plan_btn,
             exec_plan_btn=exec_plan_btn,
             close_btn=close_btn,
-            modify_textbox_components=modify_textbox_components,
+            modify_textbox_components=modify_textbox_pool,
             clear_modify_btn=clear_modify_btn,
             exec_modify_btn=exec_modify_btn,
-            close_modify_btn=close_modify_btn
+            close_modify_btn=close_modify_btn,
+            download_plan_btn=download_plan_btn,
+            modify_plan_btn=modify_plan_btn,
+            confirm_plan_btn=confirm_plan_btn,
+            close_output_btn=close_output_btn,
+            plan_output_content_row=plan_output_content_row,
+            plan_output_warning_row=plan_output_warning_row,
+            plan_output_toc_html=plan_output_toc_html,
+            plan_output_markdown=plan_output_markdown,
+            plan_modify_content_row=plan_modify_content_row,
+            plan_modify_warning_row=plan_modify_warning_row,
+            plan_modify_toc_html=plan_modify_toc_html,
+            modify_markdown_pool=modify_markdown_pool
         )
         
     return demo, theme, css
