@@ -1,3 +1,8 @@
+---
+template_kind: lca_plan_input
+template_version: 1
+---
+
 # LCA 项目初始化需求与目标说明
 
 

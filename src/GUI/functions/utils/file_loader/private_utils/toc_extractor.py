@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from functions.utils.file_loader.private_utils.template_metadata import split_front_matter
 
 def extract_plan_toc(filepath: Path) -> str:
     """
@@ -11,6 +12,8 @@ def extract_plan_toc(filepath: Path) -> str:
         content = filepath.read_text(encoding="utf-8")
     except Exception:
         return ""
+
+    _, content = split_front_matter(content)
         
     toc_lines = ["<div class='toc-wrapper'>", "<h4>📋 计划目录导航</h4>"]
     header_count = 0

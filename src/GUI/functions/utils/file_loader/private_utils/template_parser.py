@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from functions.utils.file_loader.private_utils.template_metadata import split_front_matter
 
 def parse_plan_template(filepath: Path) -> list[dict]:
     """
@@ -13,6 +14,8 @@ def parse_plan_template(filepath: Path) -> list[dict]:
         content = filepath.read_text(encoding="utf-8")
     except Exception as e:
         return [{"type": "markdown", "content": f"⚠️ **读取模板文件出错**: {str(e)}"}]
+
+    _, content = split_front_matter(content)
 
     # 正则匹配 \s*---\s*\*\*\*✍️ 用户填写内容区\*\*\* ... \s*---，允许有缩进空格
     regex = re.compile(r'(?s)\s*---\s*\*\*\*✍️ 用户填写内容区\*\*\*.*?\s*---')

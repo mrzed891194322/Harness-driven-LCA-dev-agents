@@ -1,0 +1,105 @@
+#terminal-console-panel {
+    overflow: hidden !important;
+}
+
+#terminal-console-panel .styler {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    gap: 10px !important;
+}
+
+#terminal-console-panel .form {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#terminal-output {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#terminal-output,
+#terminal-output > label,
+#terminal-output > label > div,
+#terminal-output > div {
+    min-height: 0 !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex-grow: 1 !important;
+}
+
+#terminal-output textarea {
+    font-family: Consolas, Monaco, "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre;
+    flex-grow: 1 !important;
+    height: 100% !important;
+    overflow-y: auto !important;
+}
+
+#status-box label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+#status-box label > span {
+    margin-bottom: 0 !important;
+    white-space: nowrap !important;
+    min-width: fit-content !important;
+    font-weight: 600 !important;
+}
+
+#status-box label > div,
+#status-box label > textarea,
+#status-box label > input {
+    flex-grow: 1 !important;
+    width: auto !important;
+}
+
+#status-row {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    margin-top: 10px !important;
+    width: 100% !important;
+    gap: 12px !important;
+}
+
+#status-row > .gradio-column:nth-of-type(1),
+#status-row > div:first-child {
+    flex: 0 0 30% !important;
+    width: 30% !important;
+    min-width: 120px !important;
+    max-width: 30% !important;
+}
+
+#status-row > .gradio-column:nth-of-type(2),
+#status-row > div:last-child {
+    flex: 1 1 70% !important;
+    width: 70% !important;
+    min-width: 250px !important;
+}
+
+#clear-btn {
+    margin-top: 0 !important;
+    height: 42px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+}

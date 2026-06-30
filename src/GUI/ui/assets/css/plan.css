@@ -1,0 +1,147 @@
+#plan-input-panel,
+#plan-modify-panel {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) auto !important;
+    gap: 12px !important;
+    overflow: hidden !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+}
+
+#plan-input-panel .styler,
+#plan-modify-panel .styler {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+#plan-input-header,
+#plan-modify-header,
+#template-actions-row,
+#modify-actions-row {
+    flex: 0 0 auto !important;
+}
+
+#plan-input-content-row,
+#plan-modify-content-row {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+#plan-input-content-row > .gradio-column,
+#plan-input-content-row > div,
+#plan-modify-content-row > .gradio-column,
+#plan-modify-content-row > div {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+#plan-template-column,
+#plan-modify-template-column {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+#plan-template-container,
+#plan-modify-template-container {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: block !important;
+    overflow-y: auto !important;
+    border: 1px solid var(--border-color-primary, #e5e7eb) !important;
+    border-radius: 8px !important;
+    padding: 16px !important;
+    background-color: var(--background-fill-secondary, #f9fafb) !important;
+    margin-top: 10px !important;
+}
+
+#plan-template-content,
+#plan-modify-template-content {
+    display: block !important;
+    height: auto !important;
+    min-height: 100% !important;
+}
+
+#plan-template-content > *,
+#plan-modify-template-content > * {
+    margin-bottom: 20px !important;
+}
+
+#template-actions-row,
+#modify-actions-row {
+    margin-top: 16px !important;
+}
+
+#plan-output-panel {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    border: 1px solid var(--border-color-primary, #e5e7eb) !important;
+    border-radius: 8px !important;
+    padding: 14px 16px !important;
+    background-color: var(--background-fill-primary, #ffffff) !important;
+}
+
+#plan-output-placeholder {
+    min-height: 48px !important;
+}
+
+#close-plan-btn,
+#close-modify-btn {
+    height: 42px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-top: 10px !important;
+    width: 100% !important;
+}
+
+#plan-toc-column,
+#plan-modify-toc-column {
+    border-right: 1px solid var(--border-color-primary, #e5e7eb) !important;
+    padding-right: 16px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+}
+
+.toc-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+}
+
+.toc-wrapper h4 {
+    margin-bottom: 12px !important;
+    font-weight: bold !important;
+    color: var(--body-text-color, #1f2937) !important;
+}
+
+.toc-link {
+    color: var(--body-text-color, #4b5563) !important;
+    text-decoration: none !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    line-height: 1.4 !important;
+}
+
+.toc-link:hover {
+    color: var(--primary-hue, #0d9488) !important;
+    text-decoration: underline !important;
+    padding-left: 4px !important;
+}
+
+.toc-level-2 {
+    font-weight: bold !important;
+    margin-top: 10px !important;
+    font-size: 14px !important;
+    color: var(--body-text-color, #1f2937) !important;
+}
+
+.toc-level-3 {
+    padding-left: 14px !important;
+    font-size: 12px !important;
+    color: var(--body-text-color-subdued, #6b7280) !important;
+}

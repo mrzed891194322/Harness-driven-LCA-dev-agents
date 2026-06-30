@@ -1,0 +1,69 @@
+#main-layout-row {
+    --main-workspace-height: calc(100vh - 150px);
+    height: var(--main-workspace-height) !important;
+    min-height: 640px !important;
+    align-items: stretch !important;
+}
+
+#left-sidebar {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    gap: 16px !important;
+}
+
+#file-exchange-section {
+    min-height: 0 !important;
+    height: 100% !important;
+}
+
+#quick-actions-section {
+    align-self: end !important;
+    width: 100% !important;
+}
+
+#right-panel {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#right-tabs {
+    --right-tab-nav-height: 58px;
+    --right-workspace-height: calc(var(--main-workspace-height) - var(--right-tab-nav-height));
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#right-tabs > div {
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+#right-tabs [role="tabpanel"],
+#right-tabs .tabitem {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+/* Shared root container for every top-level tab inside #right-tabs.
+   Future right-panel tabs should put this class on their first child container. */
+.right-tab-workspace,
+.right-workspace-panel {
+    height: var(--right-workspace-height) !important;
+    max-height: var(--right-workspace-height) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+.right-tab-workspace > .styler,
+.right-workspace-panel > .styler {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
