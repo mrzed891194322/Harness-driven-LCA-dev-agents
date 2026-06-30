@@ -25,6 +25,9 @@ plan/**
 # GUI文件
 GUI/log/**
 
+# report文件
+report/**
+
 # input 目录下的用户数据
 input/user_data/**
 input/user_file/**
@@ -40,3 +43,4 @@ input/user_file/**
 !plan/README.md
 !input/user_data/README.md
 !input/user_file/README.md
+!report/README.md
