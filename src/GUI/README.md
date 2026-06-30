@@ -12,7 +12,7 @@
   - `assets/`：存放自定义样式（CSS）及计划输入模板等静态资源。
 - `functions/`：底层业务逻辑层。
   - `utils/`：**公共/调用工具函数**（例如 `process_manager.py` 和 `log_exporter.py`）。
-  - `[feature_name]/`：实现特定功能的子目录（例如 `project_init/`, `executor/`, `plan_loader/`）。
+  - `[feature_name]/`：实现特定功能的子目录（例如 `project_init/`, `executor/`, `file_loader/`, `make_plan/`）。
     - ⚠️ **规范**：该子目录下只有 `main.py` 作为外部接口；所有该特征内部特有的、不对外暴露的辅助脚本需放入子目录 `private_utils/` 中。
 - `log/`：运行原始日志输出目录。
 

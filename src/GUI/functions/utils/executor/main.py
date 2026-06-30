@@ -1,7 +1,7 @@
 from typing import Generator
-from functions.executor.private_utils.executor_utils import run_opencode_command_console
+from functions.utils.executor.private_utils.executor_utils import run_opencode_command_console
 
-def run_executor_flow(
+def main(
     command_name: str,
     user_requirements: str | None = None,
     *,

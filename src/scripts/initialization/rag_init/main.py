@@ -83,15 +83,23 @@ def _build_single(project_root: Path, input_dir: Path, output_dir: Path):
             if file_path.suffix.lower() == ".md":
                 continue
             try:
-                print(f"Converting {file_path} to markdown on disk...")
+                try:
+                    display_path = file_path.relative_to(project_root)
+                except ValueError:
+                    display_path = file_path
+                print(f"Converting {display_path} to markdown on disk...")
                 result = md.convert(str(file_path))
                 md_content = result.text_content
                 output_md_path = file_path.with_suffix(".md")
+                try:
+                    display_out_path = output_md_path.relative_to(project_root)
+                except ValueError:
+                    display_out_path = output_md_path
                 with open(output_md_path, "w", encoding="utf-8") as out_f:
                     out_f.write(md_content)
-                print(f"Saved -> {output_md_path}")
+                print(f"Saved -> {display_out_path}")
             except Exception as e:
-                print(f"Error converting {file_path}: {e}")
+                print(f"Error converting {display_path}: {e}")
     else:
         print(f"No convertible files in {input_display}.")
 
@@ -112,7 +120,7 @@ def _build_single(project_root: Path, input_dir: Path, output_dir: Path):
     )
     md_instance = MarkItDown()
     for file_path in md_files:
-        process_file(file_path, md_instance, collection, text_splitter)
+        process_file(file_path, md_instance, collection, text_splitter, project_root)
 
     print(f"RAG build completed for {output_display}")
 

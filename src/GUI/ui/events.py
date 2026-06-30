@@ -1,8 +1,10 @@
 from pathlib import Path
+import traceback
 import gradio as gr
-from functions.executor.main import run_executor_flow
-from functions.plan_loader.main import run_plan_loader_action
-from functions.project_init.main import run_project_init_flow
+from functions.utils.executor.main import main as run_executor_flow
+from functions.utils.file_loader.main import main as run_file_loader_action
+from functions.project_init.main import main as run_project_init_flow
+from functions.make_plan.main import main as run_plan_executor_flow
 
 def bind_ui_events(
     # Left sidebar components
@@ -38,14 +40,14 @@ def bind_ui_events(
 
     # 2. 点击左侧“制定 LCA 执行计划”按钮：显示并切换到“计划输入” Tab
     make_plan_btn.click(
-        fn=lambda: (gr.Tabs(selected="file_processing_tab"), gr.Tab(visible=True)),
+        fn=lambda: (gr.update(selected="file_processing_tab"), gr.update(visible=True)),
         inputs=None,
         outputs=[right_tabs, plan_input_tab]
     )
 
     # 3. 点击右侧“❌ 关闭计划输入”按钮：隐藏“计划输入” Tab 并返回到“终端显示” Tab
     close_btn.click(
-        fn=lambda: (gr.Tabs(selected="terminal_tab"), gr.Tab(visible=False)),
+        fn=lambda: (gr.update(selected="terminal_tab"), gr.update(visible=False)),
         inputs=None,
         outputs=[right_tabs, plan_input_tab]
     )
@@ -63,7 +65,7 @@ def bind_ui_events(
             raise gr.Error("未选择任何文件！")
         
         uploaded_filepath = Path(file_obj.name)
-        vals = run_plan_loader_action("load_values", filepath=uploaded_filepath)
+        vals = run_file_loader_action("load_values", filepath=uploaded_filepath)
         
         # 校验是否可以使用现有渲染逻辑（检查解析出的用户填写区域块数是否与当前模板相符）
         if len(vals) != len(textbox_components):
@@ -81,25 +83,23 @@ def bind_ui_events(
 
     # 6. 执行计划事件
     def run_exec_plan_flow(*args):
-        values = list(args)
-        project_root = Path(__file__).resolve().parents[3]
-        template_path = project_root / "src" / "GUI" / "ui" / "assets" / "template" / "plan.md"
-        target_path = project_root / "input" / "plan.md"
-        
-        # 保存当前界面的文本框输入到目标 input/plan.md
-        run_plan_loader_action("save_values", template_path=template_path, target_path=target_path, values=values)
-        
-        # 切换回终端显示 Tab，并隐藏计划输入 Tab
-        yield (
-            gr.Tabs(selected="terminal_tab"),
-            gr.Tab(visible=False),
-            "[System] 已更新保存 input/plan.md。正在启动后台制定 LCA 计划任务...\n",
-            "Running"
-        )
-        
-        # 运行后台命令并以流式输出至终端显示
-        for chunk in run_executor_flow("make-plan"):
-            yield gr.Tabs(selected="terminal_tab"), gr.Tab(visible=False), chunk[0], chunk[1]
+        try:
+            values = list(args)
+            
+            # 切换回终端显示 Tab，并隐藏计划输入 Tab
+            yield (
+                gr.update(selected="terminal_tab"),
+                gr.update(visible=False),
+                "[System] 正在保存计划...\n",
+                "Running"
+            )
+            
+            # 调用新封装的 run_plan_executor_flow 来保存文件并处理后续流
+            for chunk in run_plan_executor_flow(values):
+                yield gr.update(selected="terminal_tab"), gr.update(visible=False), chunk[0], chunk[1]
+        except Exception:
+            error_text = "[System ERROR] 执行计划流程异常：\n" + traceback.format_exc()
+            yield gr.update(selected="terminal_tab"), gr.update(visible=False), error_text, "Failed"
 
     exec_plan_btn.click(
         fn=run_exec_plan_flow,

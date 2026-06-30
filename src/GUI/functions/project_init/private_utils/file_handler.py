@@ -8,10 +8,10 @@ def copy_uploaded_files(
     project_root: Path
 ) -> Generator[str, None, None]:
     """
-    将文件交换区上传的文件存放在 src/input 中。
+    将参考资料文件和参考数据文件分别拷贝到 src/input/user_file 和 src/input/user_data 中。
     """
-    target_dir = project_root / "src" / "input"
-    target_dir.mkdir(parents=True, exist_ok=True)
+    materials_dir = project_root / "src" / "input" / "user_file"
+    data_dir = project_root / "src" / "input" / "user_data"
     
     def process_file_item(file_item) -> List[Path]:
         paths = []
@@ -54,25 +54,27 @@ def copy_uploaded_files(
     
     # Process reference materials
     if all_material_paths:
-        yield "[System] Copying uploaded reference materials to src/input...\n"
+        yield "[System] Copying uploaded reference materials to src/input/user_file...\n"
+        materials_dir.mkdir(parents=True, exist_ok=True)
         for path in all_material_paths:
             if path.exists() and path.is_file():
-                dest_path = target_dir / path.name
+                dest_path = materials_dir / path.name
                 shutil.copy2(path, dest_path)
-                yield f"  - Copied reference material: {path.name}\n"
+                yield f"  - Copied reference material: {path.name} to src/input/user_file\n"
                 total_copied += 1
                 
     # Process reference data
     if all_data_paths:
-        yield "[System] Copying uploaded reference data to src/input...\n"
+        yield "[System] Copying uploaded reference data to src/input/user_data...\n"
+        data_dir.mkdir(parents=True, exist_ok=True)
         for path in all_data_paths:
             if path.exists() and path.is_file():
-                dest_path = target_dir / path.name
+                dest_path = data_dir / path.name
                 shutil.copy2(path, dest_path)
-                yield f"  - Copied reference data: {path.name}\n"
+                yield f"  - Copied reference data: {path.name} to src/input/user_data\n"
                 total_copied += 1
                 
     if total_copied == 0:
         yield "[System] No uploaded files found in the file exchange area to copy.\n"
     else:
-        yield f"[System] Copied {total_copied} file(s) to src/input.\n"
+        yield f"[System] Copied {total_copied} file(s) to user_file/user_data folders.\n"

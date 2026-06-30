@@ -26,7 +26,8 @@ def main():
         css=css,
         server_name="127.0.0.1",
         server_port=7860,
-        share=False
+        share=False,
+        show_error=True
     )
 
 if __name__ == "__main__":

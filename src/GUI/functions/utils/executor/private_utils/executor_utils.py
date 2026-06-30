@@ -1,12 +1,25 @@
 import subprocess
 import re
 import os
+import sys
 from pathlib import Path
 from typing import Generator
 
 from functions.utils.log_exporter import CommandLogExporter, RAW_LOG_RELATIVE_PATH
+from functions.utils.path_utils import find_project_root
 
 MAX_DISPLAY_CHARS = 240_000
+
+def safe_console_print(text: str) -> None:
+    """
+    Print diagnostic text without letting the host console encoding break the GUI flow.
+    """
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        encoding = sys.stdout.encoding or "utf-8"
+        safe_text = text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+        print(safe_text)
 
 def strip_ansi(text: str) -> str:
     """
@@ -67,11 +80,11 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
     运行指定的命令，并以生成器形式实时 yield 进程的标准输出与标准错误。
     同时将所有输出重定向打印到本地控制台，并保存到本地 log 文件中。
     """
-    project_root = Path(__file__).resolve().parents[5]
+    project_root = find_project_root(Path(__file__).resolve())
     command_str = subprocess.list2cmdline(command_args)
     
     log_exporter = CommandLogExporter(project_root, command_str)
-    print(f"\n[GUI Logger] Started task. Raw logs will be saved to: {log_exporter.path}")
+    safe_console_print(f"\n[GUI Logger] Started task. Raw logs will be saved to: {log_exporter.path}")
     
     yield f"[System] Executing command in: {project_root}\n"
     yield f"[System] Command: {command_str}\n"
@@ -85,7 +98,7 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
     try:
         log_exporter.open()
     except Exception as e:
-        print(f"[GUI Logger ERROR] Failed to create log file: {e}")
+        safe_console_print(f"[GUI Logger ERROR] Failed to create log file: {e}")
     
     from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
 
@@ -105,12 +118,13 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
         set_active_process(process)
     except Exception as e:
         msg = f"[System ERROR] Failed to start command process: {e}\n"
-        print(f"[GUI Logger ERROR] {msg.strip()}")
+        safe_console_print(f"[GUI Logger ERROR] {msg.strip()}")
         yield msg
         log_exporter.write(msg)
         log_exporter.close()
         return
 
+    completed = False
     try:
         if process.stdout:
             while True:
@@ -121,20 +135,34 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
                     break
                 if line:
                     # 打印到当前运行 Gradio 终端的主控制台上
-                    print(f"[CLI Output] {line.rstrip()}")
+                    safe_console_print(f"[CLI Output] {line.rstrip()}")
                     
                     log_exporter.write(line)
                     yield line
 
         return_code = process.wait()
+        completed = True
         if should_stop():
             msg = "\n[System] Process terminated by user.\n"
         else:
             msg = f"\n[System] Process finished with exit code {return_code}.\n"
-        print(f"[GUI Logger] {msg.strip()}")
+        safe_console_print(f"[GUI Logger] {msg.strip()}")
         yield msg
         log_exporter.write(msg)
     finally:
+        if not completed and process.poll() is None:
+            try:
+                if os.name == 'nt':
+                    subprocess.run(
+                        ['taskkill', '/F', '/T', '/PID', str(process.pid)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                else:
+                    process.terminate()
+                    process.wait(timeout=2)
+            except Exception as e:
+                safe_console_print(f"[Process Manager] Error cleaning up command process: {e}")
         clear_active_process()
         log_exporter.close()
 

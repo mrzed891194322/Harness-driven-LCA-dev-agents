@@ -31,10 +31,10 @@
 
 | 触发控件 | Gradio 事件 | 绑定的处理函数 | 调用的后端 API / 动作 |
 | :--- | :--- | :--- | :--- |
-| **项目初始化按钮** (`run_btn`) | `.click()` | `run_project_init_flow` | `functions.project_init.main.run_project_init_flow` |
+| **项目初始化按钮** (`run_btn`) | `.click()` | `run_project_init_flow` | `functions.project_init.main.main` |
 | **制定计划快捷按钮** (`make_plan_btn`) | `.click()` | *内联 lambda 表达式* | 切换右侧 Tab 面板显示状态 |
-| **设计 LCI 快捷按钮** (`design_lci_btn`) | `.click()` | `run_design_lci` | `functions.executor.main.run_executor_flow("design-lci")` |
+| **设计 LCI 快捷按钮** (`design_lci_btn`) | `.click()` | `run_design_lci` | `functions.utils.executor.main.main("design-lci")` |
 | **清空日志按钮** (`clear_btn`) | `.click()` | *内联 lambda 表达式* | 重置终端输出为空，状态为 `"Ready"` |
 | **停止工作按钮** (`stop_btn`) | `.click()` | `stop_working_task` | `functions.utils.process_manager.trigger_stop()` |
-| **加载已有计划文件** (`load_plan_btn`) | `.upload()` | `read_user_plan_values` | `functions.plan_loader.main.run_plan_loader_action("load_values")` |
-| **执行计划提交按钮** (`exec_plan_btn`) | `.click()` | `run_exec_plan_flow` | `functions.plan_loader.main.run_plan_loader_action("save_values")`，并循环读取 `functions.executor.main.run_executor_flow("make-plan")` 输出 |
+| **加载已有计划文件** (`load_plan_btn`) | `.upload()` | `read_user_plan_values` | `functions.utils.file_loader.main.main("load_values")` |
+| **执行计划提交按钮** (`exec_plan_btn`) | `.click()` | `run_exec_plan_flow` | `functions.make_plan.main.main(values)` (内部路由 `functions.utils.file_loader.main.main("save_values")`) |

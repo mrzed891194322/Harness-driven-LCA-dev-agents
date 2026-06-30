@@ -1,6 +1,7 @@
 import gradio as gr
 from pathlib import Path
-from functions.plan_loader.main import run_plan_loader_action
+from functions.utils.file_loader.main import main as run_file_loader_action
+from functions.utils.path_utils import find_project_root
 
 def build_plan_input() -> tuple[gr.Tab, gr.Column, list[gr.Textbox], gr.Button, gr.Button, gr.Button, gr.Button]:
     """
@@ -22,17 +23,17 @@ def build_plan_input() -> tuple[gr.Tab, gr.Column, list[gr.Textbox], gr.Button, 
 
             # 左右布局：左侧是目录导航，右侧是滚动输入表单
             with gr.Row(elem_id="plan-input-content-row"):
-                project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+                project_root = find_project_root(Path(__file__))
                 plan_path = project_root / "src" / "GUI" / "ui" / "assets" / "template" / "plan.md"
 
                 with gr.Column(scale=1, min_width=220, elem_id="plan-toc-column"):
-                    gr.HTML(run_plan_loader_action("extract_toc", filepath=plan_path))
+                    gr.HTML(run_file_loader_action("extract_toc", filepath=plan_path))
 
                 with gr.Column(scale=3, elem_id="plan-template-column"):
                     with gr.Column(elem_id="plan-template-container") as plan_template_container:
                         # 滚动容器只负责高度与滚动；内层保持普通文档流，避免影响 Markdown 渲染。
                         with gr.Column(elem_id="plan-template-content"):
-                            blocks = run_plan_loader_action("parse_template", filepath=plan_path)
+                            blocks = run_file_loader_action("parse_template", filepath=plan_path)
 
                             textbox_components = []
 
