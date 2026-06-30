@@ -1,5 +1,6 @@
 #plan-input-panel,
-#plan-modify-panel {
+#plan-modify-panel,
+#plan-output-panel {
     display: grid !important;
     grid-template-rows: auto minmax(0, 1fr) auto !important;
     gap: 12px !important;
@@ -10,20 +11,24 @@
 }
 
 #plan-input-panel .styler,
-#plan-modify-panel .styler {
+#plan-modify-panel .styler,
+#plan-output-panel .styler {
     height: 100% !important;
     min-height: 0 !important;
 }
 
 #plan-input-header,
 #plan-modify-header,
+#plan-output-header,
 #template-actions-row,
-#modify-actions-row {
+#modify-actions-row,
+#output-actions-row {
     flex: 0 0 auto !important;
 }
 
 #plan-input-content-row,
-#plan-modify-content-row {
+#plan-modify-content-row,
+#plan-output-content-row {
     height: 100% !important;
     min-height: 0 !important;
     overflow: hidden !important;
@@ -32,19 +37,23 @@
 #plan-input-content-row > .gradio-column,
 #plan-input-content-row > div,
 #plan-modify-content-row > .gradio-column,
-#plan-modify-content-row > div {
+#plan-modify-content-row > div,
+#plan-output-content-row > .gradio-column,
+#plan-output-content-row > div {
     height: 100% !important;
     min-height: 0 !important;
 }
 
 #plan-template-column,
-#plan-modify-template-column {
+#plan-modify-template-column,
+#plan-output-template-column {
     height: 100% !important;
     min-height: 0 !important;
 }
 
 #plan-template-container,
-#plan-modify-template-container {
+#plan-modify-template-container,
+#plan-output-template-container {
     height: 100% !important;
     min-height: 0 !important;
     display: block !important;
@@ -57,7 +66,8 @@
 }
 
 #plan-template-content,
-#plan-modify-template-content {
+#plan-modify-template-content,
+#plan-output-template-content {
     display: block !important;
     height: auto !important;
     min-height: 100% !important;
@@ -69,26 +79,14 @@
 }
 
 #template-actions-row,
-#modify-actions-row {
+#modify-actions-row,
+#output-actions-row {
     margin-top: 16px !important;
 }
 
-#plan-output-panel {
-    height: 100% !important;
-    min-height: 0 !important;
-    overflow: hidden !important;
-    border: 1px solid var(--border-color-primary, #e5e7eb) !important;
-    border-radius: 8px !important;
-    padding: 14px 16px !important;
-    background-color: var(--background-fill-primary, #ffffff) !important;
-}
-
-#plan-output-placeholder {
-    min-height: 48px !important;
-}
-
 #close-plan-btn,
-#close-modify-btn {
+#close-modify-btn,
+#close-output-btn {
     height: 42px !important;
     display: flex !important;
     align-items: center !important;
@@ -98,7 +96,8 @@
 }
 
 #plan-toc-column,
-#plan-modify-toc-column {
+#plan-modify-toc-column,
+#plan-output-toc-column {
     border-right: 1px solid var(--border-color-primary, #e5e7eb) !important;
     padding-right: 16px !important;
     height: 100% !important;

@@ -8,10 +8,10 @@ def main(values: list[str]) -> Generator[tuple[str, str], None, None]:
     1. 将当前渲染 of md 计划内容保存到 src/plan/current_plan.md 中。
     2. 后续功能暂时不做，预留接口。
     """
-    project_root = find_project_root(Path(__file__))
+    import config
     
-    template_path = project_root / "src" / "GUI" / "ui" / "assets" / "template" / "plan.md"
-    current_plan_path = project_root / "src" / "plan" / "current_plan.md"
+    template_path = config.PLAN_INPUT_TEMPLATE_PATH
+    current_plan_path = config.CURRENT_PLAN_PATH
     
     # 1. 保存当前界面的文本框输入（渲染 of md 计划内容）到 src/plan/current_plan.md
     yield "[System] 正在保存当前渲染的 md 计划内容...\n", "Running"

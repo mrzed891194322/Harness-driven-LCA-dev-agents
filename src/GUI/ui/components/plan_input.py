@@ -3,10 +3,7 @@ from pathlib import Path
 from functions.utils.file_loader.main import main as run_file_loader_action
 from functions.utils.path_utils import find_project_root
 
-def build_plan_input() -> tuple[
-    gr.Tab, gr.Tab, gr.Tab, gr.Column, gr.Column, list[gr.Textbox], gr.Button, gr.Button, gr.Button, gr.Button,
-    list[gr.Textbox], gr.Button, gr.Button, gr.Button
-]:
+def build_plan_input() -> tuple:
     """
     构建同级的“计划输入”、“计划输出”和“计划修改” Tab 组件，初始均不可见。
     """
@@ -23,12 +20,12 @@ def build_plan_input() -> tuple[
                             """
                         )
                     with gr.Column(scale=1, min_width=150):
-                        close_btn = gr.Button("❌ 关闭计划", variant="secondary", size="sm", elem_id="close-plan-btn")
+                        close_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", elem_id="close-plan-btn")
 
                 # 左右布局：左侧是目录导航，右侧是滚动输入表单
                 with gr.Row(elem_id="plan-input-content-row"):
-                    project_root = find_project_root(Path(__file__))
-                    plan_path = project_root / "src" / "GUI" / "ui" / "assets" / "template" / "plan.md"
+                    import config
+                    plan_path = config.PLAN_INPUT_TEMPLATE_PATH
 
                     with gr.Column(scale=1, min_width=220, elem_id="plan-toc-column"):
                         gr.HTML(run_file_loader_action("extract_toc", filepath=plan_path))
@@ -64,8 +61,36 @@ def build_plan_input() -> tuple[
     with gr.Tab("计划输出", id="plan_output_tab", visible=False) as plan_output_tab:
         with gr.Column(elem_id="plan-output-workspace", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
             with gr.Column(elem_id="plan-output-panel") as plan_output_panel:
-                gr.Markdown("### 📤 计划输出区 (Plan Output)")
-                gr.Markdown("", elem_id="plan-output-placeholder")
+                # 头部带有关闭按钮的行
+                with gr.Row(variant="compact", elem_id="plan-output-header"):
+                    with gr.Column(scale=4):
+                        gr.Markdown(
+                            """
+                            ### 📤 计划输出区 (Plan Output)
+                            这是已生成的生命周期评估 (LCA) 执行计划。请在此进行查看、下载或确认。
+                            """
+                        )
+                    with gr.Column(scale=1, min_width=150):
+                        close_output_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", elem_id="close-output-btn")
+
+                # 左右布局：左侧是目录导航，右侧是滚动展示
+                with gr.Row(elem_id="plan-output-content-row", visible=False) as plan_output_content_row:
+                    with gr.Column(scale=1, min_width=220, elem_id="plan-output-toc-column") as plan_output_toc_column:
+                        plan_output_toc_html = gr.HTML()
+
+                    with gr.Column(scale=3, elem_id="plan-output-template-column"):
+                        with gr.Column(elem_id="plan-output-template-container") as plan_output_template_container:
+                            with gr.Column(elem_id="plan-output-template-content"):
+                                plan_output_markdown = gr.Markdown()
+
+                with gr.Row(elem_id="plan-output-warning-row", visible=True) as plan_output_warning_row:
+                    gr.Markdown("### ⚠️ 缺少必要文件", elem_id="missing-output-file-warning")
+
+                # 控制按钮，固定放置在底部
+                with gr.Row(elem_id="output-actions-row"):
+                    download_plan_btn = gr.DownloadButton("📥 下载计划", variant="secondary", interactive=False)
+                    modify_plan_btn = gr.Button("🔧 修改计划", variant="secondary", interactive=False)
+                    confirm_plan_btn = gr.Button("✅ 确认计划", variant="primary", interactive=False)
 
     with gr.Tab("计划修改", id="plan_modification_tab", visible=False) as plan_modification_tab:
         with gr.Column(elem_id="plan-modify-workspace", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
@@ -80,44 +105,38 @@ def build_plan_input() -> tuple[
                             """
                         )
                     with gr.Column(scale=1, min_width=150):
-                        close_modify_btn = gr.Button("❌ 关闭计划", variant="secondary", size="sm", elem_id="close-modify-btn")
+                        close_modify_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", elem_id="close-modify-btn")
 
                 # 左右布局：左侧是目录导航，右侧是滚动输入表单
-                with gr.Row(elem_id="plan-modify-content-row"):
-                    project_root = find_project_root(Path(__file__))
-                    modify_template_path = project_root / "src" / "GUI" / "ui" / "assets" / "template" / "modify_plan.md"
-
-                    with gr.Column(scale=1, min_width=220, elem_id="plan-modify-toc-column"):
-                        gr.HTML(run_file_loader_action("extract_toc", filepath=modify_template_path))
+                with gr.Row(elem_id="plan-modify-content-row", visible=False) as plan_modify_content_row:
+                    with gr.Column(scale=1, min_width=220, elem_id="plan-modify-toc-column") as plan_modify_toc_column:
+                        plan_modify_toc_html = gr.HTML()
 
                     with gr.Column(scale=3, elem_id="plan-modify-template-column"):
                         with gr.Column(elem_id="plan-modify-template-container") as plan_modify_template_container:
                             with gr.Column(elem_id="plan-modify-template-content"):
-                                modify_blocks = run_file_loader_action("parse_template", filepath=modify_template_path)
+                                modify_markdown_pool = []
+                                modify_textbox_pool = []
+                                for i in range(20):
+                                    md_item = gr.Markdown(visible=False)
+                                    tb_item = gr.Textbox(visible=False, interactive=True, lines=3)
+                                    modify_markdown_pool.append(md_item)
+                                    modify_textbox_pool.append(tb_item)
 
-                                modify_textbox_components = []
-
-                                for block in modify_blocks:
-                                    if block["type"] == "markdown":
-                                        gr.Markdown(block["content"])
-                                    elif block["type"] == "textbox":
-                                        tb = gr.Textbox(
-                                            label=block["label"],
-                                            placeholder=block["placeholder"],
-                                            value="",
-                                            lines=3,
-                                            interactive=True
-                                        )
-                                        modify_textbox_components.append(tb)
+                with gr.Row(elem_id="plan-modify-warning-row", visible=True) as plan_modify_warning_row:
+                    gr.Markdown("### ⚠️ 缺少必要文件", elem_id="missing-file-warning")
 
                 # 控制按钮，固定放置在底部
                 with gr.Row(elem_id="modify-actions-row"):
-                    clear_modify_btn = gr.Button("🧹 清空输入", variant="secondary")
-                    exec_modify_btn = gr.Button("⚡ 执行修改", variant="primary")
+                    clear_modify_btn = gr.Button("🧹 清空输入", variant="secondary", interactive=False)
+                    exec_modify_btn = gr.Button("⚡ 执行修改", variant="primary", interactive=False)
             
     return (
         plan_input_tab, plan_output_tab, plan_modification_tab,
         plan_template_container, plan_output_panel,
         textbox_components, clear_fields_btn, load_plan_btn, exec_plan_btn, close_btn,
-        modify_textbox_components, clear_modify_btn, exec_modify_btn, close_modify_btn
+        modify_textbox_pool, clear_modify_btn, exec_modify_btn, close_modify_btn,
+        download_plan_btn, modify_plan_btn, confirm_plan_btn, close_output_btn,
+        plan_output_content_row, plan_output_warning_row, plan_output_toc_html, plan_output_markdown,
+        plan_modify_content_row, plan_modify_warning_row, plan_modify_toc_html, modify_markdown_pool
     )
