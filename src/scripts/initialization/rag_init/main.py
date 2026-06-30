@@ -43,9 +43,16 @@ def _clean_output_dir(output_dir: Path):
             p.unlink()
 
 
-def _build_single(input_dir: Path, output_dir: Path):
+def _build_single(project_root: Path, input_dir: Path, output_dir: Path):
     """对单个 input->output 映射执行 RAG 构建。"""
-    print(f"\n--- 构建：{input_dir}  ->  {output_dir} ---")
+    try:
+        input_display = input_dir.relative_to(project_root)
+        output_display = output_dir.relative_to(project_root)
+    except ValueError:
+        input_display = input_dir
+        output_display = output_dir
+
+    print(f"\n--- Building: {input_display}  ->  {output_display} ---")
 
     # 加载 embedding 配置
     try:
@@ -58,7 +65,7 @@ def _build_single(input_dir: Path, output_dir: Path):
     print(f"Supported document extensions: {supported_extensions}")
 
     if not input_dir.exists():
-        print(f"输入目录不存在，跳过：{input_dir}")
+        print(f"Input directory does not exist, skipping: {input_display}")
         return
 
     input_dir.mkdir(parents=True, exist_ok=True)
@@ -86,7 +93,7 @@ def _build_single(input_dir: Path, output_dir: Path):
             except Exception as e:
                 print(f"Error converting {file_path}: {e}")
     else:
-        print(f"No convertible files in {input_dir}.")
+        print(f"No convertible files in {input_display}.")
 
     # 仅读取 .md 文件写入向量库
     md_files = [
@@ -94,7 +101,7 @@ def _build_single(input_dir: Path, output_dir: Path):
         if f.is_file() and f.suffix.lower() == ".md" and not f.name.startswith(".")
     ]
     if not md_files:
-        print(f"No .md files in {input_dir}, skip database creation.")
+        print(f"No .md files in {input_display}, skip database creation.")
         return
 
     print(f"Found {len(md_files)} .md files. Initializing ChromaDB...")
@@ -107,7 +114,7 @@ def _build_single(input_dir: Path, output_dir: Path):
     for file_path in md_files:
         process_file(file_path, md_instance, collection, text_splitter)
 
-    print(f"RAG build completed for {output_dir}")
+    print(f"RAG build completed for {output_display}")
 
 
 def build_all_rag(project_root: Path, mapping: list, clean: bool = False):
@@ -119,23 +126,23 @@ def build_all_rag(project_root: Path, mapping: list, clean: bool = False):
         mapping (list): 形如 [{"input": "...", "output": "..."}] 的映射列表（相对路径）。
         clean (bool): 构建前是否清空输出子目录（保留 README.md）。
     """
-    print(f"项目根目录：{project_root}")
-    print(f"映射条目数：{len(mapping)}")
+    print(f"Project root: {project_root}")
+    print(f"Number of mapping entries: {len(mapping)}")
 
     for item in mapping:
         input_rel = item.get("input")
         output_rel = item.get("output")
         if not input_rel or not output_rel:
-            print(f"跳过非法映射项：{item}")
+            print(f"Skipping invalid mapping item: {item}")
             continue
 
         input_dir = project_root / input_rel
         output_dir = project_root / output_rel
 
         if clean:
-            print(f"清空输出目录（保留 README.md）：{output_dir}")
+            print(f"Cleaning output directory (preserving README.md): {output_rel}")
             _clean_output_dir(output_dir)
 
-        _build_single(input_dir, output_dir)
+        _build_single(project_root, input_dir, output_dir)
 
-    print("\n所有 RAG 映射构建完成。")
+    print("\nAll RAG mappings built successfully.")

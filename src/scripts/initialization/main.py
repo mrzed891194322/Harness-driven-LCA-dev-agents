@@ -85,7 +85,7 @@ def main():
 
     if run_rag:
         print("=" * 60)
-        print("步骤 1/2：构建 RAG 知识库")
+        print("Step 1/2: Build RAG Knowledge Base")
         print("=" * 60)
         mapping = DEFAULT_MAPPING
         if args.mapping:
@@ -99,12 +99,12 @@ def main():
 
     if run_openlca:
         print("=" * 60)
-        print("步骤 2/2：检查 openLCA IPC Server 连接")
+        print("Step 2/2: Check openLCA IPC Server Connection")
         print("=" * 60)
         check_openlca(host=args.host, port=args.port)
 
     print("=" * 60)
-    print("初始化流程结束")
+    print("Initialization process finished")
     print("=" * 60)
 
 
