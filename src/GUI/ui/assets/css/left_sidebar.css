@@ -1,0 +1,50 @@
+#left-sidebar {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    gap: 16px !important;
+}
+
+#file-exchange-section {
+    min-height: 0 !important;
+    height: 100% !important;
+}
+
+#file-exchange-section,
+#file-exchange-section .styler,
+#file-exchange-section .tab-nav {
+    background-color: transparent !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+#quick-actions-section {
+    align-self: end !important;
+    width: 100% !important;
+}
+
+.quick-action-btn,
+.quick-action-btn button {
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease !important;
+}
+
+.quick-action-active,
+.quick-action-active button,
+.quick-action-btn.quick-action-active,
+.quick-action-btn.quick-action-active button {
+    background: #14b8a6 !important;
+    border-color: #0f766e !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 10px rgba(15, 118, 110, 0.22) !important;
+}
+
+.quick-action-active:hover,
+.quick-action-active button:hover,
+.quick-action-btn.quick-action-active:hover,
+.quick-action-btn.quick-action-active button:hover {
+    background: #0f9f91 !important;
+    border-color: #0f766e !important;
+    color: #ffffff !important;
+}

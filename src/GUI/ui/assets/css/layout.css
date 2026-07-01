@@ -5,47 +5,7 @@
     align-items: stretch !important;
 }
 
-#left-sidebar {
-    height: 100% !important;
-    min-height: 0 !important;
-    display: grid !important;
-    grid-template-rows: minmax(0, 1fr) auto !important;
-    gap: 16px !important;
-}
 
-#file-exchange-section {
-    min-height: 0 !important;
-    height: 100% !important;
-}
-
-#quick-actions-section {
-    align-self: end !important;
-    width: 100% !important;
-}
-
-.quick-action-btn,
-.quick-action-btn button {
-    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease !important;
-}
-
-.quick-action-active,
-.quick-action-active button,
-.quick-action-btn.quick-action-active,
-.quick-action-btn.quick-action-active button {
-    background: #14b8a6 !important;
-    border-color: #0f766e !important;
-    color: #ffffff !important;
-    box-shadow: 0 2px 10px rgba(15, 118, 110, 0.22) !important;
-}
-
-.quick-action-active:hover,
-.quick-action-active button:hover,
-.quick-action-btn.quick-action-active:hover,
-.quick-action-btn.quick-action-active button:hover {
-    background: #0f9f91 !important;
-    border-color: #0f766e !important;
-    color: #ffffff !important;
-}
 
 #right-panel {
     height: 100% !important;
@@ -63,7 +23,7 @@
     flex-direction: column !important;
 }
 
-#right-tabs > div {
+#right-tabs>div {
     min-height: 0 !important;
     flex: 1 1 auto !important;
 }
@@ -85,8 +45,8 @@
     box-sizing: border-box !important;
 }
 
-.right-tab-workspace > .styler,
-.right-workspace-panel > .styler {
+.right-tab-workspace>.styler,
+.right-workspace-panel>.styler {
     height: 100% !important;
     min-height: 0 !important;
     overflow: hidden !important;
@@ -121,8 +81,8 @@
     overflow: hidden !important;
 }
 
-.panel-content-row > .gradio-column,
-.panel-content-row > div {
+.panel-content-row>.gradio-column,
+.panel-content-row>div {
     height: 100% !important;
     min-height: 0 !important;
 }
@@ -150,7 +110,7 @@
     min-height: 100% !important;
 }
 
-.panel-scroll-content > * {
+.panel-scroll-content>* {
     margin-bottom: 20px !important;
 }
 

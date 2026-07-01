@@ -3,6 +3,8 @@ import traceback
 from functions.project_init.main_init import main as run_project_init_flow
 from functions.project_init.check_status import (
     refresh_all_status,
+    check_clean_status,
+    check_rag_status,
     check_openlca_status,
 )
 
@@ -10,6 +12,8 @@ from functions.project_init.check_status import (
 def bind_tab_initial_events(
     refresh_init_status_btn: gr.Button,
     openlca_recheck_btn: gr.Button,
+    clean_check_btn: gr.Button,
+    rag_check_btn: gr.Button,
     clean_btn: gr.Button,
     rag_btn: gr.Button,
     exec_init_btn: gr.Button,
@@ -26,6 +30,19 @@ def bind_tab_initial_events(
         fn=refresh_all_status,
         inputs=None,
         outputs=[clean_status, rag_status, openlca_status],
+    )
+
+    # 3a-1. 目录清理 / RAG 卡片内"状态检查"按钮：仅刷新对应卡片状态
+    clean_check_btn.click(
+        fn=check_clean_status,
+        inputs=None,
+        outputs=clean_status,
+    )
+
+    rag_check_btn.click(
+        fn=check_rag_status,
+        inputs=None,
+        outputs=rag_status,
     )
 
     # 3a-2. openLCA 卡片内"重新检查"按钮：仅刷新 openLCA 状态

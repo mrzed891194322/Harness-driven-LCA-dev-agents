@@ -19,6 +19,13 @@ def bind_left_sidebar_events(
             return args;
         }}
         """
+
+    close_panel_js = """
+    () => {
+        if (window.setRightTabMode) window.setRightTabMode('terminal');
+        if (window.selectTerminalTab) window.selectTerminalTab();
+    }
+    """
     
     # 1. 左侧按钮只切换右侧工作面板；顶层 Tab 常驻挂载，标题显示由 JS 控制。
     run_btn.click(
@@ -49,33 +56,33 @@ def bind_left_sidebar_events(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+        js=close_panel_js,
     )
     
     close_modify_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+        js=close_panel_js,
     )
 
     close_output_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+        js=close_panel_js,
     )
 
     close_init_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+        js=close_panel_js,
     )
 
     close_lci_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+        js=close_panel_js,
     )

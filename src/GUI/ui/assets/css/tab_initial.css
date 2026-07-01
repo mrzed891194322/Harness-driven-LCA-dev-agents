@@ -36,10 +36,9 @@
     min-height: 0 !important;
     padding: 28px 24px 24px !important;
     border: 1px solid #dbe4ef !important;
-    border-radius: 12px !important;
+    border-radius: 8px !important;
     background:
-        linear-gradient(180deg, rgba(248, 250, 252, 0.94), rgba(255, 255, 255, 0.99)),
-        radial-gradient(circle at top right, var(--project-init-accent-soft, #e6fffb), transparent 46%) !important;
+        linear-gradient(180deg, rgba(248, 250, 252, 0.94), rgba(255, 255, 255, 0.99)) !important;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08) !important;
 }
 
@@ -50,6 +49,7 @@
     width: 100% !important;
     min-height: 128px !important;
     padding: 12px 0 16px !important;
+    overflow: visible !important;
 }
 
 .project-init-status-card:hover {
@@ -68,16 +68,7 @@
 }
 
 .project-init-status-card::after {
-    content: "" !important;
-    position: absolute !important;
-    top: 22px !important;
-    right: 22px !important;
-    width: 30px !important;
-    height: 30px !important;
-    border-radius: 10px !important;
-    background:
-        linear-gradient(135deg, color-mix(in srgb, var(--project-init-accent, #14b8a6) 82%, white), var(--project-init-accent, #14b8a6)) !important;
-    opacity: 0.18 !important;
+    content: none !important;
 }
 
 .status-card-clean {
@@ -112,6 +103,22 @@
 .project-init-status-description {
     width: 100% !important;
     padding: 0 !important;
+    overflow: visible !important;
+}
+
+.project-init-status-value,
+.project-init-status-value > .styler,
+.project-init-status-value .prose {
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+.project-init-status-value * {
+    scrollbar-width: none !important;
+}
+
+.project-init-status-value *::-webkit-scrollbar {
+    display: none !important;
 }
 
 .project-init-status-title {
@@ -123,38 +130,64 @@
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: min(100%, 220px) !important;
-    min-height: 78px !important;
+    width: 100% !important;
+    min-height: auto !important;
     max-width: 100% !important;
     margin: 0 auto !important;
-    padding: 16px 22px !important;
-    border-radius: 12px !important;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.28)),
-        var(--project-init-accent-soft, #eef2f7) !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
     color: var(--project-init-accent-text, #475569) !important;
-    font-size: 24px !important;
+    font-size: 30px !important;
     font-weight: 800 !important;
     line-height: 1.25 !important;
     white-space: nowrap !important;
-    border: 1px solid color-mix(in srgb, var(--project-init-accent, #14b8a6) 32%, transparent) !important;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.75),
-        0 10px 24px color-mix(in srgb, var(--project-init-accent, #14b8a6) 14%, transparent) !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+}
+
+.project-init-status-value p::before,
+.project-init-status-value p::after {
+    content: "" !important;
+    flex: 1 1 0 !important;
+    height: 2px !important;
+    max-width: 64px !important;
+    background: color-mix(in srgb, var(--project-init-accent, #14b8a6) 34%, transparent) !important;
+}
+
+.project-init-status-value p::before {
+    margin-right: 18px !important;
+}
+
+.project-init-status-value p::after {
+    margin-left: 18px !important;
 }
 
 .project-init-status-description {
     align-self: start !important;
-    padding-top: 6px !important;
-    border-top: 1px solid #e8eef5 !important;
+    padding: 6px 0 12px !important;
+    border-bottom: 1px solid #e8eef5 !important;
 }
 
 .project-init-status-description p {
-    margin: 14px 0 0 !important;
+    margin: 0 !important;
     color: #64748b !important;
     font-size: 15px !important;
     line-height: 1.55 !important;
     text-align: center !important;
+}
+
+.project-init-card-actions {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    align-self: end !important;
+    width: 100% !important;
+}
+
+.project-init-card-actions > div {
+    min-width: 0 !important;
 }
 
 .project-init-card-action {
@@ -181,7 +214,7 @@
 
 #project-init-actions-row {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     justify-content: stretch !important;
     gap: 16px !important;
     width: 100% !important;
