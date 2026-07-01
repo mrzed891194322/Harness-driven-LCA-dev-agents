@@ -29,12 +29,12 @@
     position: relative !important;
     overflow: hidden !important;
     display: grid !important;
-    grid-template-rows: auto auto minmax(0, 1fr) auto !important;
-    gap: 16px !important;
+    grid-template-rows: auto auto minmax(128px, 1fr) auto !important;
+    gap: 14px !important;
     align-content: stretch !important;
     height: 100% !important;
     min-height: 0 !important;
-    padding: 26px 24px 24px !important;
+    padding: 28px 24px 24px !important;
     border: 1px solid #dbe4ef !important;
     border-radius: 12px !important;
     background:
@@ -48,7 +48,8 @@
     align-items: center !important;
     justify-content: center !important;
     width: 100% !important;
-    padding: 12px 0 !important;
+    min-height: 128px !important;
+    padding: 12px 0 16px !important;
 }
 
 .project-init-status-card:hover {
@@ -119,18 +120,27 @@
 }
 
 .project-init-status-value p {
-    width: fit-content !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: min(100%, 220px) !important;
+    min-height: 78px !important;
     max-width: 100% !important;
     margin: 0 auto !important;
-    padding: 7px 14px !important;
-    border-radius: 999px !important;
-    background: var(--project-init-accent-soft, #eef2f7) !important;
+    padding: 16px 22px !important;
+    border-radius: 12px !important;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.28)),
+        var(--project-init-accent-soft, #eef2f7) !important;
     color: var(--project-init-accent-text, #475569) !important;
-    font-size: 14px !important;
-    font-weight: 700 !important;
-    line-height: 1.2 !important;
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
     white-space: nowrap !important;
-    border: 1px solid color-mix(in srgb, var(--project-init-accent, #14b8a6) 22%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--project-init-accent, #14b8a6) 32%, transparent) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.75),
+        0 10px 24px color-mix(in srgb, var(--project-init-accent, #14b8a6) 14%, transparent) !important;
 }
 
 .project-init-status-description {

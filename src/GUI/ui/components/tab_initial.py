@@ -18,7 +18,7 @@ def _build_status_card(title: str, description: str, action_label: str, accent_c
     return status_value, action_btn
 
 
-def build_project_init() -> tuple:
+def build_tab_initial() -> tuple:
     """
     构建右侧"项目初始化" Tab 组件，初始不可见。
 
@@ -29,7 +29,7 @@ def build_project_init() -> tuple:
     with gr.Tab("项目初始化", id="project_init_tab") as project_init_tab:
         with gr.Column(elem_id="project-init-workspace", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
             with gr.Column(elem_id="project-init-panel", elem_classes=["inner-panel-grid"]):
-                # 头部带有关闭按钮的行
+                # 头部带有关闭按钮 of the row
                 with gr.Row(variant="compact", elem_id="project-init-header", elem_classes=["panel-header-row"]):
                     with gr.Column(scale=4):
                         gr.Markdown(

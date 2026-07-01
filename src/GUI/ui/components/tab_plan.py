@@ -3,7 +3,7 @@ from pathlib import Path
 from functions.utils.file_loader.main import main as run_file_loader_action
 from functions.utils.path_utils import find_project_root
 
-def build_plan_input() -> tuple:
+def build_tab_plan() -> tuple:
     """
     构建同级的“计划输入”、“计划输出”和“计划修改” Tab 组件，初始均不可见。
     """

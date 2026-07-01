@@ -1,10 +1,10 @@
 from pathlib import Path
 import gradio as gr
-from ui.components.terminal_console import build_terminal_console
-from ui.components.plan_input import build_plan_input
+from ui.components.tab_terminal import build_tab_terminal
+from ui.components.tab_plan import build_tab_plan
 from ui.components.left_sidebar import build_left_sidebar
-from ui.components.project_init import build_project_init
-from ui.components.lci_design import build_lci_design
+from ui.components.tab_initial import build_tab_initial
+from ui.components.tab_lci import build_tab_lci
 from ui.events import bind_ui_events
 
 
@@ -19,9 +19,9 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
     css_dir = assets_dir / "css"
     css_files = [
         css_dir / "layout.css",
-        css_dir / "terminal.css",
-        css_dir / "project_init.css",
-        css_dir / "plan.css",
+        css_dir / "tab_terminal.css",
+        css_dir / "tab_initial.css",
+        css_dir / "tab_plan.css",
     ]
     css = "\n\n".join(
         css_file.read_text(encoding="utf-8")
@@ -55,7 +55,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             with gr.Column(scale=2, elem_id="right-panel"):
                 with gr.Tabs(elem_id="right-tabs") as right_tabs:
                     # 1. 拆分出的“终端显示”组件
-                    _, output_console, status, clear_btn, stop_btn = build_terminal_console()
+                    _, output_console, status, clear_btn, stop_btn = build_tab_terminal()
                     
                     # 2. 项目初始化组件（初始不可见）
                     (
@@ -69,7 +69,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                         rag_btn,
                         openlca_status,
                         openlca_recheck_btn,
-                    ) = build_project_init()
+                    ) = build_tab_initial()
                     
                     # 3. 拆分出的“计划输入”、“计划输出”和“计划修改”组件（初始不可见）
                     (
@@ -99,10 +99,10 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                         plan_modify_warning_row,
                         plan_modify_toc_html,
                         modify_markdown_pool
-                    ) = build_plan_input()
+                    ) = build_tab_plan()
 
                     # 4. LCI 制定组件
-                    lci_design_tab, close_lci_btn, exec_lci_btn = build_lci_design()
+                    lci_design_tab, close_lci_btn, exec_lci_btn = build_tab_lci()
                 
         # 绑定事件
         bind_ui_events(

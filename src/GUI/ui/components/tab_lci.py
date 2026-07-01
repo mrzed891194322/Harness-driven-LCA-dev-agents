@@ -1,7 +1,7 @@
 import gradio as gr
 
 
-def build_lci_design() -> tuple[gr.Tab, gr.Button, gr.Button]:
+def build_tab_lci() -> tuple[gr.Tab, gr.Button, gr.Button]:
     """
     构建右侧“LCI 制定” Tab 组件。
     """

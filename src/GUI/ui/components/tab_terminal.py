@@ -1,6 +1,6 @@
 import gradio as gr
 
-def build_terminal_console() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.Button]:
+def build_tab_terminal() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.Button]:
     """
     构建“终端显示” Tab 组件及其内部布局。
     """
