@@ -11,28 +11,14 @@ def bind_left_sidebar_events(
     close_output_btn: gr.Button,
     close_init_btn: gr.Button,
     close_lci_btn: gr.Button,
+    close_mapping_btn: gr.Button,
 ):
-    def set_tab_mode_js(mode: str) -> str:
-        return f"""
-        (...args) => {{
-            if (window.setRightTabMode) window.setRightTabMode('{mode}');
-            return args;
-        }}
-        """
-
-    close_panel_js = """
-    () => {
-        if (window.setRightTabMode) window.setRightTabMode('terminal');
-        if (window.selectTerminalTab) window.selectTerminalTab();
-    }
-    """
-    
     # 1. 左侧按钮只切换右侧工作面板；顶层 Tab 常驻挂载，标题显示由 JS 控制。
     run_btn.click(
         fn=lambda: gr.update(selected="project_init_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=set_tab_mode_js("project"),
+        js="window.guiOpenProjectMode",
     )
 
     # 2. 点击左侧“制定 LCA 执行计划”按钮：显示“计划输入”、“计划输出”和“计划修改”同级 Tab，隐藏项目初始化 Tab
@@ -41,14 +27,14 @@ def bind_left_sidebar_events(
         fn=lambda: gr.update(selected="file_processing_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=set_tab_mode_js("plan"),
+        js="window.guiOpenPlanMode",
     )
 
     design_lci_btn.click(
         fn=lambda: gr.update(selected="lci_design_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=set_tab_mode_js("lci"),
+        js="window.guiOpenLciMode",
     )
 
     # 3. 点击关闭按钮：隐藏功能面板标题并返回到“终端显示” Tab。
@@ -56,33 +42,40 @@ def bind_left_sidebar_events(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_panel_js,
+        js="window.guiClosePanel",
     )
     
     close_modify_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_panel_js,
+        js="window.guiClosePanel",
     )
 
     close_output_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_panel_js,
+        js="window.guiClosePanel",
     )
 
     close_init_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_panel_js,
+        js="window.guiClosePanel",
     )
 
     close_lci_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_panel_js,
+        js="window.guiClosePanel",
+    )
+
+    close_mapping_btn.click(
+        fn=lambda: gr.update(selected="terminal_tab"),
+        inputs=None,
+        outputs=right_tabs,
+        js="window.guiClosePanel",
     )

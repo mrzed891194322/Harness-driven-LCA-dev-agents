@@ -24,7 +24,7 @@ def main() -> None:
         for _ in range(20):
             if not port_listeners():
                 break
-            time.sleep(0.5)
+            time.sleep(0.1)
     else:
         print("==> 当前无 GUI 运行，跳过停止步骤。")
 

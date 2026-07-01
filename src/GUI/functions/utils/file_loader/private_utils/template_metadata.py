@@ -57,7 +57,15 @@ def read_template_metadata(filepath: Path) -> dict[str, str]:
     if not filepath.exists():
         return {}
     try:
-        content = filepath.read_text(encoding="utf-8")
+        content = filepath.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            content = filepath.read_text(encoding="gbk")
+        except UnicodeDecodeError:
+            try:
+                content = filepath.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                return {}
     except Exception:
         return {}
     metadata, _ = split_front_matter(content)

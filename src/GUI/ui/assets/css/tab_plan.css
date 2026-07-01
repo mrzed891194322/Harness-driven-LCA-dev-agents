@@ -1,6 +1,7 @@
 #plan-toc-column,
 #plan-modify-toc-column,
-#plan-output-toc-column {
+#plan-output-toc-column,
+#lci-mapping-toc-column {
     border-right: 1px solid var(--border-color-primary, #e5e7eb) !important;
     padding-right: 16px !important;
     height: 100% !important;

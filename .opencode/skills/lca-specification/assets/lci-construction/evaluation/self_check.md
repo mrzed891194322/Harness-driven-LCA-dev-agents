@@ -36,7 +36,15 @@
    - 检查报告中若包含 Mermaid 图表（如系统依赖/拓扑关系图），必须逐行检查连接线上的标签文本（例如 `A -->|label| B`）。
    - 如果标签包含 `()`、`[]`、`{}` 等括弧符号，或者包含含有数字上下标的化学分子式，确认它们是否都已用双引号括起来（如 `A -->|"KAu(CN)₂ + NaCN"| B`）。如若未加双引号，必须指示修改以防渲染解析错误。
 
-8. **命名规范校验**
+8. **人类可读映射报告模板合规校验**
+   - 检查 `src/LCI/human_readable_mapping.md` 是否存在，并且是否严格以模板要求的 YAML front matter 开头：
+     - `template_kind: lci_human_readable_mapping`
+     - `template_version: "1"`
+   - 检查报告是否保留 `template/human_readable_mapping.md` 中规定的章节顺序与标题结构，至少包含“映射概述”“系统边界与核心过程”“核心物质流”“产品系统配置”“过程拓扑依赖关系”和“人类审核提示”。
+   - 检查报告中的表格、Mermaid 代码块和来源追溯字段是否已填充为真实内容，而不是保留未替换的占位符。
+   - 如果报告缺少模板元数据、章节缺失、章节顺序错乱、仍包含明显占位符，或 Markdown 结构无法被 GUI 渲染，必须判定为未通过并要求返回修正。
+
+9. **命名规范校验**
    - 检查所有的 Flow、Process 以及 Product System 的文件名与内部 `"name"` 属性是否匹配且合规：
      - **Flow（流）**：文件名应采用 `f<两位数编号>-<英文具体名称（小写，连字符分隔）>.json`，且 JSON 内部的 `"name"` 属性必须采用 `F + 两位数编号 + 空格 + 具体名称` 的格式（如 `"F01 Gold-plated product"`）。同时，检查其他 Process 文件的 `exchanges` 列表中引用此 Flow 时，其 `flow` 下的 `name` 属性是否与之完全一致。
      - **Process（过程）**：文件名应采用 `p<编号>-<英文具体名称（小写，连字符分隔）>.json`，且 JSON 内部的 `"name"` 属性必须采用 `P + 编号 + 空格 + 具体名称` 的格式（如 `"P1 Chemical Degreasing"`）。

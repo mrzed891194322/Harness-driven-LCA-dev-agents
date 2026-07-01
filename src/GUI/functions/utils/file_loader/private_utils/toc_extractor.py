@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from functions.utils.file_loader.private_utils.template_metadata import split_front_matter
 
-def extract_plan_toc(filepath: Path) -> str:
+def extract_plan_toc(filepath: Path, title: str = "📋 计划目录导航") -> str:
     """
     扫描 plan.md，提取二级和三级标题，并生成带有锚点的 HTML 目录导航。
     """
@@ -15,7 +15,7 @@ def extract_plan_toc(filepath: Path) -> str:
 
     _, content = split_front_matter(content)
         
-    toc_lines = ["<div class='toc-wrapper'>", "<h4>📋 计划目录导航</h4>"]
+    toc_lines = ["<div class='toc-wrapper'>", f"<h4>{title}</h4>"]
     header_count = 0
     for line in content.splitlines():
         match = re.match(r'^(#{2,3})\s+(.*)$', line)

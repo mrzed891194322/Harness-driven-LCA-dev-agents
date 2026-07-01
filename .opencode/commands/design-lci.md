@@ -6,13 +6,12 @@ agent: subagents/workflow/LCI-designer
 **语言要求**：
 目前，必须使用中文进行模型的思考、输出，调用 subagent 时也必须强调这一点。
 
-**前置说明**：
-请检查传入的参数中是否包含实质性的用户输入（例如 `$USER_REQUIREMENTS` 变量不为空）。如果发现没有任何具体指令或要求，请立即停止执行，并提示用户需要提供具体的项目输入。
+
 
 **任务执行**：
-请直接调用 `LCI-designer` 开展本次结构化构建任务。
+请直接调用 `LCI-designer` 开展本次结构化构建任务，调用时需说明将 `src\plan\execution_plan.md` 作为参考内容。。
 你只需将本任务委托给它并传递下方用户提出的要求即可。该 agent 作为调度中心会自主梳理架构、拆分任务，并委派底层的 `doc-handler` 和 `eval-executor` 完成全套的 JSON 生成与质检闭环：
-> $USER_REQUIREMENTS
+
 
 **任务结束**：
 待 `LCI-designer` 完成所有 JSON 实体文件和人类可读映射报告、并成功批量导入至 openLCA 数据库后，你只需向用户汇报生成结果与导入状态即可，并立即终止当前会话。严禁执行任何多余工作（包括但不限于调用 `main-workflow`、其他技能或创建新任务）。

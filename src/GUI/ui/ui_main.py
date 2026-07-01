@@ -31,8 +31,15 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
     )
 
     js_dir = assets_dir / "js"
-    js_file = js_dir / "tab_navigation.js"
-    js_code = js_file.read_text(encoding="utf-8") if js_file.exists() else ""
+    js_files = [
+        js_dir / "tab_navigation.js",
+        js_dir / "status_monitor.js",
+    ]
+    js_code = "\n\n".join(
+        js_file.read_text(encoding="utf-8")
+        for js_file in js_files
+        if js_file.exists()
+    )
 
     with gr.Blocks(title="LCA Multi-agent UI", js=js_code) as demo:
         with gr.Row():
@@ -40,7 +47,8 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                 """
                 # 🌲 生命周期评估多智能体系统 - 控制面板
                 ---
-                """
+                """,
+                elem_id="main-title"
             )
             
         with gr.Row(elem_id="main-layout-row"):
@@ -105,7 +113,18 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                     ) = build_tab_plan()
 
                     # 4. LCI 制定组件
-                    lci_design_tab, close_lci_btn, exec_lci_btn = build_tab_lci()
+                    (
+                        lci_design_tab,
+                        lci_mapping_tab,
+                        close_lci_btn,
+                        close_mapping_btn,
+                        exec_lci_btn,
+                        lci_mapping_content_row,
+                        lci_mapping_warning_row,
+                        lci_mapping_toc_html,
+                        lci_mapping_markdown,
+                        download_lci_mapping_btn,
+                    ) = build_tab_lci()
                 
         # 绑定事件
         bind_ui_events(
@@ -132,8 +151,15 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             openlca_status=openlca_status,
             openlca_recheck_btn=openlca_recheck_btn,
             lci_design_tab=lci_design_tab,
+            lci_mapping_tab=lci_mapping_tab,
             close_lci_btn=close_lci_btn,
+            close_mapping_btn=close_mapping_btn,
             exec_lci_btn=exec_lci_btn,
+            lci_mapping_content_row=lci_mapping_content_row,
+            lci_mapping_warning_row=lci_mapping_warning_row,
+            lci_mapping_toc_html=lci_mapping_toc_html,
+            lci_mapping_markdown=lci_mapping_markdown,
+            download_lci_mapping_btn=download_lci_mapping_btn,
             plan_input_tab=plan_input_tab,
             plan_output_tab=plan_output_tab,
             plan_modify_tab=plan_modification_tab,

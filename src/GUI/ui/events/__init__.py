@@ -60,8 +60,15 @@ def bind_ui_events(
     openlca_recheck_btn: gr.Button,
     # LCI design components
     lci_design_tab: gr.Tab,
+    lci_mapping_tab: gr.Tab,
     close_lci_btn: gr.Button,
-    exec_lci_btn: gr.Button
+    close_mapping_btn: gr.Button,
+    exec_lci_btn: gr.Button,
+    lci_mapping_content_row: gr.Row,
+    lci_mapping_warning_row: gr.Row,
+    lci_mapping_toc_html: gr.HTML,
+    lci_mapping_markdown: gr.Markdown,
+    download_lci_mapping_btn: gr.DownloadButton,
 ):
     """
     绑定 Gradio 的按钮点击与上传等所有 UI 交互事件。
@@ -77,6 +84,7 @@ def bind_ui_events(
         close_output_btn=close_output_btn,
         close_init_btn=close_init_btn,
         close_lci_btn=close_lci_btn,
+        close_mapping_btn=close_mapping_btn,
     )
 
     # 2. 绑定终端日志清空与停止逻辑
@@ -134,7 +142,13 @@ def bind_ui_events(
 
     # 5. 绑定清单制定逻辑
     bind_tab_lci_events(
+        lci_mapping_tab=lci_mapping_tab,
         exec_lci_btn=exec_lci_btn,
         output_console=output_console,
         status=status,
+        lci_mapping_content_row=lci_mapping_content_row,
+        lci_mapping_warning_row=lci_mapping_warning_row,
+        lci_mapping_toc_html=lci_mapping_toc_html,
+        lci_mapping_markdown=lci_mapping_markdown,
+        download_lci_mapping_btn=download_lci_mapping_btn,
     )

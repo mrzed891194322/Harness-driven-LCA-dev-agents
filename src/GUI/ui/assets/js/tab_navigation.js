@@ -28,7 +28,7 @@ function setRightTabMode(mode) {
         terminal: ['终端显示'],
         project: ['终端显示', '项目初始化'],
         plan: ['终端显示', '计划输入', '计划输出', '计划修改'],
-        lci: ['终端显示', 'LCI制定'],
+        lci: ['终端显示', 'LCI制定', 'LCI映射'],
     };
     const visibleLabels = visibleByMode[mode] || visibleByMode.terminal;
 
@@ -70,6 +70,33 @@ window.selectRightTabByText = selectRightTabByText;
 window.selectProjectInitTab = () => selectRightTabByText('项目初始化');
 window.selectPlanInputTab = () => selectRightTabByText('计划输入');
 window.selectLciDesignTab = () => selectRightTabByText('LCI制定');
+window.selectLciMappingTab = () => selectRightTabByText('LCI映射');
 window.selectTerminalTab = () => selectRightTabByText('终端显示');
+
+window.guiOpenProjectMode = (...args) => {
+    setRightTabMode('project');
+    return args;
+};
+
+window.guiOpenPlanMode = (...args) => {
+    setRightTabMode('plan');
+    return args;
+};
+
+window.guiOpenLciMode = (...args) => {
+    setRightTabMode('lci');
+    return args;
+};
+
+window.guiClosePanel = (...args) => {
+    setRightTabMode('terminal');
+    selectRightTabByText('终端显示');
+    return args;
+};
+
+window.guiSelectTerminal = (...args) => {
+    selectRightTabByText('终端显示');
+    return args;
+};
 
 initializeRightTabs();

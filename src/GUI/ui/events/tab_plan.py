@@ -94,7 +94,7 @@ def bind_tab_plan_events(
         fn=run_exec_plan_flow,
         inputs=textbox_components,
         outputs=[output_console, status],
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
+        js="window.guiSelectTerminal"
     )
 
     # 7. 计划修改相关事件
@@ -125,7 +125,7 @@ def bind_tab_plan_events(
         fn=run_exec_modify_flow,
         inputs=modify_textbox_components,
         outputs=[output_console, status],
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
+        js="window.guiSelectTerminal"
     )
 
     # 11. 计划输出 Tab 按钮事件
@@ -141,7 +141,7 @@ def bind_tab_plan_events(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
+        js="window.guiSelectTerminal"
     )
 
     # 12. 动态检测与更新 Tab 页渲染状态事件

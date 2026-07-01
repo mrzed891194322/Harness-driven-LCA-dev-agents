@@ -15,12 +15,15 @@ PLAN_OUTPUT_TEMPLATE_KIND = "lca_execution_plan"
 PLAN_MODIFY_FILE_PATH = PROJECT_ROOT / "src" / "plan" / "todo_list.md"
 PLAN_MODIFY_TEMPLATE_KIND = "lca_todo_list"
 
-# 5. 材料与数据文件上传的目标保存目录
+# 5. LCI 映射报告 Tab 相关文件路径与模板标识
+LCI_MAPPING_FILE_PATH = PROJECT_ROOT / "src" / "LCI" / "human_readable_mapping.md"
+LCI_MAPPING_TEMPLATE_KIND = "lci_human_readable_mapping"
+
+# 6. 材料与数据文件上传的目标保存目录
 USER_FILE_DIR = PROJECT_ROOT / "src" / "input" / "user_file"
 USER_DATA_DIR = PROJECT_ROOT / "src" / "input" / "user_data"
 
-# 6. 项目初始化与清理相关的外部脚本路径
+# 7. 项目初始化与清理相关的外部脚本路径
 CLEAN_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "clean_dir" / "clean_dir.py"
 INIT_RAG_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "initialization" / "main.py"
 OPENLCA_CHECK_DIR = PROJECT_ROOT / "src" / "scripts" / "initialization" / "openlca_check"
-

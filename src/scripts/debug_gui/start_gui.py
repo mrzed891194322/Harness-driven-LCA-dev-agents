@@ -57,7 +57,7 @@ def start_gui() -> None:
     proc = subprocess.Popen(cmd, **kwargs)
 
     # 等待验证 GUI 是否正常启动，还是在初始化期间崩溃
-    time.sleep(2.5)
+    time.sleep(0.1)
 
     if not is_process_alive(proc.pid):
         print("==> GUI 启动失败！已退出。", file=sys.stderr)

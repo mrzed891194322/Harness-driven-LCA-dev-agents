@@ -115,3 +115,159 @@
 #stop-btn {
     margin-left: 6px !important;
 }
+
+/* --- Status Box Premium Styles & Animations --- */
+
+/* Base input styling adjustments for status */
+#status-box label > textarea,
+#status-box label > input {
+    border-radius: 6px !important;
+    border: 1px solid #e2e8f0 !important;
+    padding: 6px 12px !important;
+    font-size: 14px !important;
+    transition: all 0.3s ease !important;
+    text-align: center !important;
+}
+
+/* 1. Running State (Teal pulsing glow and breathing indicator dot) */
+#status-box.status-running label > textarea,
+#status-box.status-running label > input {
+    color: #0d9488 !important; /* teal-600 */
+    border-color: #0d9488 !important;
+    background-color: #f0fdfa !important; /* teal-50 */
+    font-weight: bold !important;
+    animation: status-running-pulse 2s infinite ease-in-out !important;
+}
+
+#status-box.status-running label::after {
+    content: "";
+    display: block;
+    width: 10px;
+    height: 10px;
+    background-color: #0d9488;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: status-dot-pulse 1.5s infinite cubic-bezier(0.66, 0, 0, 1) !important;
+}
+
+@keyframes status-running-pulse {
+    0% {
+        box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.2) !important;
+    }
+    50% {
+        box-shadow: 0 0 8px 3px rgba(13, 148, 136, 0.35) !important;
+        border-color: #0f766e !important;
+    }
+    100% {
+        box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.2) !important;
+    }
+}
+
+@keyframes status-dot-pulse {
+    0% {
+        transform: scale(0.8);
+        box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.6);
+    }
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 6px rgba(13, 148, 136, 0);
+    }
+    100% {
+        transform: scale(0.8);
+        box-shadow: 0 0 0 0 rgba(13, 148, 136, 0);
+    }
+}
+
+/* 2. Finished State (Emerald green static success indicator) */
+#status-box.status-finished label > textarea,
+#status-box.status-finished label > input {
+    color: #059669 !important; /* emerald-600 */
+    border-color: #10b981 !important;
+    background-color: #ecfdf5 !important;
+    font-weight: bold !important;
+}
+
+#status-box.status-finished label::after {
+    content: "";
+    display: block;
+    width: 10px;
+    height: 10px;
+    background-color: #10b981;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 4px rgba(16, 185, 129, 0.5) !important;
+}
+
+/* 3. Failed State (Red pulse error indicator) */
+#status-box.status-failed label > textarea,
+#status-box.status-failed label > input {
+    color: #dc2626 !important; /* red-600 */
+    border-color: #ef4444 !important;
+    background-color: #fef2f2 !important;
+    font-weight: bold !important;
+}
+
+#status-box.status-failed label::after {
+    content: "";
+    display: block;
+    width: 10px;
+    height: 10px;
+    background-color: #ef4444;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: status-dot-pulse-red 1.5s infinite cubic-bezier(0.66, 0, 0, 1) !important;
+}
+
+@keyframes status-dot-pulse-red {
+    0% {
+        transform: scale(0.8);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+    }
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+    100% {
+        transform: scale(0.8);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+/* 4. Stopped State (Gray slate indicator) */
+#status-box.status-stopped label > textarea,
+#status-box.status-stopped label > input {
+    color: #475569 !important; /* slate-600 */
+    border-color: #94a3b8 !important;
+    background-color: #f8fafc !important;
+    font-weight: bold !important;
+}
+
+#status-box.status-stopped label::after {
+    content: "";
+    display: block;
+    width: 10px;
+    height: 10px;
+    background-color: #94a3b8;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* 5. Ready State (Blue indigo default indicator) */
+#status-box.status-ready label > textarea,
+#status-box.status-ready label > input {
+    color: #2563eb !important; /* blue-600 */
+    border-color: #3b82f6 !important;
+    background-color: #eff6ff !important;
+    font-weight: bold !important;
+}
+
+#status-box.status-ready label::after {
+    content: "";
+    display: block;
+    width: 10px;
+    height: 10px;
+    background-color: #3b82f6;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+

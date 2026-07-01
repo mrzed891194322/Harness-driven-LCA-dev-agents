@@ -122,3 +122,8 @@
     margin-top: 10px !important;
     width: 100% !important;
 }
+
+#main-title,
+#main-title * {
+    text-align: center !important;
+}

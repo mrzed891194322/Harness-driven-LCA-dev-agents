@@ -1,9 +1,9 @@
 import gradio as gr
 
 
-def build_tab_lci() -> tuple[gr.Tab, gr.Button, gr.Button]:
+def build_tab_lci() -> tuple:
     """
-    构建右侧“LCI 制定” Tab 组件。
+    构建右侧“LCI 制定”和“LCI 映射” Tab 组件。
     """
     with gr.Tab("LCI制定", id="lci_design_tab") as lci_design_tab:
         with gr.Column(elem_id="lci-design-workspace", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
@@ -46,4 +46,50 @@ def build_tab_lci() -> tuple[gr.Tab, gr.Button, gr.Button]:
                 with gr.Row(elem_id="lci-design-actions-row", elem_classes=["panel-actions-row"]):
                     exec_lci_btn = gr.Button("⚡ 执行 LCI 制定", variant="primary")
 
-    return lci_design_tab, close_lci_btn, exec_lci_btn
+    with gr.Tab("LCI映射", id="lci_mapping_tab") as lci_mapping_tab:
+        with gr.Column(elem_id="lci-mapping-workspace", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
+            with gr.Column(elem_id="lci-mapping-panel", elem_classes=["inner-panel-grid"]):
+                with gr.Row(variant="compact", elem_id="lci-mapping-header", elem_classes=["panel-header-row"]):
+                    with gr.Column(scale=4):
+                        gr.Markdown(
+                            """
+                            ### 🗺️ LCI 映射报告 (Human-readable Mapping)
+                            这里渲染 `src/LCI/human_readable_mapping.md`，用于人工检查 LCI 数据构建逻辑、来源追溯与过程拓扑。
+                            """
+                        )
+                    with gr.Column(scale=1, min_width=150):
+                        close_mapping_btn = gr.Button(
+                            "❌ 关闭 LCI 面板",
+                            variant="secondary",
+                            size="sm",
+                            elem_id="close-lci-mapping-btn",
+                            elem_classes=["panel-close-btn"],
+                        )
+
+                with gr.Row(elem_id="lci-mapping-content-row", elem_classes=["panel-content-row"], visible=False) as lci_mapping_content_row:
+                    with gr.Column(scale=1, min_width=220, elem_id="lci-mapping-toc-column"):
+                        lci_mapping_toc_html = gr.HTML()
+
+                    with gr.Column(scale=3, elem_id="lci-mapping-template-column", elem_classes=["panel-template-column"]):
+                        with gr.Column(elem_id="lci-mapping-template-container", elem_classes=["panel-scroll-container"]):
+                            with gr.Column(elem_id="lci-mapping-template-content", elem_classes=["panel-scroll-content"]):
+                                lci_mapping_markdown = gr.Markdown()
+
+                with gr.Row(elem_id="lci-mapping-warning-row", visible=True) as lci_mapping_warning_row:
+                    gr.Markdown("### ⚠️ 缺少必要文件", elem_id="missing-lci-mapping-file-warning")
+
+                with gr.Row(elem_id="lci-mapping-actions-row", elem_classes=["panel-actions-row"]):
+                    download_lci_mapping_btn = gr.DownloadButton("📥 下载映射报告", variant="secondary", interactive=False)
+
+    return (
+        lci_design_tab,
+        lci_mapping_tab,
+        close_lci_btn,
+        close_mapping_btn,
+        exec_lci_btn,
+        lci_mapping_content_row,
+        lci_mapping_warning_row,
+        lci_mapping_toc_html,
+        lci_mapping_markdown,
+        download_lci_mapping_btn,
+    )

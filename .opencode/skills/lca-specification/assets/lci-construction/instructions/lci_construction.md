@@ -27,12 +27,16 @@
 - 在输出之前，你必须明确调用 sub-agent 对生成结果进行结构交叉校验和质量评估。
 - **请要求 eval-executor 显式读取并对照此自检清单执行验证**：
   evaluation/self_check.md
+- **请要求 eval-executor 同时显式读取并对照报告模板验证输出**：
+  template/human_readable_mapping.md
+- eval 环节必须确认最终写入 `src/LCI/human_readable_mapping.md` 的报告严格符合模板结构与元数据要求：文件开头必须保留 YAML front matter（`template_kind: lci_human_readable_mapping` 和 `template_version: "1"`），正文必须保留模板规定的一级/二级标题、核心表格、Mermaid 代码块与“人类审核提示”章节；不得输出缺少模板元数据、章节顺序错乱或无法被 GUI Markdown 页面渲染的报告。
 - **构建 Agent 循环**：第一步至第三步在实际执行时应该形成一个闭环（Agent Loop）。如果 sub-agent 的评估结论认为当前结果未达标（仍需修改），你必须根据评估结论返回至第一步或第二步进行修正，随后再次提交评估，如此循环，直到 sub-agent 给出可交付的结论为止。
 
 ### 第四步：生成人类可读的映射报告
 - 为了确保工作透明度并方便人类专家审查，你必须将你理解的隐式工艺逻辑、计算转化过程以及推演出的依赖关系转化成人类易读的 Markdown 报告。
 - **请显式读取并填充以下报告模板**，随 JSON 数据一同输出：
   template/human_readable_mapping.md
+- 输出到 `src/LCI/human_readable_mapping.md` 时，必须完整保留模板开头的 YAML front matter。GUI 的 LCI 映射 Tab 会依赖该元数据识别并渲染报告。
 
 ### 第五步：批量导入至 openLCA
 - 数据文件自检达标且生成报告后，必须将数据批量导入 openLCA 数据库。

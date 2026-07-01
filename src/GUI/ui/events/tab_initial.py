@@ -86,32 +86,72 @@ def bind_tab_initial_events(
         fn=run_clean_only,
         inputs=None,
         outputs=[output_console, status],
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+        js="window.guiSelectTerminal",
     )
 
-    # 3a-4. RAG 知识库卡片内"构建知识库"按钮：执行 RAG 初始化并在终端显示输出（不切换 Tab，但焦点切换到终端）
-    def run_rag_only():
+    # 3a-4. RAG 知识库卡片内"构建知识库"按钮：先保存上传文件，再执行 RAG 初始化。
+    def run_rag_only(ref_materials, ref_data):
         try:
             from functions.project_init.private_utils.init_rag import run_initialization
+            from functions.project_init.private_utils.file_handler import copy_uploaded_files
             from functions.utils.path_utils import find_project_root
+            from functions.utils.process_manager import should_stop
             from pathlib import Path
 
             project_root = find_project_root(Path(__file__))
             yield (
-                "[System] 正在构建 RAG 知识库...\n",
+                "[System] 正在保存上传文件并构建 RAG 知识库...\n",
                 "Running"
             )
-            accumulated_output = "[System] 正在构建 RAG 知识库...\n"
-            for chunk in run_initialization(project_root):
+            accumulated_output = "[System] 正在保存上传文件并构建 RAG 知识库...\n"
+
+            accumulated_output += "\n[System] Step 1/2: Copying uploaded files to target directories...\n"
+            yield (
+                accumulated_output,
+                "Running"
+            )
+            for chunk in copy_uploaded_files(ref_materials, ref_data, project_root):
+                if should_stop():
+                    break
                 accumulated_output += chunk
                 yield (
                     accumulated_output,
                     "Running"
                 )
+
+            if should_stop():
+                accumulated_output += "\n[System] 已停止\n"
+                yield (
+                    accumulated_output,
+                    "Stopped"
+                )
+                return
+
+            accumulated_output += "\n[System] Step 2/2: Building RAG knowledge base...\n"
             yield (
                 accumulated_output,
-                "Finished"
+                "Running"
             )
+            for chunk in run_initialization(project_root):
+                if should_stop():
+                    break
+                accumulated_output += chunk
+                yield (
+                    accumulated_output,
+                    "Running"
+                )
+
+            if should_stop():
+                accumulated_output += "\n[System] 已停止\n"
+                yield (
+                    accumulated_output,
+                    "Stopped"
+                )
+            else:
+                yield (
+                    accumulated_output,
+                    "Finished"
+                )
         except Exception:
             error_text = "[System ERROR] RAG 知识库构建异常：\n" + traceback.format_exc()
             yield (
@@ -121,9 +161,9 @@ def bind_tab_initial_events(
 
     rag_btn.click(
         fn=run_rag_only,
-        inputs=None,
+        inputs=[ref_materials_file, ref_data_file],
         outputs=[output_console, status],
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+        js="window.guiSelectTerminal",
     )
 
     # 3b. 执行项目初始化按钮事件：点击面板内的“⚡ 执行项目初始化”按钮，切换到终端并执行流
@@ -152,5 +192,5 @@ def bind_tab_initial_events(
         fn=run_exec_init_flow,
         inputs=[ref_materials_file, ref_data_file],
         outputs=[output_console, status],
-        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
+        js="window.guiSelectTerminal"
     )
