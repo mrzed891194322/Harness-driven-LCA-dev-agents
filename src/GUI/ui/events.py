@@ -3,7 +3,11 @@ import traceback
 import gradio as gr
 from functions.utils.executor.main import main as run_executor_flow
 from functions.utils.file_loader.main import main as run_file_loader_action
-from functions.project_init.main import main as run_project_init_flow
+from functions.project_init.main_init import main as run_project_init_flow
+from functions.project_init.check_status import (
+    refresh_all_status,
+    check_openlca_status,
+)
 from functions.make_plan.main import main as run_plan_executor_flow
 from functions.revise_plan.main import main as run_revise_plan_flow
 
@@ -50,7 +54,14 @@ def bind_ui_events(
     # Project init components
     project_init_tab: gr.Tab,
     close_init_btn: gr.Button,
+    refresh_init_status_btn: gr.Button,
     exec_init_btn: gr.Button,
+    clean_status: gr.Markdown,
+    clean_btn: gr.Button,
+    rag_status: gr.Markdown,
+    rag_btn: gr.Button,
+    openlca_status: gr.Markdown,
+    openlca_recheck_btn: gr.Button,
     # LCI design components
     lci_design_tab: gr.Tab,
     close_lci_btn: gr.Button,
@@ -99,43 +110,131 @@ def bind_ui_events(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_js,
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
     )
     
     close_modify_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_js,
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
     )
 
     close_output_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_js,
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
     )
 
     close_init_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_js,
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
     )
 
     close_lci_btn.click(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_js,
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+    )
+
+    # 3a. 项目初始化状态检测：点击"刷新检测状态"按钮，同时刷新三张卡片
+    refresh_init_status_btn.click(
+        fn=refresh_all_status,
+        inputs=None,
+        outputs=[clean_status, rag_status, openlca_status],
+    )
+
+    # 3a-2. openLCA 卡片内"重新检查"按钮：仅刷新 openLCA 状态
+    openlca_recheck_btn.click(
+        fn=check_openlca_status,
+        inputs=None,
+        outputs=openlca_status,
+    )
+
+    # 3a-3. 目录清理卡片内"执行清理"按钮：执行清理并在终端显示输出（不切换 Tab，但焦点切换到终端）
+    def run_clean_only():
+        try:
+            from functions.project_init.private_utils.clean import run_clean_project
+            from functions.utils.path_utils import find_project_root
+            from pathlib import Path
+
+            project_root = find_project_root(Path(__file__))
+            yield (
+                "[System] 正在执行目录清理...\n",
+                "Running"
+            )
+            accumulated_output = "[System] 正在执行目录清理...\n"
+            for chunk in run_clean_project(project_root):
+                accumulated_output += chunk
+                yield (
+                    accumulated_output,
+                    "Running"
+                )
+            yield (
+                accumulated_output,
+                "Finished"
+            )
+        except Exception:
+            error_text = "[System ERROR] 目录清理异常：\n" + traceback.format_exc()
+            yield (
+                error_text,
+                "Failed"
+            )
+
+    clean_btn.click(
+        fn=run_clean_only,
+        inputs=None,
+        outputs=[output_console, status],
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
+    )
+
+    # 3a-4. RAG 知识库卡片内"构建知识库"按钮：执行 RAG 初始化并在终端显示输出（不切换 Tab，但焦点切换到终端）
+    def run_rag_only():
+        try:
+            from functions.project_init.private_utils.init_rag import run_initialization
+            from functions.utils.path_utils import find_project_root
+            from pathlib import Path
+
+            project_root = find_project_root(Path(__file__))
+            yield (
+                "[System] 正在构建 RAG 知识库...\n",
+                "Running"
+            )
+            accumulated_output = "[System] 正在构建 RAG 知识库...\n"
+            for chunk in run_initialization(project_root):
+                accumulated_output += chunk
+                yield (
+                    accumulated_output,
+                    "Running"
+                )
+            yield (
+                accumulated_output,
+                "Finished"
+            )
+        except Exception:
+            error_text = "[System ERROR] RAG 知识库构建异常：\n" + traceback.format_exc()
+            yield (
+                error_text,
+                "Failed"
+            )
+
+    rag_btn.click(
+        fn=run_rag_only,
+        inputs=None,
+        outputs=[output_console, status],
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }",
     )
 
     # 3b. 执行项目初始化按钮事件：点击面板内的“⚡ 执行项目初始化”按钮，切换到终端并执行流
     def run_exec_init_flow(ref_materials, ref_data):
         try:
-            # 切换回终端显示 Tab，tab 标题显示由前端模式控制。
+            # 在终端执行流，不关闭当前 Tab
             yield (
-                gr.update(selected="terminal_tab"),
+
                 "[System] 正在启动项目初始化...\n",
                 "Running"
             )
@@ -143,14 +242,14 @@ def bind_ui_events(
             # 调用原有的 run_project_init_flow 并在 console 中输出
             for chunk in run_project_init_flow(ref_materials, ref_data):
                 yield (
-                    gr.update(selected="terminal_tab"),
+    
                     chunk[0],
                     chunk[1]
                 )
         except Exception:
             error_text = "[System ERROR] 项目初始化流程异常：\n" + traceback.format_exc()
             yield (
-                gr.update(selected="terminal_tab"),
+
                 error_text,
                 "Failed"
             )
@@ -158,8 +257,8 @@ def bind_ui_events(
     exec_init_btn.click(
         fn=run_exec_init_flow,
         inputs=[ref_materials_file, ref_data_file],
-        outputs=[right_tabs, output_console, status],
-        js=close_js
+        outputs=[output_console, status],
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
     )
 
     # 4. 绑定“计划输入”下方的控制按钮逻辑：清空输入
@@ -198,25 +297,25 @@ def bind_ui_events(
         try:
             values = list(args)
             
-            # 切换回终端显示 Tab，tab 标题显示由前端模式控制。
+            # 在终端执行流，不关闭当前 Tab
             yield (
-                gr.update(selected="terminal_tab"),
+
                 "[System] 正在保存计划...\n",
                 "Running"
             )
             
             # 调用新封装的 run_plan_executor_flow 来保存文件并处理后续流
             for chunk in run_plan_executor_flow(values):
-                yield gr.update(selected="terminal_tab"), chunk[0], chunk[1]
+                yield chunk[0], chunk[1]
         except Exception:
             error_text = "[System ERROR] 执行计划流程异常：\n" + traceback.format_exc()
-            yield gr.update(selected="terminal_tab"), error_text, "Failed"
+            yield error_text, "Failed"
 
     exec_plan_btn.click(
         fn=run_exec_plan_flow,
         inputs=textbox_components,
-        outputs=[right_tabs, output_console, status],
-        js=close_js
+        outputs=[output_console, status],
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
     )
 
     # 7. 计划修改相关事件
@@ -230,38 +329,38 @@ def bind_ui_events(
         try:
             values = list(args)
             
-            # 切换回终端显示 Tab，tab 标题显示由前端模式控制。
+            # 在终端执行流，不关闭当前 Tab
             yield (
-                gr.update(selected="terminal_tab"),
+
                 "[System] 正在保存修改...\n",
                 "Running"
             )
             
             # 调用 revise_plan flow 来保存文件并处理后续流
             for chunk in run_revise_plan_flow(values):
-                yield gr.update(selected="terminal_tab"), chunk[0], chunk[1]
+                yield chunk[0], chunk[1]
         except Exception:
             error_text = "[System ERROR] 执行修改流程异常：\n" + traceback.format_exc()
-            yield gr.update(selected="terminal_tab"), error_text, "Failed"
+            yield error_text, "Failed"
 
     exec_modify_btn.click(
         fn=run_exec_modify_flow,
         inputs=modify_textbox_components,
-        outputs=[right_tabs, output_console, status],
-        js=close_js
+        outputs=[output_console, status],
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
     )
 
     # 8. LCI 制定面板内执行按钮事件
     def run_design_lci():
-        yield gr.update(selected="terminal_tab"), "[System] 正在启动 LCI 制定...\n", "Running"
+        yield "[System] 正在启动 LCI 制定...\n", "Running"
         for chunk in run_executor_flow("design-lci"):
-            yield gr.update(selected="terminal_tab"), chunk[0], chunk[1]
+            yield chunk[0], chunk[1]
 
     exec_lci_btn.click(
         fn=run_design_lci,
         inputs=None,
-        outputs=[right_tabs, output_console, status],
-        js=close_js
+        outputs=[output_console, status],
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
     )
     
     # 9. 清空日志按钮事件
@@ -301,7 +400,7 @@ def bind_ui_events(
         fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
-        js=close_js
+        js="() => { if (window.selectTerminalTab) window.selectTerminalTab(); }"
     )
 
     # 12. 动态检测与更新 Tab 页渲染状态事件

@@ -20,6 +20,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
     css_files = [
         css_dir / "layout.css",
         css_dir / "terminal.css",
+        css_dir / "project_init.css",
         css_dir / "plan.css",
     ]
     css = "\n\n".join(
@@ -57,7 +58,18 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                     _, output_console, status, clear_btn, stop_btn = build_terminal_console()
                     
                     # 2. 项目初始化组件（初始不可见）
-                    project_init_tab, close_init_btn, exec_init_btn = build_project_init()
+                    (
+                        project_init_tab,
+                        close_init_btn,
+                        refresh_init_status_btn,
+                        exec_init_btn,
+                        clean_status,
+                        clean_btn,
+                        rag_status,
+                        rag_btn,
+                        openlca_status,
+                        openlca_recheck_btn,
+                    ) = build_project_init()
                     
                     # 3. 拆分出的“计划输入”、“计划输出”和“计划修改”组件（初始不可见）
                     (
@@ -106,7 +118,14 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             stop_btn=stop_btn,
             project_init_tab=project_init_tab,
             close_init_btn=close_init_btn,
+            refresh_init_status_btn=refresh_init_status_btn,
             exec_init_btn=exec_init_btn,
+            clean_status=clean_status,
+            clean_btn=clean_btn,
+            rag_status=rag_status,
+            rag_btn=rag_btn,
+            openlca_status=openlca_status,
+            openlca_recheck_btn=openlca_recheck_btn,
             lci_design_tab=lci_design_tab,
             close_lci_btn=close_lci_btn,
             exec_lci_btn=exec_lci_btn,
