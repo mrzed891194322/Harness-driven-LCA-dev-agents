@@ -46,57 +46,120 @@ def bind_ui_events(
     plan_modify_content_row: gr.Row,
     plan_modify_warning_row: gr.Row,
     plan_modify_toc_html: gr.HTML,
-    modify_markdown_pool: list[gr.Markdown]
+    modify_markdown_pool: list[gr.Markdown],
+    # Project init components
+    project_init_tab: gr.Tab,
+    close_init_btn: gr.Button,
+    exec_init_btn: gr.Button,
+    # LCI design components
+    lci_design_tab: gr.Tab,
+    close_lci_btn: gr.Button,
+    exec_lci_btn: gr.Button
 ):
     """
     绑定 Gradio 的按钮点击与上传等所有 UI 交互事件。
     """
+
+    def set_tab_mode_js(mode: str) -> str:
+        return f"""
+        (...args) => {{
+            if (window.setRightTabMode) window.setRightTabMode('{mode}');
+            return args;
+        }}
+        """
     
-    # 1. 项目初始化按钮事件
+    # 1. 左侧按钮只切换右侧工作面板；顶层 Tab 常驻挂载，标题显示由 JS 控制。
     run_btn.click(
-        fn=run_project_init_flow,
-        inputs=[ref_materials_file, ref_data_file],
-        outputs=[output_console, status]
+        fn=lambda: gr.update(selected="project_init_tab"),
+        inputs=None,
+        outputs=right_tabs,
+        js=set_tab_mode_js("project"),
     )
 
-    # 2. 点击左侧“制定 LCA 执行计划”按钮：显示“计划输入”、“计划输出”和“计划修改”同级 Tab，默认停留在“计划输入”
+    # 2. 点击左侧“制定 LCA 执行计划”按钮：显示“计划输入”、“计划输出”和“计划修改”同级 Tab，隐藏项目初始化 Tab
+    # 同样采用 JS 延迟点击
     make_plan_btn.click(
-        fn=lambda: (
-            gr.update(selected="file_processing_tab"),
-            gr.update(visible=True),
-            gr.update(visible=True),
-            gr.update(visible=True),
-        ),
+        fn=lambda: gr.update(selected="file_processing_tab"),
         inputs=None,
-        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab]
+        outputs=right_tabs,
+        js=set_tab_mode_js("plan"),
     )
 
-    # Helper to close/hide all plan tabs and switch to terminal
-    def handle_close_plan():
-        return (
-            gr.update(selected="terminal_tab"),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-        )
-
-    # 3. 点击“❌ 关闭计划”按钮：隐藏所有计划相关 Tab 并返回到“终端显示” Tab
-    close_btn.click(
-        fn=handle_close_plan,
+    design_lci_btn.click(
+        fn=lambda: gr.update(selected="lci_design_tab"),
         inputs=None,
-        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab]
+        outputs=right_tabs,
+        js=set_tab_mode_js("lci"),
+    )
+
+    # 3. 点击关闭按钮：隐藏功能面板标题并返回到“终端显示” Tab。
+    close_js = set_tab_mode_js("terminal")
+
+    close_btn.click(
+        fn=lambda: gr.update(selected="terminal_tab"),
+        inputs=None,
+        outputs=right_tabs,
+        js=close_js,
     )
     
     close_modify_btn.click(
-        fn=handle_close_plan,
+        fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
-        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab]
+        outputs=right_tabs,
+        js=close_js,
     )
 
     close_output_btn.click(
-        fn=handle_close_plan,
+        fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
-        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab]
+        outputs=right_tabs,
+        js=close_js,
+    )
+
+    close_init_btn.click(
+        fn=lambda: gr.update(selected="terminal_tab"),
+        inputs=None,
+        outputs=right_tabs,
+        js=close_js,
+    )
+
+    close_lci_btn.click(
+        fn=lambda: gr.update(selected="terminal_tab"),
+        inputs=None,
+        outputs=right_tabs,
+        js=close_js,
+    )
+
+    # 3b. 执行项目初始化按钮事件：点击面板内的“⚡ 执行项目初始化”按钮，切换到终端并执行流
+    def run_exec_init_flow(ref_materials, ref_data):
+        try:
+            # 切换回终端显示 Tab，tab 标题显示由前端模式控制。
+            yield (
+                gr.update(selected="terminal_tab"),
+                "[System] 正在启动项目初始化...\n",
+                "Running"
+            )
+            
+            # 调用原有的 run_project_init_flow 并在 console 中输出
+            for chunk in run_project_init_flow(ref_materials, ref_data):
+                yield (
+                    gr.update(selected="terminal_tab"),
+                    chunk[0],
+                    chunk[1]
+                )
+        except Exception:
+            error_text = "[System ERROR] 项目初始化流程异常：\n" + traceback.format_exc()
+            yield (
+                gr.update(selected="terminal_tab"),
+                error_text,
+                "Failed"
+            )
+
+    exec_init_btn.click(
+        fn=run_exec_init_flow,
+        inputs=[ref_materials_file, ref_data_file],
+        outputs=[right_tabs, output_console, status],
+        js=close_js
     )
 
     # 4. 绑定“计划输入”下方的控制按钮逻辑：清空输入
@@ -135,27 +198,25 @@ def bind_ui_events(
         try:
             values = list(args)
             
-            # 切换回终端显示 Tab，并隐藏计划相关 Tab
+            # 切换回终端显示 Tab，tab 标题显示由前端模式控制。
             yield (
                 gr.update(selected="terminal_tab"),
-                gr.update(visible=False),
-                gr.update(visible=False),
-                gr.update(visible=False),
                 "[System] 正在保存计划...\n",
                 "Running"
             )
             
             # 调用新封装的 run_plan_executor_flow 来保存文件并处理后续流
             for chunk in run_plan_executor_flow(values):
-                yield gr.update(selected="terminal_tab"), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), chunk[0], chunk[1]
+                yield gr.update(selected="terminal_tab"), chunk[0], chunk[1]
         except Exception:
             error_text = "[System ERROR] 执行计划流程异常：\n" + traceback.format_exc()
-            yield gr.update(selected="terminal_tab"), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), error_text, "Failed"
+            yield gr.update(selected="terminal_tab"), error_text, "Failed"
 
     exec_plan_btn.click(
         fn=run_exec_plan_flow,
         inputs=textbox_components,
-        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab, output_console, status]
+        outputs=[right_tabs, output_console, status],
+        js=close_js
     )
 
     # 7. 计划修改相关事件
@@ -169,37 +230,38 @@ def bind_ui_events(
         try:
             values = list(args)
             
-            # 切换回终端显示 Tab，并隐藏计划相关 Tab
+            # 切换回终端显示 Tab，tab 标题显示由前端模式控制。
             yield (
                 gr.update(selected="terminal_tab"),
-                gr.update(visible=False),
-                gr.update(visible=False),
-                gr.update(visible=False),
                 "[System] 正在保存修改...\n",
                 "Running"
             )
             
             # 调用 revise_plan flow 来保存文件并处理后续流
             for chunk in run_revise_plan_flow(values):
-                yield gr.update(selected="terminal_tab"), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), chunk[0], chunk[1]
+                yield gr.update(selected="terminal_tab"), chunk[0], chunk[1]
         except Exception:
             error_text = "[System ERROR] 执行修改流程异常：\n" + traceback.format_exc()
-            yield gr.update(selected="terminal_tab"), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), error_text, "Failed"
+            yield gr.update(selected="terminal_tab"), error_text, "Failed"
 
     exec_modify_btn.click(
         fn=run_exec_modify_flow,
         inputs=modify_textbox_components,
-        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab, output_console, status]
+        outputs=[right_tabs, output_console, status],
+        js=close_js
     )
 
-    # 8. 设计 LCI 数据按钮事件
+    # 8. LCI 制定面板内执行按钮事件
     def run_design_lci():
-        yield from run_executor_flow("design-lci")
+        yield gr.update(selected="terminal_tab"), "[System] 正在启动 LCI 制定...\n", "Running"
+        for chunk in run_executor_flow("design-lci"):
+            yield gr.update(selected="terminal_tab"), chunk[0], chunk[1]
 
-    design_lci_btn.click(
+    exec_lci_btn.click(
         fn=run_design_lci,
         inputs=None,
-        outputs=[output_console, status]
+        outputs=[right_tabs, output_console, status],
+        js=close_js
     )
     
     # 9. 清空日志按钮事件
@@ -236,9 +298,10 @@ def bind_ui_events(
 
     # “确认计划”按钮功能同“关闭计划制定面板”按钮
     confirm_plan_btn.click(
-        fn=handle_close_plan,
+        fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
-        outputs=[right_tabs, plan_input_tab, plan_output_tab, plan_modify_tab]
+        outputs=right_tabs,
+        js=close_js
     )
 
     # 12. 动态检测与更新 Tab 页渲染状态事件
@@ -365,4 +428,3 @@ def bind_ui_events(
         inputs=None,
         outputs=modify_select_outputs
     )
-

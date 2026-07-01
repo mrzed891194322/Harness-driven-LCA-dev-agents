@@ -9,6 +9,8 @@ wheels/
 # test
 docs/test
 
+# logs
+logs/
 
 # Virtual environments
 .venv

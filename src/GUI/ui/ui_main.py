@@ -3,10 +3,12 @@ import gradio as gr
 from ui.components.terminal_console import build_terminal_console
 from ui.components.plan_input import build_plan_input
 from ui.components.left_sidebar import build_left_sidebar
+from ui.components.project_init import build_project_init
+from ui.components.lci_design import build_lci_design
 from ui.events import bind_ui_events
 
 
-def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
+def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
     theme = gr.themes.Soft(
         primary_hue="teal",
         secondary_hue="indigo",
@@ -26,26 +28,11 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
         if css_file.exists()
     )
 
-    with gr.Blocks(title="LCA Multi-agent UI") as demo:
-        with gr.Row():
-            gr.Markdown(
-                """
-                # 🌲 生命周期评估多智能体系统 - 控制面板
-                ---
-                """
-            )
-            
-        with gr.Row(elem_id="main-layout-row"):
-            with gr.Column(scale=1, elem_id="left-sidebar"):
-                (
-                    run_btn,
-                    make_plan_btn,
-                    design_lci_btn,
-                    ref_materials_file,
-                    ref_data_file
-                ) = build_left_sidebar()
+    js_dir = assets_dir / "js"
+    js_file = js_dir / "tab_navigation.js"
+    js_code = js_file.read_text(encoding="utf-8") if js_file.exists() else ""
 
-    with gr.Blocks(title="LCA Multi-agent UI") as demo:
+    with gr.Blocks(title="LCA Multi-agent UI", js=js_code) as demo:
         with gr.Row():
             gr.Markdown(
                 """
@@ -69,7 +56,10 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
                     # 1. 拆分出的“终端显示”组件
                     _, output_console, status, clear_btn, stop_btn = build_terminal_console()
                     
-                    # 2. 拆分出的“计划输入”、“计划输出”和“计划修改”组件（初始不可见）
+                    # 2. 项目初始化组件（初始不可见）
+                    project_init_tab, close_init_btn, exec_init_btn = build_project_init()
+                    
+                    # 3. 拆分出的“计划输入”、“计划输出”和“计划修改”组件（初始不可见）
                     (
                         plan_input_tab,
                         plan_output_tab,
@@ -98,6 +88,9 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
                         plan_modify_toc_html,
                         modify_markdown_pool
                     ) = build_plan_input()
+
+                    # 4. LCI 制定组件
+                    lci_design_tab, close_lci_btn, exec_lci_btn = build_lci_design()
                 
         # 绑定事件
         bind_ui_events(
@@ -111,6 +104,12 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
             status=status,
             clear_btn=clear_btn,
             stop_btn=stop_btn,
+            project_init_tab=project_init_tab,
+            close_init_btn=close_init_btn,
+            exec_init_btn=exec_init_btn,
+            lci_design_tab=lci_design_tab,
+            close_lci_btn=close_lci_btn,
+            exec_lci_btn=exec_lci_btn,
             plan_input_tab=plan_input_tab,
             plan_output_tab=plan_output_tab,
             plan_modify_tab=plan_modification_tab,
@@ -137,4 +136,4 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str]:
             modify_markdown_pool=modify_markdown_pool
         )
         
-    return demo, theme, css
+    return demo, theme, css, js_code

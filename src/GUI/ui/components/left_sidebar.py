@@ -36,8 +36,26 @@ def build_left_sidebar() -> tuple[gr.Button, gr.Button, gr.Button, gr.File, gr.F
             """
         )
 
-        run_btn = gr.Button("🚀 项目初始化 (Project Init)", variant="primary", size="lg")
-        make_plan_btn = gr.Button("🧭 制定 LCA 执行计划 (Make Plan)", variant="secondary", size="lg")
-        design_lci_btn = gr.Button("🧬 设计 LCI 数据 (Design LCI)", variant="secondary", size="lg")
+        run_btn = gr.Button(
+            "🚀 项目初始化面板",
+            variant="secondary",
+            size="lg",
+            elem_id="quick-action-project",
+            elem_classes=["quick-action-btn"],
+        )
+        make_plan_btn = gr.Button(
+            "🧭 LCA整体工作计划制定面板",
+            variant="secondary",
+            size="lg",
+            elem_id="quick-action-plan",
+            elem_classes=["quick-action-btn"],
+        )
+        design_lci_btn = gr.Button(
+            "🧬 生命周期清单（LCI）工作面板",
+            variant="secondary",
+            size="lg",
+            elem_id="quick-action-lci",
+            elem_classes=["quick-action-btn"],
+        )
 
     return run_btn, make_plan_btn, design_lci_btn, ref_materials_file, ref_data_file

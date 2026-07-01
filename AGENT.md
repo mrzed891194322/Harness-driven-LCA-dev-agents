@@ -5,3 +5,6 @@
 3. 在有明确LCA工作需求时，agent 应按需加载并使用 `lca-specification` 技能（如执行计划制定、LCI 数据构建与导入等），并根据当前任务读取对应的规范或参考文件。
 4. 在有明确外部工具调用需求时，agent 应按需加载并使用 `external-tools` 技能（如构建或检索 RAG 数据库，控制并操作 openLCA 软件等），并根据任务读取对应的引导文件。
 
+注：如果是 antigravity 和 codex agent不用执行上述任务，因为你们是在继续开发这一项目。
+
+antigravity 和 codex agent开发gradio GUI时请不要亲自调试，改好代码后告知用户，由用户进行调试
