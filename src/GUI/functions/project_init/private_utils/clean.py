@@ -12,7 +12,8 @@ def run_clean_project(project_root: Path) -> Generator[str, None, None]:
     
     from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
     
-    script_path = project_root / "src" / "scripts" / "clean_dir" / "clean_dir.py"
+    import config
+    script_path = config.CLEAN_SCRIPT_PATH
     cmd = [sys.executable, str(script_path), "-y"]
     
     try:

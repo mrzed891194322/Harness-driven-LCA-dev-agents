@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from typing import Generator
 
-from functions.utils.log_exporter import CommandLogExporter, RAW_LOG_RELATIVE_PATH
 from functions.utils.path_utils import find_project_root
 
 MAX_DISPLAY_CHARS = 240_000
@@ -69,8 +68,7 @@ def render_terminal_text(raw_logs: str) -> str:
     rendered = "\n".join(rendered_lines)
     if len(rendered) > MAX_DISPLAY_CHARS:
         return (
-            f"[System] Web console is showing the latest {MAX_DISPLAY_CHARS:,} characters. "
-            f"See {RAW_LOG_RELATIVE_PATH.as_posix()} for the complete raw output.\n"
+            f"[System] Web console is showing the latest {MAX_DISPLAY_CHARS:,} characters.\n"
             + rendered[-MAX_DISPLAY_CHARS:]
         )
     return rendered
@@ -83,9 +81,6 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
     project_root = find_project_root(Path(__file__).resolve())
     command_str = subprocess.list2cmdline(command_args)
     
-    log_exporter = CommandLogExporter(project_root, command_str)
-    safe_console_print(f"\n[GUI Logger] Started task. Raw logs will be saved to: {log_exporter.path}")
-    
     yield f"[System] Executing command in: {project_root}\n"
     yield f"[System] Command: {command_str}\n"
     yield "=" * 80 + "\n"
@@ -94,11 +89,6 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
     env = os.environ.copy()
     env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
     env["PYTHONHTTPSVERIFY"] = "0"
-    
-    try:
-        log_exporter.open()
-    except Exception as e:
-        safe_console_print(f"[GUI Logger ERROR] Failed to create log file: {e}")
     
     from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
 
@@ -118,10 +108,7 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
         set_active_process(process)
     except Exception as e:
         msg = f"[System ERROR] Failed to start command process: {e}\n"
-        safe_console_print(f"[GUI Logger ERROR] {msg.strip()}")
         yield msg
-        log_exporter.write(msg)
-        log_exporter.close()
         return
 
     completed = False
@@ -137,7 +124,6 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
                     # 打印到当前运行 Gradio 终端的主控制台上
                     safe_console_print(f"[CLI Output] {line.rstrip()}")
                     
-                    log_exporter.write(line)
                     yield line
 
         return_code = process.wait()
@@ -146,9 +132,8 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
             msg = "\n[System] Process terminated by user.\n"
         else:
             msg = f"\n[System] Process finished with exit code {return_code}.\n"
-        safe_console_print(f"[GUI Logger] {msg.strip()}")
+        safe_console_print(f"[Process State] {msg.strip()}")
         yield msg
-        log_exporter.write(msg)
     finally:
         if not completed and process.poll() is None:
             try:
@@ -164,7 +149,6 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
             except Exception as e:
                 safe_console_print(f"[Process Manager] Error cleaning up command process: {e}")
         clear_active_process()
-        log_exporter.close()
 
 def run_init_rag_database_console() -> Generator[tuple[str, str], None, None]:
     """

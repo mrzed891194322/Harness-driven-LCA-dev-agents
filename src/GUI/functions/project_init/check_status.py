@@ -36,10 +36,8 @@ def check_openlca_status(host: str = "localhost", port: int = 8080) -> str:
         "成功连接" 或 "连接失败"
     """
     # 将 openlca_check 脚本目录临时加入 sys.path 以复用其 check_openlca 函数
-    openlca_check_dir = str(
-        Path(__file__).resolve().parents[3]
-        / "scripts" / "initialization" / "openlca_check"
-    )
+    import config
+    openlca_check_dir = str(config.OPENLCA_CHECK_DIR)
     _inserted = False
     if openlca_check_dir not in sys.path:
         sys.path.insert(0, openlca_check_dir)

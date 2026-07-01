@@ -23,7 +23,8 @@ def run_initialization(project_root: Path) -> Generator[str, None, None]:
     
     from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
 
-    script_path = project_root / "src" / "scripts" / "initialization" / "main.py"
+    import config
+    script_path = config.INIT_RAG_SCRIPT_PATH
     cmd = [sys.executable, str(script_path)]
     
     try:
