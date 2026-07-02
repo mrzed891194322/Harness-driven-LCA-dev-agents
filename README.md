@@ -6,7 +6,7 @@
 
 为了方便 Windows 用户快速上手，项目根目录下提供了两个一键批处理脚本，支持环境配置与控制面板的快速启动：
 
-1. **环境配置**：**在已安装 [uv](https://github.com/astral-sh/uv) 的前提下**，**双击**运行 [_setup_env.bat](_setup_env.bat)。它将自动同步项目依赖（`uv sync`）并引导检查/创建本地 `.env` 环境变量配置文件（**注意：其中的 API Key 等具体配置内容仍需手动填写，可参考 [环境准备与配置详解第 4 节](docs/wiki/env_setup.md#4-本地环境变量配置) 进行配置**）。
+1. **环境配置**：**在已安装 [uv](https://github.com/astral-sh/uv) 的前提下**，**双击**运行 [_setup_env.bat](_setup_env.bat)。它将自动同步项目依赖（`uv sync`）并引导检查/创建本地 `.env` 环境变量配置文件（**注意**：OpenCode Agent 智能体设置与本地 `.env` 环境变量都分别需要配置，其中的 API Key 等具体配置内容仍需手动填写，具体可参考 [环境准备与配置详解](docs/wiki/env_setup.md)）。
 2. **启动 GUI**：**双击**运行 [_launch_gui.bat](_launch_gui.bat)。它将自动运行后台服务并在默认浏览器中拉起控制面板（默认地址为 [http://127.0.0.1:7860](http://127.0.0.1:7860)）。在关闭该批处理窗口或在终端按 `Ctrl+C` 时，会自动清理相关的所有 Python/Gradio 后台进程。
 
 ---
@@ -35,14 +35,13 @@
 uv run python src/GUI/main.py
 ```
 启动成功后，在浏览器中手动访问 [http://127.0.0.1:7860](http://127.0.0.1:7860)。
-*(Windows 用户建议直接双击运行顶部的 [_launch_gui.bat](_launch_gui.bat) 一键启动)*
 
 ### 2. 使用步骤说明
 
 在使用控制面板时，请遵循以下流程：
 1. **准备工作**：
    - **⚠️ 必须开启 openLCA 桌面客户端，并确保已启用 IPC Server 服务（默认端口 8080）**。
-   - 准备您的参考文档（如环评报告等 PDF/Word 文档）与计划需求文档（可参考模板 [docs/assets/templates/plan.md](docs/assets/templates/plan.md) 编写）。
+   - 准备您的参考文档（如环评报告等 PDF/Word 文档）与计划需求文档（可参考模板 [src/GUI/ui/assets/template/plan.md](src/GUI/ui/assets/template/plan.md) 编写）。
 2. **初始化项目与上传文档**：
    - 在控制面板左侧边栏的 **“文件交换区”** 直接上传准备好的参考资料（如环评报告等）与参考数据文件（**无需手动放置在后台文件夹中**）。
    - 切换到控制面板的 **“项目初始化”** 面板，检查 openLCA 连接状态。
