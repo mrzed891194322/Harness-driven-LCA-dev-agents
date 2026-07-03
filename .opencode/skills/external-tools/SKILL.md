@@ -1,34 +1,66 @@
 ---
 name: external-tools
-description: 外部工具的轻量路由入口。智能体在需要检索 RAG 数据库或通过 IPC Server 操作 openLCA 时应加载本技能，并按需读取 harness/tools/ 中对应工具的 README.md。
+description: 外部工具的强路由入口。需要检索 RAG、检查 openLCA 连接、查询 UUID/描述符、读取模型图、导入或计算时必须加载，并按本文件揭示的 harness/tools 或 scripts 路径读取工具说明。
 ---
 
-# 外部工具路由技能 (external-tools)
+# 外部工具强路由 (external-tools)
 
-本技能只负责把当前任务路由到 `harness/tools/` 中的工具说明文件。RAG 数据库构建/查询、openLCA 控制脚本、运行命令与工具边界的事实来源均位于 `harness/tools/`。
+本技能负责把外部工具任务路由到 `harness/tools/` 与 `scripts/` 中的正式工具，并明确每类工具任务必须读取哪些说明。
+
+`harness/tools/` 是工具事实来源。不要一次性读取全部工具；按下方工具卡片读取。
 
 > [!IMPORTANT]
-> **上下文消耗控制（必读）**
-> - 加载本技能时，**只有本文件 (`SKILL.md`) 会被自动注入上下文**。
-> - 智能体必须根据当前任务，**显式读取且仅读取** `harness/tools/` 中最小必要的工具入口。
-> - 具体工具参数、脚本路径与运行示例均由被读取的工具入口继续披露。
-> - **严禁一次性读取全部工具文件**，也不得把工具说明复制到本技能中维护。
+> **工具复用硬约束**
+> - 严禁为外部工具调用创建临时 Python 脚本。
+> - 所有 Python 工具命令必须使用 `uv run python ...`。
+> - 如现有工具能力不足，只能修改或新增正式工具，并同步 README；不得在 `workspace/tmp/` 或其他位置写一次性脚本。
 
 ---
 
-## 任务路由指南
+## 工具路由卡片
 
 请根据当前任务类型读取对应的工具入口：
 
-### 1. RAG 向量数据库构建与查询任务 (Control RAG Database)
-- **主要参考者**：需要检索特定背景知识、生命周期清单标准或导入任务输入信息的智能体。
-- **适用场景**：构建、更新或检索本地 Chroma 数据库时。
-- **工具入口目录**：`harness/tools/control_rag_db/`
-- **常用脚本**：
-  - 构建：`harness/tools/control_rag_db/build_rag/main.py`
-  - 查询：`harness/tools/control_rag_db/query_rag/main.py`
+### A. RAG 构建或查询
+适用：检索标准、openLCA 手册、用户资料、输入文件背景知识。
 
-### 2. openLCA 数据库控制与计算任务 (Control openLCA)
-- **主要参考者**：需要与 openLCA 交互进行数据导入、依赖拓扑检索或 LCIA 计算的智能体。
-- **适用场景**：通过 IPC Server 对过程/产品系统进行计算、导入结构化 Flow/Process 数据等。
-- **工具入口**：`harness/tools/control_openlca/README.md`
+读取顺序：
+1. `harness/tools/control_rag_db/README.md`
+2. 构建 RAG 时读 `harness/tools/control_rag_db/build_rag/README.md`（如存在）或 `harness/tools/control_rag_db/build_rag/main.py` 的参数说明
+3. 查询 RAG 时读 `harness/tools/control_rag_db/query_rag/README.md`（如存在）或 `harness/tools/control_rag_db/query_rag/main.py` 的参数说明
+
+正式工具：
+- 构建：`uv run python harness/tools/control_rag_db/build_rag/main.py ...`
+- 查询：`uv run python harness/tools/control_rag_db/query_rag/main.py ...`
+
+### B. openLCA 连接检测
+适用：只判断 openLCA 桌面端和 IPC Server 是否可连接。
+
+读取顺序：
+1. `harness/tools/control_openlca/README.md`
+2. `scripts/initialization/README.md`
+
+正式工具：
+- `uv run python scripts/initialization/openlca_check/main.py --host localhost --port 8080`
+
+### C. openLCA 实体、UUID、描述符查询
+适用：查 Process、Flow、ImpactMethod、ProductSystem 等名称和 UUID。
+
+读取顺序：
+1. `harness/tools/control_openlca/README.md`
+2. `harness/tools/control_openlca/query_descriptors/README.md`
+
+正式工具：
+- `uv run python harness/tools/control_openlca/query_descriptors/main.py <Type> [--search <keyword>] [--limit <number>]`
+
+### D. openLCA 模型图读取
+读取顺序：
+1. `harness/tools/control_openlca/README.md`
+2. `harness/tools/control_openlca/get_model_graph/README.md`
+
+### E. openLCA 导入或计算
+读取顺序：
+1. `harness/tools/control_openlca/README.md`
+2. 导入：`harness/tools/control_openlca/import_from_json/README.md`
+3. 产品系统计算：`harness/tools/control_openlca/calculate_product_system/README.md`
+4. 过程直接计算：`harness/tools/control_openlca/calculate_process_direct/README.md`

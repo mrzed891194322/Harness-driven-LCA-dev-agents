@@ -9,7 +9,15 @@
 
 ## 执行方式 (按需披露)
 
-根据具体任务选择对应的专用计算脚本。如果现有脚本无法满足工作需求，可考虑在 `workspace/tmp` 目录中参考现有脚本编写新脚本来实现功能（如建立新脚本，必须同时附上说明文档）：
+根据具体任务选择对应的专用脚本。严禁为连接检测、数据库查询、UUID 查询、模型图读取、导入或计算编写临时 Python 脚本；如果现有工具无法满足需求，只能按正式工具规范扩展 `harness/tools/` 或 `scripts/` 中的长期维护脚本，并同步 README。
+
+### 0. 检查 openLCA IPC Server 连接
+* **脚本文件**：`scripts/initialization/openlca_check/main.py`
+* **运行示例**：
+```bash
+uv run python scripts/initialization/openlca_check/main.py --host localhost --port 8080
+```
+* **使用要求**：凡是只需判断 openLCA 是否已启动、IPC Server 是否可连接时，必须使用本入口。
 
 ### 1. 对已有的产品系统 (Product System) 进行计算
 * **脚本文件**：`harness/tools/control_openlca/calculate_product_system/main.py`
