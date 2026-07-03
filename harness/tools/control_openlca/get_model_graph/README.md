@@ -12,7 +12,7 @@
 通过命令行指定要查找的产品系统（支持名称或 UUID）：
 
 ```bash
-uv run python .opencode/skills/external-tools/references/control-openlca/scripts/get_model_graph/main.py "产品系统名称" --host <主机地址> --port <端口> --output <输出JSON路径>
+uv run python harness/tools/control_openlca/get_model_graph/main.py "产品系统名称" --host <主机地址> --port <端口> --output <输出JSON路径>
 ```
 
 **参数说明**：

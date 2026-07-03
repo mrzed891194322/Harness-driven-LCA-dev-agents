@@ -14,7 +14,7 @@ agent: subagents/tools/doc-handler
 
 运行以下导入命令：
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/import_from_json/main.py workspace/LCI
+uv run python harness/tools/control_openlca/import_from_json/main.py workspace/LCI
 ```
 
 *注：脚本会自动检测 `workspace/LCI` 中的子目录结构（flows -> processes -> product_systems）并按依赖顺序导入，且会自动将当前工作目录名称作为分类目录导入 openLCA。如果用户在调用本命令时显式提供了自定义的 `--host` 或 `--port` 参数，请对应调整追加到运行命令末尾。*

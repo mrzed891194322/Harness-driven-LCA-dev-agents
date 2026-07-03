@@ -2,7 +2,7 @@
 
 > **上下文提示**：如需了解 `harness/`、`GUI/`、`scripts/` 与 `workspace/` 的内部规范，请另读同目录下的 `harness-structure.md`；不要提前读取本文件全部内容。
 >
-> 本文件由 `project-regulation` skill 维护，聚焦**项目整体结构**与**通用约定**。
+> 本文件聚焦**项目整体结构**与**通用约定**。
 
 ---
 

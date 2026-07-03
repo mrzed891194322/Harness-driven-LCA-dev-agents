@@ -1,53 +1,47 @@
 ---
 name: main-workflow
-description: "定义了 harness LCA 输出任务的标准工作流及各个步骤的执行规范。供 major-orchestrator 等 agent 参考，以按需或完整调用相应的子 agent 执行任务。"
+description: "兼容性的 harness LCA 工作流路由入口。保留给现有 major-orchestrator 使用；具体任务规范仍以 harness/specs 与 harness/rules 为事实来源。"
 ---
 
-# harness LCA 任务工作流 (workflow)
+# harness LCA 工作流路由 (main-workflow)
 
-本技能定义了 harness LCA 输出任务的标准工作流。主要用于指导 `major-orchestrator` 等核心编排 Agent，根据任务类型（从头开始或追加修改）决定是完整执行整个流程，还是选择性按需执行特定步骤。
+本技能暂时作为 `major-orchestrator` 的兼容入口保留。它只说明工作流阶段与子 Agent 路由，不维护 LCA 业务规范、文件模板或工具命令。
 
-## 工作流抽象说明
+事实来源：
 
-在 harness LCA 任务中，标准的工作流程被拆分为多个解耦的步骤。每一个步骤均对应一个具备专门能力的子 Agent。当需要执行某一环节时，主 Agent 应调用对应的子 Agent（或技能）来完成，而非亲自执行。
+- LCA 计划与 LCI 构建规范：`harness/specs/`
+- 项目规则、目录与调用边界：`harness/rules/`
+- openLCA/RAG 工具说明与脚本：`harness/tools/`
 
-## 标准工作流步骤及对应子 Agent
+## 标准阶段
 
-按照执行的先后顺序，完整的工作流包含以下环节：
+完整 LCA 任务按以下阶段路由：
 
-### 1. 计划与方案制定 (plan-maker)
-- **职责**：读取原始任务要求、数据说明，制定包含数据处理、LCA 计算细节以及最终交付标准的详细实施方案。
-- **触发时机**：从头开始新任务，或用户大幅度改变任务目标、优化路线时。
+### 1. 计划与方案制定
+- **Agent**：`plan-maker`
 - **调用路径**：`subagents/workflow/plan-maker`
+- **规范入口**：通过 `lca-specification` 读取 `harness/specs/plan-guidelines/README.md`
 
-### 2. 数据处理与清洗 (data-processor)
-- **职责**：执行数据的读取、清洗、特征提取或格式转换。设计并产生预处理产物，供下游环节使用。
-- **触发时机**：完整流程中必须执行；或用户追加要求补充新特征、修改数据处理逻辑时。
-- **调用路径**：`subagents/workflow/data-processor`
-
-### 3. LCI结构化构建 (LCI-designer)
-- **职责**：负责将生命周期评估 (LCA) 计划文本转化为符合 openLCA 规范的结构化 LCI 数据（JSON 配置）并批量导入 openLCA 数据库。
-- **触发时机**：完整流程中必须执行；或涉及 LCA 逻辑、结构化配置、物质流向调整时。
+### 2. LCI 结构化构建与导入
+- **Agent**：`LCI-designer`
 - **调用路径**：`subagents/workflow/LCI-designer`
+- **规范入口**：通过 `lca-specification` 读取 `harness/specs/lci-construction/README.md`
 
-### 4. 评估与验证 (eval-executor)
-- **职责**：分析构建的 LCI 数据质量、结构完整性，并比对交付标准。明确输出结论：是否达标，是否需要下一轮优化。
-- **触发时机**：任何涉及到 LCI 数据、验证脚本的改动产生新结果后，都必须强制调用进行评估。
-- **调用路径**：`subagents/workflow/eval-executor`
-
-### 5. 归档与交付输出 (doc-handler / major-orchestrator)
-- **职责**：在 `eval-executor` 评估通过后，由 `major-orchestrator` 或 `LCI-designer` 引导，利用 `doc-handler` 对最终产物进行归档，并整理输出至最终目录。
-- **触发时机**：评估通过且全盘达标后。
-- **调用路径**：`subagents/tools/doc-handler`
+### 3. 评估、归档与交付
+- **Agent**：`eval-executor`、`doc-handler`
+- **评估调用路径**：`subagents/workflow/eval-executor`
+- **文档/归档调用路径**：`subagents/tools/doc-handler`
+- **规则入口**：通过 `project-regulation` 读取 `harness/rules/` 中的最小必要规则
 
 ---
 
-## 灵活调用原则（选择性执行）
+## 选择性执行原则
 
-**对于用户后续的追加修改任务，应当避免机械地重复整个工作流**。请根据实际需求定位受影响的最小环节并按需执行：
+对于追加修改任务，定位受影响的最小阶段并按需执行：
 
-- **若是纯文档/要求补充**：直接调用 `plan-maker` 或相应的辅助工具。
-- **若是修正某个数据处理逻辑**：调用 `data-processor` 重新处理，再传给 `LCI-designer` 重新构建，最后由 `eval-executor` 评估和归档。
-- **若是仅需修改 LCI 构建逻辑**：跳过数据处理，直接调用 `LCI-designer`。
+- 计划、需求或待完善事项变化：调用 `plan-maker`。
+- LCI 映射、JSON 结构或导入逻辑变化：调用 `LCI-designer`，必要时再调用 `eval-executor`。
+- 文件写入、归档、模板化文档更新：调用 `doc-handler`。
+- 代码或脚本修改：调用 `code-builder`，并按 `project-regulation` 读取编码规范。
 
-**要求**：所有相关 Agent 必须牢记自己在工作流中的分工定位，遵守**最小化按需执行**的原则。
+`data-processor` 仅作为可选的非主线数据预处理 Agent 使用；除非任务明确涉及独立数据清洗、划分或特征工程，否则不要把它纳入标准 LCA 工作流。

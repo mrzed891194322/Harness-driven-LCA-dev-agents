@@ -17,10 +17,10 @@
 
 | 子 Agent 简写 (描述使用) | 分类 | 完整调用路径 (系统调用/配置使用) | 对应定义文件 |
 | :--- | :--- | :--- | :--- |
-| `data-processor` | 建模工作流 (workflow) | `subagents/workflow/data-processor` | `subagents/workflow/data-processor.md` |
 | `plan-maker` | 建模工作流 (workflow) | `subagents/workflow/plan-maker` | `subagents/workflow/plan-maker.md` |
 | `LCI-designer` | 建模工作流 (workflow) | `subagents/workflow/LCI-designer` | `subagents/workflow/LCI-designer.md` |
 | `eval-executor` | 建模工作流 (workflow) | `subagents/workflow/eval-executor` | `subagents/workflow/eval-executor.md` |
+| `data-processor` | 可选数据预处理 (workflow) | `subagents/workflow/data-processor` | `subagents/workflow/data-processor.md` |
 | `doc-handler` | 通用工具 (tools) | `subagents/tools/doc-handler` | `subagents/tools/doc-handler.md` |
 | `code-builder` | 通用工具 (tools) | `subagents/tools/code-builder` | `subagents/tools/code-builder.md` |
 
@@ -43,7 +43,7 @@ permission:
 
 ### 3. 发起调用
 在运行时调用子 Agent 时，必须传入完整路径：
-> 调用 `subagents/workflow/data-processor` 开展特征工程分析 ...
+> 当任务明确涉及独立数据清洗或特征工程时，调用 `subagents/workflow/data-processor` 开展分析 ...
 
 ### 4. 恢复会话与回顾总结 (task_id)
 调用子 Agent 时应记住并保存返回的 `task_id`，以便需要时进行恢复或回顾。

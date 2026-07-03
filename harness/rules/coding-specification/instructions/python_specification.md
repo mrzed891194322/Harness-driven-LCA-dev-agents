@@ -1,6 +1,6 @@
 # Python 脚本编写与运行规范 (Python Specification)
 
-本文件由 `project-regulation` 技能维护，定义了在本项目中编写与运行 Python 脚本的运行环境、范围限制、临时脚本存放以及文件操作的安全边界。
+本文件定义了在本项目中编写与运行 Python 脚本的运行环境、范围限制、临时脚本存放以及文件操作的安全边界。
 
 ## 核心规范
 
@@ -29,4 +29,4 @@
      - `main.py`：作为脚本的**唯一主入口与总接口**，其中仅能包含唯一的 `main()` 函数。
      - `utils/` 子目录：所有具体的功能实现函数必须根据用途进行模块化拆分，存放在 `utils/` 子目录下的不同 Python 脚本中。如果包含配置文档，也可按需存放于该子目录下。
      - `README.md` 说明文件：该任务子目录内必须包含 `README.md` 解释整段代码。在后续修改/阅读代码时作为参考，且**在修改代码时，必须同步更新 README.md**。
-     - **结构模板**：编写时可参考项目提供的模板目录：`assets/coding-specification/templates/py_scripts/`。
+     - **结构模板**：编写时可参考项目提供的模板目录：`harness/rules/coding-specification/templates/py_scripts/`。

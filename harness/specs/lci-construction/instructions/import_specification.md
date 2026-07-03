@@ -5,15 +5,15 @@
 ## 前置要求
 
 1. **客户端与 IPC 服务**：请确保本地已开启 openLCA 桌面客户端，并启动了 IPC Server 服务（默认端口 `8080`）。
-2. **导入工具**：使用 `external-tools` 技能下的导入脚本：
-   `.opencode/skills/external-tools/assets/control-openlca/scripts/import_from_json/main.py`
+2. **导入工具**：使用 `external-tools` 技能路由到的导入脚本：
+   `harness/tools/control_openlca/import_from_json/main.py`
 
 ## 执行命令
 
 请运行以下命令进行批量导入：
 
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/import_from_json/main.py workspace/LCI
+uv run python harness/tools/control_openlca/import_from_json/main.py workspace/LCI
 ```
 
 ### 参数说明与规则：

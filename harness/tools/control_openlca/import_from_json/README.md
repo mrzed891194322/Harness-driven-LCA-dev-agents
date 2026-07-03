@@ -10,14 +10,14 @@
 ## 文件格式与规范
 
 实体必须使用 **camelCase** 的 JSON-LD 格式，并在最顶层以及所有关联的 Ref 中声明正确的 `@type` 和 `@id` (UUID)。
-详细的 JSON-LD 数据结构模板与构建规范，请参考 `lca-specification` 技能的 `assets/lci-construction/` 目录。
+详细的 JSON-LD 数据结构模板与构建规范，请参考 `harness/specs/lci-construction/` 目录。
 
 ## 运行方式
 
 通过命令行指定存放 JSON 文件的目录（支持子目录结构，并支持自动覆盖同名目录/分类）：
 
 ```bash
-uv run python .opencode/skills/external-tools/references/control-openlca/scripts/import_from_json/main.py <JSON配置文件目录> --host <主机地址> --port <端口>
+uv run python harness/tools/control_openlca/import_from_json/main.py <JSON配置文件目录> --host <主机地址> --port <端口>
 ```
 
 **参数说明**：

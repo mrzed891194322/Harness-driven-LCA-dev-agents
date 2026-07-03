@@ -1,6 +1,6 @@
 # 通用操作与命令行执行规范 (General Operations Specification)
 
-本文件由 `project-regulation` 技能维护，定义了在本项目中执行各类环境操作、文件读写、以及命令行（如 Bash/PowerShell）执行时的安全边界。
+本文件定义了在本项目中执行各类环境操作、文件读写、以及命令行（如 Bash/PowerShell）执行时的安全边界。
 
 ## 核心规范
 
