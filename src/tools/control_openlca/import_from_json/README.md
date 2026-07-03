@@ -1,4 +1,4 @@
-# 从 JSON 导入/更新实体 (import_from_json)
+﻿# 从 JSON 导入/更新实体 (import_from_json)
 
 此脚本允许您读取符合 openLCA JSON-LD 规范的结构化 JSON 配置文件，并通过 Python IPC 接口直接将这些流（Flow）、过程（Process）等实体导入或更新到 openLCA 的数据库中。
 
@@ -17,7 +17,7 @@
 通过命令行指定存放 JSON 文件的目录（支持子目录结构，并支持自动覆盖同名目录/分类）：
 
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/import_from_json/main.py <JSON配置文件目录> --host <主机地址> --port <端口>
+uv run python .opencode/skills/external-tools/references/control-openlca/scripts/import_from_json/main.py <JSON配置文件目录> --host <主机地址> --port <端口>
 ```
 
 **参数说明**：

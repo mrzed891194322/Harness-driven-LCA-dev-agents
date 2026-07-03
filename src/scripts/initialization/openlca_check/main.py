@@ -1,7 +1,7 @@
-"""
+﻿"""
 openLCA IPC Server 连接检查模块
 
-参考 .opencode/skills/external-tools/assets/control-openlca/scripts/utils/connection.py
+参考 .opencode/skills/external-tools/references/control-openlca/scripts/utils/connection.py
 通过尝试获取一组描述符来验证 IPC Server 是否在线且可正常响应。
 """
 
@@ -9,8 +9,12 @@ import sys
 import argparse
 from pathlib import Path
 
-# 将本脚本所在目录加入 sys.path 以便导入同目录下的 utils 包
-sys.path.append(str(Path(__file__).parent))
+# 注入 src/tools/control_openlca 以使用迁移后的共享 utils
+# src/scripts/initialization/openlca_check/main.py
+#   parents[0] = openlca_check/
+#   parents[3] = src/
+_CTRL_OPENLCA_DIR = Path(__file__).parents[3] / "tools" / "control_openlca"
+sys.path.insert(0, str(_CTRL_OPENLCA_DIR))
 
 import olca_ipc
 import olca_schema

@@ -1,4 +1,4 @@
-"""
+﻿"""
 项目初始化脚本
 
 功能：
@@ -6,8 +6,8 @@
     2. 检查 openLCA IPC Server 是否已启动并可连接
 
 参考来源：
-    - .opencode/skills/external-tools/assets/control-rag-database/scripts/build_rag
-    - .opencode/skills/external-tools/assets/control-openlca/scripts/utils/connection.py
+    - .opencode/skills/external-tools/references/query_rag_db/scripts/build_rag
+    - .opencode/skills/external-tools/references/control-openlca/scripts/utils/connection.py
 
 使用方式：
     # 同时执行 RAG 构建与 openLCA 检查（默认）

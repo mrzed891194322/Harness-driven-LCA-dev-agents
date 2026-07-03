@@ -1,4 +1,4 @@
-# 📂 RAG 数据库构建与查询指南
+﻿# 📂 RAG 数据库构建与查询指南
 
 本文档详细介绍了本项目中 **RAG (Retrieval-Augmented Generation，检索增强生成)** 数据库的构建、读取/查询方式，以及不同的触发和执行途径。
 
@@ -30,12 +30,12 @@ opencode run --command init-rag-database
 - *“处理 `input/files` 文件夹中的输入文件并写入到 `src/knowledge/input` 中”*
 - *“初始化 LCA 知识库，输入目录为 `input/`，输出目录为 `src/knowledge/`”*
 
-Agent 会根据您的指令识别意图及路径参数，自动调用相应的 `external-tools` 技能（具体参考 `assets/control-rag-database/README.md`）在指定的目标目录下构建向量数据库。
+Agent 会根据您的指令识别意图及路径参数，自动调用相应的 `external-tools` 技能（具体参考 `references/query_rag_db/README.md`）在指定的目标目录下构建向量数据库。
 
 ### 方式三：直接运行 Python 脚本
 若需要在项目虚拟环境中进行更灵活的参数配置，可直接运行 Python 脚本：
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-rag-database/scripts/build_rag/main.py --input-dir <输入目录路径> --output-dir <输出目录路径>
+uv run python .opencode/skills/external-tools/references/query_rag_db/scripts/build_rag/main.py --input-dir <输入目录路径> --output-dir <输出目录路径>
 ```
 **常用参数**：
 - `--input-dir` 或 `-i`：存放原始文档的输入目录（默认值为 `input`）。
@@ -45,7 +45,7 @@ uv run python .opencode/skills/external-tools/assets/control-rag-database/script
 
 ## 🔍 读取/查询 RAG 数据库
 
-在大多数情况下，工作流中的智能体（Agent）会自动使用 `external-tools` 技能下的 RAG 数据库引导文件（具体参考 `assets/control-rag-database/README.md`）读取 RAG 数据库。
+在大多数情况下，工作流中的智能体（Agent）会自动使用 `external-tools` 技能下的 RAG 数据库引导文件（具体参考 `references/query_rag_db/README.md`）读取 RAG 数据库。
 
 如果用户想要主动了解 RAG 数据库中的内容，或者指导 Agent 进一步利用 RAG 知识开展工作，可以通过以下方式进行：
 
@@ -54,18 +54,18 @@ uv run python .opencode/skills/external-tools/assets/control-rag-database/script
 - *“在数据库里帮我搜索关于 LCA 合规性的要求”*
 - *“查询一下知识库中关于 Scope 3 碳排放的定义”*
 
-Agent 会识别您的意图，自动调用 `external-tools` 技能（具体参考 `assets/control-rag-database/README.md`）进行知识检索，并结合检索结果回答您的问题或执行后续任务。
+Agent 会识别您的意图，自动调用 `external-tools` 技能（具体参考 `references/query_rag_db/README.md`）进行知识检索，并结合检索结果回答您的问题或执行后续任务。
 
 ### 方式二：直接运行 Python 脚本
 您也可以直接在终端运行查询脚本，传入查询字符串以手动检索数据库内容：
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-rag-database/scripts/query_rag/main.py "您的查询关键词或问题" --db-dir <RAG数据库目录>
+uv run python .opencode/skills/external-tools/references/query_rag_db/scripts/query_rag/main.py "您的查询关键词或问题" --db-dir <RAG数据库目录>
 ```
 **常用参数**：
 - `--db-dir` 或 `-d`：要查询的 RAG 数据库目录（默认值为 `src/knowledge`）。
 - *示例*：
   ```bash
-  uv run python .opencode/skills/external-tools/assets/control-rag-database/scripts/query_rag/main.py "生命周期评价标准" --db-dir src/knowledge/standards
+  uv run python .opencode/skills/external-tools/references/query_rag_db/scripts/query_rag/main.py "生命周期评价标准" --db-dir src/knowledge/standards
   ```
 
 
@@ -82,4 +82,4 @@ uv run python .opencode/skills/external-tools/assets/control-rag-database/script
    EMBEDDING_MODEL="使用的 Embedding 模型名称"
    ```
 2. **支持的文件格式**：
-   支持的文件类型由 `.opencode/skills/external-tools/assets/control-rag-database/scripts/build_rag/private_utils/config.json` 中的 `supported_file_types` 列表定义。默认支持 `.pdf`、`.docx`、`.doc`、`.md`、`.txt`、`.xlsx`、`.xls`、`.csv`、`.json`、`.xml`、`.html`、`.pptx`、`.epub` 等格式。
+   支持的文件类型由 `.opencode/skills/external-tools/references/query_rag_db/scripts/build_rag/private_utils/config.json` 中的 `supported_file_types` 列表定义。默认支持 `.pdf`、`.docx`、`.doc`、`.md`、`.txt`、`.xlsx`、`.xls`、`.csv`、`.json`、`.xml`、`.html`、`.pptx`、`.epub` 等格式。

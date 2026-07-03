@@ -1,4 +1,4 @@
-# 项目初始化脚本 (initialization)
+﻿# 项目初始化脚本 (initialization)
 
 用于在项目启动阶段一次性完成两项前置准备：
 
@@ -33,9 +33,9 @@ initialization/
 
 ## 参考来源
 
-- RAG 构建：`.opencode/skills/external-tools/assets/control-rag-database/scripts/build_rag`
-- openLCA 连接：`.opencode/skills/external-tools/assets/control-openlca/scripts/utils/connection.py`
-- 映射规则：`.opencode/skills/external-tools/assets/control-rag-database/instruction/mapping-rules.md`
+- RAG 构建：`.opencode/skills/external-tools/references/query_rag_db/scripts/build_rag`
+- openLCA 连接：`.opencode/skills/external-tools/references/control-openlca/scripts/utils/connection.py`
+- 映射规则：`.opencode/skills/external-tools/references/query_rag_db/instruction/mapping-rules.md`
 
 ## 默认映射规则
 

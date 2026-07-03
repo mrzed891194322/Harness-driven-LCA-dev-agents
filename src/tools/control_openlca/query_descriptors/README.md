@@ -1,4 +1,4 @@
-# 检索数据库实体描述符 (query_descriptors)
+﻿# 检索数据库实体描述符 (query_descriptors)
 
 此脚本用于通过 Python IPC 接口直接向当前正在运行的 openLCA 桌面端发起查询，从当前激活的数据库中检索各种实体（如 `Process`, `Flow` 等）的名称和 UUID。
 
@@ -10,7 +10,7 @@
 ## 运行方式
 
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/query_descriptors/main.py <Type> [--search <keyword>] [--limit <number>]
+uv run python .opencode/skills/external-tools/references/control-openlca/scripts/query_descriptors/main.py <Type> [--search <keyword>] [--limit <number>]
 ```
 
 **参数说明**：
@@ -23,5 +23,5 @@ uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/que
 
 查找名称中包含 "electricity" 的所有过程：
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/query_descriptors/main.py Process --search electricity
+uv run python .opencode/skills/external-tools/references/control-openlca/scripts/query_descriptors/main.py Process --search electricity
 ```

@@ -16,5 +16,5 @@
 
 当智能体需要检索特定目录下的知识库时（以检索“查询关键词”为例）：
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-rag-database/scripts/query_rag/main.py "查询关键词" --db-dir <RAG数据库目录>
+uv run python src/tools/control_rag_db/query_rag/main.py "查询关键词" --db-dir <RAG数据库目录>
 ```

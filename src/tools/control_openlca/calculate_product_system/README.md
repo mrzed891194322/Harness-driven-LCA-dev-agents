@@ -1,4 +1,4 @@
-# 产品系统 LCIA 计算脚本使用指南 (calculate_product_system)
+﻿# 产品系统 LCIA 计算脚本使用指南 (calculate_product_system)
 
 本脚本专门用于对 openLCA 中已配置完毕并保存的**产品系统 (Product System)** 进行环境影响评估（LCIA）计算。
 
@@ -21,7 +21,7 @@
 ## 运行命令
 
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/calculate_product_system/main.py "产品系统名称或UUID" --method "LCIA方法名称或UUID" [可选参数]
+uv run python .opencode/skills/external-tools/references/control-openlca/scripts/calculate_product_system/main.py "产品系统名称或UUID" --method "LCIA方法名称或UUID" [可选参数]
 ```
 
 ## 参数说明
@@ -51,16 +51,16 @@ uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/cal
 ### 1. 基础计算
 计算名为 "Product System A" 的产品系统，使用 "EF 3.1" 评估方法：
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/calculate_product_system/main.py "Product System A" --method "EF 3.1"
+uv run python .opencode/skills/external-tools/references/control-openlca/scripts/calculate_product_system/main.py "Product System A" --method "EF 3.1"
 ```
 
 ### 2. 带有分配方法与参数覆盖的高级计算
 使用物理分配，重定义 `electricity_ratio` 参数为 `0.8`，并将结果保存至 JSON：
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/calculate_product_system/main.py "Product System A" -m "EF 3.1" -al physical -param electricity_ratio=0.8 -o output/result.json
+uv run python .opencode/skills/external-tools/references/control-openlca/scripts/calculate_product_system/main.py "Product System A" -m "EF 3.1" -al physical -param electricity_ratio=0.8 -o output/result.json
 ```
 
 ### 3. 启用区域化与成本计算
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/calculate_product_system/main.py "Product System A" -m "EF 3.1" -r -c
+uv run python .opencode/skills/external-tools/references/control-openlca/scripts/calculate_product_system/main.py "Product System A" -m "EF 3.1" -r -c
 ```
