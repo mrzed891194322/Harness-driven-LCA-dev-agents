@@ -1,6 +1,6 @@
 # 项目目录与文件规范（总览）
 
-> **上下文提示**：如需了解 `src/` 与 `workspace/` 的内部规范，请另读同目录下的 `src-structure.md`；不要提前读取本文件全部内容。
+> **上下文提示**：如需了解 `harness/`、`GUI/`、`scripts/` 与 `workspace/` 的内部规范，请另读同目录下的 `harness-structure.md`；不要提前读取本文件全部内容。
 >
 > 本文件由 `project-regulation` skill 维护，聚焦**项目整体结构**与**通用约定**。
 
@@ -14,13 +14,13 @@
 │   ├── agents/             # agent 定义文件
 │   └── skills/             # 本地 skills
 ├── docs/                   # 全局文档与说明
-├── knowledge/              # 知识库主目录
-│   ├── inputs/             # 原始输入文件与静态标准
-│   │   ├── static_ref/     # 全局静态参考知识库（如标准文件等）
-│   │   ├── user_data/      # 原始上传数据目录
-│   │   └── user_file/      # 零散上传文件目录
-│   └── rag_db/             # 动态转换生成的 RAG 向量数据库
-├── src/                    # 项目核心执行代码目录
+├── GUI/                    # GUI 界面前端与控制面板代码目录
+├── harness/                # Agent 执行的核心 harness 目录
+│   ├── knowledge/          # 知识库目录 (inputs, rag_db)
+│   ├── rules/              # 项目运行与智能体行为规范
+│   ├── specs/              # LCA 规约文件与技术规约
+│   └── tools/              # LCA 独立工具包 (control_openlca, control_rag_db)
+├── scripts/                # 辅助部署、初始化与清理脚本目录
 ├── workspace/              # 项目运行工作区与运行状态目录
 ├── AGENT.md                # 针对所有 agent 的最高优先级行为准则
 ├── README.md               # 项目总说明
@@ -37,18 +37,19 @@
 - **用途**：项目虚拟环境，由 `uv` 管理。
 - **禁止**：不要在代码中硬编码虚拟环境路径；agent 应通过 `pyproject.toml` 或用户确认获取环境信息。
 
-### 2.2 `knowledge/`
-- **`knowledge/inputs/`**：统一存放由外部用户给到的输入内容。原始上传数据放置在 `knowledge/inputs/user_data/`，零散上传文件放置在 `knowledge/inputs/user_file/`，全局静态知识库放置在 `knowledge/inputs/static_ref/`，全局规划或外部需求文档放置在 `knowledge/plan.md`。
-- **`knowledge/rag_db/`**：存放向量数据库。
+### 2.2 `harness/`
+- 包含 `knowledge/`（存放参考资料 inputs/ 与向量库 rag_db/）、`rules/`（Agent行为规范）、`specs/`（LCA技术规约）以及 `tools/`（各种底层的 openLCA 和 RAG 执行工具）。
 
 ### 2.3 `docs/` — 全局文档与说明
 - **用途**：仓库级别的静态说明文档与知识累积。
 
-### 2.4 `src/` — 核心代码
-- **详细规范**：见同目录 `src-structure.md`。包含 GUI、项目规则/规范、各种处理脚本等。
+### 2.4 `GUI/` & `scripts/`
+- `GUI/`：包含 Gradio 界面和后端控制面板代码。
+- `scripts/`：包含供用户调试、初始化、环境部署与目录清理的脚本。
+- **详细规范**：见同目录 `harness-structure.md`。
 
 ### 2.5 `workspace/` — 项目运行工作区
-- **详细规范**：见同目录 `src-structure.md`。包含当前执行中的内部设计方案 (plan)、数据清洗的脚本及产生的中间数据 (data)、LCI 数据 (LCI)、运行日志 (logs)、记忆存储 (memory)、报告 (report) 和临时文件 (tmp)。
+- **详细规范**：见同目录 `harness-structure.md`。包含当前执行中的内部设计方案 (plan)、数据清洗的脚本及产生的中间数据 (data)、LCI 数据 (LCI)、运行日志 (logs)、记忆存储 (memory)、报告 (report) 和临时文件 (tmp)。
 
 ---
 

@@ -12,5 +12,5 @@
 
 运行命令示例：
 ```bash
-uv run python src/tools/control_rag_db/query_rag/main.py "您的查询关键词或问题" --db-dir <RAG数据库目录>
+uv run python harness/tools/control_rag_db/query_rag/main.py "您的查询关键词或问题" --db-dir <RAG数据库目录>
 ```

@@ -1,4 +1,4 @@
-﻿# 🚀 Multi-Agent LCA Orchestrator 项目准备说明文档
+# 🚀 Multi-Agent LCA Orchestrator 项目准备说明文档
 
 本文档详细介绍了运行 **Multi-Agent LCA Orchestrator (202606-harness-agent-lca)** 项目前的准备工作，指引您完成输入文件准备、openLCA IPC 设置以及 RAG 数据库初始化的详细流程。
 
@@ -56,7 +56,7 @@
   ```
 
 * **底层执行逻辑**：
-  1. 清理 `src/knowledge/` 目录（保留该目录下的 `README.md`）。
+  1. 清理 `harness/knowledge/rag_db/` 目录（保留该目录下的 `README.md`）。
   2. 读取 `external-tools` 技能中的映射规则（具体参考 `assets/query_rag_db/knowledge-sources.md`）。
   3. 通过 `markitdown` 抽取文本并利用指定 Embedding 模型将文档转化为向量写入 ChromaDB 中。
 * **更多 RAG 操作细节**：请参阅 [RAG 数据库构建与查询指南](rag_guide.md)。

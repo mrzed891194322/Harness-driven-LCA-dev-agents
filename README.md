@@ -26,13 +26,13 @@
 
 ## 🖥️ 启动控制面板 GUI (推荐)
 
-项目已提供完整的 **Gradio Web 控制面板**（位于 [src/GUI](src/GUI)），支持可视化的项目初始化、LCA 计划生成与修改、LCI 清单设计与 openLCA 自动导入。
+项目已提供完整的 **Gradio Web 控制面板**（位于 [GUI](GUI)），支持可视化的项目初始化、LCA 计划生成与修改、LCI 清单设计与 openLCA 自动导入。
 
 ### 启动方式 (通用)
 
 在项目根目录下，于终端执行以下命令：
 ```bash
-uv run python src/GUI/main.py
+uv run python GUI/main.py
 ```
 启动成功后，在浏览器中手动访问 [http://127.0.0.1:7860](http://127.0.0.1:7860)。
 
@@ -41,7 +41,7 @@ uv run python src/GUI/main.py
 在使用控制面板时，请遵循以下流程：
 1. **准备工作**：
    - **⚠️ 必须开启 openLCA 桌面客户端，并确保已启用 IPC Server 服务（默认端口 8080）**。
-   - 准备您的参考文档（如环评报告等 PDF/Word 文档）与计划需求文档（可参考模板 [src/GUI/ui/assets/template/plan.md](src/GUI/ui/assets/template/plan.md) 编写）。
+   - 准备您的参考文档（如环评报告等 PDF/Word 文档）与计划需求文档（可参考模板 [GUI/ui/assets/template/plan.md](GUI/ui/assets/template/plan.md) 编写）。
 2. **初始化项目与上传文档**：
    - 在控制面板左侧边栏的 **“文件交换区”** 直接上传准备好的参考资料（如环评报告等）与参考数据文件（**无需手动放置在后台文件夹中**）。
    - 切换到控制面板的 **“项目初始化”** 面板，检查 openLCA 连接状态。
@@ -52,7 +52,7 @@ uv run python src/GUI/main.py
 4. **设计与导入清单**：
    - 确认生成的执行计划无误后，启动 **“设计与导入清单”**，Agent 将会自动生成 JSON 实体并将其通过 IPC 批量导入到已打开的 openLCA 客户端中。
 
-> 💡 **更详细的 GUI 结构与开发扩展说明**，请参见：[GUI 模块说明文档](src/GUI/README.md)
+> 💡 **更详细的 GUI 结构与开发扩展说明**，请参见：[GUI 模块说明文档](GUI/README.md)
 
 ---
 

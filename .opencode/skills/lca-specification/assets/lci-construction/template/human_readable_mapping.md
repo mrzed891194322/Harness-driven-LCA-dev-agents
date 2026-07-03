@@ -21,7 +21,7 @@ template_version: "1"
 列出所有已识别和在 JSON 中建立的核心生产环节/过程：
 
 - **[过程名称 A]** (UUID: `...`)
-  - **来源位置追溯**：必须精确定位信息最初的物理来源（例如：`[workspace/plan/execution_plan.md: 第三章 核心过程]`，或知识库中的具体原始文件路径如 `[knowledge/inputs/static_ref/xxx.md]`，或者是特定的 `[openLCA 数据库名]`）。
+  - **来源位置追溯**：必须精确定位信息最初的物理来源（例如：`[workspace/plan/execution_plan.md: 第三章 核心过程]`，或知识库中的具体原始文件路径如 `[harness/knowledge/inputs/static_ref/xxx.md]`，或者是特定的 `[openLCA 数据库名]`）。
   - **核心产物**：(标注定量基准量)
   - **背景数据链接**：是否指定了 `defaultProvider`，链接到了什么背景数据（如 ecoinvent 过程名称）。
   - **计算假设**：解释输入输出量的换算与计算逻辑。
@@ -41,8 +41,8 @@ template_version: "1"
 
 | 流名称 (Flow Name) | 类别 (Flow Type) | 单位 | UUID | 来源位置追溯 (Source Reference) |
 | :--- | :--- | :--- | :--- | :--- |
-| 产品 X | PRODUCT_FLOW | kg | `...` | `src/plan/execution_plan.md` 标题 3.1 |
-| 资源 Y | ELEMENTARY_FLOW | MJ | `...` | 知识库原始文件：`src/knowledge/energy/grid.md` |
+| 产品 X | PRODUCT_FLOW | kg | `...` | `workspace/plan/execution_plan.md` 标题 3.1 |
+| 资源 Y | ELEMENTARY_FLOW | MJ | `...` | 知识库原始文件：`harness/knowledge/inputs/static_ref/energy/grid.md` |
 
 ---
 

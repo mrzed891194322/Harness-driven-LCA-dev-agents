@@ -9,11 +9,11 @@ agent: subagents/tools/doc-handler
 **任务执行**：
 请严格按照以下步骤执行任务，完成后直接停止，不要运行任何其他工作流或后续技能：
 
-1. **清理 `knowledge/rag_db` 目录**：
-   在运行 RAG 数据库转化之前，先清除 `knowledge/rag_db` 中除 `README.md` 外的所有文件和文件夹。
+1. **清理 `harness/knowledge/rag_db` 目录**：
+   在运行 RAG 数据库转化之前，先清除 `harness/knowledge/rag_db` 中除 `README.md` 外的所有文件和文件夹。
    运行以下命令：
    ```bash
-   uv run python -c "import shutil; from pathlib import Path; d = Path('knowledge/rag_db'); [shutil.rmtree(p) if p.is_dir() else p.unlink() for p in d.iterdir() if p.name != 'README.md']"
+   uv run python -c "import shutil; from pathlib import Path; d = Path('harness/knowledge/rag_db'); [shutil.rmtree(p) if p.is_dir() else p.unlink() for p in d.iterdir() if p.name != 'README.md']"
    ```
 
 2. **读取并遵循 `external-tools` 技能中的 `control-rag-database` 映射规则**：
