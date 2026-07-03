@@ -89,6 +89,7 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
     env = os.environ.copy()
     env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
     env["PYTHONHTTPSVERIFY"] = "0"
+    env["PYTHONUNBUFFERED"] = "1"
     
     from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
 

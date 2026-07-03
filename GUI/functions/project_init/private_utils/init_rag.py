@@ -25,7 +25,11 @@ def run_initialization(project_root: Path) -> Generator[str, None, None]:
 
     import config
     script_path = config.INIT_RAG_SCRIPT_PATH
-    cmd = [sys.executable, str(script_path)]
+    cmd = [sys.executable, "-u", str(script_path)]
+    
+    # Ensure standard output/error are unbuffered
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
     
     try:
         process = subprocess.Popen(
@@ -37,7 +41,8 @@ def run_initialization(project_root: Path) -> Generator[str, None, None]:
             bufsize=1,
             text=True,
             encoding='utf-8',
-            errors='replace'
+            errors='replace',
+            env=env
         )
         set_active_process(process)
         
