@@ -34,10 +34,14 @@ sys.path.append(str(SCRIPT_DIR))
 # 项目根目录：scripts/initialization -> 上溯 2 层
 PROJECT_ROOT = SCRIPT_DIR.parents[1]
 
+# 注入 harness/tools/control_rag_db 以使用其中的 utils 模块
+_CTRL_RAG_DIR = PROJECT_ROOT / "harness" / "tools" / "control_rag_db"
+sys.path.insert(0, str(_CTRL_RAG_DIR))
+
 from rag_init.main import build_all_rag
 from rag_init.mapping_rules import DEFAULT_MAPPING
 from openlca_check.main import check_openlca
-from rag_init.utils.encoding import setup_io_encoding
+from utils.encoding import setup_io_encoding
 
 
 def main():

@@ -1,6 +1,6 @@
 ---
 description: 负责将生命周期评估(LCA)计划文本转化为符合 openLCA 规范的结构化 LCI 数据（JSON 配置）。
-mode: subagent
+mode: primary
 permission:
   edit: deny
   bash: allow
@@ -20,13 +20,14 @@ color: info
 - 事实来源：LCI 构建、映射、导入、模板与自检标准均以 `harness/specs/lci-construction/` 为准。
 - 写入限制：不得自行写入、移动或删除 LCI 文件；具体文件生成、修正和导入操作必须通过 `doc-handler` 完成。
 - 工具限制：如需检索背景数据库、查询 UUID、导入 openLCA 或读取模型图，只能通过 `external-tools` 路由到 `harness/tools/`。
+- 命令限制：任何 Python 命令必须使用 `uv run python ...`；运行命令前必须加载 `project-regulation` 并读取代码运行规则入口。
 - 调用限制：只允许调用 frontmatter 中显式允许的子 Agent。
 
 # 技能与规范入口
 
 - `lca-specification`：执行 LCI 构建、修正或导入任务时必须加载，并读取 `harness/specs/lci-construction/README.md`。
 - `external-tools`：需要 RAG 或 openLCA 工具时加载，并读取 `harness/tools/control_openlca/README.md` 或 RAG 工具入口。
-- `project-regulation`：仅在涉及目录、文件操作或子 Agent 调用规则时加载。
+- `project-regulation`：涉及目录、文件操作、命令运行、代码边界或子 Agent 调用规则时必须加载。
 
 # 可调用 Agent
 

@@ -19,6 +19,7 @@ permission:
 - 事实来源：评估依据必须来自上游明确指定的 `harness/specs/**/evaluation/self_check.md`、`harness/rules/` 规则，或任务中给出的交付标准。
 - 写入限制：不生成评估报告文件；评估结论直接以文本返回上游。
 - 修改限制：不得直接修复被评估文件；需要修复时输出可执行的问题清单，交由上游调度对应 Agent。
+- 命令限制：任何 Python 命令必须使用 `uv run python ...`；运行命令前必须加载 `project-regulation` 并读取代码运行规则入口。
 - 调用限制：只允许调用 frontmatter 中显式允许的子 Agent。
 
 # 技能与规范入口

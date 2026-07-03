@@ -17,8 +17,8 @@
 
 | 子 Agent 简写 (描述使用) | 分类 | 完整调用路径 (系统调用/配置使用) | 对应定义文件 |
 | :--- | :--- | :--- | :--- |
-| `plan-maker` | 建模工作流 (workflow) | `subagents/workflow/plan-maker` | `subagents/workflow/plan-maker.md` |
-| `LCI-designer` | 建模工作流 (workflow) | `subagents/workflow/LCI-designer` | `subagents/workflow/LCI-designer.md` |
+| `plan-maker` | 主 Agent (primary) | `plan-maker` | `plan-maker.md` |
+| `LCI-designer` | 主 Agent (primary) | `LCI-designer` | `LCI-designer.md` |
 | `eval-executor` | 建模工作流 (workflow) | `subagents/workflow/eval-executor` | `subagents/workflow/eval-executor.md` |
 | `data-processor` | 可选数据预处理 (workflow) | `subagents/workflow/data-processor` | `subagents/workflow/data-processor.md` |
 | `doc-handler` | 通用工具 (tools) | `subagents/tools/doc-handler` | `subagents/tools/doc-handler.md` |

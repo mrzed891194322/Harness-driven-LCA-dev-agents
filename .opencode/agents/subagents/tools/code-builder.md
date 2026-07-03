@@ -17,6 +17,7 @@ color: primary
 # 边界
 
 - 事实来源：代码位置、目录结构、运行环境、临时脚本和命令边界均以 `harness/rules/` 为准。
+- Python 环境硬约束：任何 Python 命令必须使用 `uv run python ...`；严禁直接调用系统 `python`、`python3`、`py` 或创建其他虚拟环境。
 - 写入限制：修改前读取目标文件，不覆盖用户已有改动，保持改动范围最小。
 - 工具限制：如需调用 openLCA 或 RAG 工具，必须通过 `external-tools` 路由到 `harness/tools/` 中对应入口。
 - 调用限制：只允许调用 frontmatter 中显式允许的子 Agent。
@@ -33,7 +34,7 @@ color: primary
 
 # 工作方式
 
-1. 读取上游方案、目标文件、相关 harness 规则和已有代码模式。
+1. 读取上游方案、目标文件、`harness/rules/coding-specification/README.md` 及其继续披露的最小必要规则，并阅读已有代码模式。
 2. 优先复用仓库已有工具函数和结构，按最小范围实现改动。
 3. 编写非临时 Python 工作脚本时，参考 `harness/rules/coding-specification/templates/py_scripts/`。
 4. 对函数、类和公开接口提供完整类型注解。

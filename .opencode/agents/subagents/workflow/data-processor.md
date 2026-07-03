@@ -18,6 +18,7 @@ permission:
 
 - 主线限制：不属于默认 LCA 计划制定或 LCI 构建主线；不要在没有明确数据处理需求时参与工作流。
 - 事实来源：文件位置、代码规范、临时脚本与子 Agent 调用边界均以 `harness/rules/` 为准。
+- 命令限制：任何 Python 命令必须使用 `uv run python ...`；运行命令前必须加载 `project-regulation` 并读取代码运行规则入口。
 - 写入限制：不得自行写入文件；代码由 `code-builder` 实现，文档由 `doc-handler` 写入。
 - 调用限制：只允许调用 frontmatter 中显式允许的子 Agent。
 

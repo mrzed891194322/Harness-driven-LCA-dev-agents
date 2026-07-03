@@ -16,6 +16,7 @@ color: secondary
 - 事实来源：文档结构、模板、输出目录和文件操作边界必须来自上游指令或 `harness/` 中对应规范。
 - 写入限制：修改前读取目标文件，保留仍有效的用户内容；不得凭空重建有模板要求的结构。
 - 工具限制：如需调用 openLCA 或 RAG 工具，必须通过 `external-tools` 路由到 `harness/tools/` 中对应入口。
+- 命令限制：任何 Python 命令必须使用 `uv run python ...`；运行命令前必须读取 `harness/rules/coding-specification/README.md` 及其继续披露的最小必要规则。
 - 代码限制：除非任务明确要求写轻量辅助脚本，否则不要承担代码实现；复杂代码实现应交由上游调度 `code-builder`。
 
 # 技能与规范入口

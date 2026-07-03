@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "major-orchestrator",
+  "default_agent": "build",
   "share": "manual",
   "instructions": [],
   "agent": {
@@ -8,19 +8,15 @@
       "disable": true
     },
     "build": {
-      "disable": true
+      "disable": false
     },
-    "major-orchestrator": {
+    "plan-maker": {
       "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.25
+      "temperature": 0.5
     },
-    "subagents/tools/code-builder": {
-      "model": "deepseek/deepseek-v4-flash",
-      "temperature": 0.1
-    },
-    "subagents/tools/doc-handler": {
-      "model": "deepseek/deepseek-v4-flash",
-      "temperature": 0.1
+    "LCI-designer": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.45
     },
     "subagents/workflow/data-processor": {
       "model": "deepseek/deepseek-v4-pro",
@@ -30,13 +26,13 @@
       "model": "deepseek/deepseek-v4-pro",
       "temperature": 0.1
     },
-    "subagents/workflow/LCI-designer": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.45
+    "subagents/tools/code-builder": {
+      "model": "deepseek/deepseek-v4-flash",
+      "temperature": 0.1
     },
-    "subagents/workflow/plan-maker": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.5
-    }
+    "subagents/tools/doc-handler": {
+      "model": "deepseek/deepseek-v4-flash",
+      "temperature": 0.1
+    },
   }
 }
