@@ -16,6 +16,8 @@ def bind_tab_lci_events(
 ):
     # 8. LCI 制定面板内执行按钮事件
     def run_design_lci():
+        from functions.utils.process_manager import reset_stop
+        reset_stop()
         yield "[System] 正在启动 LCI 制定...\n", "Running"
         for chunk in run_executor_flow("design-lci"):
             yield chunk[0], chunk[1]

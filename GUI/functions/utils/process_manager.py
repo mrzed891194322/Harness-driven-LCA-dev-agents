@@ -22,6 +22,10 @@ def trigger_stop():
 def should_stop() -> bool:
     return _should_stop
 
+def reset_stop():
+    global _should_stop
+    _should_stop = False
+
 def kill_active_process():
     global _active_process
     if _active_process is None:

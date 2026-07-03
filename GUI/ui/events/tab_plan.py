@@ -75,6 +75,8 @@ def bind_tab_plan_events(
     # 6. 执行计划事件
     def run_exec_plan_flow(*args):
         try:
+            from functions.utils.process_manager import reset_stop
+            reset_stop()
             values = list(args)
             
             # 在终端执行流，不关闭当前 Tab
@@ -106,6 +108,8 @@ def bind_tab_plan_events(
 
     def run_exec_modify_flow(*args):
         try:
+            from functions.utils.process_manager import reset_stop
+            reset_stop()
             values = list(args)
             
             # 在终端执行流，不关闭当前 Tab

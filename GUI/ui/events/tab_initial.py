@@ -55,6 +55,8 @@ def bind_tab_initial_events(
     # 3a-3. 目录清理卡片内"执行清理"按钮：执行清理并在终端显示输出（不切换 Tab，但焦点切换到终端）
     def run_clean_only():
         try:
+            from functions.utils.process_manager import reset_stop
+            reset_stop()
             from functions.project_init.private_utils.clean import run_clean_project
             from functions.utils.path_utils import find_project_root
             from pathlib import Path
@@ -92,6 +94,8 @@ def bind_tab_initial_events(
     # 3a-4. RAG 知识库卡片内"构建知识库"按钮：先保存上传文件，再执行 RAG 初始化。
     def run_rag_only(ref_materials, ref_data):
         try:
+            from functions.utils.process_manager import reset_stop
+            reset_stop()
             from functions.project_init.private_utils.init_rag import run_initialization
             from functions.project_init.private_utils.file_handler import copy_uploaded_files
             from functions.utils.path_utils import find_project_root
@@ -169,6 +173,8 @@ def bind_tab_initial_events(
     # 3b. 执行项目初始化按钮事件：点击面板内的“⚡ 执行项目初始化”按钮，切换到终端并执行流
     def run_exec_init_flow(ref_materials, ref_data):
         try:
+            from functions.utils.process_manager import reset_stop
+            reset_stop()
             # 在终端执行流，不关闭当前 Tab
             yield (
                 "[System] 正在启动项目初始化...\n",
