@@ -13,7 +13,7 @@ description: 外部工具的强路由入口。需要检索 RAG、检查 openLCA 
 > **工具复用硬约束**
 > - 严禁为外部工具调用创建临时 Python 脚本。
 > - 所有 Python 工具命令必须使用 `uv run python ...`。
-> - 如现有工具能力不足，只能修改或新增正式工具，并同步 README；不得在 `workspace/tmp/` 或其他位置写一次性脚本。
+> - 如现有工具能力不足，直接在输出中报告，然后停止工作。
 
 ---
 
@@ -21,17 +21,15 @@ description: 外部工具的强路由入口。需要检索 RAG、检查 openLCA 
 
 请根据当前任务类型读取对应的工具入口：
 
-### A. RAG 构建或查询
+### A. RAG 查询
 适用：检索标准、openLCA 手册、用户资料、输入文件背景知识。
 
 读取顺序：
 1. `harness/tools/control_rag_db/README.md`
-2. 构建 RAG 时读 `harness/tools/control_rag_db/build_rag/README.md`（如存在）或 `harness/tools/control_rag_db/build_rag/main.py` 的参数说明
-3. 查询 RAG 时读 `harness/tools/control_rag_db/query_rag/README.md`（如存在）或 `harness/tools/control_rag_db/query_rag/main.py` 的参数说明
+2. 查询 RAG 时必须阅读库路径及用途说明：[knowledge-sources.md](references/query_rag_db/knowledge-sources.md)
 
 正式工具：
-- 构建：`uv run python harness/tools/control_rag_db/build_rag/main.py ...`
-- 查询：`uv run python harness/tools/control_rag_db/query_rag/main.py ...`
+- 查询：`uv run python harness/tools/control_rag_db/query_rag/main.py "<Query>" --db-dir harness/knowledge/rag_db/<path>`（注：查询必须有后续路径，即通过 `--db-dir` 或 `-d` 指定具体的知识库，详情参考 [knowledge-sources.md](references/query_rag_db/knowledge-sources.md)）
 
 ### B. openLCA 连接检测
 适用：只判断 openLCA 桌面端和 IPC Server 是否可连接。
