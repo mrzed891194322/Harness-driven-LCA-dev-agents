@@ -23,8 +23,8 @@ def main():
     parser.add_argument(
         "--db-dir", "-d",
         type=str,
-        default="src/knowledge",
-        help="Directory of Chroma RAG database (default: src/knowledge)"
+        default="knowledge/rag_db",
+        help="Directory of Chroma RAG database (default: knowledge/rag_db)"
     )
     
     args = parser.parse_args()

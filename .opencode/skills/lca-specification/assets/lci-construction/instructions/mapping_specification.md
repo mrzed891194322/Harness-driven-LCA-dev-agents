@@ -50,7 +50,7 @@
   - **切勿遗漏**：缺失此字段将导致导入 openLCA 后模型图断裂。
 
 - **产品系统构建配置 (Product Systems)**：
-  - 为了后续能顺利在 openLCA 中构建拓扑网络，必须在 `src/LCI/product_systems/` 目录下输出符合 JSON-LD 规范的配置文件。
+  - 为了后续能顺利在 openLCA 中构建拓扑网络，必须在 `workspace/LCI/product_systems/` 目录下输出符合 JSON-LD 规范的配置文件。
   - **命名规范（Naming Convention）**【强制】：
     - **文件名称**：必须使用 `ps<编号>-<英文具体名称（小写，连字符分隔）>.json` 格式，例如：`ps1-gold-plating-product-system.json`。
     - **JSON 内部的 `name` 属性**：必须严格采用 `PS + 编号 + 空格 + 具体名称` 的格式，例如：`"PS1 Gold Plating Product System"`。

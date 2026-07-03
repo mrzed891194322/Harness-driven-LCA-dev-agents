@@ -55,24 +55,24 @@ def copy_uploaded_files(
     
     # Process reference materials
     if all_material_paths:
-        yield "[System] Copying uploaded reference materials to src/input/user_file...\n"
+        yield "[System] Copying uploaded reference materials to knowledge/inputs/user_file...\n"
         materials_dir.mkdir(parents=True, exist_ok=True)
         for path in all_material_paths:
             if path.exists() and path.is_file():
                 dest_path = materials_dir / path.name
                 shutil.copy2(path, dest_path)
-                yield f"  - Copied reference material: {path.name} to src/input/user_file\n"
+                yield f"  - Copied reference material: {path.name} to knowledge/inputs/user_file\n"
                 total_copied += 1
                 
     # Process reference data
     if all_data_paths:
-        yield "[System] Copying uploaded reference data to src/input/user_data...\n"
+        yield "[System] Copying uploaded reference data to knowledge/inputs/user_data...\n"
         data_dir.mkdir(parents=True, exist_ok=True)
         for path in all_data_paths:
             if path.exists() and path.is_file():
                 dest_path = data_dir / path.name
                 shutil.copy2(path, dest_path)
-                yield f"  - Copied reference data: {path.name} to src/input/user_data\n"
+                yield f"  - Copied reference data: {path.name} to knowledge/inputs/user_data\n"
                 total_copied += 1
                 
     if total_copied == 0:

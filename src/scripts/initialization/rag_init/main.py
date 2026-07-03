@@ -5,9 +5,9 @@ RAG 知识库构建模块
 将原始文档目录中的文件向量化写入对应的 Chroma 数据库子目录。
 
 默认映射（路径相对于项目根目录）：
-    - src/input/knowledge_base/standards    -> src/knowledge/standards
-    - src/input/knowledge_base/openlca_manual -> src/knowledge/openlca_manual
-    - src/input/user_file                   -> src/knowledge/input
+    - knowledge/inputs/static_ref/standards    -> knowledge/rag_db/standards
+    - knowledge/inputs/static_ref/openlca_manual -> knowledge/rag_db/openlca_manual
+    - knowledge/inputs/user_file               -> knowledge/rag_db/input
 """
 
 import sys

@@ -24,8 +24,8 @@ color: info
 
 每当用户提出新的 LCA 项目计划需求时，按以下步骤执行。**计划的制定内容与质量标准必须严格遵循 `lca-specification` 技能下的 `assets/plan-guidelines/` 目录规范**（入口为其 `README.md`）。
 
-1. **读取文档与检索数据**：读取用户给出的计划文档（默认为 `input/plan.md`），以及 `src/plan/` 下已有的 `execution_plan.md` 和 `todo_list.md`（如果存在，以整合用户的最新修改或反馈答复），必要时查询文档、知识库与 openLCA。
+1. **读取文档与检索数据**：读取用户给出的计划文档（默认为 `knowledge/plan.md`），以及 `workspace/plan/` 下已有的 `execution_plan.md` 和 `todo_list.md`（如果存在，以整合用户的最新修改或反馈答复），必要时查询文档、知识库与 openLCA。
 2. **制定计划**：遵循 `assets/plan-guidelines/instructions/plan_guidance.md` 中的核心要求与指导逻辑，梳理 LCA 项目的执行计划与待完善事项。
-3. **调用写入**：调用 `doc-handler`，规定其显式读取 `assets/plan-guidelines/template/` 下的模板作为结构基准，在 `src/plan/` 目录下写入或更新 `execution_plan.md` 与 `todo_list.md`。
+3. **调用写入**：调用 `doc-handler`，规定其显式读取 `assets/plan-guidelines/template/` 下的模板作为结构基准，在 `workspace/plan/` 目录下写入或更新 `execution_plan.md` 与 `todo_list.md`。
 4. **自检循环**：遵循 `assets/plan-guidelines/instructions/plan_guidance.md` §3 的 Agent Loop 规范，调用 `eval-executor` 按 `assets/plan-guidelines/evaluation/self_check.md` 执行质量自检与迭代修正。
 5. **总结输出**：向用户输出完整的项目计划说明，明确列出生成的文件路径及核心要点。如果计划有需要完善之处，提醒用户查阅对应的文档。

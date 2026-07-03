@@ -1,0 +1,17 @@
+# Ignore all generated and dynamic files in workspace/
+LCI/**
+data/**
+plan/**
+report/**
+tmp/**
+eval/**
+logs/**
+memory/**
+
+# Keep README files
+!LCI/README.md
+!data/README.md
+!plan/README.md
+!report/README.md
+!tmp/README.md
+!eval/README.md

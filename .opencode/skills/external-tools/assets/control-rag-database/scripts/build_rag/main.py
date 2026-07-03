@@ -17,14 +17,14 @@ def main():
     parser.add_argument(
         "--input-dir", "-i",
         type=str,
-        default="input",
-        help="Input directory containing PDF/Word/Markdown/Text files (default: input)"
+        default="knowledge/inputs",
+        help="Input directory containing PDF/Word/Markdown/Text files (default: knowledge/inputs)"
     )
     parser.add_argument(
         "--output-dir", "-o",
         type=str,
-        default="src/knowledge",
-        help="Output directory for Chroma RAG database (default: src/knowledge)"
+        default="knowledge/rag_db",
+        help="Output directory for Chroma RAG database (default: knowledge/rag_db)"
     )
     
     args = parser.parse_args()

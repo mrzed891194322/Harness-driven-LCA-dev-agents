@@ -43,9 +43,9 @@ initialization/
 
 | 原始输入目录 | RAG 输出目录 | 用途 |
 |---|---|---|
-| `src/input/knowledge_base/standards` | `src/knowledge/standards` | 静态：参考标准 |
-| `src/input/knowledge_base/openlca_manual` | `src/knowledge/openlca_manual` | 静态：openLCA 使用说明 |
-| `src/input/user_file` | `src/knowledge/input` | 动态：LCA 任务原始数据 |
+| `knowledge/inputs/static_ref/standards` | `knowledge/rag_db/standards` | 静态：参考标准 |
+| `knowledge/inputs/static_ref/openlca_manual` | `knowledge/rag_db/openlca_manual` | 静态：openLCA 使用说明 |
+| `knowledge/inputs/user_file` | `knowledge/rag_db/input` | 动态：LCA 任务原始数据 |
 
 如需调整映射，直接编辑 `rag_init/mapping_rules.py` 中的 `DEFAULT_MAPPING` 列表。
 

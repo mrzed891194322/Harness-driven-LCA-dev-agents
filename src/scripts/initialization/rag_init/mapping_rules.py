@@ -18,17 +18,17 @@ RAG 知识库路径映射规则
 DEFAULT_MAPPING = [
     # 静态项目知识库：参考标准
     {
-        "input": "src/input/knowledge_base/standards",
-        "output": "src/knowledge/standards",
+        "input": "knowledge/inputs/static_ref/standards",
+        "output": "knowledge/rag_db/standards",
     },
     # 静态项目知识库：openLCA 使用说明
     {
-        "input": "src/input/knowledge_base/openlca_manual",
-        "output": "src/knowledge/openlca_manual",
+        "input": "knowledge/inputs/static_ref/openlca_manual",
+        "output": "knowledge/rag_db/openlca_manual",
     },
     # 动态输入的特定 LCA 任务原始数据文件
     {
-        "input": "src/input/user_file",
-        "output": "src/knowledge/input",
+        "input": "knowledge/inputs/user_file",
+        "output": "knowledge/rag_db/input",
     },
 ]

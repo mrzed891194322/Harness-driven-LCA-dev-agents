@@ -7,7 +7,7 @@ agent: subagents/workflow/plan-maker
 目前，必须使用中文进行模型的思考、输出，调用 subagent 时也必须强调这一点。
 
 **任务执行**：
-请直接调用 `plan-maker` 开展本次任务，调用时需说明将 `src/plan/current_plan.md` 作为参考内容。
+请直接调用 `plan-maker` 开展本次任务，调用时需说明将 `workspace/plan/current_plan.md` 作为参考内容。
 你只需将本任务委托给它，并传递该参考内容以及下方用户提出的要求即可，该 agent 会自主依循其内置规范完成后续所有的计划梳理与文件写入工作。
 
 **任务结束**：

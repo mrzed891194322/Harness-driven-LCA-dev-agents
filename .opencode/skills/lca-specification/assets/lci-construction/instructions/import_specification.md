@@ -13,11 +13,11 @@
 请运行以下命令进行批量导入：
 
 ```bash
-uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/import_from_json/main.py src/LCI
+uv run python .opencode/skills/external-tools/assets/control-openlca/scripts/import_from_json/main.py workspace/LCI
 ```
 
 ### 参数说明与规则：
-- `src/LCI`：包含 LCI JSON 文件的根目录。脚本会自动检测子目录结构，并按照依赖关系（`flows` -> `processes` -> `product_systems`）顺序依次导入。
+- `workspace/LCI`：包含 LCI JSON 文件的根目录。脚本会自动检测子目录结构，并按照依赖关系（`flows` -> `processes` -> `product_systems`）顺序依次导入。
 - **自动获取并配置项目名称**：
   - 脚本会**直接读取工作目录的名称**（例如当前为 `202606-Multi-agent-LCA`）作为导入实体的分类目录名。
   - 如果由于任何原因读取工作目录名称失败，脚本会自动将其命名为 `'auto_LCA_project'`。

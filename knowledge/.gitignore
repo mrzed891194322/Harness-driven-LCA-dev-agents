@@ -1,0 +1,10 @@
+# Ignore all generated vector databases in knowledge/rag_db/
+rag_db/**
+
+# Ignore user uploads in user_data/ and user_file/
+inputs/user_data/**
+inputs/user_file/**
+
+# Keep README files
+!inputs/user_data/README.md
+!inputs/user_file/README.md

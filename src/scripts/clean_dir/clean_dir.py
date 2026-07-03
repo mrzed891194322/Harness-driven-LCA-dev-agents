@@ -2,15 +2,7 @@
 # -*- coding: utf-8 -*-
 
 r"""
-按照 src/.gitignore 中声明的忽略规则清理文件。
-
-读取 src/.gitignore，解析出：
-  - 被忽略的目录（以 `/` 或 `/**` 结尾的行，如 `knowledge/`、`knowledge/**`）
-  - 例外保留项（以 `!` 开头的行，如 `!knowledge/README.md`）
-
-然后对每个被忽略的目录执行清理：
-  - 删除目录内所有文件，但保留匹配例外规则的文件（如 README.md）
-  - 清理因删除文件而变空的子目录（保留被忽略目录本身）
+按照 src/.gitignore、workspace/.gitignore 和 input/.gitignore 中声明的忽略规则清理文件。
 
 用法：
     uv run python src\scripts\clean_dir\clean_dir.py              # 交互确认后执行
@@ -84,7 +76,7 @@ def match_keep(path: Path, base: Path, keep_patterns) -> bool:
     return False
 
 
-def clean_ignored_dir(dir_path: Path, base: Path, keep_patterns, dry_run: bool = False):
+def clean_ignored_dir(dir_path: Path, base: Path, project_root: Path, keep_patterns, dry_run: bool = False):
     """
     清理单个被忽略的目录：删除所有文件（保留例外项），并删除变空的子目录。
     不删除 dir_path 本身。
@@ -104,15 +96,19 @@ def clean_ignored_dir(dir_path: Path, base: Path, keep_patterns, dry_run: bool =
             if match_keep(file_path, base, keep_patterns):
                 kept_files += 1
                 continue
+            try:
+                display_path = file_path.relative_to(project_root)
+            except ValueError:
+                display_path = file_path
             if dry_run:
-                print(f"  [待删除] 文件: {file_path.relative_to(base)}")
+                print(f"  [待删除] 文件: {display_path}")
                 simulated_deleted.add(file_path)
                 deleted_files += 1
             else:
                 try:
                     file_path.unlink()
                     deleted_files += 1
-                    print(f"  已删除文件: {file_path.relative_to(base)}")
+                    print(f"  已删除文件: {display_path}")
                 except Exception as e:
                     failed += 1
                     print(f"  删除文件失败: {file_path}，错误: {e}", file=sys.stderr)
@@ -128,15 +124,19 @@ def clean_ignored_dir(dir_path: Path, base: Path, keep_patterns, dry_run: bool =
                 is_empty = False
 
             if is_empty:
+                try:
+                    display_path = root_path.relative_to(project_root)
+                except ValueError:
+                    display_path = root_path
                 if dry_run:
-                    print(f"  [待删除] 空目录: {root_path.relative_to(base)}")
+                    print(f"  [待删除] 空目录: {display_path}")
                     simulated_deleted.add(root_path)
                     deleted_dirs += 1
                 else:
                     try:
                         root_path.rmdir()
                         deleted_dirs += 1
-                        print(f"  已删除空目录: {root_path.relative_to(base)}")
+                        print(f"  已删除空目录: {display_path}")
                     except Exception as e:
                         failed += 1
                         print(f"  删除目录失败: {root_path}，错误: {e}", file=sys.stderr)
@@ -146,65 +146,69 @@ def clean_ignored_dir(dir_path: Path, base: Path, keep_patterns, dry_run: bool =
 
 def main():
     parser = argparse.ArgumentParser(
-        description="按照 src/.gitignore 的忽略规则清理被忽略目录中的文件（保留 README 等例外项）。"
+        description="按照 src、workspace 和 knowledge 目录下的 .gitignore 规则清理生成及临时文件。"
     )
     parser.add_argument("--dry-run", action="store_true", help="演练模式，仅打印将要删除的文件/目录，不执行实际删除")
     parser.add_argument("-y", "--yes", action="store_true", help="跳过二次确认，直接执行删除操作")
     args = parser.parse_args()
 
     # 脚本位于 src/scripts/clean_dir/clean_dir.py
-    # src 根目录 = 脚本向上三级
+    # 项目根目录 = 脚本向上三级
     script_dir = Path(__file__).resolve().parent
-    src_root = script_dir.parent.parent
+    project_root = script_dir.parents[2]
 
-    gitignore_path = src_root / ".gitignore"
-    if not gitignore_path.exists():
-        print(f"错误: 未找到 .gitignore 文件: {gitignore_path}", file=sys.stderr)
-        sys.exit(1)
-
-    ignored_dirs, keep_patterns = parse_gitignore(gitignore_path)
-
-    if not ignored_dirs:
-        print("未在 .gitignore 中找到任何忽略规则，无需清理。")
-        sys.exit(0)
+    # 三个需要清理的目标目录及其对应的配置文件和名称
+    targets = [
+        ("src", project_root / "src"),
+        ("workspace", project_root / "workspace"),
+        ("knowledge", project_root / "knowledge"),
+    ]
 
     print("=" * 60)
-    print(f"src 根目录: {src_root}")
-    print(f".gitignore: {gitignore_path}")
+    print(f"项目根目录: {project_root}")
     if args.dry_run:
         print("模式: [演练模式] (只显示，不实际删除文件)")
-    print(f"忽略的目录: {', '.join(ignored_dirs)}")
-    if keep_patterns:
-        print(f"例外保留: {', '.join(keep_patterns)}")
     print("=" * 60)
 
     # 二次确认
     if not args.yes and not args.dry_run:
         confirm = input(
-            "警告：这将删除上述被忽略目录中除例外项以外的所有文件！\n确定要继续吗？(y/N): "
+            "警告：这将删除项目各个工作区被忽略目录中除例外项（如 README.md）以外的所有文件！\n确定要继续吗？(y/N): "
         )
         if confirm.strip().lower() not in ("y", "yes"):
             print("操作已取消。")
             sys.exit(0)
 
     total_files = total_dirs = total_kept = total_failed = 0
-    for d in ignored_dirs:
-        d_clean = d.replace("/**", "").strip("/")
-        target = src_root / d_clean
-        if not target.exists():
-            print(f"\n跳过（不存在）: {d_clean}/")
-            continue
-        if not target.is_dir():
-            print(f"\n跳过（非目录）: {d_clean}")
-            continue
-        print(f"\n清理目录: {d_clean}/")
-        f, dr, k, fl = clean_ignored_dir(target, src_root, keep_patterns, dry_run=args.dry_run)
-        total_files += f
-        total_dirs += dr
-        total_kept += k
-        total_failed += fl
 
-    print("=" * 60)
+    for name, root_dir in targets:
+        gitignore_path = root_dir / ".gitignore"
+        if not gitignore_path.exists():
+            continue
+
+        ignored_dirs, keep_patterns = parse_gitignore(gitignore_path)
+        if not ignored_dirs:
+            continue
+
+        print(f"\n开始清理 [{name}] 目录...")
+        print(f"  忽略子目录: {', '.join(ignored_dirs)}")
+        if keep_patterns:
+            print(f"  例外保留: {', '.join(keep_patterns)}")
+
+        for d in ignored_dirs:
+            d_clean = d.replace("/**", "").strip("/")
+            target = root_dir / d_clean
+            if not target.exists():
+                continue
+            if not target.is_dir():
+                continue
+            f, dr, k, fl = clean_ignored_dir(target, root_dir, project_root, keep_patterns, dry_run=args.dry_run)
+            total_files += f
+            total_dirs += dr
+            total_kept += k
+            total_failed += fl
+
+    print("\n" + "=" * 60)
     if args.dry_run:
         print("演练结果统计：")
         print(f"- 预计删除文件数: {total_files}")

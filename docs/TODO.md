@@ -1,15 +1,15 @@
 
 ## 近期
 
-- [ ] command：初始化，准备rag文档，检查openlca连接
+- [x] command：初始化，准备rag文档，检查openlca连接
 
 - [x] 确保子agent编写python代码遵守规范
 
 - [ ] readme ：项目是做什么的，架构是什么？项目需要鸣谢哪些其他项目？
 
-- [ ] 重要：编写gui（中英文界面，通过py传参切换）
+- [x] 重要：编写gui（中英文界面，通过py传参切换）
 
-- [ ] 目录整理：LCA相关统一放在 src/LCA 中
+- [x] 目录整理：LCA相关统一放在 src/LCA 中
 
 - [ ] 重要：状态与知识管理
 

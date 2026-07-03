@@ -9,7 +9,7 @@ agent: subagents/workflow/LCI-designer
 
 
 **任务执行**：
-请直接调用 `LCI-designer` 开展本次结构化构建任务，调用时需说明将 `src\plan\execution_plan.md` 作为参考内容。。
+请直接调用 `LCI-designer` 开展本次结构化构建任务，调用时需说明将 `workspace\plan\execution_plan.md` 作为参考内容。。
 你只需将本任务委托给它并传递下方用户提出的要求即可。该 agent 作为调度中心会自主梳理架构、拆分任务，并委派底层的 `doc-handler` 和 `eval-executor` 完成全套的 JSON 生成与质检闭环：
 
 

@@ -3,7 +3,7 @@
 本文件用于 `eval-executor` 对生成的 `execution_plan.md` 和 `todo_list.md` 文件内容进行质量与规范自检。
 
 ## 1. 结构与格式规范
-- 是否成功在 `src/plan/` 目录下生成了 `execution_plan.md` 并在需要时生成了 `todo_list.md`？
+- 是否成功在 `workspace/plan/` 目录下生成了 `execution_plan.md` 并在需要时生成了 `todo_list.md`？
 - 两个文件是否严格遵守了 `template/execution_plan.md` 和 `template/todo_list.md` 中定义的 Markdown 结构框架？
 
 ## 2. 核心内容自检 (Execution Plan)

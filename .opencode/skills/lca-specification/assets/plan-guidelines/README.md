@@ -15,5 +15,5 @@
    - **evaluation/self_check.md**：计划生成后的自检清单，供 `eval-executor` 进行验证。
 
 3. **输出模板**
-   - **template/execution_plan.md**：执行计划文档模板，指导在 `src/plan/` 目录下生成 `execution_plan.md`。
-   - **template/todo_list.md**：待完善清单模板，指导在 `src/plan/` 目录下生成 `todo_list.md`。
+   - **template/execution_plan.md**：执行计划文档模板，指导在 `workspace/plan/` 目录下生成 `execution_plan.md`。
+   - **template/todo_list.md**：待完善清单模板，指导在 `workspace/plan/` 目录下生成 `todo_list.md`。

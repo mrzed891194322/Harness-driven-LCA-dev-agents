@@ -5,23 +5,23 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # 2. 计划输入 Tab (Plan Input) 相关文件路径
 PLAN_INPUT_TEMPLATE_PATH = PROJECT_ROOT / "src" / "GUI" / "ui" / "assets" / "template" / "plan.md"
-CURRENT_PLAN_PATH = PROJECT_ROOT / "src" / "plan" / "current_plan.md"
+CURRENT_PLAN_PATH = PROJECT_ROOT / "workspace" / "plan" / "current_plan.md"
 
 # 3. 计划输出 Tab (Plan Output) 相关文件路径与模板标识
-PLAN_OUTPUT_FILE_PATH = PROJECT_ROOT / "src" / "plan" / "execution_plan.md"
+PLAN_OUTPUT_FILE_PATH = PROJECT_ROOT / "workspace" / "plan" / "execution_plan.md"
 PLAN_OUTPUT_TEMPLATE_KIND = "lca_execution_plan"
 
 # 4. 计划修改 Tab (Plan Modification) 相关文件路径与模板标识
-PLAN_MODIFY_FILE_PATH = PROJECT_ROOT / "src" / "plan" / "todo_list.md"
+PLAN_MODIFY_FILE_PATH = PROJECT_ROOT / "workspace" / "plan" / "todo_list.md"
 PLAN_MODIFY_TEMPLATE_KIND = "lca_todo_list"
 
 # 5. LCI 映射报告 Tab 相关文件路径与模板标识
-LCI_MAPPING_FILE_PATH = PROJECT_ROOT / "src" / "LCI" / "human_readable_mapping.md"
+LCI_MAPPING_FILE_PATH = PROJECT_ROOT / "workspace" / "LCI" / "human_readable_mapping.md"
 LCI_MAPPING_TEMPLATE_KIND = "lci_human_readable_mapping"
 
 # 6. 材料与数据文件上传的目标保存目录
-USER_FILE_DIR = PROJECT_ROOT / "src" / "input" / "user_file"
-USER_DATA_DIR = PROJECT_ROOT / "src" / "input" / "user_data"
+USER_FILE_DIR = PROJECT_ROOT / "knowledge" / "inputs" / "user_file"
+USER_DATA_DIR = PROJECT_ROOT / "knowledge" / "inputs" / "user_data"
 
 # 7. 项目初始化与清理相关的外部脚本路径
 CLEAN_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "clean_dir" / "clean_dir.py"

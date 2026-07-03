@@ -37,7 +37,7 @@
    - 如果标签包含 `()`、`[]`、`{}` 等括弧符号，或者包含含有数字上下标的化学分子式，确认它们是否都已用双引号括起来（如 `A -->|"KAu(CN)₂ + NaCN"| B`）。如若未加双引号，必须指示修改以防渲染解析错误。
 
 8. **人类可读映射报告模板合规校验**
-   - 检查 `src/LCI/human_readable_mapping.md` 是否存在，并且是否严格以模板要求的 YAML front matter 开头：
+   - 检查 `workspace/LCI/human_readable_mapping.md` 是否存在，并且是否严格以模板要求的 YAML front matter 开头：
      - `template_kind: lci_human_readable_mapping`
      - `template_version: "1"`
    - 检查报告是否保留 `template/human_readable_mapping.md` 中规定的章节顺序与标题结构，至少包含“映射概述”“系统边界与核心过程”“核心物质流”“产品系统配置”“过程拓扑依赖关系”和“人类审核提示”。
