@@ -34,6 +34,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
     js_files = [
         js_dir / "tab_navigation.js",
         js_dir / "status_monitor.js",
+        js_dir / "terminal_scroll.js",
     ]
     js_code = "\n\n".join(
         js_file.read_text(encoding="utf-8")
