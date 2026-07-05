@@ -10,11 +10,11 @@
     the entire process tree is terminated automatically by the OS, so no gradio
     orphan process remains.
 
-    This script lives under scripts/debug_gui/, alongside start_gui.py etc.
-    ProjectRoot is 2 levels up (debug_gui -> scripts -> project root).
+    This script lives under scripts/gui_control/, alongside start_gui.py etc.
+    ProjectRoot is 2 levels up (gui_control -> scripts -> project root).
 
 .NOTES
-    Run via launch_gui.bat in the project root, or right-click -> Run with PowerShell.
+    Run via scripts/_launch_gui.bat, or right-click -> Run with PowerShell.
 #>
 
 $ErrorActionPreference = 'Stop'

@@ -3,6 +3,8 @@
 
 - [ ] 增加日志输出
 
+- [ ] skill工作流化，使用python脚本校验过程
+
 - [ ] 重要：重构agent-skill流
 
 - [ ] 写脚本清理openlca process

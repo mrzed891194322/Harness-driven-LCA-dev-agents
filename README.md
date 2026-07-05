@@ -4,10 +4,10 @@
 
 ## ⚡ Windows 一键脚本 (推荐)
 
-为了方便 Windows 用户快速上手，项目根目录下提供了两个一键批处理脚本，支持环境配置与控制面板的快速启动：
+为了方便 Windows 用户快速上手，项目 `scripts/` 目录下提供了两个一键批处理脚本，支持环境配置与控制面板的快速启动：
 
-1. **环境配置**：**在已安装 [uv](https://github.com/astral-sh/uv) 的前提下**，**双击**运行 [_setup_env.bat](_setup_env.bat)。它将自动同步项目依赖（`uv sync`）并引导检查/创建本地 `.env` 环境变量配置文件（**注意**：OpenCode Agent 智能体设置与本地 `.env` 环境变量都分别需要配置，其中的 API Key 等具体配置内容仍需手动填写，具体可参考 [环境准备与配置详解](docs/wiki/env_setup.md)）。
-2. **启动 GUI**：**双击**运行 [_launch_gui.bat](_launch_gui.bat)。它将自动运行后台服务并在默认浏览器中拉起控制面板（默认地址为 [http://127.0.0.1:7860](http://127.0.0.1:7860)）。在关闭该批处理窗口或在终端按 `Ctrl+C` 时，会自动清理相关的所有 Python/Gradio 后台进程。
+1. **环境配置**：**在已安装 [uv](https://github.com/astral-sh/uv) 的前提下**，**双击**运行 [scripts/_setup_env.bat](scripts/_setup_env.bat)。它将自动同步项目依赖（`uv sync`）并引导检查/创建本地 `.env` 环境变量配置文件（**注意**：OpenCode Agent 智能体设置与本地 `.env` 环境变量都分别需要配置，其中的 API Key 等具体配置内容仍需手动填写，具体可参考 [环境准备与配置详解](docs/wiki/env_setup.md)）。
+2. **启动 GUI**：**双击**运行 [scripts/_launch_gui.bat](scripts/_launch_gui.bat)。它将自动运行后台服务并在默认浏览器中拉起控制面板（默认地址为 [http://127.0.0.1:7860](http://127.0.0.1:7860)）。在关闭该批处理窗口或在终端按 `Ctrl+C` 时，会自动清理相关的所有 Python/Gradio 后台进程。
 
 ---
 
@@ -69,4 +69,5 @@ uv run python GUI/main.py
 2. **交互界面指令**：
    在 OpenCode CLI 或桌面客户端交互界面中直接输入对应的快捷斜杠指令（如 `/init-rag-database`、`/make-plan` 等）。
 
-> 💡 **详细的手动指令与多角色智能体协同说明，请参见**：[用户使用指南](docs/wiki/user_guide.md)
+
+> 💡 **详细的手动调试与文件同步（uploads 目录）的使用方法，请参见**：[手动调试与文件同步指南](docs/wiki/manual_debug.md)

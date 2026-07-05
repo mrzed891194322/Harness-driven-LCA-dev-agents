@@ -3,7 +3,7 @@ REM One-click environment setup for the LCA Agent project.
 REM Double-click this file to run uv sync and check/create .env.
 
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo.
 echo LCA Agent - Environment Setup
