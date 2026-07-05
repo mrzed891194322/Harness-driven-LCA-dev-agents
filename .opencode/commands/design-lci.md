@@ -12,7 +12,9 @@ agent: LCI-designer
 
 
 **任务执行**：
-你是 `LCI-designer`，请开展本次结构化构建任务，并将 `workspace\plan\execution_plan.md` 作为参考内容。按 `lca-specification` 揭示的 LCI 构建读取顺序读取 harness 规范、模板与自检文件；该 agent 作为调度中心自主梳理架构、拆分任务，并委派底层的 `doc-handler` 和 `eval-executor` 完成全套的 JSON 生成与质检闭环：
+在开始前，必须使用 uv 执行一次文件同步逻辑：`uv run python scripts/file_sync/main.py`。
+你是 `LCI-designer`，请开展本次结构化构建任务，并将 `workspace\plan\execution_plan.md` 作为参考内容。按 `lca-specification` 揭示的 LCI 构建读取顺序读取 harness 规范、模板与自检文件；该 agent 作为调度中心自主梳理架构、拆分任务，并委派底层的 `doc-handler` 和 `eval-executor` 完成全套的 JSON 生成与质检闭环。
+任务结束后，必须再次使用 uv 执行一次文件同步逻辑：`uv run python scripts/file_sync/main.py`。
 
 
 **任务结束**：

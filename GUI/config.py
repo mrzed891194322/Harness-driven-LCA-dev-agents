@@ -24,6 +24,6 @@ USER_FILE_DIR = PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_file"
 USER_DATA_DIR = PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_data"
 
 # 7. 项目初始化与清理相关的外部脚本路径
-CLEAN_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "clean_dir" / "clean_dir.py"
+CLEAN_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "clean_dir" / "main.py"
 INIT_RAG_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "initialization" / "main.py"
 OPENLCA_CHECK_DIR = PROJECT_ROOT / "scripts" / "initialization" / "openlca_check"

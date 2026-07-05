@@ -1,0 +1,14 @@
+
+
+# knowledge directory
+
+## Ignore all generated vector databases in knowledge/rag_db/
+knowledge/rag_db/**
+
+## Ignore user uploads in knowledge/inputs/user_data/ and knowledge/inputs/user_file/
+knowledge/inputs/user_data/**
+knowledge/inputs/user_file/**
+
+## Keep README files
+!knowledge/inputs/user_data/README.md
+!knowledge/inputs/user_file/README.md
