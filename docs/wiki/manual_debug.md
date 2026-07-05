@@ -21,16 +21,16 @@
 
 ### 2. 使用初始化脚本进行前置准备
 
-运行初始化脚本构建 RAG 数据库并检查 openLCA 端口：
+开始任务前，请依次运行初始化脚本：
 ```bash
-# 同时构建 RAG 向量数据库并检查 openLCA 连接（默认）
+# Step 1: 清理目录中已有缓存文件
+uv run python scripts/clean_dir/main.py
+
+# Step 2: 同步已上传的文件
+uv run python scripts/file_sync/main.py
+
+# Step 3: 初始化（建立RAG向量数据库并检测OpenLCA连接）
 uv run python scripts/initialization/main.py
-
-# 仅构建 RAG 向量数据库（加 --clean 参数清空已有库）
-uv run python scripts/initialization/main.py --only rag [--clean]
-
-# 仅检查 openLCA 连接
-uv run python scripts/initialization/main.py --only openlca [--port 8080]
 ```
 
 ---

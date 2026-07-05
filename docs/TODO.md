@@ -29,3 +29,11 @@
 - [ ] 对图像来源知识库的构建、识别与使用
 
 - [ ] 是否可以复用过去 agent 的 session，在修改后重新评估效果？
+
+---
+
+## 其他 `TODO-list` 参考：
+
+- [GUI TODO-list](../GUI/TODO.md)
+
+- [Scripts TODO-list](../scripts/TODO.md)
