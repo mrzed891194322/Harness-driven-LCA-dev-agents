@@ -1,5 +1,5 @@
 
-- [ ] 增加gitee同步脚本
+- [x] 增加gitee同步脚本
 
 - [ ] 增加gitub wiki更新脚本
 
