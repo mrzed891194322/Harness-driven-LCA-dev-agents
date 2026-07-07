@@ -17,5 +17,5 @@
 ### 2. 代码编写规范参考
 明确需要编写脚本并运行时，再进一步按需参考下列内容：
 
-- [python_spec.md](references/python_spec.md)：包含工作脚本的编写规范、可复用原则与模块化结构要求。
+- [python_spec.md](references/python_rule.md)：包含工作脚本的编写规范、可复用原则与模块化结构要求。
 - **项目结构模板**：编写 Python 脚本时，应遵循项目规定的模块化编写规范，可直接参考项目提供的 [结构模板](references/templates/py_scripts/)。

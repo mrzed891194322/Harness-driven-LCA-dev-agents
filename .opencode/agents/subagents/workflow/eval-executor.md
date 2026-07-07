@@ -16,18 +16,9 @@ permission:
 
 # 边界
 
-- 事实来源：评估依据必须来自上游明确指定的 `harness/specs/**/evaluation/self_check.md`、`harness/rules/` 规则，或任务中给出的交付标准。
+- 事实来源：评估依据必须来自上游明确指定的自检规范、规则材料，或任务中给出的交付标准。
 - 写入限制：不生成评估报告文件；评估结论直接以文本返回上游。
 - 修改限制：不得直接修复被评估文件；需要修复时输出可执行的问题清单，交由上游调度对应 Agent。
-- 命令限制：任何 Python 命令必须使用 `uv run python ...`；运行命令前必须加载 `project-regulation` 并读取代码运行规则入口。
-- 临时脚本限制：严禁创建临时 Python 脚本；不得要求任何子 Agent 在 `workspace/tmp/` 或其他目录写入探索性、一次性、测试性脚本。
-- 调用限制：只允许调用 frontmatter 中显式允许的子 Agent。
-
-# 技能与规范入口
-
-- `lca-specification`：涉及 LCA 计划或 LCI 自检时加载，并读取对应 spec 入口。
-- `project-regulation`：涉及目录、代码、命令或子 Agent 调用边界时加载，并读取最小必要规则入口。
-- `external-tools`：仅在评估任务明确需要验证外部工具命令或 openLCA/RAG 工具说明时加载。
 
 # 可调用 Agent
 

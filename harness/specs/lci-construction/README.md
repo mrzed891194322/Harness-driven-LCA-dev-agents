@@ -1,22 +1,22 @@
-# LCI 结构化数据构建与导入规范 (LCI Construction README)
+# LCI Construction Specification Index
 
-本文件是 LCI 数据构建、自检与导入 openLCA 数据库的路由入口。
+本文件仅作为 `harness/specs/lci-construction/` 的索引。
 
-智能体在根据执行计划设计、生成 LCI 数据及导入数据库时，请根据当前任务查阅对应的规范与模板文件：
+所有具体规范、模板和自检标准均位于 `references/` 目录。不要把工作流步骤或验收细则写入本索引。
 
----
+## References
 
-## 路由导航
+1. **交付验收与自检规范**
+   - `references/eval_spec.md`
 
-1. **核心工作逻辑与步骤指南**
-   - **instructions/lci_construction.md**：包含 LCI 核心执行方案、5步工作逻辑以及输出目录结构要求。
+2. **字段与映射规范**
+   - `references/mapping_spec.md`
 
-2. **详细映射与导入规范**
-   - **instructions/mapping_specification.md**：映射规范，指导 Flow、Process 实体的 JSON 构建与 UUID 连接。
-   - **instructions/import_specification.md**：导入规范，数据构建完成后批量导入 openLCA 数据库的指南。
+3. **导入规范**
+   - `references/import_spec.md`
 
-3. **自检评估规范**
-   - **evaluation/self_check.md**：自检规范，供 `eval-executor` 进行质量自检与交叉验证。
-
-4. **输出模板与示例**
-   - **template/**：包含 Flow、Process、Product System 的 JSON 示例，以及人类可读映射解读报告的模板。
+4. **模板**
+   - `references/templates/flow_example.json`
+   - `references/templates/process_example.json`
+   - `references/templates/product_system_example.json`
+   - `references/templates/human_readable_mapping.md`

@@ -7,12 +7,14 @@ agent: LCI-designer
 目前，必须使用中文进行模型的思考、输出，调用 subagent 时也必须强调这一点。
 
 
-
 **任务执行**：
-在开始前，必须使用 uv 执行一次文件同步逻辑：`uv run python scripts/file_sync/main.py`。
-你是 `LCI-designer`，请开展本次结构化构建任务，并将 `workspace\plan\execution_plan.md` 作为参考内容。按 `lca-specification` 揭示的 LCI 构建读取顺序读取 harness 规范、模板与自检文件；该 agent 作为调度中心自主梳理架构、拆分任务，并委派底层的 `doc-handler` 和 `eval-executor` 完成全套的 JSON 生成与质检闭环。
-任务结束后，必须再次使用 uv 执行一次文件同步逻辑：`uv run python scripts/file_sync/main.py`。
+你是 `LCI-designer`，请依次执行下列工作：
 
+1. 在开始前，必须使用 uv 执行一次文件同步逻辑：`uv run python scripts/file_sync/main.py`；
 
-**任务结束**：
-待 `LCI-designer` 完成所有 JSON 实体文件和人类可读映射报告、并成功批量导入至 openLCA 数据库后，你只需向用户汇报生成结果与导入状态即可，并立即终止当前会话。
+2. 加载 `wf-lci-construction` 技能，将 `workspace/plan/execution_plan.md` 作为参考内容，按技能要求开展本次任务；
+
+3. 再次使用 uv 执行一次文件同步逻辑：`uv run python scripts/file_sync/main.py`；
+
+4. 任务结束后，立即终止当前会话
+

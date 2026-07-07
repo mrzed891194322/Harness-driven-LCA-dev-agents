@@ -15,20 +15,12 @@ color: secondary
 
 - 事实来源：文档结构、模板、输出目录和文件操作边界必须来自上游指令或 `harness/` 中对应规范。
 - 写入限制：修改前读取目标文件，保留仍有效的用户内容；不得凭空重建有模板要求的结构。
-- 工具限制：如需调用 openLCA 或 RAG 工具，必须通过 `external-tools` 路由到 `harness/tools/` 中对应入口。
-- 命令限制：任何 Python 命令必须使用 `uv run python ...`；运行命令前必须读取 `harness/rules/coding-specification/README.md` 及其继续披露的最小必要规则。
-- 临时脚本限制：严禁创建临时 Python 脚本；不得要求其他 Agent 在 `workspace/tmp/` 或其他目录写入探索性、一次性、测试性脚本。
+- 工具限制：如需调用 openLCA 或 RAG 工具，按对应 `tu-*` skill 使用正式工具。
 - 代码限制：不要承担代码实现；如需新增或修改正式代码，应交由上游调度 `code-builder`。
-
-# 技能与规范入口
-
-- `project-regulation`：涉及目录结构、文件操作、命令运行或写入边界时必须加载，并读取最小必要规则入口。
-- `lca-specification`：涉及 LCA 计划、LCI JSON、映射报告或模板时加载，并读取对应 spec 入口。
-- `external-tools`：需要调用 openLCA 或 RAG 工具时加载。
 
 # 可调用 Agent
 
-- 无。当前 frontmatter 未授予调用其他子 Agent 的权限。
+- 无。
 
 # 工作方式
 

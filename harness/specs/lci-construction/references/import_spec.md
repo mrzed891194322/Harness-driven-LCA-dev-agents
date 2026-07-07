@@ -1,11 +1,11 @@
-# openLCA 批量数据导入规范 (import_specification)
+# openLCA 批量数据导入规范 (import_spec)
 
-本规范规定了如何将生成并经过自检校验合格 of LCI JSON 数据文件（流、过程、产品系统等）批量导入到本地运行 of openLCA 数据库中。
+本规范规定了如何将生成并经过自检校验合格的 LCI JSON 数据文件（流、过程、产品系统等）批量导入到本地运行的 openLCA 数据库中。
 
 ## 前置要求
 
 1. **客户端与 IPC 服务**：请确保本地已开启 openLCA 桌面客户端，并启动了 IPC Server 服务（默认端口 `8080`）。
-2. **导入工具**：使用 `external-tools` 技能路由到的导入脚本：
+2. **导入工具**：使用仓库正式导入脚本：
    `harness/tools/control_openlca/import_from_json/main.py`
 
 ## 执行命令
