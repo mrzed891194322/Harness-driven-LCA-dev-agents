@@ -1,15 +1,21 @@
 # 代码编写与运行规范 (Coding Specification README)
 
-本文件是项目代码编写与运行规范（包括 Python 脚本、Bash 命令行操作等）的路由入口。
+本文件是项目 Python 代码编写与运行规范的路由入口。
 
 智能体在进行系统操作、执行命令或编写代码时，请根据以下场景查阅具体的规范：
 
 ---
 
-## 路由导航
+## 核心规范
 
-1. **通用操作与边界规范**
-   - **instructions/general_specification.md**：包含所有操作（如 Bash/PowerShell 命令执行、常规文件读写等）的作用域限制与安全边界规定。
+### 1. Python 运行环境要求
+- 项目中由 `uv` 管理的虚拟环境（通常位于 `.venv/`）是**唯一可用**的 Python 运行环境。
+- 严禁使用任何外部系统 Python 环境或创建其他非项目约定的虚拟环境。
+- 所有 Python 脚本的编写与运行只能在 `workspace/` 目录以内。
+- 严禁在上述约定的代码目录以外（如项目根目录直接存放、其他非代码目录）编写或执行任何 Python 脚本。
 
-2. **Python 脚本编写与运行规范**
-   - **instructions/python_specification.md**：包含 Python 运行环境 (uv)、编写与运行范围限制 (GUI/、harness/tools/、scripts/ 与 workspace/)、临时脚本禁令、文件操作的安全边界，以及 Python 项目编写模板。
+### 2. 代码编写规范参考
+明确需要编写脚本并运行时，再进一步按需参考下列内容：
+
+- [python_spec.md](references/python_spec.md)：包含工作脚本的编写规范、可复用原则与模块化结构要求。
+- **项目结构模板**：编写 Python 脚本时，应遵循项目规定的模块化编写规范，可直接参考项目提供的 [结构模板](references/templates/py_scripts/)。

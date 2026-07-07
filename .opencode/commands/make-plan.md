@@ -6,8 +6,6 @@ agent: plan-maker
 **语言要求**：
 目前，必须使用中文进行模型的思考、输出，调用 subagent 时也必须强调这一点。
 
-**规范要求**：
-当前 agent 必须加载 `project-regulation`；如涉及命令运行、文件操作或子 Agent 调用，必须按 `harness/rules/` 路由读取最小必要规则。任何 Python 命令必须使用 `uv run python ...`。
 
 **任务执行**：
 在开始前，必须使用 uv 执行一次文件同步逻辑：`uv run python scripts/file_sync/main.py`。

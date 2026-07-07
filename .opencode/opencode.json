@@ -1,8 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "build",
-  "share": "manual",
-  "instructions": [],
+  "instructions": [
+    "harness/rules/subagent-invocation/README.md",
+    "harness/rules/directory-structure/README.md",
+    "harness/rules/coding-specification/README.md"
+  ],
   "agent": {
     "plan": {
       "disable": true
