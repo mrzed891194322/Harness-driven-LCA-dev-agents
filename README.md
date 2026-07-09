@@ -68,7 +68,7 @@ uv run python GUI/main.py
    * **设计并导入清单**：`opencode run --command design-lci` (或交互指令 `/design-lci`)
 
 ### 2. 辅助准备脚本 (按需使用)
-* **清理缓存**：`uv run python scripts/clean_dir/main.py` (清理已生成的临时/缓存文件)
+* **清理缓存**：`uv run python scripts/initialization/main.py --only clean` (清理已生成的临时/缓存文件)
 * **手动同步**：`uv run python scripts/file_sync/main.py` (手动双向同步 `uploads/` 与工作区)
 * **手动初始化**：`uv run python scripts/initialization/main.py` (检测 openLCA 连接并初始化 RAG)
 

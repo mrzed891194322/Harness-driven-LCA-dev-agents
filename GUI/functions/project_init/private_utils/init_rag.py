@@ -25,7 +25,7 @@ def run_initialization(project_root: Path) -> Generator[str, None, None]:
 
     import config
     script_path = config.INIT_RAG_SCRIPT_PATH
-    cmd = [sys.executable, "-u", str(script_path)]
+    cmd = [sys.executable, "-u", str(script_path), "--mode", "gui"]
     
     # Ensure standard output/error are unbuffered
     env = os.environ.copy()

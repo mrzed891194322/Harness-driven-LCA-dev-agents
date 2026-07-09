@@ -3,46 +3,41 @@ import traceback
 from functions.project_init.main_init import main as run_project_init_flow
 from functions.project_init.check_status import (
     refresh_all_status,
-    check_clean_status,
-    check_rag_status,
+    check_env_status,
     check_openlca_status,
 )
 
 
 def bind_tab_initial_events(
     refresh_init_status_btn: gr.Button,
+    env_recheck_btn: gr.Button,
     openlca_recheck_btn: gr.Button,
-    clean_check_btn: gr.Button,
-    rag_check_btn: gr.Button,
+    clean_check_btn: gr.Button | None,
+    rag_check_btn: gr.Button | None,
     clean_btn: gr.Button,
     rag_btn: gr.Button,
     exec_init_btn: gr.Button,
     ref_materials_file: gr.File,
     ref_data_file: gr.File,
+    env_status: gr.Markdown,
     clean_status: gr.Markdown,
     rag_status: gr.Markdown,
     openlca_status: gr.Markdown,
     output_console: gr.Textbox,
     status: gr.Textbox,
 ):
-    # 3a. 项目初始化状态检测：点击"刷新检测状态"按钮，同时刷新三张卡片
+    # 3a. 项目初始化状态检测：点击"刷新检测状态"按钮，同时刷新四张卡片
     refresh_init_status_btn.click(
         fn=refresh_all_status,
         inputs=None,
-        outputs=[clean_status, rag_status, openlca_status],
+        outputs=[env_status, clean_status, rag_status, openlca_status],
     )
 
-    # 3a-1. 目录清理 / RAG 卡片内"状态检查"按钮：仅刷新对应卡片状态
-    clean_check_btn.click(
-        fn=check_clean_status,
+    # 3a-1. 环境检查卡片内"重新检查"按钮：仅刷新 opencode CLI 状态
+    env_recheck_btn.click(
+        fn=check_env_status,
         inputs=None,
-        outputs=clean_status,
-    )
-
-    rag_check_btn.click(
-        fn=check_rag_status,
-        inputs=None,
-        outputs=rag_status,
+        outputs=env_status,
     )
 
     # 3a-2. openLCA 卡片内"重新检查"按钮：仅刷新 openLCA 状态

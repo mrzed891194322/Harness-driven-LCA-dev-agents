@@ -2,7 +2,7 @@
 RAG 知识库批量构建入口
 
 按照 mapping_rules.DEFAULT_MAPPING 定义的路径映射，
-# 批量调用 harness/tools/control_rag_db 中的 build_rag 工具构建 RAG 知识库。
+批量构建 RAG 知识库。
 """
 
 import sys
@@ -10,21 +10,15 @@ import shutil
 import argparse
 from pathlib import Path
 
-# ── 注入工具路径 ──────────────────────────────────────────────────────────────
-# scripts/initialization/rag_init/main.py
-#   parents[3] = project root
-_BUILD_RAG_DIR = Path(__file__).parents[3] / "harness" / "tools" / "control_rag_db" / "build_rag"
-_CTRL_RAG_DIR  = Path(__file__).parents[3] / "harness" / "tools" / "control_rag_db"
-
-# build_rag 内部通过 parent.parent (即 control_rag_db/) 来导入 utils
-sys.path.insert(0, str(_BUILD_RAG_DIR))   # 使 private_utils 可被找到
-sys.path.insert(0, str(_CTRL_RAG_DIR))    # 使 utils (encoding, embedding) 可被找到
+SCRIPT_DIR = Path(__file__).resolve().parent
+INIT_DIR = SCRIPT_DIR.parent
+for path in (str(SCRIPT_DIR), str(INIT_DIR)):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 from private_utils.builder import build_rag
 from utils.encoding import setup_io_encoding
 
-# ── 导入本模块的映射规则 ──────────────────────────────────────────────────────
-sys.path.insert(0, str(Path(__file__).parent))
 from mapping_rules import DEFAULT_MAPPING
 
 
@@ -77,7 +71,7 @@ def main():
     setup_io_encoding()
 
     parser = argparse.ArgumentParser(
-        description="按映射规则批量构建 RAG 知识库（调用 harness/tools/control_rag_db/build_rag）"
+        description="按映射规则批量构建 RAG 知识库"
     )
     parser.add_argument(
         "--project-root",

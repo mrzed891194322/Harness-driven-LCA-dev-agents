@@ -1,5 +1,4 @@
 import subprocess
-import sys
 import os
 from pathlib import Path
 from typing import Generator
@@ -14,7 +13,7 @@ def run_clean_project(project_root: Path) -> Generator[str, None, None]:
     
     import config
     script_path = config.CLEAN_SCRIPT_PATH
-    cmd = [sys.executable, str(script_path), "-y"]
+    cmd = ["uv", "run", "python", str(script_path), "-y"]
     
     try:
         process = subprocess.Popen(

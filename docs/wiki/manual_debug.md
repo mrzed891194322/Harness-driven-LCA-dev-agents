@@ -23,13 +23,7 @@
 
 开始任务前，请依次运行初始化脚本：
 ```bash
-# Step 1: 清理目录中已有缓存文件
-uv run python scripts/clean_dir/main.py
-
-# Step 2: 同步已上传的文件
-uv run python scripts/file_sync/main.py
-
-# Step 3: 初始化（建立RAG向量数据库并检测OpenLCA连接）
+# 初始化（默认会先清理目录、同步已上传文件，再建立RAG向量数据库并检测OpenLCA连接）
 uv run python scripts/initialization/main.py
 ```
 
@@ -108,7 +102,7 @@ uv run python scripts/file_sync/main.py
 ### 清理工作目录与上传目录
 当需要重置项目、清理生成的计划与 LCI 产物时，可以运行：
 ```bash
-uv run python scripts/clean_dir/main.py
+uv run python scripts/initialization/main.py --only clean
 ```
 > [!WARNING]
 > 该命令会清除工作空间及 uploads 中的生成文件，运行前请务必确认已备份重要数据。

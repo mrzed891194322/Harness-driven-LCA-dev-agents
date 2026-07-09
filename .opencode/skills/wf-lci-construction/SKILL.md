@@ -27,9 +27,9 @@ description: LCI 结构化数据构建与导入工作流。构建 Flow、Process
 - 建立各项实体的 JSON 映射与字段连接规范时，必须显式读取并遵守：
   - `harness/specs/lci-construction/references/mapping_spec.md`
 - 本地参考 JSON 实体模板必须查阅：
-  - `harness/specs/lci-construction/references/template/flow_example.json`
-  - `harness/specs/lci-construction/references/template/process_example.json`
-  - `harness/specs/lci-construction/references/template/product_system_example.json`
+  - `harness/specs/lci-construction/references/templates/flow_example.json`
+  - `harness/specs/lci-construction/references/templates/process_example.json`
+  - `harness/specs/lci-construction/references/templates/product_system_example.json`
 
 ### 第三步：多重数据自检与 Agent 循环
 
@@ -37,7 +37,7 @@ description: LCI 结构化数据构建与导入工作流。构建 Flow、Process
 - 要求 `eval-executor` 显式读取并对照此验收与自检规范执行验证：
   - `harness/specs/lci-construction/references/eval_spec.md`
 - 要求 `eval-executor` 同时显式读取并对照报告模板验证输出：
-  - `harness/specs/lci-construction/references/template/human_readable_mapping.md`
+  - `harness/specs/lci-construction/references/templates/human_readable_mapping.md`
 - eval 环节必须确认最终写入 `workspace/LCI/human_readable_mapping.md` 的报告严格符合模板结构与元数据要求：
   - 文件开头必须保留 YAML front matter（`template_kind: lci_human_readable_mapping` 和 `template_version: "1"`）。
   - 正文必须保留模板规定的一级/二级标题、核心表格、Mermaid 代码块与“人类审核提示”章节。
@@ -48,7 +48,7 @@ description: LCI 结构化数据构建与导入工作流。构建 Flow、Process
 
 - 为了确保工作透明度并方便人类专家审查，必须将理解的隐式工艺逻辑、计算转化过程以及推演出的依赖关系转化成人类易读的 Markdown 报告。
 - 必须显式读取并填充以下报告模板，随 JSON 数据一同输出：
-  - `harness/specs/lci-construction/references/template/human_readable_mapping.md`
+  - `harness/specs/lci-construction/references/templates/human_readable_mapping.md`
 - 输出到 `workspace/LCI/human_readable_mapping.md` 时，必须完整保留模板开头的 YAML front matter。GUI 的 LCI 映射 Tab 会依赖该元数据识别并渲染报告。
 
 ### 第五步：批量导入至 openLCA

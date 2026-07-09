@@ -1,12 +1,12 @@
 # Ignore all uploaded files
 LCI/**
 plan/**
-input_data/**
-input_file/**
+user_data/**
+user_file/**
 
 # Keep README files
 !README.md
 !LCI/README.md
 !plan/README.md
-!input_data/README.md
-!input_file/README.md
+!user_data/README.md
+!user_file/README.md

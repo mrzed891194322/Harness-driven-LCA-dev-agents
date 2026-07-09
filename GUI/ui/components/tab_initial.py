@@ -3,28 +3,30 @@ import gradio as gr
 
 def _build_status_card(
     title: str,
-    description: str,
     action_label: str,
     accent_class: str,
     check_label: str | None = None,
+    show_status: bool = True,
 ) -> tuple:
     """
     构建单张状态检测卡片。
 
     Returns:
-        (status_value, check_btn, action_btn) — status_value 用于后续更新检测状态文本，
+        (status_value, check_btn, action_btn) - status_value 用于后续更新检测状态文本，
         check_btn 用于绑定卡片内的状态检查按钮，action_btn 用于绑定卡片内的操作按钮。
     """
     with gr.Column(elem_classes=["project-init-status-card", accent_class]):
-        gr.Markdown(f"### {title}", elem_classes=["project-init-status-title"])
-        gr.Markdown(description, elem_classes=["project-init-status-description"])
-        with gr.Column(elem_classes=["project-init-status-value-container"]):
-            status_value = gr.Markdown("未检测", elem_classes=["project-init-status-value"])
-        with gr.Row(elem_classes=["project-init-card-actions"]):
-            check_btn = None
-            if check_label is not None:
-                check_btn = gr.Button(check_label, variant="secondary", size="sm", elem_classes=["project-init-card-action"])
-            action_btn = gr.Button(action_label, variant="secondary", size="sm", elem_classes=["project-init-card-action"])
+        with gr.Row(elem_classes=["project-init-card-header"]):
+            gr.Markdown(f"### {title}", elem_classes=["project-init-status-title"])
+            if show_status:
+                status_value = gr.Markdown("未检测", elem_classes=["project-init-status-value"])
+            else:
+                status_value = gr.Markdown("未检测", visible=False)
+            with gr.Row(elem_classes=["project-init-card-actions"]):
+                check_btn = None
+                if check_label is not None:
+                    check_btn = gr.Button(check_label, variant="secondary", size="sm", elem_classes=["project-init-card-action"])
+                action_btn = gr.Button(action_label, variant="secondary", size="sm", elem_classes=["project-init-card-action"])
     return status_value, check_btn, action_btn
 
 
@@ -34,7 +36,7 @@ def build_tab_initial() -> tuple:
 
     Returns:
         (project_init_tab, close_init_btn, refresh_init_status_btn, exec_init_btn,
-         clean_status, rag_status, openlca_status, openlca_recheck_btn)
+         env_status, clean_status, rag_status, openlca_status, openlca_recheck_btn)
     """
     with gr.Tab("项目初始化", id="project_init_tab") as project_init_tab:
         with gr.Column(elem_id="project-init-workspace", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
@@ -50,10 +52,13 @@ def build_tab_initial() -> tuple:
                 # 内容区：项目初始化前置状态概览
                 with gr.Row(elem_id="project-init-content-row", elem_classes=["panel-content-row"]):
                     with gr.Column(scale=1, elem_id="project-init-template-column", elem_classes=["panel-template-column"]):
-                        with gr.Row(elem_id="project-init-status-row"):
-                            clean_status, clean_check_btn, clean_btn = _build_status_card("目录清理", "工作目录与历史缓存状态", "执行清理", "status-card-clean", "状态检查")
-                            rag_status, rag_check_btn, rag_btn = _build_status_card("RAG知识库", "参考资料索引与向量库状态", "构建知识库", "status-card-rag", "状态检查")
-                            openlca_status, _, openlca_recheck_btn = _build_status_card("openLCA状态", "openLCA 连接与服务状态", "重新检查", "status-card-openlca")
+                        with gr.Column(elem_id="project-init-status-row"):
+                            gr.Markdown("工具状态", elem_classes=["project-init-section-label"])
+                            env_status, _, env_recheck_btn = _build_status_card("环境检查", "重新检查", "status-card-env")
+                            openlca_status, _, openlca_recheck_btn = _build_status_card("openLCA状态", "重新检查", "status-card-openlca")
+                            gr.Markdown("操作执行", elem_classes=["project-init-section-label", "project-init-section-label-actions"])
+                            clean_status, clean_check_btn, clean_btn = _build_status_card("目录清理", "执行清理", "status-card-clean", show_status=False)
+                            rag_status, rag_check_btn, rag_btn = _build_status_card("RAG知识库", "构建知识库", "status-card-rag", show_status=False)
 
                 # 控制按钮，固定放置在底部
                 with gr.Row(elem_id="project-init-actions-row", elem_classes=["panel-actions-row"]):
@@ -66,6 +71,8 @@ def build_tab_initial() -> tuple:
         close_init_btn,
         refresh_init_status_btn,
         exec_init_btn,
+        env_status,
+        env_recheck_btn,
         clean_status,
         clean_check_btn,
         clean_btn,

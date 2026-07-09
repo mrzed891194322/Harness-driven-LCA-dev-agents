@@ -1,9 +1,10 @@
 # 项目初始化脚本 (initialization)
 
-用于在项目启动阶段一次性完成两项前置准备：
+用于在项目启动阶段完成初始化前置准备：
 
-1. **构建 RAG 知识库**：依据映射规则将原始文档向量化写入 Chroma 数据库。
-2. **检查 openLCA IPC Server**：验证 openLCA 桌面端已启动并开启 IPC 服务。
+1. **检查环境**：验证 `opencode` CLI 与 RAG embedding API 可用。
+2. **构建 RAG 知识库**：依据映射规则将原始文档向量化写入 Chroma 数据库。
+3. **检查 openLCA IPC Server**：验证 openLCA 桌面端已启动并开启 IPC 服务。
 
 ## 目录结构
 
@@ -11,31 +12,37 @@
 initialization/
 ├── main.py                  # 统一入口（CLI）
 ├── README.md                 # 本说明
+├── clean_dir/                # 目录清理模块
+│   ├── __init__.py
+│   ├── main.py
+│   ├── config.py
+│   └── utils/
+│       ├── __init__.py
+│       └── clean.py
+├── env_check/                # 环境检查模块
+│   ├── __init__.py
+│   └── main.py
 ├── rag_init/                 # RAG 知识库构建模块
 │   ├── __init__.py
 │   ├── main.py               # 构建逻辑
 │   ├── mapping_rules.py      # 路径映射规则（可在此修改映射）
-│   ├── config.json           # 支持转换的文档后缀配置
-│   └── utils/
+│   └── private_utils/
 │       ├── __init__.py
-│       ├── encoding.py       # Windows 控制台编码处理
 │       ├── embedding.py      # Embedding API 环境变量加载
 │       ├── file_filter.py    # 文件后缀过滤
 │       ├── db.py             # ChromaDB 集合初始化
-│       └── file_indexer.py   # 单文件切分与写入
+│       ├── builder.py         # RAG 构建流程
+│       ├── file_indexer.py   # 单文件切分与写入
+│       └── config.json       # 支持转换的文档后缀配置
+├── utils/
+│   ├── __init__.py
+│   └── encoding.py           # Windows 控制台编码处理
 └── openlca_check/            # openLCA IPC 连接检查模块
     ├── __init__.py
-    ├── main.py               # 检查逻辑
-    └── utils/
-        ├── __init__.py
-        └── encoding.py       # Windows 控制台编码处理
+    └── main.py               # 检查逻辑
 ```
 
-## 参考来源
-
-- RAG 构建：`.opencode/skills/external-tools/references/query_rag_db/scripts/build_rag`
-- openLCA 连接：`.opencode/skills/external-tools/references/control-openlca/scripts/utils/connection.py`
-- 映射规则：`.opencode/skills/external-tools/references/query_rag_db/instruction/mapping-rules.md`
+`scripts/initialization` 内部已自包含目录清理、RAG 构建和 openLCA 连接检查实现，不再调用 `harness/tools` 下的工具脚本。文件同步仍保持为独立脚本：`scripts/file_sync/main.py`。
 
 ## 默认映射规则
 
@@ -60,11 +67,20 @@ initialization/
 在项目根目录执行：
 
 ```bash
-# 同时构建 RAG 并检查 openLCA（默认）
+# manual 模式（默认）：先清理目录并调用独立的 file_sync，再检查环境、构建 RAG、检查 openLCA
 uv run python scripts/initialization/main.py
+
+# gui 模式：只检查环境、构建 RAG、检查 openLCA
+uv run python scripts/initialization/main.py --mode gui
 
 # 构建前先清空输出子目录（保留 README.md）
 uv run python scripts/initialization/main.py --clean
+
+# 仅清理目录
+uv run python scripts/initialization/main.py --only clean
+
+# 仅检查环境
+uv run python scripts/initialization/main.py --only env
 
 # 仅构建 RAG 知识库
 uv run python scripts/initialization/main.py --only rag
