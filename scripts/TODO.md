@@ -7,4 +7,4 @@
 
 - [ ] 初始化同时清理openLCA数据库
 
-- [ ] initialization 分为手动和自动
+- [x] initialization 分为手动和自动

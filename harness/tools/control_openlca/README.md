@@ -9,6 +9,7 @@
 > - 只检查 openLCA IPC Server 是否可连接时，必须直接运行 `uv run python scripts/initialization/openlca_check/main.py --host <host> --port <port>`。
 > - 查询数据库实体名称、UUID 或描述符时，必须使用 `query_descriptors/main.py`。
 > - 读取产品系统模型图时，必须使用 `get_model_graph/main.py`。
+> - 清理工作流导入的项目分类实体时，必须使用 `cleanup_output/main.py`。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
 
 ---
@@ -40,6 +41,11 @@ scripts/
 │   ├── README.md                   # 该导入任务的配置使用文档
 │   ├── examples/                   # 示例 JSON 配置目录
 │   └── private_utils/              # 导入任务局部的私有工具目录
+│
+├── cleanup_output/                 # 任务：清理项目分类下导入的 ProductSystem/Process/Flow
+│   ├── main.py                     # 入口主程序
+│   ├── README.md                   # 该清理任务的配置使用文档
+│   └── private_utils/              # 清理任务局部的私有工具目录
 │
 └── get_model_graph/                # 任务：获取产品系统的模型图依赖及连线拓扑目录
     ├── main.py                     # 入口主程序

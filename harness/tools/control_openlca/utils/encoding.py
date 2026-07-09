@@ -1,3 +1,4 @@
+import locale
 import sys
 
 def setup_io_encoding():
@@ -9,12 +10,10 @@ def setup_io_encoding():
         try:
             import ctypes
             import codecs
-            encoding = "utf-8"
-            if sys.stdout.isatty():
-                # 获取 Windows 当前控制台的活动输出代码页 (e.g., 936 为 GBK, 65001 为 UTF-8)
-                codepage = ctypes.windll.kernel32.GetConsoleOutputCP()
-                if codepage:
-                    encoding = f"cp{codepage}"
+            # 获取 Windows 当前控制台的活动输出代码页 (e.g., 936 为 GBK, 65001 为 UTF-8)。
+            # 在 IDE 或被父进程捕获输出时 stdout 可能不是 TTY，但输出仍常按控制台代码页解码。
+            codepage = ctypes.windll.kernel32.GetConsoleOutputCP()
+            encoding = f"cp{codepage}" if codepage else locale.getpreferredencoding(False)
             
             # 验证 Python 是否支持该编码，支持则进行重配置
             try:
