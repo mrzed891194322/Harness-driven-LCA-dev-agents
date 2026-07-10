@@ -4,7 +4,7 @@
 功能：
     1. 检查 opencode CLI 与 RAG embedding API 是否可用
     2. 构建 RAG 知识库（依据映射规则将原始文档向量化写入 Chroma 数据库）
-    3. 检查 openLCA IPC Server 是否已启动并可连接
+    3. 检查 openLCA IPC Server 是否已启动并可连接，并在连接成功后清理项目对应的 openLCA 实体
 
 参考来源：
     - scripts/initialization/rag_init
@@ -156,7 +156,25 @@ def main():
         print("=" * 60)
         print("Step 3/3: Check openLCA IPC Server Connection")
         print("=" * 60)
-        check_openlca(host=args.host, port=args.port)
+        if check_openlca(host=args.host, port=args.port):
+            print("openLCA connection is available; cleaning project entities...")
+            cleanup_command = [
+                sys.executable,
+                "scripts/openlca_cleanup/main.py",
+                "--project",
+                PROJECT_ROOT.name,
+                "--host",
+                args.host,
+                "--port",
+                str(args.port),
+                "--yes",
+            ]
+            print("Running:", " ".join(cleanup_command))
+            result = subprocess.run(cleanup_command, cwd=str(PROJECT_ROOT), check=False)
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"openLCA cleanup failed with exit code {result.returncode}"
+                )
 
     print("=" * 60)
     print("Initialization process finished")
