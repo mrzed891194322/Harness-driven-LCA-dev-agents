@@ -60,16 +60,19 @@ uv run python GUI/main.py
 
 在无图形界面（GUI）环境下或开发调试时，核心交互逻辑为：**先将输入文件上传至 `uploads/` 目录（或在该目录中修改文件），再运行对应的 `opencode` 指令执行任务**（系统在执行任务前会自动进行文件双向同步，完成后也将生成文件同步输出至 `uploads/`）。
 
-### 1. 核心操作流程
+### 1. 辅助准备脚本
+```bash
+# 初始化（默认会先清理目录、同步已上传文件，再建立RAG向量数据库并检测OpenLCA连接）
+uv run python scripts/initialization/main.py
+```
+
+### 2. 核心操作流程
 1. **准备/修改文件**：放置原始参考文档到 `uploads/user_file/`，或在 `uploads/plan/` 下修改计划与反馈文件。
 2. **执行 OpenCode 任务** (支持命令行或 CLI 交互界面)：
    * **制定 LCA 计划**：`opencode run --command make-plan` (或交互指令 `/make-plan`)
    * **微调并迭代计划**：`opencode run --command revise-plan` (或交互指令 `/revise-plan`)
    * **设计并导入清单**：`opencode run --command design-lci` (或交互指令 `/design-lci`)
 
-### 2. 辅助准备脚本 (按需使用)
-* **清理缓存**：`uv run python scripts/initialization/main.py --only clean` (清理已生成的临时/缓存文件)
-* **手动同步**：`uv run python scripts/file_sync/main.py` (手动双向同步 `uploads/` 与工作区)
-* **手动初始化**：`uv run python scripts/initialization/main.py` (检测 openLCA 连接并初始化 RAG)
+
 
 > 💡 **关于详细的文件上传路径、人工审核交互及完整调试步骤，请参见**：[手动调试与文件同步指南](docs/wiki/manual_debug.md)

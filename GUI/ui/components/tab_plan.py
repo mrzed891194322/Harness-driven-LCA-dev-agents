@@ -129,13 +129,14 @@ def build_tab_plan() -> tuple:
                 # 控制按钮，固定放置在底部
                 with gr.Row(elem_id="modify-actions-row", elem_classes=["panel-actions-row"]):
                     clear_modify_btn = gr.Button("🧹 清空输入", variant="secondary", interactive=False)
+                    load_modify_btn = gr.UploadButton("📂 加载修改方案", file_types=[".md"], variant="secondary", interactive=False)
                     exec_modify_btn = gr.Button("⚡ 执行修改", variant="primary", interactive=False)
             
     return (
         plan_input_tab, plan_output_tab, plan_modification_tab,
         plan_template_container, plan_output_panel,
         textbox_components, clear_fields_btn, load_plan_btn, exec_plan_btn, close_btn,
-        modify_textbox_pool, clear_modify_btn, exec_modify_btn, close_modify_btn,
+        modify_textbox_pool, clear_modify_btn, load_modify_btn, exec_modify_btn, close_modify_btn,
         download_plan_btn, modify_plan_btn, confirm_plan_btn, close_output_btn,
         plan_output_content_row, plan_output_warning_row, plan_output_toc_html, plan_output_markdown,
         plan_modify_content_row, plan_modify_warning_row, plan_modify_toc_html, modify_markdown_pool

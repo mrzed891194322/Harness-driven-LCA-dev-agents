@@ -31,6 +31,7 @@ def bind_ui_events(
     # Plan modification components
     modify_textbox_components: list[gr.Textbox],
     clear_modify_btn: gr.Button,
+    load_modify_btn: gr.UploadButton,
     exec_modify_btn: gr.Button,
     close_modify_btn: gr.Button,
     download_plan_btn: gr.DownloadButton,
@@ -123,6 +124,7 @@ def bind_ui_events(
         load_plan_btn=load_plan_btn,
         exec_plan_btn=exec_plan_btn,
         clear_modify_btn=clear_modify_btn,
+        load_modify_btn=load_modify_btn,
         exec_modify_btn=exec_modify_btn,
         modify_plan_btn=modify_plan_btn,
         confirm_plan_btn=confirm_plan_btn,

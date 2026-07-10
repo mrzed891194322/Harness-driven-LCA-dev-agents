@@ -7,7 +7,7 @@
 
 - [ ] 重要：重构agent-skill流
 
-- [ ] 写脚本清理openlca process
+- [x] 写脚本清理openlca process
 
 - [ ] readme ：项目是做什么的，架构是什么？项目需要鸣谢哪些其他项目？
 

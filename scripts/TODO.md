@@ -5,6 +5,6 @@
 
 - [ ] 增加readme脚本调用说明
 
-- [ ] 初始化同时清理openLCA数据库
+- [x] 初始化同时清理openLCA数据库
 
 - [x] initialization 分为手动和自动

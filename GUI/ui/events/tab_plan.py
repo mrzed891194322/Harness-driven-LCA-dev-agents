@@ -11,6 +11,7 @@ def bind_tab_plan_events(
     load_plan_btn: gr.UploadButton,
     exec_plan_btn: gr.Button,
     clear_modify_btn: gr.Button,
+    load_modify_btn: gr.UploadButton,
     exec_modify_btn: gr.Button,
     modify_plan_btn: gr.Button,
     confirm_plan_btn: gr.Button,
@@ -36,6 +37,7 @@ def bind_tab_plan_events(
         plan_modify_warning_row,
         plan_modify_toc_html,
         clear_modify_btn,
+        load_modify_btn,
         exec_modify_btn
     ]
     for md_comp, tb_comp in zip(modify_markdown_pool, modify_textbox_components):
@@ -103,6 +105,30 @@ def bind_tab_plan_events(
     clear_modify_btn.click(
         fn=lambda: [""] * len(modify_textbox_components),
         inputs=None,
+        outputs=modify_textbox_components
+    )
+
+    # 加载已保存的修改方案，并回填当前修改模板中的输入项。
+    def read_user_modify_values(file_obj):
+        if file_obj is None:
+            raise gr.Error("未选择任何文件！")
+
+        uploaded_filepath = Path(file_obj.name)
+        metadata = run_file_loader_action("read_template_metadata", filepath=uploaded_filepath)
+        import config
+        if metadata.get("template_kind") != config.PLAN_MODIFY_TEMPLATE_KIND:
+            raise gr.Error(
+                "文件格式不兼容！请加载由当前计划修改模板导出的 Markdown 文件，"
+                "文件开头需要包含有效的 YAML 模板标识。"
+            )
+
+        values = run_file_loader_action("load_values", filepath=uploaded_filepath)
+        expected_count = len(modify_textbox_components)
+        return (values + [""] * expected_count)[:expected_count]
+
+    load_modify_btn.upload(
+        fn=read_user_modify_values,
+        inputs=load_modify_btn,
         outputs=modify_textbox_components
     )
 
@@ -239,6 +265,7 @@ def bind_tab_plan_events(
                     gr.update(visible=False), # plan_modify_warning_row
                     toc_html,                 # plan_modify_toc_html
                     gr.update(interactive=True), # clear_modify_btn
+                    gr.update(interactive=True), # load_modify_btn
                     gr.update(interactive=True)  # exec_modify_btn
                 ] + updates
             except Exception:
@@ -252,6 +279,7 @@ def bind_tab_plan_events(
             gr.update(visible=False),
             gr.update(visible=True),
             "",
+            gr.update(interactive=False),
             gr.update(interactive=False),
             gr.update(interactive=False)
         ] + updates
