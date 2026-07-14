@@ -6,6 +6,20 @@
     "harness/rules/directory-structure/README.md",
     "harness/rules/coding-specification/README.md"
   ],
+  "mcp": {
+    "servers": {
+      "query_rag": {
+        "type": "local",
+        "command": [
+          "uv",
+          "run",
+          "python",
+          "/home/yuandu/Programming/202606-harness-agent-LCA/harness/tools/query_rag/main.py"
+        ],
+        "disabled": false
+      }
+    }
+  },
   "agent": {
     "plan": {
       "disable": true

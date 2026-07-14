@@ -5,7 +5,13 @@
 
 - [ ] skill工作流化，使用python脚本校验过程
 
-- [ ] 重要：重构agent-skill流
+- [ ] 增加schema
+
+- [ ] 工具mcp化
+
+- [ ] 可靠性评估，交给人来审核
+
+- [x] 重要：重构agent-skill流
 
 - [x] 写脚本清理openlca process
 
