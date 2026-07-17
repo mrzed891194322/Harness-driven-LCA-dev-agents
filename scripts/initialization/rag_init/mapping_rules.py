@@ -1,34 +1,34 @@
 """
-RAG 知识库路径映射规则
+RAG knowledge-library mapping rules.
 
-定义原始输入目录与 RAG 数据库目标子目录之间的映射关系。
-路径均相对于项目根目录。
-
-如需调整映射，直接修改下方 DEFAULT_MAPPING 列表即可：
-    - 新增条目：追加 {"input": "...", "output": "..."}
-    - 删除条目：移除对应字典
-    - 修改路径：编辑对应字段
-
-格式说明：
-    input  : 原始文档所在目录（相对项目根目录）
-    output : Chroma 向量数据库输出目录（相对项目根目录）
+Each mapping has a stable library name, one source directory, and one Chroma
+output directory. Dynamic upload libraries exclude their placeholder README
+and may be published as valid empty databases.
 """
 
-# 默认映射规则
 DEFAULT_MAPPING = [
-    # 静态项目知识库：参考标准
     {
+        "library": "standards",
         "input": "harness/knowledge/inputs/static_ref/standards",
         "output": "harness/knowledge/rag_db/standards",
     },
-    # 静态项目知识库：openLCA 使用说明
     {
+        "library": "openlca_manual",
         "input": "harness/knowledge/inputs/static_ref/openlca_manual",
         "output": "harness/knowledge/rag_db/openlca_manual",
     },
-    # 动态输入的特定 LCA 任务原始数据文件
     {
+        "library": "input",
         "input": "harness/knowledge/inputs/user_file",
         "output": "harness/knowledge/rag_db/input",
+        "exclude_globs": ["README.md", "**/README.md"],
+        "allow_empty": True,
+    },
+    {
+        "library": "data",
+        "input": "harness/knowledge/inputs/user_data",
+        "output": "harness/knowledge/rag_db/data",
+        "exclude_globs": ["README.md", "**/README.md"],
+        "allow_empty": True,
     },
 ]

@@ -78,8 +78,12 @@ def check_rag_embedding_api(project_root: Path | None = None) -> bool:
         from rag_init.private_utils.embedding import load_embedding_config
 
         print("Checking RAG embedding API with a temporary Chroma database...")
-        api_key, api_url, model_name = load_embedding_config()
-        collection = init_chroma_collection(probe_dir, api_key, api_url, model_name)
+        embedding_config = load_embedding_config()
+        collection = init_chroma_collection(
+            probe_dir,
+            embedding_config,
+            "environment-probe",
+        )
         collection.add(
             documents=["RAG environment check document."],
             metadatas=[{"source": "env_check"}],

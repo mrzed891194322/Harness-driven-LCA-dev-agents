@@ -60,11 +60,11 @@ graph TD
 推荐在 OpenCode 交互界面或系统终端中，通过以下预设命令快速推进工作流：
 
 > [!TIP]
-> 推荐在 OpenCode 客户端直接发送 `/` 斜杠命令（例如 `/init-rag-database`），以获得更好的交互体验。
+> 推荐在 OpenCode 客户端直接发送 自然语言指令（例如“请初始化 RAG 知识库”），以获得更好的交互体验。
 
 * **初始化 RAG 数据库**：
   ```bash
-  opencode run --command init-rag-database
+  uv run python scripts/initialization/main.py --only rag
   ```
 * **制定 LCA 计划**：
   ```bash

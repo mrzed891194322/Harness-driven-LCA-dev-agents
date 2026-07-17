@@ -1,35 +1,43 @@
 from pathlib import Path
+from typing import Any
 
 import chromadb
 import chromadb.utils.embedding_functions as embedding_functions
 
+from private_utils.embedding import EmbeddingConfig
+
+
+COLLECTION_NAME = "rag_collection"
+RAG_SCHEMA_VERSION = 1
+DISTANCE_SPACE = "l2"
+
 
 def init_chroma_collection(
     output_dir: Path,
-    api_key: str,
-    api_url: str | None,
-    model_name: str | None,
+    config: EmbeddingConfig,
+    build_id: str,
+    *,
+    embedding_function: Any | None = None,
 ) -> chromadb.Collection:
-    """Create a clean persistent Chroma collection using the configured embedding API."""
+    """Create a versioned collection in a new staging directory."""
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Initializing ChromaDB at {output_dir}...")
     client = chromadb.PersistentClient(path=str(output_dir))
 
-    kwargs = {"api_key": api_key}
-    if model_name:
-        kwargs["model_name"] = model_name
-    if api_url:
-        kwargs["api_base"] = api_url
-
-    openai_ef = embedding_functions.OpenAIEmbeddingFunction(**kwargs)
-
-    try:
-        client.delete_collection(name="rag_collection")
-        print("Existing collection deleted for a clean rebuild.")
-    except Exception:
-        pass
+    if embedding_function is None:
+        kwargs = {"api_key": config.api_key, "model_name": config.model}
+        if config.api_url:
+            kwargs["api_base"] = config.api_url
+        embedding_function = embedding_functions.OpenAIEmbeddingFunction(**kwargs)
 
     return client.create_collection(
-        name="rag_collection",
-        embedding_function=openai_ef,
+        name=COLLECTION_NAME,
+        embedding_function=embedding_function,
+        metadata={
+            "rag_schema_version": RAG_SCHEMA_VERSION,
+            "embedding_model": config.model,
+            "embedding_dimension": 0,
+            "distance_space": DISTANCE_SPACE,
+            "build_id": build_id,
+        },
     )

@@ -1,5 +1,7 @@
 {
   "supported_file_types": [
+    ".md",
+    ".rst",
     ".pdf",
     ".docx",
     ".doc",

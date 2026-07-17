@@ -18,5 +18,6 @@ CLEAN_TARGETS = [
         "name": "harness",
         "path": PROJECT_ROOT / "harness",
         "gitignore": PROJECT_ROOT / "harness" / ".gitignore",
+        "skip_ignored": ["knowledge/rag_db/**"],
     },
 ]

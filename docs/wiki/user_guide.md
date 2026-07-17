@@ -146,7 +146,7 @@ graph TD
 | 文件 | 路径 | 格式 | 当前用途 |
 | :--- | :--- | :--- | :--- |
 | 计划需求文件 | `input/plan.md` | Markdown（带"✍️ 用户填写内容区"占位符） | 告知智能体研究对象、功能单位、系统边界、背景数据库选择等 |
-| 原始参考文档 | `input/files/` | `.docx` / `.md` | 环评报告等原始资料，智能体通过 RAG 向量数据库进行检索 |
+| 原始参考文档 | `harness/knowledge/inputs/user_file/` | `.pdf` / `.docx` / `.md` | 环评报告等资料，对应 `input` RAG 库 |\n| 原始参考数据 | `harness/knowledge/inputs/user_data/` | `.xlsx` / `.csv` / `.json` | 清单与表格资料，对应 `data` RAG 库 |
 
 #### 1.2 输出文件（智能体生成后需要专家审核的）
 

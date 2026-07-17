@@ -82,14 +82,14 @@ def main():
     parser.add_argument(
         "--clean",
         action="store_true",
-        help="构建 RAG 前先清空各输出子目录中除 README.md 外的内容",
+        help="兼容参数；RAG 使用 staged build，在校验成功后替换活动库",
     )
     parser.add_argument(
         "--mapping",
         type=str,
         default=None,
         help=(
-            "自定义映射 JSON 文件路径，格式为列表 [{input, output}, ...]；"
+            "自定义映射 JSON 文件路径，格式为列表 [{library, input, output, ...}]；"
             "省略则使用内置默认映射"
         ),
     )

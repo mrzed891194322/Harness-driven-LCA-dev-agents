@@ -1,27 +1,27 @@
 from pathlib import Path
-import chromadb
-import chromadb.utils.embedding_functions as embedding_functions
+from typing import Any
 
-def get_chroma_collection(knowledge_dir: Path, api_key: str, api_url: str, model_name: str) -> chromadb.Collection:
-    """
-    初始化 Chroma 客户端并获取已有的向量数据库集合。
-    
-    参数:
-        knowledge_dir (Path): 向量数据库的本地持久化存放目录。
-        api_key (str): OpenAI/Embedding API 的密钥。
-        api_url (str): 可选，自定义的 API 基础地址（api_base）。
-        model_name (str): 嵌入模型名称。
-        
-    返回:
-        chromadb.Collection: 获取得到的 ChromaDB 集合对象。
-    """
+import chromadb
+
+
+COLLECTION_NAME = "rag_collection"
+
+
+def get_chroma_collection(
+    knowledge_dir: Path,
+    embedding_function: Any,
+) -> chromadb.Collection:
+    """Open an existing Chroma collection after a non-mutating filesystem preflight."""
+    database_file = knowledge_dir / "chroma.sqlite3"
+    if not knowledge_dir.is_dir():
+        raise FileNotFoundError(f"Knowledge directory {knowledge_dir} does not exist")
+    if not database_file.is_file():
+        raise FileNotFoundError(
+            f"Knowledge database {database_file} does not exist; rebuild this library"
+        )
+
     client = chromadb.PersistentClient(path=str(knowledge_dir))
-    
-    # 配置 OpenAI 嵌入函数
-    kwargs = {"api_key": api_key, "model_name": model_name}
-    if api_url:
-        kwargs["api_base"] = api_url
-        
-    openai_ef = embedding_functions.OpenAIEmbeddingFunction(**kwargs)
-    
-    return client.get_collection(name="rag_collection", embedding_function=openai_ef)
+    return client.get_collection(
+        name=COLLECTION_NAME,
+        embedding_function=embedding_function,
+    )

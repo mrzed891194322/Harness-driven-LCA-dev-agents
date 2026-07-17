@@ -22,3 +22,7 @@ logs/
 uv.lock
 
 
+# dev: AI agents
+.codex/
+.agents/
+

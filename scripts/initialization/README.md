@@ -1,100 +1,69 @@
-# 项目初始化脚本 (initialization)
+# 项目初始化脚本
 
-用于在项目启动阶段完成初始化前置准备：
+scripts/initialization 负责环境检查、RAG 知识库构建以及 openLCA IPC 连接检查。
 
-1. **检查环境**：验证 `opencode` CLI 与 RAG embedding API 可用。
-2. **构建 RAG 知识库**：依据映射规则将原始文档向量化写入 Chroma 数据库。
-3. **检查 openLCA IPC Server**：验证 openLCA 桌面端已启动并开启 IPC 服务。
+## RAG 构建保证
 
-## 目录结构
+RAG 构建采用 staged publish：
 
-```
-initialization/
-├── main.py                  # 统一入口（CLI）
-├── README.md                 # 本说明
-├── clean_dir/                # 目录清理模块
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   └── utils/
-│       ├── __init__.py
-│       └── clean.py
-├── env_check/                # 环境检查模块
-│   ├── __init__.py
-│   └── main.py
-├── rag_init/                 # RAG 知识库构建模块
-│   ├── __init__.py
-│   ├── main.py               # 构建逻辑
-│   ├── mapping_rules.py      # 路径映射规则（可在此修改映射）
-│   └── private_utils/
-│       ├── __init__.py
-│       ├── embedding.py      # Embedding API 环境变量加载
-│       ├── file_filter.py    # 文件后缀过滤
-│       ├── db.py             # ChromaDB 集合初始化
-│       ├── builder.py         # RAG 构建流程
-│       ├── file_indexer.py   # 单文件切分与写入
-│       └── config.json       # 支持转换的文档后缀配置
-├── utils/
-│   ├── __init__.py
-│   └── encoding.py           # Windows 控制台编码处理
-└── openlca_check/            # openLCA IPC 连接检查模块
-    ├── __init__.py
-    └── main.py               # 检查逻辑
-```
+1. 在活动数据库旁创建临时 staging 目录。
+2. 转换、分块并写入新的 Chroma collection。
+3. 校验 chunk 数量、embedding 模型和向量维度。
+4. 写入 build_manifest.json。
+5. 全部成功后替换活动数据库；失败时删除 staging、保留旧库，并在输出目录旁写入 build-failure.json。
 
-`scripts/initialization` 内部已自包含目录清理、RAG 构建和 openLCA 连接检查实现，不再调用 `harness/tools` 下的工具脚本。文件同步仍保持为独立脚本：`scripts/file_sync/main.py`。
+文档转换副本存放在数据库内部的 markdown 目录，不会在源资料目录生成或覆盖同名 Markdown。通用 clean 流程也不会提前删除活动 RAG 数据库。
 
-## 默认映射规则
+## 默认知识库
 
-映射规则已提取至 `rag_init/mapping_rules.py`，路径均相对于项目根目录：
+| library | 输入目录 | 输出目录 | 说明 |
+| :--- | :--- | :--- | :--- |
+| standards | harness/knowledge/inputs/static_ref/standards | harness/knowledge/rag_db/standards | LCA 标准与规范 |
+| openlca_manual | harness/knowledge/inputs/static_ref/openlca_manual | harness/knowledge/rag_db/openlca_manual | openLCA 操作资料 |
+| input | harness/knowledge/inputs/user_file | harness/knowledge/rag_db/input | 用户参考文档 |
+| data | harness/knowledge/inputs/user_data | harness/knowledge/rag_db/data | 用户表格与结构化参考数据 |
 
-| 原始输入目录 | RAG 输出目录 | 用途 |
-|---|---|---|
-| `harness/knowledge/inputs/static_ref/standards` | `harness/knowledge/rag_db/standards` | 静态：参考标准 |
-| `harness/knowledge/inputs/static_ref/openlca_manual` | `harness/knowledge/rag_db/openlca_manual` | 静态：openLCA 使用说明 |
-| `harness/knowledge/inputs/user_file` | `harness/knowledge/rag_db/input` | 动态：LCA 任务原始数据 |
+input 和 data 会排除占位 README，并允许发布合法空库，防止已移除的上传资料继续留在旧索引中。映射配置位于 scripts/initialization/rag_init/mapping_rules.py。
 
-如需调整映射，直接编辑 `rag_init/mapping_rules.py` 中的 `DEFAULT_MAPPING` 列表。
+## 环境变量
 
-## 前置条件
+~~~text
+EMBEDDING_API_KEY="..."
+EMBEDDING_API_URL="https://.../v1"  # 可选
+EMBEDDING_MODEL="..."
+~~~
 
-1. 已配置 `.env` 中的 `EMBEDDING_API_KEY`（及可选的 `EMBEDDING_API_URL`、`EMBEDDING_MODEL`）。
-2. 已安装项目依赖（`uv sync`），包含 `olca-ipc`、`chromadb`、`markitdown`、`langchain-text-splitters`、`python-dotenv`。
-3. 检查 openLCA 时，需先在 openLCA 桌面端 `Tools -> Developer Tools -> IPC Server` 启动服务（默认端口 8080）。
+构建端会把模型名和向量维度写入数据库 schema；查询端配置必须与构建时一致。
 
 ## 使用方式
 
 在项目根目录执行：
 
-```bash
-# manual 模式（默认）：先清理目录并调用独立的 file_sync，再检查环境、构建 RAG、检查 openLCA
+~~~bash
+# 完整初始化
 uv run python scripts/initialization/main.py
 
-# gui 模式：只检查环境、构建 RAG、检查 openLCA
+# GUI 调用模式
 uv run python scripts/initialization/main.py --mode gui
 
-# 构建前先清空输出子目录（保留 README.md）
-uv run python scripts/initialization/main.py --clean
-
-# 仅清理目录
-uv run python scripts/initialization/main.py --only clean
-
-# 仅检查环境
-uv run python scripts/initialization/main.py --only env
-
-# 仅构建 RAG 知识库
+# 仅构建全部 RAG 库
 uv run python scripts/initialization/main.py --only rag
 
-# 仅检查 openLCA 连接（自定义端口）
+# 仅执行环境检查
+uv run python scripts/initialization/main.py --only env
+
+# 仅检查 openLCA
 uv run python scripts/initialization/main.py --only openlca --port 8080
 
-# 使用自定义映射 JSON 文件（格式：[{"input": "...", "output": "..."}]）
-uv run python scripts/initialization/main.py --mapping path/to/mapping.json
-```
+# 自定义映射
+uv run python scripts/initialization/main.py --only rag --mapping path/to/mapping.json
+~~~
 
-## 单独运行子模块
+--clean 为兼容参数。staged build 本身总是在成功后完整替换对应知识库，不再构建前清空活动库。
 
-```bash
-# 仅检查 openLCA
-uv run python scripts/initialization/openlca_check/main.py --port 8080
-```
+## 离线测试
+
+~~~bash
+uv run python -m unittest discover -s scripts/initialization/rag_init/tests -v
+uv run python -m unittest discover -s harness/tools/query_rag/tests -v
+~~~

@@ -7,17 +7,15 @@
     "harness/rules/coding-specification/README.md"
   ],
   "mcp": {
-    "servers": {
-      "query_rag": {
-        "type": "local",
-        "command": [
-          "uv",
-          "run",
-          "python",
-          "/home/yuandu/Programming/202606-harness-agent-LCA/harness/tools/query_rag/main.py"
-        ],
-        "disabled": false
-      }
+    "query_rag": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "harness/tools/query_rag/main.py"
+      ],
+      "enabled": true
     }
   },
   "agent": {

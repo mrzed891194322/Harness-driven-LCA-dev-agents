@@ -153,13 +153,13 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
 
 def run_init_rag_database_console() -> Generator[tuple[str, str], None, None]:
     """
-    运行 'opencode run --command init-rag-database --dangerously-skip-permissions'，
+    运行项目内置的 RAG 初始化脚本，
     并将终端日志流式更新到 Gradio 原生文本组件中。
     """
-    command = ["opencode", "run", "--command", "init-rag-database", "--dangerously-skip-permissions"]
+    command = [sys.executable, "scripts/initialization/main.py", "--only", "rag"]
     accumulated_output = ""
 
-    yield "[System] Preparing to start init-rag-database...\n", "Running"
+    yield "[System] Preparing to build RAG knowledge libraries...\n", "Running"
 
     from functions.utils.process_manager import should_stop
 

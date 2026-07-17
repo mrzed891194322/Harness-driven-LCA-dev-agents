@@ -53,7 +53,11 @@ def run_clean(dry_run: bool = False, yes: bool = False) -> int:
         if keep_patterns:
             print(f"  例外保留: {', '.join(keep_patterns)}")
 
+        skipped_ignored = set(target_cfg.get("skip_ignored", []))
         for ignored in ignored_dirs:
+            if ignored in skipped_ignored:
+                print(f"  保留活动目录: {ignored}")
+                continue
             target_path = root_dir / ignored.replace("/**", "").strip("/")
             if not target_path.exists() or not target_path.is_dir():
                 continue
