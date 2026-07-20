@@ -1,4 +1,5 @@
 # Ignore all generated and dynamic files in workspace/
+codex/**
 LCI/**
 data/**
 plan/**

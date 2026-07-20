@@ -6,7 +6,7 @@
 
 > **硬约束**
 > - 严禁为 openLCA 连接检测、描述符遍历、UUID 查询、模型图读取、导入或计算编写临时 Python 脚本。
-> - 只检查 openLCA IPC Server 是否可连接时，必须直接运行 `uv run python scripts/initialization/openlca_check/main.py --host <host> --port <port>`。
+> - CLI 中只检查连接时，运行 `scripts/initialization/openlca_check/main.py`；MCP 客户端调用 `health_check`。
 > - 查询数据库实体名称、UUID 或描述符时，必须使用 `query_descriptors/main.py`。
 > - 读取产品系统模型图时，必须使用 `get_model_graph/main.py`。
 > - 清理工作流导入的项目分类实体时，必须使用 `cleanup_output/main.py`。
@@ -17,11 +17,16 @@
 ## 目录结构概览
 
 ```
-scripts/
+control_openlca/
+├── main.py                         # 只读 stdio MCP 入口
 ├── README.md                       # 本说明文档（开发规范与工具包定义）
+├── tests/                          # 无需真实 openLCA 的离线单元测试
+│   ├── test_readonly_mcp.py
+│   └── README.md
 ├── utils/                          # 公共共享工具模块包 (未来所有新脚本需要尽量复用此处功能)
 │   ├── __init__.py
 │   ├── connection.py               # IPC 连接建立与测试连接可用性
+│   ├── readonly.py                 # MCP 健康检查、描述符查询与分页
 │   ├── entity.py                   # 实体模糊查找与匹配 (UUID/名称)
 │   ├── export.py                   # 结果解析提取、Markdown 打印与 JSON/CSV 写出
 │   └── validation.py               # 分配方案校验与参数重定义 Fail-Fast 解析
@@ -47,10 +52,42 @@ scripts/
 │   ├── README.md                   # 该清理任务的配置使用文档
 │   └── private_utils/              # 清理任务局部的私有工具目录
 │
-└── get_model_graph/                # 任务：获取产品系统的模型图依赖及连线拓扑目录
-    ├── main.py                     # 入口主程序
-    ├── README.md                   # 该提取任务的配置使用文档
-    └── private_utils/              # 提取任务局部的私有工具目录
+├── get_model_graph/                # 任务：获取产品系统的模型图依赖及连线拓扑目录
+│   ├── main.py                     # 入口主程序
+│   ├── README.md                   # 该提取任务的配置使用文档
+│   └── private_utils/              # 提取任务局部的私有工具目录
+└── query_descriptors/              # 任务：查询当前数据库的实体描述符
+    ├── main.py                     # CLI 入口
+    ├── README.md                   # 查询参数说明
+    └── private_utils/
+```
+
+---
+
+## 只读 MCP 服务
+
+`main.py` 启动名为 `openLCA-Control` 的 stdio MCP server。当前只注册两个不会修改
+openLCA 数据库的工具：
+
+- `health_check`：检查 IPC Server 是否可连接，以及当前数据库是否能响应描述符查询。
+- `query_descriptors`：按名称片段查询实体名称和 UUID，并返回分类、参考单位及分页信息。
+
+MCP endpoint 固定由服务进程环境配置，工具调用方不能传入任意网络地址：
+
+- `OPENLCA_IPC_HOST`：默认 `127.0.0.1`。
+- `OPENLCA_IPC_PORT`：默认 `8080`。
+
+项目已在 `.codex/config.toml` 与 `.opencode/opencode.json` 中注册此服务。也可以从项目
+根目录手动启动 stdio server：
+
+```bash
+uv run python harness/tools/control_openlca/main.py
+```
+
+离线测试不要求启动 openLCA：
+
+```bash
+uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
 ```
 
 ---

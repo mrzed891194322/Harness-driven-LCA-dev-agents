@@ -16,6 +16,16 @@
         "harness/tools/query_rag/main.py"
       ],
       "enabled": true
+    },
+    "control_openlca": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "harness/tools/control_openlca/main.py"
+      ],
+      "enabled": true
     }
   },
   "agent": {
