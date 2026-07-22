@@ -1,17 +1,26 @@
 from __future__ import annotations
 
 import json
+import sys
 import unittest
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from referencing import Registry, Resource
 
-from harness.workflow_run import next_lci_review_action, validate_plan_intake
+SCRIPT_ROOT = Path(__file__).resolve().parents[1]
+if str(SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_ROOT))
+
+from validation import next_lci_review_action, validate_plan_intake
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-SPEC_ROOT = PROJECT_ROOT / "harness" / "specs" / "workflow-run" / "references"
+PROJECT_ROOT = next(
+    parent
+    for parent in Path(__file__).resolve().parents
+    if (parent / "pyproject.toml").is_file()
+)
+SPEC_ROOT = SCRIPT_ROOT.parent
 SCHEMA_ROOT = SPEC_ROOT / "schemas"
 TIMESTAMP = "2026-07-22T08:00:00Z"
 HASH = "a" * 64

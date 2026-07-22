@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lca-quality/lca-quality-score.schema.json",
+  "title": "LCA quality evaluation score",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "rubric_version",
+    "workflow_contract_version",
+    "run_id",
+    "review_id",
+    "evaluated_at",
+    "evaluator",
+    "standards",
+    "applicability",
+    "inputs",
+    "artifact_coverage",
+    "criteria",
+    "dimensions",
+    "issues",
+    "overall",
+    "evaluator_limitations",
+    "recommendations"
+  ],
+  "properties": {
+    "schema": {"const": "lca-quality/score"},
+    "version": {"const": "1.0"},
+    "rubric_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+    "workflow_contract_version": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"},
+    "review_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"},
+    "evaluated_at": {"type": "string", "format": "date-time"},
+    "evaluator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "platform"],
+      "properties": {
+        "agent": {"const": "lca-quality-evaluator"},
+        "platform": {"const": "codex"}
+      }
+    },
+    "standards": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/standard"}
+    },
+    "applicability": {"$ref": "#/$defs/applicability"},
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/inputArtifact"}
+    },
+    "artifact_coverage": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/artifactCoverage"}
+    },
+    "criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/criterion"}
+    },
+    "dimensions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/dimension"}
+    },
+    "issues": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/issue"}
+    },
+    "overall": {"$ref": "#/$defs/overall"},
+    "evaluator_limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "standard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "edition", "path", "sha256", "locators"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "edition": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "locators": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "applicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "study_type",
+        "intended_application",
+        "intended_audience",
+        "third_party_communication",
+        "public_comparative_assertion",
+        "optional_lcia_elements",
+        "critical_review_type",
+        "evidence_refs"
+      ],
+      "properties": {
+        "study_type": {"enum": ["lca", "lci", "unresolved"]},
+        "intended_application": {"type": "string", "minLength": 1},
+        "intended_audience": {"type": "string", "minLength": 1},
+        "third_party_communication": {"enum": ["yes", "no", "unresolved"]},
+        "public_comparative_assertion": {"enum": ["yes", "no", "unresolved"]},
+        "optional_lcia_elements": {
+          "type": "array",
+          "items": {"enum": ["normalization", "grouping", "weighting", "none", "unresolved"]},
+          "uniqueItems": true
+        },
+        "critical_review_type": {"enum": ["none", "expert", "panel", "unresolved"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "inputArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_id", "kind", "path", "file_status", "schema_status", "sha256", "details"],
+      "properties": {
+        "artifact_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]+$"},
+        "kind": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "file_status": {"enum": ["present", "missing", "hash_mismatch", "unreadable"]},
+        "schema_status": {"enum": ["valid", "invalid", "not_checked", "not_applicable"]},
+        "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "details": {"type": "string"}
+      }
+    },
+    "artifactCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "required", "status", "criterion_ids", "matched_artifact_ids"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "required": {"type": "boolean"},
+        "status": {"enum": ["covered", "missing", "not_applicable"]},
+        "criterion_ids": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/criterionId"}, "uniqueItems": true},
+        "matched_artifact_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "criterionId": {
+      "type": "string",
+      "pattern": "^(GS|LCI|IA|INT|REP|PUB)-[0-9]{2}$"
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "criterion_id",
+        "dimension_id",
+        "title",
+        "applicability",
+        "gate_status",
+        "evidence_level",
+        "standard_refs",
+        "evidence_refs",
+        "finding",
+        "issue_id",
+        "owner",
+        "recheck_condition"
+      ],
+      "properties": {
+        "criterion_id": {"$ref": "#/$defs/criterionId"},
+        "dimension_id": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "applicability": {"enum": ["applicable", "not_applicable", "unresolved"]},
+        "gate_status": {"enum": ["pass", "fail", "needs_human_review", "not_applicable"]},
+        "evidence_level": {"type": ["integer", "null"], "minimum": 0, "maximum": 3},
+        "standard_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "finding": {"type": "string", "minLength": 1},
+        "issue_id": {"anyOf": [{"type": "null"}, {"type": "string", "pattern": "^LCAQ-(GS|LCI|IA|INT|REP|PUB)-[0-9]{2}-[0-9]{4}$"}]},
+        "owner": {"type": "string", "minLength": 1},
+        "recheck_condition": {"type": "string", "minLength": 1}
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1", "2", "3"],
+      "properties": {
+        "0": {"type": "integer", "minimum": 0},
+        "1": {"type": "integer", "minimum": 0},
+        "2": {"type": "integer", "minimum": 0},
+        "3": {"type": "integer", "minimum": 0}
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension_id", "name", "evidence_level", "distribution", "applicable_count", "criterion_ids"],
+      "properties": {
+        "dimension_id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "evidence_level": {"type": ["integer", "null"], "minimum": 0, "maximum": 3},
+        "distribution": {"$ref": "#/$defs/distribution"},
+        "applicable_count": {"type": "integer", "minimum": 0},
+        "criterion_ids": {"type": "array", "items": {"$ref": "#/$defs/criterionId"}, "uniqueItems": true}
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issue_id", "criterion_id", "severity", "status", "finding", "required_action", "evidence_refs"],
+      "properties": {
+        "issue_id": {"type": "string", "pattern": "^LCAQ-(GS|LCI|IA|INT|REP|PUB)-[0-9]{2}-[0-9]{4}$"},
+        "criterion_id": {"$ref": "#/$defs/criterionId"},
+        "severity": {"enum": ["critical", "major", "minor"]},
+        "status": {"enum": ["open", "needs_human_review", "closed"]},
+        "finding": {"type": "string", "minLength": 1},
+        "required_action": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "overall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "rationale", "failed_criteria", "human_review_criteria", "limitations", "permitted_use"],
+      "properties": {
+        "status": {"enum": ["pass", "conditional_pass", "fail", "needs_human_review"]},
+        "rationale": {"type": "string", "minLength": 1},
+        "failed_criteria": {"type": "array", "items": {"$ref": "#/$defs/criterionId"}, "uniqueItems": true},
+        "human_review_criteria": {"type": "array", "items": {"$ref": "#/$defs/criterionId"}, "uniqueItems": true},
+        "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "permitted_use": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

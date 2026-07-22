@@ -9,7 +9,11 @@ from pathlib import Path
 import yaml
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = next(
+    parent
+    for parent in Path(__file__).resolve().parents
+    if (parent / "pyproject.toml").is_file()
+)
 
 
 def load_jsonc(path: Path) -> dict:
@@ -65,12 +69,25 @@ class CodexConfigurationTests(unittest.TestCase):
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
             config = tomllib.load(stream)
         self.assertEqual(config["agents"]["max_depth"], 2)
-        for name in ("major-orchestrator", "sub-executor", "eval-reviewer"):
+        for name in (
+            "major-orchestrator",
+            "sub-executor",
+            "eval-reviewer",
+            "lca-quality-evaluator",
+        ):
             path = PROJECT_ROOT / ".codex" / "agents" / f"{name}.toml"
             with path.open("rb") as stream:
                 agent = tomllib.load(stream)
             self.assertEqual(agent["name"], name)
             self.assertTrue((PROJECT_ROOT / ".codex" / config["agents"][name]["config_file"]).is_file())
+
+    def test_quality_evaluator_is_standalone_and_uses_shared_contract(self) -> None:
+        path = PROJECT_ROOT / ".codex" / "agents" / "lca-quality-evaluator.toml"
+        with path.open("rb") as stream:
+            agent = tomllib.load(stream)
+        self.assertEqual(agent["sandbox_mode"], "workspace-write")
+        self.assertIn("禁止生成或委派其他 Agent", agent["developer_instructions"])
+        self.assertIn("harness/specs/lca-quality-evaluation", agent["developer_instructions"])
 
     def test_all_workflow_mcp_tools_are_enabled(self) -> None:
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:

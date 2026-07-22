@@ -31,10 +31,17 @@ uv.lock
 !.codex/agents/major-orchestrator.toml
 !.codex/agents/sub-executor.toml
 !.codex/agents/eval-reviewer.toml
+!.codex/agents/lca-quality-evaluator.toml
 !.codex/skills/
 .codex/skills/*
 !.codex/skills/read-knowledge/
 !.codex/skills/read-knowledge/**
 !.codex/skills/workflow-main/
 !.codex/skills/workflow-main/**
+!.codex/skills/evaluate-lca-quality/
+!.codex/skills/evaluate-lca-quality/**
 .agents/
+
+# Generated caches inside tracked project skills
+.codex/skills/**/__pycache__/
+.codex/skills/**/*.py[oc]

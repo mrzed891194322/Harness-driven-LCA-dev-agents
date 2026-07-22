@@ -3,17 +3,9 @@
 
 - [ ] 增加日志输出
 
-- [ ] skill工作流化，使用python脚本校验过程
-
-- [ ] 增加schema
-
-- [ ] 工具mcp化
+- [ ] spec workflow-run 拆分成具体小工作
 
 - [ ] 可靠性评估，交给人来审核
-
-- [x] 重要：重构agent-skill流
-
-- [x] 写脚本清理openlca process
 
 - [ ] readme ：项目是做什么的，架构是什么？项目需要鸣谢哪些其他项目？
 
@@ -21,7 +13,7 @@
 
 - [ ] 重要：论文评价指标确定
 
-- [ ] 重要：增加codex评分agent（按照国际标准打分，建立agent-skill）
+
 
 
 

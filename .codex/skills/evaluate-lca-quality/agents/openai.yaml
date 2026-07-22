@@ -1,0 +1,4 @@
+interface:
+  display_name: "LCA Quality Evaluation"
+  short_description: "Evaluate LCA evidence with ISO-aligned gates"
+  default_prompt: "Use $evaluate-lca-quality to evaluate a whole-lca run and produce structured JSON and Markdown reports."

@@ -35,3 +35,7 @@ config_file = "agents/sub-executor.toml"
 [agents.eval-reviewer]
 description = "只读审查 whole-lca 的计划或 LCI，返回结构化问题。"
 config_file = "agents/eval-reviewer.toml"
+
+[agents.lca-quality-evaluator]
+description = "按固定 ISO 对齐 rubric 评估 whole-lca 完整证据包并输出 JSON/Markdown。"
+config_file = "agents/lca-quality-evaluator.toml"

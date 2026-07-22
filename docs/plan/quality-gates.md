@@ -132,3 +132,8 @@ last_reviewed: 2026-07-19
 - 线上或人工发现的新关键错误必须：冻结相关发布声明、加入最小复现案例、定位责任层、修复并运行受影响全部回归。
 - 标准、背景数据库、LCIA 方法、embedding 模型或 openLCA 主版本变化时，相关基准失效，完成影响分析后才能重新建立基线。
 
+## 9. Whole-LCA 与质量评价同步门禁
+
+whole-lca 的必需产物、schema、模板、状态语义或交付路径属于 G1 以上变更。此类变更必须在同一提交中同步更新 `harness/specs/lca-quality-evaluation/` 的固定产物覆盖矩阵、受影响 rubric、score schema、Markdown 模板和正负例夹具。缺少任一同步项即 `fail`，不得以“后续补评估规则”为由放行。
+
+质量评价使用版本化固定清单，不在运行时自动猜测新产物的意义。评估器遇到未支持的 workflow contract 版本时必须保留诊断产物并返回 `needs_human_review`。

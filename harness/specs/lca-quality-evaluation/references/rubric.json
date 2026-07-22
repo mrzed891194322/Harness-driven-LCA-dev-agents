@@ -1,0 +1,203 @@
+{
+  "schema": "lca-quality/rubric",
+  "version": "1.0",
+  "supported_workflow_contract_versions": ["1.0"],
+  "standards": [
+    {
+      "id": "ISO 14040",
+      "edition": "2006",
+      "path": "harness/knowledge/inputs/static_ref/standards/ISO14040-2006/ISO 14040-2006_.md",
+      "locators": ["5.1", "6"]
+    },
+    {
+      "id": "ISO 14044",
+      "edition": "2006",
+      "path": "harness/knowledge/inputs/static_ref/standards/ISO14044-2006/ISO 14044-2006_.md",
+      "locators": ["4.1-4.5", "5.1-5.3", "6.1-6.3"]
+    }
+  ],
+  "dimensions": [
+    {"dimension_id": "goal-scope", "name": "目标、用途与范围"},
+    {"dimension_id": "functional-equivalence", "name": "功能单位、参考流与系统等效性"},
+    {"dimension_id": "boundary-allocation", "name": "系统边界、截断与分配"},
+    {"dimension_id": "data-quality-sources", "name": "数据质量与来源"},
+    {"dimension_id": "lci-model", "name": "LCI 数值与模型"},
+    {"dimension_id": "lcia-results", "name": "LCIA 方法与结果"},
+    {"dimension_id": "interpretation", "name": "解释"},
+    {"dimension_id": "report-reproducibility", "name": "报告与可复现性"},
+    {"dimension_id": "review-governance", "name": "关键审查与治理"}
+  ],
+  "applicability_rules": [
+    {
+      "rule": "always",
+      "criterion_ids": ["GS-01", "GS-02", "GS-03", "GS-04", "GS-05", "GS-06", "GS-07", "GS-08", "GS-09", "GS-10", "LCI-01", "LCI-02", "LCI-03", "LCI-04", "LCI-05", "LCI-06", "LCI-07", "LCI-08", "LCI-09", "INT-01", "INT-02", "INT-03", "INT-04", "INT-05", "INT-06", "INT-07", "INT-08", "REP-01", "REP-02", "REP-03", "REP-04", "REP-07"]
+    },
+    {
+      "rule": "lca-only",
+      "criterion_ids": ["IA-01", "IA-02", "IA-03", "IA-04", "IA-05", "IA-06", "IA-07", "IA-08", "IA-09", "REP-06"]
+    },
+    {
+      "rule": "third-party-only",
+      "criterion_ids": ["REP-05"]
+    },
+    {
+      "rule": "critical-review-if-conducted",
+      "criterion_ids": ["REP-08"]
+    },
+    {
+      "rule": "public-comparison-only",
+      "criterion_ids": ["PUB-01", "PUB-02", "PUB-03", "PUB-04", "PUB-05", "PUB-06", "PUB-07", "PUB-08"]
+    }
+  ],
+  "artifact_coverage": [
+    {
+      "kind": "execution-plan",
+      "path_patterns": ["workspace/plan/execution_plan.md"],
+      "required": true,
+      "criterion_ids": ["GS-02", "GS-03", "GS-04", "GS-05", "GS-06", "GS-07", "GS-08", "GS-09", "GS-10", "IA-01", "IA-04", "REP-01"]
+    },
+    {
+      "kind": "workflow-manifest",
+      "path_patterns": ["workspace/logs/whole-lca/<run_id>/manifest.json"],
+      "required": true,
+      "criterion_ids": ["GS-01", "GS-02", "LCI-02", "IA-07", "REP-03"]
+    },
+    {
+      "kind": "workflow-history",
+      "path_patterns": ["workspace/logs/whole-lca/<run_id>/stages/*.json", "workspace/logs/whole-lca/<run_id>/reviews/*.json", "workspace/logs/whole-lca/<run_id>/handoffs/*.json"],
+      "required": true,
+      "criterion_ids": ["LCI-02", "LCI-03", "LCI-07", "LCI-09", "INT-04", "REP-03"]
+    },
+    {
+      "kind": "lci-flows",
+      "path_patterns": ["workspace/LCI/flows/*.json"],
+      "required": true,
+      "criterion_ids": ["LCI-01", "LCI-04", "LCI-06", "LCI-09"]
+    },
+    {
+      "kind": "lci-processes",
+      "path_patterns": ["workspace/LCI/processes/*.json"],
+      "required": true,
+      "criterion_ids": ["LCI-01", "LCI-02", "LCI-03", "LCI-04", "LCI-05", "LCI-06", "LCI-08", "LCI-09"]
+    },
+    {
+      "kind": "lci-product-systems",
+      "path_patterns": ["workspace/LCI/product_systems/*.json"],
+      "required": true,
+      "criterion_ids": ["GS-06", "GS-07", "LCI-05", "IA-01"]
+    },
+    {
+      "kind": "lci-mapping-report",
+      "path_patterns": ["workspace/LCI/human_readable_mapping.md"],
+      "required": true,
+      "criterion_ids": ["GS-07", "GS-08", "LCI-01", "LCI-02", "LCI-06", "LCI-08", "LCI-09", "REP-03"]
+    },
+    {
+      "kind": "import-report",
+      "path_patterns": ["workspace/results/<run_id>/import_report.json"],
+      "required": true,
+      "criterion_ids": ["LCI-02", "LCI-09", "REP-03"]
+    },
+    {
+      "kind": "model-graph",
+      "path_patterns": ["workspace/results/<run_id>/model_graph/*.json"],
+      "required": true,
+      "criterion_ids": ["GS-07", "LCI-04", "LCI-05", "REP-03"]
+    },
+    {
+      "kind": "raw-lcia-results",
+      "path_patterns": ["workspace/results/<run_id>/raw/*.json"],
+      "required": true,
+      "criterion_ids": ["IA-02", "IA-03", "IA-05", "IA-06", "IA-07", "IA-08", "IA-09", "INT-01", "INT-02", "REP-06"]
+    },
+    {
+      "kind": "calculation-manifest",
+      "path_patterns": ["workspace/results/<run_id>/calculation_manifest.json"],
+      "required": true,
+      "criterion_ids": ["GS-05", "IA-03", "IA-06", "REP-03", "REP-06"]
+    },
+    {
+      "kind": "lca-report",
+      "path_patterns": ["workspace/results/<run_id>/lca_report.md"],
+      "required": true,
+      "criterion_ids": ["GS-01", "IA-09", "INT-01", "INT-02", "INT-03", "INT-04", "INT-05", "INT-06", "INT-07", "INT-08", "REP-01", "REP-02", "REP-03", "REP-04", "REP-06", "REP-07"]
+    },
+    {
+      "kind": "critical-review-package",
+      "path_patterns": ["workspace/results/<run_id>/critical_review/**/*"],
+      "required": false,
+      "criterion_ids": ["REP-08", "PUB-08"]
+    },
+    {
+      "kind": "third-party-report",
+      "path_patterns": ["workspace/results/<run_id>/third_party_report.md"],
+      "required": false,
+      "criterion_ids": ["REP-05", "PUB-05"]
+    },
+    {
+      "kind": "comparative-assertion-package",
+      "path_patterns": ["workspace/results/<run_id>/comparative_assertion/**/*"],
+      "required": false,
+      "criterion_ids": ["PUB-01", "PUB-02", "PUB-03", "PUB-04", "PUB-05", "PUB-06", "PUB-07"]
+    }
+  ],
+  "criteria": [
+    {"criterion_id": "GS-01", "dimension_id": "goal-scope", "title": "研究包含适用的 LCA/LCI 阶段", "required_evidence": "目标与范围、LCI、解释，以及完整 LCA 的 LCIA 产物和相互引用", "standard_refs": ["ISO 14044:2006 4.1"], "normative": true},
+    {"criterion_id": "GS-02", "dimension_id": "goal-scope", "title": "目标与范围清楚定义且与用途一致", "required_evidence": "受控目标与范围及修订理由", "standard_refs": ["ISO 14044:2006 4.2.1"], "normative": true},
+    {"criterion_id": "GS-03", "dimension_id": "goal-scope", "title": "用途、原因、受众和公开比较意图明确", "required_evidence": "四项无歧义声明", "standard_refs": ["ISO 14044:2006 4.2.2"], "normative": true},
+    {"criterion_id": "GS-04", "dimension_id": "goal-scope", "title": "产品系统及功能或性能特征明确", "required_evidence": "可复核的系统与功能描述", "standard_refs": ["ISO 14044:2006 4.2.3.1-4.2.3.2"], "normative": true},
+    {"criterion_id": "GS-05", "dimension_id": "functional-equivalence", "title": "功能单位清楚、可测量且符合目标与范围", "required_evidence": "数量、性能和必要的时间/地点维度及计算清单一致性", "standard_refs": ["ISO 14044:2006 4.2.3.2"], "normative": true},
+    {"criterion_id": "GS-06", "dimension_id": "functional-equivalence", "title": "参考流已定义并正确关联功能单位", "required_evidence": "功能单位到参考流的换算和系统等效性说明", "standard_refs": ["ISO 14044:2006 4.2.3.2"], "normative": true},
+    {"criterion_id": "GS-07", "dimension_id": "boundary-allocation", "title": "系统边界、单位过程和详细程度与目标一致", "required_evidence": "边界说明、过程清单、拓扑和模型图", "standard_refs": ["ISO 14044:2006 4.2.3.3"], "normative": true},
+    {"criterion_id": "GS-08", "dimension_id": "boundary-allocation", "title": "省略项、理由和影响透明", "required_evidence": "排除清单及显著性或敏感性证据", "standard_refs": ["ISO 14044:2006 4.2.3.3.1"], "normative": true},
+    {"criterion_id": "GS-09", "dimension_id": "boundary-allocation", "title": "截断准则与假设明确并评价结果影响", "required_evidence": "质量、能量和环境显著性准则、计算和影响", "standard_refs": ["ISO 14044:2006 4.2.3.3.3"], "normative": true},
+    {"criterion_id": "GS-10", "dimension_id": "goal-scope", "title": "范围覆盖方法、数据、假设、限制、审查和报告要求", "required_evidence": "范围章节逐项覆盖或有证据的不适用理由", "standard_refs": ["ISO 14044:2006 4.2.3.1"], "normative": true},
+
+    {"criterion_id": "LCI-01", "dimension_id": "data-quality-sources", "title": "数据收集覆盖与目标一致的输入、产品、废物和排放", "required_evidence": "数据收集记录、单位过程清单和缺口", "standard_refs": ["ISO 14044:2006 4.3.2"], "normative": true},
+    {"criterion_id": "LCI-02", "dimension_id": "data-quality-sources", "title": "计算步骤与假设有记录并一致应用", "required_evidence": "可重算公式、版本、假设和执行轨迹", "standard_refs": ["ISO 14044:2006 4.3.3.1"], "normative": true},
+    {"criterion_id": "LCI-03", "dimension_id": "data-quality-sources", "title": "数据有效性检查已执行", "required_evidence": "质量/能量平衡、释放因子比较或等价验证及异常处置", "standard_refs": ["ISO 14044:2006 4.3.3.2"], "normative": true},
+    {"criterion_id": "LCI-04", "dimension_id": "lci-model", "title": "每个单位过程具有适当的定量参考流", "required_evidence": "唯一定量参考、方向、单位和过程换算", "standard_refs": ["ISO 14044:2006 4.3.3.3"], "normative": true},
+    {"criterion_id": "LCI-05", "dimension_id": "lci-model", "title": "全系统输入输出关联到功能单位", "required_evidence": "过程链缩放、Provider 连接和功能单位归一化", "standard_refs": ["ISO 14044:2006 4.3.3.3"], "normative": true},
+    {"criterion_id": "LCI-06", "dimension_id": "data-quality-sources", "title": "聚合程度与目标一致且语义等价", "required_evidence": "聚合规则、Flow 映射和例外", "standard_refs": ["ISO 14044:2006 4.3.3.3"], "normative": true},
+    {"criterion_id": "LCI-07", "dimension_id": "boundary-allocation", "title": "边界修订依据敏感性与截断准则", "required_evidence": "初始/最终边界、敏感性结果和修订理由", "standard_refs": ["ISO 14044:2006 4.3.3.4"], "normative": true},
+    {"criterion_id": "LCI-08", "dimension_id": "boundary-allocation", "title": "分配程序识别、守恒、解释且一致应用", "required_evidence": "分配决定、前后平衡和替代方法敏感性；或不适用证据", "standard_refs": ["ISO 14044:2006 4.3.4"], "normative": true},
+    {"criterion_id": "LCI-09", "dimension_id": "data-quality-sources", "title": "缺失、异常和代理数据按质量要求处理", "required_evidence": "缺失值、代理值、异常、来源和未解决项", "standard_refs": ["ISO 14044:2006 4.2.3.6; 4.3.3.2"], "normative": true},
+
+    {"criterion_id": "IA-01", "dimension_id": "lcia-results", "title": "LCIA 与目标、范围、LCI 质量和边界协调", "required_evidence": "LCIA 计划、数据充分性和范围一致性检查", "standard_refs": ["ISO 14044:2006 4.4.1"], "normative": true},
+    {"criterion_id": "IA-02", "dimension_id": "lcia-results", "title": "包含选择、分类和表征三个必需 LCIA 元素", "required_evidence": "方法配置、分类和完整类别结果", "standard_refs": ["ISO 14044:2006 4.4.2.1"], "normative": true},
+    {"criterion_id": "IA-03", "dimension_id": "lcia-results", "title": "类别、指标、模型和来源准确可识别", "required_evidence": "方法名称/版本/UUID、类别 UUID、来源和单位", "standard_refs": ["ISO 14044:2006 4.4.2.2"], "normative": true},
+    {"criterion_id": "IA-04", "dimension_id": "lcia-results", "title": "LCIA 选择有理由并覆盖相关环境问题", "required_evidence": "与目标一致的选择理由和类别完整性评价", "standard_refs": ["ISO 14044:2006 4.4.2.2"], "normative": true},
+    {"criterion_id": "IA-05", "dimension_id": "lcia-results", "title": "环境机制、模型、指标、终点和表征因子可识别", "required_evidence": "受控方法文档或精确引用", "standard_refs": ["ISO 14044:2006 4.4.2.2"], "normative": true},
+    {"criterion_id": "IA-06", "dimension_id": "lcia-results", "title": "表征计算、设置、假设和值选择有记录", "required_evidence": "原始结果、计算清单、方法设置和资源释放", "standard_refs": ["ISO 14044:2006 4.4.2.4"], "normative": true},
+    {"criterion_id": "IA-07", "dimension_id": "lcia-results", "title": "数据不足时补充数据或修订目标与范围", "required_evidence": "迭代记录；空结果不得继续解释", "standard_refs": ["ISO 14044:2006 4.4.4"], "normative": true},
+    {"criterion_id": "IA-08", "dimension_id": "lcia-results", "title": "可选 LCIA 元素透明且保留变换前结果", "required_evidence": "归一化、分组、加权的计算、参考值、理由和原始 profile；或不适用", "standard_refs": ["ISO 14044:2006 4.4.3"], "normative": true},
+    {"criterion_id": "IA-09", "dimension_id": "lcia-results", "title": "报告说明 LCIA 的相对性和固有限制", "required_evidence": "不将类别指标表述为实际终点、阈值、安全边际或风险", "standard_refs": ["ISO 14044:2006 4.4.1; 5.2 e)"], "normative": true},
+
+    {"criterion_id": "INT-01", "dimension_id": "interpretation", "title": "LCI/LCIA 结果按目标与范围解释", "required_evidence": "目标—结果—解释追踪", "standard_refs": ["ISO 14044:2006 4.5.1"], "normative": true},
+    {"criterion_id": "INT-02", "dimension_id": "interpretation", "title": "显著输入、输出、过程、影响类别和方法选择已识别", "required_evidence": "热点/贡献分析和重大方法问题", "standard_refs": ["ISO 14044:2006 4.5.2"], "normative": true},
+    {"criterion_id": "INT-03", "dimension_id": "interpretation", "title": "功能、功能单位、边界和数据质量限制已复核", "required_evidence": "解释中的一致性和限制记录", "standard_refs": ["ISO 14044:2006 4.5.1.2"], "normative": true},
+    {"criterion_id": "INT-04", "dimension_id": "interpretation", "title": "完整性检查处理缺失信息并记录理由", "required_evidence": "完整性表和必要的前阶段迭代", "standard_refs": ["ISO 14044:2006 4.5.3.2"], "normative": true},
+    {"criterion_id": "INT-05", "dimension_id": "interpretation", "title": "敏感性检查评价结论可靠性", "required_evidence": "数据、分配、方法和指标情景及结论稳定性", "standard_refs": ["ISO 14044:2006 4.5.3.3"], "normative": true},
+    {"criterion_id": "INT-06", "dimension_id": "interpretation", "title": "一致性检查覆盖数据、时空、分配、边界和 LCIA", "required_evidence": "跨过程/情景一致性矩阵", "standard_refs": ["ISO 14044:2006 4.5.3.4"], "normative": true},
+    {"criterion_id": "INT-07", "dimension_id": "interpretation", "title": "结论源于评价并符合用途、假设和限制", "required_evidence": "重大问题—评价—结论链和必要回修", "standard_refs": ["ISO 14044:2006 4.5.4"], "normative": true},
+    {"criterion_id": "INT-08", "dimension_id": "interpretation", "title": "建议基于最终结论并符合预期用途", "required_evidence": "建议—结论映射；无建议时说明", "standard_refs": ["ISO 14044:2006 4.5.4"], "normative": true},
+
+    {"criterion_id": "REP-01", "dimension_id": "report-reproducibility", "title": "报告类型和格式在范围阶段定义", "required_evidence": "范围约定与实际报告格式一致", "standard_refs": ["ISO 14044:2006 5.1.1"], "normative": true},
+    {"criterion_id": "REP-02", "dimension_id": "report-reproducibility", "title": "结果和结论完整、准确、无偏且面向受众", "required_evidence": "报告与原始结果一致并避免无依据结论", "standard_refs": ["ISO 14044:2006 5.1.1"], "normative": true},
+    {"criterion_id": "REP-03", "dimension_id": "report-reproducibility", "title": "数据、方法、假设、限制和权衡透明可复核", "required_evidence": "报告、哈希、schema、运行记录和完整证据链", "standard_refs": ["ISO 14044:2006 5.1.1"], "normative": true},
+    {"criterion_id": "REP-04", "dimension_id": "report-reproducibility", "title": "结果使用方式与研究目标一致", "required_evidence": "用途、发布边界和限制一致", "standard_refs": ["ISO 14044:2006 5.1.1"], "normative": true},
+    {"criterion_id": "REP-05", "dimension_id": "report-reproducibility", "title": "第三方沟通具有适用的第三方报告", "required_evidence": "第三方报告及其提供记录；内部用途可有证据地不适用", "standard_refs": ["ISO 14044:2006 5.2"], "normative": true},
+    {"criterion_id": "REP-06", "dimension_id": "report-reproducibility", "title": "LCIA 报告覆盖方法、结果、类别、模型、因子和值选择", "required_evidence": "方法/类别 UUID、原始结果、限制和可选元素", "standard_refs": ["ISO 14044:2006 5.2 e)"], "normative": true},
+    {"criterion_id": "REP-07", "dimension_id": "report-reproducibility", "title": "解释报告透明呈现结果、限制、数据质量和专家判断", "required_evidence": "解释章节和判断依据", "standard_refs": ["ISO 14044:2006 5.2 f)"], "normative": true},
+    {"criterion_id": "REP-08", "dimension_id": "review-governance", "title": "开展关键审查时纳入审核者、报告和回应", "required_evidence": "审核者身份/隶属、审查报告、意见和回应；未开展时有范围决定", "standard_refs": ["ISO 14044:2006 5.2 g); 6"], "normative": true},
+
+    {"criterion_id": "PUB-01", "dimension_id": "functional-equivalence", "title": "公开比较系统具有相同功能、功能单位和系统等效性", "required_evidence": "功能、参考流、边界、数据质量和方法等效性矩阵", "standard_refs": ["ISO 14044:2006 4.2.3.7; 5.3.1 c)"], "normative": true},
+    {"criterion_id": "PUB-02", "dimension_id": "boundary-allocation", "title": "公开比较边界敏感性覆盖质量、能量和环境显著性", "required_evidence": "三类截断准则与详细敏感性结果", "standard_refs": ["ISO 14044:2006 4.2.3.3.3; 5.3.1 a)"], "normative": true},
+    {"criterion_id": "PUB-03", "dimension_id": "lcia-results", "title": "公开比较使用充分完整的类别指标并逐类别比较", "required_evidence": "完整 LCIA profile 和类别完整性评价", "standard_refs": ["ISO 14044:2006 4.4.5; 5.3.1 e)"], "normative": true},
+    {"criterion_id": "PUB-04", "dimension_id": "lcia-results", "title": "公开比较不以 LCIA 单项或总分单独支持总体优越性", "required_evidence": "LCI、数据质量、敏感性、不确定性及其他相关信息", "standard_refs": ["ISO 14044:2006 4.4.5"], "normative": true},
+    {"criterion_id": "PUB-05", "dimension_id": "data-quality-sources", "title": "公开比较报告覆盖精度、完整性、代表性和评审过程", "required_evidence": "附加第三方报告内容", "standard_refs": ["ISO 14044:2006 5.3.1"], "normative": true},
+    {"criterion_id": "PUB-06", "dimension_id": "lcia-results", "title": "类别指标的接受程度、科学有效性和环境相关性有说明", "required_evidence": "方法依据和合格专业判断", "standard_refs": ["ISO 14044:2006 4.4.5; 5.3.1 f)-g)"], "normative": true},
+    {"criterion_id": "PUB-07", "dimension_id": "lcia-results", "title": "详细敏感性、不确定性和差异显著性评价已完成", "required_evidence": "分析结果及不夸大差异的解释", "standard_refs": ["ISO 14044:2006 4.4.5; 5.3.1 h)-i)"], "normative": true},
+    {"criterion_id": "PUB-08", "dimension_id": "review-governance", "title": "公开比较由利益相关方评审小组开展关键审查", "required_evidence": "独立主席、至少三名成员、审查报告、意见回应和报告收录", "standard_refs": ["ISO 14044:2006 6.1; 6.3"], "normative": true}
+  ]
+}

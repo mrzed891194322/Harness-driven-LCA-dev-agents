@@ -39,3 +39,7 @@
 - 某方案具有统计或环境优势，而原始结果与方法并未支持该结论。
 
 报告中的每个核心数值必须能回链到 raw 文件中的类别 UUID，并注明 raw 文件 SHA-256。
+
+## 6. 评估契约联动
+
+本文件中的必需结果、schema、模板、文件名或语义发生变化时，必须同步更新 `harness/specs/lca-quality-evaluation/references/rubric.json` 的 `artifact_coverage` 和受影响检查项，并更新质量评估契约测试。该要求是开发变更门禁，不表示 whole-lca 会自动运行质量评估。

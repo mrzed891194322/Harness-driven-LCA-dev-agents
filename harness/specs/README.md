@@ -17,3 +17,7 @@ Use `lci-construction/README.md` when the task involves converting an LCA plan i
 ### Whole-LCA Workflow Run
 
 Use `workflow-run/README.md` when the task starts from an existing execution plan and covers plan intake, evidence retrieval, LCI review loops, an openLCA write preflight, import, model-graph readback, LCIA calculation, run logging, or final result delivery.
+
+### LCA Quality Evaluation
+
+Use `lca-quality-evaluation/README.md` when the task evaluates or scores a whole-lca run, its LCI/LCIA evidence, report quality, public-comparison applicability, or critical-review readiness.
