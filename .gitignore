@@ -23,6 +23,18 @@ uv.lock
 
 
 # dev: AI agents
-.codex/
+.codex/*
+!.codex/config.toml
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/opencode_lca_user.toml
+!.codex/agents/major-orchestrator.toml
+!.codex/agents/sub-executor.toml
+!.codex/agents/eval-reviewer.toml
+!.codex/skills/
+.codex/skills/*
+!.codex/skills/read-knowledge/
+!.codex/skills/read-knowledge/**
+!.codex/skills/workflow-main/
+!.codex/skills/workflow-main/**
 .agents/
-

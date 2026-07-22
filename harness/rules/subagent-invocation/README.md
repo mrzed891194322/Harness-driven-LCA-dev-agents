@@ -20,8 +20,9 @@
 | :--- | :--- | :--- | :--- |
 | `eval-executor` | 建模工作流 (workflow) | `subagents/workflow/eval-executor` | 
 | `data-processor` | 可选数据预处理 (workflow) | `subagents/workflow/data-processor` | 
+| `sub-executor` | 端到端 LCA 执行 (workflow) | `subagents/workflow/sub-executor` |
+| `eval-reviewer` | 端到端 LCA 只读审查 (workflow) | `subagents/workflow/eval-reviewer` |
 | `doc-handler` | 通用工具 (tools) | `subagents/tools/doc-handler` |
 | `code-builder` | 通用工具 (tools) | `subagents/tools/code-builder` | 
 
 ---
-

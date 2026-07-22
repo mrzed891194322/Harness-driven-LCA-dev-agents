@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/import-report.schema.json",
+  "title": "openLCA LCI import report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "operation_id", "status", "endpoint", "active_database", "target_category", "preflight_hash", "started_at", "ended_at", "duration_ms", "success_count", "failed_count", "deleted_count", "entities", "errors"],
+  "properties": {
+    "schema": {"const": "whole-lca/import-report"},
+    "version": {"const": "1.0"},
+    "operation_id": {"type": "string", "format": "uuid"},
+    "status": {"enum": ["success", "partial_failure", "failed", "rejected"]},
+    "endpoint": {"type": "string"},
+    "active_database": {"type": "string", "minLength": 1},
+    "target_category": {"type": "string", "minLength": 1},
+    "preflight_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "ended_at": {"type": "string", "format": "date-time"},
+    "duration_ms": {"type": "integer", "minimum": 0},
+    "success_count": {"type": "integer", "minimum": 0},
+    "failed_count": {"type": "integer", "minimum": 0},
+    "deleted_count": {"type": "integer", "minimum": 0},
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "entity_type", "id", "name", "action", "status"],
+        "properties": {
+          "path": {"type": "string"},
+          "entity_type": {"type": "string"},
+          "id": {"type": ["string", "null"]},
+          "name": {"type": ["string", "null"]},
+          "action": {"enum": ["create_or_update", "delete"]},
+          "status": {"enum": ["success", "failed"]},
+          "error": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "errors": {"type": "array", "items": {"type": "string"}}
+  }
+}

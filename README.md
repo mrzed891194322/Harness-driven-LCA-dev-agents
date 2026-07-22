@@ -72,6 +72,8 @@ uv run python scripts/initialization/main.py
    * **制定 LCA 计划**：`opencode run --command make-plan` (或交互指令 `/make-plan`)
    * **微调并迭代计划**：`opencode run --command revise-plan` (或交互指令 `/revise-plan`)
    * **设计并导入清单**：`opencode run --command design-lci` (或交互指令 `/design-lci`)
+   * **端到端受控执行**：将已审核计划保存为 `uploads/plan/execution_plan.md`，运行 `opencode run --command whole-lca`（或 `/whole-lca`）；数据库写入前会展示精确预检范围并要求确认。
+3. **使用 Codex 执行同一工作流**：在受信任的项目会话中调用 `$workflow-main`；Codex 会使用项目级 `major-orchestrator`、`sub-executor` 和 `eval-reviewer`，并遵守相同的预检哈希与结果契约。
 
 
 

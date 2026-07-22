@@ -59,5 +59,17 @@
       "model": "deepseek/deepseek-v4-flash",
       "temperature": 0.1
     },
+    "major-orchestrator": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.3
+    },
+    "subagents/workflow/sub-executor": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.2
+    },
+    "subagents/workflow/eval-reviewer": {
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.1
+    },
   }
 }

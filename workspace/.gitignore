@@ -8,6 +8,7 @@ tmp/**
 eval/**
 logs/**
 memory/**
+results/**
 
 # Keep README files
 !LCI/README.md
@@ -16,3 +17,4 @@ memory/**
 !report/README.md
 !tmp/README.md
 !eval/README.md
+!results/README.md

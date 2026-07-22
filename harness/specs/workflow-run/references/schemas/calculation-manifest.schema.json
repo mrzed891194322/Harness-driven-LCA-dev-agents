@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/calculation-manifest.schema.json",
+  "title": "Whole-LCA calculation manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "run_id", "status", "active_database", "product_system", "impact_method", "functional_unit_amount", "allocation", "regionalized", "costs", "parameters", "tool_versions", "calculated_at", "raw_result", "resource_released"],
+  "properties": {
+    "schema": {"const": "whole-lca/calculation-manifest"},
+    "version": {"const": "1.0"},
+    "run_id": {"type": "string"},
+    "status": {"enum": ["success", "failed"]},
+    "active_database": {"type": "string", "minLength": 1},
+    "product_system": {"$ref": "#/$defs/ref"},
+    "impact_method": {"$ref": "#/$defs/ref"},
+    "functional_unit_amount": {"type": "number", "exclusiveMinimum": 0},
+    "allocation": {"type": ["string", "null"]},
+    "regionalized": {"type": "boolean"},
+    "costs": {"type": "boolean"},
+    "parameters": {"type": "object", "additionalProperties": {"type": "number"}},
+    "tool_versions": {"type": "object", "additionalProperties": {"type": "string"}},
+    "calculated_at": {"type": "string", "format": "date-time"},
+    "raw_result": {"type": "object", "required": ["path", "sha256"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}},
+    "resource_released": {"const": true},
+    "unresolved_items": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {"ref": {"type": "object", "required": ["id", "name"], "properties": {"id": {"type": "string"}, "name": {"type": "string"}}}}
+}

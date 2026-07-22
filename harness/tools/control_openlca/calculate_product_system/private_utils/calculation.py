@@ -1,31 +1,28 @@
 import sys
-import olca_schema
+
+from utils.workflow import build_calculation_setup, calculate_handle
 
 def run_calculation(client, target, method, amount, allocation_type, regionalized, costs, param_redefs):
     print("正在配置计算设置...")
-    setup = olca_schema.CalculationSetup()
-    setup.target = olca_schema.as_ref(target)
-    setup.amount = amount
-    
-    if method:
-        setup.impact_method = olca_schema.as_ref(method)
+    # Preserve the CLI's already-resolved allocation and parameter objects while
+    # sharing the calculation execution primitive with MCP.
+    setup = build_calculation_setup(
+        target=target,
+        method=method,
+        amount=amount,
+        allocation=None,
+        regionalized=regionalized,
+        costs=costs,
+        parameters=None,
+    )
     if allocation_type:
         setup.allocation = allocation_type
-    if regionalized:
-        setup.with_regionalization = True
-    if costs:
-        setup.with_costs = True
     if param_redefs:
         setup.parameters = param_redefs
 
     print("正在启动 openLCA 计算，请稍候...")
     try:
-        result = client.calculate(setup)
-        
-        # 确保计算完成
-        if hasattr(result, "wait_until_ready"):
-            result.wait_until_ready()
-            
+        result = calculate_handle(client, setup)
         print("计算完成。")
         return result
     except Exception as e:

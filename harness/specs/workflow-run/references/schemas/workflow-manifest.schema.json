@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/workflow-manifest.schema.json",
+  "title": "Whole-LCA workflow manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "run_id", "platform", "orchestrator_agent", "plan", "started_at", "updated_at", "status", "lci_review_attempt", "artifact_index"],
+  "properties": {
+    "schema": {"const": "whole-lca/workflow-manifest"},
+    "version": {"const": "1.0"},
+    "run_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"},
+    "platform": {"enum": ["opencode", "codex"]},
+    "orchestrator_agent": {"const": "major-orchestrator"},
+    "plan": {"$ref": "#/$defs/artifact"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["not_started", "running", "awaiting_confirmation", "needs_input", "needs_review", "failed", "completed"]},
+    "current_stage": {"type": ["string", "null"]},
+    "preflight_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "lci_review_attempt": {"type": "integer", "minimum": 0, "maximum": 3},
+    "artifact_index": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_id", "kind", "path", "sha256", "source_artifact_ids", "revision_of"],
+      "properties": {
+        "artifact_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]+$"},
+        "kind": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_artifact_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "revision_of": {"type": ["string", "null"]},
+        "created_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

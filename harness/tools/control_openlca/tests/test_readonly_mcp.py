@@ -132,12 +132,27 @@ class ReadOnlyServiceTests(unittest.TestCase):
 
 
 class MCPServerTests(unittest.TestCase):
-    def test_only_read_tools_are_registered(self) -> None:
+    def test_workflow_tools_are_registered_with_safe_annotations(self) -> None:
         tools = {tool.name: tool for tool in asyncio.run(mcp_module.mcp.list_tools())}
 
-        self.assertEqual(set(tools), {"health_check", "query_descriptors"})
+        self.assertEqual(
+            set(tools),
+            {
+                "health_check",
+                "query_descriptors",
+                "preflight_import_lci",
+                "import_lci",
+                "get_model_graph",
+                "calculate_product_system",
+            },
+        )
         self.assertTrue(tools["health_check"].annotations.read_only_hint)
         self.assertFalse(tools["health_check"].annotations.destructive_hint)
+        self.assertTrue(tools["preflight_import_lci"].annotations.read_only_hint)
+        self.assertFalse(tools["preflight_import_lci"].annotations.destructive_hint)
+        self.assertFalse(tools["import_lci"].annotations.read_only_hint)
+        self.assertTrue(tools["import_lci"].annotations.destructive_hint)
+        self.assertFalse(tools["import_lci"].annotations.idempotent_hint)
 
     def test_health_tool_uses_configured_endpoint(self) -> None:
         expected = {"ok": True}

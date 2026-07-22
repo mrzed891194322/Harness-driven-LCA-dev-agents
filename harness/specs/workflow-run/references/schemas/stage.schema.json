@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/stage.schema.json",
+  "title": "Whole-LCA stage record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "run_id", "stage_id", "supersedes_stage_id", "sequence", "stage", "agent", "started_at", "ended_at", "status", "artifact_ids", "evidence_refs", "issue_ids"],
+  "properties": {
+    "schema": {"const": "whole-lca/stage"},
+    "version": {"const": "1.0"},
+    "run_id": {"type": "string"},
+    "stage_id": {"type": "string", "pattern": "^stage-[0-9]{3}-[a-z0-9-]+$"},
+    "supersedes_stage_id": {"type": ["string", "null"]},
+    "sequence": {"type": "integer", "minimum": 1},
+    "stage": {"type": "string", "minLength": 1},
+    "agent": {"type": "string", "minLength": 1},
+    "started_at": {"type": "string", "format": "date-time"},
+    "ended_at": {"type": ["string", "null"], "format": "date-time"},
+    "status": {"enum": ["running", "passed", "failed", "needs_input", "needs_review", "awaiting_confirmation"]},
+    "artifact_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "summary": {"type": "string"}
+  }
+}

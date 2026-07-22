@@ -18,15 +18,17 @@
 
 ```
 control_openlca/
-├── main.py                         # 只读 stdio MCP 入口
+├── main.py                         # 查询与带门禁写入的 stdio MCP 入口
 ├── README.md                       # 本说明文档（开发规范与工具包定义）
 ├── tests/                          # 无需真实 openLCA 的离线单元测试
 │   ├── test_readonly_mcp.py
+│   ├── test_workflow_mcp.py
 │   └── README.md
 ├── utils/                          # 公共共享工具模块包 (未来所有新脚本需要尽量复用此处功能)
 │   ├── __init__.py
 │   ├── connection.py               # IPC 连接建立与测试连接可用性
 │   ├── readonly.py                 # MCP 健康检查、描述符查询与分页
+│   ├── workflow.py                 # 预检/导入、模型图与计算的 CLI/MCP 共用服务
 │   ├── entity.py                   # 实体模糊查找与匹配 (UUID/名称)
 │   ├── export.py                   # 结果解析提取、Markdown 打印与 JSON/CSV 写出
 │   └── validation.py               # 分配方案校验与参数重定义 Fail-Fast 解析
@@ -64,13 +66,20 @@ control_openlca/
 
 ---
 
-## 只读 MCP 服务
+## MCP 服务
 
-`main.py` 启动名为 `openLCA-Control` 的 stdio MCP server。当前只注册两个不会修改
-openLCA 数据库的工具：
+`main.py` 启动名为 `openLCA-Control` 的 stdio MCP server，注册以下工具：
 
 - `health_check`：检查 IPC Server 是否可连接，以及当前数据库是否能响应描述符查询。
 - `query_descriptors`：按名称片段查询实体名称和 UUID，并返回分类、参考单位及分页信息。
+- `preflight_import_lci`：只读解析 `workspace/LCI`，读取活动数据库指纹与目标分类现有实体，列出创建/覆盖/删除范围并返回稳定 `preflight_hash`。
+- `import_lci`：唯一的 MCP 数据库写入工具。必须传入 `user_confirmed=true` 和未变化的 `preflight_hash`；执行前重新预检，哈希不符时不调用 `put/delete`。
+- `get_model_graph`：读回 Product System 节点、边、断链和孤立节点。
+- `calculate_product_system`：执行 LCIA，返回方法/类别名称与 UUID、数值、单位、计算设置和句柄释放状态。
+
+`import_lci` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径固定为
+`workspace/LCI`，防止调用方把任意目录扩入确认范围。CLI 原参数和调用入口保持兼容，并与
+MCP 共用 `utils/workflow.py` 的实体解析、删除顺序、图结构和计算执行逻辑。
 
 MCP endpoint 固定由服务进程环境配置，工具调用方不能传入任意网络地址：
 
@@ -120,6 +129,14 @@ uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
     *   `extract_results(result)`：从计算结果句柄中提取 LCIA 各类别的名称、UUID、数值和单位，并**主动释放 (dispose)** 服务器连接句柄以防止 openLCA 内存泄露。
     *   `print_results_table(formatted_results)`：将提取的数据在控制台中以排版整齐的 Markdown 表格输出。
     *   `export_results(formatted_results, output_path)`：根据文件后缀，自动将结果导出为标准的 JSON 或 CSV（自动处理 Windows 下 Excel 乱码的 utf-8-sig 编码）。
+
+### 5. Whole-LCA 共用服务 (`utils/workflow.py`)
+
+* `preflight_import_lci(...)`：只读加载 LCI、计算文件/数据库/范围哈希。
+* `import_lci(...)`：在重新预检并核对确认后返回结构化 operation report。
+* `get_model_graph(...)`：构建带断链检查的模型图结果。
+* `calculate_product_system(...)`：执行产品系统 LCIA，并在成功/异常路径释放结果句柄。
+* `legacy_import_lci(...)`、`model_graph_from_product_system(...)`、`build_calculation_setup(...)`：供既有 CLI 复用，避免 MCP 与 CLI 产生两套实现。
 
 
 ---

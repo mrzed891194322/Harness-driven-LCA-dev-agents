@@ -1,0 +1,37 @@
+[mcp_servers.query_rag]
+command = "uv"
+args = ["run", "python", "harness/tools/query_rag/main.py"]
+cwd = "."
+enabled = true
+enabled_tools = ["list_rag_libraries", "query_rag"]
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+default_tools_approval_mode = "auto"
+
+[mcp_servers.control_openlca]
+command = "uv"
+args = ["run", "python", "harness/tools/control_openlca/main.py"]
+cwd = "."
+enabled = true
+enabled_tools = ["health_check", "query_descriptors", "preflight_import_lci", "import_lci", "get_model_graph", "calculate_product_system"]
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+default_tools_approval_mode = "auto"
+
+[agents]
+max_depth = 2
+
+[agents.opencode_lca_user]
+config_file = "agents/opencode_lca_user.toml"
+
+[agents.major-orchestrator]
+description = "编排 whole-lca 状态机、专用子 agent、用户写入确认和运行证据。"
+config_file = "agents/major-orchestrator.toml"
+
+[agents.sub-executor]
+description = "执行 whole-lca 检索、LCI、openLCA 预检/导入/读回/计算阶段。"
+config_file = "agents/sub-executor.toml"
+
+[agents.eval-reviewer]
+description = "只读审查 whole-lca 的计划或 LCI，返回结构化问题。"
+config_file = "agents/eval-reviewer.toml"

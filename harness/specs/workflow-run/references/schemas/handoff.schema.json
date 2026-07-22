@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/handoff.schema.json",
+  "title": "Whole-LCA agent handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "run_id", "handoff_id", "supersedes_handoff_id", "stage_id", "from_agent", "to_agent", "timestamp", "input_artifacts", "decision", "evidence_refs", "unresolved_items", "status", "next_action", "issue_ids"],
+  "properties": {
+    "schema": {"const": "whole-lca/handoff"},
+    "version": {"const": "1.0"},
+    "run_id": {"type": "string"},
+    "handoff_id": {"type": "string", "pattern": "^handoff-[0-9]{3}-[a-z0-9-]+$"},
+    "supersedes_handoff_id": {"type": ["string", "null"]},
+    "stage_id": {"type": "string"},
+    "from_agent": {"type": "string", "minLength": 1},
+    "to_agent": {"type": "string", "minLength": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "input_artifacts": {"type": "array", "items": {"$ref": "workflow-manifest.schema.json#/$defs/artifact"}},
+    "decision": {"type": "string", "minLength": 1},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "unresolved_items": {"type": "array", "items": {"type": "string"}},
+    "status": {"enum": ["requested", "accepted", "returned", "blocked", "completed"]},
+    "next_action": {"type": "string", "minLength": 1},
+    "issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "queries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["query", "source_domain", "timestamp", "candidates", "selection_reason", "source_locations"],
+        "properties": {
+          "query": {"type": "string"},
+          "source_domain": {"enum": ["rag", "openlca", "user-file", "standard"]},
+          "timestamp": {"type": "string", "format": "date-time"},
+          "candidates": {"type": "array", "items": {"type": "string"}},
+          "selection_reason": {"type": "string"},
+          "source_locations": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

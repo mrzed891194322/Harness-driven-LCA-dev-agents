@@ -13,3 +13,7 @@ Use `plan-guidelines/README.md` when the task involves creating or updating an L
 ### LCI Construction
 
 Use `lci-construction/README.md` when the task involves converting an LCA plan into structured Flow, Process, or Product System JSON, validating LCI data, or importing data into openLCA.
+
+### Whole-LCA Workflow Run
+
+Use `workflow-run/README.md` when the task starts from an existing execution plan and covers plan intake, evidence retrieval, LCI review loops, an openLCA write preflight, import, model-graph readback, LCIA calculation, run logging, or final result delivery.

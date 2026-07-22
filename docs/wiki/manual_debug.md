@@ -71,7 +71,19 @@ uv run python scripts/initialization/main.py
 
 ---
 
-### 6. 调用 LCI 指令设计清单并导入 openLCA
+### 6. 调用 whole-lca 执行受控端到端工作流（推荐）
+
+将人工审核后的计划保存为 `uploads/plan/execution_plan.md`，然后运行：
+
+```bash
+opencode run --command whole-lca
+```
+
+该命令同步后固定读取 `workspace/plan/execution_plan.md`，执行计划接收门禁、证据检索、LCI 构建及最多三次审查。LCI 通过后，系统只执行只读预检并展示活动数据库、目标分类、创建/覆盖/删除范围和 `preflight_hash`；只有您明确确认该精确范围后才会导入。范围变化会使原确认失效并要求重新预检。运行日志保存在 `workspace/logs/whole-lca/<run_id>/`，结果保存在 `workspace/results/<run_id>/`。
+
+---
+
+### 7. 调用既有 LCI 指令设计清单并导入 openLCA
 
 当您确认执行计划已完善、不需要进一步修改后，可以下达清单设计与导入指令：
 
@@ -106,4 +118,3 @@ uv run python scripts/initialization/main.py --only clean
 ```
 > [!WARNING]
 > 该命令会清除工作空间及 uploads 中的生成文件，运行前请务必确认已备份重要数据。
-

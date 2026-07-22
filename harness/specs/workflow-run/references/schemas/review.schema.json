@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/review.schema.json",
+  "title": "Whole-LCA review record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "run_id", "review_id", "supersedes_review_id", "review_type", "attempt", "reviewer", "timestamp", "status", "reviewed_artifacts", "issues", "retrievable_gaps"],
+  "properties": {
+    "schema": {"const": "whole-lca/review"},
+    "version": {"const": "1.0"},
+    "run_id": {"type": "string"},
+    "review_id": {"type": "string", "pattern": "^review-[a-z0-9-]+$"},
+    "supersedes_review_id": {"type": ["string", "null"]},
+    "review_type": {"enum": ["plan", "lci"]},
+    "attempt": {"type": "integer", "minimum": 1, "maximum": 3},
+    "reviewer": {"const": "eval-reviewer"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["passed", "needs_input", "needs_review", "failed"]},
+    "reviewed_artifacts": {"type": "array", "items": {"$ref": "workflow-manifest.schema.json#/$defs/artifact"}, "minItems": 1},
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue_id", "severity", "spec_ref", "evidence_location", "required_correction", "status"],
+        "properties": {
+          "issue_id": {"type": "string", "pattern": "^(PLAN|LCI)-[A-Z0-9-]+$"},
+          "severity": {"enum": ["critical", "major", "minor"]},
+          "spec_ref": {"type": "string", "minLength": 1},
+          "evidence_location": {"type": "string", "minLength": 1},
+          "required_correction": {"type": "string", "minLength": 1},
+          "status": {"enum": ["open", "resolved", "accepted_risk"]}
+        }
+      }
+    },
+    "retrievable_gaps": {"type": "array", "items": {"type": "string", "pattern": "^GAP-[A-Z0-9-]+$"}, "uniqueItems": true},
+    "summary": {"type": "string"}
+  }
+}

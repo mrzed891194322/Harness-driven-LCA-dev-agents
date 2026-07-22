@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/model-graph.schema.json",
+  "title": "openLCA product-system model graph",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "status", "endpoint", "product_system", "nodes", "edges", "broken_links", "disconnected_nodes", "timestamp"],
+  "properties": {
+    "schema": {"const": "whole-lca/model-graph"},
+    "version": {"const": "1.0"},
+    "status": {"enum": ["success", "broken", "failed"]},
+    "endpoint": {"type": "string"},
+    "product_system": {"$ref": "#/$defs/ref"},
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "edges": {"type": "array", "items": {"type": "object", "required": ["provider", "flow", "process"], "properties": {"provider": {"$ref": "#/$defs/ref"}, "flow": {"$ref": "#/$defs/ref"}, "process": {"$ref": "#/$defs/ref"}}}},
+    "broken_links": {"type": "array", "items": {"type": "object"}},
+    "disconnected_nodes": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "error": {"type": ["string", "null"]}
+  },
+  "$defs": {"ref": {"type": "object", "required": ["id", "name"], "properties": {"id": {"type": ["string", "null"]}, "name": {"type": ["string", "null"]}}}}
+}
