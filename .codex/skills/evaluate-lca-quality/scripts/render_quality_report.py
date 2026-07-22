@@ -8,7 +8,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 QUALITY_SCRIPT_ROOT = (
     PROJECT_ROOT
-    / "harness"
+    / ".codex"
     / "specs"
     / "lca-quality-evaluation"
     / "references"

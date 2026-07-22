@@ -2,7 +2,6 @@
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "build",
   "instructions": [
-    "harness/rules/subagent-invocation/README.md",
     "harness/rules/directory-structure/README.md",
     "harness/rules/coding-specification/README.md"
   ],
@@ -63,11 +62,11 @@
       "model": "deepseek/deepseek-v4-pro",
       "temperature": 0.3
     },
-    "subagents/workflow/sub-executor": {
+    "sub-executor": {
       "model": "deepseek/deepseek-v4-pro",
       "temperature": 0.2
     },
-    "subagents/workflow/eval-reviewer": {
+    "eval-reviewer": {
       "model": "deepseek/deepseek-v4-pro",
       "temperature": 0.1
     },

@@ -40,8 +40,14 @@ uv.lock
 !.codex/skills/workflow-main/**
 !.codex/skills/evaluate-lca-quality/
 !.codex/skills/evaluate-lca-quality/**
+!.codex/specs/
+.codex/specs/*
+!.codex/specs/lca-quality-evaluation/
+!.codex/specs/lca-quality-evaluation/**
 .agents/
 
-# Generated caches inside tracked project skills
+# Generated caches inside tracked Codex packages
 .codex/skills/**/__pycache__/
 .codex/skills/**/*.py[oc]
+.codex/specs/**/__pycache__/
+.codex/specs/**/*.py[oc]

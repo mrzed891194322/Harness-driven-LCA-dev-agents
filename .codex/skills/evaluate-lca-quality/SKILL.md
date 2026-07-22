@@ -5,7 +5,7 @@ description: 对 whole-lca 运行的完整证据包进行 ISO 14040/14044 对齐
 
 # 评估 LCA 质量
 
-把 `harness/specs/lca-quality-evaluation/` 视为评分、schema、rubric 和报告结构的唯一来源。不要在本技能中另行解释或修改评分规则。
+把 `.codex/specs/lca-quality-evaluation/` 视为评分、schema、rubric 和报告结构的唯一来源。不要在本技能中另行解释或修改评分规则。
 
 ## 建立评估范围
 

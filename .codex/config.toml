@@ -21,8 +21,6 @@ default_tools_approval_mode = "auto"
 [agents]
 max_depth = 2
 
-[agents.opencode_lca_user]
-config_file = "agents/opencode_lca_user.toml"
 
 [agents.major-orchestrator]
 description = "编排 whole-lca 状态机、专用子 agent、用户写入确认和运行证据。"

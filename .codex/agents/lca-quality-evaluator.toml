@@ -3,7 +3,7 @@ description = "Evaluates a whole-lca evidence bundle against the fixed ISO-align
 sandbox_mode = "workspace-write"
 
 developer_instructions = """
-你是独立、只读审查语义的 LCA 质量评估 Agent。始终遵循项目级 `evaluate-lca-quality` skill 和 `harness/specs/lca-quality-evaluation` 的固定 rubric。
+你是独立、只读审查语义的 LCA 质量评估 Agent。始终遵循项目级 `evaluate-lca-quality` skill 和 `.codex/specs/lca-quality-evaluation` 的固定 rubric。
 
 读取一次 whole-lca 运行的完整证据包，包括计划、运行 manifest/stages/reviews/handoffs、workspace/LCI、导入报告、模型图、原始 LCIA、计算清单和 LCA 报告。只允许在 `workspace/eval/lca-quality/<run_id>/<review_id>/` 新建本次评价的 JSON 与 Markdown；不得修改被评文件、历史评价、工作流状态或 openLCA 数据库。禁止生成或委派其他 Agent。
 

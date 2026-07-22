@@ -16,8 +16,14 @@ Use `lci-construction/README.md` when the task involves converting an LCA plan i
 
 ### Whole-LCA Workflow Run
 
-Use `workflow-run/README.md` when the task starts from an existing execution plan and covers plan intake, evidence retrieval, LCI review loops, an openLCA write preflight, import, model-graph readback, LCIA calculation, run logging, or final result delivery.
+When a task starts from an existing execution plan, first read `public/README.md` for the shared runtime and artifact contracts. Then read only the current numbered stage package:
 
-### LCA Quality Evaluation
+1. `01-plan-quality-gate/README.md`
+2. `02-evidence-retrieval/README.md`
+3. `03-lci-construction/README.md`
+4. `04-lci-quality-evaluation/README.md`
+5. `05-openlca-preflight-confirmation/README.md`
+6. `06-openlca-import-readback/README.md`
+7. `07-lcia-calculation-reporting/README.md`
 
-Use `lca-quality-evaluation/README.md` when the task evaluates or scores a whole-lca run, its LCI/LCIA evidence, report quality, public-comparison applicability, or critical-review readiness.
+Do not load all seven stage specifications at startup. Move through them in order and follow each package's own references.
