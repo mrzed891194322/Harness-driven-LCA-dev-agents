@@ -9,9 +9,9 @@ description: 对 whole-lca 运行的完整证据包进行 ISO 14040/14044 对齐
 
 ## 建立评估范围
 
-1. 接受 `run_id` 或 `workspace/logs/whole-lca/<run_id>/manifest.json`。拒绝把单独的 `lca_report.md` 当作完整证据；缺失证据按规范评分，而不是静默忽略。
+1. 从固定路径 `workspace/memory/manifest.json` 建立评价范围，并按 rubric 读取完整运行证据。拒绝把单独的 `lca_report.md` 当作完整证据；缺失证据按规范评分，而不是静默忽略。
 2. 完整阅读 spec 索引和 `evaluation_spec.md`，再读取 `rubric.json`。在写 JSON 前读取 score schema。
-3. 创建新的 `review_id`，格式为 `YYYYMMDDTHHMMSSZ-<8 位小写十六进制>`，目标目录固定为 `workspace/eval/lca-quality/<run_id>/<review_id>/`。目录已存在时生成新 ID，不覆盖历史。
+3. 创建新的 `review_id`，格式为 `YYYYMMDDTHHMMSSZ-<8 位小写十六进制>`，目标目录固定为 `workspace/eval/lca-quality/<review_id>/`。目录已存在时生成新 ID，不覆盖历史。
 4. 只读取并哈希计划、日志、LCI 和结果证据。禁止修改、补写或修复被评对象，禁止调用 openLCA 写入工具，禁止生成或委派其他 Agent。
 
 ## 核对标准与证据

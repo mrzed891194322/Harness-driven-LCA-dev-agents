@@ -1,7 +1,6 @@
 ---
 template_kind: lca_quality_report
-template_version: "1"
-run_id: "<run_id>"
+template_version: "2"
 review_id: "<review_id>"
 rubric_version: "<rubric_version>"
 ---

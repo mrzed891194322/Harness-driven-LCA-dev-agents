@@ -2,7 +2,7 @@
 
 ## 1. 进入条件与产物
 
-只有第 05 阶段当前预检哈希及完整范围得到明确确认后才能调用 `import_lci`。本阶段必须在 `workspace/results/<run_id>/` 保存：
+只有第 05 阶段当前预检哈希及完整范围得到明确确认后才能调用 `import_lci`。本阶段必须在 `workspace/results/` 保存：
 
 - `import_report.json`；
 - `model_graph/<product-system-slug>.json`。

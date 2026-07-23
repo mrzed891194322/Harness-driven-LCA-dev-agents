@@ -79,7 +79,7 @@ uv run python scripts/initialization/main.py
 opencode run --command whole-lca
 ```
 
-该命令同步后固定读取 `workspace/plan/execution_plan.md`，执行计划接收门禁、证据检索、LCI 构建及最多三次审查。LCI 通过后，系统只执行只读预检并展示活动数据库、目标分类、创建/覆盖/删除范围和 `preflight_hash`；只有您明确确认该精确范围后才会导入。范围变化会使原确认失效并要求重新预检。运行日志保存在 `workspace/logs/whole-lca/<run_id>/`，结果保存在 `workspace/results/<run_id>/`。
+该命令同步后固定读取 `workspace/plan/execution_plan.md`，执行计划接收门禁、证据检索、LCI 构建及最多三次审查。LCI 通过后，系统只执行只读预检并展示活动数据库、目标分类、创建/覆盖/删除范围和 `preflight_hash`；只有您明确确认该精确范围后才会导入。范围变化会使原确认失效并要求重新预检。运行阶段、审查与 Agent 交接记忆保存在 `workspace/memory/`，结果保存在 `workspace/results/`；两处都使用固定路径，不创建运行 ID 子目录。
 
 ---
 

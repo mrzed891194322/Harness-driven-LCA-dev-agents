@@ -41,15 +41,26 @@ def load_frontmatter(path: Path) -> dict:
 
 
 class OpenCodeConfigurationTests(unittest.TestCase):
-    def test_existing_models_are_preserved_and_new_models_are_appended(self) -> None:
+    def test_workflow_models_and_disabled_builtin_agents_are_configured(self) -> None:
         config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
         agents = config["agent"]
-        self.assertEqual(agents["plan-maker"]["temperature"], 0.5)
-        self.assertEqual(agents["LCI-designer"]["temperature"], 0.45)
-        self.assertEqual(agents["subagents/tools/doc-handler"]["model"], "deepseek/deepseek-v4-flash")
+        self.assertTrue(agents["plan"]["disable"])
+        self.assertTrue(agents["build"]["disable"])
         self.assertEqual(agents["major-orchestrator"]["temperature"], 0.3)
         self.assertEqual(agents["sub-executor"]["temperature"], 0.2)
         self.assertEqual(agents["eval-reviewer"]["temperature"], 0.1)
+
+    def test_rules_replace_removed_opencode_skills(self) -> None:
+        config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
+        expected = {
+            "harness/rules/knowledge-retrieval.md",
+            "harness/rules/openlca-mcp.md",
+        }
+        self.assertTrue(expected.issubset(set(config["instructions"])))
+        for path in expected:
+            self.assertTrue((PROJECT_ROOT / path).is_file())
+        for skill in ("tu-read-knowledge", "tu-control-openlca"):
+            self.assertFalse((PROJECT_ROOT / ".opencode" / "skills" / skill).exists())
 
     def test_orchestrator_can_only_call_the_two_new_subagents(self) -> None:
         major = load_frontmatter(PROJECT_ROOT / ".opencode" / "agents" / "major-orchestrator.md")
@@ -189,6 +200,23 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         )
         for fragment in legacy_fragments:
             self.assertNotIn(fragment, content)
+
+    def test_workflow_uses_fixed_memory_and_result_paths(self) -> None:
+        paths = (
+            "harness/specs/public/references/workflow-runtime-spec.md",
+            "harness/rules/directory-structure/references/workspace-structure.md",
+            "harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md",
+            "harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md",
+            ".opencode/skills/workflow-main/SKILL.md",
+            ".codex/skills/workflow-main/SKILL.md",
+        )
+        content = "\n".join(
+            (PROJECT_ROOT / path).read_text(encoding="utf-8") for path in paths
+        )
+        self.assertIn("workspace/memory/", content)
+        self.assertIn("workspace/results/", content)
+        self.assertNotIn("workspace/logs/whole-lca", content)
+        self.assertNotIn("workspace/results/<run_id>", content)
 
 
 if __name__ == "__main__":

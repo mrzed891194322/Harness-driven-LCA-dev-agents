@@ -4,11 +4,10 @@
   "title": "Whole-LCA review record",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "run_id", "review_id", "supersedes_review_id", "review_type", "attempt", "reviewer", "timestamp", "status", "reviewed_artifacts", "issues", "retrievable_gaps"],
+  "required": ["schema", "version", "review_id", "supersedes_review_id", "review_type", "attempt", "reviewer", "timestamp", "status", "reviewed_artifacts", "issues", "retrievable_gaps"],
   "properties": {
     "schema": {"const": "whole-lca/review"},
-    "version": {"const": "1.0"},
-    "run_id": {"type": "string"},
+    "version": {"const": "2.0"},
     "review_id": {"type": "string", "pattern": "^review-[a-z0-9-]+$"},
     "supersedes_review_id": {"type": ["string", "null"]},
     "review_type": {"enum": ["plan", "lci"]},

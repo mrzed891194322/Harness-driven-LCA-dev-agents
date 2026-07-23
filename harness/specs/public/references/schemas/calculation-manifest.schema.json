@@ -4,11 +4,10 @@
   "title": "Whole-LCA calculation manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "run_id", "status", "active_database", "product_system", "impact_method", "functional_unit_amount", "allocation", "regionalized", "costs", "parameters", "tool_versions", "calculated_at", "raw_result", "resource_released"],
+  "required": ["schema", "version", "status", "active_database", "product_system", "impact_method", "functional_unit_amount", "allocation", "regionalized", "costs", "parameters", "tool_versions", "calculated_at", "raw_result", "resource_released"],
   "properties": {
     "schema": {"const": "whole-lca/calculation-manifest"},
-    "version": {"const": "1.0"},
-    "run_id": {"type": "string"},
+    "version": {"const": "2.0"},
     "status": {"enum": ["success", "failed"]},
     "active_database": {"type": "string", "minLength": 1},
     "product_system": {"$ref": "#/$defs/ref"},

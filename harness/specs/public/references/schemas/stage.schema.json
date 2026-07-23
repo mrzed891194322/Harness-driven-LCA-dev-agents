@@ -4,11 +4,10 @@
   "title": "Whole-LCA stage record",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "run_id", "stage_id", "supersedes_stage_id", "sequence", "stage", "agent", "started_at", "ended_at", "status", "artifact_ids", "evidence_refs", "issue_ids"],
+  "required": ["schema", "version", "stage_id", "supersedes_stage_id", "sequence", "stage", "agent", "started_at", "ended_at", "status", "artifact_ids", "evidence_refs", "issue_ids"],
   "properties": {
     "schema": {"const": "whole-lca/stage"},
-    "version": {"const": "1.0"},
-    "run_id": {"type": "string"},
+    "version": {"const": "2.0"},
     "stage_id": {"type": "string", "pattern": "^stage-[0-9]{3}-[a-z0-9-]+$"},
     "supersedes_stage_id": {"type": ["string", "null"]},
     "sequence": {"type": "integer", "minimum": 1},

@@ -4,11 +4,10 @@
   "title": "Whole-LCA agent handoff",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "run_id", "handoff_id", "supersedes_handoff_id", "stage_id", "from_agent", "to_agent", "timestamp", "input_artifacts", "decision", "evidence_refs", "unresolved_items", "status", "next_action", "issue_ids"],
+  "required": ["schema", "version", "handoff_id", "supersedes_handoff_id", "stage_id", "from_agent", "to_agent", "timestamp", "input_artifacts", "decision", "evidence_refs", "unresolved_items", "status", "next_action", "issue_ids"],
   "properties": {
     "schema": {"const": "whole-lca/handoff"},
-    "version": {"const": "1.0"},
-    "run_id": {"type": "string"},
+    "version": {"const": "2.0"},
     "handoff_id": {"type": "string", "pattern": "^handoff-[0-9]{3}-[a-z0-9-]+$"},
     "supersedes_handoff_id": {"type": ["string", "null"]},
     "stage_id": {"type": "string"},

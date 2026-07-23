@@ -33,7 +33,7 @@
 
 最终的 LCI 数据需要通过 IPC 接口导入到 openLCA 的活动数据库中。
 1. **启动客户端**：双击并打开您的 openLCA 桌面客户端。
-2. **开启 IPC 服务**：在软件菜单栏中启动 IPC Server 服务（默认监听在 `8080` 端口）。这使智能体在后续能通过 `tu-control-openlca` 技能（具体参考 `harness/tools/control_openlca/README.md`）自动控制 openLCA 并注入流和过程。
+2. **开启 IPC 服务**：在软件菜单栏中启动 IPC Server 服务（默认监听在 `8080` 端口）。这使智能体在后续能按 `harness/rules/openlca-mcp.md` 使用已注册的 `control_openlca` MCP（工具实现参考 `harness/tools/control_openlca/README.md`）控制 openLCA 并注入流和过程。
 
 ![openLCA IPC Service](assets/images/project_prep/openlca-ipc.png)
 

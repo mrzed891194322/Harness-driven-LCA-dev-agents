@@ -4,11 +4,10 @@
   "title": "Whole-LCA workflow manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "run_id", "platform", "orchestrator_agent", "plan", "started_at", "updated_at", "status", "lci_review_attempt", "artifact_index"],
+  "required": ["schema", "version", "platform", "orchestrator_agent", "plan", "started_at", "updated_at", "status", "lci_review_attempt", "artifact_index"],
   "properties": {
     "schema": {"const": "whole-lca/workflow-manifest"},
-    "version": {"const": "1.0"},
-    "run_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"},
+    "version": {"const": "2.0"},
     "platform": {"enum": ["opencode", "codex"]},
     "orchestrator_agent": {"const": "major-orchestrator"},
     "plan": {"$ref": "#/$defs/artifact"},

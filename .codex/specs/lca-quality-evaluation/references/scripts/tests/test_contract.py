@@ -26,7 +26,6 @@ PROJECT_ROOT = next(
     if (parent / "pyproject.toml").is_file()
 )
 HASH = "a" * 64
-RUN_ID = "20260722T080000Z-deadbeef"
 REVIEW_ID = "20260722T090000Z-cafebabe"
 TIMESTAMP = "2026-07-22T09:00:00Z"
 
@@ -89,7 +88,7 @@ def build_evaluation() -> dict:
                 {
                     "artifact_id": artifact_id,
                     "kind": item["kind"],
-                    "path": item["path_patterns"][0].replace("<run_id>", RUN_ID),
+                    "path": item["path_patterns"][0],
                     "file_status": "present",
                     "schema_status": "valid",
                     "sha256": HASH,
@@ -108,10 +107,9 @@ def build_evaluation() -> dict:
 
     return {
         "schema": "lca-quality/score",
-        "version": "1.0",
+        "version": "2.0",
         "rubric_version": rubric["version"],
-        "workflow_contract_version": "1.0",
-        "run_id": RUN_ID,
+        "workflow_contract_version": "2.0",
         "review_id": REVIEW_ID,
         "evaluated_at": TIMESTAMP,
         "evaluator": {"agent": "lca-quality-evaluator", "platform": "codex"},
@@ -161,8 +159,9 @@ class RubricTests(unittest.TestCase):
 
     def test_current_delivery_files_are_covered(self) -> None:
         rubric_text = json.dumps(load_rubric(), ensure_ascii=False)
-        for value in ("import_report.json", "model_graph/*.json", "raw/*.json", "calculation_manifest.json", "lca_report.md", "LCI/flows/*.json", "LCI/processes/*.json", "LCI/product_systems/*.json", "LCI/human_readable_mapping.md"):
+        for value in ("workspace/memory/manifest.json", "workspace/memory/stages/*.json", "workspace/results/import_report.json", "workspace/results/model_graph/*.json", "workspace/results/raw/*.json", "workspace/results/calculation_manifest.json", "workspace/results/lca_report.md", "LCI/flows/*.json", "LCI/processes/*.json", "LCI/product_systems/*.json", "LCI/human_readable_mapping.md"):
             self.assertIn(value, rubric_text)
+        self.assertNotIn("<run_id>", rubric_text)
 
 
 class EvaluationContractTests(unittest.TestCase):
@@ -172,8 +171,15 @@ class EvaluationContractTests(unittest.TestCase):
         report = render_markdown(data)
         self.assertIn("总体状态 | pass", report)
         self.assertIn("不构成 ISO 认证", report)
+        self.assertNotIn("run_id:", report)
         for item in data["criteria"]:
             self.assertIn(item["criterion_id"], report)
+
+    def test_legacy_run_id_is_rejected(self) -> None:
+        data = build_evaluation()
+        data["run_id"] = "20260722T080000Z-deadbeef"
+        with self.assertRaises(QualityContractError):
+            validate_evaluation(data)
 
     def test_missing_evidence_produces_fail_and_zero(self) -> None:
         data = build_evaluation()

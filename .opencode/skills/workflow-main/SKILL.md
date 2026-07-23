@@ -11,7 +11,7 @@ description: 从既有 execution_plan.md 执行带计划门禁、证据检索、
 
 1. 确认当前 Agent 是 `major-orchestrator`，计划路径是 `workspace/plan/execution_plan.md`。
 2. 读取 `harness/specs/public/README.md` 及公共运行契约；只在进入某一阶段前读取对应编号目录的 `README.md` 和阶段 spec，并在写相应文件前读取公共目录中的对应 JSON schema 或报告模板。
-3. 生成符合规范的 `run_id`，创建日志/结果目录与 manifest。平台写为 `opencode`，主 Agent 写为 `major-orchestrator`。
+3. 在 `workspace/memory/` 创建或更新固定的运行记忆与 manifest，在 `workspace/results/` 写固定结果路径。平台写为 `opencode`，主 Agent 写为 `major-orchestrator`；不生成运行 ID 或按运行 ID 分层。
 
 ## 执行状态机
 
@@ -27,8 +27,8 @@ description: 从既有 execution_plan.md 执行带计划门禁、证据检索、
 
 ## 证据与停止
 
-- 每次委派前后写 handoff，每个阶段写新 stage 文件；不得覆盖历史记录。
+- 每次委派前后在 `workspace/memory/` 写 handoff，每个阶段写新 stage 文件；同一次运行内不得覆盖历史记录。
 - Reviewer 只读；由主 Agent 持久化其返回的 review。
-- 不调用任何既有 Agent，不访问或更新 `workspace/memory/`。
+- 不调用任何既有 Agent。两个子 Agent 可按任务需要读取 `workspace/memory/`，只有主 Agent 持久化运行状态与历史记录。
 - 用户拒绝或未确认写入时保留 LCI，置为 `needs_review` 并返回 command 执行后置同步。
 - 无部分失败、无断链、非空结果且全部契约通过前，不得标记 `completed`。

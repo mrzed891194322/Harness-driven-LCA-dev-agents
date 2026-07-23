@@ -24,7 +24,6 @@ SPEC_ROOT = SCRIPT_ROOT.parent
 SCHEMA_ROOT = SPEC_ROOT / "schemas"
 TIMESTAMP = "2026-07-22T08:00:00Z"
 HASH = "a" * 64
-RUN_ID = "20260722T080000Z-deadbeef"
 
 
 def compliant_plan(extra: str = "", version: str = "1", functional_unit: str = "1 kg bottled product") -> str:
@@ -137,8 +136,7 @@ class SchemaContractTests(unittest.TestCase):
     def test_positive_manifest_stage_review_and_handoff(self) -> None:
         manifest = {
             "schema": "whole-lca/workflow-manifest",
-            "version": "1.0",
-            "run_id": RUN_ID,
+            "version": "2.0",
             "platform": "codex",
             "orchestrator_agent": "major-orchestrator",
             "plan": self.artifact(),
@@ -153,8 +151,7 @@ class SchemaContractTests(unittest.TestCase):
         }
         stage = {
             "schema": "whole-lca/stage",
-            "version": "1.0",
-            "run_id": RUN_ID,
+            "version": "2.0",
             "stage_id": "stage-001-plan-review",
             "supersedes_stage_id": None,
             "sequence": 1,
@@ -164,14 +161,13 @@ class SchemaContractTests(unittest.TestCase):
             "ended_at": TIMESTAMP,
             "status": "passed",
             "artifact_ids": ["artifact:plan"],
-            "evidence_refs": ["reviews/plan-review.json"],
+            "evidence_refs": ["workspace/memory/reviews/plan-review.json"],
             "issue_ids": [],
             "summary": "Plan passed intake.",
         }
         review = {
             "schema": "whole-lca/review",
-            "version": "1.0",
-            "run_id": RUN_ID,
+            "version": "2.0",
             "review_id": "review-plan",
             "supersedes_review_id": None,
             "review_type": "plan",
@@ -186,8 +182,7 @@ class SchemaContractTests(unittest.TestCase):
         }
         handoff = {
             "schema": "whole-lca/handoff",
-            "version": "1.0",
-            "run_id": RUN_ID,
+            "version": "2.0",
             "handoff_id": "handoff-001-plan-review",
             "supersedes_handoff_id": None,
             "stage_id": "stage-001-plan-review",
@@ -256,8 +251,7 @@ class SchemaContractTests(unittest.TestCase):
         }
         calculation = {
             "schema": "whole-lca/calculation-manifest",
-            "version": "1.0",
-            "run_id": RUN_ID,
+            "version": "2.0",
             "status": "success",
             "active_database": "isolated-db",
             "product_system": entity_ref,
@@ -269,7 +263,7 @@ class SchemaContractTests(unittest.TestCase):
             "parameters": {},
             "tool_versions": {"olca-ipc": "2.0"},
             "calculated_at": TIMESTAMP,
-            "raw_result": {"path": "workspace/results/run/raw/ps1.json", "sha256": HASH},
+            "raw_result": {"path": "workspace/results/raw/ps1.json", "sha256": HASH},
             "resource_released": True,
             "unresolved_items": [],
         }
@@ -281,8 +275,7 @@ class SchemaContractTests(unittest.TestCase):
     def test_negative_contract_examples_are_rejected(self) -> None:
         invalid_manifest = {
             "schema": "whole-lca/workflow-manifest",
-            "version": "1.0",
-            "run_id": RUN_ID,
+            "version": "2.0",
             "platform": "codex",
             "orchestrator_agent": "major-orchestrator",
             "plan": self.artifact(),
@@ -294,6 +287,23 @@ class SchemaContractTests(unittest.TestCase):
         }
         with self.assertRaises(ValidationError):
             self.validate("workflow-manifest.schema.json", invalid_manifest)
+
+    def test_legacy_run_id_is_rejected(self) -> None:
+        manifest = {
+            "schema": "whole-lca/workflow-manifest",
+            "version": "2.0",
+            "run_id": "20260722T080000Z-deadbeef",
+            "platform": "codex",
+            "orchestrator_agent": "major-orchestrator",
+            "plan": self.artifact(),
+            "started_at": TIMESTAMP,
+            "updated_at": TIMESTAMP,
+            "status": "running",
+            "lci_review_attempt": 0,
+            "artifact_index": [self.artifact()],
+        }
+        with self.assertRaises(ValidationError):
+            self.validate("workflow-manifest.schema.json", manifest)
 
     def test_report_template_contains_traceability_and_claim_boundary(self) -> None:
         template = (SPEC_ROOT / "templates" / "lca_report.md").read_text(encoding="utf-8")

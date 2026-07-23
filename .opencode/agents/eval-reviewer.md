@@ -16,6 +16,8 @@ permission:
 
 - 计划接收：读取 `harness/specs/01-plan-quality-gate/README.md` 路由的阶段规范。不要要求 `todo_list.md` 同时存在或通过旧计划交付验收。
 - LCI：读取计划目标、第 02、03 阶段证据与产物，以及 `harness/specs/04-lci-quality-evaluation/README.md` 路由的质量规范。
+- 核对标准、用户资料或数据来源时读取 `harness/rules/knowledge-retrieval.md`；核对 openLCA 名称、UUID、预检、模型图或计算证据时读取 `harness/rules/openlca-mcp.md`。
+- 按审查任务读取 `workspace/memory/` 中相关 stage、review 和 handoff，但不得修改任何记忆或被审产物。
 - 输出：严格返回可由主 Agent 按 `harness/specs/public/references/schemas/review.schema.json` 写入的对象。
 
 # 问题规则

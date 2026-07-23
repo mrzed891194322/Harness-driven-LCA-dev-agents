@@ -1,9 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "build",
+  "default_agent": "major-orchestrator",
   "instructions": [
     "harness/rules/directory-structure/README.md",
-    "harness/rules/coding-specification/README.md"
+    "harness/rules/coding-specification/README.md",
+    "harness/rules/knowledge-retrieval.md",
+    "harness/rules/openlca-mcp.md"
   ],
   "mcp": {
     "query_rag": {
@@ -32,31 +34,7 @@
       "disable": true
     },
     "build": {
-      "disable": false
-    },
-    "plan-maker": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.5
-    },
-    "LCI-designer": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.45
-    },
-    "subagents/workflow/data-processor": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.2
-    },
-    "subagents/workflow/eval-executor": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.1
-    },
-    "subagents/tools/code-builder": {
-      "model": "deepseek/deepseek-v4-flash",
-      "temperature": 0.1
-    },
-    "subagents/tools/doc-handler": {
-      "model": "deepseek/deepseek-v4-flash",
-      "temperature": 0.1
+      "disable": true
     },
     "major-orchestrator": {
       "model": "deepseek/deepseek-v4-pro",
@@ -69,6 +47,6 @@
     "eval-reviewer": {
       "model": "deepseek/deepseek-v4-pro",
       "temperature": 0.1
-    },
+    }
   }
 }

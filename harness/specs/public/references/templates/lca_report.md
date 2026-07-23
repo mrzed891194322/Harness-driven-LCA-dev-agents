@@ -1,7 +1,6 @@
 ---
 template_kind: whole_lca_report
-template_version: "1"
-run_id: "<run_id>"
+template_version: "2"
 raw_result_sha256: "<sha256>"
 ---
 

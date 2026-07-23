@@ -1,7 +1,7 @@
 {
   "schema": "lca-quality/rubric",
-  "version": "1.0",
-  "supported_workflow_contract_versions": ["1.0"],
+  "version": "2.0",
+  "supported_workflow_contract_versions": ["2.0"],
   "standards": [
     {
       "id": "ISO 14040",
@@ -58,13 +58,13 @@
     },
     {
       "kind": "workflow-manifest",
-      "path_patterns": ["workspace/logs/whole-lca/<run_id>/manifest.json"],
+      "path_patterns": ["workspace/memory/manifest.json"],
       "required": true,
       "criterion_ids": ["GS-01", "GS-02", "LCI-02", "IA-07", "REP-03"]
     },
     {
       "kind": "workflow-history",
-      "path_patterns": ["workspace/logs/whole-lca/<run_id>/stages/*.json", "workspace/logs/whole-lca/<run_id>/reviews/*.json", "workspace/logs/whole-lca/<run_id>/handoffs/*.json"],
+      "path_patterns": ["workspace/memory/stages/*.json", "workspace/memory/reviews/*.json", "workspace/memory/handoffs/*.json"],
       "required": true,
       "criterion_ids": ["LCI-02", "LCI-03", "LCI-07", "LCI-09", "INT-04", "REP-03"]
     },
@@ -94,49 +94,49 @@
     },
     {
       "kind": "import-report",
-      "path_patterns": ["workspace/results/<run_id>/import_report.json"],
+      "path_patterns": ["workspace/results/import_report.json"],
       "required": true,
       "criterion_ids": ["LCI-02", "LCI-09", "REP-03"]
     },
     {
       "kind": "model-graph",
-      "path_patterns": ["workspace/results/<run_id>/model_graph/*.json"],
+      "path_patterns": ["workspace/results/model_graph/*.json"],
       "required": true,
       "criterion_ids": ["GS-07", "LCI-04", "LCI-05", "REP-03"]
     },
     {
       "kind": "raw-lcia-results",
-      "path_patterns": ["workspace/results/<run_id>/raw/*.json"],
+      "path_patterns": ["workspace/results/raw/*.json"],
       "required": true,
       "criterion_ids": ["IA-02", "IA-03", "IA-05", "IA-06", "IA-07", "IA-08", "IA-09", "INT-01", "INT-02", "REP-06"]
     },
     {
       "kind": "calculation-manifest",
-      "path_patterns": ["workspace/results/<run_id>/calculation_manifest.json"],
+      "path_patterns": ["workspace/results/calculation_manifest.json"],
       "required": true,
       "criterion_ids": ["GS-05", "IA-03", "IA-06", "REP-03", "REP-06"]
     },
     {
       "kind": "lca-report",
-      "path_patterns": ["workspace/results/<run_id>/lca_report.md"],
+      "path_patterns": ["workspace/results/lca_report.md"],
       "required": true,
       "criterion_ids": ["GS-01", "IA-09", "INT-01", "INT-02", "INT-03", "INT-04", "INT-05", "INT-06", "INT-07", "INT-08", "REP-01", "REP-02", "REP-03", "REP-04", "REP-06", "REP-07"]
     },
     {
       "kind": "critical-review-package",
-      "path_patterns": ["workspace/results/<run_id>/critical_review/**/*"],
+      "path_patterns": ["workspace/results/critical_review/**/*"],
       "required": false,
       "criterion_ids": ["REP-08", "PUB-08"]
     },
     {
       "kind": "third-party-report",
-      "path_patterns": ["workspace/results/<run_id>/third_party_report.md"],
+      "path_patterns": ["workspace/results/third_party_report.md"],
       "required": false,
       "criterion_ids": ["REP-05", "PUB-05"]
     },
     {
       "kind": "comparative-assertion-package",
-      "path_patterns": ["workspace/results/<run_id>/comparative_assertion/**/*"],
+      "path_patterns": ["workspace/results/comparative_assertion/**/*"],
       "required": false,
       "criterion_ids": ["PUB-01", "PUB-02", "PUB-03", "PUB-04", "PUB-05", "PUB-06", "PUB-07"]
     }
