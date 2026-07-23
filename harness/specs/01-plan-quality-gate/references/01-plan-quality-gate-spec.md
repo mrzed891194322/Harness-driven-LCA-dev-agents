@@ -6,7 +6,7 @@
 
 - 唯一输入为 `workspace/plan/execution_plan.md`，其同步来源固定为 `uploads/plan/execution_plan.md`。
 - 文件必须是带 YAML front matter 的 Markdown，`template_kind` 必须为 `lca_execution_plan`。
-- 当前仅接受 `template_version: 1` 或语义等价的字符串 `"1"`。缺失、格式非法或未知版本不得猜测，审查状态必须为 `needs_input`，要求用户迁移或明确确认后停止。
+- 当前仅接受 `template_version: 1` 或语义等价的字符串 `"1"`。缺失、格式非法或未知版本不得猜测，审查状态必须为 `needs_input`，记录迁移要求后结束本次运行；不得停下来请求确认。
 - 必须保留执行计划模板中的 `## 1` 至 `## 6` 六个顶层章节；标题文字允许轻微措辞差异，但章节语义不得缺失。
 
 ## 2. 阻断性信息

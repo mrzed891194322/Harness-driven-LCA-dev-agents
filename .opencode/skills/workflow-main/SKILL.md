@@ -1,6 +1,6 @@
 ---
 name: workflow-main
-description: 从既有 execution_plan.md 执行带计划门禁、证据检索、三轮 LCI 审查、openLCA 写入预检与用户确认、导入读回、LCIA 计算和结果归档的 whole-lca 工作流时使用。
+description: 从既有 execution_plan.md 执行带计划门禁、证据检索、三轮 LCI 审查、openLCA 写入预检、自动导入读回、LCIA 计算和结果归档的无人值守 whole-lca 工作流时使用。
 ---
 
 # Whole-LCA 主工作流
@@ -21,8 +21,8 @@ description: 从既有 execution_plan.md 执行带计划门禁、证据检索、
 2. 从已通过计划提取所有 `GAP-*` 与背景映射任务，调用 `sub-executor` 完成 RAG 原文回读和 openLCA 候选查询。
 3. 调用 `sub-executor` 生成 `workspace/LCI/`。
 4. 调用 `eval-reviewer` 审查 LCI。attempt 1/2 未通过时，只把 issue ID 与受影响产物交给 `sub-executor` 定向修正；attempt 3 未通过时置为 `needs_review`，不得继续。
-5. LCI 通过后让 `sub-executor` 调用 `preflight_import_lci`。保存返回值，把 manifest 置为 `awaiting_confirmation`，向用户展示活动数据库、目标分类、创建/更新/删除范围和 `preflight_hash`。
-6. 只有用户对当前精确范围明确确认后，才把 `preflight_hash` 与 `user_confirmed=true` 交给同一专用执行 Agent；范围变化时回到预检并重新确认。
+5. LCI 通过后让 `sub-executor` 调用 `preflight_import_lci`。保存活动数据库、目标分类、创建/更新/删除范围和 `preflight_hash`；预检通过后立即把当前哈希交给同一专用执行 Agent 调用 `import_lci`，不得停下来请求用户确认。
+6. `import_lci` 必须重新预检；范围或哈希变化时不得写入，保存拒绝报告并将运行置为 `failed`，不得等待用户输入。
 7. 按第 06 阶段完成导入和模型图读回，再按第 07 阶段完成产品系统计算、结果验收和报告，最后决定终止状态。
 
 ## 证据与停止
@@ -30,5 +30,5 @@ description: 从既有 execution_plan.md 执行带计划门禁、证据检索、
 - 每次委派前后在 `workspace/memory/` 写 handoff，每个阶段写新 stage 文件；同一次运行内不得覆盖历史记录。
 - Reviewer 只读；由主 Agent 持久化其返回的 review。
 - 不调用任何既有 Agent。两个子 Agent 可按任务需要读取 `workspace/memory/`，只有主 Agent 持久化运行状态与历史记录。
-- 用户拒绝或未确认写入时保留 LCI，置为 `needs_review` 并返回 command 执行后置同步。
+- 运行启动即授权在当前预检哈希与范围完全一致时导入；运行中不得设置 `awaiting_confirmation` 或向用户请求额外确认。
 - 无部分失败、无断链、非空结果且全部契约通过前，不得标记 `completed`。

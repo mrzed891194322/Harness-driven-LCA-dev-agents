@@ -6,9 +6,11 @@ File Synchronization Entry Script
 
 Description:
     Synchronizes non-readme files for multiple targets configured in config.py.
-    Compares file modification times and syncs the newest file to the other side.
+    Supports authoritative one-way synchronization and the legacy mtime-based
+    bidirectional synchronization mode.
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -17,12 +19,31 @@ SCRIPT_DIR = Path(__file__).parent
 sys.path.append(str(SCRIPT_DIR))
 
 from config import SYNC_TARGETS, PROJECT_ROOT
-from utils.sync import sync_directories
+from utils.sync import SYNC_DIRECTIONS, sync_directories
 
 
-def main():
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Synchronize configured upload and work directories."
+    )
+    parser.add_argument(
+        "--direction",
+        choices=SYNC_DIRECTIONS,
+        default="bidirectional",
+        help=(
+            "Synchronization direction: upload-to-work, work-to-upload, "
+            "or bidirectional (default)."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+
     print("=" * 60)
     print("File Sync Started")
+    print(f"Direction: {args.direction}")
     print("=" * 60)
 
     total_stats = {
@@ -42,7 +63,7 @@ def main():
         print(f"  work_dir:    {work_dir.relative_to(PROJECT_ROOT)}")
         print(f"  user_upload: {user_upload.relative_to(PROJECT_ROOT)}")
         
-        stats = sync_directories(work_dir, user_upload)
+        stats = sync_directories(work_dir, user_upload, direction=args.direction)
         
         for k in total_stats:
             total_stats[k] += stats.get(k, 0)

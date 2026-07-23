@@ -79,7 +79,7 @@ uv run python scripts/initialization/main.py
 opencode run --command whole-lca
 ```
 
-该命令同步后固定读取 `workspace/plan/execution_plan.md`，执行计划接收门禁、证据检索、LCI 构建及最多三次审查。LCI 通过后，系统只执行只读预检并展示活动数据库、目标分类、创建/覆盖/删除范围和 `preflight_hash`；只有您明确确认该精确范围后才会导入。范围变化会使原确认失效并要求重新预检。运行阶段、审查与 Agent 交接记忆保存在 `workspace/memory/`，结果保存在 `workspace/results/`；两处都使用固定路径，不创建运行 ID 子目录。
+该命令开始时使用 `upload-to-work` 单向同步，将 `uploads/` 内容写入 `workspace/` 与 `harness/`；结束时使用 `work-to-upload` 单向同步，将工作流生成的产物写回 `uploads/`。随后固定读取 `workspace/plan/execution_plan.md`，执行计划接收门禁、证据检索、LCI 构建及最多三次审查。LCI 通过后，系统执行只读预检，保存活动数据库、目标分类、创建/覆盖/删除范围和 `preflight_hash`，随后在哈希保持一致时自动导入、读回并计算，不再请求额外确认。范围变化会使旧哈希失效，系统拒绝写入并记录失败证据。运行阶段、审查与 Agent 交接记忆保存在 `workspace/memory/`，结果保存在 `workspace/results/`；两处都使用固定路径，不创建运行 ID 子目录。
 
 ---
 
@@ -109,6 +109,15 @@ opencode run --command whole-lca
 若只是想查看同步状态，或者在不启动 Agent 时进行手动双向同步，可直接运行：
 ```bash
 uv run python scripts/file_sync/main.py
+```
+
+也可以通过 `--direction` 选择单向同步：
+```bash
+# uploads/ -> workspace/、harness/
+uv run python scripts/file_sync/main.py --direction upload-to-work
+
+# workspace/、harness/ -> uploads/
+uv run python scripts/file_sync/main.py --direction work-to-upload
 ```
 
 ### 清理工作目录与上传目录

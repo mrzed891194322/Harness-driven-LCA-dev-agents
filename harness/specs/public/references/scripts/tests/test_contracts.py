@@ -288,6 +288,10 @@ class SchemaContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.validate("workflow-manifest.schema.json", invalid_manifest)
 
+        invalid_manifest["status"] = "awaiting_confirmation"
+        with self.assertRaises(ValidationError):
+            self.validate("workflow-manifest.schema.json", invalid_manifest)
+
     def test_legacy_run_id_is_rejected(self) -> None:
         manifest = {
             "schema": "whole-lca/workflow-manifest",

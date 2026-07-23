@@ -15,7 +15,7 @@
     "agent": {"type": "string", "minLength": 1},
     "started_at": {"type": "string", "format": "date-time"},
     "ended_at": {"type": ["string", "null"], "format": "date-time"},
-    "status": {"enum": ["running", "passed", "failed", "needs_input", "needs_review", "awaiting_confirmation"]},
+    "status": {"enum": ["running", "passed", "failed", "needs_input", "needs_review"]},
     "artifact_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "evidence_refs": {"type": "array", "items": {"type": "string"}},
     "issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},

@@ -58,7 +58,7 @@ uv run python GUI/main.py
 
 ## 🛠️ 辅助功能（手动/命令行执行）
 
-在无图形界面（GUI）环境下或开发调试时，核心交互逻辑为：**先将输入文件上传至 `uploads/` 目录（或在该目录中修改文件），再运行对应的 `opencode` 指令执行任务**（系统在执行任务前会自动进行文件双向同步，完成后也将生成文件同步输出至 `uploads/`）。
+在无图形界面（GUI）环境下或开发调试时，核心交互逻辑为：**先将输入文件上传至 `uploads/` 目录（或在该目录中修改文件），再运行对应的 `opencode` 指令执行任务**。各命令会按自身配置选择同步方向；`whole-lca` 开始时将 `uploads/` 单向同步到工作目录，结束时再将工作目录单向同步回 `uploads/`。
 
 ### 1. 辅助准备脚本
 ```bash
@@ -72,7 +72,7 @@ uv run python scripts/initialization/main.py
    * **制定 LCA 计划**：`opencode run --command make-plan` (或交互指令 `/make-plan`)
    * **微调并迭代计划**：`opencode run --command revise-plan` (或交互指令 `/revise-plan`)
    * **设计并导入清单**：`opencode run --command design-lci` (或交互指令 `/design-lci`)
-   * **端到端受控执行**：将已审核计划保存为 `uploads/plan/execution_plan.md`，运行 `opencode run --command whole-lca`（或 `/whole-lca`）；数据库写入前会展示精确预检范围并要求确认。
+   * **端到端受控执行**：将已审核计划保存为 `uploads/plan/execution_plan.md`，运行 `opencode run --command whole-lca`（或 `/whole-lca`）；系统保存精确预检范围，并在哈希保持一致时自动完成导入、读回和计算。
 3. **使用 Codex 执行同一工作流**：在受信任的项目会话中调用 `$workflow-main`；Codex 会使用项目级 `major-orchestrator`、`sub-executor` 和 `eval-reviewer`，并遵守相同的预检哈希与结果契约。
 
 

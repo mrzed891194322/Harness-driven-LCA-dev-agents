@@ -2,7 +2,7 @@
 
 ## 1. 状态机
 
-合法 manifest 状态为：`not_started`、`running`、`awaiting_confirmation`、`needs_input`、`needs_review`、`failed`、`completed`。
+合法 manifest 状态为：`not_started`、`running`、`needs_input`、`needs_review`、`failed`、`completed`。
 
 执行顺序固定为：
 
@@ -10,11 +10,11 @@
 2. `02-evidence-retrieval`：资料与 openLCA 候选检索；
 3. `03-lci-construction`：LCI 制定；
 4. `04-lci-quality-evaluation`：LCI 质量评估与定向修正；
-5. `05-openlca-preflight-confirmation`：openLCA 写入预检与用户确认；
+5. `05-openlca-preflight-confirmation`：openLCA 写入预检（保留既有包名作为兼容标识）；
 6. `06-openlca-import-readback`：导入与模型图读回；
 7. `07-lcia-calculation-reporting`：LCIA 计算、结果验收与报告。
 
-不得跳过计划审查、LCI 审查、写入预检或用户确认。各阶段的进入、通过和受控停止条件由对应编号规范定义。
+不得跳过计划审查、LCI 审查或写入预检。启动 whole-LCA 即授权在当前预检哈希与范围完全一致时执行导入；运行中不得请求额外确认。各阶段的进入、通过和受控停止条件由对应编号规范定义。
 
 ## 2. 固定运行目录
 
@@ -37,7 +37,7 @@
 
 - `completed`：第 07 阶段的全部完成条件已有结构化证据。
 - `needs_input`：必须由用户补充范围或事实才能继续。
-- `needs_review`：达到审查上限、用户未授权写入、范围变化需要重确认，或结果需人类判断。
+- `needs_review`：达到审查上限或结果需人类判断。
 - `failed`：已授权的执行发生不可恢复的工具、导入或计算失败，证据已持久化。
 
 不得因文件存在、工具返回 exit 0 或 agent 自称完成而标记 `completed`。

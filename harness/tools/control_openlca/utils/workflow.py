@@ -306,6 +306,80 @@ def _deserialize_entity(item: dict[str, Any], target_category: str) -> object:
     return entity
 
 
+def _put_product_system(
+    client: object,
+    entity: olca_schema.ProductSystem,
+    source_data: dict[str, Any],
+) -> object:
+    """Create an auto-linked topology and persist it under the LCI-defined UUID."""
+    ref_process = getattr(entity, "ref_process", None)
+    if ref_process is None or not getattr(ref_process, "id", None):
+        raise ValueError("ProductSystem requires refProcess for automatic linking")
+
+    prefer_defaults = source_data.get("preferDefaultProviders", True)
+    provider_linking = (
+        olca_schema.ProviderLinking.PREFER_DEFAULTS
+        if prefer_defaults is not False
+        else olca_schema.ProviderLinking.IGNORE_DEFAULTS
+    )
+    config = olca_schema.LinkingConfig(
+        prefer_unit_processes=False,
+        provider_linking=provider_linking,
+    )
+
+    generated_ref = client.create_product_system(ref_process, config)
+    generated_id = getattr(generated_ref, "id", None)
+    if not generated_id:
+        raise RuntimeError("IPC Server did not create an auto-linked ProductSystem")
+
+    try:
+        generated = client.get(olca_schema.ProductSystem, generated_id)
+        if generated is None:
+            raise RuntimeError(
+                f"IPC Server could not read generated ProductSystem {generated_id}"
+            )
+
+        for field in ("processes", "process_links"):
+            value = getattr(generated, field, None)
+            if value is not None:
+                setattr(entity, field, value)
+        for field in (
+            "ref_exchange",
+            "ref_process",
+            "target_amount",
+            "target_flow_property",
+            "target_unit",
+        ):
+            if getattr(entity, field, None) is not None:
+                continue
+            value = getattr(generated, field, None)
+            if value is not None:
+                setattr(entity, field, value)
+
+        reference = client.put(entity)
+        if reference is None:
+            raise RuntimeError("IPC Server did not return an entity reference")
+    except Exception as exc:
+        try:
+            client.delete(generated_ref)
+        except Exception as cleanup_exc:
+            raise RuntimeError(
+                f"{exc}; additionally could not delete temporary ProductSystem "
+                f"{generated_id}: {cleanup_exc}"
+            ) from exc
+        raise
+
+    if generated_id != getattr(reference, "id", None):
+        try:
+            client.delete(generated_ref)
+        except Exception as exc:
+            raise RuntimeError(
+                f"saved ProductSystem but could not delete temporary system "
+                f"{generated_id}: {exc}"
+            ) from exc
+    return reference
+
+
 def _execute_import(
     client: object,
     inventory: list[dict[str, Any]],
@@ -363,7 +437,10 @@ def _execute_import(
         output(f"正在处理文件: {item['path']}...")
         try:
             entity = _deserialize_entity(item, target_category)
-            reference = client.put(entity)
+            if isinstance(entity, olca_schema.ProductSystem):
+                reference = _put_product_system(client, entity, item["data"])
+            else:
+                reference = client.put(entity)
             if reference is None:
                 raise RuntimeError("IPC Server did not return an entity reference")
             imported += 1
@@ -438,11 +515,10 @@ def import_lci(
     lci_dir: str | Path,
     target_category: str,
     preflight_hash: str,
-    user_confirmed: bool,
     database_name: str | None = None,
     client: object | None = None,
 ) -> dict[str, Any]:
-    """Import LCI only after an unchanged preflight has explicit confirmation."""
+    """Import LCI only after verifying an unchanged preflight hash."""
     if (
         not isinstance(preflight_hash, str)
         or len(preflight_hash) != 64
@@ -453,16 +529,6 @@ def import_lci(
     started_clock = time.monotonic()
     endpoint = build_endpoint(host, port)
     active_database, _ = _active_database_label(endpoint, database_name)
-    if not user_confirmed:
-        return _rejected_import_report(
-            endpoint,
-            active_database,
-            target_category,
-            preflight_hash,
-            started_at,
-            started_clock,
-            ["Import rejected: user_confirmed must be true."],
-        )
 
     ipc_client = client or create_ipc_client(host, port)
     current, inventory, target_descriptors = _inspect_import(
@@ -670,7 +736,17 @@ def model_graph_from_product_system(
     disconnected_nodes = [
         node for node in nodes if len(nodes) > 1 and node["id"] not in connected_ids
     ]
-    status = "success" if not broken_links else "broken"
+    if not nodes:
+        status = "failed"
+        error = (
+            "ProductSystem has no process nodes; automatic processLinks may be missing"
+        )
+    elif broken_links or disconnected_nodes:
+        status = "broken"
+        error = None
+    else:
+        status = "success"
+        error = None
     return {
         "schema": "whole-lca/model-graph",
         "version": "1.0",
@@ -685,7 +761,7 @@ def model_graph_from_product_system(
         "broken_links": broken_links,
         "disconnected_nodes": disconnected_nodes,
         "timestamp": utc_now(),
-        "error": None,
+        "error": error,
     }
 
 

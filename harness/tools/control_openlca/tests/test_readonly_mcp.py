@@ -153,6 +153,14 @@ class MCPServerTests(unittest.TestCase):
         self.assertFalse(tools["import_lci"].annotations.read_only_hint)
         self.assertTrue(tools["import_lci"].annotations.destructive_hint)
         self.assertFalse(tools["import_lci"].annotations.idempotent_hint)
+        self.assertEqual(
+            tools["import_lci"].input_schema["required"],
+            ["preflight_hash"],
+        )
+        self.assertNotIn(
+            "user_confirmed",
+            tools["import_lci"].input_schema["properties"],
+        )
 
     def test_health_tool_uses_configured_endpoint(self) -> None:
         expected = {"ok": True}

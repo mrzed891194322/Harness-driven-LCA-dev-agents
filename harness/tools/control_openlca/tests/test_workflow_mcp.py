@@ -12,6 +12,10 @@ from harness.tools.control_openlca.utils import workflow
 
 
 FLOW_ID = "11111111-1111-4111-8111-111111111111"
+PROCESS_ID = "22222222-2222-4222-8222-222222222222"
+PRODUCT_SYSTEM_ID = "33333333-3333-4333-8333-333333333333"
+GENERATED_SYSTEM_ID = "44444444-4444-4444-8444-444444444444"
+PROVIDER_ID = "55555555-5555-4555-8555-555555555555"
 
 
 class FakeDescriptor:
@@ -31,7 +35,11 @@ class FakeImportClient:
         self.delete_calls: list[object] = []
         self.fail_put = False
         self.fail_put_names: set[str] = set()
+        self.fail_delete_ids: set[str] = set()
+        self.fail_create_product_system = False
         self.query_error: Exception | None = None
+        self.create_product_system_calls: list[tuple[object, object]] = []
+        self.entities: dict[tuple[type, str], object] = {}
 
     def get_descriptors(self, model_type: type) -> list[FakeDescriptor]:
         if self.query_error is not None:
@@ -50,10 +58,48 @@ class FakeImportClient:
                 getattr(entity, "category", None),
             )
         )
+        entity_id = getattr(entity, "id", None)
+        if entity_id:
+            self.entities[(type(entity), entity_id)] = entity
         return SimpleNamespace(id=getattr(entity, "id", None))
+
+    def create_product_system(
+        self, process: object, config: object
+    ) -> SimpleNamespace | None:
+        self.create_product_system_calls.append((process, config))
+        if self.fail_create_product_system:
+            return None
+        generated = olca_schema.ProductSystem(
+            id=GENERATED_SYSTEM_ID,
+            name="Generated product system",
+        )
+        generated.processes = [
+            olca_schema.Ref(id=PROCESS_ID, name="Foreground process"),
+            olca_schema.Ref(id=PROVIDER_ID, name="Default provider"),
+        ]
+        generated.process_links = [
+            olca_schema.ProcessLink(
+                provider=olca_schema.Ref(id=PROVIDER_ID, name="Default provider"),
+                process=olca_schema.Ref(id=PROCESS_ID, name="Foreground process"),
+                flow=olca_schema.Ref(id=FLOW_ID, name="Test product"),
+            )
+        ]
+        generated.ref_process = olca_schema.Ref(id=PROCESS_ID)
+        generated.target_amount = 1.0
+        self.entities[(olca_schema.ProductSystem, GENERATED_SYSTEM_ID)] = generated
+        return SimpleNamespace(id=GENERATED_SYSTEM_ID)
+
+    def get(self, model_type: type, identifier: str) -> object | None:
+        return self.entities.get((model_type, identifier))
 
     def delete(self, reference: object) -> None:
         self.delete_calls.append(reference)
+        reference_id = getattr(reference, "id", None)
+        if reference_id in self.fail_delete_ids:
+            raise RuntimeError(f"cannot delete {reference_id}")
+        for key in list(self.entities):
+            if key[1] == reference_id:
+                del self.entities[key]
         for entity_type, descriptors in self.descriptors.items():
             self.descriptors[entity_type] = [
                 descriptor
@@ -83,6 +129,39 @@ def write_flow(
     )
 
 
+def write_product_system_fixture(root: Path) -> None:
+    write_flow(root)
+    processes = root / "processes"
+    product_systems = root / "product_systems"
+    processes.mkdir(parents=True, exist_ok=True)
+    product_systems.mkdir(parents=True, exist_ok=True)
+    (processes / "p01-test.json").write_text(
+        json.dumps(
+            {
+                "@type": "Process",
+                "@id": PROCESS_ID,
+                "name": "P01 Foreground process",
+                "exchanges": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (product_systems / "ps01-test.json").write_text(
+        json.dumps(
+            {
+                "@type": "ProductSystem",
+                "@id": PRODUCT_SYSTEM_ID,
+                "name": "PS01 Test product system",
+                "description": "Preserve this metadata",
+                "refProcess": {"@type": "Process", "@id": PROCESS_ID},
+                "targetAmount": 1065.0,
+                "preferDefaultProviders": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 class ImportWorkflowTests(unittest.TestCase):
     def test_preflight_is_read_only_and_stable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -104,7 +183,7 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual(client.put_calls, [])
         self.assertEqual(client.delete_calls, [])
 
-    def test_import_requires_confirmation_without_writes(self) -> None:
+    def test_import_rejects_unmatched_hash_without_writes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_flow(root)
@@ -115,7 +194,6 @@ class ImportWorkflowTests(unittest.TestCase):
                 root,
                 "project-a",
                 "0" * 64,
-                False,
                 "isolated-db",
                 client,
             )
@@ -128,7 +206,7 @@ class ImportWorkflowTests(unittest.TestCase):
         client = FakeImportClient()
         with self.assertRaisesRegex(ValueError, "64-character SHA-256"):
             workflow.import_lci(
-                "localhost", 8080, ".", "project-a", "not-a-hash", True, "isolated-db", client
+                "localhost", 8080, ".", "project-a", "not-a-hash", "isolated-db", client
             )
         self.assertEqual(client.put_calls, [])
         self.assertEqual(client.delete_calls, [])
@@ -148,7 +226,6 @@ class ImportWorkflowTests(unittest.TestCase):
                 root,
                 "project-a",
                 preflight["preflight_hash"],
-                True,
                 "isolated-db",
                 client,
             )
@@ -173,7 +250,6 @@ class ImportWorkflowTests(unittest.TestCase):
                 root,
                 "project-a",
                 preflight["preflight_hash"],
-                True,
                 "isolated-db",
                 client,
             )
@@ -193,10 +269,10 @@ class ImportWorkflowTests(unittest.TestCase):
                 "localhost", 8080, root, "project-a", "isolated-db", client
             )
             first = workflow.import_lci(
-                "localhost", 8080, root, "project-a", preflight["preflight_hash"], True, "isolated-db", client
+                "localhost", 8080, root, "project-a", preflight["preflight_hash"], "isolated-db", client
             )
             second = workflow.import_lci(
-                "localhost", 8080, root, "project-a", preflight["preflight_hash"], True, "isolated-db", client
+                "localhost", 8080, root, "project-a", preflight["preflight_hash"], "isolated-db", client
             )
             write_flow(
                 root,
@@ -209,7 +285,7 @@ class ImportWorkflowTests(unittest.TestCase):
             )
             client.fail_put_names.add("F02 Failing product")
             failed = workflow.import_lci(
-                "localhost", 8080, root, "project-a", current["preflight_hash"], True, "isolated-db", client
+                "localhost", 8080, root, "project-a", current["preflight_hash"], "isolated-db", client
             )
 
         self.assertEqual(first["status"], "success")
@@ -219,6 +295,99 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual(failed["status"], "partial_failure")
         self.assertEqual(failed["failed_count"], 1)
         self.assertEqual(failed["success_count"], 1)
+
+    def test_product_system_uses_official_auto_linking_and_preserves_uuid(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            client = FakeImportClient()
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            report = workflow.import_lci(
+                "localhost",
+                8080,
+                root,
+                "project-a",
+                preflight["preflight_hash"],
+                "isolated-db",
+                client,
+            )
+
+        self.assertEqual(report["status"], "success")
+        self.assertEqual(report["success_count"], 3)
+        self.assertEqual(len(client.create_product_system_calls), 1)
+        _, config = client.create_product_system_calls[0]
+        self.assertEqual(
+            config.provider_linking,
+            olca_schema.ProviderLinking.PREFER_DEFAULTS,
+        )
+        saved = client.entities[(olca_schema.ProductSystem, PRODUCT_SYSTEM_ID)]
+        self.assertEqual(saved.name, "PS01 Test product system")
+        self.assertEqual(saved.description, "Preserve this metadata")
+        self.assertEqual(saved.target_amount, 1065.0)
+        self.assertEqual(len(saved.processes or []), 2)
+        self.assertEqual(len(saved.process_links or []), 1)
+        graph = workflow.model_graph_from_product_system(saved, "http://localhost:8080")
+        self.assertEqual(graph["status"], "success")
+        self.assertEqual(len(graph["nodes"]), 2)
+        self.assertEqual(len(graph["edges"]), 1)
+        self.assertNotIn(
+            (olca_schema.ProductSystem, GENERATED_SYSTEM_ID),
+            client.entities,
+        )
+        self.assertTrue(
+            any(
+                getattr(reference, "id", None) == GENERATED_SYSTEM_ID
+                for reference in client.delete_calls
+            )
+        )
+
+    def test_product_system_auto_link_failure_is_structured(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            client = FakeImportClient()
+            client.fail_create_product_system = True
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            report = workflow.import_lci(
+                "localhost",
+                8080,
+                root,
+                "project-a",
+                preflight["preflight_hash"],
+                "isolated-db",
+                client,
+            )
+
+        self.assertEqual(report["status"], "partial_failure")
+        self.assertEqual(report["failed_count"], 1)
+        self.assertIn("did not create an auto-linked ProductSystem", report["errors"][0])
+
+    def test_product_system_temporary_cleanup_failure_is_structured(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            client = FakeImportClient()
+            client.fail_delete_ids.add(GENERATED_SYSTEM_ID)
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            report = workflow.import_lci(
+                "localhost",
+                8080,
+                root,
+                "project-a",
+                preflight["preflight_hash"],
+                "isolated-db",
+                client,
+            )
+
+        self.assertEqual(report["status"], "partial_failure")
+        self.assertEqual(report["failed_count"], 1)
+        self.assertIn("could not delete temporary system", report["errors"][0])
 
     def test_database_query_error_is_structured_with_endpoint_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -278,6 +447,29 @@ class GraphWorkflowTests(unittest.TestCase):
         self.assertEqual(result["status"], "broken")
         self.assertEqual(result["product_system"]["id"], "ps-id")
         self.assertEqual(len(result["broken_links"]), 1)
+
+    def test_graph_rejects_empty_nodes(self) -> None:
+        system = olca_schema.ProductSystem(id="ps-id", name="PS1 Empty")
+        result = workflow.get_model_graph(
+            "localhost", 8080, "ps-id", GraphClient(system)
+        )
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["nodes"], [])
+        self.assertIn("no process nodes", result["error"])
+
+    def test_graph_reports_disconnected_nodes_as_broken(self) -> None:
+        system = olca_schema.ProductSystem(id="ps-id", name="PS1 Disconnected")
+        system.processes = [
+            olca_schema.Ref(id="p1", name="P1"),
+            olca_schema.Ref(id="p2", name="P2"),
+        ]
+        result = workflow.get_model_graph(
+            "localhost", 8080, "ps-id", GraphClient(system)
+        )
+
+        self.assertEqual(result["status"], "broken")
+        self.assertEqual(len(result["disconnected_nodes"]), 2)
 
 
 class FakeResult:

@@ -36,7 +36,7 @@ def load_rubric(path: Path = DEFAULT_RUBRIC_PATH) -> dict[str, Any]:
 def validate_rubric(rubric: dict[str, Any]) -> None:
     if rubric.get("schema") != "lca-quality/rubric":
         raise QualityContractError("Unexpected rubric schema")
-    if rubric.get("version") != "2.0":
+    if rubric.get("version") != "2.1":
         raise QualityContractError("Unsupported rubric version")
 
     dimensions = rubric.get("dimensions")
@@ -411,7 +411,7 @@ def render_markdown(data: dict[str, Any], rubric: dict[str, Any] | None = None) 
     lines = [
         "---",
         "template_kind: lca_quality_report",
-        'template_version: "2"',
+        'template_version: "2.1"',
         f'review_id: "{data["review_id"]}"',
         f'rubric_version: "{data["rubric_version"]}"',
         "---",

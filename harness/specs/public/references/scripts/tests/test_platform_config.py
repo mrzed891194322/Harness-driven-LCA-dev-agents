@@ -218,6 +218,40 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         self.assertNotIn("workspace/logs/whole-lca", content)
         self.assertNotIn("workspace/results/<run_id>", content)
 
+    def test_workflow_has_no_runtime_confirmation_parameter_or_state(self) -> None:
+        paths = (
+            ".opencode/skills/workflow-main/SKILL.md",
+            ".opencode/agents/major-orchestrator.md",
+            ".opencode/agents/sub-executor.md",
+            ".codex/skills/workflow-main/SKILL.md",
+            ".codex/agents/major-orchestrator.toml",
+            ".codex/agents/sub-executor.toml",
+            "harness/rules/openlca-mcp.md",
+            "harness/tools/control_openlca/main.py",
+            "harness/tools/control_openlca/utils/workflow.py",
+        )
+        content = "\n".join(
+            (PROJECT_ROOT / path).read_text(encoding="utf-8") for path in paths
+        )
+        self.assertNotIn("user_confirmed", content)
+
+        for schema_name in ("workflow-manifest.schema.json", "stage.schema.json"):
+            schema = json.loads(
+                (
+                    PROJECT_ROOT
+                    / "harness"
+                    / "specs"
+                    / "public"
+                    / "references"
+                    / "schemas"
+                    / schema_name
+                ).read_text(encoding="utf-8")
+            )
+            self.assertNotIn(
+                "awaiting_confirmation",
+                schema["properties"]["status"]["enum"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

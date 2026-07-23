@@ -23,7 +23,7 @@ max_depth = 2
 
 
 [agents.major-orchestrator]
-description = "编排 whole-lca 状态机、专用子 agent、用户写入确认和运行证据。"
+description = "编排无人值守 whole-lca 状态机、专用子 agent、哈希预检和运行证据。"
 config_file = "agents/major-orchestrator.toml"
 
 [agents.sub-executor]

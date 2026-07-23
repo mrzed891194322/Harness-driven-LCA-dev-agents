@@ -31,7 +31,7 @@ mcp = MCPServer(
     instructions=(
         "Query and gated workflow access to the openLCA IPC Server configured "
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci is destructive "
-        "and requires a matching preflight hash plus explicit user confirmation."
+        "and requires a matching current preflight hash."
     ),
 )
 
@@ -153,19 +153,18 @@ def preflight_import_lci(
 @mcp.tool(
     description=(
         "Destructively import workspace/LCI after rerunning preflight. Requires "
-        "user_confirmed=true and an unchanged preflight_hash; otherwise no writes occur."
+        "an unchanged preflight_hash; otherwise no writes occur."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,
 )
 def import_lci(
     preflight_hash: str,
-    user_confirmed: bool,
     lci_dir: str = "workspace/LCI",
     target_category: str = "",
     database_name: str | None = None,
 ) -> dict[str, Any]:
-    """Import LCI under a precise, current user-confirmed preflight scope."""
+    """Import LCI under a precise, current preflight scope."""
     host, port = _endpoint_config()
     return run_import_lci(
         host=host,
@@ -173,7 +172,6 @@ def import_lci(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         preflight_hash=preflight_hash,
-        user_confirmed=user_confirmed,
         database_name=database_name,
     )
 

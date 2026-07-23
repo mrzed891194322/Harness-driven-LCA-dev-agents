@@ -1,6 +1,6 @@
 {
   "schema": "lca-quality/rubric",
-  "version": "2.0",
+  "version": "2.1",
   "supported_workflow_contract_versions": ["2.0"],
   "standards": [
     {
@@ -102,7 +102,7 @@
       "kind": "model-graph",
       "path_patterns": ["workspace/results/model_graph/*.json"],
       "required": true,
-      "criterion_ids": ["GS-07", "LCI-04", "LCI-05", "REP-03"]
+      "criterion_ids": ["GS-07", "LCI-03", "LCI-04", "LCI-05", "REP-03"]
     },
     {
       "kind": "raw-lcia-results",
@@ -157,7 +157,7 @@
     {"criterion_id": "LCI-02", "dimension_id": "data-quality-sources", "title": "计算步骤与假设有记录并一致应用", "required_evidence": "可重算公式、版本、假设和执行轨迹", "standard_refs": ["ISO 14044:2006 4.3.3.1"], "normative": true},
     {"criterion_id": "LCI-03", "dimension_id": "data-quality-sources", "title": "数据有效性检查已执行", "required_evidence": "质量/能量平衡、释放因子比较或等价验证及异常处置", "standard_refs": ["ISO 14044:2006 4.3.3.2"], "normative": true},
     {"criterion_id": "LCI-04", "dimension_id": "lci-model", "title": "每个单位过程具有适当的定量参考流", "required_evidence": "唯一定量参考、方向、单位和过程换算", "standard_refs": ["ISO 14044:2006 4.3.3.3"], "normative": true},
-    {"criterion_id": "LCI-05", "dimension_id": "lci-model", "title": "全系统输入输出关联到功能单位", "required_evidence": "过程链缩放、Provider 连接和功能单位归一化", "standard_refs": ["ISO 14044:2006 4.3.3.3"], "normative": true},
+    {"criterion_id": "LCI-05", "dimension_id": "lci-model", "title": "全系统输入输出关联到功能单位", "required_evidence": "过程链缩放、Provider 连接和功能单位归一化；ProductSystem 模型图必须状态成功、节点非空且无断链或断连节点", "standard_refs": ["ISO 14044:2006 4.3.3.3"], "normative": true},
     {"criterion_id": "LCI-06", "dimension_id": "data-quality-sources", "title": "聚合程度与目标一致且语义等价", "required_evidence": "聚合规则、Flow 映射和例外", "standard_refs": ["ISO 14044:2006 4.3.3.3"], "normative": true},
     {"criterion_id": "LCI-07", "dimension_id": "boundary-allocation", "title": "边界修订依据敏感性与截断准则", "required_evidence": "初始/最终边界、敏感性结果和修订理由", "standard_refs": ["ISO 14044:2006 4.3.3.4"], "normative": true},
     {"criterion_id": "LCI-08", "dimension_id": "boundary-allocation", "title": "分配程序识别、守恒、解释且一致应用", "required_evidence": "分配决定、前后平衡和替代方法敏感性；或不适用证据", "standard_refs": ["ISO 14044:2006 4.3.4"], "normative": true},

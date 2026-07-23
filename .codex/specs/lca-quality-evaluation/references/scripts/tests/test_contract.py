@@ -107,7 +107,7 @@ def build_evaluation() -> dict:
 
     return {
         "schema": "lca-quality/score",
-        "version": "2.0",
+        "version": "2.1",
         "rubric_version": rubric["version"],
         "workflow_contract_version": "2.0",
         "review_id": REVIEW_ID,
@@ -163,12 +163,26 @@ class RubricTests(unittest.TestCase):
             self.assertIn(value, rubric_text)
         self.assertNotIn("<run_id>", rubric_text)
 
+        model_graph = next(
+            item
+            for item in load_rubric()["artifact_coverage"]
+            if item["kind"] == "model-graph"
+        )
+        self.assertTrue({"LCI-03", "LCI-05"}.issubset(model_graph["criterion_ids"]))
+        lci_model = next(
+            item
+            for item in load_rubric()["criteria"]
+            if item["criterion_id"] == "LCI-05"
+        )
+        self.assertIn("节点非空", lci_model["required_evidence"])
+
 
 class EvaluationContractTests(unittest.TestCase):
     def test_valid_internal_evaluation_and_markdown(self) -> None:
         data = build_evaluation()
         validate_evaluation(data)
         report = render_markdown(data)
+        self.assertIn('template_version: "2.1"', report)
         self.assertIn("总体状态 | pass", report)
         self.assertIn("不构成 ISO 认证", report)
         self.assertNotIn("run_id:", report)

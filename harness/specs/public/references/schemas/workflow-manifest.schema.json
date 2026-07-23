@@ -13,7 +13,7 @@
     "plan": {"$ref": "#/$defs/artifact"},
     "started_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"},
-    "status": {"enum": ["not_started", "running", "awaiting_confirmation", "needs_input", "needs_review", "failed", "completed"]},
+    "status": {"enum": ["not_started", "running", "needs_input", "needs_review", "failed", "completed"]},
     "current_stage": {"type": ["string", "null"]},
     "preflight_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
     "lci_review_attempt": {"type": "integer", "minimum": 0, "maximum": 3},

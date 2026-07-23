@@ -1,6 +1,6 @@
 ---
 template_kind: lca_quality_report
-template_version: "2"
+template_version: "2.1"
 review_id: "<review_id>"
 rubric_version: "<rubric_version>"
 ---
@@ -26,6 +26,8 @@ rubric_version: "<rubric_version>"
 | `<id>` | `<edition>` | `<path>` | `<sha256>` | `<locator>` |
 
 ## 4. 输入证据与产物覆盖
+
+workflow manifest 必须为 `completed`；ProductSystem 模型图必须状态成功、节点非空且不存在断链或断连节点。
 
 | Artifact ID | 类型 | 路径 | 文件状态 | Schema 状态 | SHA-256 | 说明 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

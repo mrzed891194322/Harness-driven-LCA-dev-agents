@@ -1,6 +1,6 @@
 # 06 Whole-LCA openLCA 导入与读回
 
-本目录定义用户确认后的 openLCA 导入、导入报告验收和 Product System 模型图读回。
+本目录定义预检哈希门禁后的 openLCA 自动导入、导入报告验收和 Product System 模型图读回。
 
 ## References
 

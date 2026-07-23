@@ -25,8 +25,8 @@
   ],
   "properties": {
     "schema": {"const": "lca-quality/score"},
-    "version": {"const": "2.0"},
-    "rubric_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+    "version": {"const": "2.1"},
+    "rubric_version": {"const": "2.1"},
     "workflow_contract_version": {"type": "string", "minLength": 1},
     "review_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"},
     "evaluated_at": {"type": "string", "format": "date-time"},
