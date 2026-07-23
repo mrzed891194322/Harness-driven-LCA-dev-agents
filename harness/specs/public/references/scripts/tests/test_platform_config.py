@@ -50,15 +50,24 @@ class OpenCodeConfigurationTests(unittest.TestCase):
         self.assertEqual(agents["sub-executor"]["temperature"], 0.2)
         self.assertEqual(agents["eval-reviewer"]["temperature"], 0.1)
 
-    def test_rules_replace_removed_opencode_skills(self) -> None:
+    def test_rules_are_directory_packages_and_only_knowledge_is_global(self) -> None:
         config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
-        expected = {
-            "harness/rules/knowledge-retrieval.md",
-            "harness/rules/openlca-mcp.md",
-        }
-        self.assertTrue(expected.issubset(set(config["instructions"])))
-        for path in expected:
-            self.assertTrue((PROJECT_ROOT / path).is_file())
+        knowledge_rule = "harness/rules/knowledge-retrieval/README.md"
+        openlca_rule = "harness/rules/openlca-operation/README.md"
+        instructions = set(config["instructions"])
+        self.assertIn(knowledge_rule, instructions)
+        self.assertNotIn(openlca_rule, instructions)
+        self.assertTrue((PROJECT_ROOT / knowledge_rule).is_file())
+        self.assertTrue((PROJECT_ROOT / openlca_rule).is_file())
+        self.assertFalse(
+            (PROJECT_ROOT / "harness" / "rules" / "knowledge-retrieval.md").exists()
+        )
+        self.assertFalse(
+            (PROJECT_ROOT / "harness" / "rules" / "openlca-mcp.md").exists()
+        )
+        self.assertFalse(
+            (PROJECT_ROOT / "harness" / "rules" / "openlca-mcp").exists()
+        )
         for skill in ("tu-read-knowledge", "tu-control-openlca"):
             self.assertFalse((PROJECT_ROOT / ".opencode" / "skills" / skill).exists())
 
@@ -98,6 +107,19 @@ class OpenCodeConfigurationTests(unittest.TestCase):
 
 
 class CodexConfigurationTests(unittest.TestCase):
+    def test_code_maintenance_guide_is_conditionally_loaded(self) -> None:
+        with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
+            config = tomllib.load(stream)
+
+        instructions = config["developer_instructions"]
+        self.assertIn(".codex/AGENTS.md", instructions)
+        self.assertIn("修改、审查、调试或重构项目代码", instructions)
+        self.assertIn("Whole-LCA、LCA 计算或 LCA 质量评价", instructions)
+        self.assertIn("不要读取 `.codex/AGENTS.md`", instructions)
+        self.assertNotIn("model_instructions_file", config)
+        self.assertTrue((PROJECT_ROOT / ".codex" / "AGENTS.md").is_file())
+        self.assertFalse((PROJECT_ROOT / "AGENTS.md").exists())
+
     def test_agent_names_and_depth_are_exact(self) -> None:
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
             config = tomllib.load(stream)
@@ -193,13 +215,75 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         for package in STAGE_PACKAGES:
             self.assertIn(package, content)
         legacy_fragments = (
-            "workflow" + "-run",
+            "harness/specs/" + "workflow-run/",
             "plan_intake" + "_spec",
             "workflow_run" + "_spec",
             "lcia_results" + "_spec",
         )
         for fragment in legacy_fragments:
             self.assertNotIn(fragment, content)
+
+    def test_agent_prompts_defer_file_routing_to_workflow_skills(self) -> None:
+        agent_paths = (
+            ".opencode/agents/major-orchestrator.md",
+            ".opencode/agents/eval-reviewer.md",
+            ".opencode/agents/sub-executor.md",
+            ".codex/agents/major-orchestrator.toml",
+            ".codex/agents/eval-reviewer.toml",
+            ".codex/agents/sub-executor.toml",
+        )
+        contents = {
+            path: (PROJECT_ROOT / path).read_text(encoding="utf-8")
+            for path in agent_paths
+        }
+        for path, content in contents.items():
+            self.assertNotIn("harness/specs/", content, path)
+            self.assertNotIn("knowledge-retrieval/README.md", content, path)
+
+        openlca_rule = "harness/rules/openlca-operation/README.md"
+        for platform in (".opencode/agents", ".codex/agents"):
+            self.assertNotIn(
+                openlca_rule,
+                contents[f"{platform}/major-orchestrator.md"]
+                if platform == ".opencode/agents"
+                else contents[f"{platform}/major-orchestrator.toml"],
+            )
+            for name, extension in (
+                ("sub-executor", "md" if platform == ".opencode/agents" else "toml"),
+                ("eval-reviewer", "md" if platform == ".opencode/agents" else "toml"),
+            ):
+                content = contents[f"{platform}/{name}.{extension}"]
+                self.assertIn("需要调用 openLCA MCP 工具时", content)
+                self.assertIn(openlca_rule, content)
+                if platform == ".opencode/agents":
+                    self.assertEqual(content.count("# 工具调用"), 1)
+
+    def test_workflow_skills_route_resources_at_each_stage(self) -> None:
+        for relative_path in (
+            ".opencode/skills/workflow-main/SKILL.md",
+            ".codex/skills/workflow-main/SKILL.md",
+        ):
+            content = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+            positions = [content.index(f"### {index:02d}") for index in range(1, 8)]
+            self.assertEqual(positions, sorted(positions), relative_path)
+            self.assertRegex(content, r"(?:不得|不)预读")
+            self.assertGreaterEqual(
+                content.count("委派任务必须明确要求"), 7, relative_path
+            )
+            for package in STAGE_PACKAGES:
+                self.assertIn(f"harness/specs/{package}/README.md", content)
+                self.assertIn(
+                    f"harness/specs/{package}/references/{package}-spec.md",
+                    content,
+                )
+            self.assertIn(
+                "harness/rules/openlca-operation/README.md", content, relative_path
+            )
+            self.assertIn(
+                "harness/rules/knowledge-retrieval/README.md",
+                content,
+                relative_path,
+            )
 
     def test_workflow_uses_refactored_fixed_paths(self) -> None:
         paths = (
@@ -231,7 +315,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             ".codex/skills/workflow-main/SKILL.md",
             ".codex/agents/major-orchestrator.toml",
             ".codex/agents/sub-executor.toml",
-            "harness/rules/openlca-mcp.md",
+            "harness/rules/openlca-operation/README.md",
             "harness/tools/control_openlca/main.py",
             "harness/tools/control_openlca/utils/workflow.py",
         )

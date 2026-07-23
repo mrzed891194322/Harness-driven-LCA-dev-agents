@@ -1,3 +1,10 @@
+developer_instructions = """
+按任务类型加载本项目的附加指南：
+- 修改、审查、调试或重构项目代码时，开始工作前必须完整读取 `.codex/AGENTS.md` 并遵守。
+- 执行 Whole-LCA、LCA 计算或 LCA 质量评价时，不要读取 `.codex/AGENTS.md`；直接选择并严格遵守匹配的项目 skill 和 Agent 工作流。
+- 混合请求按子任务分别应用以上规则。
+"""
+
 [mcp_servers.query_rag]
 command = "uv"
 args = ["run", "python", "harness/tools/query_rag/main.py"]

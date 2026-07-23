@@ -4,8 +4,7 @@
   "instructions": [
     "harness/rules/directory-structure/README.md",
     "harness/rules/coding-specification/README.md",
-    "harness/rules/knowledge-retrieval.md",
-    "harness/rules/openlca-mcp.md"
+    "harness/rules/knowledge-retrieval/README.md"
   ],
   "mcp": {
     "query_rag": {
