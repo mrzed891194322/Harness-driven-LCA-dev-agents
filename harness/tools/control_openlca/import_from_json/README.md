@@ -27,5 +27,5 @@ uv run python harness/tools/control_openlca/import_from_json/main.py <JSON配置
 
 ### 特色机制
 
-1. **自动获取项目名称**：脚本会自动从 `workspace/plan/execution_plan.md` 中解析出项目的英文缩写（如 `gold_plating`），直接作为导入实体的数据库分类目录名称，无须手动传参或进行多余的时间戳拼接。
+1. **自动获取项目名称**：脚本会自动从 `workspace/inputs/plan.md` 中解析出项目的英文缩写（如 `gold_plating`），直接作为导入实体的数据库分类目录名称，无须手动传参或进行多余的时间戳拼接。
 2. **同名分类覆盖机制**：如果 openLCA 中已存在同名分类/目录，脚本将在导入前自动清空该分类下的所有已有实体，确保数据最新且不重复。

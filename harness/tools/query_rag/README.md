@@ -20,7 +20,7 @@ uv run python harness/tools/query_rag/main.py
 
 调用方只能传入 standards、openlca_manual、input 或 data，不得传入本地路径。打开 Chroma 前会检查现有 chroma.sqlite3，避免在错误目录创建空数据库。
 
-工具不负责构建、迁移、清空或修复知识库。写入入口是 scripts/initialization/main.py --only rag。
+工具不负责构建、迁移、清空或修复知识库。写入入口是 `src/scripts/initialization/main.py --only rag`。
 
 ## 返回与错误
 

@@ -7,7 +7,7 @@
 
 ## 2. 制定约束
 
-- LCI 创建或修正由专用执行 Agent 完成，产物写入 `workspace/LCI/`。
+- LCI 创建或修正由专用执行 Agent 完成，产物写入 `workspace/outputs/LCI/`。
 - Flow、Process、Product System、映射报告和导入材料必须遵守项目 LCI 建模规范及其模板。
 - 数值、单位、Provider、UUID 和系统边界必须能回链到计划或第 02 阶段证据；不得猜测缺失事实。
 - 初次制定不得提前执行 openLCA 写入；本阶段只形成可审查的 LCI 材料。

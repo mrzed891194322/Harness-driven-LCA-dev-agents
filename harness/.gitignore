@@ -5,10 +5,10 @@
 ## Ignore all generated vector databases in knowledge/rag_db/
 knowledge/rag_db/**
 
-## Ignore user uploads in knowledge/inputs/user_data/ and knowledge/inputs/user_file/
-knowledge/inputs/user_data/**
-knowledge/inputs/user_file/**
+## Ignore synchronized user references
+knowledge/inputs/user_ref/data/**
+knowledge/inputs/user_ref/file/**
 
 ## Keep README files
-!knowledge/inputs/user_data/README.md
-!knowledge/inputs/user_file/README.md
+!knowledge/inputs/user_ref/data/README.md
+!knowledge/inputs/user_ref/file/README.md

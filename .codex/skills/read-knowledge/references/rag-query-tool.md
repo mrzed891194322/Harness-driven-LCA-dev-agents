@@ -31,7 +31,7 @@
 数据库缺失、旧 schema、embedding 模型或维度不匹配、metadata 损坏和非法参数会产生 MCP tool error。报告错误并停止依赖该库；知识库写入入口为：
 
 ~~~bash
-uv run python scripts/initialization/main.py --only rag
+uv run python src/scripts/initialization/main.py --only rag
 ~~~
 
 该命令会重建知识库且可能调用外部 embedding API，不属于只读检索步骤，未经用户授权不要执行。

@@ -1,6 +1,6 @@
 ---
 name: workflow-main
-description: 从既有 execution_plan.md 执行带计划门禁、证据检索、三轮 LCI 审查、openLCA 写入预检、自动导入读回、LCIA 计算和结果归档的无人值守 whole-lca 工作流时使用。
+description: 从既有 plan.md 执行带计划门禁、证据检索、三轮 LCI 审查、openLCA 写入预检、自动导入读回、LCIA 计算和结果归档的无人值守 whole-lca 工作流时使用。
 ---
 
 # Whole-LCA 主工作流
@@ -9,9 +9,9 @@ description: 从既有 execution_plan.md 执行带计划门禁、证据检索、
 
 ## 启动
 
-1. 确认当前 Agent 是 `major-orchestrator`，计划路径是 `workspace/plan/execution_plan.md`。
+1. 确认当前 Agent 是 `major-orchestrator`，计划路径是 `workspace/inputs/plan.md`。
 2. 读取 `harness/specs/public/README.md` 及公共运行契约；只在进入某一阶段前读取对应编号目录的 `README.md` 和阶段 spec，并在写相应文件前读取公共目录中的对应 JSON schema 或报告模板。
-3. 在 `workspace/memory/` 创建或更新固定的运行记忆与 manifest，在 `workspace/results/` 写固定结果路径。平台写为 `opencode`，主 Agent 写为 `major-orchestrator`；不生成运行 ID 或按运行 ID 分层。
+3. 在 `workspace/memory/` 创建或更新固定的运行记忆与 manifest，在 `workspace/outputs/reports/` 写固定结果路径。平台写为 `opencode`，主 Agent 写为 `major-orchestrator`；不生成运行 ID 或按运行 ID 分层。
 
 ## 执行状态机
 
@@ -19,7 +19,7 @@ description: 从既有 execution_plan.md 执行带计划门禁、证据检索、
 
 1. 调用 `eval-reviewer` 做计划接收审查；阻断时持久化结果并停止。
 2. 从已通过计划提取所有 `GAP-*` 与背景映射任务，调用 `sub-executor` 完成 RAG 原文回读和 openLCA 候选查询。
-3. 调用 `sub-executor` 生成 `workspace/LCI/`。
+3. 调用 `sub-executor` 生成 `workspace/outputs/LCI/`。
 4. 调用 `eval-reviewer` 审查 LCI。attempt 1/2 未通过时，只把 issue ID 与受影响产物交给 `sub-executor` 定向修正；attempt 3 未通过时置为 `needs_review`，不得继续。
 5. LCI 通过后让 `sub-executor` 调用 `preflight_import_lci`。保存活动数据库、目标分类、创建/更新/删除范围和 `preflight_hash`；预检通过后立即把当前哈希交给同一专用执行 Agent 调用 `import_lci`，不得停下来请求用户确认。
 6. `import_lci` 必须重新预检；范围或哈希变化时不得写入，保存拒绝报告并将运行置为 `failed`，不得等待用户输入。

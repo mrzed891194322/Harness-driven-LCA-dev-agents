@@ -161,6 +161,25 @@ class MCPServerTests(unittest.TestCase):
             "user_confirmed",
             tools["import_lci"].input_schema["properties"],
         )
+        self.assertEqual(
+            tools["preflight_import_lci"].input_schema["properties"]["lci_dir"]["default"],
+            "workspace/outputs/LCI",
+        )
+        self.assertEqual(
+            tools["import_lci"].input_schema["properties"]["lci_dir"]["default"],
+            "workspace/outputs/LCI",
+        )
+
+    def test_workflow_lci_dir_is_limited_to_outputs(self) -> None:
+        expected = (
+            mcp_module.PROJECT_ROOT / "workspace" / "outputs" / "LCI"
+        ).resolve()
+        self.assertEqual(
+            mcp_module._workflow_lci_dir("workspace/outputs/LCI"),
+            expected,
+        )
+        with self.assertRaisesRegex(ValueError, "workspace/outputs/LCI"):
+            mcp_module._workflow_lci_dir("workspace/LCI")
 
     def test_health_tool_uses_configured_endpoint(self) -> None:
         expected = {"ok": True}

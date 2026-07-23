@@ -5,7 +5,7 @@
 ```text
 harness/
 ├── knowledge/              # 知识库与原始数据 (inputs, rag_db)
-│   ├── inputs/             # 原始输入数据 (static_ref, user_data)
+│   ├── inputs/             # 原始输入数据 (static_ref, user_ref)
 │   └── rag_db/             # 动态转换生成的 RAG 向量数据库
 ├── rules/                  # 项目运行与智能体行为规范
 ├── specs/                  # LCA 标准规约与技术指南

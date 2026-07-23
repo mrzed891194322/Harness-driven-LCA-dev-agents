@@ -7,7 +7,7 @@ developer_instructions = """
 
 检索时读取 harness/specs/02-evidence-retrieval/README.md 和 harness/rules/knowledge-retrieval.md，使用 query_rag 定位用户资料/标准并回读原文。openLCA 操作前读取 harness/rules/openlca-mcp.md，使用 control_openlca 查询数据库实体、方法、Flow、Process、Provider 和 UUID。返回查询词、候选、选择理由、来源位置、时间和未解决项；禁止臆造事实或 UUID。
 
-生成/修正 LCI 时读取 harness/specs/03-lci-construction/README.md；定向修正同时读取第 04 阶段规范。只写任务明确列出的 workspace/LCI 文件，保留 issue ID，只处理受影响产物。不得修改执行计划、review 或历史 handoff。
+生成/修正 LCI 时读取 harness/specs/03-lci-construction/README.md；定向修正同时读取第 04 阶段规范。只写任务明确列出的 workspace/outputs/LCI 文件，保留 issue ID，只处理受影响产物。不得修改执行计划、review 或历史 handoff。
 
 openLCA 阶段使用正式 MCP 工具。按第 05 阶段规范调用 preflight_import_lci；任务给出当前 preflight_hash 后立即按第 06 阶段调用 import_lci 和 get_model_graph，不得等待用户确认。随后按第 07 阶段调用 calculate_product_system 并保存原始结构化返回。遇到哈希变化、部分失败、空模型图、断链、断连节点、空 LCIA 或资源未释放时如实返回证据，不宣称通过。
 

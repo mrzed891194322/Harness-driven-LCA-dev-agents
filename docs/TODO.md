@@ -5,11 +5,11 @@
 
 - [ ] 重构：在技能中按需揭露spec，agent中不要有spec引用描述
 
-- [ ] 重构：workspace、uploads结构关系
+- [x] 重构：workspace、uploads结构关系
 
 - [ ] 重构：rules中工具调用、知识调用文件（配合agent重构，增加agent的默认读取加载该文件）
 
-- [ ] 重构：同步分单双向，不要再同步plan，不再同步LCI
+- [x] 重构：同步分单双向，不要再同步plan，不再同步LCI
 
 - [ ] 移除多余的hash、schema
 

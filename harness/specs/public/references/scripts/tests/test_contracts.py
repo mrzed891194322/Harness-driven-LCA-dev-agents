@@ -127,7 +127,7 @@ class SchemaContractTests(unittest.TestCase):
         return {
             "artifact_id": artifact_id,
             "kind": "plan",
-            "path": "workspace/plan/execution_plan.md",
+            "path": "workspace/inputs/plan.md",
             "sha256": HASH,
             "source_artifact_ids": [],
             "revision_of": None,
@@ -191,7 +191,7 @@ class SchemaContractTests(unittest.TestCase):
             "timestamp": TIMESTAMP,
             "input_artifacts": [self.artifact()],
             "decision": "Review plan intake.",
-            "evidence_refs": ["workspace/plan/execution_plan.md"],
+            "evidence_refs": ["workspace/inputs/plan.md"],
             "unresolved_items": [],
             "status": "completed",
             "next_action": "Retrieve evidence.",
@@ -263,7 +263,7 @@ class SchemaContractTests(unittest.TestCase):
             "parameters": {},
             "tool_versions": {"olca-ipc": "2.0"},
             "calculated_at": TIMESTAMP,
-            "raw_result": {"path": "workspace/results/raw/ps1.json", "sha256": HASH},
+            "raw_result": {"path": "workspace/outputs/reports/raw/ps1.json", "sha256": HASH},
             "resource_released": True,
             "unresolved_items": [],
         }

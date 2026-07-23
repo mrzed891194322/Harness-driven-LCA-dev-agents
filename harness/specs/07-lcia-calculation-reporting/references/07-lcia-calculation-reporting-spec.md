@@ -2,7 +2,7 @@
 
 ## 1. 必需产物
 
-本阶段必须在 `workspace/results/` 保存：
+本阶段必须在 `workspace/outputs/reports/` 保存：
 
 - `raw/<product-system-slug>.json`；
 - `calculation_manifest.json`；

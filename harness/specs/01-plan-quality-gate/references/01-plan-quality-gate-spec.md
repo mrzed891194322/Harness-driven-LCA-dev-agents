@@ -1,10 +1,10 @@
 # 01 Whole-LCA 计划质量门禁规范
 
-本规范只判断 `workspace/plan/execution_plan.md` 能否启动端到端执行，不要求同时存在或通过 `todo_list.md`。计划制定阶段的交付验收仍由计划制定规范管理。
+本规范只判断 `workspace/inputs/plan.md` 能否启动端到端执行，不要求同时存在或通过 `todo_list.md`。计划制定阶段的交付验收仍由计划制定规范管理。
 
 ## 1. 文件与版本
 
-- 唯一输入为 `workspace/plan/execution_plan.md`，其同步来源固定为 `uploads/plan/execution_plan.md`。
+- 唯一输入为 `workspace/inputs/plan.md`，该文件由用户直接维护，不创建同步副本。
 - 文件必须是带 YAML front matter 的 Markdown，`template_kind` 必须为 `lca_execution_plan`。
 - 当前仅接受 `template_version: 1` 或语义等价的字符串 `"1"`。缺失、格式非法或未知版本不得猜测，审查状态必须为 `needs_input`，记录迁移要求后结束本次运行；不得停下来请求确认。
 - 必须保留执行计划模板中的 `## 1` 至 `## 6` 六个顶层章节；标题文字允许轻微措辞差异，但章节语义不得缺失。

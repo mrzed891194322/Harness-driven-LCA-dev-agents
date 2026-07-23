@@ -65,9 +65,9 @@ def _workflow_lci_dir(lci_dir: str) -> Path:
     configured = Path(lci_dir)
     candidate = configured if configured.is_absolute() else PROJECT_ROOT / configured
     resolved = candidate.resolve()
-    allowed = (PROJECT_ROOT / "workspace" / "LCI").resolve()
+    allowed = (PROJECT_ROOT / "workspace" / "outputs" / "LCI").resolve()
     if resolved != allowed:
-        raise ValueError("lci_dir must resolve exactly to workspace/LCI")
+        raise ValueError("lci_dir must resolve exactly to workspace/outputs/LCI")
     return resolved
 
 
@@ -127,7 +127,7 @@ def query_descriptors(
 
 @mcp.tool(
     description=(
-        "Read and validate workspace/LCI, inspect the active database and target "
+        "Read and validate workspace/outputs/LCI, inspect the active database and target "
         "category, list create/overwrite/delete scope, and return a stable preflight hash. "
         "This tool performs no database writes."
     ),
@@ -135,7 +135,7 @@ def query_descriptors(
     structured_output=True,
 )
 def preflight_import_lci(
-    lci_dir: str = "workspace/LCI",
+    lci_dir: str = "workspace/outputs/LCI",
     target_category: str = "",
     database_name: str | None = None,
 ) -> dict[str, Any]:
@@ -152,7 +152,7 @@ def preflight_import_lci(
 
 @mcp.tool(
     description=(
-        "Destructively import workspace/LCI after rerunning preflight. Requires "
+        "Destructively import workspace/outputs/LCI after rerunning preflight. Requires "
         "an unchanged preflight_hash; otherwise no writes occur."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
@@ -160,7 +160,7 @@ def preflight_import_lci(
 )
 def import_lci(
     preflight_hash: str,
-    lci_dir: str = "workspace/LCI",
+    lci_dir: str = "workspace/outputs/LCI",
     target_category: str = "",
     database_name: str | None = None,
 ) -> dict[str, Any]:

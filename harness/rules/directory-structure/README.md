@@ -15,5 +15,5 @@
 在需要查阅特定目录的命名约定、内部结构或模块职责时，请根据具体内容按需查看 **`references/`** 目录下的相关规范：
 
 * **[global-structure.md](references/global-structure.md)**：用于查询全局根目录结构（如根目录下的通用约定、Python 虚拟环境与 `uv` 依赖管理规范）。
-* **[harness-structure.md](references/harness-structure.md)**：用于查询 `harness/` 目录（包括 `knowledge/`、`tools/`、`rules/`、`specs/`）与 `GUI/`、`scripts/` 的目录结构以及各模块的职责定义。
+* **[harness-structure.md](references/harness-structure.md)**：用于查询 `harness/` 目录（包括 `knowledge/`、`tools/`、`rules/`、`specs/`）与 `src/GUI/`、`src/scripts/` 的目录结构以及各模块的职责定义。
 * **[workspace-structure.md](references/workspace-structure.md)**：用于查询 `workspace/` 内部子目录（如 `LCI/`、`data/`、`plan/`、`tmp/` 等）的详细划分与文件管理规则。

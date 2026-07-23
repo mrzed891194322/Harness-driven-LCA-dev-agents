@@ -19,7 +19,8 @@
 ## 2. 固定运行目录
 
 - 运行记忆根目录：`workspace/memory/`。
-- 结果根目录：`workspace/results/`。
+- LCI 根目录：`workspace/outputs/LCI/`。
+- 结果根目录：`workspace/outputs/reports/`。
 - 初始化时创建 `manifest.json`，记录计划路径与 SHA-256、平台、主 agent、状态和产物索引。
 - 阶段文件写入 `stages/<三位序号>-<stage>.json`；交接写入 `handoffs/<三位序号>-<from>-to-<to>.json`。
 - 计划审查固定为 `reviews/plan-review.json`；LCI 审查为 `reviews/lci-review-<attempt>.json`。

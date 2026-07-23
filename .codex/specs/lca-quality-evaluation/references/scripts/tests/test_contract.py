@@ -159,7 +159,7 @@ class RubricTests(unittest.TestCase):
 
     def test_current_delivery_files_are_covered(self) -> None:
         rubric_text = json.dumps(load_rubric(), ensure_ascii=False)
-        for value in ("workspace/memory/manifest.json", "workspace/memory/stages/*.json", "workspace/results/import_report.json", "workspace/results/model_graph/*.json", "workspace/results/raw/*.json", "workspace/results/calculation_manifest.json", "workspace/results/lca_report.md", "LCI/flows/*.json", "LCI/processes/*.json", "LCI/product_systems/*.json", "LCI/human_readable_mapping.md"):
+        for value in ("workspace/memory/manifest.json", "workspace/memory/stages/*.json", "workspace/outputs/reports/import_report.json", "workspace/outputs/reports/model_graph/*.json", "workspace/outputs/reports/raw/*.json", "workspace/outputs/reports/calculation_manifest.json", "workspace/outputs/reports/lca_report.md", "outputs/LCI/flows/*.json", "outputs/LCI/processes/*.json", "outputs/LCI/product_systems/*.json", "outputs/LCI/human_readable_mapping.md"):
             self.assertIn(value, rubric_text)
         self.assertNotIn("<run_id>", rubric_text)
 

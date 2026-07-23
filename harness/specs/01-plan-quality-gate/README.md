@@ -1,6 +1,6 @@
 # 01 Whole-LCA 计划质量门禁
 
-本目录定义端到端工作流接收 `execution_plan.md` 时的格式、完整性和质量门禁。
+本目录定义端到端工作流接收 `workspace/inputs/plan.md` 时的格式、完整性和质量门禁。
 
 ## References
 

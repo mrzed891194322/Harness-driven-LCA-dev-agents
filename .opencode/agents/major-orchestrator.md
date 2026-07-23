@@ -25,8 +25,8 @@ color: info
 
 # 工作方式
 
-1. 加载 `workflow-main`，从 `workspace/plan/execution_plan.md` 开始。
-2. 读取 `harness/specs/public/README.md` 和公共运行契约；在 `workspace/memory/` 创建并持续更新本次运行证据，在 `workspace/results/` 保存结果。
+1. 加载 `workflow-main`，从 `workspace/inputs/plan.md` 开始。
+2. 读取 `harness/specs/public/README.md` 和公共运行契约；在 `workspace/memory/` 创建并持续更新本次运行证据，在 `workspace/outputs/reports/` 保存结果。
 3. 从 `01-plan-quality-gate` 到 `07-lcia-calculation-reporting` 顺序推进，只在进入阶段前读取该阶段的 README 和 spec，再委派对应任务。
 4. 每次委派都使用完整调用路径并保存 handoff；不得覆盖历史阶段、审查或交接文件。
 5. 预检成功后立即委派导入和读回，不得设置 `awaiting_confirmation` 或请求用户确认；范围或哈希变化时保存失败证据并停止。

@@ -52,7 +52,7 @@
   "artifact_coverage": [
     {
       "kind": "execution-plan",
-      "path_patterns": ["workspace/plan/execution_plan.md"],
+      "path_patterns": ["workspace/inputs/plan.md"],
       "required": true,
       "criterion_ids": ["GS-02", "GS-03", "GS-04", "GS-05", "GS-06", "GS-07", "GS-08", "GS-09", "GS-10", "IA-01", "IA-04", "REP-01"]
     },
@@ -70,73 +70,73 @@
     },
     {
       "kind": "lci-flows",
-      "path_patterns": ["workspace/LCI/flows/*.json"],
+      "path_patterns": ["workspace/outputs/LCI/flows/*.json"],
       "required": true,
       "criterion_ids": ["LCI-01", "LCI-04", "LCI-06", "LCI-09"]
     },
     {
       "kind": "lci-processes",
-      "path_patterns": ["workspace/LCI/processes/*.json"],
+      "path_patterns": ["workspace/outputs/LCI/processes/*.json"],
       "required": true,
       "criterion_ids": ["LCI-01", "LCI-02", "LCI-03", "LCI-04", "LCI-05", "LCI-06", "LCI-08", "LCI-09"]
     },
     {
       "kind": "lci-product-systems",
-      "path_patterns": ["workspace/LCI/product_systems/*.json"],
+      "path_patterns": ["workspace/outputs/LCI/product_systems/*.json"],
       "required": true,
       "criterion_ids": ["GS-06", "GS-07", "LCI-05", "IA-01"]
     },
     {
       "kind": "lci-mapping-report",
-      "path_patterns": ["workspace/LCI/human_readable_mapping.md"],
+      "path_patterns": ["workspace/outputs/LCI/human_readable_mapping.md"],
       "required": true,
       "criterion_ids": ["GS-07", "GS-08", "LCI-01", "LCI-02", "LCI-06", "LCI-08", "LCI-09", "REP-03"]
     },
     {
       "kind": "import-report",
-      "path_patterns": ["workspace/results/import_report.json"],
+      "path_patterns": ["workspace/outputs/reports/import_report.json"],
       "required": true,
       "criterion_ids": ["LCI-02", "LCI-09", "REP-03"]
     },
     {
       "kind": "model-graph",
-      "path_patterns": ["workspace/results/model_graph/*.json"],
+      "path_patterns": ["workspace/outputs/reports/model_graph/*.json"],
       "required": true,
       "criterion_ids": ["GS-07", "LCI-03", "LCI-04", "LCI-05", "REP-03"]
     },
     {
       "kind": "raw-lcia-results",
-      "path_patterns": ["workspace/results/raw/*.json"],
+      "path_patterns": ["workspace/outputs/reports/raw/*.json"],
       "required": true,
       "criterion_ids": ["IA-02", "IA-03", "IA-05", "IA-06", "IA-07", "IA-08", "IA-09", "INT-01", "INT-02", "REP-06"]
     },
     {
       "kind": "calculation-manifest",
-      "path_patterns": ["workspace/results/calculation_manifest.json"],
+      "path_patterns": ["workspace/outputs/reports/calculation_manifest.json"],
       "required": true,
       "criterion_ids": ["GS-05", "IA-03", "IA-06", "REP-03", "REP-06"]
     },
     {
       "kind": "lca-report",
-      "path_patterns": ["workspace/results/lca_report.md"],
+      "path_patterns": ["workspace/outputs/reports/lca_report.md"],
       "required": true,
       "criterion_ids": ["GS-01", "IA-09", "INT-01", "INT-02", "INT-03", "INT-04", "INT-05", "INT-06", "INT-07", "INT-08", "REP-01", "REP-02", "REP-03", "REP-04", "REP-06", "REP-07"]
     },
     {
       "kind": "critical-review-package",
-      "path_patterns": ["workspace/results/critical_review/**/*"],
+      "path_patterns": ["workspace/outputs/reports/critical_review/**/*"],
       "required": false,
       "criterion_ids": ["REP-08", "PUB-08"]
     },
     {
       "kind": "third-party-report",
-      "path_patterns": ["workspace/results/third_party_report.md"],
+      "path_patterns": ["workspace/outputs/reports/third_party_report.md"],
       "required": false,
       "criterion_ids": ["REP-05", "PUB-05"]
     },
     {
       "kind": "comparative-assertion-package",
-      "path_patterns": ["workspace/results/comparative_assertion/**/*"],
+      "path_patterns": ["workspace/outputs/reports/comparative_assertion/**/*"],
       "required": false,
       "criterion_ids": ["PUB-01", "PUB-02", "PUB-03", "PUB-04", "PUB-05", "PUB-06", "PUB-07"]
     }

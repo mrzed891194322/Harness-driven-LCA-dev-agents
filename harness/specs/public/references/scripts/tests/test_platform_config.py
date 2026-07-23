@@ -201,7 +201,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         for fragment in legacy_fragments:
             self.assertNotIn(fragment, content)
 
-    def test_workflow_uses_fixed_memory_and_result_paths(self) -> None:
+    def test_workflow_uses_refactored_fixed_paths(self) -> None:
         paths = (
             "harness/specs/public/references/workflow-runtime-spec.md",
             "harness/rules/directory-structure/references/workspace-structure.md",
@@ -213,10 +213,15 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         content = "\n".join(
             (PROJECT_ROOT / path).read_text(encoding="utf-8") for path in paths
         )
+        self.assertIn("workspace/inputs/plan.md", content)
         self.assertIn("workspace/memory/", content)
-        self.assertIn("workspace/results/", content)
+        self.assertIn("workspace/outputs/LCI/", content)
+        self.assertIn("workspace/outputs/reports/", content)
+        self.assertNotIn("workspace/plan/execution_plan.md", content)
+        self.assertNotIn("workspace/LCI/", content)
+        self.assertNotIn("workspace/results/", content)
         self.assertNotIn("workspace/logs/whole-lca", content)
-        self.assertNotIn("workspace/results/<run_id>", content)
+        self.assertNotIn("workspace/outputs/reports/<run_id>", content)
 
     def test_workflow_has_no_runtime_confirmation_parameter_or_state(self) -> None:
         paths = (
