@@ -1,4 +1,4 @@
-# 后端业务逻辑层 (`GUI/functions`)
+# 后端业务逻辑层 (`src/GUI/functions`)
 
 本目录包含后台命令的执行流程、CLI 命令编排器以及供 GUI 使用的底层工具方法。
 
@@ -18,7 +18,7 @@
 包含可被所有特征模块全局调用的公共工具：
 - **[process_manager.py](utils/process_manager.py)**：负责跟踪当前活动命令执行子进程，并提供强制杀死底层任务进程树的统一实现。
 - **[log_exporter.py](utils/log_exporter.py)**：管理命令输出日志存放目录、路径规则以及将 stdout 实时追加写入本地日志文件。
-- **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `.opencode` 或 `.git` 的父目录）。
+  - **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `pyproject.toml`、`.opencode` 或 `.git` 的父目录）。
 - **命令执行子包 (`functions/utils/executor/`)**：负责运行后台 `opencode` 指令任务。
   - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数。
   - **私有辅助包 (`private_utils/`)**：
@@ -32,10 +32,10 @@
 
 ### 2. 项目初始化模块 (`functions/project_init/`)
 整合项目启动阶段的资源清理与环境初始化流程：
-- **功能入口**：[main.py](project_init/main.py) 中的 `main` 函数。
+- **功能入口**：[main_init.py](project_init/main_init.py) 中的 `main` 函数。
 - **私有辅助包 (`private_utils/`)**：
   - `clean.py`：调用项目清理脚本 `clean_dir.py`。
-  - `file_handler.py`：将左侧上传的材料/数据文件提取复制到项目的 `harness/knowledge/inputs/` 目录中。
+  - `file_handler.py`：将左侧上传的材料/数据文件暂存到 `workspace/inputs/references/`，再由文件同步脚本送入 RAG 输入目录。
   - `init_rag.py`：调用 RAG 向量库与模型数据库的本地初始化逻辑。
 
 ### 3. 计划制定与执行模块 (`functions/make_plan/`)

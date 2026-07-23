@@ -156,7 +156,9 @@ def run_init_rag_database_console() -> Generator[tuple[str, str], None, None]:
     运行项目内置的 RAG 初始化脚本，
     并将终端日志流式更新到 Gradio 原生文本组件中。
     """
-    command = [sys.executable, "scripts/initialization/main.py", "--only", "rag"]
+    import config
+
+    command = [sys.executable, str(config.INIT_RAG_SCRIPT_PATH), "--only", "rag"]
     accumulated_output = ""
 
     yield "[System] Preparing to build RAG knowledge libraries...\n", "Running"

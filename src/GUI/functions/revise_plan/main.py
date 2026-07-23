@@ -5,7 +5,7 @@ from functions.utils.path_utils import find_project_root
 
 def main(values: list[str]) -> Generator[tuple[str, str], None, None]:
     """
-    1. 将当前界面填写的待完善清单内容保存到 workspace/plan/todo_list.md 中。
+    1. 将当前界面填写的待完善清单内容保存到当前计划输入文件。
     2. 执行 opencode run --command revise-plan 启动 plan-maker agent 对已生成的计划进行修改。
     """
     import config

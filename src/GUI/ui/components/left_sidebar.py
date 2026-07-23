@@ -44,16 +44,18 @@ def build_left_sidebar() -> tuple[gr.Button, gr.Button, gr.Button, gr.File, gr.F
             elem_classes=["quick-action-btn"],
         )
         make_plan_btn = gr.Button(
-            "🧭 LCA整体工作计划制定面板",
+            "🧭 LCA整体工作计划制定面板（暂不可用）",
             variant="secondary",
             size="lg",
+            interactive=False,
             elem_id="quick-action-plan",
             elem_classes=["quick-action-btn"],
         )
         design_lci_btn = gr.Button(
-            "🧬 生命周期清单（LCI）工作面板",
+            "🧬 生命周期清单（LCI）工作面板（暂不可用）",
             variant="secondary",
             size="lg",
+            interactive=False,
             elem_id="quick-action-lci",
             elem_classes=["quick-action-btn"],
         )

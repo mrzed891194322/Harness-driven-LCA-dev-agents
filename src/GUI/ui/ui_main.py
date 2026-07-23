@@ -42,7 +42,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
         if js_file.exists()
     )
 
-    with gr.Blocks(title="LCA Multi-agent UI", js=js_code) as demo:
+    with gr.Blocks(title="LCA Multi-agent UI") as demo:
         with gr.Row():
             gr.Markdown(
                 """
@@ -56,8 +56,8 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             with gr.Column(scale=1, elem_id="left-sidebar"):
                 (
                     run_btn,
-                    make_plan_btn,
-                    design_lci_btn,
+                    _make_plan_btn,
+                    _design_lci_btn,
                     ref_materials_file,
                     ref_data_file
                 ) = build_left_sidebar()
@@ -86,43 +86,15 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                     ) = build_tab_initial()
                     
                     # 3. 拆分出的“计划输入”、“计划输出”和“计划修改”组件（初始不可见）
-                    (
-                        plan_input_tab,
-                        plan_output_tab,
-                        plan_modification_tab,
-                        plan_template_container,
-                        _plan_output_panel,
-                        textbox_components,
-                        clear_fields_btn,
-                        load_plan_btn,
-                        exec_plan_btn,
-                        close_btn,
-                        modify_textbox_pool,
-                        clear_modify_btn,
-                        load_modify_btn,
-                        exec_modify_btn,
-                        close_modify_btn,
-                        download_plan_btn,
-                        modify_plan_btn,
-                        confirm_plan_btn,
-                        close_output_btn,
-                        plan_output_content_row,
-                        plan_output_warning_row,
-                        plan_output_toc_html,
-                        plan_output_markdown,
-                        plan_modify_content_row,
-                        plan_modify_warning_row,
-                        plan_modify_toc_html,
-                        modify_markdown_pool
-                    ) = build_tab_plan()
+                    _legacy_plan_components = build_tab_plan()
 
                     # 4. LCI 制定组件
                     (
-                        lci_design_tab,
+                        _lci_design_tab,
                         lci_mapping_tab,
-                        close_lci_btn,
-                        close_mapping_btn,
-                        exec_lci_btn,
+                        _close_lci_btn,
+                        _close_mapping_btn,
+                        _exec_lci_btn,
                         lci_mapping_content_row,
                         lci_mapping_warning_row,
                         lci_mapping_toc_html,
@@ -133,8 +105,6 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
         # 绑定事件
         bind_ui_events(
             run_btn=run_btn,
-            make_plan_btn=make_plan_btn,
-            design_lci_btn=design_lci_btn,
             ref_materials_file=ref_materials_file,
             ref_data_file=ref_data_file,
             right_tabs=right_tabs,
@@ -142,7 +112,6 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             status=status,
             clear_btn=clear_btn,
             stop_btn=stop_btn,
-            project_init_tab=project_init_tab,
             close_init_btn=close_init_btn,
             refresh_init_status_btn=refresh_init_status_btn,
             exec_init_btn=exec_init_btn,
@@ -156,41 +125,12 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             rag_btn=rag_btn,
             openlca_status=openlca_status,
             openlca_recheck_btn=openlca_recheck_btn,
-            lci_design_tab=lci_design_tab,
             lci_mapping_tab=lci_mapping_tab,
-            close_lci_btn=close_lci_btn,
-            close_mapping_btn=close_mapping_btn,
-            exec_lci_btn=exec_lci_btn,
             lci_mapping_content_row=lci_mapping_content_row,
             lci_mapping_warning_row=lci_mapping_warning_row,
             lci_mapping_toc_html=lci_mapping_toc_html,
             lci_mapping_markdown=lci_mapping_markdown,
             download_lci_mapping_btn=download_lci_mapping_btn,
-            plan_input_tab=plan_input_tab,
-            plan_output_tab=plan_output_tab,
-            plan_modify_tab=plan_modification_tab,
-            textbox_components=textbox_components,
-            clear_fields_btn=clear_fields_btn,
-            load_plan_btn=load_plan_btn,
-            exec_plan_btn=exec_plan_btn,
-            close_btn=close_btn,
-            modify_textbox_components=modify_textbox_pool,
-            clear_modify_btn=clear_modify_btn,
-            load_modify_btn=load_modify_btn,
-            exec_modify_btn=exec_modify_btn,
-            close_modify_btn=close_modify_btn,
-            download_plan_btn=download_plan_btn,
-            modify_plan_btn=modify_plan_btn,
-            confirm_plan_btn=confirm_plan_btn,
-            close_output_btn=close_output_btn,
-            plan_output_content_row=plan_output_content_row,
-            plan_output_warning_row=plan_output_warning_row,
-            plan_output_toc_html=plan_output_toc_html,
-            plan_output_markdown=plan_output_markdown,
-            plan_modify_content_row=plan_modify_content_row,
-            plan_modify_warning_row=plan_modify_warning_row,
-            plan_modify_toc_html=plan_modify_toc_html,
-            modify_markdown_pool=modify_markdown_pool
         )
         
     return demo, theme, css, js_code

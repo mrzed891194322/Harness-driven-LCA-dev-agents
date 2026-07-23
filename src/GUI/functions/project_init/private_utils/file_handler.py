@@ -8,7 +8,11 @@ def copy_uploaded_files(
     project_root: Path
 ) -> Generator[str, None, None]:
     """
-    将参考资料文件和参考数据文件分别拷贝到 harness/knowledge/inputs/user_file 和 harness/knowledge/inputs/user_data 中。
+    将参考资料文件和参考数据文件分别暂存到
+    workspace/inputs/references/file 和 workspace/inputs/references/data。
+
+    RAG 初始化前会通过 file_sync 将这些输入同步到
+    harness/knowledge/inputs/user_ref/{file,data}。
     """
     import config
     materials_dir = config.USER_FILE_DIR
@@ -55,24 +59,24 @@ def copy_uploaded_files(
     
     # Process reference materials
     if all_material_paths:
-        yield "[System] Copying uploaded reference materials to harness/knowledge/inputs/user_file...\n"
+        yield "[System] Copying uploaded reference materials to workspace/inputs/references/file...\n"
         materials_dir.mkdir(parents=True, exist_ok=True)
         for path in all_material_paths:
             if path.exists() and path.is_file():
                 dest_path = materials_dir / path.name
                 shutil.copy2(path, dest_path)
-                yield f"  - Copied reference material: {path.name} to harness/knowledge/inputs/user_file\n"
+                yield f"  - Copied reference material: {path.name} to workspace/inputs/references/file\n"
                 total_copied += 1
                 
     # Process reference data
     if all_data_paths:
-        yield "[System] Copying uploaded reference data to harness/knowledge/inputs/user_data...\n"
+        yield "[System] Copying uploaded reference data to workspace/inputs/references/data...\n"
         data_dir.mkdir(parents=True, exist_ok=True)
         for path in all_data_paths:
             if path.exists() and path.is_file():
                 dest_path = data_dir / path.name
                 shutil.copy2(path, dest_path)
-                yield f"  - Copied reference data: {path.name} to harness/knowledge/inputs/user_data\n"
+                yield f"  - Copied reference data: {path.name} to workspace/inputs/references/data\n"
                 total_copied += 1
                 
     if total_copied == 0:

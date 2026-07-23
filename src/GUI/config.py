@@ -1,29 +1,47 @@
+"""Paths shared by the GUI components and event handlers.
+
+The GUI lives below ``src/GUI`` while the runtime contract is rooted at the
+repository level.  Keep all paths here so launching the GUI from a different
+working directory does not change where it reads or writes data.
+"""
+
 from pathlib import Path
 
-# 1. 项目根目录
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-# 2. 计划输入 Tab (Plan Input) 相关文件路径
-PLAN_INPUT_TEMPLATE_PATH = PROJECT_ROOT / "GUI" / "ui" / "assets" / "template" / "plan.md"
-CURRENT_PLAN_PATH = PROJECT_ROOT / "workspace" / "plan" / "current_plan.md"
+GUI_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = next(
+    parent
+    for parent in GUI_ROOT.parents
+    if (parent / "pyproject.toml").is_file()
+)
 
-# 3. 计划输出 Tab (Plan Output) 相关文件路径与模板标识
-PLAN_OUTPUT_FILE_PATH = PROJECT_ROOT / "workspace" / "plan" / "execution_plan.md"
+WORKSPACE_INPUTS = PROJECT_ROOT / "workspace" / "inputs"
+REFERENCE_INPUTS = WORKSPACE_INPUTS / "references"
+
+# Retained for the disabled legacy plan widgets.  The active workflow uses
+# workspace/inputs/plan.md as its sole plan input.
+PLAN_INPUT_TEMPLATE_PATH = GUI_ROOT / "ui" / "assets" / "template" / "plan.md"
+CURRENT_PLAN_PATH = WORKSPACE_INPUTS / "plan.md"
+PLAN_OUTPUT_FILE_PATH = WORKSPACE_INPUTS / "plan.md"
 PLAN_OUTPUT_TEMPLATE_KIND = "lca_execution_plan"
-
-# 4. 计划修改 Tab (Plan Modification) 相关文件路径与模板标识
-PLAN_MODIFY_FILE_PATH = PROJECT_ROOT / "workspace" / "plan" / "todo_list.md"
+PLAN_MODIFY_FILE_PATH = WORKSPACE_INPUTS / "plan.md"
 PLAN_MODIFY_TEMPLATE_KIND = "lca_todo_list"
 
-# 5. LCI 映射报告 Tab 相关文件路径与模板标识
-LCI_MAPPING_FILE_PATH = PROJECT_ROOT / "workspace" / "LCI" / "human_readable_mapping.md"
+# The LCI mapping is a fixed workflow output location.
+LCI_MAPPING_FILE_PATH = (
+    PROJECT_ROOT / "workspace" / "outputs" / "LCI" / "human_readable_mapping.md"
+)
 LCI_MAPPING_TEMPLATE_KIND = "lci_human_readable_mapping"
 
-# 6. 材料与数据文件上传的目标保存目录
-USER_FILE_DIR = PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_file"
-USER_DATA_DIR = PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_data"
+# Uploaded files are staged in workspace inputs.  The initialization flow
+# synchronizes them to harness/knowledge/inputs/user_ref before RAG builds.
+USER_FILE_DIR = REFERENCE_INPUTS / "file"
+USER_DATA_DIR = REFERENCE_INPUTS / "data"
 
-# 7. 项目初始化与清理相关的外部脚本路径
-CLEAN_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "clean_dir" / "main.py"
-INIT_RAG_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "initialization" / "main.py"
-OPENLCA_CHECK_DIR = PROJECT_ROOT / "scripts" / "initialization" / "openlca_check"
+# Project maintenance scripts all live below src/scripts.
+CLEAN_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "clean_dir" / "main.py"
+FILE_SYNC_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "file_sync" / "main.py"
+INIT_RAG_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "initialization" / "main.py"
+OPENLCA_CHECK_DIR = (
+    PROJECT_ROOT / "src" / "scripts" / "initialization" / "openlca_check"
+)

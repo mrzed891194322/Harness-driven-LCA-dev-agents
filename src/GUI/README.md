@@ -1,57 +1,41 @@
-# LCA Agent 控制面板 UI 脚本 (GUI)
+# LCA Agent GUI
 
-本目录下的 Python 脚本用于构建并运行本 LCA 项目 of Gradio 网页控制台界面。
+本目录是项目 Gradio 控制面板的源码目录。GUI 的正确位置是
+`src/GUI/`，不要再使用仓库根目录下的 `GUI/` 路径。
 
 ## 目录结构
 
-- `main.py`：GUI 唯一启动入口，启动 Gradio 服务。
-- `config.py`：GUI 的公共配置文件，定义路径与常量。
-- `TODO.md`：记录 GUI 的待办任务与已完成特性。
-- `ui/`：界面展示与事件绑定层。
-  - `ui_main.py`：组装 Gradio 主界面布局并实例化/编排各个 UI 组件。
-  - **`components/`**：存放具体的 UI 组件文件（如左侧边栏、初始化面板、计划表单、控制台等）。
-  - **`events/`**：**核心事件绑定逻辑目录**，分类绑定各组件的触发函数与后端逻辑。
-  - **`assets/`**：静态资源，存放自定义样式 CSS、Javascript 文件及计划输入模板等。
-- `functions/`：底层业务逻辑层。
-  - **`project_init/`**：项目初始化业务包，包含项目清理、文件拷贝和状态检测逻辑。
-  - **`make_plan/`**：计划制定业务包。
-  - **`revise_plan/`**：计划调整与修改意见处理业务包。
-  - **`utils/`**：**公共/调用工具函数目录**（包括命令执行器 `executor/`、文件加载器 `file_loader/` 以及进程与生命周期管理工具）。
-- `log/`：存放 GUI 运行进程 ID（如 `gui.pid`）的目录。
+- `main.py`：GUI 启动入口。
+- `config.py`：仓库根目录、工作目录和脚本路径的统一配置。
+- `ui/`：Gradio 组件、事件绑定和静态资源。
+- `functions/`：项目初始化、文件处理、进程管理等后端逻辑。
+- `log/`：GUI 运行时日志目录。
 
----
+## 启动
 
-## 开发与扩展指南
+在仓库根目录运行：
 
-为保证控制面板界面与业务逻辑的低耦合和一致性，开发新功能时应遵循以下规范：
-
-### 1. 新增或修改 UI 控件 (UI Components)
-1. **添加控件**：在 `ui/components/` 下的对应 Tab 文件中（如 `tab_plan.py`）添加 Gradio 组件实例，并包含在返回的元组或组件字典中。
-2. **布局编排**：在 `ui/ui_main.py` 中调用该组件构建方法，完成页面整体的层次与渲染布局。
-3. **参数传递**：将新组件实例通过参数依次传递至主事件绑定函数 `bind_ui_events`。
-
-### 2. 编写底层业务逻辑 (Backend Functions)
-1. **创建独立特征包**：若为特定业务，在 `functions/` 下新建一个独立文件夹（如 `functions/my_new_feature/`）。
-2. **唯一公开接口**：在此特征文件夹根下建立 `main.py`（或类似主执行文件，如 `main_init.py`），仅暴露出一个用于事件触发的统一业务逻辑入口函数 `main()`。
-3. **隐藏私有逻辑**：把该特征专门使用的辅助函数和中间处理脚本，均放入其子文件夹 `private_utils/` 中，防止污染外部命名空间。
-4. **共享工具库**：如果编写的逻辑是供多个独立业务特征调用的公共助手类，直接放在 `functions/utils/` 下。
-5. **统一路径引用规范**：任何代码和脚本在引用、读取、写入或调用外部文件和外部脚本路径时，**严禁在代码中直接硬编码或在运行时通过相对路径即时计算**。所有外部文件与脚本路径必须统一配置在 `config.py` 中，并一律通过 `config` 中的路径常量进行导入和引用。
-
-### 3. 关联事件绑定 (Event Binding)
-1. **定位对应事件模块**：在 `ui/events/` 下找到匹配对应页面的子文件（如 `tab_plan.py`）。
-2. **引入后端入口**：引入前一步在 `functions/` 中编写的业务接口（如 `main.py`、`main_init.py` 或 `utils/` 等）。
-3. **绑定 Gradio 事件**：在对应的事件绑定子函数（如 `bind_tab_plan_events`）中使用 `.click()`、`.change()`、`.upload()` 等将 Gradio 控件动作连接到后端处理函数。
-
----
-
-## 运行方式
-
-在项目根目录下，使用项目依赖管理工具启动运行：
 ```bash
-uv run python GUI/main.py
+uv run python src/GUI/main.py
 ```
-或者运行：
-```bash
-.venv\Scripts\python GUI/main.py
-```
-启动成功后，在浏览器中访问 [http://127.0.0.1:7860](http://127.0.0.1:7860) 即可查看和操作控制面板界面。
+
+Windows 用户也可以运行 `src/scripts/_launch_gui.bat`。启动后访问
+<http://127.0.0.1:7860>。
+
+## 当前功能边界
+
+项目初始化、参考资料上传、RAG 构建、环境检查、openLCA 连接检查和终端日志控制仍由 GUI 处理。
+
+计划制定、计划修改以及 LCI 制定的后端按钮功能已经从当前工作流移除。对应组件代码暂时保留，但侧栏和面板内按钮均为禁用状态，不应重新绑定已删除的执行入口。已有 LCI 映射报告仅保留只读展示。
+
+## 开发约定
+
+- 外部路径必须通过 `config.py` 配置；当前脚本路径位于 `src/scripts/`。
+- 用户上传文件先写入 `workspace/inputs/references/{file,data}`，初始化时再同步到 RAG 输入目录。
+- 修改 GUI 代码后，必须从仓库根目录运行 GUI 测试：
+
+  ```bash
+  uv run python -m unittest discover -s src/test -v
+  ```
+
+- 提交前同时运行 `git diff --check`。测试不得修改真实 `workspace` 运行产物。

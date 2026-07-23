@@ -1,6 +1,6 @@
 # 01 Whole-LCA 计划质量门禁规范
 
-本规范只判断 `workspace/inputs/plan.md` 能否启动端到端执行，不要求同时存在或通过 `todo_list.md`。计划制定阶段的交付验收仍由计划制定规范管理。
+本规范只判断 `workspace/inputs/plan.md` 能否启动端到端执行。计划制定阶段的交付验收仍由计划制定规范管理。
 
 ## 1. 文件与版本
 

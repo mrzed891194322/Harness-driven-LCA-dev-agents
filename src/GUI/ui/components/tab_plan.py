@@ -20,7 +20,7 @@ def build_tab_plan() -> tuple:
                             """
                         )
                     with gr.Column(scale=1, min_width=150):
-                        close_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", elem_id="close-plan-btn", elem_classes=["panel-close-btn"])
+                        close_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", interactive=False, elem_id="close-plan-btn", elem_classes=["panel-close-btn"])
 
                 # 左右布局：左侧是目录导航，右侧是滚动输入表单
                 with gr.Row(elem_id="plan-input-content-row", elem_classes=["panel-content-row"]):
@@ -54,9 +54,9 @@ def build_tab_plan() -> tuple:
 
                 # 三个控制按钮，固定放置在滚动容器外部（底部）
                 with gr.Row(elem_id="template-actions-row", elem_classes=["panel-actions-row"]):
-                    clear_fields_btn = gr.Button("🧹 清空输入", variant="secondary")
-                    load_plan_btn = gr.UploadButton("📂 加载计划", file_types=[".md"], variant="secondary")
-                    exec_plan_btn = gr.Button("⚡ 执行计划", variant="primary")
+                    clear_fields_btn = gr.Button("🧹 清空输入", variant="secondary", interactive=False)
+                    load_plan_btn = gr.UploadButton("📂 加载计划", file_types=[".md"], variant="secondary", interactive=False)
+                    exec_plan_btn = gr.Button("⚡ 执行计划", variant="primary", interactive=False)
 
     with gr.Tab("计划输出", id="plan_output_tab") as plan_output_tab:
         with gr.Column(elem_id="plan-output-workspace", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
@@ -71,7 +71,7 @@ def build_tab_plan() -> tuple:
                             """
                         )
                     with gr.Column(scale=1, min_width=150):
-                        close_output_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", elem_id="close-output-btn", elem_classes=["panel-close-btn"])
+                        close_output_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", interactive=False, elem_id="close-output-btn", elem_classes=["panel-close-btn"])
 
                 # 左右布局：左侧是目录导航，右侧是滚动展示
                 with gr.Row(elem_id="plan-output-content-row", elem_classes=["panel-content-row"], visible=False) as plan_output_content_row:
@@ -105,7 +105,7 @@ def build_tab_plan() -> tuple:
                             """
                         )
                     with gr.Column(scale=1, min_width=150):
-                        close_modify_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", elem_id="close-modify-btn", elem_classes=["panel-close-btn"])
+                        close_modify_btn = gr.Button("❌ 关闭计划制定面板", variant="secondary", size="sm", interactive=False, elem_id="close-modify-btn", elem_classes=["panel-close-btn"])
 
                 # 左右布局：左侧是目录导航，右侧是滚动输入表单
                 with gr.Row(elem_id="plan-modify-content-row", elem_classes=["panel-content-row"], visible=False) as plan_modify_content_row:

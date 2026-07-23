@@ -1,34 +1,16 @@
 import gradio as gr
-from functions.utils.executor.main import main as run_executor_flow
 from functions.utils.file_loader.main import main as run_file_loader_action
 
 
 def bind_tab_lci_events(
+    *,
     lci_mapping_tab: gr.Tab,
-    exec_lci_btn: gr.Button,
-    output_console: gr.Textbox,
-    status: gr.Textbox,
     lci_mapping_content_row: gr.Row,
     lci_mapping_warning_row: gr.Row,
     lci_mapping_toc_html: gr.HTML,
     lci_mapping_markdown: gr.Markdown,
     download_lci_mapping_btn: gr.DownloadButton,
 ):
-    # 8. LCI 制定面板内执行按钮事件
-    def run_design_lci():
-        from functions.utils.process_manager import reset_stop
-        reset_stop()
-        yield "[System] 正在启动 LCI 制定...\n", "Running"
-        for chunk in run_executor_flow("design-lci"):
-            yield chunk[0], chunk[1]
-
-    exec_lci_btn.click(
-        fn=run_design_lci,
-        inputs=None,
-        outputs=[output_console, status],
-        js="window.guiSelectTerminal"
-    )
-
     def check_and_update_lci_mapping_tab():
         import config
         from functions.utils.file_loader.private_utils.template_metadata import split_front_matter

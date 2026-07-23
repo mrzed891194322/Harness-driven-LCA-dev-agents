@@ -13,7 +13,7 @@ def main(
     整合项目初始化的三个步骤：
     1. 调用 clean_dir 清理项目
     2. 将文件交换区上传的文件存放在 harness/knowledge/inputs/user_file 和 harness/knowledge/inputs/user_data 中
-    3. 调用 scripts/initialization
+    3. 调用 src/scripts/initialization
     """
     project_root = find_project_root(Path(__file__))
     

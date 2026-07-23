@@ -21,6 +21,7 @@ def build_tab_lci() -> tuple:
                             "❌ 关闭 LCI 面板",
                             variant="secondary",
                             size="sm",
+                            interactive=False,
                             elem_id="close-lci-btn",
                             elem_classes=["panel-close-btn"],
                         )
@@ -44,7 +45,7 @@ def build_tab_lci() -> tuple:
                                 )
 
                 with gr.Row(elem_id="lci-design-actions-row", elem_classes=["panel-actions-row"]):
-                    exec_lci_btn = gr.Button("⚡ 执行 LCI 制定", variant="primary")
+                    exec_lci_btn = gr.Button("⚡ 执行 LCI 制定", variant="primary", interactive=False)
 
     with gr.Tab("LCI映射", id="lci_mapping_tab") as lci_mapping_tab:
         with gr.Column(elem_id="lci-mapping-workspace", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
@@ -62,6 +63,7 @@ def build_tab_lci() -> tuple:
                             "❌ 关闭 LCI 面板",
                             variant="secondary",
                             size="sm",
+                            interactive=False,
                             elem_id="close-lci-mapping-btn",
                             elem_classes=["panel-close-btn"],
                         )
