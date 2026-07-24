@@ -11,7 +11,7 @@
 | 路径 | 职责 |
 | --- | --- |
 | `.codex/`、`.opencode/` | Codex/OpenCode 平台配置、skills、agents、命令和平台专用评价契约 |
-| `harness/specs/` | 公共工作流状态机、JSON schema、报告模板及 01–07 阶段规范；是跨平台运行语义的来源 |
+| `harness/specs/` | 公共工作流状态机及 01–07 阶段规范；共享契约位于 `public/`，阶段独占 schema、模板和校验脚本随对应阶段保存 |
 | `harness/rules/` | 跨任务的知识检索、openLCA 和代码/目录约束 |
 | `harness/tools/` | `query_rag`、`control_openlca` 等 MCP 工具及其离线测试 |
 | `harness/knowledge/` | 静态标准、openLCA 手册、同步后的用户资料和生成的 RAG 数据库 |
@@ -22,7 +22,7 @@
 ## 关键入口与固定路径
 
 - Codex Whole-LCA 入口：`$workflow-main`，实现位于 `.codex/skills/workflow-main/SKILL.md`。
-- OpenCode Whole-LCA 入口：`/whole-lca`，命令位于 `.opencode/commands/whole-lca.md`，并加载 `.opencode/skills/workflow-main/SKILL.md`。
+- OpenCode Whole-LCA 入口：`/whole-lca`，命令位于 `.opencode/commands/whole-lca.md`，并加载 `harness/pipelines/LCA-main.md`。
 - Codex 质量评价入口：`$evaluate-lca-quality` 或项目注册的 `lca-quality-evaluator`，契约位于 `.codex/specs/lca-quality-evaluation/`。
 - 唯一计划输入：`workspace/inputs/plan.md`。
 - 运行状态与阶段证据：`workspace/memory/`。
@@ -36,7 +36,7 @@
 
 | 变更内容 | 首要修改位置 | 同步检查 |
 | --- | --- | --- |
-| 状态机、阶段、schema、模板或产物语义 | `harness/specs/public/` 与对应 `harness/specs/01-*`–`07-*` | 两个平台 adapter、质量 rubric、公共契约测试 |
+| 状态机、阶段、schema、模板或产物语义 | 共享契约修改 `harness/specs/public/`；阶段独占契约修改对应 `harness/specs/01-*`–`07-*` | 两个平台 adapter、质量 rubric、公共契约测试 |
 | Codex 行为 | `.codex/config.toml`、`.codex/skills/`、`.codex/agents/` | `harness/specs/public/references/scripts/tests/test_platform_config.py` |
 | OpenCode 行为 | `.opencode/opencode.json`、`.opencode/commands/`、`.opencode/skills/`、`.opencode/agents/` | 同一平台配置测试及 Codex 语义一致性 |
 | openLCA 查询、预检、导入、读回或计算 | `harness/tools/control_openlca/`、`harness/rules/openlca-operation/README.md` | `harness/tools/control_openlca/tests/` 和阶段 05–07 契约 |

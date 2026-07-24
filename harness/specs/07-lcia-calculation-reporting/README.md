@@ -5,9 +5,11 @@
 ## References
 
 - `references/07-lcia-calculation-reporting-spec.md`
+- `references/schemas/raw-lcia-results.schema.json`
+- `references/schemas/calculation-manifest.schema.json`
+- `references/templates/lca_report.md`
+- `schema_mapping.md`
 
 ## 公共依赖
 
-- `../public/references/schemas/raw-lcia-results.schema.json`
-- `../public/references/schemas/calculation-manifest.schema.json`
-- `../public/references/templates/lca_report.md`
+- `../public/references/workflow-runtime-spec.md`

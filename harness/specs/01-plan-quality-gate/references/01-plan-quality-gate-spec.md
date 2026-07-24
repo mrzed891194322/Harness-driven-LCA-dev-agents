@@ -5,9 +5,9 @@
 ## 1. 文件与版本
 
 - 唯一输入为 `workspace/inputs/plan.md`，该文件由用户直接维护，不创建同步副本。
-- 文件必须是带 YAML front matter 的 Markdown，`template_kind` 必须为 `lca_execution_plan`。
+- 文件必须是带 YAML front matter 的 Markdown，`template_kind` 必须为 `lca_plan_input`。
 - 当前仅接受 `template_version: 1` 或语义等价的字符串 `"1"`。缺失、格式非法或未知版本不得猜测，审查状态必须为 `needs_input`，记录迁移要求后结束本次运行；不得停下来请求确认。
-- 必须保留执行计划模板中的 `## 1` 至 `## 6` 六个顶层章节；标题文字允许轻微措辞差异，但章节语义不得缺失。
+- Markdown 的章节数量、标题文字和排序不作为格式门禁；计划可使用 GUI 默认模板、带 `PLAN_INPUT` 标记的上传模板，或不含输入标记的普通 Markdown。审查必须依据下节的语义内容，而不能依赖固定六章标题。
 
 ## 2. 阻断性信息
 

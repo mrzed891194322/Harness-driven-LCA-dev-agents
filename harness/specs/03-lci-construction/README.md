@@ -5,6 +5,7 @@
 ## References
 
 - `references/03-lci-construction-spec.md`
+- `schema_mapping.md`
 
 ## 公共依赖
 

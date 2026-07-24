@@ -1,11 +1,6 @@
----
-name: workflow-main
-description: 从既有 plan.md 执行带计划门禁、证据检索、三轮 LCI 审查、openLCA 写入预检、自动导入读回、LCIA 计算和结果归档的无人值守 whole-lca 工作流时使用。
----
+# LCA 主工作流
 
-# Whole-LCA 主工作流
-
-本 skill 是 OpenCode 平台适配层。共享状态机和产物契约只存在于 `harness/specs/public/`，阶段规则只存在于 `harness/specs/01-*` 至 `07-*`；不要在本文件中重定义 schema。
+本工作流说明由平台入口加载。共享状态机和产物契约只存在于 `harness/specs/public/`，阶段规则只存在于 `harness/specs/01-*` 至 `07-*`；不要在本文件中重定义 schema。
 
 ## 渐进式资源加载
 
@@ -15,7 +10,7 @@ description: 从既有 plan.md 执行带计划门禁、证据检索、三轮 LCI
 4. 每次委派必须明确列出当前阶段、此时允许读取的文件、输入产物及哈希、允许的输出、关联 issue ID 或 `preflight_hash`。子 Agent 不得自行扫描其他阶段。
 5. 进入一个阶段时，主 Agent 才读取该阶段的 README 及其路由的 spec；当前任务需要同一规范的子 Agent，在该次委派中再被明确要求读取。完成阶段并持久化证据后，不预读下一阶段。
 
-OpenCode 已通过 `.opencode/opencode.json` 全局加载 `harness/rules/knowledge-retrieval/README.md`，不要重复加载。`harness/rules/openlca-operation/README.md` 不属于全局指令，只能在某次任务确实要调用 openLCA MCP 时按需读取。
+知识检索规则 `harness/rules/knowledge-retrieval/README.md` 由平台入口按配置加载；执行时不要重复加载。`harness/rules/openlca-operation/README.md` 不属于全局指令，只能在某次任务确实要调用 openLCA MCP 时按需读取。
 
 ## 七阶段执行
 
@@ -48,13 +43,13 @@ OpenCode 已通过 `.opencode/opencode.json` 全局加载 `harness/rules/knowled
 ### 06 openLCA 导入与读回
 
 - 预检通过后，主 Agent 才完整读取 `harness/specs/06-openlca-import-readback/README.md` 和 `harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md`，并立即发起下一次委派。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前分别读取 `harness/specs/public/references/schemas/import-report.schema.json` 和 `harness/specs/public/references/schemas/model-graph.schema.json`。只把当前成功预检的范围与哈希交给它调用 `import_lci` 和 `get_model_graph`。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前分别读取 `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json` 和 `harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json`。只把当前成功预检的范围与哈希交给它调用 `import_lci` 和 `get_model_graph`。
 - `import_lci` 重新预检后若范围或哈希变化，不得写入；保存结构化失败证据并将运行置为 `failed`。
 
 ### 07 LCIA 计算与报告
 
 - 第 06 阶段通过后，主 Agent 才完整读取 `harness/specs/07-lcia-calculation-reporting/README.md` 和 `harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在计算前完整读取上述两个第 07 阶段文件和 openLCA 规则；在保存原始计算结果、计算清单和最终报告前，依次读取 `harness/specs/public/references/schemas/raw-lcia-results.schema.json`、`harness/specs/public/references/schemas/calculation-manifest.schema.json` 和 `harness/specs/public/references/templates/lca_report.md`，不得提前加载。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在计算前完整读取上述两个第 07 阶段文件和 openLCA 规则；在保存原始计算结果、计算清单和最终报告前，依次读取 `harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json`、`harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json` 和 `harness/specs/07-lcia-calculation-reporting/references/templates/lca_report.md`，不得提前加载。
 - 验收非空结果、模型连接、资源释放和全部必需产物后，主 Agent 才决定终止状态。
 
 ## 证据与停止

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 import unittest
@@ -12,23 +13,60 @@ SCRIPT_ROOT = Path(__file__).resolve().parents[1]
 if str(SCRIPT_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPT_ROOT))
 
-from validation import next_lci_review_action, validate_plan_intake
-
-
 PROJECT_ROOT = next(
     parent
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
 SPEC_ROOT = SCRIPT_ROOT.parent
-SCHEMA_ROOT = SPEC_ROOT / "schemas"
+SCHEMA_ROOTS = (
+    SPEC_ROOT / "schemas",
+    PROJECT_ROOT
+    / "harness"
+    / "specs"
+    / "06-openlca-import-readback"
+    / "references"
+    / "schemas",
+    PROJECT_ROOT
+    / "harness"
+    / "specs"
+    / "07-lcia-calculation-reporting"
+    / "references"
+    / "schemas",
+)
 TIMESTAMP = "2026-07-22T08:00:00Z"
 HASH = "a" * 64
 
 
+def load_stage_validation(stage: str):
+    path = (
+        PROJECT_ROOT
+        / "harness"
+        / "specs"
+        / stage
+        / "references"
+        / "scripts"
+        / "validation.py"
+    )
+    spec = importlib.util.spec_from_file_location(f"{stage}_validation", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load stage validation module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+validate_plan_intake = load_stage_validation(
+    "01-plan-quality-gate"
+).validate_plan_intake
+next_lci_review_action = load_stage_validation(
+    "04-lci-quality-evaluation"
+).next_lci_review_action
+
+
 def compliant_plan(extra: str = "", version: str = "1", functional_unit: str = "1 kg bottled product") -> str:
     return f"""---
-template_kind: lca_execution_plan
+template_kind: lca_plan_input
 template_version: {version}
 ---
 
@@ -91,6 +129,61 @@ class PlanIntakeTests(unittest.TestCase):
         self.assertEqual(result["status"], "needs_input")
         self.assertIn("PLAN-FORMAT-VERSION", {issue["issue_id"] for issue in result["issues"]})
 
+    def test_previous_template_kind_blocks(self) -> None:
+        plan = compliant_plan().replace(
+            "template_kind: lca_plan_input",
+            "template_kind: lca_execution_plan",
+        )
+        result = validate_plan_intake(plan)
+        self.assertEqual(result["status"], "needs_input")
+        self.assertIn(
+            "PLAN-FORMAT-KIND",
+            {issue["issue_id"] for issue in result["issues"]},
+        )
+
+    def test_semantic_plan_does_not_require_fixed_six_chapter_titles(self) -> None:
+        plan = compliant_plan()
+        plan = plan.replace("## 1. 研究目的与范围定义", "## 目标与范围")
+        for section in range(2, 7):
+            plan = plan.replace(f"## {section}.", f"### 自定义章节 {section}：")
+
+        result = validate_plan_intake(plan)
+
+        self.assertEqual(result["status"], "passed")
+        self.assertFalse(
+            any(issue["issue_id"].startswith("PLAN-SECTION-") for issue in result["issues"])
+        )
+
+    def test_gui_legacy_input_blocks_are_checked_semantically(self) -> None:
+        def field(label: str, value: str) -> str:
+            return (
+                f"- **{label}**：\n"
+                "  ---\n"
+                "  ***✍️ 用户填写内容区***\n\n"
+                f"  {value}\n\n"
+                "  ---\n"
+            )
+
+        plan = (
+            "---\n"
+            "template_kind: lca_plan_input\n"
+            "template_version: 1\n"
+            "---\n\n"
+            "# 自定义 GUI 计划\n\n"
+            + field("研究主体", "标准包装产品")
+            + field("功能单位（Functional Unit）", "1 kg bottled product")
+            + field("评估目的与预期用途", "识别环境热点，用于内部改进")
+            + field("系统边界（System Boundary）", "Cradle-to-Gate")
+            + field(
+                "范围定义与系统边界细化",
+                "不采用自动截断；无副产品，不适用分配",
+            )
+        )
+
+        result = validate_plan_intake(plan)
+
+        self.assertEqual(result["status"], "passed")
+
 
 class ReviewLoopTests(unittest.TestCase):
     def test_first_two_failures_fix_and_third_failure_stops(self) -> None:
@@ -107,12 +200,13 @@ class SchemaContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.schemas: dict[str, dict] = {}
         registry = Registry()
-        for path in sorted(SCHEMA_ROOT.glob("*.schema.json")):
-            schema = json.loads(path.read_text(encoding="utf-8"))
-            cls.schemas[path.name] = schema
-            registry = registry.with_resource(
-                schema["$id"], Resource.from_contents(schema)
-            )
+        for schema_root in SCHEMA_ROOTS:
+            for path in sorted(schema_root.glob("*.schema.json")):
+                schema = json.loads(path.read_text(encoding="utf-8"))
+                cls.schemas[path.name] = schema
+                registry = registry.with_resource(
+                    schema["$id"], Resource.from_contents(schema)
+                )
         cls.registry = registry
 
     def validate(self, schema_name: str, instance: dict) -> None:
@@ -310,7 +404,15 @@ class SchemaContractTests(unittest.TestCase):
             self.validate("workflow-manifest.schema.json", manifest)
 
     def test_report_template_contains_traceability_and_claim_boundary(self) -> None:
-        template = (SPEC_ROOT / "templates" / "lca_report.md").read_text(encoding="utf-8")
+        template = (
+            PROJECT_ROOT
+            / "harness"
+            / "specs"
+            / "07-lcia-calculation-reporting"
+            / "references"
+            / "templates"
+            / "lca_report.md"
+        ).read_text(encoding="utf-8")
         self.assertIn("raw_result_sha256", template)
         self.assertIn("原始结果位置", template)
         self.assertIn("不自动构成 ISO 认证", template)

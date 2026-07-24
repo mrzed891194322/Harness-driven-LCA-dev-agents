@@ -49,13 +49,13 @@ description: 通过分阶段的计划接收、证据检索、最多三次 LCI �
 ### 06 openLCA 导入与读回
 
 - 预检通过后，主 Agent 才完整读取 `harness/specs/06-openlca-import-readback/README.md` 和 `harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md`，并立即发起下一次委派。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前分别读取 `harness/specs/public/references/schemas/import-report.schema.json` 和 `harness/specs/public/references/schemas/model-graph.schema.json`。只把当前成功预检的范围与哈希交给它调用 `import_lci` 和 `get_model_graph`。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前分别读取 `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json` 和 `harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json`。只把当前成功预检的范围与哈希交给它调用 `import_lci` 和 `get_model_graph`。
 - `import_lci` 重新预检后若范围或哈希变化，不得写入；保存结构化失败证据并将运行置为 `failed`。
 
 ### 07 LCIA 计算与报告
 
 - 第 06 阶段通过后，主 Agent 才完整读取 `harness/specs/07-lcia-calculation-reporting/README.md` 和 `harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在计算前完整读取上述两个第 07 阶段文件和 openLCA 规则；在保存原始计算结果、计算清单和最终报告前，依次读取 `harness/specs/public/references/schemas/raw-lcia-results.schema.json`、`harness/specs/public/references/schemas/calculation-manifest.schema.json` 和 `harness/specs/public/references/templates/lca_report.md`，不得提前加载。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在计算前完整读取上述两个第 07 阶段文件和 openLCA 规则；在保存原始计算结果、计算清单和最终报告前，依次读取 `harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json`、`harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json` 和 `harness/specs/07-lcia-calculation-reporting/references/templates/lca_report.md`，不得提前加载。
 - 验收非空结果、模型连接、资源释放和全部必需产物后，主 Agent 才决定终止状态。
 
 ## 无人值守中继

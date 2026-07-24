@@ -102,8 +102,15 @@ class OpenCodeConfigurationTests(unittest.TestCase):
         self.assertFalse((PROJECT_ROOT / "harness" / "rules" / removed_rule).exists())
 
     def test_command_selects_major_orchestrator(self) -> None:
-        command = load_frontmatter(PROJECT_ROOT / ".opencode" / "commands" / "whole-lca.md")
+        command_path = PROJECT_ROOT / ".opencode" / "commands" / "whole-lca.md"
+        command = load_frontmatter(command_path)
         self.assertEqual(command["agent"], "major-orchestrator")
+        command_content = command_path.read_text(encoding="utf-8")
+        self.assertIn("harness/pipelines/LCA-main.md", command_content)
+        self.assertTrue((PROJECT_ROOT / "harness" / "pipelines" / "LCA-main.md").is_file())
+        self.assertFalse(
+            (PROJECT_ROOT / ".opencode" / "skills" / "workflow-main").exists()
+        )
 
 
 class CodexConfigurationTests(unittest.TestCase):
@@ -199,7 +206,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
 
     def test_platform_adapters_use_stage_routing_without_legacy_paths(self) -> None:
         paths = (
-            ".opencode/skills/workflow-main/SKILL.md",
+            "harness/pipelines/LCA-main.md",
             ".opencode/agents/major-orchestrator.md",
             ".opencode/agents/eval-reviewer.md",
             ".opencode/agents/sub-executor.md",
@@ -260,7 +267,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
 
     def test_workflow_skills_route_resources_at_each_stage(self) -> None:
         for relative_path in (
-            ".opencode/skills/workflow-main/SKILL.md",
+            "harness/pipelines/LCA-main.md",
             ".codex/skills/workflow-main/SKILL.md",
         ):
             content = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
@@ -291,7 +298,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             "harness/rules/directory-structure/references/workspace-structure.md",
             "harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md",
             "harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md",
-            ".opencode/skills/workflow-main/SKILL.md",
+            "harness/pipelines/LCA-main.md",
             ".codex/skills/workflow-main/SKILL.md",
         )
         content = "\n".join(
@@ -309,7 +316,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
 
     def test_workflow_has_no_runtime_confirmation_parameter_or_state(self) -> None:
         paths = (
-            ".opencode/skills/workflow-main/SKILL.md",
+            "harness/pipelines/LCA-main.md",
             ".opencode/agents/major-orchestrator.md",
             ".opencode/agents/sub-executor.md",
             ".codex/skills/workflow-main/SKILL.md",

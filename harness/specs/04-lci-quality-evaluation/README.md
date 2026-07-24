@@ -5,9 +5,10 @@
 ## References
 
 - `references/04-lci-quality-evaluation-spec.md`
+- `references/scripts/validation.py`
+- `schema_mapping.md`
 
 ## 公共依赖
 
 - `../public/references/workflow-runtime-spec.md`
 - `../public/references/schemas/review.schema.json`
-- `../public/references/scripts/validation.py`

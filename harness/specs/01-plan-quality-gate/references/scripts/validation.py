@@ -5,7 +5,18 @@ from typing import Any
 
 
 FRONTMATTER_PATTERN = re.compile(r"\A---\s*\n(?P<body>.*?)\n---\s*\n", re.DOTALL)
-FIELD_PATTERN = r"\*\*{label}\*\*\s*[:：]\s*(?P<value>[^\n]+)"
+FIELD_PATTERN = r"\*\*{label}\*\*\s*[:：]"
+PLAN_INPUT_START_PATTERN = re.compile(r"^\s*<!--\s*PLAN_INPUT\b[^\n]*-->", re.DOTALL)
+PLAN_INPUT_VALUE_END_PATTERN = re.compile(
+    r"\*{2,3}\s*✍\ufe0f?\s*用户填写(?:内容)?区\s*\*{2,3}"
+)
+LEGACY_INPUT_PATTERN = re.compile(
+    r"^\s*---[ \t]*\n"
+    r"[ \t]*\*{2,3}\s*✍\ufe0f?\s*用户填写内容区\s*\*{2,3}[ \t]*\n"
+    r"(?P<value>.*?)"
+    r"^[ \t]*---[ \t]*(?=\n|$)",
+    re.DOTALL | re.MULTILINE,
+)
 PLACEHOLDER_PATTERN = re.compile(r"^\s*\[[^\]]*(?:请|例如|填写|说明|流名称|过程名称)[^\]]*\]\s*$")
 UNIT_PATTERN = re.compile(
     r"\b(?:kg|g|mg|t|tonne|L|mL|m3|m³|MJ|kWh|Wh|piece|unit|p-km|tkm)\b|千克|克|吨|升|件",
@@ -29,8 +40,23 @@ def _frontmatter(text: str) -> dict[str, str]:
 def _field(text: str, *labels: str) -> str | None:
     for label in labels:
         match = re.search(FIELD_PATTERN.format(label=re.escape(label)), text)
-        if match:
-            return match.group("value").strip()
+        if not match:
+            continue
+        tail = text[match.end():]
+        first_line, _, _ = tail.partition("\n")
+        inline = re.sub(r"<!--.*?-->", "", first_line).strip()
+        if inline:
+            return inline
+
+        explicit = PLAN_INPUT_START_PATTERN.match(tail)
+        if explicit:
+            marker = PLAN_INPUT_VALUE_END_PATTERN.search(tail, explicit.end())
+            if marker:
+                return tail[explicit.end():marker.start()].strip()
+
+        legacy = LEGACY_INPUT_PATTERN.match(tail)
+        if legacy:
+            return legacy.group("value").strip()
     return None
 
 
@@ -38,6 +64,32 @@ def _missing(value: str | None) -> bool:
     if value is None or not value.strip():
         return True
     return bool(PLACEHOLDER_PATTERN.fullmatch(value.strip()))
+
+
+def _has_embedded_decision(text: str, suffix: str) -> bool:
+    """Recognize decisions written inside a broader GUI free-text field."""
+    if suffix == "CUTOFF":
+        return bool(
+            re.search(
+                r"(?:不采用|不设置|无|零|0\s*%|\d+(?:\.\d+)?\s*%)"
+                r"[^\n]{0,40}(?:截断|cut[\s-]*off)"
+                r"|(?:截断|cut[\s-]*off)[^\n]{0,40}"
+                r"(?:不采用|不设置|无|零|0\s*%|\d+(?:\.\d+)?\s*%)",
+                text,
+                re.IGNORECASE,
+            )
+        )
+    if suffix == "ALLOCATION":
+        return bool(
+            re.search(
+                r"无(?:副产品|多产出)|不适用(?:分配)?|"
+                r"(?:分配|allocation)[^\n]{0,50}"
+                r"(?:质量|能量|经济|物理|系统扩展|替代)",
+                text,
+                re.IGNORECASE,
+            )
+        )
+    return False
 
 
 def _issue(issue_id: str, spec_ref: str, evidence: str, correction: str) -> dict[str, str]:
@@ -55,13 +107,13 @@ def validate_plan_intake(text: str) -> dict[str, Any]:
     """Apply deterministic checks from the stage 01 plan quality specification."""
     issues: list[dict[str, str]] = []
     metadata = _frontmatter(text)
-    if metadata.get("template_kind") != "lca_execution_plan":
+    if metadata.get("template_kind") != "lca_plan_input":
         issues.append(
             _issue(
                 "PLAN-FORMAT-KIND",
                 "01-plan-quality-gate-spec.md#1-文件与版本",
                 "YAML front matter",
-                "Set template_kind to lca_execution_plan.",
+                "Set template_kind to lca_plan_input.",
             )
         )
     version = metadata.get("template_version")
@@ -75,26 +127,24 @@ def validate_plan_intake(text: str) -> dict[str, Any]:
             )
         )
 
-    for section in range(1, 7):
-        if not re.search(rf"^##\s+{section}(?:\.|\s)", text, re.MULTILINE):
-            issues.append(
-                _issue(
-                    f"PLAN-SECTION-{section}",
-                    "01-plan-quality-gate-spec.md#1-文件与版本",
-                    f"Markdown section ## {section}",
-                    f"Restore the semantic top-level section numbered {section}.",
-                )
-            )
-
     required_fields = (
-        ("OBJECT", ("研究对象",), "Provide a concrete study object."),
-        ("PURPOSE", ("研究目的",), "Provide the intended study purpose/application."),
-        ("BOUNDARY", ("生命周期阶段",), "Define the included lifecycle boundary."),
+        ("OBJECT", ("研究对象", "研究主体"), "Provide a concrete study object."),
+        (
+            "PURPOSE",
+            ("研究目的", "评估目的与预期用途"),
+            "Provide the intended study purpose/application.",
+        ),
+        (
+            "BOUNDARY",
+            ("生命周期阶段", "系统边界（System Boundary）", "系统边界"),
+            "Define the included lifecycle boundary.",
+        ),
         ("CUTOFF", ("质量/能量截断比例",), "Provide a cut-off rule or an explicit no-cut-off decision."),
         ("ALLOCATION", ("多产出分配",), "State whether co-products exist and the applicable allocation rule."),
     )
     for suffix, labels, correction in required_fields:
-        if _missing(_field(text, *labels)):
+        value = _field(text, *labels)
+        if _missing(value) and not _has_embedded_decision(text, suffix):
             issues.append(
                 _issue(
                     f"PLAN-BLOCKING-{suffix}",
@@ -104,7 +154,12 @@ def validate_plan_intake(text: str) -> dict[str, Any]:
                 )
             )
 
-    functional_unit = _field(text, "功能单位 (FU)", "功能单位")
+    functional_unit = _field(
+        text,
+        "功能单位 (FU)",
+        "功能单位（Functional Unit）",
+        "功能单位",
+    )
     if _missing(functional_unit) or not re.search(r"\d", functional_unit or "") or not UNIT_PATTERN.search(functional_unit or ""):
         issues.append(
             _issue(
@@ -144,14 +199,3 @@ def validate_plan_intake(text: str) -> dict[str, Any]:
         "issues": issues,
         "retrievable_gaps": retrievable_gaps,
     }
-
-
-def next_lci_review_action(attempt: int, passed: bool) -> str:
-    """Return the only legal action after an LCI review attempt."""
-    if isinstance(attempt, bool) or not isinstance(attempt, int) or not 1 <= attempt <= 3:
-        raise ValueError("attempt must be an integer from 1 through 3")
-    if passed:
-        return "proceed_to_preflight"
-    if attempt < 3:
-        return "targeted_fix_and_review"
-    return "stop_needs_review"

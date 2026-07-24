@@ -5,9 +5,10 @@
 ## References
 
 - `references/06-openlca-import-readback-spec.md`
+- `references/schemas/import-report.schema.json`
+- `references/schemas/model-graph.schema.json`
+- `schema_mapping.md`
 
 ## 公共依赖
 
 - `../public/references/workflow-runtime-spec.md`
-- `../public/references/schemas/import-report.schema.json`
-- `../public/references/schemas/model-graph.schema.json`

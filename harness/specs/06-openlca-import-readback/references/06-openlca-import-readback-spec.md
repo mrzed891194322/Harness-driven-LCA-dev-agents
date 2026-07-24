@@ -7,7 +7,7 @@
 - `import_report.json`；
 - `model_graph/<product-system-slug>.json`。
 
-文件分别遵守 `harness/specs/public/references/schemas/import-report.schema.json` 和 `harness/specs/public/references/schemas/model-graph.schema.json`。`product-system-slug` 使用小写字母、数字和连字符，不使用 UUID 替代可读名称。
+文件分别遵守 `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json` 和 `harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json`。`product-system-slug` 使用小写字母、数字和连字符，不使用 UUID 替代可读名称。
 
 ## 2. 导入验收
 

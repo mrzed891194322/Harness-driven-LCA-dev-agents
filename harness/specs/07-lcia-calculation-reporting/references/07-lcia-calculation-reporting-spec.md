@@ -8,7 +8,7 @@
 - `calculation_manifest.json`；
 - `lca_report.md`。
 
-原始结果和计算清单分别遵守 `harness/specs/public/references/schemas/raw-lcia-results.schema.json` 与 `harness/specs/public/references/schemas/calculation-manifest.schema.json`；报告遵守 `harness/specs/public/references/templates/lca_report.md`。
+原始结果和计算清单分别遵守 `harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json` 与 `harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json`；报告遵守 `harness/specs/07-lcia-calculation-reporting/references/templates/lca_report.md`。
 
 ## 2. 计算验收
 

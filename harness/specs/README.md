@@ -4,6 +4,8 @@ This directory is the source of truth for LCA task specifications, templates, an
 
 Agents must use this file as a routing index only. Read the smallest relevant specification entry for the current task, then follow that entry's own disclosure path. Do not load every specification file at once.
 
+`public/` contains only contracts shared by multiple stages. A schema, template, or deterministic validator used by one stage belongs under that numbered stage package. Each numbered package provides a non-normative `schema_mapping.md` maintenance index for its shared and stage-local handshake dependencies.
+
 ## Routing
 
 ### Plan Guidelines

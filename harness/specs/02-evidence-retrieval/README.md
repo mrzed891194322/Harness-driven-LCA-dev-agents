@@ -5,6 +5,7 @@
 ## References
 
 - `references/02-evidence-retrieval-spec.md`
+- `schema_mapping.md`
 
 ## 公共依赖
 

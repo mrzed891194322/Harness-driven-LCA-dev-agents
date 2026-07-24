@@ -5,6 +5,7 @@
 ## References
 
 - `references/05-openlca-preflight-confirmation-spec.md`
+- `schema_mapping.md`
 
 ## 公共依赖
 

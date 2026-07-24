@@ -6,6 +6,6 @@ agent: major-orchestrator
 **任务执行**：
 
 
-- 加载 `workflow-main`，将 `workspace/inputs/plan.md` 作为唯一计划输入，并按该 skill 与其引用的共享 spec 执行；
+- 读取并执行 `harness/pipelines/LCA-main.md` 定义的LCA完整工作流`，将 `workspace/inputs/plan.md` 作为唯一计划输入，并按该工作流及其引用的共享 spec 执行；
 
-- skill 返回后，保留 `workspace/memory/`、`workspace/outputs/LCI/` 和 `workspace/outputs/reports/` 中的固定产物并立即结束当前会话。
+- 工作流返回后，保留 `workspace/memory/`、`workspace/outputs/LCI/` 和 `workspace/outputs/reports/` 中的固定产物并立即结束当前会话。

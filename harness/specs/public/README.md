@@ -1,6 +1,6 @@
 # Whole-LCA 公共契约索引
 
-本目录保存 `whole-lca` 各阶段共同使用的运行、状态、证据和产物格式契约。阶段规范位于 `harness/specs/01-*` 至 `harness/specs/07-*`；公共目录不代表独立业务阶段。
+本目录只保存 `whole-lca` 多个阶段共同使用的运行、状态和证据契约。阶段独占的 schema、模板与确定性校验脚本随对应的 `harness/specs/01-*` 至 `harness/specs/07-*` 阶段包保存；公共目录不代表独立业务阶段。
 
 ## References
 
@@ -11,20 +11,13 @@
    - `references/schemas/stage.schema.json`
    - `references/schemas/review.schema.json`
    - `references/schemas/handoff.schema.json`
-   - `references/schemas/import-report.schema.json`
-   - `references/schemas/model-graph.schema.json`
-   - `references/schemas/raw-lcia-results.schema.json`
-   - `references/schemas/calculation-manifest.schema.json`
-3. **报告模板**
-   - `references/templates/lca_report.md`
 
-## 公共脚本
+## 公共测试
 
-- `references/scripts/validation.py`：计划接收门禁和 LCI 审查循环的确定性校验。
-- `references/scripts/tests/`：公共脚本、schema、阶段路由和平台配置的回归测试。
+- `references/scripts/tests/`：公共 schema、全部阶段契约、阶段路由和平台配置的回归测试。
 - 测试命令：`uv run python -m unittest discover -s harness/specs/public/references/scripts/tests -v`。
 
-脚本只实现阶段规范明确规定的确定性规则，不是独立规范来源。
+阶段专属资源由各阶段 README 路由；每个阶段的 `schema_mapping.md` 记录该阶段使用的公共与本地 schema、模板、脚本和运行时工具接口。
 
 ## 质量评估同步规则
 
