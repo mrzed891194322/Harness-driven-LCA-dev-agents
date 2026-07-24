@@ -1,7 +1,13 @@
 import gradio as gr
 
 
-def build_left_sidebar() -> tuple[gr.Button, gr.Button, gr.Button, gr.File, gr.File]:
+def build_left_sidebar() -> tuple[
+    gr.Button,
+    gr.Button,
+    gr.Button,
+    gr.File,
+    gr.File,
+]:
     """
     构建左侧栏：文件交换区与快捷操作区。
     """
@@ -42,22 +48,28 @@ def build_left_sidebar() -> tuple[gr.Button, gr.Button, gr.Button, gr.File, gr.F
             size="lg",
             elem_id="quick-action-project",
             elem_classes=["quick-action-btn"],
+            visible=False,
         )
-        make_plan_btn = gr.Button(
-            "🧭 LCA整体工作计划制定面板（暂不可用）",
-            variant="secondary",
+        start_lca_btn = gr.Button(
+            "开始LCA工作",
+            variant="primary",
             size="lg",
-            interactive=False,
-            elem_id="quick-action-plan",
+            interactive=True,
+            elem_id="quick-action-start-lca",
             elem_classes=["quick-action-btn"],
         )
-        design_lci_btn = gr.Button(
-            "🧬 生命周期清单（LCI）工作面板（暂不可用）",
+        clear_file_inputs_btn = gr.Button(
+            "清空文件输入",
             variant="secondary",
             size="lg",
-            interactive=False,
-            elem_id="quick-action-lci",
+            elem_id="quick-action-clear-files",
             elem_classes=["quick-action-btn"],
         )
 
-    return run_btn, make_plan_btn, design_lci_btn, ref_materials_file, ref_data_file
+    return (
+        run_btn,
+        start_lca_btn,
+        clear_file_inputs_btn,
+        ref_materials_file,
+        ref_data_file,
+    )

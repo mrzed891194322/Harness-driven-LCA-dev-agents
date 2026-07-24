@@ -1,63 +1,41 @@
-import re
+"""Compatibility adapter for the structured execution-plan template parser."""
+
+from __future__ import annotations
+
 from pathlib import Path
-from functions.utils.file_loader.private_utils.template_metadata import split_front_matter
+
+from functions.plan_editor import (
+    PlanInputPart,
+    PlanMarkdownPart,
+    parse_execution_plan_template,
+    render_template_parts,
+)
+
 
 def parse_plan_template(filepath: Path) -> list[dict]:
-    """
-    解析 plan.md 模板文件，将其拆分为静态 markdown 块和用户可填写的文本框块。
-    并在每个 ## 或 ### 标题前插入锚点。
-    """
-    if not filepath.exists():
-        return [{"type": "markdown", "content": f"⚠️ **模板文件不存在**: `{filepath.as_posix()}`"}]
-        
-    try:
-        content = filepath.read_text(encoding="utf-8")
-    except Exception as e:
-        return [{"type": "markdown", "content": f"⚠️ **读取模板文件出错**: {str(e)}"}]
+    """Return legacy block dictionaries backed by the declarative parser.
 
-    _, content = split_front_matter(content)
-
-    # 正则匹配 \s*---\s*\*\*\*✍️ 用户填写内容区\*\*\* ... \s*---，允许有缩进空格
-    regex = re.compile(r'(?s)\s*---\s*\*\*\*✍️ 用户填写内容区\*\*\*.*?\s*---')
-    
-    parts = []
-    last_idx = 0
-    
-    header_counter = [0]
-    def add_anchors(match):
-        header_counter[0] += 1
-        level = match.group(1)
-        title = match.group(2)
-        anchor_id = f"plan-header-{header_counter[0]}"
-        return f'<div id="{anchor_id}"></div>\n\n{level} {title}'
-    
-    matches = list(regex.finditer(content))
-    for i, match in enumerate(matches):
-        # 1. 提取前置的 Markdown 内容，并清理尾部的换行与空白
-        md_text = content[last_idx:match.start()].rstrip()
-        if md_text:
-            # 在 Markdown 内容块中为 ## 和 ### 标题动态添加锚点 ID
-            md_text_with_anchors = re.sub(r'^(#{2,3})\s+(.*)$', add_anchors, md_text, flags=re.MULTILINE)
-            parts.append({"type": "markdown", "content": md_text_with_anchors})
-            
-        # 2. 从前置 Markdown 中提取最后一个粗体文字作为文本框的 Label
-        label = f"输入区域 {i+1}"
-        label_matches = re.findall(r'\*\*([^*:\n]+)\*\*', md_text)
-        if label_matches:
-            label = label_matches[-1].strip()
-            
-        parts.append({
-            "type": "textbox",
-            "label": label,
-            "placeholder": f"请输入 {label}..."
-        })
-        
-        last_idx = match.end()
-        
-    # 3. 提取尾部的 Markdown 内容
-    md_text = content[last_idx:].strip()
-    if md_text:
-        md_text_with_anchors = re.sub(r'^(#{2,3})\s+(.*)$', add_anchors, md_text, flags=re.MULTILINE)
-        parts.append({"type": "markdown", "content": md_text_with_anchors})
-        
-    return parts
+    Older file-loader callers still consume ``type=markdown/textbox`` blocks.
+    Keeping this small adapter means they see the same fields as the current
+    GUI without maintaining a second marker grammar.
+    """
+    template = parse_execution_plan_template(filepath)
+    blocks: list[dict] = []
+    for part in render_template_parts(template):
+        if isinstance(part, PlanMarkdownPart):
+            blocks.append({"type": "markdown", "content": part.content})
+        else:
+            field = part.field if isinstance(part, PlanInputPart) else None
+            if field is None:  # pragma: no cover - defensive for future parts
+                continue
+            blocks.append(
+                {
+                    "type": "textbox",
+                    "field_id": field.field_id,
+                    "label": field.label,
+                    "placeholder": field.placeholder,
+                    "rows": field.rows,
+                    "section": field.section,
+                }
+            )
+    return blocks

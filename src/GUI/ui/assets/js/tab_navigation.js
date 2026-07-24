@@ -4,15 +4,13 @@ function rightTabButtons() {
     return Array.from(tabs.querySelectorAll('[role="tab"]'));
 }
 
-function setQuickActionMode(mode) {
-    const idsByMode = {
-        project: 'quick-action-project',
-        plan: 'quick-action-plan',
-        lci: 'quick-action-lci',
-    };
-    const activeId = idsByMode[mode];
+let activeRightTabMode = 'project';
+let rightTabsObserver = null;
+let rightTabsUpdateScheduled = false;
 
-    ['quick-action-project', 'quick-action-plan', 'quick-action-lci'].forEach((id) => {
+function setQuickActionMode(mode) {
+    const activeId = mode === 'plan' ? 'quick-action-start-lca' : null;
+    ['quick-action-project', 'quick-action-start-lca'].forEach((id) => {
         const element = document.getElementById(id);
         if (!element) return;
 
@@ -23,22 +21,57 @@ function setQuickActionMode(mode) {
     });
 }
 
-function setRightTabMode(mode) {
+function visibleRightTabLabels(mode) {
     const visibleByMode = {
-        terminal: ['终端显示'],
-        project: ['终端显示', '项目初始化'],
-        plan: ['终端显示', '计划输入', '计划输出', '计划修改'],
-        lci: ['终端显示', 'LCI制定', 'LCI映射'],
+        project: ['项目初始化', '终端显示'],
+        terminal: ['项目初始化', '终端显示'],
+        plan: ['项目初始化', '终端显示', '计划制定'],
+        running: ['项目初始化', '终端显示'],
+        result: ['项目初始化', '终端显示', 'LCA执行结果'],
+        lciReport: ['项目初始化', '终端显示', 'LCA执行结果', 'LCI映射'],
     };
-    const visibleLabels = visibleByMode[mode] || visibleByMode.terminal;
+    return visibleByMode[mode] || visibleByMode.project;
+}
+
+function applyRightTabMode(mode) {
+    const visibleLabels = visibleRightTabLabels(mode);
+    const seenTabIds = new Set();
 
     rightTabButtons().forEach((button) => {
         const label = button.textContent.trim();
-        const shouldShow = visibleLabels.some((visibleLabel) => label.includes(visibleLabel));
+        const tabId = button.dataset.tabId || label;
+        const matchesMode = visibleLabels.some((visibleLabel) => label.includes(visibleLabel));
+        const shouldShow = matchesMode && !seenTabIds.has(tabId);
+        seenTabIds.add(tabId);
         button.style.display = shouldShow ? '' : 'none';
     });
+}
+
+function setRightTabMode(mode) {
+    activeRightTabMode = mode;
+    applyRightTabMode(mode);
 
     setQuickActionMode(mode);
+}
+
+function observeRightTabs() {
+    const tabs = document.querySelector('#right-tabs');
+    if (!tabs || rightTabsObserver) return;
+
+    rightTabsObserver = new MutationObserver(() => {
+        if (rightTabsUpdateScheduled) return;
+        rightTabsUpdateScheduled = true;
+        requestAnimationFrame(() => {
+            rightTabsUpdateScheduled = false;
+            applyRightTabMode(activeRightTabMode);
+        });
+    });
+    rightTabsObserver.observe(tabs, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['role', 'data-tab-id'],
+    });
 }
 
 function selectRightTabByText(label, attempt = 0) {
@@ -55,7 +88,9 @@ function selectRightTabByText(label, attempt = 0) {
 
 function initializeRightTabs(attempt = 0) {
     if (rightTabButtons().length > 0) {
-        setRightTabMode('terminal');
+        observeRightTabs();
+        setRightTabMode('project');
+        selectRightTabByText('项目初始化');
         return;
     }
 
@@ -68,8 +103,7 @@ window.setRightTabMode = setRightTabMode;
 window.setQuickActionMode = setQuickActionMode;
 window.selectRightTabByText = selectRightTabByText;
 window.selectProjectInitTab = () => selectRightTabByText('项目初始化');
-window.selectPlanInputTab = () => selectRightTabByText('计划输入');
-window.selectLciDesignTab = () => selectRightTabByText('LCI制定');
+window.selectPlanEditorTab = () => selectRightTabByText('计划制定');
 window.selectLciMappingTab = () => selectRightTabByText('LCI映射');
 window.selectTerminalTab = () => selectRightTabByText('终端显示');
 
@@ -83,18 +117,30 @@ window.guiOpenPlanMode = (...args) => {
     return args;
 };
 
-window.guiOpenLciMode = (...args) => {
-    setRightTabMode('lci');
-    return args;
-};
-
-window.guiClosePanel = (...args) => {
-    setRightTabMode('terminal');
+window.guiStartLca = (...args) => {
+    setRightTabMode('running');
     selectRightTabByText('终端显示');
     return args;
 };
 
+window.guiOpenResultMode = (...args) => {
+    setRightTabMode('result');
+    return args;
+};
+
+window.guiOpenLciReportMode = (...args) => {
+    setRightTabMode('lciReport');
+    return args;
+};
+
+window.guiClosePanel = (...args) => {
+    setRightTabMode('project');
+    selectRightTabByText('项目初始化');
+    return args;
+};
+
 window.guiSelectTerminal = (...args) => {
+    setRightTabMode('terminal');
     selectRightTabByText('终端显示');
     return args;
 };

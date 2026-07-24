@@ -12,7 +12,7 @@ def main(
     """
     整合项目初始化的三个步骤：
     1. 调用 clean_dir 清理项目
-    2. 将文件交换区上传的文件存放在 harness/knowledge/inputs/user_file 和 harness/knowledge/inputs/user_data 中
+    2. 将文件交换区上传的文件同步到 harness/knowledge/inputs/user_ref/file 和 user_ref/data
     3. 调用 src/scripts/initialization
     """
     project_root = find_project_root(Path(__file__))
@@ -23,7 +23,13 @@ def main(
      
     # 步骤 1：清理项目
     yield accumulated_output + "[System] Step 1/3: Cleaning project...\n", "Running"
-    for chunk in run_clean_project(project_root):
+    clean_iterator = run_clean_project(project_root)
+    while True:
+        try:
+            chunk = next(clean_iterator)
+        except StopIteration as stop:
+            clean_ok = bool(stop.value)
+            break
         if should_stop():
             break
         accumulated_output += chunk
@@ -34,8 +40,11 @@ def main(
             accumulated_output += "\n[System] 已停止\n"
         yield accumulated_output, "Stopped"
         return
+    if not clean_ok:
+        yield accumulated_output, "Failed"
+        return
  
-    # 步骤 2：将上传文件移动到 user_file 与 user_data
+    # 步骤 2：将上传文件同步到 user_ref/file 与 user_ref/data
     accumulated_output += "\n"
     yield accumulated_output + "[System] Step 2/3: Copying uploaded files to target directories...\n", "Running"
     for chunk in copy_uploaded_files(ref_materials, ref_data, project_root):
@@ -53,7 +62,13 @@ def main(
     # 步骤 3：调用项目初始化脚本
     accumulated_output += "\n"
     yield accumulated_output + "[System] Step 3/3: Running initialization script...\n", "Running"
-    for chunk in run_initialization(project_root):
+    init_iterator = run_initialization(project_root)
+    while True:
+        try:
+            chunk = next(init_iterator)
+        except StopIteration as stop:
+            init_ok = bool(stop.value)
+            break
         if should_stop():
             break
         accumulated_output += chunk
@@ -63,5 +78,7 @@ def main(
         if not accumulated_output.endswith("已停止\n") and not accumulated_output.endswith("已停止"):
             accumulated_output += "\n[System] 已停止\n"
         yield accumulated_output, "Stopped"
+    elif not init_ok:
+        yield accumulated_output, "Failed"
     else:
         yield accumulated_output + "\n[System] Project initialization complete.\n", "Finished"

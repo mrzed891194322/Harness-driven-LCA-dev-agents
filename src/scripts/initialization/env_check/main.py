@@ -61,7 +61,9 @@ def check_opencode_cli(timeout: int = 10) -> bool:
     return True
 
 
-def check_rag_embedding_api(project_root: Path | None = None) -> bool:
+def check_rag_embedding_api_result(
+    project_root: Path | None = None,
+) -> tuple[bool, str]:
     """
     Run a minimal RAG embedding write to verify .env embedding API settings.
 
@@ -76,13 +78,20 @@ def check_rag_embedding_api(project_root: Path | None = None) -> bool:
             if (parent / "pyproject.toml").is_file()
         )
 
+    try:
+        from rag_init.private_utils.embedding import load_embedding_config
+
+        embedding_config = load_embedding_config()
+    except Exception as exc:
+        message = f".env embedding 配置无效：{exc}"
+        print(f"[Error] {message}")
+        return False, message
+
     probe_dir = Path(tempfile.mkdtemp(prefix="rag-env-check-"))
     try:
         from rag_init.private_utils.db import init_chroma_collection
-        from rag_init.private_utils.embedding import load_embedding_config
 
         print("Checking RAG embedding API with a temporary Chroma database...")
-        embedding_config = load_embedding_config()
         collection = init_chroma_collection(
             probe_dir,
             embedding_config,
@@ -94,13 +103,18 @@ def check_rag_embedding_api(project_root: Path | None = None) -> bool:
             ids=["env-check-1"],
         )
         print("RAG embedding API check succeeded.")
-        return True
+        return True, "可用"
     except Exception as exc:
-        print(f"[Error] RAG embedding API check failed: {exc}")
-        print("请检查 .env 文件配置")
-        return False
+        message = f"Embedding API 连接或调用失败：{exc}"
+        print(f"[Error] {message}")
+        return False, message
     finally:
         shutil.rmtree(probe_dir, ignore_errors=True)
+
+
+def check_rag_embedding_api(project_root: Path | None = None) -> bool:
+    """Compatibility wrapper returning only the probe boolean."""
+    return check_rag_embedding_api_result(project_root=project_root)[0]
 
 
 def check_project_environment(project_root: Path | None = None) -> tuple[bool, str]:
@@ -113,7 +127,10 @@ def check_project_environment(project_root: Path | None = None) -> tuple[bool, s
     if not check_opencode_cli():
         return False, "opencode未安装"
 
-    if not check_rag_embedding_api(project_root=project_root):
-        return False, "请检查 .env 文件配置"
+    embedding_ok, embedding_message = check_rag_embedding_api_result(
+        project_root=project_root
+    )
+    if not embedding_ok:
+        return False, embedding_message
 
     return True, "可用"

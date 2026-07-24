@@ -16,13 +16,7 @@ def bind_tab_lci_events(
         from functions.utils.file_loader.private_utils.template_metadata import split_front_matter
 
         mapping_path = config.LCI_MAPPING_FILE_PATH
-        metadata = run_file_loader_action("read_template_metadata", filepath=mapping_path)
-        is_valid = (
-            mapping_path.exists()
-            and metadata.get("template_kind") == config.LCI_MAPPING_TEMPLATE_KIND
-        )
-
-        if is_valid:
+        if mapping_path.is_file():
             try:
                 content = mapping_path.read_text(encoding="utf-8")
                 _, body = split_front_matter(content)

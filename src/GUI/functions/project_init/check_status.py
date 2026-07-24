@@ -1,18 +1,13 @@
 """
 项目初始化状态检测模块
 
-提供四个子函数分别检测：环境状态、目录清理状态、RAG 知识库状态、openLCA 连接状态，
-以及一个汇总函数一次性刷新全部状态。
+提供环境与 openLCA 两项执行门禁检查，并保留旧状态接口供组件兼容。
 """
-
-import sys
-from pathlib import Path
-
 
 # ---------------------------------------------------------------------------
 # 子函数 1：环境状态
 # ---------------------------------------------------------------------------
-def check_env_status() -> str:
+def check_env_result() -> tuple[bool, str]:
     """
     检测 opencode CLI 是否可用。
 
@@ -21,22 +16,17 @@ def check_env_status() -> str:
     """
     import config
 
-    init_script_dir = str(config.INIT_RAG_SCRIPT_PATH.parent)
-    _inserted = False
-    if init_script_dir not in sys.path:
-        sys.path.insert(0, init_script_dir)
-        _inserted = True
-
     try:
-        from env_check import check_project_environment  # type: ignore[import-not-found]
+        from scripts.initialization.env_check import check_project_environment
 
         ok, message = check_project_environment(project_root=config.PROJECT_ROOT)
-        return message if message else ("可用" if ok else "不可用")
-    except Exception:
-        return "请检查 .env 文件配置"
-    finally:
-        if _inserted and init_script_dir in sys.path:
-            sys.path.remove(init_script_dir)
+        return ok, message if message else ("可用" if ok else "不可用")
+    except Exception as exc:
+        return False, f"环境检查异常：{exc}"
+
+
+def check_env_status() -> str:
+    return check_env_result()[1]
 
 
 # ---------------------------------------------------------------------------
@@ -58,30 +48,34 @@ def check_rag_status() -> str:
 # ---------------------------------------------------------------------------
 # 子函数 4：openLCA 连接状态
 # ---------------------------------------------------------------------------
-def check_openlca_status(host: str = "localhost", port: int = 8080) -> str:
+def check_openlca_result(
+    host: str = "localhost",
+    port: int = 8080,
+) -> tuple[bool, str]:
     """
     调用 openLCA IPC Server 连接检查工具，返回用于 UI 展示的状态文本。
 
     Returns:
         "成功连接" 或 "连接失败"
     """
-    # 将 openlca_check 脚本目录临时加入 sys.path 以复用其 check_openlca 函数
-    import config
-    openlca_check_dir = str(config.OPENLCA_CHECK_DIR)
-    _inserted = False
-    if openlca_check_dir not in sys.path:
-        sys.path.insert(0, openlca_check_dir)
-        _inserted = True
-
     try:
-        from main import check_openlca  # type: ignore[import-not-found]
+        from scripts.initialization.openlca_check import check_openlca
+
         ok = check_openlca(host=host, port=port)
-        return "成功连接" if ok else "连接失败"
+        return ok, "成功连接" if ok else "连接失败"
     except Exception:
-        return "连接失败"
-    finally:
-        if _inserted and openlca_check_dir in sys.path:
-            sys.path.remove(openlca_check_dir)
+        return False, "连接失败"
+
+
+def check_openlca_status(host: str = "localhost", port: int = 8080) -> str:
+    return check_openlca_result(host=host, port=port)[1]
+
+
+def refresh_execution_readiness() -> tuple[str, str, bool]:
+    """Refresh the two execution gates used by the GUI."""
+    env_ok, env_status = check_env_result()
+    openlca_ok, openlca_status = check_openlca_result()
+    return env_status, openlca_status, env_ok and openlca_ok
 
 
 # ---------------------------------------------------------------------------

@@ -38,6 +38,20 @@
   - `file_handler.py`：将左侧上传的材料/数据文件暂存到 `workspace/inputs/references/`，再由文件同步脚本送入 RAG 输入目录。
   - `init_rag.py`：调用 RAG 向量库与模型数据库的本地初始化逻辑。
 
-### 3. 计划制定与执行模块 (`functions/make_plan/`)
-负责计划的整合保存与执行流程：
-- **功能入口**：[main.py](make_plan/main.py) 中的 `main` 函数。
+环境和 openLCA 是“执行LCA计划”的两项门禁。初始化子进程的退出码必须
+逐层传递到 GUI，失败不得显示为 `Finished`。
+
+### 3. Whole-LCA 结果模块
+
+- `lca_run.py`：识别本次 manifest，区分完成与提前中止，并从阶段、审查及
+  工具报告中聚合失败原因。
+- `plan_editor.py`：校验 `lca_plan_input` v1 元数据，仅用 `PLAN_TEXTBOX`
+  注释识别其后的“用户填写内容区”，并把正文拆成原位交替的 Markdown/Textbox；
+  纯 Markdown 计划保持只读。上传内容只在内存暂存，执行时仅替换输入值，
+  保留文档标记和静态内容并原子写入唯一计划路径。
+
+### 4. 历史计划需求模块
+
+`functions/make_plan/` 和 `functions/revise_plan/` 保留兼容代码，但不再由
+当前 GUI 绑定；当前面板直接维护最终的 LCA 执行计划，不调用旧
+`make-plan` 或 `revise-plan` 命令。

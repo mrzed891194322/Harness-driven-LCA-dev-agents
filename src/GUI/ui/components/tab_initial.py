@@ -32,7 +32,7 @@ def _build_status_card(
 
 def build_tab_initial() -> tuple:
     """
-    构建右侧"项目初始化" Tab 组件，初始不可见。
+    构建右侧始终可见且默认选中的“项目初始化”Tab。
 
     Returns:
         (project_init_tab, close_init_btn, refresh_init_status_btn, exec_init_btn,
@@ -62,7 +62,12 @@ def build_tab_initial() -> tuple:
 
                 # 控制按钮，固定放置在底部
                 with gr.Row(elem_id="project-init-actions-row", elem_classes=["panel-actions-row"]):
-                    close_init_btn = gr.Button("❌ 关闭初始化面板", variant="secondary", elem_id="close-init-btn")
+                    close_init_btn = gr.Button(
+                        "❌ 关闭初始化面板",
+                        variant="secondary",
+                        elem_id="close-init-btn",
+                        visible=False,
+                    )
                     refresh_init_status_btn = gr.Button("刷新检测状态", variant="secondary")
                     exec_init_btn = gr.Button("⚡ 执行项目初始化", variant="primary")
 

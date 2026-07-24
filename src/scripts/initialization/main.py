@@ -137,7 +137,9 @@ def main():
         print("=" * 60)
         print("Step 1/3: Check Environment")
         print("=" * 60)
-        check_project_environment(project_root=PROJECT_ROOT)
+        env_ok, env_message = check_project_environment(project_root=PROJECT_ROOT)
+        if not env_ok:
+            raise RuntimeError(f"Environment check failed: {env_message}")
 
     if run_rag:
         print("=" * 60)
@@ -157,25 +159,27 @@ def main():
         print("=" * 60)
         print("Step 3/3: Check openLCA IPC Server Connection")
         print("=" * 60)
-        if check_openlca(host=args.host, port=args.port):
-            print("openLCA connection is available; cleaning project entities...")
-            cleanup_command = [
-                sys.executable,
-                "src/scripts/openlca_cleanup/main.py",
-                "--project",
-                PROJECT_ROOT.name,
-                "--host",
-                args.host,
-                "--port",
-                str(args.port),
-                "--yes",
-            ]
-            print("Running:", " ".join(cleanup_command))
-            result = subprocess.run(cleanup_command, cwd=str(PROJECT_ROOT), check=False)
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"openLCA cleanup failed with exit code {result.returncode}"
-                )
+        if not check_openlca(host=args.host, port=args.port):
+            raise RuntimeError("openLCA IPC Server connection check failed")
+
+        print("openLCA connection is available; cleaning project entities...")
+        cleanup_command = [
+            sys.executable,
+            "src/scripts/openlca_cleanup/main.py",
+            "--project",
+            PROJECT_ROOT.name,
+            "--host",
+            args.host,
+            "--port",
+            str(args.port),
+            "--yes",
+        ]
+        print("Running:", " ".join(cleanup_command))
+        result = subprocess.run(cleanup_command, cwd=str(PROJECT_ROOT), check=False)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"openLCA cleanup failed with exit code {result.returncode}"
+            )
 
     print("=" * 60)
     print("Initialization process finished")

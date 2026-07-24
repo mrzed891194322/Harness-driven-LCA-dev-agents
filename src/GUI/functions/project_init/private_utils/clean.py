@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Generator
 
-def run_clean_project(project_root: Path) -> Generator[str, None, None]:
+def run_clean_project(project_root: Path) -> Generator[str, None, bool]:
     """
     运行 clean_dir.py 清理项目，只打印执行成功或失败。
     """
@@ -34,12 +34,16 @@ def run_clean_project(project_root: Path) -> Generator[str, None, None]:
         
         if should_stop():
             yield "[System] Project directory cleaning: Stopped by user\n"
+            return False
         elif return_code == 0:
             yield "[System] Project directory cleaning: Success\n"
+            return True
         else:
             yield f"[System] Project directory cleaning: Failed (exit code {return_code})\n"
             yield f"[System ERROR Details]\n{stdout_content}\n"
+            return False
     except Exception as e:
         yield f"[System ERROR] Failed to run clean_dir.py: {e}\n"
+        return False
     finally:
         clear_active_process()

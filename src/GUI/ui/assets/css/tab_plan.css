@@ -1,7 +1,4 @@
-#plan-toc-column,
-#plan-modify-toc-column,
-#plan-output-toc-column,
-#lci-mapping-toc-column {
+#plan-toc-column {
     border-right: 1px solid var(--border-color-primary, #e5e7eb) !important;
     padding-right: 16px !important;
     height: 100% !important;
@@ -47,4 +44,67 @@
     padding-left: 14px !important;
     font-size: 12px !important;
     color: var(--body-text-color-subdued, #6b7280) !important;
+}
+
+#plan-form-column,
+#plan-form-scroll {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+#plan-form-scroll {
+    overflow-y: auto !important;
+    padding-right: 8px !important;
+}
+
+.plan-static-markdown {
+    margin: 0 !important;
+}
+
+.plan-form-input {
+    margin: 0 0 14px 0 !important;
+}
+
+.plan-form-input textarea {
+    resize: vertical !important;
+}
+
+#plan-editor-actions-row {
+    align-items: stretch !important;
+}
+
+#execute-lca-button-wrap {
+    position: relative !important;
+    min-width: 0 !important;
+}
+
+#execute-lca-button-wrap > .styler,
+#execute-lca-button-wrap button {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+#execute-lca-button-wrap:has(button:disabled)::after {
+    content: "请检查环境连接及填写计划";
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    z-index: 50;
+    width: max-content;
+    max-width: 260px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.94);
+    color: #ffffff;
+    font-size: 13px;
+    line-height: 1.35;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+#execute-lca-button-wrap:has(button:disabled):hover::after {
+    opacity: 1;
+    transform: translate(-50%, 0);
 }

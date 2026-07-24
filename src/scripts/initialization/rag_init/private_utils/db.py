@@ -4,7 +4,7 @@ from typing import Any
 import chromadb
 import chromadb.utils.embedding_functions as embedding_functions
 
-from private_utils.embedding import EmbeddingConfig
+from .embedding import EmbeddingConfig
 
 
 COLLECTION_NAME = "rag_collection"

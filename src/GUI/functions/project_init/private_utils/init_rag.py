@@ -2,7 +2,7 @@ import subprocess
 import sys
 import os
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Literal
 
 def should_suppress_line(line: str) -> bool:
     line_strip = line.strip()
@@ -15,7 +15,11 @@ def should_suppress_line(line: str) -> bool:
     )
     return any(line_strip.startswith(prefix) for prefix in prefixes_to_suppress)
 
-def run_initialization(project_root: Path) -> Generator[str, None, None]:
+def run_initialization(
+    project_root: Path,
+    *,
+    only: Literal["rag"] | None = None,
+) -> Generator[str, None, bool]:
     """
     先同步 workspace 中的参考输入，再调用项目初始化脚本，并过滤掉多余的文本日志。
     """
@@ -62,16 +66,16 @@ def run_initialization(project_root: Path) -> Generator[str, None, None]:
         sync_return_code = sync_process.wait()
         if should_stop():
             yield "[System] Reference input synchronization stopped by user.\n"
-            return
+            return False
         if sync_return_code != 0:
             yield (
                 "[System ERROR] Reference input synchronization failed "
                 f"(exit code {sync_return_code}).\n"
             )
-            return
+            return False
     except Exception as e:
         yield f"[System ERROR] Failed to synchronize reference inputs: {e}\n"
-        return
+        return False
     finally:
         clear_active_process()
 
@@ -79,6 +83,8 @@ def run_initialization(project_root: Path) -> Generator[str, None, None]:
 
     script_path = config.INIT_RAG_SCRIPT_PATH
     cmd = [sys.executable, "-u", str(script_path), "--mode", "gui"]
+    if only is not None:
+        cmd.extend(["--only", only])
     
     # Ensure standard output/error are unbuffered
     env = os.environ.copy()
@@ -113,9 +119,12 @@ def run_initialization(project_root: Path) -> Generator[str, None, None]:
         return_code = process.wait()
         if should_stop():
             yield "\n[System] Initialization script stopped by user.\n"
+            return False
         else:
             yield f"\n[System] Initialization script finished with exit code {return_code}.\n"
+            return return_code == 0
     except Exception as e:
         yield f"[System ERROR] Failed to run initialization script: {e}\n"
+        return False
     finally:
         clear_active_process()

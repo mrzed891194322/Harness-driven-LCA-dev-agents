@@ -12,10 +12,18 @@ CLEAN_TARGETS = [
         "name": "workspace",
         "path": PROJECT_ROOT / "workspace",
         "gitignore": PROJECT_ROOT / "workspace" / ".gitignore",
-        "skip_ignored": [
-            "inputs/references/data/**",
-            "inputs/references/file/**",
-        ],
+        # The workflow contract keeps inputs/plan.md and uploaded references.
+        # Only generated run memory and outputs are cleared before a new run.
+        "ignored_dirs": ["memory/**", "outputs/**"],
+        "keep_patterns": ["**/README.md"],
+    },
+    {
+        "name": "workspace_without_inputs",
+        "path": PROJECT_ROOT / "workspace",
+        "gitignore": PROJECT_ROOT / "workspace" / ".gitignore",
+        # Clear every top-level workspace directory except inputs/.
+        "exclude_top_level": ["inputs"],
+        "keep_patterns": ["**/README.md"],
     },
     {
         "name": "harness",

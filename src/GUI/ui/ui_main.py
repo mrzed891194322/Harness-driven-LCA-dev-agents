@@ -5,6 +5,7 @@ from ui.components.tab_plan import build_tab_plan
 from ui.components.left_sidebar import build_left_sidebar
 from ui.components.tab_initial import build_tab_initial
 from ui.components.tab_lci import build_tab_lci
+from ui.components.tab_result import build_tab_result
 from ui.events import bind_ui_events
 
 
@@ -56,18 +57,15 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             with gr.Column(scale=1, elem_id="left-sidebar"):
                 (
                     run_btn,
-                    _make_plan_btn,
-                    _design_lci_btn,
+                    start_lca_btn,
+                    clear_file_inputs_btn,
                     ref_materials_file,
                     ref_data_file
                 ) = build_left_sidebar()
                 
             with gr.Column(scale=2, elem_id="right-panel"):
                 with gr.Tabs(elem_id="right-tabs") as right_tabs:
-                    # 1. 拆分出的“终端显示”组件
-                    _, output_console, status, clear_btn, stop_btn = build_tab_terminal()
-                    
-                    # 2. 项目初始化组件（初始不可见）
+                    # 项目初始化始终位于最左侧，并作为默认 Tab。
                     (
                         project_init_tab,
                         close_init_btn,
@@ -84,27 +82,57 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                         openlca_status,
                         openlca_recheck_btn,
                     ) = build_tab_initial()
-                    
-                    # 3. 拆分出的“计划输入”、“计划输出”和“计划修改”组件（初始不可见）
-                    _legacy_plan_components = build_tab_plan()
 
-                    # 4. LCI 制定组件
+                    _, output_console, status, clear_btn, stop_btn = build_tab_terminal()
+
                     (
-                        _lci_design_tab,
+                        result_tab,
+                        result_heading,
+                        success_panel,
+                        failure_panel,
+                        failure_markdown,
+                        report_markdown,
+                        report_warning,
+                        download_report_btn,
+                        show_lci_btn,
+                        modify_rerun_btn,
+                    ) = build_tab_result()
+
+                    (
+                        _plan_tab,
+                        plan_markdowns,
+                        plan_toc,
+                        plan_status,
+                        plan_source_state,
+                        plan_inputs,
+                        close_plan_btn,
+                        upload_plan_btn,
+                        execute_lca_btn,
+                    ) = build_tab_plan()
+
+                    # 按需显示的只读 LCI 映射组件。
+                    (
                         lci_mapping_tab,
-                        _close_lci_btn,
                         _close_mapping_btn,
-                        _exec_lci_btn,
                         lci_mapping_content_row,
                         lci_mapping_warning_row,
                         lci_mapping_toc_html,
                         lci_mapping_markdown,
                         download_lci_mapping_btn,
+                        _modify_lci_btn,
                     ) = build_tab_lci()
-                
+
+        run_result_state = gr.State(value=None)
+        env_gate_state = gr.State(value=False)
+        openlca_gate_state = gr.State(value=False)
+        plan_ready_state = gr.State(value=False)
+
         # 绑定事件
         bind_ui_events(
             run_btn=run_btn,
+            start_lca_btn=start_lca_btn,
+            execute_lca_btn=execute_lca_btn,
+            clear_file_inputs_btn=clear_file_inputs_btn,
             ref_materials_file=ref_materials_file,
             ref_data_file=ref_data_file,
             right_tabs=right_tabs,
@@ -131,6 +159,27 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             lci_mapping_toc_html=lci_mapping_toc_html,
             lci_mapping_markdown=lci_mapping_markdown,
             download_lci_mapping_btn=download_lci_mapping_btn,
+            run_result_state=run_result_state,
+            result_tab=result_tab,
+            result_heading=result_heading,
+            success_panel=success_panel,
+            failure_panel=failure_panel,
+            failure_markdown=failure_markdown,
+            show_lci_btn=show_lci_btn,
+            modify_rerun_btn=modify_rerun_btn,
+            plan_markdowns=plan_markdowns,
+            plan_toc=plan_toc,
+            plan_status=plan_status,
+            plan_inputs=plan_inputs,
+            plan_source_state=plan_source_state,
+            close_plan_btn=close_plan_btn,
+            upload_plan_btn=upload_plan_btn,
+            report_markdown=report_markdown,
+            report_warning=report_warning,
+            download_report_btn=download_report_btn,
+            env_gate_state=env_gate_state,
+            openlca_gate_state=openlca_gate_state,
+            plan_ready_state=plan_ready_state,
         )
         
     return demo, theme, css, js_code

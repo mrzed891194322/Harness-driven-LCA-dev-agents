@@ -3,12 +3,17 @@ import gradio as gr
 from ui.events.left_sidebar import bind_left_sidebar_events
 from ui.events.tab_initial import bind_tab_initial_events
 from ui.events.tab_lci import bind_tab_lci_events
+from ui.events.tab_plan import bind_tab_plan_events
 from ui.events.tab_terminal import bind_tab_terminal_events
+from ui.events.tab_result import bind_tab_result_events
 
 
 def bind_ui_events(
     *,
     run_btn: gr.Button,
+    start_lca_btn: gr.Button,
+    execute_lca_btn: gr.Button,
+    clear_file_inputs_btn: gr.Button,
     ref_materials_file: gr.File,
     ref_data_file: gr.File,
     right_tabs: gr.Tabs,
@@ -35,17 +40,35 @@ def bind_ui_events(
     lci_mapping_toc_html: gr.HTML,
     lci_mapping_markdown: gr.Markdown,
     download_lci_mapping_btn: gr.DownloadButton,
+    run_result_state: gr.State,
+    result_tab: gr.Tab,
+    result_heading: gr.Markdown,
+    success_panel: gr.Column,
+    failure_panel: gr.Column,
+    failure_markdown: gr.Markdown,
+    show_lci_btn: gr.Button,
+    modify_rerun_btn: gr.Button,
+    plan_markdowns: list[gr.Markdown],
+    plan_toc: gr.Markdown,
+    plan_status: gr.Markdown,
+    plan_inputs: list[gr.Textbox],
+    plan_source_state: gr.State,
+    close_plan_btn: gr.Button,
+    upload_plan_btn: gr.UploadButton,
+    report_markdown: gr.Markdown,
+    report_warning: gr.Markdown,
+    download_report_btn: gr.DownloadButton,
+    env_gate_state: gr.State,
+    openlca_gate_state: gr.State,
+    plan_ready_state: gr.State,
 ) -> None:
-    """Bind events for the currently supported GUI features.
-
-    Plan creation/modification and LCI design are intentionally not bound:
-    their backend commands were removed from the current workflow.  Their
-    legacy components remain available in the layout but are disabled.
-    """
+    """Bind events for the currently supported GUI features."""
     bind_left_sidebar_events(
         run_btn=run_btn,
+        clear_file_inputs_btn=clear_file_inputs_btn,
+        ref_materials_file=ref_materials_file,
+        ref_data_file=ref_data_file,
         right_tabs=right_tabs,
-        close_init_btn=close_init_btn,
     )
 
     bind_tab_terminal_events(
@@ -72,6 +95,27 @@ def bind_ui_events(
         openlca_status=openlca_status,
         output_console=output_console,
         status=status,
+        execute_lca_btn=execute_lca_btn,
+        env_gate_state=env_gate_state,
+        openlca_gate_state=openlca_gate_state,
+        plan_ready_state=plan_ready_state,
+    )
+
+    bind_tab_plan_events(
+        start_lca_btn=start_lca_btn,
+        modify_rerun_btn=modify_rerun_btn,
+        plan_markdowns=plan_markdowns,
+        plan_toc=plan_toc,
+        plan_status=plan_status,
+        plan_inputs=plan_inputs,
+        plan_source_state=plan_source_state,
+        close_plan_btn=close_plan_btn,
+        upload_plan_btn=upload_plan_btn,
+        execute_lca_btn=execute_lca_btn,
+        right_tabs=right_tabs,
+        plan_ready_state=plan_ready_state,
+        env_gate_state=env_gate_state,
+        openlca_gate_state=openlca_gate_state,
     )
 
     # The mapping report is read-only and does not invoke the removed LCI
@@ -83,4 +127,27 @@ def bind_ui_events(
         lci_mapping_toc_html=lci_mapping_toc_html,
         lci_mapping_markdown=lci_mapping_markdown,
         download_lci_mapping_btn=download_lci_mapping_btn,
+    )
+
+    bind_tab_result_events(
+        execute_lca_btn=execute_lca_btn,
+        plan_inputs=plan_inputs,
+        plan_source_state=plan_source_state,
+        plan_ready_state=plan_ready_state,
+        env_gate_state=env_gate_state,
+        openlca_gate_state=openlca_gate_state,
+        output_console=output_console,
+        status=status,
+        run_result_state=run_result_state,
+        right_tabs=right_tabs,
+        result_tab=result_tab,
+        result_heading=result_heading,
+        success_panel=success_panel,
+        failure_panel=failure_panel,
+        failure_markdown=failure_markdown,
+        show_lci_btn=show_lci_btn,
+        lci_mapping_tab=lci_mapping_tab,
+        report_markdown=report_markdown,
+        report_warning=report_warning,
+        download_report_btn=download_report_btn,
     )

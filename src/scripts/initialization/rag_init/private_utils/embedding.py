@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -20,7 +21,12 @@ def load_embedding_config() -> EmbeddingConfig:
     Raises:
         ValueError: when required embedding settings are missing or placeholders.
     """
-    load_dotenv()
+    project_root = next(
+        parent
+        for parent in Path(__file__).resolve().parents
+        if (parent / "pyproject.toml").is_file()
+    )
+    load_dotenv(project_root / ".env")
     api_key = os.getenv("EMBEDDING_API_KEY", "").strip().strip('"')
     api_url = os.getenv("EMBEDDING_API_URL", "").strip().strip('"') or None
     model_name = os.getenv("EMBEDDING_MODEL", "").strip().strip('"')

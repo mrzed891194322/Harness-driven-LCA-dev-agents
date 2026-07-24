@@ -10,16 +10,16 @@ import chromadb
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from markitdown import MarkItDown
 
-from private_utils.db import RAG_SCHEMA_VERSION, init_chroma_collection
-from private_utils.embedding import EmbeddingConfig, load_embedding_config
-from private_utils.file_filter import (
+from .db import RAG_SCHEMA_VERSION, init_chroma_collection
+from .embedding import EmbeddingConfig, load_embedding_config
+from .file_filter import (
     get_supported_extensions,
     iter_supported_files,
     prefer_original_sources,
 )
-from private_utils.file_indexer import process_file, source_for_metadata
-from private_utils.models import BuildResult, FileBuildResult
-from private_utils.staging import discard_staging, new_staging_dir, swap_staged_output
+from .file_indexer import process_file, source_for_metadata
+from .models import BuildResult, FileBuildResult
+from .staging import discard_staging, new_staging_dir, swap_staged_output
 
 
 CHUNK_SIZE = 1000
