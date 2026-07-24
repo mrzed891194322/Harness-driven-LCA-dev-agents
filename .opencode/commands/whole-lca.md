@@ -5,6 +5,9 @@ agent: major-orchestrator
 
 **任务执行**：
 
+- 执行下列脚本清理 openLCA 与 workspace 生成文件（如有）：
+   `uv run python harness/tools/control_openlca/cleanup_output/main.py --yes`
+   `uv run python src/scripts/clean_dir/main.py --yes --target workspace_without_inputs`
 
 - 读取并执行 `harness/pipelines/LCA-main.md` 定义的LCA完整工作流`，将 `workspace/inputs/plan.md` 作为唯一计划输入，并按该工作流及其引用的共享 spec 执行；
 

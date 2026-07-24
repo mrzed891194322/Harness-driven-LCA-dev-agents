@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import olca_schema
 
@@ -119,6 +121,7 @@ def write_flow(
     (flows / filename).write_text(
         json.dumps(
             {
+                "@context": workflow.JSON_LD_CONTEXT,
                 "@type": "Flow",
                 "@id": entity_id,
                 "name": name,
@@ -138,6 +141,7 @@ def write_product_system_fixture(root: Path) -> None:
     (processes / "p01-test.json").write_text(
         json.dumps(
             {
+                "@context": workflow.JSON_LD_CONTEXT,
                 "@type": "Process",
                 "@id": PROCESS_ID,
                 "name": "P01 Foreground process",
@@ -149,6 +153,7 @@ def write_product_system_fixture(root: Path) -> None:
     (product_systems / "ps01-test.json").write_text(
         json.dumps(
             {
+                "@context": workflow.JSON_LD_CONTEXT,
                 "@type": "ProductSystem",
                 "@id": PRODUCT_SYSTEM_ID,
                 "name": "PS01 Test product system",
@@ -162,7 +167,99 @@ def write_product_system_fixture(root: Path) -> None:
     )
 
 
+def write_explicit_product_system_fixture(root: Path) -> None:
+    write_product_system_fixture(root)
+    processes = root / "processes"
+    (processes / "p02-provider.json").write_text(
+        json.dumps(
+            {
+                "@context": workflow.JSON_LD_CONTEXT,
+                "@type": "Process",
+                "@id": PROVIDER_ID,
+                "name": "P02 Scenario provider",
+                "exchanges": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    product_systems = root / "product_systems"
+    (product_systems / "ps01-test.json").write_text(
+        json.dumps(
+            {
+                "@context": workflow.JSON_LD_CONTEXT,
+                "@type": "ProductSystem",
+                "@id": PRODUCT_SYSTEM_ID,
+                "name": "PS01 Explicit product system",
+                "refProcess": {"@type": "Process", "@id": PROCESS_ID},
+                "linkingMode": "explicit",
+                "expectedProcessIds": [PROCESS_ID, PROVIDER_ID],
+                "processes": [
+                    {"@type": "Process", "@id": PROCESS_ID, "name": "Foreground process"},
+                    {"@type": "Process", "@id": PROVIDER_ID, "name": "Scenario provider"},
+                ],
+                "processLinks": [
+                    {
+                        "provider": {"@type": "Process", "@id": PROVIDER_ID},
+                        "process": {"@type": "Process", "@id": PROCESS_ID},
+                        "flow": {"@type": "Flow", "@id": FLOW_ID},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 class ImportWorkflowTests(unittest.TestCase):
+    def test_lci_validation_rejects_aggregate_and_missing_context(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "flows.json").write_text(
+                json.dumps({"flows": [{"@type": "Flow"}]}),
+                encoding="utf-8",
+            )
+            result = workflow.validate_lci_directory(root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("only allowed" in error for error in result["errors"]))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_flow(root)
+            flow_path = next((root / "flows").glob("*.json"))
+            data = json.loads(flow_path.read_text(encoding="utf-8"))
+            del data["@context"]
+            flow_path.write_text(json.dumps(data), encoding="utf-8")
+            _, errors = workflow.load_lci_inventory(root)
+        self.assertTrue(any("@context" in error for error in errors))
+
+    def test_lci_validation_rejects_unlinked_foreground_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# Mapping\n",
+                encoding="utf-8",
+            )
+            process_path = root / "processes" / "p01-test.json"
+            process = json.loads(process_path.read_text(encoding="utf-8"))
+            process["exchanges"] = [
+                {
+                    "@type": "Exchange",
+                    "flow": {"@type": "Flow", "@id": FLOW_ID},
+                    "isInput": True,
+                }
+            ]
+            process_path.write_text(json.dumps(process), encoding="utf-8")
+            result = workflow.validate_lci_directory(root)
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any(
+                "no defaultProvider or explicit processLink" in error
+                for error in result["errors"]
+            )
+        )
+
     def test_preflight_is_read_only_and_stable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -182,6 +279,99 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual(first["counts"], {"planned": 1, "overwrite_or_delete": 1})
         self.assertEqual(client.put_calls, [])
         self.assertEqual(client.delete_calls, [])
+
+    def test_unrelated_database_changes_do_not_change_preflight_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_flow(root)
+            client = FakeImportClient()
+            first = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            client.descriptors["Process"] = [
+                FakeDescriptor("background-process", "Unrelated", "background")
+            ]
+            second = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+
+        self.assertEqual(first["preflight_hash"], second["preflight_hash"])
+
+    def test_preflight_requires_explicit_database_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_flow(root)
+            with patch.dict(
+                os.environ,
+                {"OPENLCA_DATABASE_NAME": ""},
+                clear=False,
+            ):
+                result = workflow.preflight_import_lci(
+                    "localhost", 8080, root, "project-a", None, FakeImportClient()
+                )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["database_identity_source"], "missing")
+        self.assertTrue(any("database identity" in error for error in result["errors"]))
+
+    def test_preflight_validates_and_fingerprints_background_providers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            process_path = root / "processes" / "p01-test.json"
+            process_data = json.loads(process_path.read_text(encoding="utf-8"))
+            process_data["exchanges"] = [
+                {
+                    "@type": "Exchange",
+                    "flow": {"@type": "Flow", "@id": FLOW_ID, "name": "Test product"},
+                    "defaultProvider": {
+                        "@type": "Process",
+                        "@id": PROVIDER_ID,
+                        "name": "Background provider",
+                    },
+                    "expectedProviderGeography": "CN",
+                    "isInput": True,
+                }
+            ]
+            process_path.write_text(json.dumps(process_data), encoding="utf-8")
+            client = FakeImportClient(
+                {
+                    "Process": [
+                        FakeDescriptor(PROVIDER_ID, "Background provider", "background")
+                    ]
+                }
+            )
+            provider = olca_schema.Process(
+                id=PROVIDER_ID,
+                name="Background provider",
+            )
+            provider.location = olca_schema.Ref(id="CN", name="China")
+            provider.exchanges = [
+                olca_schema.Exchange(
+                    flow=olca_schema.Ref(id=FLOW_ID, name="Test product"),
+                    is_input=False,
+                )
+            ]
+            client.entities[(olca_schema.Process, PROVIDER_ID)] = provider
+            first = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            provider.exchanges = [
+                olca_schema.Exchange(
+                    flow=olca_schema.Ref(id="different-flow", name="Different"),
+                    is_input=False,
+                )
+            ]
+            second = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+
+        self.assertTrue(first["ok"])
+        self.assertTrue(first["background_provider_checks"][0]["output_flow_match"])
+        self.assertFalse(second["ok"])
+        self.assertNotEqual(
+            first["background_provider_fingerprint"],
+            second["background_provider_fingerprint"],
+        )
 
     def test_import_rejects_unmatched_hash_without_writes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -343,6 +533,76 @@ class ImportWorkflowTests(unittest.TestCase):
             )
         )
 
+    def test_product_system_can_preserve_explicit_scenario_topology(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_explicit_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# LCI mapping\n",
+                encoding="utf-8",
+            )
+            validation = workflow.validate_lci_directory(root)
+            client = FakeImportClient()
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            report = workflow.import_lci(
+                "localhost",
+                8080,
+                root,
+                "project-a",
+                preflight["preflight_hash"],
+                "isolated-db",
+                client,
+            )
+
+        self.assertTrue(validation["ok"], validation["errors"])
+        self.assertEqual(report["status"], "success")
+        self.assertEqual(client.create_product_system_calls, [])
+        saved = client.entities[(olca_schema.ProductSystem, PRODUCT_SYSTEM_ID)]
+        self.assertEqual(len(saved.processes or []), 2)
+        self.assertEqual(len(saved.process_links or []), 1)
+
+    def test_import_operation_journal_prevents_blind_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "lci"
+            operation_dir = Path(temp_dir) / "operations"
+            write_flow(root)
+            client = FakeImportClient()
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            first = workflow.import_lci(
+                "localhost",
+                8080,
+                root,
+                "project-a",
+                preflight["preflight_hash"],
+                "isolated-db",
+                client,
+                operation_dir,
+            )
+            put_count = len(client.put_calls)
+            repeated = workflow.import_lci(
+                "localhost",
+                8080,
+                root,
+                "project-a",
+                preflight["preflight_hash"],
+                "isolated-db",
+                client,
+                operation_dir,
+            )
+            status = workflow.get_import_operation(
+                operation_dir,
+                preflight["preflight_hash"],
+            )
+
+        self.assertEqual(first["status"], "success")
+        self.assertEqual(repeated["operation_id"], first["operation_id"])
+        self.assertEqual(status["status"], "success")
+        self.assertEqual(len(client.put_calls), put_count)
+
     def test_product_system_auto_link_failure_is_structured(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -415,7 +675,7 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual(result["success_count"], 1)
         self.assertEqual(result["failed_count"], 1)
         self.assertEqual(len(client.put_calls), 1)
-        self.assertTrue(any("invalid JSON" in message for message in messages))
+        self.assertTrue(any("only allowed" in message for message in messages))
         self.assertTrue(any("描述符失败" in message for message in messages))
 
 
@@ -430,6 +690,31 @@ class GraphClient:
 
 
 class GraphWorkflowTests(unittest.TestCase):
+    def test_graph_requires_declared_scenario_processes(self) -> None:
+        system = olca_schema.ProductSystem(id="ps-id", name="PS1 Scenario")
+        system.processes = [
+            olca_schema.Ref(id="p1", name="P1"),
+            olca_schema.Ref(id="p2", name="P2"),
+        ]
+        system.process_links = [
+            olca_schema.ProcessLink(
+                provider=olca_schema.Ref(id="p1", name="P1"),
+                process=olca_schema.Ref(id="p2", name="P2"),
+                flow=olca_schema.Ref(id="f1", name="F1"),
+            )
+        ]
+        result = workflow.get_model_graph(
+            "localhost",
+            8080,
+            "ps-id",
+            GraphClient(system),
+            expected_process_ids=["p1", "train-process"],
+        )
+
+        self.assertEqual(result["status"], "broken")
+        self.assertEqual(result["missing_expected_nodes"], ["train-process"])
+        self.assertEqual(len(result["graph_fingerprint"]), 64)
+
     def test_graph_reports_broken_links(self) -> None:
         system = olca_schema.ProductSystem(id="ps-id", name="PS1 Test")
         system.processes = [olca_schema.Ref(id="p1", name="P1")]

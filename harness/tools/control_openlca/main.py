@@ -11,6 +11,7 @@ from mcp_types import ToolAnnotations
 
 CONTROL_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = CONTROL_ROOT.parents[2]
+IMPORT_OPERATION_DIR = PROJECT_ROOT / "workspace" / "memory" / "import-operations"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -20,6 +21,7 @@ from harness.tools.control_openlca.utils.readonly import (
 )
 from harness.tools.control_openlca.utils.workflow import (
     calculate_product_system as run_calculate_product_system,
+    get_import_operation as run_get_import_operation,
     get_model_graph as run_get_model_graph,
     import_lci as run_import_lci,
     preflight_import_lci as run_preflight_import_lci,
@@ -173,7 +175,21 @@ def import_lci(
         target_category=_target_category(target_category),
         preflight_hash=preflight_hash,
         database_name=database_name,
+        operation_dir=IMPORT_OPERATION_DIR,
     )
+
+
+@mcp.tool(
+    description=(
+        "Read a persisted import status by preflight hash. Use this after a timeout "
+        "before deciding whether another destructive call is safe."
+    ),
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+def get_import_operation(preflight_hash: str) -> dict[str, Any]:
+    """Read an import journal without writing to openLCA."""
+    return run_get_import_operation(IMPORT_OPERATION_DIR, preflight_hash)
 
 
 @mcp.tool(
@@ -184,10 +200,18 @@ def import_lci(
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-def get_model_graph(product_system: str) -> dict[str, Any]:
+def get_model_graph(
+    product_system: str,
+    expected_process_ids: list[str] | None = None,
+) -> dict[str, Any]:
     """Read and validate an openLCA Product System graph."""
     host, port = _endpoint_config()
-    return run_get_model_graph(host, port, product_system)
+    return run_get_model_graph(
+        host,
+        port,
+        product_system,
+        expected_process_ids=expected_process_ids,
+    )
 
 
 @mcp.tool(

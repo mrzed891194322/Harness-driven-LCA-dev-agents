@@ -20,9 +20,9 @@ command = "uv"
 args = ["run", "python", "harness/tools/control_openlca/main.py"]
 cwd = "."
 enabled = true
-enabled_tools = ["health_check", "query_descriptors", "preflight_import_lci", "import_lci", "get_model_graph", "calculate_product_system"]
+enabled_tools = ["health_check", "query_descriptors", "preflight_import_lci", "import_lci", "get_import_operation", "get_model_graph", "calculate_product_system"]
 startup_timeout_sec = 30
-tool_timeout_sec = 120
+tool_timeout_sec = 300
 default_tools_approval_mode = "auto"
 
 [agents]

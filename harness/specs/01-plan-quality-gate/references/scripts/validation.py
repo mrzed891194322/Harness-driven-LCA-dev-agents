@@ -127,6 +127,26 @@ def validate_plan_intake(text: str) -> dict[str, Any]:
             )
         )
 
+    legacy_reference_paths = sorted(
+        set(
+            re.findall(
+                r"harness/knowledge/inputs/(?:user_file|user_data)(?:/[^\s`'\"<>)]*)?",
+                text,
+            )
+        )
+    )
+    for path in legacy_reference_paths:
+        kind = "file" if "/user_file" in path else "data"
+        issues.append(
+            _issue(
+                "PLAN-REF-LEGACY-PATH",
+                "01-plan-quality-gate-spec.md#1-文件与版本",
+                path,
+                "Replace the legacy path with "
+                f"harness/knowledge/inputs/user_ref/{kind}/...",
+            )
+        )
+
     required_fields = (
         ("OBJECT", ("研究对象", "研究主体"), "Provide a concrete study object."),
         (

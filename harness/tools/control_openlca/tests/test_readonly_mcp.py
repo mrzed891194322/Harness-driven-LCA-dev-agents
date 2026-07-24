@@ -142,6 +142,7 @@ class MCPServerTests(unittest.TestCase):
                 "query_descriptors",
                 "preflight_import_lci",
                 "import_lci",
+                "get_import_operation",
                 "get_model_graph",
                 "calculate_product_system",
             },
@@ -152,6 +153,7 @@ class MCPServerTests(unittest.TestCase):
         self.assertFalse(tools["preflight_import_lci"].annotations.destructive_hint)
         self.assertFalse(tools["import_lci"].annotations.read_only_hint)
         self.assertTrue(tools["import_lci"].annotations.destructive_hint)
+        self.assertTrue(tools["get_import_operation"].annotations.read_only_hint)
         self.assertFalse(tools["import_lci"].annotations.idempotent_hint)
         self.assertEqual(
             tools["import_lci"].input_schema["required"],

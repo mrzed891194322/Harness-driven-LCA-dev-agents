@@ -8,6 +8,7 @@
 - 文件必须是带 YAML front matter 的 Markdown，`template_kind` 必须为 `lca_plan_input`。
 - 当前仅接受 `template_version: 1` 或语义等价的字符串 `"1"`。缺失、格式非法或未知版本不得猜测，审查状态必须为 `needs_input`，记录迁移要求后结束本次运行；不得停下来请求确认。
 - Markdown 的章节数量、标题文字和排序不作为格式门禁；计划可使用 GUI 默认模板、带 `PLAN_INPUT` 标记的上传模板，或不含输入标记的普通 Markdown。审查必须依据下节的语义内容，而不能依赖固定六章标题。
+- 计划中引用的参考文档，Agent 应主动在 `harness/knowledge/inputs/user_ref/file/` 和 `harness/knowledge/inputs/user_ref/data/` 中按文件名关键词匹配查找。用户可写完整路径、相对路径、文件名或简称；Agent 负责解析和定位，不因路径格式或是否带目录前缀而阻断。
 
 ## 2. 阻断性信息
 
@@ -28,8 +29,8 @@
 
 1. 在计划中明确标记，而不是隐含缺失；
 2. 具有稳定 ID，格式为 `GAP-<大写字母或数字及连字符>`；
-3. 标记 `gap_type: retrievable`；
-4. 指明检索目标和允许的来源域（用户资料/RAG、openLCA 活动数据库，或二者）；
+3. 用户用自然语言表达了检索意图（如"请检索""从数据库查找""请匹配背景数据""从资料中提取"等），而非仅声明缺少某信息；
+4. 指明了检索目标（找什么）和允许的来源域（用户资料/RAG、openLCA 活动数据库，或二者），即使来源域用自然语言表述也算有效；
 5. 缺口不改变第 2 节中的用户价值判断或目标范围。
 
 典型可检索项包括背景 Process/Flow/Provider 候选、UUID、活动数据库中的 LCIA 方法、标准或用户资料中的已给定数据位置。检索不到时不得编造；将其转为未解决项，并根据影响置为 `needs_input` 或 `needs_review`。

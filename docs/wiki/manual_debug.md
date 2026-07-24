@@ -94,7 +94,7 @@ opencode run --command whole-lca
 * **执行逻辑**：
   1. 命令开始前执行同步，以确保工作区使用的是最新的执行计划。
   2. `LCI-designer` 智能体读取 `workspace/plan/execution_plan.md`，从 RAG 和 openLCA 数据库检索背景流和 UUID 映射。
-  3. 智能体自动设计出对应的 Flows、Processes 和 Product Systems JSON 数据，并将其输出在 `workspace/LCI/` 中，同时生成一份人类可读的映射报告 `human_readable_mapping.md`。
+  3. 智能体将 Flows、Processes 和 Product Systems 以一文件一实体方式分别输出到 `workspace/outputs/LCI/{flows,processes,product_systems}/`，同时生成 `workspace/outputs/LCI/human_readable_mapping.md`。
   4. 数据自动经过质检模块 `eval-executor` 的自我校验。
   5. 校验通过后，自动调用 IPC 接口将生成的 JSON 实体批量导入到 openLCA 桌面客户端的活动数据库中。
   6. 任务结束后，同步机制会将生成的 JSON 文件及报告同步至 `uploads/LCI/`。

@@ -14,7 +14,10 @@
 
 - 原始 LCIA 结果必须记录方法及每个影响类别的名称、UUID、数值和单位；类别列表为空视为计算失败。
 - 计算句柄必须在成功和异常路径都释放；`resource_released` 不是 `true` 时视为失败并保存证据。
-- `calculation_manifest.json` 必须记录活动数据库、Product System 和 LCIA 方法名称/UUID、功能单位数量、分配设置、区域化/成本设置、参数重定义、工具版本、计算时间、原始结果路径与 SHA-256、资源释放状态和总体状态。
+- `calculation_manifest.json` 使用 v3 `calculations` 非空数组。每个元素记录一个 Product System 的功能单位、设置、原始结果路径/hash、资源释放和状态；共享层记录活动数据库、LCIA 方法、工具版本和总体状态。
+- 多情景清单必须为每一对 Product System 生成 `comparison_checks`，记录两侧图指纹、原始 LCIA profile 是否完全相同、状态与解释。
+- 单情景也必须使用一个元素的 `calculations` 数组；不得把额外情景塞入 `unresolved_items`。
+- 总体 `status=success` 仅在所有 calculation 均成功、raw 非空且 `resource_released=true` 时成立。
 
 ## 3. 报告边界
 
@@ -29,6 +32,6 @@
 
 ## 4. 最终完成门禁
 
-只有导入无失败、模型图无断链、LCIA 原始结果非空、计算资源已释放，且第 06、07 阶段全部必需文件通过 schema 和模板验收时，manifest 才能置为 `completed`。
+生成全部结果后必须运行 `references/scripts/validation.py`。只有导入无失败且哈希一致、模型图包含全部预期节点、各比较情景图指纹符合计划差异、所有 LCIA 原始结果非空且 hash 一致、计算资源已释放、每对情景 comparison check 正确，且第 06、07 阶段全部必需文件通过 schema 和模板验收时，manifest 才能置为 `completed`。图不同但 LCIA 完全相同时必须记录非空解释，否则置为 `needs_review`，不得自动宣称情景等效。
 
 本阶段的必需结果、schema、模板、文件名或语义发生变化时，必须同步更新 LCA 质量评估的固定产物覆盖矩阵、受影响检查项和契约测试。该要求是开发变更门禁，不表示 whole-lca 会自动运行质量评估。

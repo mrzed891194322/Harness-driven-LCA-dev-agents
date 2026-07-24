@@ -4,10 +4,10 @@
   "title": "openLCA product-system model graph",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "status", "endpoint", "product_system", "nodes", "edges", "broken_links", "disconnected_nodes", "timestamp"],
+  "required": ["schema", "version", "status", "endpoint", "product_system", "nodes", "edges", "broken_links", "disconnected_nodes", "expected_process_ids", "missing_expected_nodes", "graph_fingerprint", "timestamp"],
   "properties": {
     "schema": {"const": "whole-lca/model-graph"},
-    "version": {"const": "1.0"},
+    "version": {"const": "1.1"},
     "status": {"enum": ["success", "broken", "failed"]},
     "endpoint": {"type": "string"},
     "product_system": {"$ref": "#/$defs/ref"},
@@ -15,6 +15,9 @@
     "edges": {"type": "array", "items": {"type": "object", "required": ["provider", "flow", "process"], "properties": {"provider": {"$ref": "#/$defs/ref"}, "flow": {"$ref": "#/$defs/ref"}, "process": {"$ref": "#/$defs/ref"}}}},
     "broken_links": {"type": "array", "items": {"type": "object"}},
     "disconnected_nodes": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "expected_process_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "missing_expected_nodes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "graph_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "timestamp": {"type": "string", "format": "date-time"},
     "error": {"type": ["string", "null"]}
   },

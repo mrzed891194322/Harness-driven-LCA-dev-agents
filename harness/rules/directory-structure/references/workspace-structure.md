@@ -15,7 +15,7 @@ workspace/
 ## 2. 核心规则与约束
 
 * **输入 (`inputs/`)**：唯一计划为 `plan.md`，参考资料存放在 `references/data/` 和 `references/file/`。
-* **清单实体设计 (`outputs/LCI/`)**：生成待导入 openLCA 的 JSON 文件及人类可读映射报告。
+* **清单实体设计 (`outputs/LCI/`)**：仅在 `flows/`、`processes/`、`product_systems/` 中保存一文件一实体的 openLCA JSON-LD，并在根目录保存 `human_readable_mapping.md`；机器报告写入 `outputs/reports/`。
 * **运行记忆 (`memory/`)**：固定保存 `manifest.json` 以及 `stages/`、`reviews/`、`handoffs/`。不同 Agent 可按阶段任务读取相关记忆；主编排 Agent 负责写入和维护关联。
 * **运行结果 (`outputs/reports/`)**：固定保存导入报告、模型图读回、原始 LCIA 结果、计算清单和最终报告，不再创建运行 ID 子目录。
 * **运行前置条件**：旧运行产物由外部流程在开始前清理；工作流自身不负责删除。

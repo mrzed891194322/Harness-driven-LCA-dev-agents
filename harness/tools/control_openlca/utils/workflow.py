@@ -26,6 +26,12 @@ ENTITY_DELETE_ORDER: tuple[str, ...] = tuple(reversed(ENTITY_IMPORT_ORDER))
 ENTITY_TYPES: dict[str, type] = {
     name: getattr(olca_schema, name) for name in ENTITY_IMPORT_ORDER
 }
+JSON_LD_CONTEXT = "http://greendelta.github.io/olca-schema/context.jsonld"
+LCI_ENTITY_DIRECTORIES: dict[str, str] = {
+    "flows": "Flow",
+    "processes": "Process",
+    "product_systems": "ProductSystem",
+}
 ALLOCATION_TYPES: dict[str, Any] = {
     "physical": olca_schema.AllocationType.PHYSICAL_ALLOCATION,
     "economic": olca_schema.AllocationType.ECONOMIC_ALLOCATION,
@@ -64,21 +70,26 @@ def load_lci_inventory(json_dir: Path) -> tuple[list[dict[str, Any]], list[str]]
     if not root.is_dir():
         return [], [f"LCI directory does not exist: {root}"]
 
-    subdirs = ("flows", "processes", "product_systems")
-    has_subdirs = any((root / subdir).is_dir() for subdir in subdirs)
     paths: list[Path] = []
-    if has_subdirs:
-        for subdir in subdirs:
-            paths.extend(sorted((root / subdir).glob("*.json")))
-        paths.extend(sorted(path for path in root.glob("*.json") if path.is_file()))
-    else:
-        paths.extend(sorted(root.glob("*.json")))
+    errors: list[str] = []
+    for subdir in LCI_ENTITY_DIRECTORIES:
+        directory = root / subdir
+        if directory.is_dir():
+            paths.extend(sorted(directory.glob("*.json")))
+
+    allowed_paths = {path.resolve() for path in paths}
+    for path in sorted(root.rglob("*.json")):
+        if path.resolve() not in allowed_paths:
+            errors.append(
+                f"{path.relative_to(root).as_posix()}: JSON files are only allowed "
+                "directly under flows/, processes/, or product_systems/"
+            )
 
     if not paths:
-        return [], [f"No JSON files found in LCI directory: {root}"]
+        errors.append(f"No entity JSON files found in LCI directory: {root}")
+        return [], errors
 
     inventory: list[dict[str, Any]] = []
-    errors: list[str] = []
     seen_ids: set[str] = set()
     for path in paths:
         relative_path = path.relative_to(root).as_posix()
@@ -94,6 +105,19 @@ def load_lci_inventory(json_dir: Path) -> tuple[list[dict[str, Any]], list[str]]
         entity_type = data.get("@type")
         entity_id = data.get("@id")
         entity_name = data.get("name")
+        context = data.get("@context")
+        expected_type = LCI_ENTITY_DIRECTORIES[path.parent.name]
+        if context != JSON_LD_CONTEXT:
+            errors.append(
+                f"{relative_path}: @context must be {JSON_LD_CONTEXT!r}"
+            )
+            continue
+        if entity_type != expected_type:
+            errors.append(
+                f"{relative_path}: expected @type {expected_type!r} for "
+                f"{path.parent.name}/, got {entity_type!r}"
+            )
+            continue
         if entity_type not in ENTITY_TYPES:
             errors.append(f"{relative_path}: unsupported @type {entity_type!r}")
             continue
@@ -130,6 +154,160 @@ def load_lci_inventory(json_dir: Path) -> tuple[list[dict[str, Any]], list[str]]
     return inventory, errors
 
 
+def validate_lci_directory(json_dir: Path) -> dict[str, Any]:
+    """Return a deterministic, offline Stage 03/04 LCI validation result."""
+    inventory, errors = load_lci_inventory(json_dir)
+    counts = {
+        entity_type: sum(
+            1 for item in inventory if item["entity_type"] == entity_type
+        )
+        for entity_type in LCI_ENTITY_DIRECTORIES.values()
+    }
+    required_missing = [
+        entity_type for entity_type, count in counts.items() if count == 0
+    ]
+    for entity_type in required_missing:
+        errors.append(f"LCI inventory requires at least one {entity_type} entity")
+    errors.extend(_lci_semantic_errors(inventory))
+    mapping_path = json_dir.resolve() / "human_readable_mapping.md"
+    if not mapping_path.is_file():
+        errors.append(
+            "LCI inventory requires human_readable_mapping.md at the LCI root"
+        )
+    return {
+        "schema": "whole-lca/lci-validation",
+        "version": "1.0",
+        "ok": not errors,
+        "counts": counts,
+        "entities": [
+            {
+                "path": item["path"],
+                "sha256": item["sha256"],
+                "entity_type": item["entity_type"],
+                "id": item["id"],
+                "name": item["name"],
+            }
+            for item in inventory
+        ],
+        "errors": errors,
+    }
+
+
+def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
+    errors: list[str] = []
+    foreground_flow_ids = {
+        item["id"] for item in inventory if item["entity_type"] == "Flow"
+    }
+    foreground_process_ids = {
+        item["id"] for item in inventory if item["entity_type"] == "Process"
+    }
+    explicit_foreground_links: set[tuple[str, str]] = set()
+    for item in inventory:
+        if item["entity_type"] != "ProductSystem":
+            continue
+        data = item["data"]
+        if data.get("linkingMode", "auto") != "explicit":
+            continue
+        for link in data.get("processLinks", []):
+            if not isinstance(link, dict):
+                continue
+            process_id = (link.get("process") or {}).get("@id")
+            flow_id = (link.get("flow") or {}).get("@id")
+            if isinstance(process_id, str) and isinstance(flow_id, str):
+                explicit_foreground_links.add((process_id, flow_id))
+
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            flow_id = (exchange.get("flow") or {}).get("@id")
+            provider = exchange.get("defaultProvider")
+            provider_id = (
+                provider.get("@id") if isinstance(provider, dict) else None
+            )
+            if (
+                flow_id in foreground_flow_ids
+                and not provider_id
+                and (item["id"], flow_id) not in explicit_foreground_links
+            ):
+                errors.append(
+                    f"{item['path']}: exchanges[{index}] foreground input "
+                    f"{flow_id} has no defaultProvider or explicit processLink"
+                )
+            if (
+                provider_id
+                and provider_id not in foreground_process_ids
+                and not isinstance(exchange.get("expectedProviderGeography"), str)
+            ):
+                errors.append(
+                    f"{item['path']}: exchanges[{index}] background provider "
+                    f"{provider_id} requires expectedProviderGeography"
+                )
+
+    for item in inventory:
+        if item["entity_type"] != "ProductSystem":
+            continue
+        data = item["data"]
+        linking_mode = data.get("linkingMode", "auto")
+        if linking_mode not in {"auto", "explicit"}:
+            errors.append(
+                f"{item['path']}: linkingMode must be 'auto' or 'explicit'"
+            )
+            continue
+        if linking_mode != "explicit":
+            continue
+        processes = data.get("processes")
+        links = data.get("processLinks")
+        expected = data.get("expectedProcessIds")
+        if not isinstance(processes, list) or not processes:
+            errors.append(
+                f"{item['path']}: explicit topology requires non-empty processes"
+            )
+            continue
+        node_ids = {
+            process.get("@id")
+            for process in processes
+            if isinstance(process, dict) and isinstance(process.get("@id"), str)
+        }
+        if not isinstance(expected, list) or not expected:
+            errors.append(
+                f"{item['path']}: explicit topology requires expectedProcessIds"
+            )
+        else:
+            missing = sorted(
+                process_id
+                for process_id in expected
+                if not isinstance(process_id, str) or process_id not in node_ids
+            )
+            if missing:
+                errors.append(
+                    f"{item['path']}: expectedProcessIds are absent from processes: "
+                    f"{missing}"
+                )
+        if not isinstance(links, list) or not links:
+            errors.append(
+                f"{item['path']}: explicit topology requires non-empty processLinks"
+            )
+            continue
+        for index, link in enumerate(links, start=1):
+            if not isinstance(link, dict):
+                errors.append(
+                    f"{item['path']}: processLinks[{index}] must be an object"
+                )
+                continue
+            provider_id = (link.get("provider") or {}).get("@id")
+            process_id = (link.get("process") or {}).get("@id")
+            flow_id = (link.get("flow") or {}).get("@id")
+            if provider_id not in node_ids or process_id not in node_ids or not flow_id:
+                errors.append(
+                    f"{item['path']}: processLinks[{index}] references a missing "
+                    "node or flow"
+                )
+    return errors
+
+
 def _descriptor_record(entity_type: str, descriptor: object) -> dict[str, Any]:
     return {
         "entity_type": entity_type,
@@ -137,6 +315,146 @@ def _descriptor_record(entity_type: str, descriptor: object) -> dict[str, Any]:
         "name": getattr(descriptor, "name", None),
         "category": getattr(descriptor, "category", None),
     }
+
+
+def _ref_record(reference: object | None) -> dict[str, Any] | None:
+    if reference is None:
+        return None
+    return {
+        "id": getattr(reference, "id", None),
+        "name": getattr(reference, "name", None),
+    }
+
+
+def _provider_requirements(
+    inventory: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Collect background provider expectations declared by foreground exchanges."""
+    foreground_process_ids = {
+        item["id"] for item in inventory if item["entity_type"] == "Process"
+    }
+    requirements: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            provider = exchange.get("defaultProvider")
+            flow = exchange.get("flow")
+            if not isinstance(provider, dict) or not isinstance(flow, dict):
+                continue
+            provider_id = provider.get("@id")
+            flow_id = flow.get("@id")
+            if (
+                not isinstance(provider_id, str)
+                or not provider_id
+                or provider_id in foreground_process_ids
+                or not isinstance(flow_id, str)
+                or not flow_id
+            ):
+                continue
+            key = (provider_id, flow_id)
+            requirements[key] = {
+                "provider_id": provider_id,
+                "provider_name": provider.get("name"),
+                "flow_id": flow_id,
+                "flow_name": flow.get("name"),
+                "expected_geography": exchange.get("expectedProviderGeography"),
+                "source_process_id": item["id"],
+                "source_path": item["path"],
+            }
+    return sorted(
+        requirements.values(),
+        key=lambda item: (
+            item["provider_id"],
+            item["flow_id"],
+            item["source_process_id"],
+        ),
+    )
+
+
+def _provider_checks(
+    client: object,
+    inventory: list[dict[str, Any]],
+    database_records: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    descriptor_by_id = {
+        record["id"]: record
+        for record in database_records
+        if record["entity_type"] == "Process" and record["id"]
+    }
+    checks: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for requirement in _provider_requirements(inventory):
+        provider_id = requirement["provider_id"]
+        descriptor = descriptor_by_id.get(provider_id)
+        check = {
+            **requirement,
+            "exists": descriptor is not None,
+            "descriptor_name": descriptor.get("name") if descriptor else None,
+            "category": descriptor.get("category") if descriptor else None,
+            "location": None,
+            "output_flow_match": False,
+        }
+        if descriptor is None:
+            errors.append(
+                f"{requirement['source_path']}: background provider {provider_id} "
+                "was not found in the active database"
+            )
+            checks.append(check)
+            continue
+        try:
+            provider = client.get(olca_schema.Process, provider_id)
+        except Exception as exc:
+            errors.append(
+                f"{requirement['source_path']}: cannot read background provider "
+                f"{provider_id}: {exc}"
+            )
+            checks.append(check)
+            continue
+        if provider is None:
+            errors.append(
+                f"{requirement['source_path']}: background provider {provider_id} "
+                "descriptor exists but the Process cannot be read"
+            )
+            checks.append(check)
+            continue
+        location = _ref_record(getattr(provider, "location", None))
+        check["location"] = location
+        output_flow_ids = sorted(
+            {
+                getattr(getattr(exchange, "flow", None), "id", None)
+                for exchange in list(getattr(provider, "exchanges", None) or [])
+                if getattr(exchange, "is_input", None) is not True
+                and getattr(getattr(exchange, "flow", None), "id", None)
+            }
+        )
+        check["output_flow_ids"] = output_flow_ids
+        check["output_flow_match"] = requirement["flow_id"] in output_flow_ids
+        if not check["output_flow_match"]:
+            errors.append(
+                f"{requirement['source_path']}: provider {provider_id} does not "
+                f"output referenced flow {requirement['flow_id']}"
+            )
+        expected_geography = requirement["expected_geography"]
+        if isinstance(expected_geography, str) and expected_geography.strip():
+            actual_values = {
+                str(value).casefold()
+                for value in (
+                    (location or {}).get("id"),
+                    (location or {}).get("name"),
+                )
+                if value
+            }
+            check["geography_match"] = expected_geography.casefold() in actual_values
+            if not check["geography_match"]:
+                errors.append(
+                    f"{requirement['source_path']}: provider {provider_id} geography "
+                    f"does not match {expected_geography!r}"
+                )
+        checks.append(check)
+    return checks, errors
 
 
 def _database_snapshot(
@@ -174,7 +492,7 @@ def _active_database_label(endpoint: str, database_name: str | None) -> tuple[st
     configured = os.getenv("OPENLCA_DATABASE_NAME", "").strip()
     if configured:
         return configured, "OPENLCA_DATABASE_NAME"
-    return f"active-database@{endpoint}", "endpoint-fallback"
+    return "", "missing"
 
 
 def _inspect_import(
@@ -191,19 +509,29 @@ def _inspect_import(
         raise ValueError("target_category must not be empty")
     root = Path(lci_dir).resolve()
     inventory, errors = load_lci_inventory(root)
+    errors.extend(_lci_semantic_errors(inventory))
     active_database, identity_source = _active_database_label(endpoint, database_name)
+    if not active_database:
+        errors.append(
+            "Active database identity is required; pass database_name or set "
+            "OPENLCA_DATABASE_NAME"
+        )
 
     if errors:
         return (
             {
                 "schema": "whole-lca/import-preflight",
-                "version": "1.0",
+                "version": "1.1",
                 "ok": False,
                 "status": "invalid_lci",
                 "endpoint": endpoint,
-                "active_database": active_database,
+                "active_database": active_database or "unknown",
                 "database_identity_source": identity_source,
                 "database_fingerprint": None,
+                "lci_fingerprint": None,
+                "target_scope_fingerprint": None,
+                "background_provider_fingerprint": None,
+                "background_provider_checks": [],
                 "lci_dir": str(root),
                 "target_category": category,
                 "planned_entities": [],
@@ -223,7 +551,6 @@ def _inspect_import(
     except Exception as exc:
         raise RuntimeError(f"Failed to inspect active openLCA database at {endpoint}: {exc}") from exc
 
-    database_fingerprint = stable_hash(database_records)
     planned_entities = [
         {
             "path": item["path"],
@@ -242,26 +569,45 @@ def _inspect_import(
     overwrite_scope.sort(
         key=lambda item: (item["entity_type"], str(item["id"] or ""))
     )
+    provider_checks, provider_errors = _provider_checks(
+        ipc_client,
+        inventory,
+        database_records,
+    )
+    lci_fingerprint = stable_hash(planned_entities)
+    target_scope_fingerprint = stable_hash(overwrite_scope)
+    background_provider_fingerprint = stable_hash(provider_checks)
     hash_payload = {
-        "version": "1.0",
+        "version": "1.1",
         "endpoint": endpoint,
         "active_database": active_database,
-        "database_fingerprint": database_fingerprint,
         "target_category": category,
-        "planned_entities": planned_entities,
-        "overwrite_delete_scope": overwrite_scope,
+        "lci_fingerprint": lci_fingerprint,
+        "target_scope_fingerprint": target_scope_fingerprint,
+        "background_provider_fingerprint": background_provider_fingerprint,
     }
     preflight_hash = stable_hash(hash_payload)
+    ok = not provider_errors
     return (
         {
             "schema": "whole-lca/import-preflight",
-            "version": "1.0",
-            "ok": True,
-            "status": "ready",
+            "version": "1.1",
+            "ok": ok,
+            "status": "ready" if ok else "invalid_references",
             "endpoint": endpoint,
             "active_database": active_database,
             "database_identity_source": identity_source,
-            "database_fingerprint": database_fingerprint,
+            "database_fingerprint": stable_hash(
+                {
+                    "active_database": active_database,
+                    "target_scope_fingerprint": target_scope_fingerprint,
+                    "background_provider_fingerprint": background_provider_fingerprint,
+                }
+            ),
+            "lci_fingerprint": lci_fingerprint,
+            "target_scope_fingerprint": target_scope_fingerprint,
+            "background_provider_fingerprint": background_provider_fingerprint,
+            "background_provider_checks": provider_checks,
             "lci_dir": str(root),
             "target_category": category,
             "planned_entities": planned_entities,
@@ -270,7 +616,7 @@ def _inspect_import(
                 "planned": len(planned_entities),
                 "overwrite_or_delete": len(overwrite_scope),
             },
-            "errors": [],
+            "errors": provider_errors,
             "preflight_hash": preflight_hash,
             "timestamp": utc_now(),
         },
@@ -311,7 +657,42 @@ def _put_product_system(
     entity: olca_schema.ProductSystem,
     source_data: dict[str, Any],
 ) -> object:
-    """Create an auto-linked topology and persist it under the LCI-defined UUID."""
+    """Persist an explicit topology or create an officially auto-linked topology."""
+    linking_mode = source_data.get("linkingMode", "auto")
+    if linking_mode not in {"auto", "explicit"}:
+        raise ValueError("ProductSystem linkingMode must be 'auto' or 'explicit'")
+    if linking_mode == "explicit":
+        processes = list(getattr(entity, "processes", None) or [])
+        process_links = list(getattr(entity, "process_links", None) or [])
+        if not processes or not process_links:
+            raise ValueError(
+                "Explicit ProductSystem requires non-empty processes and processLinks"
+            )
+        node_ids = {
+            getattr(process, "id", None)
+            for process in processes
+            if getattr(process, "id", None)
+        }
+        for index, link in enumerate(process_links, start=1):
+            provider_id = getattr(getattr(link, "provider", None), "id", None)
+            process_id = getattr(getattr(link, "process", None), "id", None)
+            flow_id = getattr(getattr(link, "flow", None), "id", None)
+            if (
+                not provider_id
+                or provider_id not in node_ids
+                or not process_id
+                or process_id not in node_ids
+                or not flow_id
+            ):
+                raise ValueError(
+                    f"Explicit ProductSystem processLinks[{index}] references "
+                    "a missing node or flow"
+                )
+        reference = client.put(entity)
+        if reference is None:
+            raise RuntimeError("IPC Server did not return an entity reference")
+        return reference
+
     ref_process = getattr(entity, "ref_process", None)
     if ref_process is None or not getattr(ref_process, "id", None):
         raise ValueError("ProductSystem requires refProcess for automatic linking")
@@ -386,6 +767,9 @@ def _execute_import(
     target_descriptors: list[tuple[str, object]],
     target_category: str,
     emit: Callable[[str], None] | None = None,
+    on_progress: (
+        Callable[[list[dict[str, Any]], int, int, int, list[str]], None] | None
+    ) = None,
 ) -> tuple[list[dict[str, Any]], int, int, int, list[str]]:
     records: list[dict[str, Any]] = []
     imported = 0
@@ -432,6 +816,8 @@ def _execute_import(
                         "error": str(exc),
                     }
                 )
+            if on_progress is not None:
+                on_progress(records, imported, failed, deleted, errors)
 
     for item in inventory:
         output(f"正在处理文件: {item['path']}...")
@@ -476,7 +862,68 @@ def _execute_import(
                     "error": str(exc),
                 }
             )
+        if on_progress is not None:
+            on_progress(records, imported, failed, deleted, errors)
     return records, imported, failed, deleted, errors
+
+
+def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f"{path.suffix}.tmp")
+    temporary.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def _operation_path(operation_dir: Path, preflight_hash: str) -> Path:
+    return operation_dir / f"{preflight_hash}.json"
+
+
+def get_import_operation(
+    operation_dir: Path,
+    preflight_hash: str,
+) -> dict[str, Any]:
+    """Read a persisted import operation without touching openLCA."""
+    if (
+        len(preflight_hash) != 64
+        or any(character not in "0123456789abcdef" for character in preflight_hash)
+    ):
+        raise ValueError("preflight_hash must be a lowercase 64-character SHA-256")
+    path = _operation_path(operation_dir, preflight_hash)
+    if not path.is_file():
+        return {
+            "schema": "whole-lca/import-operation-status",
+            "version": "1.0",
+            "status": "not_found",
+            "preflight_hash": preflight_hash,
+            "report": None,
+        }
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            "schema": "whole-lca/import-operation-status",
+            "version": "1.0",
+            "status": "indeterminate",
+            "preflight_hash": preflight_hash,
+            "report": None,
+            "error": str(exc),
+        }
+    status = report.get("status")
+    return {
+        "schema": "whole-lca/import-operation-status",
+        "version": "1.0",
+        "status": (
+            status
+            if status
+            in {"running", "success", "partial_failure", "failed", "rejected"}
+            else "indeterminate"
+        ),
+        "preflight_hash": preflight_hash,
+        "report": report,
+    }
 
 
 def _rejected_import_report(
@@ -491,7 +938,7 @@ def _rejected_import_report(
     ended_at = utc_now()
     return {
         "schema": "whole-lca/import-report",
-        "version": "1.0",
+        "version": "1.1",
         "operation_id": str(uuid.uuid4()),
         "status": "rejected",
         "endpoint": endpoint,
@@ -517,6 +964,7 @@ def import_lci(
     preflight_hash: str,
     database_name: str | None = None,
     client: object | None = None,
+    operation_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Import LCI only after verifying an unchanged preflight hash."""
     if (
@@ -527,8 +975,18 @@ def import_lci(
         raise ValueError("preflight_hash must be a lowercase 64-character SHA-256")
     started_at = utc_now()
     started_clock = time.monotonic()
+    operation_id = str(uuid.uuid4())
     endpoint = build_endpoint(host, port)
     active_database, _ = _active_database_label(endpoint, database_name)
+    operation_path = (
+        _operation_path(operation_dir, preflight_hash)
+        if operation_dir is not None
+        else None
+    )
+    if operation_dir is not None:
+        existing = get_import_operation(operation_dir, preflight_hash)
+        if existing["status"] in {"running", "success", "partial_failure", "failed"}:
+            return existing["report"]
 
     ipc_client = client or create_ipc_client(host, port)
     current, inventory, target_descriptors = _inspect_import(
@@ -540,7 +998,7 @@ def import_lci(
         client=ipc_client,
     )
     if not current["ok"]:
-        return _rejected_import_report(
+        report = _rejected_import_report(
             endpoint,
             active_database,
             target_category,
@@ -549,8 +1007,11 @@ def import_lci(
             started_clock,
             ["Import rejected: current preflight is not ready.", *current["errors"]],
         )
+        if operation_dir is not None:
+            _write_json_atomic(_operation_path(operation_dir, preflight_hash), report)
+        return report
     if current["preflight_hash"] != preflight_hash:
-        return _rejected_import_report(
+        report = _rejected_import_report(
             endpoint,
             current["active_database"],
             target_category,
@@ -561,36 +1022,96 @@ def import_lci(
                 "Import rejected: preflight hash mismatch; LCI, database, category, "
                 "or overwrite scope changed.",
                 f"current_preflight_hash={current['preflight_hash']}",
+                f"current_lci_fingerprint={current['lci_fingerprint']}",
+                f"current_target_scope_fingerprint={current['target_scope_fingerprint']}",
+                "current_background_provider_fingerprint="
+                f"{current['background_provider_fingerprint']}",
             ],
         )
+        if operation_dir is not None:
+            _write_json_atomic(_operation_path(operation_dir, preflight_hash), report)
+        return report
+
+    def report_value(
+        status: str,
+        records: list[dict[str, Any]],
+        imported: int,
+        failed: int,
+        deleted: int,
+        errors: list[str],
+        *,
+        ended_at: str | None,
+    ) -> dict[str, Any]:
+        return {
+            "schema": "whole-lca/import-report",
+            "version": "1.1",
+            "operation_id": operation_id,
+            "status": status,
+            "endpoint": endpoint,
+            "active_database": current["active_database"],
+            "target_category": target_category,
+            "preflight_hash": preflight_hash,
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "duration_ms": max(
+                0, round((time.monotonic() - started_clock) * 1000)
+            ),
+            "success_count": imported,
+            "failed_count": failed,
+            "deleted_count": deleted,
+            "entities": list(records),
+            "errors": list(errors),
+        }
+
+    if operation_path is not None:
+        _write_json_atomic(
+            operation_path,
+            report_value("running", [], 0, 0, 0, [], ended_at=None),
+        )
+
+    def persist_progress(
+        records: list[dict[str, Any]],
+        imported: int,
+        failed: int,
+        deleted: int,
+        errors: list[str],
+    ) -> None:
+        if operation_path is not None:
+            _write_json_atomic(
+                operation_path,
+                report_value(
+                    "running",
+                    records,
+                    imported,
+                    failed,
+                    deleted,
+                    errors,
+                    ended_at=None,
+                ),
+            )
 
     records, imported, failed, deleted, errors = _execute_import(
         client=ipc_client,
         inventory=inventory,
         target_descriptors=target_descriptors,
         target_category=target_category,
+        on_progress=persist_progress,
     )
     status = "success" if failed == 0 and imported == len(inventory) else "partial_failure"
     if imported == 0 and failed:
         status = "failed"
-    return {
-        "schema": "whole-lca/import-report",
-        "version": "1.0",
-        "operation_id": str(uuid.uuid4()),
-        "status": status,
-        "endpoint": endpoint,
-        "active_database": current["active_database"],
-        "target_category": target_category,
-        "preflight_hash": preflight_hash,
-        "started_at": started_at,
-        "ended_at": utc_now(),
-        "duration_ms": max(0, round((time.monotonic() - started_clock) * 1000)),
-        "success_count": imported,
-        "failed_count": failed,
-        "deleted_count": deleted,
-        "entities": records,
-        "errors": errors,
-    }
+    report = report_value(
+        status,
+        records,
+        imported,
+        failed,
+        deleted,
+        errors,
+        ended_at=utc_now(),
+    )
+    if operation_path is not None:
+        _write_json_atomic(operation_path, report)
+    return report
 
 
 def legacy_import_lci(
@@ -678,6 +1199,7 @@ def legacy_clear_category(
 def model_graph_from_product_system(
     product_system: object,
     endpoint: str,
+    expected_process_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Convert an openLCA ProductSystem into a structured graph with link checks."""
     process_refs = list(getattr(product_system, "processes", None) or [])
@@ -736,12 +1258,35 @@ def model_graph_from_product_system(
     disconnected_nodes = [
         node for node in nodes if len(nodes) > 1 and node["id"] not in connected_ids
     ]
+    expected_ids = sorted(
+        {
+            value.strip()
+            for value in (expected_process_ids or [])
+            if isinstance(value, str) and value.strip()
+        }
+    )
+    missing_expected_nodes = [
+        process_id for process_id in expected_ids if process_id not in node_ids
+    ]
+    graph_fingerprint = stable_hash(
+        {
+            "nodes": sorted(node_ids),
+            "edges": sorted(
+                (
+                    str(edge["provider"]["id"] or ""),
+                    str(edge["flow"]["id"] or ""),
+                    str(edge["process"]["id"] or ""),
+                )
+                for edge in edges
+            ),
+        }
+    )
     if not nodes:
         status = "failed"
         error = (
             "ProductSystem has no process nodes; automatic processLinks may be missing"
         )
-    elif broken_links or disconnected_nodes:
+    elif broken_links or disconnected_nodes or missing_expected_nodes:
         status = "broken"
         error = None
     else:
@@ -749,7 +1294,7 @@ def model_graph_from_product_system(
         error = None
     return {
         "schema": "whole-lca/model-graph",
-        "version": "1.0",
+        "version": "1.1",
         "status": status,
         "endpoint": endpoint,
         "product_system": {
@@ -760,6 +1305,9 @@ def model_graph_from_product_system(
         "edges": edges,
         "broken_links": broken_links,
         "disconnected_nodes": disconnected_nodes,
+        "expected_process_ids": expected_ids,
+        "missing_expected_nodes": missing_expected_nodes,
+        "graph_fingerprint": graph_fingerprint,
         "timestamp": utc_now(),
         "error": error,
     }
@@ -770,6 +1318,7 @@ def get_model_graph(
     port: int,
     product_system: str,
     client: object | None = None,
+    expected_process_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     endpoint = build_endpoint(host, port)
     ipc_client = client or create_ipc_client(host, port)
@@ -777,7 +1326,7 @@ def get_model_graph(
     if system is None:
         return {
             "schema": "whole-lca/model-graph",
-            "version": "1.0",
+            "version": "1.1",
             "status": "failed",
             "endpoint": endpoint,
             "product_system": {"id": None, "name": product_system},
@@ -785,6 +1334,9 @@ def get_model_graph(
             "edges": [],
             "broken_links": [{"reason": "Product System was not found"}],
             "disconnected_nodes": [],
+            "expected_process_ids": expected_process_ids or [],
+            "missing_expected_nodes": expected_process_ids or [],
+            "graph_fingerprint": stable_hash({"nodes": [], "edges": []}),
             "timestamp": utc_now(),
             "error": f"Product System not found: {product_system}",
         }
@@ -793,7 +1345,11 @@ def get_model_graph(
         loaded = ipc_client.get(olca_schema.ProductSystem, system_id)
         if loaded is not None:
             system = loaded
-    return model_graph_from_product_system(system, endpoint)
+    return model_graph_from_product_system(
+        system,
+        endpoint,
+        expected_process_ids=expected_process_ids,
+    )
 
 
 def build_calculation_setup(

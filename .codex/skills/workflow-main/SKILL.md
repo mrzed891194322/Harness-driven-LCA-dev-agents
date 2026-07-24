@@ -33,30 +33,32 @@ description: 通过分阶段的计划接收、证据检索、最多三次 LCI �
 ### 03 LCI 制定
 
 - 第 02 阶段通过后，主 Agent 才完整读取 `harness/specs/03-lci-construction/README.md` 和 `harness/specs/03-lci-construction/references/03-lci-construction-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在制定 LCI 前完整读取上述两个第 03 阶段文件；只交付已通过计划、当前检索 handoff 和允许生成的 LCI 产物范围。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在制定 LCI 前完整读取上述两个第 03 阶段文件；只交付已通过计划、当前检索 handoff 和允许生成的 LCI 产物范围。返回前必须运行第 03 阶段 `references/scripts/validation.py`，比较情景使用显式拓扑并声明 `expectedProcessIds`。
 
 ### 04 LCI 质量评估
 
 - LCI 形成后，主 Agent 才完整读取 `harness/specs/04-lci-quality-evaluation/README.md` 和 `harness/specs/04-lci-quality-evaluation/references/04-lci-quality-evaluation-spec.md`。
-- 调用 `eval-reviewer` 时，委派任务必须明确要求它在审查前完整读取上述两个第 04 阶段文件和 review schema；只交付计划目标、第 02/03 阶段证据、当前 LCI 与历史未解决 issue。需要核对知识来源时才要求读取知识检索规则；实际调用 openLCA MCP 核验时才读取 openLCA 规则。
+- 调用 `eval-reviewer` 时，委派任务必须明确要求它在审查前完整读取上述两个第 04 阶段文件和 review schema，并先核对第 03 阶段确定性校验结果；只交付计划目标、第 02/03 阶段证据、当前 LCI 与历史未解决 issue。需要核对知识来源时才要求读取知识检索规则；实际调用 openLCA MCP 核验时才读取 openLCA 规则。
 - attempt 1/2 未通过时，调用 `sub-executor` 并明确要求它此时完整读取第 03 阶段和第 04 阶段的 README/spec，只交付关联 issue ID 与受影响产物进行定向修正；attempt 3 未通过时置为 `needs_review`，不得继续。
 
 ### 05 openLCA 写入预检
 
 - LCI 审查通过后，主 Agent 才完整读取 `harness/specs/05-openlca-preflight-confirmation/README.md` 和 `harness/specs/05-openlca-preflight-confirmation/references/05-openlca-preflight-confirmation-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在预检前完整读取上述两个第 05 阶段文件和 openLCA 规则，再调用 `preflight_import_lci`。只有 MCP 暴露的 schema 或错误不足以解释当前调用时，才在调用前补读 `harness/tools/control_openlca/README.md`。保存活动数据库、目标分类、创建/更新/删除范围和 `preflight_hash`，不得执行导入或等待确认。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在预检前完整读取上述两个第 05 阶段文件和 openLCA 规则，使用明确 `database_name` 调用 `preflight_import_lci`。保存三个分项指纹、Provider 检查、活动数据库、目标分类、完整范围和 `preflight_hash`，不得执行导入或等待确认。
 
 ### 06 openLCA 导入与读回
 
 - 预检通过后，主 Agent 才完整读取 `harness/specs/06-openlca-import-readback/README.md` 和 `harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md`，并立即发起下一次委派。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前分别读取 `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json` 和 `harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json`。只把当前成功预检的范围与哈希交给它调用 `import_lci` 和 `get_model_graph`。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前读取 `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json`、`harness/specs/06-openlca-import-readback/references/schemas/import-operation-status.schema.json` 和 `harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json`。只把当前成功预检的范围与哈希交给它调用 `import_lci`，并把各 Product System 的 `expectedProcessIds` 传给 `get_model_graph`。
+- `import_lci` 超时后只调用 `get_import_operation`；状态为 `running`/`indeterminate` 时停止并保存证据，不得重试或使用 CLI。Stage 05/manifest/import report 的哈希或时间线不一致时 Stage 06 失败。
+- 保存导入报告和所有模型图后必须运行第 06 阶段 `references/scripts/validation.py`；只有 `ok=true` 才能写入 passed 的 Stage 06 记录。
 - `import_lci` 重新预检后若范围或哈希变化，不得写入；保存结构化失败证据并将运行置为 `failed`。
 
 ### 07 LCIA 计算与报告
 
 - 第 06 阶段通过后，主 Agent 才完整读取 `harness/specs/07-lcia-calculation-reporting/README.md` 和 `harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md`。
 - 调用 `sub-executor` 时，委派任务必须明确要求它在计算前完整读取上述两个第 07 阶段文件和 openLCA 规则；在保存原始计算结果、计算清单和最终报告前，依次读取 `harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json`、`harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json` 和 `harness/specs/07-lcia-calculation-reporting/references/templates/lca_report.md`，不得提前加载。
-- 验收非空结果、模型连接、资源释放和全部必需产物后，主 Agent 才决定终止状态。
+- 使用 calculation manifest v3 `calculations` 数组记录全部情景，并为每对情景生成 `comparison_checks`。保存 raw、清单和报告后运行第 07 阶段 `references/scripts/validation.py`；只有 passed 才能完成，needs_review 必须停止复核。
 
 ## 无人值守中继
 

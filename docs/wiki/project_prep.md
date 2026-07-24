@@ -13,8 +13,8 @@
 在开始 LCA 建模和评估之前，您需要将相关的输入参考资料与您的 LCA 计划需求按以下结构整理并放置到 `input/` 对应的子目录下：
 
 1. **放置评估原始参考文档**：
-   * 将您需要评估的主体项目原始参考文件（如环评报告书的 Word/Markdown/PDF 格式、物料平衡图、物料清单 Excel 等）放置在 `harness/knowledge/inputs/user_file/` 目录下。
-   * 如果有其他特定的原始数据表格，可以放置在 `harness/knowledge/inputs/user_data/` 目录中。
+   * 将原始参考文档放入 `workspace/inputs/references/file/`，参考数据放入 `workspace/inputs/references/data/`；初始化同步后分别位于 `harness/knowledge/inputs/user_ref/file/` 与 `harness/knowledge/inputs/user_ref/data/`。
+   * 其他特定原始数据表格放入 `workspace/inputs/references/data/`，由初始化流程同步至 `harness/knowledge/inputs/user_ref/data/`。
    * 如果包含与本项目或行业相关的标准/方法说明，可以放置在 `harness/knowledge/inputs/static_ref/standards/` 目录中。
    * *注意：智能体在第四步构建 RAG 数据库时，会自动读取并分块解析这些目录下的文件。*
 

@@ -5,6 +5,7 @@
 ## References
 
 - `references/07-lcia-calculation-reporting-spec.md`
+- `references/scripts/validation.py`
 - `references/schemas/raw-lcia-results.schema.json`
 - `references/schemas/calculation-manifest.schema.json`
 - `references/templates/lca_report.md`

@@ -5,6 +5,7 @@
 ## References
 
 - `references/03-lci-construction-spec.md`
+- `references/scripts/validation.py`
 - `schema_mapping.md`
 
 ## 公共依赖

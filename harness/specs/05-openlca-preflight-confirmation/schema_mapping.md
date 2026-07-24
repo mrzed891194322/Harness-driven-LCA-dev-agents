@@ -12,7 +12,7 @@ flowchart TD
     request["预检请求 handoff"]
     executor["sub-executor"]
     preflight["preflight_import_lci<br/>只读运行时 schema"]
-    scope["数据库 + 分类 + create/overwrite/delete<br/>preflight_hash"]
+    scope["明确数据库 + 分类范围 + 相关 Provider<br/>三个分项指纹 + preflight_hash"]
     returned["预检返回 handoff"]
     stage["05 stage 记录"]
     manifest["manifest.preflight_hash<br/>status=running"]
@@ -30,9 +30,9 @@ flowchart TD
 | 类型 | 契约、规则或接口 | 触发时机 | 生产者 → 消费者 | 校验与握手内容 | 失败处理 |
 | --- | --- | --- | --- | --- | --- |
 | 输入审查 | `harness/specs/public/references/schemas/review.schema.json` | 进入阶段前 | 04 → 05 | review 为 `passed`，且无未解决 critical/major issue | 不满足则禁止预检 |
-| 交接 schema | `harness/specs/public/references/schemas/handoff.schema.json` | 委派预检前后 | 主编排 Agent ↔ `sub-executor` | LCI artifacts/hashes、活动数据库、目标分类、完整范围、preflight hash、下一动作 | 原始返回不完整时失败 |
+| 交接 schema | `harness/specs/public/references/schemas/handoff.schema.json` | 委派预检前后 | 主编排 Agent ↔ `sub-executor` | LCI artifacts、明确数据库、目标分类、三个分项指纹、Provider 检查、完整范围和 preflight hash | 原始返回不完整时失败 |
 | 操作规则 | `harness/rules/openlca-operation/README.md` | 调用 MCP 前 | Agent → tool 调用 | 固定 LCI 目录、活动 endpoint、只读预检和禁止额外确认 | 规则冲突时停止 |
-| MCP schema | `preflight_import_lci(lci_dir, target_category, database_name)` | LCI review 通过后 | `sub-executor` ↔ `control_openlca` MCP | 校验 LCI、数据库和分类，返回 create/overwrite/delete 范围及稳定 hash | 工具错误或范围不完整置 `failed` |
+| MCP schema | `preflight_import_lci(lci_dir, target_category, database_name)` | LCI review 通过后 | `sub-executor` ↔ `control_openlca` MCP | 校验独立实体 LCI、明确数据库、目标范围和相关 Provider，返回三个稳定分项指纹及 hash | 身份缺失、Provider 不匹配、工具错误或范围不完整置 `failed` |
 | 阶段 schema | `harness/specs/public/references/schemas/stage.schema.json` | 预检开始与结束 | 主编排 Agent → stages | 原始预检 evidence、artifact、issue 和状态 | 非通过状态停止 |
 | 清单 schema | `harness/specs/public/references/schemas/workflow-manifest.schema.json` | 预检成功后 | 主编排 Agent → manifest | 保存当前 64 位小写 SHA-256 `preflight_hash`，状态保持 `running` | 不设置 `awaiting_confirmation` |
 

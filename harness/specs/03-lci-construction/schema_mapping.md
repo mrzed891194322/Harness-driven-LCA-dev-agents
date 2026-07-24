@@ -35,7 +35,8 @@ flowchart TD
 | 输入审查 | `harness/specs/public/references/schemas/review.schema.json` | 进入阶段前 | 01 → 03 | 计划已通过、可检索缺口已列明 | review 非通过时不得进入 |
 | 输入交接 | `harness/specs/public/references/schemas/handoff.schema.json` | 建立 LCI 前 | 02 → 03 | 查询、原文位置、UUID、选择理由、未解决项和输入 hashes | 阻断证据缺口停止 |
 | 请求/返回交接 | `harness/specs/public/references/schemas/handoff.schema.json` | 委派制定前后 | 主编排 Agent ↔ `sub-executor` | 允许写入的 LCI 范围、输入/输出 artifact、来源 artifact ID、SHA-256、证据和下一动作 | 不接受未登记产物 |
-| LCI 产物 | `workspace/outputs/LCI/` | 执行 Agent 制定时 | `sub-executor` → 04/05 | Flow、Process、Product System、映射报告和导入材料需回链计划或 02 证据 | **缺少项目内机器 schema/template**；只可报告缺口，不可猜测 |
+| LCI 产物 | `workspace/outputs/LCI/` | 执行 Agent 制定时 | `sub-executor` → 04/05 | `flows/`、`processes/`、`product_systems/` 一文件一实体；固定 JSON-LD context；映射报告为 `human_readable_mapping.md` | 聚合容器、根目录 JSON、缺少实体类型或重复 UUID 均失败 |
+| 确定性校验 | `references/scripts/validation.py` | 03 完成及每轮 04 审查前 | 执行 Agent / reviewer | 调用共享 `validate_lci_directory`，返回实体计数、hash 和错误 | `ok!=true` 不得进入预检 |
 | 阶段 schema | `harness/specs/public/references/schemas/stage.schema.json` | 阶段开始与结束 | 主编排 Agent → stages | 状态、LCI artifact IDs、evidence refs、issue IDs | 非通过状态不进入 04 |
 | 清单 schema | `harness/specs/public/references/schemas/workflow-manifest.schema.json` | LCI artifact 登记时 | 主编排 Agent → manifest | 每个产物的 kind、路径、hash、来源和 revision 关系 | 无法追踪时停止 |
 

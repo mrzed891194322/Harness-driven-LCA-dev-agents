@@ -25,7 +25,8 @@ STAGE_EXPECTATIONS = {
     ),
     "03-lci-construction": (
         "workspace/outputs/LCI",
-        "没有可定位的 LCI",
+        "references/scripts/validation.py",
+        "一文件一实体",
     ),
     "04-lci-quality-evaluation": (
         "next_lci_review_action",
@@ -37,15 +38,19 @@ STAGE_EXPECTATIONS = {
     ),
     "06-openlca-import-readback": (
         "import_lci",
+        "get_import_operation",
         "get_model_graph",
         "references/schemas/import-report.schema.json",
+        "references/schemas/import-operation-status.schema.json",
         "references/schemas/model-graph.schema.json",
+        "references/scripts/validation.py",
     ),
     "07-lcia-calculation-reporting": (
         "calculate_product_system",
         "references/schemas/raw-lcia-results.schema.json",
         "references/schemas/calculation-manifest.schema.json",
         "references/templates/lca_report.md",
+        "references/scripts/validation.py",
     ),
 }
 
@@ -59,12 +64,16 @@ EXPECTED_SOURCE_PATHS = (
     "harness/specs/public/references/schemas/review.schema.json",
     "harness/specs/public/references/schemas/handoff.schema.json",
     "harness/specs/01-plan-quality-gate/references/scripts/validation.py",
+    "harness/specs/03-lci-construction/references/scripts/validation.py",
     "harness/specs/04-lci-quality-evaluation/references/scripts/validation.py",
     "harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json",
+    "harness/specs/06-openlca-import-readback/references/schemas/import-operation-status.schema.json",
     "harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json",
+    "harness/specs/06-openlca-import-readback/references/scripts/validation.py",
     "harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json",
     "harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json",
     "harness/specs/07-lcia-calculation-reporting/references/templates/lca_report.md",
+    "harness/specs/07-lcia-calculation-reporting/references/scripts/validation.py",
 )
 
 
@@ -99,6 +108,7 @@ class StageSchemaMappingTests(unittest.TestCase):
         for relative_path in (
             "scripts/validation.py",
             "schemas/import-report.schema.json",
+            "schemas/import-operation-status.schema.json",
             "schemas/model-graph.schema.json",
             "schemas/raw-lcia-results.schema.json",
             "schemas/calculation-manifest.schema.json",
@@ -116,6 +126,7 @@ class StageSchemaMappingTests(unittest.TestCase):
         )
         for relative_path in (
             "harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json",
+            "harness/specs/06-openlca-import-readback/references/schemas/import-operation-status.schema.json",
             "harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json",
             "harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json",
             "harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json",

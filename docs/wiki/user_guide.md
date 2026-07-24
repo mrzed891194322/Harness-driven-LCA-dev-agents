@@ -146,7 +146,7 @@ graph TD
 | 文件 | 路径 | 格式 | 当前用途 |
 | :--- | :--- | :--- | :--- |
 | 计划需求文件 | `input/plan.md` | Markdown（带"✍️ 用户填写内容区"占位符） | 告知智能体研究对象、功能单位、系统边界、背景数据库选择等 |
-| 原始参考文档 | `harness/knowledge/inputs/user_file/` | `.pdf` / `.docx` / `.md` | 环评报告等资料，对应 `input` RAG 库 |\n| 原始参考数据 | `harness/knowledge/inputs/user_data/` | `.xlsx` / `.csv` / `.json` | 清单与表格资料，对应 `data` RAG 库 |
+| 原始参考文档 | `harness/knowledge/inputs/user_ref/file/` | `.pdf` / `.docx` / `.md` | 环评报告等资料，对应 `input` RAG 库 |\n| 原始参考数据 | `harness/knowledge/inputs/user_ref/data/` | `.xlsx` / `.csv` / `.json` | 清单与表格资料，对应 `data` RAG 库 |
 
 #### 1.2 输出文件（智能体生成后需要专家审核的）
 
@@ -154,7 +154,7 @@ graph TD
 | :--- | :--- | :--- | :--- |
 | 执行计划 | `src/plan/execution_plan.md` | Markdown | 系统边界、工艺单元划分、分配规则、LCIA 方法选择等 |
 | 待完善清单 | `src/plan/todo_list.md` | Markdown（带表格和"用户答复"占位符） | 缺失数据项、需决策事项、背景数据库匹配疑问 |
-| 人类可读映射报告 | `src/LCI/human_readable_mapping.md` | Markdown（含 Mermaid 拓扑图和风险项表格） | 过程与流的映射逻辑、数据来源追溯、审核风险提示 |
+| 人类可读映射报告 | `workspace/outputs/LCI/human_readable_mapping.md` | Markdown（含 Mermaid 拓扑图和风险项表格） | 过程与流的映射逻辑、数据来源追溯、审核风险提示 |
 | Flows / Processes / Product Systems | `src/LCI/flows/`、`processes/`、`product_systems/` | JSON | openLCA 格式的结构化 LCI 实体数据 |
 
 #### 1.3 当前需要专家介入的具体环节
@@ -219,5 +219,4 @@ graph TD
 
 
 ---
-
 

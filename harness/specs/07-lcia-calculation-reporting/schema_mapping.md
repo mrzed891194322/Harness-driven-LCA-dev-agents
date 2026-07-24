@@ -34,7 +34,8 @@ flowchart TD
 | 操作规则 | `harness/rules/openlca-operation/README.md` | 调用计算前 | Agent → MCP 调用 | 活动 endpoint、正式 UUID、只读计算和资源释放 | 工具错误保存原始证据 |
 | MCP schema | `calculate_product_system(product_system, impact_method, amount, allocation, regionalized, costs, parameters)` | 06 门禁通过后 | `sub-executor` ↔ `control_openlca` MCP | 类别名称/UUID、数值、单位、设置、时间和 `resource_released` | 空类别或未释放资源置 `failed` |
 | 产物 schema | `harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json` | 保存原始结果前 | MCP 原始返回 → raw JSON | Product System、方法、计算设置、影响类别和资源释放状态 | schema 非法不得生成完成结论 |
-| 产物 schema | `harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json` | 保存计算清单前 | 计算证据 → calculation manifest | 数据库、对象/method ref、FU、分配/参数、工具版本、raw 路径/hash | schema 非法停止 |
+| 产物 schema | `harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json` v3 | 保存计算清单前 | 计算证据 → calculation manifest | 共享数据库/method/tool、每个情景 calculation 及每对情景 comparison check | 数组为空、任一 calculation 失败、比较对缺失或 v2 workaround 均停止 |
+| 确定性验收 | `references/scripts/validation.py` | raw、图和清单齐全后 | Stage 07 证据 → 主编排 Agent | 回算 raw hash/profile、核对图指纹和全部情景对；相同结果需解释 | failed 停止，needs_review 不得 completed |
 | 报告模板 | `harness/specs/07-lcia-calculation-reporting/references/templates/lca_report.md` | raw 与清单通过后 | 结构化结果 → `lca_report.md` | 核心数值回链类别 UUID 和 raw SHA-256，并保留声明边界 | 不支持 ISO 认证或比较优势声明 |
 | 阶段/清单 | `stage.schema.json`、`workflow-manifest.schema.json`（均位于 `harness/specs/public/references/schemas/`） | 最终验收时 | 主编排 Agent → memory | 登记 06/07 全部 artifacts、状态、证据和 issues | 仅全部门禁有结构化证据时 `completed` |
 

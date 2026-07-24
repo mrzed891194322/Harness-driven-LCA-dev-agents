@@ -5,7 +5,9 @@
 ## References
 
 - `references/06-openlca-import-readback-spec.md`
+- `references/scripts/validation.py`
 - `references/schemas/import-report.schema.json`
+- `references/schemas/import-operation-status.schema.json`
 - `references/schemas/model-graph.schema.json`
 - `schema_mapping.md`
 

@@ -167,12 +167,17 @@ class CodexConfigurationTests(unittest.TestCase):
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
             config = tomllib.load(stream)
         enabled = set(config["mcp_servers"]["control_openlca"]["enabled_tools"])
+        self.assertEqual(
+            config["mcp_servers"]["control_openlca"]["tool_timeout_sec"],
+            300,
+        )
         self.assertTrue(
             {
                 "health_check",
                 "query_descriptors",
                 "preflight_import_lci",
                 "import_lci",
+                "get_import_operation",
                 "get_model_graph",
                 "calculate_product_system",
             }.issubset(enabled)

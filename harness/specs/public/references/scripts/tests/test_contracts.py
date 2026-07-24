@@ -129,6 +129,16 @@ class PlanIntakeTests(unittest.TestCase):
         self.assertEqual(result["status"], "needs_input")
         self.assertIn("PLAN-FORMAT-VERSION", {issue["issue_id"] for issue in result["issues"]})
 
+    def test_legacy_reference_path_blocks(self) -> None:
+        plan = compliant_plan(
+            extra="harness/knowledge/inputs/user_file/report.md",
+        )
+        result = validate_plan_intake(plan)
+        self.assertIn(
+            "PLAN-REF-LEGACY-PATH",
+            {issue["issue_id"] for issue in result["issues"]},
+        )
+
     def test_previous_template_kind_blocks(self) -> None:
         plan = compliant_plan().replace(
             "template_kind: lca_plan_input",
@@ -300,7 +310,7 @@ class SchemaContractTests(unittest.TestCase):
         entity_ref = {"id": "11111111-1111-4111-8111-111111111111", "name": "PS1 Test"}
         import_report = {
             "schema": "whole-lca/import-report",
-            "version": "1.0",
+            "version": "1.1",
             "operation_id": "11111111-1111-4111-8111-111111111111",
             "status": "success",
             "endpoint": "http://localhost:8080",
@@ -318,7 +328,7 @@ class SchemaContractTests(unittest.TestCase):
         }
         graph = {
             "schema": "whole-lca/model-graph",
-            "version": "1.0",
+            "version": "1.1",
             "status": "success",
             "endpoint": "http://localhost:8080",
             "product_system": entity_ref,
@@ -326,6 +336,9 @@ class SchemaContractTests(unittest.TestCase):
             "edges": [],
             "broken_links": [],
             "disconnected_nodes": [],
+            "expected_process_ids": ["p1"],
+            "missing_expected_nodes": [],
+            "graph_fingerprint": HASH,
             "timestamp": TIMESTAMP,
             "error": None,
         }
@@ -345,26 +358,78 @@ class SchemaContractTests(unittest.TestCase):
         }
         calculation = {
             "schema": "whole-lca/calculation-manifest",
-            "version": "2.0",
+            "version": "3.0",
             "status": "success",
             "active_database": "isolated-db",
-            "product_system": entity_ref,
             "impact_method": {"id": "method-id", "name": "EF"},
-            "functional_unit_amount": 1.0,
-            "allocation": None,
-            "regionalized": False,
-            "costs": False,
-            "parameters": {},
             "tool_versions": {"olca-ipc": "2.0"},
             "calculated_at": TIMESTAMP,
-            "raw_result": {"path": "workspace/outputs/reports/raw/ps1.json", "sha256": HASH},
-            "resource_released": True,
+            "calculations": [
+                {
+                    "status": "success",
+                    "product_system": entity_ref,
+                    "functional_unit_amount": 1.0,
+                    "allocation": None,
+                    "regionalized": False,
+                    "costs": False,
+                    "parameters": {},
+                    "calculated_at": TIMESTAMP,
+                    "raw_result": {
+                        "path": "workspace/outputs/reports/raw/ps1.json",
+                        "sha256": HASH,
+                    },
+                    "resource_released": True,
+                }
+            ],
+            "comparison_checks": [],
             "unresolved_items": [],
         }
         self.validate("import-report.schema.json", import_report)
+        self.validate(
+            "import-operation-status.schema.json",
+            {
+                "schema": "whole-lca/import-operation-status",
+                "version": "1.0",
+                "status": "success",
+                "preflight_hash": HASH,
+                "report": import_report,
+            },
+        )
         self.validate("model-graph.schema.json", graph)
         self.validate("raw-lcia-results.schema.json", raw)
         self.validate("calculation-manifest.schema.json", calculation)
+
+        second = dict(calculation["calculations"][0])
+        second["product_system"] = {"id": "ps2", "name": "Scenario 2"}
+        second["raw_result"] = {
+            "path": "workspace/outputs/reports/raw/ps2.json",
+            "sha256": HASH,
+        }
+        calculation["calculations"].append(second)
+        calculation["comparison_checks"].append(
+            {
+                "left_product_system_id": entity_ref["id"],
+                "right_product_system_id": "ps2",
+                "left_graph_fingerprint": HASH,
+                "right_graph_fingerprint": "b" * 64,
+                "results_equal": False,
+                "status": "distinct",
+                "explanation": None,
+            }
+        )
+        self.validate("calculation-manifest.schema.json", calculation)
+
+        legacy_calculation = {
+            **calculation,
+            "version": "2.0",
+            "product_system": entity_ref,
+            "raw_result": {
+                "path": "workspace/outputs/reports/raw/ps1.json",
+                "sha256": HASH,
+            },
+        }
+        with self.assertRaises(ValidationError):
+            self.validate("calculation-manifest.schema.json", legacy_calculation)
 
     def test_negative_contract_examples_are_rejected(self) -> None:
         invalid_manifest = {
