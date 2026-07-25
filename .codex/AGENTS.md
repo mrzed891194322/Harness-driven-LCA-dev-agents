@@ -24,6 +24,7 @@
 - Codex Whole-LCA 入口：`$workflow-main`，实现位于 `.codex/skills/workflow-main/SKILL.md`。
 - OpenCode Whole-LCA 入口：`/whole-lca`，命令位于 `.opencode/commands/whole-lca.md`，并加载 `harness/pipelines/LCA-main.md`。
 - Codex 质量评价入口：`$evaluate-lca-quality` 或项目注册的 `lca-quality-evaluator`，契约位于 `.codex/specs/lca-quality-evaluation/`。
+- Codex Whole-LCA harness 持续改进入口：`$improve-whole-lca-workflow`；默认无质量评价提示词位于 `.codex/prompts/improve-whole-lca.md`，显式带质量评价的提示词位于 `.codex/prompts/improve-whole-lca-with-quality.md`。
 - 唯一计划输入：`workspace/inputs/plan.md`。
 - 运行状态与阶段证据：`workspace/memory/`。
 - LCI 产物：`workspace/outputs/LCI/`。
