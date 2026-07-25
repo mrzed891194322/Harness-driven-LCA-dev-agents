@@ -8,6 +8,8 @@
 > - 严禁为 openLCA 连接检测、描述符遍历、UUID 查询、模型图读取、导入或计算编写临时 Python 脚本。
 > - CLI 中只检查连接时，运行 `src/scripts/initialization/openlca_check/main.py`；MCP 客户端调用 `health_check`。
 > - 查询数据库实体名称、UUID 或描述符时，必须使用 `query_descriptors/main.py`。
+> - 按 Process UUID 回读地域和定量参考时，MCP 客户端必须使用 `get_process_details`。
+> - 按 Flow UUID 查询可用 Provider 时，MCP 客户端必须使用 `get_flow_providers`。
 > - 读取产品系统模型图时，必须使用 `get_model_graph/main.py`。
 > - 清理工作流导入的项目分类实体时，必须使用 `cleanup_output/main.py`。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
@@ -27,7 +29,7 @@ control_openlca/
 ├── utils/                          # 公共共享工具模块包 (未来所有新脚本需要尽量复用此处功能)
 │   ├── __init__.py
 │   ├── connection.py               # IPC 连接建立与测试连接可用性
-│   ├── readonly.py                 # MCP 健康检查、描述符查询与分页
+│   ├── readonly.py                 # MCP 健康检查、描述符/Flow Provider 查询与分页
 │   ├── workflow.py                 # 预检/导入、模型图与计算的 CLI/MCP 共用服务
 │   ├── entity.py                   # 实体模糊查找与匹配 (UUID/名称)
 │   ├── export.py                   # 结果解析提取、Markdown 打印与 JSON/CSV 写出
@@ -71,16 +73,20 @@ control_openlca/
 `main.py` 启动名为 `openLCA-Control` 的 stdio MCP server，注册以下工具：
 
 - `health_check`：检查 IPC Server 是否可连接，以及当前数据库是否能响应描述符查询。
-- `query_descriptors`：按名称片段查询实体名称和 UUID，并返回分类、参考单位及分页信息。
+- `query_descriptors`：按名称片段查询实体名称和 UUID，并返回分类、地域、参考单位及分页信息。
+- `get_process_details`：按一个确切 Process UUID 返回紧凑元数据、地域和定量参考 exchange。
+- `get_flow_providers`：按一个确切 Flow UUID 返回可用 Process Provider 的 UUID、名称、分类、地域和 Flow 引用；支持地域过滤与分页。
 - `preflight_import_lci`：只读解析一文件一实体 JSON-LD，验证明确数据库身份、目标分类和背景 Provider，返回 LCI/目标范围/Provider 分项指纹及稳定 `preflight_hash`。
 - `import_lci`：唯一的 Whole-LCA 数据库写入工具。必须传入未变化的 `preflight_hash`；执行前重新预检，执行中持续写 operation journal。
 - `get_import_operation`：按预检哈希只读查询导入状态，供 MCP 超时后判断是否已经成功、失败或仍不可确定。
 - `get_model_graph`：读回 Product System 节点、边、图指纹、断链、孤立节点和缺失预期节点。
 - `calculate_product_system`：执行 LCIA，返回方法/类别名称与 UUID、数值、单位、计算设置和句柄释放状态。
 
-`import_lci` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径固定为
-`workspace/outputs/LCI`，防止调用方把任意目录扩入导入范围。CLI 原参数和调用入口保持兼容，并与
-MCP 共用 `utils/workflow.py` 的实体解析、删除顺序、图结构和计算执行逻辑。
+`import_lci` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径默认为
+`workspace/outputs/LCI`；连续改进运行可改用 `workspace/tmp/` 下的具体兼容 LCI 子目录。
+路径解析会拒绝 `workspace/tmp` 根目录、inputs、其他 workspace 目录、项目外路径及通过
+`..` 或符号链接逃逸的路径。CLI 原参数和调用入口保持兼容，并与 MCP 共用
+`utils/workflow.py` 的实体解析、删除顺序、图结构和计算执行逻辑。
 Whole-LCA 不得把 legacy CLI 当作超时回退；超时后必须先查询 operation journal。
 
 MCP endpoint 固定由服务进程环境配置，工具调用方不能传入任意网络地址：
@@ -140,6 +146,10 @@ uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
 * `get_model_graph(...)`：构建带预期节点和图指纹检查的模型图结果。
 * `calculate_product_system(...)`：执行产品系统 LCIA，并在成功/异常路径释放结果句柄。
 * `legacy_import_lci(...)`、`model_graph_from_product_system(...)`、`build_calculation_setup(...)`：供既有 CLI 复用，避免 MCP 与 CLI 产生两套实现。
+
+`utils/readonly.py` 的 `get_process_details(...)` 只返回一个确切 Process 的地域和定量
+参考；`get_flow_providers(...)` 只调用 openLCA 原生 Flow Provider 查询，并返回紧凑、
+可分页的引用。二者都不回传完整数据库实体集合。
 
 
 ---

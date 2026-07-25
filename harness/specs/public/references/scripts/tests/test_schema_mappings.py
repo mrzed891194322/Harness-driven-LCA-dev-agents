@@ -22,6 +22,8 @@ STAGE_EXPECTATIONS = {
         "list_rag_libraries",
         "query_rag",
         "query_descriptors",
+        "get_process_details",
+        "get_flow_providers",
     ),
     "03-lci-construction": (
         "workspace/outputs/LCI",

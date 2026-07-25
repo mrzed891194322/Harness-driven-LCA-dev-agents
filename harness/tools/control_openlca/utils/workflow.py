@@ -236,16 +236,6 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                     f"{item['path']}: exchanges[{index}] foreground input "
                     f"{flow_id} has no defaultProvider or explicit processLink"
                 )
-            if (
-                provider_id
-                and provider_id not in foreground_process_ids
-                and not isinstance(exchange.get("expectedProviderGeography"), str)
-            ):
-                errors.append(
-                    f"{item['path']}: exchanges[{index}] background provider "
-                    f"{provider_id} requires expectedProviderGeography"
-                )
-
     for item in inventory:
         if item["entity_type"] != "ProductSystem":
             continue
@@ -447,12 +437,9 @@ def _provider_checks(
                 )
                 if value
             }
-            check["geography_match"] = expected_geography.casefold() in actual_values
-            if not check["geography_match"]:
-                errors.append(
-                    f"{requirement['source_path']}: provider {provider_id} geography "
-                    f"does not match {expected_geography!r}"
-                )
+            check["geography_match"] = (
+                expected_geography.strip().casefold() in actual_values
+            )
         checks.append(check)
     return checks, errors
 

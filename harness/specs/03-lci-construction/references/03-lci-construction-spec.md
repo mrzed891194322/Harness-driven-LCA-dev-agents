@@ -13,7 +13,7 @@
 - 比较情景必须使用 `linkingMode: explicit` 声明 `processes`、`processLinks` 和 `expectedProcessIds`，使每个情景的预期前景过程可被导入后读回验证。非比较性单一系统可使用 `linkingMode: auto`。
 - 数值、单位、Provider、UUID 和系统边界必须能回链到计划或第 02 阶段证据；不得猜测缺失事实。
 - 映射报告中的每个换算公式必须写明输入和输出单位及换算因子；例如质量以 kg、运输工作以 t*km 时必须显式记录 kg→tonne 的 `/1000`。
-- 背景 Provider exchange 应在 `expectedProviderGeography` 中记录计划要求的地域；Provider 必须输出所引用的 flow。
+- 背景 Provider 必须使用正式查询得到的 UUID，并输出 exchange 引用的 flow。`expectedProviderGeography` 可记录计划中的地域文本，但只作可追踪诊断；openLCA 的地域代码、名称或别名不一致不得覆盖 UUID 与输出 flow 的一致性判断。
 - 初次制定不得提前执行 openLCA 写入；本阶段只形成可审查的 LCI 材料。
 
 ## 3. 输出与完成条件

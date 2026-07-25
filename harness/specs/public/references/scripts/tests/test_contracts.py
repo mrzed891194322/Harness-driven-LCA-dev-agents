@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -56,9 +57,16 @@ def load_stage_validation(stage: str):
     return module
 
 
-validate_plan_intake = load_stage_validation(
+_validate_plan_intake = load_stage_validation(
     "01-plan-quality-gate"
 ).validate_plan_intake
+
+
+def validate_plan_intake(text: str, *, reference_roots=()) -> dict:
+    """Keep contract tests isolated from real runtime reference directories."""
+    return _validate_plan_intake(text, reference_roots=reference_roots)
+
+
 next_lci_review_action = load_stage_validation(
     "04-lci-quality-evaluation"
 ).next_lci_review_action
@@ -102,6 +110,51 @@ class PlanIntakeTests(unittest.TestCase):
         result = validate_plan_intake(compliant_plan())
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["issues"], [])
+
+    def test_reference_inventory_includes_gitignored_runtime_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reference_root = Path(temp_dir) / "file"
+            nested = reference_root / "sample-reference"
+            nested.mkdir(parents=True)
+            (reference_root / ".gitignore").write_text("*\n", encoding="utf-8")
+            (reference_root / "README.md").write_text("control\n", encoding="utf-8")
+            reference = nested / "sample-reference.md"
+            reference.write_text("runtime evidence\n", encoding="utf-8")
+
+            result = validate_plan_intake(
+                compliant_plan(extra="使用参考资料 sample-reference.md"),
+                reference_roots=(reference_root,),
+            )
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(
+            result["reference_inventory"],
+            {
+                "roots": [reference_root.resolve().as_posix()],
+                "files": [reference.resolve().as_posix()],
+            },
+        )
+        self.assertNotIn(
+            "PLAN-REFERENCE-NOT-LOCATED",
+            {issue["issue_id"] for issue in result["issues"]},
+        )
+
+    def test_reference_inventory_records_empty_negative_lookup_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_root = Path(temp_dir) / "file"
+            data_root = Path(temp_dir) / "data"
+
+            result = validate_plan_intake(
+                compliant_plan(extra="使用参考资料 absent-reference.md"),
+                reference_roots=(file_root, data_root),
+            )
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["reference_inventory"]["files"], [])
+        self.assertEqual(
+            result["reference_inventory"]["roots"],
+            sorted((file_root.resolve().as_posix(), data_root.resolve().as_posix())),
+        )
 
     def test_explicit_retrievable_gap_is_allowed(self) -> None:
         gap = """- GAP-METHOD
@@ -193,6 +246,62 @@ class PlanIntakeTests(unittest.TestCase):
         result = validate_plan_intake(plan)
 
         self.assertEqual(result["status"], "passed")
+
+    def test_gui_plan_textbox_blocks_are_checked_semantically(self) -> None:
+        def field(label: str, value: str) -> str:
+            return (
+                f"- **{label}**：\n"
+                "  <!-- PLAN_TEXTBOX -->\n"
+                "  ---\n"
+                "  ***✍️ 用户填写内容区***\n\n"
+                f"  {value}\n\n"
+                "  ---\n"
+            )
+
+        plan = (
+            "---\n"
+            "template_kind: lca_plan_input\n"
+            "template_version: 1\n"
+            "---\n\n"
+            "# 自定义 GUI 计划\n\n"
+            + field("研究主体", "PET 水瓶")
+            + field(
+                "功能单位（Functional Unit）",
+                "在销售点交付 1,000 个 1 L PET 水瓶",
+            )
+            + field(
+                "评估目的与预期用途",
+                "比较三个情景，用于内部教学和开发测试",
+            )
+            + field(
+                "系统边界（System Boundary）",
+                "Cradle-to-Point-of-Sale；不采用自动截断；"
+                "前景过程无共同产品，不实施额外分配",
+            )
+        )
+
+        result = validate_plan_intake(plan)
+
+        self.assertEqual(result["status"], "passed")
+
+    def test_gui_plan_textbox_placeholder_still_blocks(self) -> None:
+        plan = compliant_plan().replace(
+            "- **功能单位 (FU)**：1 kg bottled product",
+            "- **功能单位 (FU)**：\n"
+            "  <!-- PLAN_TEXTBOX -->\n"
+            "  ---\n"
+            "  ***✍️ 用户填写内容区***\n\n"
+            "  [请填写功能单位]\n\n"
+            "  ---",
+        )
+
+        result = validate_plan_intake(plan)
+
+        self.assertEqual(result["status"], "needs_input")
+        self.assertIn(
+            "PLAN-BLOCKING-FU",
+            {issue["issue_id"] for issue in result["issues"]},
+        )
 
 
 class ReviewLoopTests(unittest.TestCase):

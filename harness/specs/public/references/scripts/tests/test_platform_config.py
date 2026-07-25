@@ -175,6 +175,8 @@ class CodexConfigurationTests(unittest.TestCase):
             {
                 "health_check",
                 "query_descriptors",
+                "get_process_details",
+                "get_flow_providers",
                 "preflight_import_lci",
                 "import_lci",
                 "get_import_operation",
@@ -182,6 +184,149 @@ class CodexConfigurationTests(unittest.TestCase):
                 "calculate_product_system",
             }.issubset(enabled)
         )
+
+    def test_continuous_improvement_skill_and_cli_prompt_are_wired(self) -> None:
+        skill_root = PROJECT_ROOT / ".codex" / "skills" / "improve-whole-lca-workflow"
+        skill_path = skill_root / "SKILL.md"
+        metadata_path = skill_root / "agents" / "openai.yaml"
+        prompt_path = PROJECT_ROOT / ".codex" / "prompts" / "improve-whole-lca.md"
+        quality_prompt_path = (
+            PROJECT_ROOT
+            / ".codex"
+            / "prompts"
+            / "improve-whole-lca-with-quality.md"
+        )
+
+        frontmatter = load_frontmatter(skill_path)
+        self.assertEqual(set(frontmatter), {"name", "description"})
+        self.assertEqual(frontmatter["name"], "improve-whole-lca-workflow")
+
+        skill = skill_path.read_text(encoding="utf-8")
+        self.assertIn("$workflow-main", skill)
+        self.assertIn("$evaluate-lca-quality", skill)
+        self.assertIn("禁止读取", skill)
+        self.assertIn("任何历史 `docs/dev/walkthrough/`", skill)
+        self.assertIn("harness/tools/control_openlca/cleanup_output/main.py", skill)
+        self.assertIn("cleanup_output/main.py --yes", skill)
+        self.assertIn("--dry-run --target workspace_without_inputs", skill)
+        self.assertIn("--yes --target workspace_without_inputs", skill)
+        self.assertIn("workspace/tmp/", skill)
+        self.assertIn("运行期间禁止修改任何 tracked 文件", skill)
+        self.assertIn("始终排除 `harness/knowledge/`", skill)
+        self.assertIn("优先删除、合并、放宽", skill)
+        self.assertIn("只有存在明确失败模式", skill)
+        self.assertIn("对 validator 使用同一原则", skill)
+        for documentation in (
+            "`README.md`",
+            "schema mapping",
+            "操作说明",
+        ):
+            self.assertIn(documentation, skill)
+
+        baseline_position = skill.index("## 1. 建立无历史基线")
+        run_position = skill.index("## 3. 前向运行并持续排障")
+        issues_position = skill.index("## 4. 固化本轮结论")
+        evaluation_position = skill.index("## 5. 按显式请求评价 LCA 质量")
+        repair_position = skill.index("## 6. 最后统一修正")
+        readme_position = skill.index("## 7. 验证并完成 README")
+        self.assertEqual(
+            [
+                baseline_position,
+                run_position,
+                issues_position,
+                evaluation_position,
+                repair_position,
+                readme_position,
+            ],
+            sorted(
+                [
+                    baseline_position,
+                    run_position,
+                    issues_position,
+                    evaluation_position,
+                    repair_position,
+                    readme_position,
+                ]
+            ),
+        )
+        self.assertIn("docs/dev/walkthrough/<run-id>/", skill)
+        self.assertIn("issues.md", skill)
+        self.assertIn("eval.md", skill)
+        self.assertIn("README.md", skill)
+        self.assertIn("默认分支不要执行质量评价", skill)
+
+        metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
+        self.assertEqual(set(metadata), {"interface"})
+        interface = metadata["interface"]
+        self.assertIn("$improve-whole-lca-workflow", interface["default_prompt"])
+        self.assertGreaterEqual(len(interface["short_description"]), 25)
+        self.assertLessEqual(len(interface["short_description"]), 64)
+
+        prompt = prompt_path.read_text(encoding="utf-8")
+        self.assertIn("codex exec", prompt)
+        self.assertIn("-s workspace-write", prompt)
+        self.assertIn("$improve-whole-lca-workflow", prompt)
+        self.assertIn("本次不要检查 LCA 质量", prompt)
+        self.assertNotIn("$evaluate-lca-quality", prompt)
+        self.assertIn("禁止读取任何历史 issue 或 walkthrough", prompt)
+        self.assertIn("workspace/tmp/", prompt)
+        self.assertIn("harness/knowledge 以外", prompt)
+        self.assertIn("优先删除、合并或放宽", prompt)
+        self.assertIn("同步更新 README、schema mapping 和相关说明", prompt)
+
+        quality_prompt = quality_prompt_path.read_text(encoding="utf-8")
+        self.assertIn("codex exec", quality_prompt)
+        self.assertIn("$improve-whole-lca-workflow", quality_prompt)
+        self.assertIn("同时检查本次 LCA 质量", quality_prompt)
+        self.assertIn("$evaluate-lca-quality", quality_prompt)
+        self.assertIn("docs/dev/walkthrough/<run-id>/eval.md", quality_prompt)
+        self.assertIn("canonical JSON/Markdown", quality_prompt)
+
+        self.assertFalse(
+            (PROJECT_ROOT / ".codex" / "skills" / "diagnose-whole-lca-workflow").exists()
+        )
+        self.assertFalse(
+            (PROJECT_ROOT / ".codex" / "prompts" / "diagnose-whole-lca.md").exists()
+        )
+
+        docs_ignore = (PROJECT_ROOT / "docs" / ".gitignore").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "!/dev/walkthrough/whole-lca-improvement-*.md",
+            docs_ignore,
+        )
+        for run_artifact in ("issues.md", "eval.md", "README.md"):
+            self.assertIn(f"!/dev/walkthrough/*/{run_artifact}", docs_ignore)
+        self.assertNotIn("whole-lca-diagnostic-", docs_ignore)
+        dev_ignore = (PROJECT_ROOT / "docs" / "dev" / ".gitignore").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "!/walkthrough/whole-lca-improvement-*.md",
+            dev_ignore,
+        )
+        for run_artifact in ("issues.md", "eval.md", "README.md"):
+            self.assertIn(f"!/walkthrough/*/{run_artifact}", dev_ignore)
+        self.assertNotIn("whole-lca-diagnostic-", dev_ignore)
+
+        root_ignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn(
+            "!.codex/prompts/improve-whole-lca-with-quality.md",
+            root_ignore,
+        )
+
+        project_readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        maintenance_guide = (PROJECT_ROOT / ".codex" / "AGENTS.md").read_text(
+            encoding="utf-8"
+        )
+        for documented_entry in (
+            "$improve-whole-lca-workflow",
+            ".codex/prompts/improve-whole-lca.md",
+            ".codex/prompts/improve-whole-lca-with-quality.md",
+        ):
+            self.assertIn(documented_entry, project_readme)
+            self.assertIn(documented_entry, maintenance_guide)
 
 
 class WorkflowSpecificationRoutingTests(unittest.TestCase):

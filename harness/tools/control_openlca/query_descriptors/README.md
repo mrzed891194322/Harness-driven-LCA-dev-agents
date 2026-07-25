@@ -34,7 +34,13 @@ uv run python harness/tools/control_openlca/query_descriptors/main.py Process --
 - `offset`：从第几条匹配结果开始，默认 0。
 - `limit`：每次返回 1–200 条，默认 50。
 - `total_matches`、`has_more` 和 `next_offset`：用于安全分页。
-- 每个结果的 `id`、`name`、`description`、`category` 和 `ref_unit`。
+- 每个结果的 `id`、`name`、`description`、`category`、`location` 和 `ref_unit`。
+
+当任务需要确认候选 Process 的地域或定量参考时，先取得 Process UUID，再调用
+`get_process_details(process_id)`。需要确认一个 Flow 的可用 Process Provider 时，不应
+批量读取完整 Process 实体；先取得 Flow UUID，再调用
+`get_flow_providers(flow_id, location, limit, offset)`。两个工具都只返回紧凑结果，后者
+可按地域文本过滤和分页。
 
 MCP 使用服务端的 `OPENLCA_IPC_HOST` 与 `OPENLCA_IPC_PORT` 配置，不接受调用方
 传入任意 endpoint。

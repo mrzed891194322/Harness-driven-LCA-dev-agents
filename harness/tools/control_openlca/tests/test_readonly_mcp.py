@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -14,9 +16,18 @@ from harness.tools.control_openlca.utils import readonly
 
 
 class FakeClient:
-    def __init__(self, descriptors: list[object] | None = None, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        descriptors: list[object] | None = None,
+        error: Exception | None = None,
+        *,
+        entities: dict[tuple[type, str], object] | None = None,
+        providers: list[object] | None = None,
+    ) -> None:
         self.descriptors = descriptors or []
         self.error = error
+        self.entities = entities or {}
+        self.providers = providers or []
         self.requested_type: type | None = None
 
     def get_descriptors(self, model_type: type) -> list[object]:
@@ -24,6 +35,16 @@ class FakeClient:
         if self.error is not None:
             raise self.error
         return self.descriptors
+
+    def get(self, model_type: type, entity_id: str) -> object | None:
+        if self.error is not None:
+            raise self.error
+        return self.entities.get((model_type, entity_id))
+
+    def get_providers(self, flow: object) -> list[object]:
+        if self.error is not None:
+            raise self.error
+        return self.providers
 
 
 class ReadOnlyServiceTests(unittest.TestCase):
@@ -130,6 +151,143 @@ class ReadOnlyServiceTests(unittest.TestCase):
         ):
             readonly.query_descriptors("localhost", 8080, "Flow")
 
+    def test_flow_providers_filter_and_paginate_compact_references(self) -> None:
+        flow_id = "flow-1"
+        flow = olca_schema.Flow(id=flow_id, name="Electricity")
+        providers = [
+            olca_schema.TechFlow(
+                provider=olca_schema.Ref(
+                    id="provider-2",
+                    name="Electricity market B",
+                    category="energy",
+                    location="DE",
+                ),
+                flow=olca_schema.Ref(
+                    id=flow_id,
+                    name="Electricity",
+                    ref_unit="kWh",
+                ),
+            ),
+            olca_schema.TechFlow(
+                provider=olca_schema.Ref(
+                    id="provider-1",
+                    name="Electricity market A",
+                    category="energy",
+                    location="DE",
+                ),
+                flow=olca_schema.Ref(
+                    id=flow_id,
+                    name="Electricity",
+                    ref_unit="kWh",
+                ),
+            ),
+            olca_schema.TechFlow(
+                provider=olca_schema.Ref(
+                    id="provider-3",
+                    name="Electricity market C",
+                    category="energy",
+                    location="FR",
+                ),
+                flow=olca_schema.Ref(id=flow_id, name="Electricity"),
+            ),
+        ]
+        client = FakeClient(
+            entities={(olca_schema.Flow, flow_id): flow},
+            providers=providers,
+        )
+        with patch.object(readonly, "create_ipc_client", return_value=client):
+            result = readonly.get_flow_providers(
+                "localhost",
+                8080,
+                flow_id,
+                location="de",
+                limit=1,
+            )
+
+        self.assertTrue(result["flow_found"])
+        self.assertEqual(result["total_providers"], 3)
+        self.assertEqual(result["total_matches"], 2)
+        self.assertEqual(result["returned"], 1)
+        self.assertTrue(result["has_more"])
+        self.assertEqual(result["next_offset"], 1)
+        self.assertEqual(result["items"][0]["provider_id"], "provider-1")
+        self.assertEqual(result["items"][0]["flow_ref_unit"], "kWh")
+
+    def test_process_details_return_location_and_quantitative_reference(self) -> None:
+        process_id = "process-1"
+        process = olca_schema.Process(
+            id=process_id,
+            name="Bottle production",
+            category="manufacturing",
+        )
+        process.location = olca_schema.Ref(id="DE", name="Germany")
+        process.exchanges = [
+            olca_schema.Exchange(
+                flow=olca_schema.Ref(
+                    id="flow-1",
+                    name="Bottle",
+                    ref_unit="kg",
+                ),
+                amount=1.0,
+                unit=olca_schema.Ref(id="kg", name="kg"),
+                is_input=False,
+                is_quantitative_reference=True,
+            ),
+            olca_schema.Exchange(
+                flow=olca_schema.Ref(id="flow-2", name="Electricity"),
+                amount=0.5,
+                is_input=True,
+            ),
+        ]
+        client = FakeClient(
+            entities={(olca_schema.Process, process_id): process},
+        )
+        with patch.object(readonly, "create_ipc_client", return_value=client):
+            result = readonly.get_process_details(
+                "localhost",
+                8080,
+                process_id,
+            )
+
+        self.assertTrue(result["found"])
+        self.assertEqual(result["process"]["location"]["id"], "DE")
+        self.assertEqual(
+            result["process"]["quantitative_references"][0]["flow"]["id"],
+            "flow-1",
+        )
+        self.assertEqual(
+            result["process"]["quantitative_references"][0]["unit"]["name"],
+            "kg",
+        )
+
+    def test_process_details_report_missing_process(self) -> None:
+        client = FakeClient()
+        with patch.object(readonly, "create_ipc_client", return_value=client):
+            result = readonly.get_process_details(
+                "localhost",
+                8080,
+                "missing-process",
+            )
+
+        self.assertFalse(result["found"])
+        self.assertIsNone(result["process"])
+        with self.assertRaisesRegex(ValueError, "non-empty"):
+            readonly.get_process_details("localhost", 8080, "")
+
+    def test_flow_providers_report_missing_flow_without_broad_query(self) -> None:
+        client = FakeClient()
+        with patch.object(readonly, "create_ipc_client", return_value=client):
+            result = readonly.get_flow_providers(
+                "localhost",
+                8080,
+                "missing-flow",
+            )
+
+        self.assertFalse(result["flow_found"])
+        self.assertEqual(result["items"], [])
+        with self.assertRaisesRegex(ValueError, "non-empty"):
+            readonly.get_flow_providers("localhost", 8080, "")
+
 
 class MCPServerTests(unittest.TestCase):
     def test_workflow_tools_are_registered_with_safe_annotations(self) -> None:
@@ -140,6 +298,8 @@ class MCPServerTests(unittest.TestCase):
             {
                 "health_check",
                 "query_descriptors",
+                "get_process_details",
+                "get_flow_providers",
                 "preflight_import_lci",
                 "import_lci",
                 "get_import_operation",
@@ -149,6 +309,10 @@ class MCPServerTests(unittest.TestCase):
         )
         self.assertTrue(tools["health_check"].annotations.read_only_hint)
         self.assertFalse(tools["health_check"].annotations.destructive_hint)
+        self.assertTrue(tools["get_process_details"].annotations.read_only_hint)
+        self.assertTrue(tools["get_flow_providers"].annotations.read_only_hint)
+        self.assertFalse(tools["get_process_details"].annotations.destructive_hint)
+        self.assertFalse(tools["get_flow_providers"].annotations.destructive_hint)
         self.assertTrue(tools["preflight_import_lci"].annotations.read_only_hint)
         self.assertFalse(tools["preflight_import_lci"].annotations.destructive_hint)
         self.assertFalse(tools["import_lci"].annotations.read_only_hint)
@@ -172,16 +336,42 @@ class MCPServerTests(unittest.TestCase):
             "workspace/outputs/LCI",
         )
 
-    def test_workflow_lci_dir_is_limited_to_outputs(self) -> None:
-        expected = (
-            mcp_module.PROJECT_ROOT / "workspace" / "outputs" / "LCI"
-        ).resolve()
-        self.assertEqual(
-            mcp_module._workflow_lci_dir("workspace/outputs/LCI"),
-            expected,
-        )
-        with self.assertRaisesRegex(ValueError, "workspace/outputs/LCI"):
-            mcp_module._workflow_lci_dir("workspace/LCI")
+    def test_workflow_lci_dir_accepts_canonical_and_tmp_subdirectory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir) / "project"
+            outside = Path(temp_dir) / "outside"
+            canonical = project_root / "workspace" / "outputs" / "LCI"
+            compatibility = project_root / "workspace" / "tmp" / "run-1" / "LCI"
+            temporary_root = project_root / "workspace" / "tmp"
+            temporary_root.mkdir(parents=True)
+            outside.mkdir()
+            (temporary_root / "unsafe-link").symlink_to(
+                outside,
+                target_is_directory=True,
+            )
+            with patch.object(mcp_module, "PROJECT_ROOT", project_root):
+                self.assertEqual(
+                    mcp_module._workflow_lci_dir("workspace/outputs/LCI"),
+                    canonical.resolve(),
+                )
+                self.assertEqual(
+                    mcp_module._workflow_lci_dir("workspace/tmp/run-1/LCI"),
+                    compatibility.resolve(),
+                )
+                canonical.parent.mkdir(parents=True)
+                canonical.symlink_to(outside, target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, "subdirectory of workspace/tmp"):
+                    mcp_module._workflow_lci_dir("workspace/outputs/LCI")
+                with self.assertRaisesRegex(ValueError, "subdirectory of workspace/tmp"):
+                    mcp_module._workflow_lci_dir("workspace/LCI")
+                with self.assertRaisesRegex(ValueError, "subdirectory of workspace/tmp"):
+                    mcp_module._workflow_lci_dir("workspace/tmp")
+                with self.assertRaisesRegex(ValueError, "subdirectory of workspace/tmp"):
+                    mcp_module._workflow_lci_dir("workspace/tmp/../../workspace/inputs")
+                with self.assertRaisesRegex(ValueError, "subdirectory of workspace/tmp"):
+                    mcp_module._workflow_lci_dir(str(outside))
+                with self.assertRaisesRegex(ValueError, "subdirectory of workspace/tmp"):
+                    mcp_module._workflow_lci_dir("workspace/tmp/unsafe-link")
 
     def test_health_tool_uses_configured_endpoint(self) -> None:
         expected = {"ok": True}

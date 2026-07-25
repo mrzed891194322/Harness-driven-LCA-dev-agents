@@ -43,5 +43,5 @@ flowchart TD
 ## 维护联动
 
 - 后续若新增 LCI JSON schema 或映射模板，应放在本阶段 `references/` 下，并同步 04 审查、05 预检、MCP 导入校验、质量 rubric 和本映射。
-- LCI 文件命名或目录变化会影响 `preflight_import_lci` 的固定目录门禁，不可只修改本阶段文档。
+- 规范 LCI 仍写入 `workspace/outputs/LCI/`；连续改进运行如需转换，只能把完整兼容副本放在 `workspace/tmp/` 的具体子目录。路径门禁变化必须同步 05/06、openLCA 规则和工具测试。
 - 本阶段通过仅表示材料可审查，不表示质量审查通过或允许写入 openLCA。

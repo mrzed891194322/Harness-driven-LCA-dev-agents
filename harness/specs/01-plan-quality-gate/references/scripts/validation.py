@@ -1,9 +1,21 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
 
+PROJECT_ROOT = next(
+    parent
+    for parent in Path(__file__).resolve().parents
+    if (parent / "pyproject.toml").is_file()
+)
+DEFAULT_REFERENCE_ROOTS = (
+    PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_ref" / "file",
+    PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_ref" / "data",
+)
+REFERENCE_CONTROL_FILES = {".gitignore", "readme.md"}
 FRONTMATTER_PATTERN = re.compile(r"\A---\s*\n(?P<body>.*?)\n---\s*\n", re.DOTALL)
 FIELD_PATTERN = r"\*\*{label}\*\*\s*[:：]"
 PLAN_INPUT_START_PATTERN = re.compile(r"^\s*<!--\s*PLAN_INPUT\b[^\n]*-->", re.DOTALL)
@@ -11,7 +23,8 @@ PLAN_INPUT_VALUE_END_PATTERN = re.compile(
     r"\*{2,3}\s*✍\ufe0f?\s*用户填写(?:内容)?区\s*\*{2,3}"
 )
 LEGACY_INPUT_PATTERN = re.compile(
-    r"^\s*---[ \t]*\n"
+    r"^\s*(?:<!--\s*PLAN_TEXTBOX\s*-->\s*)?"
+    r"---[ \t]*\n"
     r"[ \t]*\*{2,3}\s*✍\ufe0f?\s*用户填写内容区\s*\*{2,3}[ \t]*\n"
     r"(?P<value>.*?)"
     r"^[ \t]*---[ \t]*(?=\n|$)",
@@ -82,7 +95,8 @@ def _has_embedded_decision(text: str, suffix: str) -> bool:
     if suffix == "ALLOCATION":
         return bool(
             re.search(
-                r"无(?:副产品|多产出)|不适用(?:分配)?|"
+                r"无(?:副产品|多产出|共同产品)|"
+                r"不(?:实施|进行|需要)(?:额外)?分配|不适用(?:分配)?|"
                 r"(?:分配|allocation)[^\n]{0,50}"
                 r"(?:质量|能量|经济|物理|系统扩展|替代)",
                 text,
@@ -103,7 +117,42 @@ def _issue(issue_id: str, spec_ref: str, evidence: str, correction: str) -> dict
     }
 
 
-def validate_plan_intake(text: str) -> dict[str, Any]:
+def build_reference_inventory(
+    reference_roots: Iterable[Path] | None = None,
+) -> dict[str, list[str]]:
+    """Enumerate runtime references without applying Git ignore rules."""
+    roots = tuple(reference_roots) if reference_roots is not None else DEFAULT_REFERENCE_ROOTS
+    displayed_roots: list[str] = []
+    files: set[str] = set()
+
+    for raw_root in roots:
+        root = Path(raw_root).resolve()
+        try:
+            displayed_roots.append(root.relative_to(PROJECT_ROOT).as_posix())
+        except ValueError:
+            displayed_roots.append(root.as_posix())
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file() or path.name.casefold() in REFERENCE_CONTROL_FILES:
+                continue
+            resolved = path.resolve()
+            try:
+                files.add(resolved.relative_to(PROJECT_ROOT).as_posix())
+            except ValueError:
+                files.add(resolved.as_posix())
+
+    return {
+        "roots": sorted(set(displayed_roots)),
+        "files": sorted(files),
+    }
+
+
+def validate_plan_intake(
+    text: str,
+    *,
+    reference_roots: Iterable[Path] | None = None,
+) -> dict[str, Any]:
     """Apply deterministic checks from the stage 01 plan quality specification."""
     issues: list[dict[str, str]] = []
     metadata = _frontmatter(text)
@@ -218,4 +267,5 @@ def validate_plan_intake(text: str) -> dict[str, Any]:
         "status": "passed" if not issues else "needs_input",
         "issues": issues,
         "retrievable_gaps": retrievable_gaps,
+        "reference_inventory": build_reference_inventory(reference_roots),
     }

@@ -11,7 +11,7 @@ flowchart TD
     executor["sub-executor"]
     libs["list_rag_libraries"]
     rag["query_rag"]
-    descriptor["query_descriptors<br/>条件：openLCA 候选"]
+    descriptor["query_descriptors / get_process_details<br/>get_flow_providers"]
     evidence["原文位置 / UUID / 选择理由"]
     returned["检索返回 handoff<br/>queries 字段"]
     stage["02 stage 记录"]
@@ -38,7 +38,7 @@ flowchart TD
 | MCP schema | `list_rag_libraries()` | 首次访问目标知识库前 | `query_rag` MCP → `sub-executor` | `available`、`status`、chunks、embedding model、build ID | 目标库不可用时保存错误 |
 | MCP schema | `query_rag(query, libraries, n_results, max_distance)` | 每个 RAG 检索任务 | `sub-executor` → `query_rag` MCP | 非空查询、library 白名单、数量/距离范围；结果需回读来源 | 空结果保留为未解决，不编造 |
 | openLCA 规则 | `harness/rules/openlca-operation/README.md` | 任务包含数据库候选时 | `sub-executor` → openLCA MCP | 活动数据库、正式 UUID 查询和只读边界 | 条件加载 |
-| MCP schema | `health_check()`、`query_descriptors(...)` | 查询 Process/Flow/Product System/Impact Method 候选 | `sub-executor` ↔ `control_openlca` MCP | entity type、查询词、分页、名称、UUID、分类和查询时间 | IPC/数据库错误转未解决项 |
+| MCP schema | `health_check()`、`query_descriptors(...)`、`get_process_details(...)`、`get_flow_providers(...)` | 查询 Process/Flow/Product System/Impact Method 候选、Process 定量参考及 Flow 的可用 Provider | `sub-executor` ↔ `control_openlca` MCP | entity type、查询词、分页、名称、UUID、分类、地域、定量参考、Flow-Provider 引用和查询时间 | IPC/数据库错误转未解决项 |
 | 阶段 schema | `harness/specs/public/references/schemas/stage.schema.json` | 阶段开始与结束 | 主编排 Agent → stages | 状态、证据 handoff、artifact 和 issue ID | 非通过状态停止推进 |
 | 清单 schema | `harness/specs/public/references/schemas/workflow-manifest.schema.json` | 保存检索证据后 | 主编排 Agent → manifest | artifact 索引、当前阶段、状态和 issue ID | `needs_input` 或 `needs_review` |
 

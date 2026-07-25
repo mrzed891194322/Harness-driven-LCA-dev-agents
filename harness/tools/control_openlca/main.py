@@ -16,6 +16,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from harness.tools.control_openlca.utils.readonly import (
+    get_flow_providers as run_get_flow_providers,
+    get_process_details as run_get_process_details,
     health_check as run_health_check,
     query_descriptors as run_query_descriptors,
 )
@@ -63,13 +65,18 @@ def _endpoint_config() -> tuple[str, int]:
 
 
 def _workflow_lci_dir(lci_dir: str) -> Path:
-    """Limit MCP imports to the workflow-owned LCI directory."""
+    """Limit MCP imports to canonical LCI or a workflow compatibility directory."""
+    project_root = PROJECT_ROOT.resolve()
     configured = Path(lci_dir)
-    candidate = configured if configured.is_absolute() else PROJECT_ROOT / configured
+    candidate = configured if configured.is_absolute() else project_root / configured
     resolved = candidate.resolve()
-    allowed = (PROJECT_ROOT / "workspace" / "outputs" / "LCI").resolve()
-    if resolved != allowed:
-        raise ValueError("lci_dir must resolve exactly to workspace/outputs/LCI")
+    canonical = project_root / "workspace" / "outputs" / "LCI"
+    temporary_root = project_root / "workspace" / "tmp"
+    if resolved != canonical and temporary_root not in resolved.parents:
+        raise ValueError(
+            "lci_dir must resolve to workspace/outputs/LCI or a subdirectory "
+            "of workspace/tmp"
+        )
     return resolved
 
 
@@ -129,9 +136,50 @@ def query_descriptors(
 
 @mcp.tool(
     description=(
-        "Read and validate workspace/outputs/LCI, inspect the active database and target "
-        "category, list create/overwrite/delete scope, and return a stable preflight hash. "
-        "This tool performs no database writes."
+        "Read one exact openLCA Process UUID and return compact process metadata, "
+        "location, and quantitative-reference exchanges."
+    ),
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+def get_process_details(process_id: str) -> dict[str, Any]:
+    """Read compact details for one exact Process UUID."""
+    host, port = _endpoint_config()
+    return run_get_process_details(host, port, process_id)
+
+
+@mcp.tool(
+    description=(
+        "List the exact openLCA Process providers for one Flow UUID, with compact "
+        "provider UUID, name, category, location, flow reference, and pagination."
+    ),
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+def get_flow_providers(
+    flow_id: str,
+    location: str = "",
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Query provider candidates for one exact Flow UUID."""
+    host, port = _endpoint_config()
+    return run_get_flow_providers(
+        host=host,
+        port=port,
+        flow_id=flow_id,
+        location=location,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@mcp.tool(
+    description=(
+        "Read and validate canonical workspace/outputs/LCI or a compatibility LCI under "
+        "workspace/tmp, inspect the active database and target category, list "
+        "create/overwrite/delete scope, and return a stable preflight hash. This tool "
+        "performs no database writes."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -154,8 +202,9 @@ def preflight_import_lci(
 
 @mcp.tool(
     description=(
-        "Destructively import workspace/outputs/LCI after rerunning preflight. Requires "
-        "an unchanged preflight_hash; otherwise no writes occur."
+        "Destructively import canonical workspace/outputs/LCI or a compatibility LCI "
+        "under workspace/tmp after rerunning preflight. Requires an unchanged "
+        "preflight_hash; otherwise no writes occur."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,

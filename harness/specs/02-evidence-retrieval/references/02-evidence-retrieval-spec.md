@@ -10,7 +10,7 @@
 
 - 检索范围必须服从每个缺口声明的来源域，只能使用用户资料/RAG、活动 openLCA 数据库或二者。
 - RAG 命中只作为定位线索；用于决策的关键事实必须回读原文，并记录来源文件、章节或页码。
-- openLCA 候选必须记录实体类型、名称、UUID、活动数据库、查询词、查询时间和选择理由。
+- openLCA 候选必须记录实体类型、名称、UUID、活动数据库、查询词、查询时间和选择理由。候选 Process 的地域和定量参考用 `get_process_details` 按 UUID 回读；背景 Provider 映射先查询 Flow UUID，再用 `get_flow_providers` 回读可用 Provider。不得为这些选择批量导出完整 Process 实体集合。
 - 找不到证据时不得编造或以模糊默认值关闭缺口。
 
 ## 3. 交接证据

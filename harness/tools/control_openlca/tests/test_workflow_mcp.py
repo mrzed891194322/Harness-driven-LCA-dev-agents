@@ -328,7 +328,7 @@ class ImportWorkflowTests(unittest.TestCase):
                         "@id": PROVIDER_ID,
                         "name": "Background provider",
                     },
-                    "expectedProviderGeography": "CN",
+                    "expectedProviderGeography": "RoW",
                     "isInput": True,
                 }
             ]
@@ -344,7 +344,10 @@ class ImportWorkflowTests(unittest.TestCase):
                 id=PROVIDER_ID,
                 name="Background provider",
             )
-            provider.location = olca_schema.Ref(id="CN", name="China")
+            provider.location = olca_schema.Ref(
+                id="rest-of-world",
+                name="Rest of World",
+            )
             provider.exchanges = [
                 olca_schema.Exchange(
                     flow=olca_schema.Ref(id=FLOW_ID, name="Test product"),
@@ -364,10 +367,22 @@ class ImportWorkflowTests(unittest.TestCase):
             second = workflow.preflight_import_lci(
                 "localhost", 8080, root, "project-a", "isolated-db", client
             )
+            client.descriptors["Process"] = []
+            third = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
 
         self.assertTrue(first["ok"])
         self.assertTrue(first["background_provider_checks"][0]["output_flow_match"])
+        self.assertFalse(first["background_provider_checks"][0]["geography_match"])
         self.assertFalse(second["ok"])
+        self.assertFalse(third["ok"])
+        self.assertTrue(
+            any(
+                "was not found in the active database" in error
+                for error in third["errors"]
+            )
+        )
         self.assertNotEqual(
             first["background_provider_fingerprint"],
             second["background_provider_fingerprint"],
