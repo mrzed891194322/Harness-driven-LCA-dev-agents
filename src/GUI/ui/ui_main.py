@@ -74,7 +74,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
         with gr.Row(elem_id="main-layout-row"):
             with gr.Column(scale=1, elem_id="left-sidebar"):
                 (
-                    run_btn,
+                    open_init_btn,
                     start_lca_btn,
                     view_lca_result_btn,
                     ref_materials_file,
@@ -150,7 +150,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
 
         # 绑定事件
         bind_ui_events(
-            run_btn=run_btn,
+            open_init_btn=open_init_btn,
             start_lca_btn=start_lca_btn,
             execute_lca_btn=execute_lca_btn,
             view_lca_result_btn=view_lca_result_btn,

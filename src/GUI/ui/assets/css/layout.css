@@ -15,12 +15,16 @@
 
 #main-layout-row {
     --main-workspace-height: calc(100vh - 150px);
+    --panel-bottom-safe-space: 5px;
     height: var(--main-workspace-height) !important;
     min-height: 640px !important;
     align-items: stretch !important;
 }
 
-
+#left-sidebar {
+    padding-bottom: var(--panel-bottom-safe-space) !important;
+    box-sizing: border-box !important;
+}
 
 #right-panel {
     height: 100% !important;
@@ -30,8 +34,6 @@
 }
 
 #right-tabs {
-    --right-tab-nav-height: 58px;
-    --right-workspace-height: calc(var(--main-workspace-height) - var(--right-tab-nav-height));
     height: 100% !important;
     min-height: 0 !important;
     display: flex !important;
@@ -49,13 +51,27 @@
     min-height: 0 !important;
 }
 
+/* Gradio inserts a wrapper between each tab panel and its first component.
+   Let that wrapper consume the panel's actual remaining height instead of
+   estimating the tab navigation height with a fixed pixel value. */
+#right-tabs [role="tabpanel"] > div {
+    height: 100% !important;
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+#right-tabs [role="tabpanel"] > div > .right-tab-workspace {
+    padding-bottom: var(--panel-bottom-safe-space) !important;
+}
+
 /* Shared root container for every top-level tab inside #right-tabs.
    Future right-panel tabs should put this class on their first child container. */
 .right-tab-workspace,
 .right-workspace-panel {
-    height: var(--right-workspace-height) !important;
-    max-height: var(--right-workspace-height) !important;
+    height: 100% !important;
+    max-height: 100% !important;
     min-height: 0 !important;
+    flex: 1 1 auto !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
 }
@@ -74,7 +90,9 @@
     display: grid !important;
     grid-template-rows: auto minmax(0, 1fr) auto !important;
     gap: 12px !important;
-    overflow: hidden !important;
+    /* The content row owns scrolling/clipping. Keeping this outer grid visible
+       prevents bottom button shadows from being cut at the action-row edge. */
+    overflow: visible !important;
     height: 100% !important;
     max-height: 100% !important;
     min-height: 0 !important;

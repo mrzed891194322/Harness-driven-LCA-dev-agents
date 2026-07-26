@@ -192,7 +192,7 @@ class GuiBuildTests(unittest.TestCase):
 
         self.assertEqual(len(self._components_with_value("⚡ 执行 LCI 制定")), 0)
 
-    def test_initialization_is_first_and_navigation_controls_are_hidden(self) -> None:
+    def test_initialization_is_first_and_sidebar_action_opens_it(self) -> None:
         tabs = [
             component
             for component in self.demo.blocks.values()
@@ -223,7 +223,46 @@ class GuiBuildTests(unittest.TestCase):
             if getattr(component, "elem_id", None) == "quick-action-project"
         ]
         self.assertEqual(len(init_actions), 1)
-        self.assertFalse(init_actions[0].visible)
+        self.assertTrue(init_actions[0].visible)
+        self.assertEqual(init_actions[0].value, "打开初始化面板")
+        quick_action_order = [
+            component.elem_id
+            for component in self.demo.blocks.values()
+            if getattr(component, "elem_id", None)
+            in (
+                "quick-action-project",
+                "quick-action-start-lca",
+                "quick-action-view-results",
+            )
+        ]
+        self.assertEqual(
+            quick_action_order,
+            [
+                "quick-action-project",
+                "quick-action-start-lca",
+                "quick-action-view-results",
+            ],
+        )
+
+        right_tabs = next(
+            component
+            for component in self.demo.blocks.values()
+            if getattr(component, "elem_id", None) == "right-tabs"
+        )
+        init_dependencies = [
+            dependency
+            for dependency in self.demo.config["dependencies"]
+            if dependency.get("targets")
+            == [(init_actions[0]._id, "click")]
+        ]
+        self.assertEqual(len(init_dependencies), 1)
+        self.assertEqual(init_dependencies[0]["outputs"], [right_tabs._id])
+        self.assertEqual(
+            init_dependencies[0]["js"],
+            "window.guiOpenProjectMode",
+        )
+        self.assertFalse(init_dependencies[0]["queue"])
+        self.assertEqual(init_dependencies[0]["show_progress"], "hidden")
 
         close_actions = [
             component
@@ -459,6 +498,18 @@ class GuiBuildTests(unittest.TestCase):
         self.assertIn("var(--academic-serif-font)", layout_css)
         self.assertIn("var(--gui-monospace-font)", layout_css)
         self.assertIn(".gradio-container code", layout_css)
+        self.assertIn("--panel-bottom-safe-space: 5px", layout_css)
+        self.assertIn(
+            "padding-bottom: var(--panel-bottom-safe-space)",
+            layout_css,
+        )
+        inner_panel_css = layout_css.split(".inner-panel-grid {", 1)[1].split(
+            "}", 1
+        )[0]
+        self.assertIn("overflow: visible", inner_panel_css)
+        self.assertIn('#right-tabs [role="tabpanel"] > div', layout_css)
+        self.assertNotIn("--right-tab-nav-height", layout_css)
+        self.assertNotIn("--right-workspace-height", layout_css)
         self.assertIn(
             f"--academic-serif-font: {config.GUI_FONT_FAMILY}",
             self.css,

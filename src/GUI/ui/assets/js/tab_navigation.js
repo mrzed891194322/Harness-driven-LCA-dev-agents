@@ -119,6 +119,7 @@ window.selectTerminalTab = () => selectRightTabByText('终端显示');
 
 window.guiOpenProjectMode = (...args) => {
     setRightTabMode('project');
+    selectRightTabByText('项目初始化');
     return args;
 };
 

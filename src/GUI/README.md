@@ -31,6 +31,7 @@ Windows 用户也可以运行 `src/scripts/_launch_gui.bat`。启动后访问
 快捷操作区的“查看LCA结果(仅开发过程使用)”会读取已有的
 `workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。
 报告缺失或不可读时面板会显示原因，不会保留上一次加载的正文。
+快捷操作区底部的“打开初始化面板”会直接切换到“项目初始化”Tab。
 
 “计划制定”“LCA评估修改面板(功能开发中)”“LCA评估结果”和“LCI清单”四个文档型
 Tab 共用同一个 Markdown 文档视图：左侧为 Markdown 标题目录，右侧为滚动正文，

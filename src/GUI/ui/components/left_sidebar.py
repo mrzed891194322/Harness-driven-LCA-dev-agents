@@ -42,13 +42,13 @@ def build_left_sidebar() -> tuple[
             """
         )
 
-        run_btn = gr.Button(
-            "🚀 项目初始化面板",
+        open_init_btn = gr.Button(
+            "打开初始化面板",
             variant="secondary",
             size="lg",
+            interactive=True,
             elem_id="quick-action-project",
             elem_classes=["quick-action-btn"],
-            visible=False,
         )
         start_lca_btn = gr.Button(
             "开始LCA工作",
@@ -67,7 +67,7 @@ def build_left_sidebar() -> tuple[
         )
 
     return (
-        run_btn,
+        open_init_btn,
         start_lca_btn,
         view_lca_result_btn,
         ref_materials_file,

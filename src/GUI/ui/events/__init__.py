@@ -12,7 +12,7 @@ from ui.events.tab_result import bind_tab_result_events
 
 def bind_ui_events(
     *,
-    run_btn: gr.Button,
+    open_init_btn: gr.Button,
     start_lca_btn: gr.Button,
     execute_lca_btn: gr.Button,
     view_lca_result_btn: gr.Button,
@@ -64,7 +64,7 @@ def bind_ui_events(
 ) -> None:
     """Bind events for the currently supported GUI features."""
     bind_left_sidebar_events(
-        run_btn=run_btn,
+        open_init_btn=open_init_btn,
         right_tabs=right_tabs,
     )
 

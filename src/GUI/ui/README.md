@@ -17,7 +17,7 @@
 
 ## 事件绑定
 
-- `events/left_sidebar.py`：保留隐藏的项目初始化入口兼容绑定。
+- `events/left_sidebar.py`：绑定侧栏“打开初始化面板”并切换到项目初始化 Tab。
 - `events/tab_initial.py`：绑定项目初始化相关功能。
 - `events/tab_terminal.py`：绑定日志清空和任务停止。
 - `events/tab_plan.py`：每次打开时重载默认模板，上传成功后只替换暂存文档及当前

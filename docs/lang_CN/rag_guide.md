@@ -1,9 +1,9 @@
 # RAG 数据库构建与查询指南
 
-本项目使用 ChromaDB 与 OpenAI 兼容 embedding API。
+本项目使用 ChromaDB 与 OpenAI 兼容 Embedding API。
 
 - 写入：`src/scripts/initialization/main.py`
-- 查询：query_rag MCP（由 opencode 配置调用）
+- 查询：`query_rag` MCP（由 OpenCode 配置调用）
 
 ## 知识库类型
 
@@ -22,7 +22,7 @@ uv run python src/scripts/initialization/main.py --only rag
 
 ## 查询
 
-RAG 由 opencode 通过 `query_rag` MCP 工具提供查询能力，示例参数见下文。
+RAG 由 OpenCode 通过 `query_rag` MCP 工具提供查询能力，示例参数见下文。
 
 可用参数示例：
 
