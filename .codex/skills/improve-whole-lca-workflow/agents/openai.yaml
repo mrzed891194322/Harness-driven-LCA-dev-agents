@@ -1,0 +1,4 @@
+interface:
+  display_name: "Improve Whole-LCA Workflow"
+  short_description: "Run, simplify, repair, and verify the Whole-LCA harness"
+  default_prompt: "Use $improve-whole-lca-workflow to run the current Whole-LCA case, defer harness fixes until the final phase, and verify the simplest sufficient repair."

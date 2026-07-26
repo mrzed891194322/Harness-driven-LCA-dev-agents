@@ -2,12 +2,29 @@
 
 这是一个使用多智能体（Multi-agent）在 harness 框架下进行合规化 **LCA（Life Cycle Assessment，生命周期评价）** 输出的项目。
 
+## 📁 项目目录总览
+
+- `harness/`：workflow 契约、stage 规则、OpenLCA 和 RAG 工具实现。
+- `src/`：GUI、脚本、初始化与文件同步逻辑。
+- `workspace/`：当前运行期唯一输入与产物目录（`workspace/inputs/plan.md`、可选的 `workspace/inputs/revise.md`、`workspace/outputs/LCI/`、`workspace/outputs/reports/`）。
+- `docs/lang_CN/`：中文文档集合（原 `docs/wiki` 已迁移并清理）。
+- `.opencode/`：OpenCode 命令、Agent 和适配配置。
+
+## 🔖 中文文档入口
+
+- [文档首页](docs/lang_CN/README_CN.md)
+- [环境准备与配置](docs/lang_CN/env_setup.md)
+- [项目准备说明](docs/lang_CN/project_prep.md)
+- [RAG 构建与查询](docs/lang_CN/rag_guide.md)
+- [用户指南](docs/lang_CN/user_guide.md)
+- [手动调试与文件同步](docs/lang_CN/manual_debug.md)
+
 ## ⚡ Windows 一键脚本 (推荐)
 
-为了方便 Windows 用户快速上手，项目 `scripts/` 目录下提供了两个一键批处理脚本，支持环境配置与控制面板的快速启动：
+为了方便 Windows 用户快速上手，项目 `src/scripts/` 目录下提供了两个一键批处理脚本，支持环境配置与控制面板的快速启动：
 
-1. **环境配置**：**在已安装 [uv](https://github.com/astral-sh/uv) 的前提下**，**双击**运行 [scripts/_setup_env.bat](scripts/_setup_env.bat)。它将自动同步项目依赖（`uv sync`）并引导检查/创建本地 `.env` 环境变量配置文件（**注意**：OpenCode Agent 智能体设置与本地 `.env` 环境变量都分别需要配置，其中的 API Key 等具体配置内容仍需手动填写，具体可参考 [环境准备与配置详解](docs/wiki/env_setup.md)）。
-2. **启动 GUI**：**双击**运行 [scripts/_launch_gui.bat](scripts/_launch_gui.bat)。它将自动运行后台服务并在默认浏览器中拉起控制面板（默认地址为 [http://127.0.0.1:7860](http://127.0.0.1:7860)）。在关闭该批处理窗口或在终端按 `Ctrl+C` 时，会自动清理相关的所有 Python/Gradio 后台进程。
+1. **环境配置**：**在已安装 [uv](https://github.com/astral-sh/uv) 的前提下**，**双击**运行 [src/scripts/_setup_env.bat](src/scripts/_setup_env.bat)。它将自动同步项目依赖（`uv sync`）并引导检查/创建本地 `.env` 环境变量配置文件（**注意**：OpenCode Agent 智能体设置与本地 `.env` 环境变量都分别需要配置，其中的 API Key 等具体配置内容仍需手动填写，具体可参考 [环境准备与配置详解](docs/lang_CN/env_setup.md)）。
+2. **启动 GUI**：**双击**运行 [src/scripts/_launch_gui.bat](src/scripts/_launch_gui.bat)。它将自动运行后台服务并在默认浏览器中拉起控制面板（默认地址为 [http://127.0.0.1:7860](http://127.0.0.1:7860)）。在关闭该批处理窗口或在终端按 `Ctrl+C` 时，会自动清理相关的所有 Python/Gradio 后台进程。
 
 ---
 
@@ -20,19 +37,19 @@
 3. **添加虚拟环境**：在项目根目录下运行 `uv sync` 自动创建虚拟环境并同步项目依赖。
 4. **配置环境变量**：复制并配置本地 `.env` 文件（用于配置 Embedding 模型的 API 环境变量，参考 [.env.example](.env.example)）。
 
-> 💡 **详细的安装、配置指南请参考**：[环境准备与配置详解](docs/wiki/env_setup.md)
+> 💡 **详细的安装、配置指南请参考**：[环境准备与配置详解](docs/lang_CN/env_setup.md)
 
 ---
 
 ## 🖥️ 启动控制面板 GUI (推荐)
 
-项目已提供完整的 **Gradio Web 控制面板**（位于 [GUI](GUI)），支持可视化的项目初始化、LCA 计划生成与修改、LCI 清单设计与 openLCA 自动导入。
+项目已提供 **Gradio Web 控制面板**（位于 [src/GUI](src/GUI)），当前支持可视化项目初始化、资料上传、RAG 构建、环境检查、完整 LCA 执行、既有结果修订和结构化结果查看。
 
 ### 启动方式 (通用)
 
 在项目根目录下，于终端执行以下命令：
 ```bash
-uv run python GUI/main.py
+uv run python src/GUI/main.py
 ```
 启动成功后，在浏览器中手动访问 [http://127.0.0.1:7860](http://127.0.0.1:7860)。
 
@@ -40,8 +57,8 @@ uv run python GUI/main.py
 
 在使用控制面板时，请遵循以下流程：
 1. **准备工作**：
-   - **⚠️ 必须开启 openLCA 桌面客户端，并确保已启用 IPC Server 服务（默认端口 8080）**。
-   - 准备您的参考文档（如环评报告等 PDF/Word 文档）与计划需求文档（可参考模板 [GUI/ui/assets/template/plan.md](GUI/ui/assets/template/plan.md) 编写）。
+   - **⚠️ 必须开启 openLCA 桌面客户端，并确保已启用 IPC Server（默认端口 8080）**。
+   - 准备您的参考文档（如环评报告等 PDF/Word 文档）。历史计划模板仍位于 [src/GUI/ui/assets/template/plan.md](src/GUI/ui/assets/template/plan.md)。
 2. **初始化项目与上传文档**：
    - 在控制面板左侧边栏的 **“文件交换区”** 直接上传准备好的参考资料（如环评报告等）与参考数据文件（**无需手动放置在后台文件夹中**）。
    - 切换到控制面板的 **“项目初始化”** 面板，检查 openLCA 连接状态。
@@ -52,27 +69,30 @@ uv run python GUI/main.py
 4. **设计与导入清单**：
    - 确认生成的执行计划无误后，启动 **“设计与导入清单”**，Agent 将会自动生成 JSON 实体并将其通过 IPC 批量导入到已打开的 openLCA 客户端中。
 
-> 💡 **更详细的 GUI 结构与开发扩展说明**，请参见：[GUI 模块说明文档](GUI/README.md)
+> 💡 **更详细的 GUI 结构与开发扩展说明**，请参见：[GUI 模块说明文档](src/GUI/README.md)
 
 ---
 
 ## 🛠️ 辅助功能（手动/命令行执行）
 
-在无图形界面（GUI）环境下或开发调试时，核心交互逻辑为：**先将输入文件上传至 `uploads/` 目录（或在该目录中修改文件），再运行对应的 `opencode` 指令执行任务**（系统在执行任务前会自动进行文件双向同步，完成后也将生成文件同步输出至 `uploads/`）。
+在无图形界面（GUI）环境下或开发调试时，核心交互逻辑为：**先将输入文件放入 `workspace/inputs/`（参考文件放在 `workspace/inputs/references/file/`、数据文件放在 `workspace/inputs/references/data/`），再运行对应的 `opencode` 指令执行任务**。
 
 ### 1. 辅助准备脚本
 ```bash
-# 初始化（默认会先清理目录、同步已上传文件，再建立RAG向量数据库并检测OpenLCA连接）
-uv run python scripts/initialization/main.py
+# 初始化（默认会先清理目录、同步 workspace 数据，再建立 RAG 向量数据库并检测 openLCA 连接）
+uv run python src/scripts/initialization/main.py
 ```
 
 ### 2. 核心操作流程
-1. **准备/修改文件**：放置原始参考文档到 `uploads/user_file/`，或在 `uploads/plan/` 下修改计划与反馈文件。
-2. **执行 OpenCode 任务** (支持命令行或 CLI 交互界面)：
-   * **制定 LCA 计划**：`opencode run --command make-plan` (或交互指令 `/make-plan`)
-   * **微调并迭代计划**：`opencode run --command revise-plan` (或交互指令 `/revise-plan`)
-   * **设计并导入清单**：`opencode run --command design-lci` (或交互指令 `/design-lci`)
+1. **准备/修改文件**：放置原始参考文档到 `workspace/inputs/references/file/`，原始数据到 `workspace/inputs/references/data/`，将计划文件放到 `workspace/inputs/plan.md`。
+2. **执行 OpenCode 任务** (支持命令行或 CLI 交互界面) ：
+   * **端到端受控执行**：以 `workspace/inputs/plan.md` 作为计划输入，运行 `opencode run --command whole-lca`（或 `/whole-lca`）；系统保存精确预检范围，并在哈希一致时自动完成导入、读回和计算。
+   * **修订既有结果**：保留已完成运行的 plan、LCI、memory 和 `lca_report.md`，将意见写入 `workspace/inputs/revise.md`，运行 `opencode run --command revise-lca`（或 `/revise-lca`）。系统先保存直接上一轮 baseline，再覆盖 plan、重建 LCI、重算并覆盖最终报告。
+
+Codex 中对应入口为 `$workflow-main` 与 `$revise-lca`。后者实现位于
+`.codex/skills/revise-lca/`，使用与 OpenCode 相同的
+`harness/pipelines/LCA-revise.md` 和
+`harness/specs/08-lca-revise-pipeline/` 专属契约。
 
 
-
-> 💡 **关于详细的文件上传路径、人工审核交互及完整调试步骤，请参见**：[手动调试与文件同步指南](docs/wiki/manual_debug.md)
+> 💡 **关于文件放置路径、人工审核交互及完整调试步骤，请参见**：[手动调试与文件同步指南](docs/lang_CN/manual_debug.md)

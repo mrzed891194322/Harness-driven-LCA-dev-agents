@@ -14,10 +14,10 @@ uv run python harness/tools/control_openlca/query_descriptors/main.py <Type> [--
 ```
 
 **参数说明**：
-*   `type` (必选位置参数): 要查询的实体类型。支持的值有：`Process`, `Flow`, `ProductSystem`, `ImpactMethod`。
+*   `type` (必选位置参数): 支持 `Process`、`Flow`、`ProductSystem`、`ImpactMethod`、`FlowProperty`、`UnitGroup`、`Actor`、`Source`、`Project`、`Location`、`Currency`、`SocialIndicator`。
 *   `--search` (可选): 名称的模糊搜索关键词（不区分大小写）。如果不提供，则返回所有实体的列表。
 *   `--limit` (可选): 控制台最多显示多少条结果。默认 50。
-*   `--host` / `--port`: 指定 IPC 连接地址（默认 `localhost:8080`）。
+*   `--host` / `--port`: 指定 IPC 连接地址（默认 `127.0.0.1:8080`）。
 
 ## 运行示例
 
@@ -25,3 +25,22 @@ uv run python harness/tools/control_openlca/query_descriptors/main.py <Type> [--
 ```bash
 uv run python harness/tools/control_openlca/query_descriptors/main.py Process --search electricity
 ```
+
+## MCP 调用
+
+`harness/tools/control_openlca/main.py` 将相同的描述符查询能力注册为
+`query_descriptors` MCP 工具。相比 CLI，它返回结构化 JSON，并增加：
+
+- `offset`：从第几条匹配结果开始，默认 0。
+- `limit`：每次返回 1–200 条，默认 50。
+- `total_matches`、`has_more` 和 `next_offset`：用于安全分页。
+- 每个结果的 `id`、`name`、`description`、`category`、`location` 和 `ref_unit`。
+
+当任务需要确认候选 Process 的地域或定量参考时，先取得 Process UUID，再调用
+`get_process_details(process_id)`。需要确认一个 Flow 的可用 Process Provider 时，不应
+批量读取完整 Process 实体；先取得 Flow UUID，再调用
+`get_flow_providers(flow_id, location, limit, offset)`。两个工具都只返回紧凑结果，后者
+可按地域文本过滤和分页。
+
+MCP 使用服务端的 `OPENLCA_IPC_HOST` 与 `OPENLCA_IPC_PORT` 配置，不接受调用方
+传入任意 endpoint。

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/raw-lcia-results.schema.json",
+  "title": "Raw openLCA LCIA results",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "status", "endpoint", "product_system", "impact_method", "calculation_setup", "impact_categories", "resource_released", "started_at", "ended_at"],
+  "properties": {
+    "schema": {"const": "whole-lca/raw-lcia-results"},
+    "version": {"const": "1.0"},
+    "status": {"enum": ["success", "empty", "failed"]},
+    "endpoint": {"type": "string"},
+    "product_system": {"$ref": "#/$defs/ref"},
+    "impact_method": {"$ref": "#/$defs/ref"},
+    "calculation_setup": {"type": "object"},
+    "impact_categories": {"type": "array", "items": {"type": "object", "required": ["name", "id", "amount", "unit"], "properties": {"name": {"type": "string"}, "id": {"type": "string"}, "amount": {"type": "number"}, "unit": {"type": "string"}}}},
+    "resource_released": {"type": "boolean"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "ended_at": {"type": "string", "format": "date-time"},
+    "error": {"type": ["string", "null"]}
+  },
+  "$defs": {"ref": {"type": "object", "required": ["id", "name"], "properties": {"id": {"type": ["string", "null"]}, "name": {"type": ["string", "null"]}}}}
+}

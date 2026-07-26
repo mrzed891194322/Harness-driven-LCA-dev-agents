@@ -1,0 +1,162 @@
+.gradio-container,
+.gradio-container button,
+.gradio-container input,
+.gradio-container select,
+.gradio-container textarea {
+    font-family: var(--academic-serif-font) !important;
+}
+
+.gradio-container code,
+.gradio-container pre,
+.gradio-container kbd,
+.gradio-container samp {
+    font-family: var(--gui-monospace-font) !important;
+}
+
+#main-layout-row {
+    --main-workspace-height: calc(100vh - 150px);
+    --panel-bottom-safe-space: 5px;
+    height: var(--main-workspace-height) !important;
+    min-height: 640px !important;
+    align-items: stretch !important;
+}
+
+#left-sidebar {
+    padding-bottom: var(--panel-bottom-safe-space) !important;
+    box-sizing: border-box !important;
+}
+
+#right-panel {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#right-tabs {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#right-tabs>div {
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+#right-tabs [role="tabpanel"],
+#right-tabs .tabitem {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+/* Gradio inserts a wrapper between each tab panel and its first component.
+   Let that wrapper consume the panel's actual remaining height instead of
+   estimating the tab navigation height with a fixed pixel value. */
+#right-tabs [role="tabpanel"] > div {
+    height: 100% !important;
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+#right-tabs [role="tabpanel"] > div > .right-tab-workspace {
+    padding-bottom: var(--panel-bottom-safe-space) !important;
+}
+
+/* Shared root container for every top-level tab inside #right-tabs.
+   Future right-panel tabs should put this class on their first child container. */
+.right-tab-workspace,
+.right-workspace-panel {
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    flex: 1 1 auto !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+.right-tab-workspace>.styler,
+.right-workspace-panel>.styler {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+/* ==========================================================================
+   Shared inner sub-panel layout classes (Plans / Project Init Panels)
+   ========================================================================== */
+.inner-panel-grid {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) auto !important;
+    gap: 12px !important;
+    /* The content row owns scrolling/clipping. Keeping this outer grid visible
+       prevents bottom button shadows from being cut at the action-row edge. */
+    overflow: visible !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+}
+
+.inner-panel-grid .styler {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+.panel-header-row,
+.panel-actions-row {
+    flex: 0 0 auto !important;
+}
+
+.panel-content-row {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+.panel-content-row>.gradio-column,
+.panel-content-row>div {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+.panel-template-column {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+.panel-scroll-container {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: block !important;
+    overflow-y: auto !important;
+    border: 1px solid var(--border-color-primary, #e5e7eb) !important;
+    border-radius: 8px !important;
+    padding: 16px !important;
+    background-color: var(--background-fill-secondary, #f9fafb) !important;
+    margin-top: 10px !important;
+}
+
+.panel-scroll-content {
+    display: block !important;
+    height: auto !important;
+    min-height: 100% !important;
+}
+
+.panel-scroll-content>* {
+    margin-bottom: 20px !important;
+}
+
+.panel-close-btn {
+    height: 42px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-top: 10px !important;
+    width: 100% !important;
+}
+
+#main-title,
+#main-title * {
+    text-align: center !important;
+}

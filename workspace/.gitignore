@@ -1,17 +1,8 @@
-# Ignore all generated and dynamic files in workspace/
-LCI/**
-data/**
-plan/**
-report/**
-tmp/**
-eval/**
-logs/**
-memory/**
+# Ignore everything in the workspace by default
+*
 
-# Keep README files
-!LCI/README.md
-!data/README.md
-!plan/README.md
-!report/README.md
-!tmp/README.md
-!eval/README.md
+# Re-include directories so git can recurse into them
+!*/
+
+# Keep only the README.md documentation in each subdirectory
+!**/README.md

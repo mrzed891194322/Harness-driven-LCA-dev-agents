@@ -1,0 +1,4 @@
+interface:
+  display_name: "Whole LCA Workflow"
+  short_description: "Run a gated plan-to-LCIA workflow"
+  default_prompt: "Use $workflow-main to execute the synchronized LCA plan through review, LCI, preflight, import, and LCIA."

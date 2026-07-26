@@ -1,0 +1,36 @@
+.markdown-document-toc-column {
+    border-right: 1px solid var(--border-color-primary, #e5e7eb) !important;
+    padding-right: 16px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+}
+
+.markdown-document-column,
+.markdown-document-scroll {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+.markdown-document-scroll {
+    overflow: auto !important;
+    padding-right: 8px !important;
+}
+
+.markdown-document-segment {
+    margin: 0 !important;
+}
+
+.markdown-document-segment table {
+    display: block !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+}
+
+.markdown-document-input {
+    margin: 0 0 14px 0 !important;
+}
+
+.markdown-document-input textarea {
+    resize: vertical !important;
+}

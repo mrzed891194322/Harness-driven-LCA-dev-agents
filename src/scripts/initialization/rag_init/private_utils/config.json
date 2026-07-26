@@ -1,0 +1,18 @@
+{
+  "supported_file_types": [
+    ".md",
+    ".rst",
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".txt",
+    ".xlsx",
+    ".xls",
+    ".csv",
+    ".json",
+    ".xml",
+    ".html",
+    ".pptx",
+    ".epub"
+  ]
+}

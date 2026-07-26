@@ -8,13 +8,14 @@ sys.path.append(str(Path(__file__).parent.parent))
 sys.path.append(str(Path(__file__).parent))
 
 try:
-    import olca_schema as o
+    import olca_schema
 except ImportError:
     print("Error: Required package 'olca-schema' is not installed.")
     sys.exit(1)
 
 # 从共享的 utils 导入
 from utils.connection import connect_ipc
+from utils.readonly import ENTITY_TYPES
 
 # 从私有的 private_utils 导入
 from private_utils.cli import add_arguments
@@ -30,22 +31,7 @@ def main():
     add_arguments(parser)
     args = parser.parse_args()
 
-    # Map string type to olca_schema class
-    type_map = {
-        "Process": o.Process,
-        "Flow": o.Flow,
-        "ProductSystem": o.ProductSystem,
-        "ImpactMethod": o.ImpactMethod,
-        "FlowProperty": o.FlowProperty,
-        "UnitGroup": o.UnitGroup,
-        "Actor": o.Actor,
-        "Source": o.Source,
-        "Project": o.Project,
-        "Location": o.Location,
-        "Currency": o.Currency,
-        "SocialIndicator": o.SocialIndicator,
-    }
-    model_type = type_map[args.type]
+    model_type = ENTITY_TYPES[args.type]
 
     # 1. 连接 IPC Server
     client = connect_ipc(args.host, args.port, model_type)

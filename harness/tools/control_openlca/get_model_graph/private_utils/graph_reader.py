@@ -2,9 +2,12 @@ import sys
 import json
 from pathlib import Path
 
+from utils.workflow import model_graph_from_product_system
+
 def print_model_graph(product_system, output_path: str = None):
-    processes = product_system.processes or []
-    process_links = product_system.process_links or []
+    graph = model_graph_from_product_system(product_system, endpoint="")
+    processes = graph["nodes"]
+    process_links = graph["edges"]
     
     print(f"产品系统: {product_system.name} (UUID: {product_system.id})")
     print(f"描述: {product_system.description or '无'}")
@@ -16,12 +19,12 @@ def print_model_graph(product_system, output_path: str = None):
     
     # 打印和搜集连线信息
     for i, link in enumerate(process_links):
-        flow_name = link.flow.name if link.flow else "Unknown Flow"
-        flow_id = link.flow.id if link.flow else "Unknown"
-        from_proc = link.provider.name if link.provider else "Unknown Provider"
-        from_proc_id = link.provider.id if link.provider else "Unknown"
-        to_proc = link.process.name if link.process else "Unknown Process"
-        to_proc_id = link.process.id if link.process else "Unknown"
+        flow_name = link["flow"]["name"] or "Unknown Flow"
+        flow_id = link["flow"]["id"] or "Unknown"
+        from_proc = link["provider"]["name"] or "Unknown Provider"
+        from_proc_id = link["provider"]["id"] or "Unknown"
+        to_proc = link["process"]["name"] or "Unknown Process"
+        to_proc_id = link["process"]["id"] or "Unknown"
         
         print(f"链接 #{i+1}:")
         print(f"  [提供端 (Provider)] -> {from_proc} (UUID: {from_proc_id})")
@@ -46,7 +49,7 @@ def print_model_graph(product_system, output_path: str = None):
                     "name": product_system.name,
                     "id": product_system.id
                 },
-                "nodes": [{"name": p.name, "id": p.id} for p in processes],
+                "nodes": processes,
                 "edges": links_data
             }
             with open(out_p, "w", encoding="utf-8") as f:
