@@ -21,6 +21,7 @@
 ## 3. 模型图读回
 
 - 导入后必须从活动数据库读回 Product System 模型图，传入 LCI 声明的 `expectedProcessIds`，记录节点、边、图指纹、`broken_links`、`disconnected_nodes` 和 `missing_expected_nodes`。
+- Product System 必须由 `auto + preferDefaultProviders` 创建；`processLinks` 只接受 openLCA 创建后的读回结果，不得把 LCI 中的名义 `processLinks` 当作已建立连接的证据。
 - 无法识别 Product System、节点为空、读回失败、断链、断连节点或预期节点缺失时不得进入第 07 阶段。
 - 比较情景声明了不同前景过程但图指纹相同时视为 Major 建模错误；不得继续以相同拓扑执行情景比较。
 - 只有导入零失败，且模型图状态为 `success`、节点非空、无断链、无断连节点时，才允许进入 LCIA 计算。

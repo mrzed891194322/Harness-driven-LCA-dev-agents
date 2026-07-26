@@ -1,18 +1,9 @@
-from pathlib import Path
-
-PLAN_TEMPLATE_KIND = "lca_plan_input"
-PLAN_TEMPLATE_VERSION = "1"
-
-REQUIRED_TEMPLATE_METADATA = {
-    "template_kind": PLAN_TEMPLATE_KIND,
-    "template_version": PLAN_TEMPLATE_VERSION,
-}
-
-
 def split_front_matter(content: str) -> tuple[dict[str, str], str]:
     """
     Extract a simple YAML front matter block from the beginning of a markdown file.
-    Only flat key: value pairs are supported because template identity metadata is simple.
+    Flat key/value pairs are returned when available. The splitter remains
+    intentionally permissive because report and uploaded Markdown metadata is
+    preserved rather than used as a document-type gate.
     """
     normalized = content.replace("\r\n", "\n").replace("\r", "\n")
     if not normalized.startswith("---\n"):
@@ -51,30 +42,3 @@ def parse_simple_yaml(yaml_text: str) -> dict[str, str]:
             return {}
         metadata[key] = value
     return metadata
-
-
-def read_template_metadata(filepath: Path) -> dict[str, str]:
-    if not filepath.exists():
-        return {}
-    try:
-        content = filepath.read_text(encoding="utf-8-sig")
-    except UnicodeDecodeError:
-        try:
-            content = filepath.read_text(encoding="gbk")
-        except UnicodeDecodeError:
-            try:
-                content = filepath.read_text(encoding="utf-8", errors="replace")
-            except Exception:
-                return {}
-    except Exception:
-        return {}
-    metadata, _ = split_front_matter(content)
-    return metadata
-
-
-def is_supported_plan_template(filepath: Path) -> bool:
-    metadata = read_template_metadata(filepath)
-    return all(
-        metadata.get(key) == value
-        for key, value in REQUIRED_TEMPLATE_METADATA.items()
-    )

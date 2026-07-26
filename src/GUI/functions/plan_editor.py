@@ -1,8 +1,9 @@
-"""Marker-preserving helpers for the GUI plan form.
+"""Marker-preserving helpers for every GUI Markdown document view.
 
-The plan tab always starts from ``ui/assets/template/plan.md``. A valid
-uploaded document may replace that in-memory source, but the staged document
-is only written to ``workspace/inputs/plan.md`` when execution starts.
+Plan and improvement views start from configured templates, while result and
+LCI views load workflow outputs on demand. Every document supports the same
+optional textbox grammar; only the execution-plan form is written to
+``workspace/inputs/plan.md``.
 
 Editable regions use one deliberately small grammar::
 
@@ -27,8 +28,6 @@ from pathlib import Path
 from typing import Any
 
 from functions.utils.file_loader.private_utils.template_metadata import (
-    PLAN_TEMPLATE_KIND,
-    PLAN_TEMPLATE_VERSION,
     split_front_matter,
 )
 from functions.utils.file_loader.private_utils.value_handler import read_text_robust
@@ -94,7 +93,9 @@ _PLAN_TEXTBOX = re.compile(
 )
 _PLAN_TEXTBOX_MARKER = re.compile(r"<!--\s*PLAN_TEXTBOX\s*-->")
 _UNSUPPORTED_PLAN_INPUT = re.compile(r"<!--\s*/?PLAN_INPUT\b")
-_TOC_HEADING = re.compile(r"(?m)^(?P<hashes>#{1,2})\s+(?P<title>.+?)\s*$")
+_DOCUMENT_HEADING = re.compile(
+    r"(?m)^(?P<hashes>#{1,6})\s+(?P<title>.+?)\s*$"
+)
 
 
 def _parse_body(
@@ -111,7 +112,7 @@ def _parse_body(
     matches = list(_PLAN_TEXTBOX.finditer(body))
     if len(matches) > MAX_PLAN_INPUTS:
         raise PlanTemplateError(
-            f"计划包含 {len(matches)} 个可编辑区域，超过上限 {MAX_PLAN_INPUTS}。"
+            f"文档包含 {len(matches)} 个可编辑区域，超过上限 {MAX_PLAN_INPUTS}。"
         )
 
     parts: list[PlanPart] = []
@@ -185,14 +186,6 @@ def _read_marked_document(
 ]:
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     metadata, body = split_front_matter(normalized)
-    if metadata.get("template_kind") != PLAN_TEMPLATE_KIND:
-        raise PlanTemplateError(
-            "计划 YAML front matter 必须包含 `template_kind: lca_plan_input`。"
-        )
-    if metadata.get("template_version") != PLAN_TEMPLATE_VERSION:
-        raise PlanTemplateError(
-            "计划 YAML front matter 必须包含 `template_version: 1`。"
-        )
     parts, fields, values = _parse_body(body, path=path)
     front_matter = normalized[: len(normalized) - len(body)] if body else normalized
     return metadata, body, parts, fields, values, front_matter, normalized
@@ -233,6 +226,9 @@ def parse_execution_plan_template(filepath: Path | str) -> PlanTemplate:
 
 
 parse_plan_template = parse_execution_plan_template
+MarkdownDocument = PlanTemplate
+parse_markdown_document_text = parse_execution_plan_text
+parse_markdown_document_file = parse_execution_plan_template
 
 
 def _markdown_parts(template: PlanTemplate) -> tuple[PlanMarkdownPart, ...]:
@@ -246,56 +242,110 @@ def render_template_parts(template: PlanTemplate) -> tuple[PlanPart, ...]:
     return template.parts
 
 
-def render_plan_segments(template: PlanTemplate) -> tuple[str, ...]:
-    """Return Markdown around each textbox, adding only invisible TOC anchors."""
+def render_document_segments(
+    document: PlanTemplate,
+    *,
+    anchor_prefix: str = "plan-heading",
+    heading_levels: tuple[int, ...] = (1, 2),
+) -> tuple[str, ...]:
+    """Return Markdown segments with anchors for selected heading levels."""
     heading_index = 0
+    selected_levels = set(heading_levels)
 
     def add_anchor(match: re.Match[str]) -> str:
         nonlocal heading_index
+        if len(match.group("hashes")) not in selected_levels:
+            return match.group(0)
         heading_index += 1
         return (
-            f'<a id="plan-heading-{heading_index}"></a>\n\n'
+            f'<a id="{anchor_prefix}-{heading_index}"></a>\n\n'
             f'{match.group("hashes")} {match.group("title")}'
         )
 
     return tuple(
-        _TOC_HEADING.sub(add_anchor, part.content)
-        for part in _markdown_parts(template)
+        _DOCUMENT_HEADING.sub(add_anchor, part.content)
+        for part in _markdown_parts(document)
     )
 
 
 def render_plan_markdown(template: PlanTemplate) -> str:
     """Compatibility helper returning the staged plan's static Markdown."""
-    rendered = "".join(render_plan_segments(template)).strip()
+    rendered = "".join(render_document_segments(template)).strip()
     return rendered or EMPTY_PREVIEW
 
 
-def render_plan_toc(template: PlanTemplate) -> str:
-    """Build a two-level directory from complete ``#`` and ``##`` titles."""
+def render_document_toc(
+    document: PlanTemplate,
+    *,
+    anchor_prefix: str = "plan-heading",
+    heading_levels: tuple[int, ...] = (1, 2),
+    title: str = "章节目录",
+) -> str:
+    """Build a Markdown directory for selected complete heading levels."""
+    selected_levels = set(heading_levels)
     headings: list[tuple[int, str]] = []
-    for part in _markdown_parts(template):
+    for part in _markdown_parts(document):
         headings.extend(
             (len(match.group("hashes")), match.group("title").strip())
-            for match in _TOC_HEADING.finditer(part.content)
+            for match in _DOCUMENT_HEADING.finditer(part.content)
+            if len(match.group("hashes")) in selected_levels
         )
     if not headings:
-        return "### 章节目录\n\n*模板未声明一级或二级标题。*"
+        return f"### {title}\n\n*文档未声明可导航标题。*"
 
-    lines = ["### 章节目录", ""]
+    base_level = min(level for level, _ in headings)
+    lines = [f"### {title}", ""]
     for index, (level, title) in enumerate(headings, start=1):
-        indent = "  " if level == 2 else ""
-        lines.append(f"{indent}- [{title}](#plan-heading-{index})")
+        indent = "  " * max(0, level - base_level)
+        lines.append(f"{indent}- [{title}](#{anchor_prefix}-{index})")
     return "\n".join(lines)
 
 
-def render_plan_status(template: PlanTemplate, source_label: str) -> str:
-    count = len(template.fields)
-    if count:
-        return (
-            f"✅ 已加载{source_label}；检测到 **{count}** 个原位输入区域"
-            f"（上限 {MAX_PLAN_INPUTS}）。"
-        )
-    return f"✅ 已加载{source_label}；该计划没有输入标记，将按只读 Markdown 保存。"
+def render_document_status(
+    document: PlanTemplate,
+    source_label: str,
+) -> str:
+    count = len(document.fields)
+    if not count:
+        return ""
+    return (
+        f"✅ 已加载{source_label}；检测到 **{count}** 个原位输入区域"
+        f"（上限 {MAX_PLAN_INPUTS}）。"
+    )
+
+
+def render_plan_segments(
+    template: PlanTemplate,
+    *,
+    anchor_prefix: str = "plan-heading",
+) -> tuple[str, ...]:
+    """Compatibility wrapper using the plan's two-level navigation."""
+    return render_document_segments(
+        template,
+        anchor_prefix=anchor_prefix,
+        heading_levels=(1, 2),
+    )
+
+
+def render_plan_toc(
+    template: PlanTemplate,
+    *,
+    anchor_prefix: str = "plan-heading",
+) -> str:
+    """Compatibility wrapper using the plan's two-level navigation."""
+    return render_document_toc(
+        template,
+        anchor_prefix=anchor_prefix,
+        heading_levels=(1, 2),
+    )
+
+
+def render_plan_status(
+    template: PlanTemplate,
+    source_label: str,
+) -> str:
+    """Compatibility wrapper for existing plan callers."""
+    return render_document_status(template, source_label)
 
 
 def extract_plan_values(
@@ -429,9 +479,13 @@ def is_plan_ready(values: str | Mapping[str, Any] | Sequence[Any] | None) -> boo
     return any(value is not None and str(value).strip() for value in values)
 
 
-def read_uploaded_plan(file_obj: Any) -> str:
+def read_uploaded_markdown(
+    file_obj: Any,
+    *,
+    document_label: str = "计划",
+) -> str:
     if file_obj is None:
-        raise ValueError("未选择任何计划文件。")
+        raise ValueError(f"未选择任何{document_label}文件。")
     if isinstance(file_obj, (str, os.PathLike)):
         raw_path = file_obj
     else:
@@ -442,10 +496,14 @@ def read_uploaded_plan(file_obj: Any) -> str:
         )
     uploaded_path = Path(raw_path)
     if uploaded_path.suffix.lower() != ".md":
-        raise ValueError("仅支持上传 Markdown（.md）计划文件。")
+        raise ValueError(f"仅支持上传 Markdown（.md）{document_label}文件。")
     if not uploaded_path.is_file():
-        raise ValueError("上传的计划文件不存在或无法读取。")
+        raise ValueError(f"上传的{document_label}文件不存在或无法读取。")
     return read_text_robust(uploaded_path)
+
+
+def read_uploaded_plan(file_obj: Any) -> str:
+    return read_uploaded_markdown(file_obj, document_label="计划")
 
 
 def validate_execution_plan(text: str | None) -> None:

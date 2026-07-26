@@ -28,8 +28,16 @@ Windows 用户也可以运行 `src/scripts/_launch_gui.bat`。启动后访问
 参考资料上传、目录清理、RAG 构建、环境检查、openLCA 连接检查和终端日志
 控制仍由 GUI 处理。
 
-快捷操作区的“清空文件输入”会同时清除参考资料与参考数据上传组件中的
-当前选择，不删除已经同步到 `workspace/` 的文件。
+快捷操作区的“查看LCA结果(仅开发过程使用)”会读取已有的
+`workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。
+报告缺失或不可读时面板会显示原因，不会保留上一次加载的正文。
+
+“计划制定”“LCA评估修改”“查看LCA结果(仅开发过程使用)”和“LCI清单”四个文档型
+Tab 共用同一个 Markdown 文档视图：左侧为 Markdown 标题目录，右侧为滚动正文，
+每个 Tab 使用独立组件前缀、标题锚点和暂存 State。视图会隐藏可选 YAML
+front matter；若文档包含完整的 `PLAN_TEXTBOX` 区域，则在原位置显示 Textbox，
+否则仅显示 Markdown。四个 Tab 均预创建 21 个 Markdown 片段和 20 个 Textbox，
+因此文件加载后无需动态挂载 Gradio 组件。
 
 侧栏的“开始LCA工作”始终可用，用于打开“计划制定”Tab。该面板按
 `ui/assets/template/plan.md` 动态渲染结构化表单，完全忽略已有的
@@ -39,17 +47,30 @@ Windows 用户也可以运行 `src/scripts/_launch_gui.bat`。启动后访问
 Markdown/Textbox 交替组件池动态更新；无标记的普通 Markdown 作为只读计划显示。
 上传 `.md` 只替换当前页面的暂存内容，只有点击“执行LCA计划”时才会保留当前
 模板结构、写入字段并原子保存到唯一计划输入 `workspace/inputs/plan.md`。
+默认模板不含 YAML front matter；上传计划可省略 front matter，也可携带任意
+metadata，GUI 会原样保留而不校验类型或版本。
 旧显式 `PLAN_INPUT` 注释不再支持。
 
 面板内执行按钮需要环境、openLCA 两项检查均通过；带输入区域的计划还需任一字段有内容，
+openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败时保持执行按钮禁用，
 无输入标记的 Markdown 计划可直接执行。不可用时
 悬停显示“请检查环境连接及填写计划”。执行后 GUI 调用 OpenCode
 `whole-lca` 命令，并根据 `workspace/memory/manifest.json` 展示完成或提前
 中止结果。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
-“LCA执行结果”Tab；用户可下载报告或按需打开
-`workspace/outputs/LCI/human_readable_mapping.md`。LCI 映射不会在页面初次加载时
-出现。“修改LCA评估”会重新打开同一计划制定面板。“修改LCI清单”当前仅
+“查看LCA结果(仅开发过程使用)”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
+用户可下载报告或按需打开
+`workspace/outputs/LCI/human_readable_mapping.md`。LCI Tab 始终保持挂载，但其导航入口
+仅在打开映射时显示；底部“关闭面板”只返回 LCA 结果并隐藏导航入口，不再卸载 Tab。
+结果和 LCI 文档若包含 `PLAN_TEXTBOX` 也会显示原位输入框，但当前不会把这些
+临时输入写回报告文件。
+“修改LCA评估”打开独立、常驻挂载的“LCA评估修改”Tab。该面板每次打开都
+重新加载 `ui/assets/template/revise.md`，可在内存中暂存最多 20 个
+`PLAN_TEXTBOX` 输入区域的 `.md` 改进方案；“执行改进”当前为禁用且无事件的
+占位按钮，“关闭面板”返回 LCA 结果。“修改LCI清单”当前仅
 作为禁用的功能占位按钮显示。
+
+GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界面，不依赖在线字体；
+代码片段与终端输出继续使用同文件配置的等宽字体栈。
 
 旧的需求表单、计划输出和计划修改 Tab 不再创建，LCI 制定 Tab 已移除。
 

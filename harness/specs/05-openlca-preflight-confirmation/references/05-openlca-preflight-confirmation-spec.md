@@ -9,6 +9,7 @@
 - 必须使用 `preflight_import_lci`，保存完整返回值、`preflight_hash`、活动数据库标识、目标分类、待创建实体及覆盖/删除范围。
 - 必须显式传入 `database_name` 或配置 `OPENLCA_DATABASE_NAME`；仅有 IPC endpoint 不能证明活动数据库身份。
 - 必须保存 `lci_fingerprint`、`target_scope_fingerprint`、`background_provider_fingerprint` 和逐项 Provider 检查。背景 Provider 不存在或不输出引用 flow 时预检失败；`expectedProviderGeography` 与数据库地域代码/名称不一致只保留为诊断，不得在 UUID 与输出 flow 均一致时单独阻断预检。
+- 预检必须重新执行 Stage 03 确定性校验；exchange 方向不是显式布尔 `isInput`、前景输入缺少有效 `defaultProvider`，或 Product System 不是统一 auto-link 契约时，在任何数据库读写前返回 `invalid_lci`。
 - `lci_dir` 默认且规范位置为 `workspace/outputs/LCI`。为连续改进运行中可追踪的兼容转换，工具也可读取 `workspace/tmp/` 下的具体子目录；不得直接使用 `workspace/tmp` 根目录、`workspace/inputs` 或项目外路径。预检哈希必须覆盖实际传入目录的完整 LCI。
 - 预检本身不写数据库。启动 whole-LCA 即授权在本次预检范围与哈希完全一致时执行导入。
 - 保存完整预检证据后保持 manifest 为 `running`，并立即把当前 `preflight_hash` 交给第 06 阶段；不得设置 `awaiting_confirmation` 或等待用户输入。

@@ -1,11 +1,15 @@
 from typing import Any
+
 from functions.utils.file_loader.private_utils.template_parser import parse_plan_template
-from functions.utils.file_loader.private_utils.value_handler import load_user_values, save_user_values
-from functions.utils.file_loader.private_utils.toc_extractor import extract_plan_toc
-from functions.utils.file_loader.private_utils.template_metadata import (
-    is_supported_plan_template,
-    read_template_metadata,
+from functions.utils.file_loader.private_utils.value_handler import (
+    load_user_values,
+    save_user_values,
 )
+from functions.utils.file_loader.private_utils.toc_extractor import (
+    add_toc_anchors,
+    extract_plan_toc,
+)
+
 
 def main(action: str, *args, **kwargs) -> Any:
     """
@@ -19,9 +23,7 @@ def main(action: str, *args, **kwargs) -> Any:
         return save_user_values(*args, **kwargs)
     elif action == "extract_toc":
         return extract_plan_toc(*args, **kwargs)
-    elif action == "read_template_metadata":
-        return read_template_metadata(*args, **kwargs)
-    elif action == "is_supported_plan_template":
-        return is_supported_plan_template(*args, **kwargs)
+    elif action == "add_toc_anchors":
+        return add_toc_anchors(*args, **kwargs)
     else:
         raise ValueError(f"Unknown file loader action: {action}")

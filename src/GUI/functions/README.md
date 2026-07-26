@@ -27,7 +27,8 @@
   - **功能入口**：[main.py](utils/file_loader/main.py) 中的 `main` 函数。
   - **私有辅助包 (`private_utils/`)**：
     - `template_parser.py`：解析 plan.md 表单模板，拆分成静态 markdown 与用户输入区。
-    - `toc_extractor.py`：扫描计划文件的标题，提取生成带有锚点的 HTML 目录导航。
+    - `toc_extractor.py`：保留给旧文件加载入口的 HTML 目录兼容工具；当前文档型
+      Tab 的目录与锚点统一由 `MarkdownDocumentView` 使用 `plan_editor.py` 生成。
     - `value_handler.py`：读取已有的 markdown 计划文件回填到表单，或将表单内容保存合成到模板中。
 
 ### 2. 项目初始化模块 (`functions/project_init/`)
@@ -45,10 +46,12 @@
 
 - `lca_run.py`：识别本次 manifest，区分完成与提前中止，并从阶段、审查及
   工具报告中聚合失败原因。
-- `plan_editor.py`：校验 `lca_plan_input` v1 元数据，仅用 `PLAN_TEXTBOX`
-  注释识别其后的“用户填写内容区”，并把正文拆成原位交替的 Markdown/Textbox；
-  纯 Markdown 计划保持只读。上传内容只在内存暂存，执行时仅替换输入值，
-  保留文档标记和静态内容并原子写入唯一计划路径。
+- `plan_editor.py`：仅用 `PLAN_TEXTBOX` 注释识别其后的“用户填写内容区”，
+  并把正文拆成原位交替的 Markdown/Textbox；无 front matter、任意 front matter
+  和纯 Markdown 均可解析，已有 front matter 原样保留且不校验类型或版本。
+  同时为所有文档型 Tab 生成可配置标题层级的 Markdown 目录和匹配锚点。
+  上传内容只在内存暂存；计划执行时仅替换输入值，保留文档标记和静态内容并
+  原子写入唯一计划路径，其他文档视图输入则不写入 workspace。
 
 ### 4. 历史计划需求模块
 

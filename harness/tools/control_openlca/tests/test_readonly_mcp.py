@@ -29,6 +29,16 @@ class FakeClient:
         self.entities = entities or {}
         self.providers = providers or []
         self.requested_type: type | None = None
+        self.closed = False
+
+    def rpc_call(self, method: str, params: dict[str, str]) -> tuple[list, str | None]:
+        self.requested_type = getattr(olca_schema, params["@type"])
+        if self.error is not None:
+            raise self.error
+        return [], None
+
+    def close(self) -> None:
+        self.closed = True
 
     def get_descriptors(self, model_type: type) -> list[object]:
         self.requested_type = model_type
@@ -56,31 +66,126 @@ class ReadOnlyServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "between 1 and 65535"):
             connection.build_endpoint("localhost", 0)
 
+    def test_timeout_adapter_replaces_requests_default_none(self) -> None:
+        adapter = connection._TimeoutHTTPAdapter((1.0, 3.0))
+        with patch.object(
+            connection.HTTPAdapter,
+            "send",
+            return_value=object(),
+        ) as send:
+            adapter.send(object(), timeout=None)
+
+        self.assertEqual(send.call_args.kwargs["timeout"], (1.0, 3.0))
+
     def test_probe_ipc_reuses_client_and_resolves_model_name(self) -> None:
         client = FakeClient()
-        with patch.object(connection.olca_ipc, "Client", return_value=client) as client_factory:
+        with patch.object(
+            connection,
+            "BoundedIPCClient",
+            return_value=client,
+        ) as client_factory:
             result = connection.probe_ipc("localhost", 8080, "Process")
 
         self.assertIs(result, client)
         self.assertIs(client.requested_type, olca_schema.Process)
-        client_factory.assert_called_once_with("http://localhost:8080")
+        client_factory.assert_called_once_with(
+            "http://localhost:8080",
+            timeout=connection.HEALTH_REQUEST_TIMEOUT,
+        )
 
     def test_health_check_returns_success(self) -> None:
-        with patch.object(readonly, "probe_ipc") as probe:
+        client = FakeClient()
+        with patch.object(readonly, "probe_ipc", return_value=client) as probe:
             result = readonly.health_check("127.0.0.1", 8080)
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["endpoint"], "http://127.0.0.1:8080")
-        probe.assert_called_once_with("127.0.0.1", 8080, olca_schema.Process)
+        self.assertEqual(result["attempt_count"], 1)
+        self.assertTrue(client.closed)
+        probe.assert_called_once_with(
+            "127.0.0.1",
+            8080,
+            olca_schema.Currency,
+            timeout=connection.HEALTH_REQUEST_TIMEOUT,
+        )
 
     def test_health_check_returns_diagnostics_on_connection_failure(self) -> None:
-        with patch.object(readonly, "probe_ipc", side_effect=OSError("connection refused")):
+        with (
+            patch.object(
+                readonly,
+                "probe_ipc",
+                side_effect=OSError("connection refused"),
+            ) as probe,
+            patch.object(readonly.time, "sleep") as sleep,
+        ):
             result = readonly.health_check("127.0.0.1", 8080)
 
         self.assertFalse(result["ok"])
+        self.assertEqual(result["attempt_count"], 4)
+        self.assertEqual(result["reconnect_count"], 3)
         self.assertEqual(result["error_type"], "OSError")
         self.assertIn("connection refused", result["error"])
         self.assertEqual(len(result["diagnostics"]), 3)
+        self.assertEqual(probe.call_count, 4)
+        self.assertEqual(
+            [call.args[0] for call in sleep.call_args_list],
+            [0.25, 0.5, 1.0],
+        )
+
+    def test_health_check_succeeds_on_fourth_attempt(self) -> None:
+        client = FakeClient()
+        with (
+            patch.object(
+                readonly,
+                "probe_ipc",
+                side_effect=[
+                    OSError("first"),
+                    OSError("second"),
+                    OSError("third"),
+                    client,
+                ],
+            ),
+            patch.object(readonly.time, "sleep"),
+        ):
+            result = readonly.health_check("127.0.0.1", 8080)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["attempt_count"], 4)
+        self.assertEqual(result["reconnect_count"], 3)
+        self.assertTrue(client.closed)
+
+    def test_legacy_cli_connection_reconnects_three_times(self) -> None:
+        probe_client = FakeClient()
+        operation_client = FakeClient()
+        with (
+            patch.object(
+                connection,
+                "probe_ipc",
+                side_effect=[
+                    OSError("first"),
+                    OSError("second"),
+                    OSError("third"),
+                    probe_client,
+                ],
+            ) as probe,
+            patch.object(
+                connection,
+                "create_ipc_client",
+                return_value=operation_client,
+            ) as create,
+            patch.object(connection.time, "sleep") as sleep,
+        ):
+            result = connection.connect_ipc(
+                "127.0.0.1",
+                8080,
+                olca_schema.Process,
+            )
+
+        self.assertIs(result, operation_client)
+        self.assertTrue(probe_client.closed)
+        self.assertEqual(probe.call_count, 4)
+        create.assert_called_once_with("127.0.0.1", 8080)
+        self.assertEqual(sleep.call_count, 3)
 
     def test_query_filters_case_insensitively_and_paginates(self) -> None:
         client = FakeClient([

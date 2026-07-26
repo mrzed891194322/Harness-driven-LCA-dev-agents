@@ -32,7 +32,7 @@ flowchart TD
 | 输入审查 | `harness/specs/public/references/schemas/review.schema.json` | 进入阶段前 | 04 → 05 | review 为 `passed`，且无未解决 critical/major issue | 不满足则禁止预检 |
 | 交接 schema | `harness/specs/public/references/schemas/handoff.schema.json` | 委派预检前后 | 主编排 Agent ↔ `sub-executor` | LCI artifacts、明确数据库、目标分类、三个分项指纹、Provider 检查、完整范围和 preflight hash | 原始返回不完整时失败 |
 | 操作规则 | `harness/rules/openlca-operation/README.md` | 调用 MCP 前 | Agent → tool 调用 | 规范 LCI 目录或 `workspace/tmp/` 下的具体兼容 LCI、活动 endpoint、只读预检和禁止额外确认 | 路径逃逸或规则冲突时停止 |
-| MCP schema | `preflight_import_lci(lci_dir, target_category, database_name)` | LCI review 通过后 | `sub-executor` ↔ `control_openlca` MCP | 校验独立实体 LCI、明确数据库、目标范围、Provider UUID 与输出 Flow，返回地域诊断、三个稳定分项指纹及 hash | 身份缺失、Provider 不存在或不输出 Flow、工具错误或范围不完整置 `failed` |
+| MCP schema | `preflight_import_lci(lci_dir, target_category, database_name)` | LCI review 通过后 | `sub-executor` ↔ `control_openlca` MCP | 数据库访问前复核布尔 `isInput`、前景 `defaultProvider` 和 auto-link 契约；再校验明确数据库、目标范围、Provider UUID 与输出 Flow，返回地域诊断、三个稳定分项指纹及 hash | LCI 连接元数据非法返回 `invalid_lci`；身份缺失、Provider 不存在或不输出 Flow、工具错误或范围不完整置 `failed` |
 | 阶段 schema | `harness/specs/public/references/schemas/stage.schema.json` | 预检开始与结束 | 主编排 Agent → stages | 原始预检 evidence、artifact、issue 和状态 | 非通过状态停止 |
 | 清单 schema | `harness/specs/public/references/schemas/workflow-manifest.schema.json` | 预检成功后 | 主编排 Agent → manifest | 保存当前 64 位小写 SHA-256 `preflight_hash`，状态保持 `running` | 不设置 `awaiting_confirmation` |
 

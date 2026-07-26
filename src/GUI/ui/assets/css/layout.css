@@ -1,3 +1,18 @@
+.gradio-container,
+.gradio-container button,
+.gradio-container input,
+.gradio-container select,
+.gradio-container textarea {
+    font-family: var(--academic-serif-font) !important;
+}
+
+.gradio-container code,
+.gradio-container pre,
+.gradio-container kbd,
+.gradio-container samp {
+    font-family: var(--gui-monospace-font) !important;
+}
+
 #main-layout-row {
     --main-workspace-height: calc(100vh - 150px);
     height: var(--main-workspace-height) !important;

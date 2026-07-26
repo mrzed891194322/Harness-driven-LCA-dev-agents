@@ -27,7 +27,7 @@
 ### 03 LCI 制定
 
 - 第 02 阶段通过后，主 Agent 才完整读取 `harness/specs/03-lci-construction/README.md` 和 `harness/specs/03-lci-construction/references/03-lci-construction-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在制定 LCI 前完整读取上述两个第 03 阶段文件；只交付已通过计划、当前检索 handoff 和允许生成的 LCI 产物范围。返回前必须运行第 03 阶段 `references/scripts/validation.py`，比较情景使用显式拓扑并声明 `expectedProcessIds`。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在制定 LCI 前完整读取上述两个第 03 阶段文件；只交付已通过计划、当前检索 handoff 和允许生成的 LCI 产物范围。返回前必须运行第 03 阶段 `references/scripts/validation.py`；LCI 连接元数据与 Product System 契约只以该阶段 spec 为准。
 
 ### 04 LCI 质量评估
 

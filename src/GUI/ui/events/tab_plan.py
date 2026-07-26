@@ -3,7 +3,6 @@ from __future__ import annotations
 import gradio as gr
 
 from functions.plan_editor import (
-    EMPTY_PREVIEW,
     MAX_PLAN_INPUTS,
     PlanTemplate,
     PlanTemplateError,
@@ -11,39 +10,31 @@ from functions.plan_editor import (
     parse_execution_plan_text,
     parse_execution_plan_template,
     read_uploaded_plan,
-    render_plan_segments,
-    render_plan_status,
-    render_plan_toc,
+)
+from ui.components.render_mdfile import (
+    MarkdownDocumentView,
+    document_output_components,
+    loaded_document_outputs,
+    unavailable_document_outputs,
+    validate_document_view_pool,
 )
 
 
 def bind_tab_plan_events(
     *,
     start_lca_btn: gr.Button,
-    modify_rerun_btn: gr.Button,
-    plan_markdowns: list[gr.Markdown],
-    plan_toc: gr.Markdown,
-    plan_status: gr.Markdown,
-    plan_inputs: list[gr.Textbox],
+    plan_view: MarkdownDocumentView,
     close_plan_btn: gr.Button,
     upload_plan_btn: gr.UploadButton,
     execute_lca_btn: gr.Button,
     right_tabs: gr.Tabs,
     plan_ready_state: gr.State,
-    plan_source_state: gr.State,
     env_gate_state: gr.State,
     openlca_gate_state: gr.State,
 ) -> None:
     """Bind default loading, upload staging and the execution readiness gate."""
 
-    if len(plan_inputs) != MAX_PLAN_INPUTS:
-        raise ValueError(
-            f"计划输入框池必须包含 {MAX_PLAN_INPUTS} 个组件。"
-        )
-    if len(plan_markdowns) != MAX_PLAN_INPUTS + 1:
-        raise ValueError(
-            f"计划 Markdown 片段池必须包含 {MAX_PLAN_INPUTS + 1} 个组件。"
-        )
+    validate_document_view_pool(plan_view)
 
     def _readiness(
         template: PlanTemplate,
@@ -61,42 +52,6 @@ def bind_tab_plan_events(
             interactive=bool(env_ok) and bool(openlca_ok) and ready
         )
 
-    def _field_updates(template: PlanTemplate):
-        updates = []
-        for index in range(MAX_PLAN_INPUTS):
-            if index < len(template.fields):
-                updates.append(
-                    gr.update(
-                        value=template.values[index],
-                        visible=True,
-                        placeholder="请在此填写",
-                        lines=4,
-                        max_lines=12,
-                        interactive=True,
-                    )
-                )
-            else:
-                updates.append(
-                    gr.update(
-                        value="",
-                        visible=False,
-                        placeholder="",
-                        lines=4,
-                        max_lines=12,
-                    )
-                )
-        return updates
-
-    def _markdown_updates(template: PlanTemplate):
-        segments = render_plan_segments(template)
-        return [
-            gr.update(
-                value=segments[index] if index < len(segments) else "",
-                visible=index < len(segments),
-            )
-            for index in range(MAX_PLAN_INPUTS + 1)
-        ]
-
     def _loaded_document_outputs(
         template: PlanTemplate,
         source_label: str,
@@ -110,33 +65,18 @@ def bind_tab_plan_events(
             openlca_ok,
         )
         return (
-            *_markdown_updates(template),
-            render_plan_toc(template),
-            render_plan_status(template, source_label),
-            *_field_updates(template),
-            template.source,
+            *loaded_document_outputs(
+                plan_view,
+                template,
+                source_label=source_label,
+            ),
             ready,
             button,
         )
 
     def _default_error_outputs(message: str):
-        markdown_updates = [
-            gr.update(
-                value=EMPTY_PREVIEW if index == 0 else "",
-                visible=index == 0,
-            )
-            for index in range(MAX_PLAN_INPUTS + 1)
-        ]
-        hidden_fields = [
-            gr.update(value="", visible=False)
-            for _ in range(MAX_PLAN_INPUTS)
-        ]
         return (
-            *markdown_updates,
-            "### 章节目录\n\n*模板不可用。*",
-            f"⚠️ **计划模板不可用**：{message}",
-            *hidden_fields,
-            None,
+            *unavailable_document_outputs(plan_view, message),
             False,
             gr.update(interactive=False),
         )
@@ -164,23 +104,18 @@ def bind_tab_plan_events(
 
     open_outputs = [
         right_tabs,
-        *plan_markdowns,
-        plan_toc,
-        plan_status,
-        *plan_inputs,
-        plan_source_state,
+        *document_output_components(plan_view),
         plan_ready_state,
         execute_lca_btn,
     ]
-    for trigger in (start_lca_btn, modify_rerun_btn):
-        trigger.click(
-            fn=load_plan_panel,
-            inputs=[env_gate_state, openlca_gate_state],
-            outputs=open_outputs,
-            queue=False,
-            show_progress="hidden",
-            js="window.guiOpenPlanMode",
-        )
+    start_lca_btn.click(
+        fn=load_plan_panel,
+        inputs=[env_gate_state, openlca_gate_state],
+        outputs=open_outputs,
+        queue=False,
+        show_progress="hidden",
+        js="window.guiOpenPlanMode",
+    )
 
     def update_form_readiness(*arguments):
         if len(arguments) < MAX_PLAN_INPUTS + 3:
@@ -196,12 +131,12 @@ def bind_tab_plan_events(
         return _readiness(template, values, env_ok, openlca_ok)
 
     readiness_inputs = [
-        *plan_inputs,
-        plan_source_state,
+        *plan_view.inputs,
+        plan_view.source_state,
         env_gate_state,
         openlca_gate_state,
     ]
-    for plan_input in plan_inputs:
+    for plan_input in plan_view.inputs:
         plan_input.input(
             fn=update_form_readiness,
             inputs=readiness_inputs,
@@ -229,11 +164,7 @@ def bind_tab_plan_events(
         fn=stage_uploaded_plan,
         inputs=[upload_plan_btn, env_gate_state, openlca_gate_state],
         outputs=[
-            *plan_markdowns,
-            plan_toc,
-            plan_status,
-            *plan_inputs,
-            plan_source_state,
+            *document_output_components(plan_view),
             plan_ready_state,
             execute_lca_btn,
         ],

@@ -1,24 +1,33 @@
 """
 openLCA IPC Server 连接检查模块
 
-通过尝试获取一组描述符来验证 IPC Server 是否在线且可正常响应。
+复用正式 control_openlca 健康检查，执行有界探测和三次重连。
 """
 
-import sys
 import argparse
+import sys
 from pathlib import Path
 
 INIT_DIR = Path(__file__).resolve().parents[1]
 if str(INIT_DIR) not in sys.path:
     sys.path.insert(0, str(INIT_DIR))
-
-import olca_ipc
-import olca_schema
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.encoding import setup_io_encoding
+from harness.tools.control_openlca.utils.readonly import health_check
 
 
-def check_openlca(host: str = "localhost", port: int = 8080) -> bool:
+def get_openlca_health(
+    host: str = "127.0.0.1",
+    port: int = 8080,
+) -> dict:
+    """Return the shared structured IPC health result."""
+    return health_check(host, port)
+
+
+def check_openlca(host: str = "127.0.0.1", port: int = 8080) -> bool:
     """
     Check if openLCA IPC Server is started and connectable.
 
@@ -31,27 +40,20 @@ def check_openlca(host: str = "localhost", port: int = 8080) -> bool:
     """
     endpoint = f"http://{host}:{port}"
     print(f"Attempting to connect to openLCA IPC Server ({endpoint})...")
+    result = get_openlca_health(host=host, port=port)
+    if result["ok"]:
+        print(
+            "Successfully established IPC connection after "
+            f"{result['attempt_count']} attempt(s). openLCA is ready."
+        )
+        return True
 
-    try:
-        client = olca_ipc.Client(endpoint)
-    except Exception as e:
-        print(f"\n[Error] Failed to create IPC client: {e}")
-        _print_diagnosis(port)
-        return False
-
-    # Use Process descriptors as a lightweight probe (independent of db content)
-    try:
-        client.get_descriptors(olca_schema.Process)
-    except (AttributeError, TypeError) as e:
-        print(f"\n[Code Error] Parameter type error: {e}")
-        raise
-    except Exception as e:
-        print(f"\n[Error] Cannot connect to openLCA IPC Server: {e}")
-        _print_diagnosis(port)
-        return False
-
-    print("Successfully established IPC connection! openLCA is ready.")
-    return True
+    print(
+        "\n[Error] Cannot connect to openLCA IPC Server after "
+        f"{result['attempt_count']} attempts: {result.get('error')}"
+    )
+    _print_diagnosis(port)
+    return False
 
 
 def _print_diagnosis(port: int):
@@ -64,7 +66,7 @@ def _print_diagnosis(port: int):
 def main():
     setup_io_encoding()
     parser = argparse.ArgumentParser(description="检查 openLCA IPC Server 连接")
-    parser.add_argument("--host", default="localhost", help="IPC 主机地址")
+    parser.add_argument("--host", default="127.0.0.1", help="IPC 主机地址")
     parser.add_argument("--port", type=int, default=8080, help="IPC 端口")
     args = parser.parse_args()
 

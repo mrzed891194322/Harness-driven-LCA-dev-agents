@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import olca_schema
+import requests
 
 from harness.tools.control_openlca.utils import workflow
 
@@ -36,6 +37,7 @@ class FakeImportClient:
         self.put_calls: list[object] = []
         self.delete_calls: list[object] = []
         self.fail_put = False
+        self.put_error: Exception | None = None
         self.fail_put_names: set[str] = set()
         self.fail_delete_ids: set[str] = set()
         self.fail_create_product_system = False
@@ -50,6 +52,8 @@ class FakeImportClient:
 
     def put(self, entity: object) -> SimpleNamespace | None:
         self.put_calls.append(entity)
+        if self.put_error is not None:
+            raise self.put_error
         if self.fail_put or getattr(entity, "name", None) in self.fail_put_names:
             return None
         entity_type = type(entity).__name__
@@ -160,16 +164,32 @@ def write_product_system_fixture(root: Path) -> None:
                 "description": "Preserve this metadata",
                 "refProcess": {"@type": "Process", "@id": PROCESS_ID},
                 "targetAmount": 1065.0,
+                "linkingMode": "auto",
                 "preferDefaultProviders": True,
+                "expectedProcessIds": [PROCESS_ID],
             }
         ),
         encoding="utf-8",
     )
 
 
-def write_explicit_product_system_fixture(root: Path) -> None:
+def write_linked_auto_product_system_fixture(root: Path) -> None:
     write_product_system_fixture(root)
     processes = root / "processes"
+    consumer_path = processes / "p01-test.json"
+    consumer = json.loads(consumer_path.read_text(encoding="utf-8"))
+    consumer["exchanges"] = [
+        {
+            "@type": "Exchange",
+            "flow": {"@type": "Flow", "@id": FLOW_ID},
+            "isInput": True,
+            "defaultProvider": {
+                "@type": "Process",
+                "@id": PROVIDER_ID,
+            },
+        }
+    ]
+    consumer_path.write_text(json.dumps(consumer), encoding="utf-8")
     (processes / "p02-provider.json").write_text(
         json.dumps(
             {
@@ -177,7 +197,13 @@ def write_explicit_product_system_fixture(root: Path) -> None:
                 "@type": "Process",
                 "@id": PROVIDER_ID,
                 "name": "P02 Scenario provider",
-                "exchanges": [],
+                "exchanges": [
+                    {
+                        "@type": "Exchange",
+                        "flow": {"@type": "Flow", "@id": FLOW_ID},
+                        "isInput": False,
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -189,21 +215,11 @@ def write_explicit_product_system_fixture(root: Path) -> None:
                 "@context": workflow.JSON_LD_CONTEXT,
                 "@type": "ProductSystem",
                 "@id": PRODUCT_SYSTEM_ID,
-                "name": "PS01 Explicit product system",
+                "name": "PS01 Auto-linked product system",
                 "refProcess": {"@type": "Process", "@id": PROCESS_ID},
-                "linkingMode": "explicit",
+                "linkingMode": "auto",
+                "preferDefaultProviders": True,
                 "expectedProcessIds": [PROCESS_ID, PROVIDER_ID],
-                "processes": [
-                    {"@type": "Process", "@id": PROCESS_ID, "name": "Foreground process"},
-                    {"@type": "Process", "@id": PROVIDER_ID, "name": "Scenario provider"},
-                ],
-                "processLinks": [
-                    {
-                        "provider": {"@type": "Process", "@id": PROVIDER_ID},
-                        "process": {"@type": "Process", "@id": PROCESS_ID},
-                        "flow": {"@type": "Flow", "@id": FLOW_ID},
-                    }
-                ],
             }
         ),
         encoding="utf-8",
@@ -255,9 +271,80 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(
             any(
-                "no defaultProvider or explicit processLink" in error
+                "requires defaultProvider" in error
                 for error in result["errors"]
             )
+        )
+
+    def test_lci_validation_requires_boolean_is_input(self) -> None:
+        invalid_values = (None, "true")
+        for invalid in invalid_values:
+            with self.subTest(value=invalid), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                write_product_system_fixture(root)
+                (root / "human_readable_mapping.md").write_text(
+                    "# Mapping\n",
+                    encoding="utf-8",
+                )
+                process_path = root / "processes" / "p01-test.json"
+                process = json.loads(process_path.read_text(encoding="utf-8"))
+                process["exchanges"] = [
+                    {
+                        "@type": "Exchange",
+                        "flow": {"@type": "Flow", "@id": FLOW_ID},
+                        "isInput": invalid,
+                    }
+                ]
+                process_path.write_text(json.dumps(process), encoding="utf-8")
+                result = workflow.validate_lci_directory(root)
+
+            self.assertFalse(result["ok"])
+            self.assertTrue(
+                any("isInput must be an explicit boolean" in error for error in result["errors"])
+            )
+
+    def test_lci_validation_rejects_ignored_input_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# Mapping\n",
+                encoding="utf-8",
+            )
+            process_path = root / "processes" / "p01-test.json"
+            process = json.loads(process_path.read_text(encoding="utf-8"))
+            process["exchanges"] = [
+                {
+                    "@type": "Exchange",
+                    "flow": {"@type": "Flow", "@id": FLOW_ID},
+                    "input": True,
+                }
+            ]
+            process_path.write_text(json.dumps(process), encoding="utf-8")
+            result = workflow.validate_lci_directory(root)
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any("unsupported field 'input'" in error for error in result["errors"])
+        )
+
+    def test_lci_validation_requires_foreground_provider_to_output_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# Mapping\n",
+                encoding="utf-8",
+            )
+            provider_path = root / "processes" / "p02-provider.json"
+            provider = json.loads(provider_path.read_text(encoding="utf-8"))
+            provider["exchanges"][0]["flow"]["@id"] = "different-flow"
+            provider_path.write_text(json.dumps(provider), encoding="utf-8")
+            result = workflow.validate_lci_directory(root)
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any("does not output foreground Flow" in error for error in result["errors"])
         )
 
     def test_preflight_is_read_only_and_stable(self) -> None:
@@ -501,6 +588,36 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual(failed["failed_count"], 1)
         self.assertEqual(failed["success_count"], 1)
 
+    def test_import_stops_immediately_after_transport_failure(self) -> None:
+        client = FakeImportClient()
+        client.put_error = requests.ConnectionError("connection lost")
+        inventory = [
+            {
+                "path": f"flows/f0{index}.json",
+                "entity_type": "Flow",
+                "id": f"flow-{index}",
+                "name": f"Flow {index}",
+                "data": {
+                    "@type": "Flow",
+                    "@id": f"flow-{index}",
+                    "name": f"Flow {index}",
+                },
+            }
+            for index in (1, 2)
+        ]
+
+        records, imported, failed, deleted, errors = workflow._execute_import(
+            client,
+            inventory,
+            [],
+            "project-a",
+        )
+
+        self.assertEqual(len(client.put_calls), 1)
+        self.assertEqual(len(records), 1)
+        self.assertEqual((imported, failed, deleted), (0, 1, 0))
+        self.assertIn("connection lost", errors[0])
+
     def test_product_system_uses_official_auto_linking_and_preserves_uuid(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -548,10 +665,10 @@ class ImportWorkflowTests(unittest.TestCase):
             )
         )
 
-    def test_product_system_can_preserve_explicit_scenario_topology(self) -> None:
+    def test_product_system_uses_defaults_for_foreground_auto_linking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            write_explicit_product_system_fixture(root)
+            write_linked_auto_product_system_fixture(root)
             (root / "human_readable_mapping.md").write_text(
                 "# LCI mapping\n",
                 encoding="utf-8",
@@ -573,10 +690,30 @@ class ImportWorkflowTests(unittest.TestCase):
 
         self.assertTrue(validation["ok"], validation["errors"])
         self.assertEqual(report["status"], "success")
-        self.assertEqual(client.create_product_system_calls, [])
+        self.assertEqual(len(client.create_product_system_calls), 1)
         saved = client.entities[(olca_schema.ProductSystem, PRODUCT_SYSTEM_ID)]
         self.assertEqual(len(saved.processes or []), 2)
         self.assertEqual(len(saved.process_links or []), 1)
+
+    def test_lci_validation_rejects_explicit_product_system(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# LCI mapping\n",
+                encoding="utf-8",
+            )
+            path = root / "product_systems" / "ps01-test.json"
+            product_system = json.loads(path.read_text(encoding="utf-8"))
+            product_system["linkingMode"] = "explicit"
+            product_system["processLinks"] = [{"provider": {"@id": PROVIDER_ID}}]
+            path.write_text(json.dumps(product_system), encoding="utf-8")
+            result = workflow.validate_lci_directory(root)
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any("linkingMode must be explicitly set to 'auto'" in error for error in result["errors"])
+        )
 
     def test_import_operation_journal_prevents_blind_retry(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

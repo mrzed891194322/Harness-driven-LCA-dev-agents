@@ -44,10 +44,10 @@ class InitializationStatusTests(unittest.TestCase):
 
     def test_openlca_check_uses_package_import_without_main_collision(self) -> None:
         with patch(
-            "scripts.initialization.openlca_check.check_openlca",
-            return_value=True,
+            "scripts.initialization.openlca_check.get_openlca_health",
+            return_value={"ok": True, "attempt_count": 1},
         ):
-            self.assertEqual(check_openlca_result(), (True, "成功连接"))
+            self.assertEqual(check_openlca_result(), (True, "成功连接（尝试 1 次）"))
 
     def test_execution_gate_requires_both_checks(self) -> None:
         with (

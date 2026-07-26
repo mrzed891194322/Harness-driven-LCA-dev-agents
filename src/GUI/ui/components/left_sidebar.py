@@ -58,18 +58,18 @@ def build_left_sidebar() -> tuple[
             elem_id="quick-action-start-lca",
             elem_classes=["quick-action-btn"],
         )
-        clear_file_inputs_btn = gr.Button(
-            "清空文件输入",
+        view_lca_result_btn = gr.Button(
+            "查看LCA结果(仅开发过程使用)",
             variant="secondary",
             size="lg",
-            elem_id="quick-action-clear-files",
+            elem_id="quick-action-view-results",
             elem_classes=["quick-action-btn"],
         )
 
     return (
         run_btn,
         start_lca_btn,
-        clear_file_inputs_btn,
+        view_lca_result_btn,
         ref_materials_file,
         ref_data_file,
     )

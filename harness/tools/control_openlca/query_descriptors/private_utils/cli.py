@@ -14,5 +14,5 @@ def add_arguments(parser: argparse.ArgumentParser):
     )
     parser.add_argument("--search", type=str, default="", help="Search string to filter by name (case-insensitive)")
     parser.add_argument("--limit", type=int, default=50, help="Maximum number of results to display")
-    parser.add_argument("--host", type=str, default="localhost", help="openLCA IPC Server host")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="openLCA IPC Server host")
     parser.add_argument("--port", type=int, default=8080, help="openLCA IPC Server port")

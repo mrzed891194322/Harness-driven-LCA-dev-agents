@@ -2,11 +2,11 @@
 
 本规范只判断 `workspace/inputs/plan.md` 能否启动端到端执行。计划制定阶段的交付验收仍由计划制定规范管理。
 
-## 1. 文件与版本
+## 1. 文件格式
 
 - 唯一输入为 `workspace/inputs/plan.md`，该文件由用户直接维护，不创建同步副本。
-- 文件必须是带 YAML front matter 的 Markdown，`template_kind` 必须为 `lca_plan_input`。
-- 当前仅接受 `template_version: 1` 或语义等价的字符串 `"1"`。缺失、格式非法或未知版本不得猜测，审查状态必须为 `needs_input`，记录迁移要求后结束本次运行；不得停下来请求确认。
+- 文件为 Markdown；YAML front matter 可省略。若文件包含 front matter，
+  不以 `template_kind`、`template_version` 或其他 metadata 作为格式门禁。
 - Markdown 的章节数量、标题文字和排序不作为格式门禁；计划可使用 GUI 默认模板（包括 `PLAN_TEXTBOX` 包裹的旧“用户填写内容区”）、带 `PLAN_INPUT` 标记的上传模板，或不含输入标记的普通 Markdown。审查必须依据下节的语义内容，而不能依赖固定六章标题。
 - 计划中引用的参考文档，Agent 应主动在 `harness/knowledge/inputs/user_ref/file/` 和 `harness/knowledge/inputs/user_ref/data/` 中按文件名关键词匹配查找。用户可写完整路径、相对路径、文件名或简称；Agent 负责解析和定位，不因路径格式或是否带目录前缀而阻断。
 - 计划审查前必须运行本阶段 `validation.py`，并把完整结果（包括
@@ -48,5 +48,5 @@
 计划审查必须使用 `harness/specs/public/references/schemas/review.schema.json`，`review_type` 为 `plan`、`attempt` 为 `1`。每个问题都必须包含 issue ID、严重度、规范引用、证据位置和可执行修正要求。
 
 - `passed`：无阻断问题；允许的可检索缺口已逐项列出，可进入第 02 阶段。
-- `needs_input`：存在阻断性缺失、非法格式或未知模板版本。
+- `needs_input`：存在阻断性缺失或非法格式。
 - `needs_review`：内容完整但存在需要人类判断且不适合自动检索的风险。

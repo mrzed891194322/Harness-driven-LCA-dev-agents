@@ -33,7 +33,7 @@ flowchart TD
 | --- | --- | --- | --- | --- | --- |
 | 输入交接 | `harness/specs/public/references/schemas/handoff.schema.json` | 进入阶段前 | 05 → 06 | 当前 LCI 范围、数据库、分类和 `preflight_hash` 完整一致 | 不一致禁止写入 |
 | 操作规则 | `harness/rules/openlca-operation/README.md` | 调用导入/读回前 | Agent → MCP 调用 | 唯一写工具、对同一规范或 `workspace/tmp/` 兼容 LCI 目录重新预检、保留原始返回 | 路径或 hash 变化时拒绝写入 |
-| MCP schema | `import_lci(preflight_hash, lci_dir, target_category, database_name)` | 预检交接后 | `sub-executor` ↔ `control_openlca` MCP | 重算范围/hash 后导入，持续写 operation journal 并返回逐项状态 | 部分成功也置 `failed` |
+| MCP schema | `import_lci(preflight_hash, lci_dir, target_category, database_name)` | 预检交接后 | `sub-executor` ↔ `control_openlca` MCP | 重算范围/hash 后导入 Process，再用 openLCA auto-link 与 exchange `defaultProvider` 创建 Product System；持续写 operation journal 并返回逐项状态 | explicit/processLinks 输入拒绝；部分成功也置 `failed` |
 | 超时状态 | `get_import_operation(preflight_hash)`、`references/schemas/import-operation-status.schema.json` | 导入调用超时后 | `sub-executor` ↔ operation journal | 只读返回 running/success/partial/failed/rejected/indeterminate | running/indeterminate 禁止重试或 CLI 回退 |
 | 确定性验收 | `references/scripts/validation.py` | 保存导入报告和模型图后 | Stage 06 证据 → 主编排 Agent | 核对 05/manifest/report hash、时间线、图状态、预期节点和情景图指纹 | `ok!=true` 不得标记 passed |
 | 产物 schema | `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json` | 保存导入报告前 | MCP 原始返回 → `import_report.json` | operation、数据库、分类、hash、计数、实体 UUID、错误和耗时 | schema 非法或 `failed_count>0` 停止 |

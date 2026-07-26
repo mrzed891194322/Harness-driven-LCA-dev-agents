@@ -16,7 +16,6 @@ STAGE_EXPECTATIONS = {
         "validate_plan_intake",
         "review.schema.json",
         "src/GUI/ui/assets/template/plan.md",
-        "lca_plan_input",
     ),
     "02-evidence-retrieval": (
         "list_rag_libraries",

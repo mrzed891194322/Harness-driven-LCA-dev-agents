@@ -1,12 +1,24 @@
 from pathlib import Path
 import gradio as gr
 from ui.components.tab_terminal import build_tab_terminal
+from ui.components.tab_revise import build_tab_revise
 from ui.components.tab_plan import build_tab_plan
 from ui.components.left_sidebar import build_left_sidebar
 from ui.components.tab_initial import build_tab_initial
 from ui.components.tab_lci import build_tab_lci
 from ui.components.tab_result import build_tab_result
 from ui.events import bind_ui_events
+
+
+def _font_css() -> str:
+    import config
+
+    return (
+        ":root {\n"
+        f"    --academic-serif-font: {config.GUI_FONT_FAMILY};\n"
+        f"    --gui-monospace-font: {config.GUI_MONO_FONT_FAMILY};\n"
+        "}"
+    )
 
 
 def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
@@ -23,12 +35,18 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
         css_dir / "left_sidebar.css",
         css_dir / "tab_terminal.css",
         css_dir / "tab_initial.css",
+        css_dir / "render_mdfile.css",
         css_dir / "tab_plan.css",
     ]
     css = "\n\n".join(
-        css_file.read_text(encoding="utf-8")
-        for css_file in css_files
-        if css_file.exists()
+        [
+            _font_css(),
+            *(
+                css_file.read_text(encoding="utf-8")
+                for css_file in css_files
+                if css_file.exists()
+            ),
+        ]
     )
 
     js_dir = assets_dir / "js"
@@ -58,7 +76,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                 (
                     run_btn,
                     start_lca_btn,
-                    clear_file_inputs_btn,
+                    view_lca_result_btn,
                     ref_materials_file,
                     ref_data_file
                 ) = build_left_sidebar()
@@ -86,12 +104,12 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                     _, output_console, status, clear_btn, stop_btn = build_tab_terminal()
 
                     (
-                        result_tab,
+                        _result_tab,
                         result_heading,
                         success_panel,
                         failure_panel,
                         failure_markdown,
-                        report_markdown,
+                        report_view,
                         report_warning,
                         download_report_btn,
                         show_lci_btn,
@@ -100,24 +118,26 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
 
                     (
                         _plan_tab,
-                        plan_markdowns,
-                        plan_toc,
-                        plan_status,
-                        plan_source_state,
-                        plan_inputs,
+                        plan_view,
                         close_plan_btn,
                         upload_plan_btn,
                         execute_lca_btn,
                     ) = build_tab_plan()
 
-                    # 按需显示的只读 LCI 映射组件。
                     (
-                        lci_mapping_tab,
-                        _close_mapping_btn,
-                        lci_mapping_content_row,
+                        _improvement_tab,
+                        improvement_view,
+                        close_improvement_btn,
+                        upload_improvement_btn,
+                        _execute_improvement_btn,
+                    ) = build_tab_revise()
+
+                    # 常驻挂载、由导航模式按需显示入口的只读 LCI 清单组件。
+                    (
+                        _lci_mapping_tab,
+                        close_lci_mapping_btn,
+                        lci_mapping_view,
                         lci_mapping_warning_row,
-                        lci_mapping_toc_html,
-                        lci_mapping_markdown,
                         download_lci_mapping_btn,
                         _modify_lci_btn,
                     ) = build_tab_lci()
@@ -132,7 +152,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             run_btn=run_btn,
             start_lca_btn=start_lca_btn,
             execute_lca_btn=execute_lca_btn,
-            clear_file_inputs_btn=clear_file_inputs_btn,
+            view_lca_result_btn=view_lca_result_btn,
             ref_materials_file=ref_materials_file,
             ref_data_file=ref_data_file,
             right_tabs=right_tabs,
@@ -153,28 +173,24 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             rag_btn=rag_btn,
             openlca_status=openlca_status,
             openlca_recheck_btn=openlca_recheck_btn,
-            lci_mapping_tab=lci_mapping_tab,
-            lci_mapping_content_row=lci_mapping_content_row,
+            close_lci_mapping_btn=close_lci_mapping_btn,
+            lci_mapping_view=lci_mapping_view,
             lci_mapping_warning_row=lci_mapping_warning_row,
-            lci_mapping_toc_html=lci_mapping_toc_html,
-            lci_mapping_markdown=lci_mapping_markdown,
             download_lci_mapping_btn=download_lci_mapping_btn,
             run_result_state=run_result_state,
-            result_tab=result_tab,
             result_heading=result_heading,
             success_panel=success_panel,
             failure_panel=failure_panel,
             failure_markdown=failure_markdown,
             show_lci_btn=show_lci_btn,
             modify_rerun_btn=modify_rerun_btn,
-            plan_markdowns=plan_markdowns,
-            plan_toc=plan_toc,
-            plan_status=plan_status,
-            plan_inputs=plan_inputs,
-            plan_source_state=plan_source_state,
+            improvement_view=improvement_view,
+            close_improvement_btn=close_improvement_btn,
+            upload_improvement_btn=upload_improvement_btn,
+            plan_view=plan_view,
             close_plan_btn=close_plan_btn,
             upload_plan_btn=upload_plan_btn,
-            report_markdown=report_markdown,
+            report_view=report_view,
             report_warning=report_warning,
             download_report_btn=download_report_btn,
             env_gate_state=env_gate_state,

@@ -49,7 +49,7 @@ def check_rag_status() -> str:
 # 子函数 4：openLCA 连接状态
 # ---------------------------------------------------------------------------
 def check_openlca_result(
-    host: str = "localhost",
+    host: str = "127.0.0.1",
     port: int = 8080,
 ) -> tuple[bool, str]:
     """
@@ -59,15 +59,21 @@ def check_openlca_result(
         "成功连接" 或 "连接失败"
     """
     try:
-        from scripts.initialization.openlca_check import check_openlca
+        from scripts.initialization.openlca_check import get_openlca_health
 
-        ok = check_openlca(host=host, port=port)
-        return ok, "成功连接" if ok else "连接失败"
+        result = get_openlca_health(host=host, port=port)
+        if result["ok"]:
+            return True, f"成功连接（尝试 {result['attempt_count']} 次）"
+        return (
+            False,
+            "连接失败"
+            f"（已尝试 {result['attempt_count']} 次：{result.get('error_kind', 'error')}）",
+        )
     except Exception:
         return False, "连接失败"
 
 
-def check_openlca_status(host: str = "localhost", port: int = 8080) -> str:
+def check_openlca_status(host: str = "127.0.0.1", port: int = 8080) -> str:
     return check_openlca_result(host=host, port=port)[1]
 
 

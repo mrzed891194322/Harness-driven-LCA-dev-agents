@@ -9,7 +9,7 @@ def main(values: list[str]) -> Generator[tuple[str, str], None, None]:
     2. 执行 opencode run --command revise-plan 启动 plan-maker agent 对已生成的计划进行修改。
     """
     import config
-    todo_list_path = config.PLAN_MODIFY_FILE_PATH
+    todo_list_path = config.CURRENT_PLAN_PATH
     
     yield "[System] 正在保存待完善清单修改内容...\n", "Running"
     

@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import olca_schema
 
-from .connection import build_endpoint, create_ipc_client, probe_ipc
+from .connection import (
+    HEALTH_BACKOFF_SECONDS,
+    HEALTH_RECONNECTS,
+    HEALTH_REQUEST_TIMEOUT,
+    build_endpoint,
+    close_ipc_client,
+    connection_error_kind,
+    create_ipc_client,
+    probe_ipc,
+)
 
 
 ENTITY_TYPES: dict[str, type] = {
@@ -27,26 +37,76 @@ MAX_QUERY_LIMIT = 200
 
 
 def health_check(host: str, port: int) -> dict[str, Any]:
-    """Return a structured diagnostic result for an openLCA IPC endpoint."""
+    """Probe openLCA once, then reconnect three times before returning failure."""
     endpoint = build_endpoint(host, port)
-    try:
-        probe_ipc(host, port, olca_schema.Process)
-    except Exception as exc:
-        return {
-            "ok": False,
-            "endpoint": endpoint,
-            "error": str(exc),
-            "error_type": type(exc).__name__,
-            "diagnostics": [
-                "Confirm that the openLCA desktop application is running.",
-                f"Confirm that Tools > Developer Tools > IPC Server is enabled on port {port}.",
-                "Confirm that the endpoint is reachable from the MCP server process.",
-            ],
-        }
+    attempts: list[dict[str, Any]] = []
+    total_attempts = HEALTH_RECONNECTS + 1
+    for attempt in range(1, total_attempts + 1):
+        started = time.monotonic()
+        client = None
+        try:
+            client = probe_ipc(
+                host,
+                port,
+                olca_schema.Currency,
+                timeout=HEALTH_REQUEST_TIMEOUT,
+            )
+            attempts.append(
+                {
+                    "attempt": attempt,
+                    "ok": True,
+                    "duration_ms": max(
+                        0, round((time.monotonic() - started) * 1000)
+                    ),
+                    "error_kind": None,
+                    "error_type": None,
+                    "error": None,
+                }
+            )
+            return {
+                "ok": True,
+                "endpoint": endpoint,
+                "attempt_count": attempt,
+                "reconnect_count": attempt - 1,
+                "attempts": attempts,
+                "message": (
+                    "openLCA IPC Server is reachable and the active database "
+                    "answers descriptor queries."
+                ),
+            }
+        except Exception as exc:
+            attempts.append(
+                {
+                    "attempt": attempt,
+                    "ok": False,
+                    "duration_ms": max(
+                        0, round((time.monotonic() - started) * 1000)
+                    ),
+                    "error_kind": connection_error_kind(exc),
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+            )
+        finally:
+            close_ipc_client(client)
+        if attempt < total_attempts:
+            time.sleep(HEALTH_BACKOFF_SECONDS[attempt - 1])
+
+    last_attempt = attempts[-1]
     return {
-        "ok": True,
+        "ok": False,
         "endpoint": endpoint,
-        "message": "openLCA IPC Server is reachable and descriptor queries succeed.",
+        "attempt_count": total_attempts,
+        "reconnect_count": HEALTH_RECONNECTS,
+        "attempts": attempts,
+        "error_kind": last_attempt["error_kind"],
+        "error_type": last_attempt["error_type"],
+        "error": last_attempt["error"],
+        "diagnostics": [
+            "Confirm that the openLCA desktop application is running.",
+            f"Confirm that Tools > Developer Tools > IPC Server is enabled on port {port}.",
+            "Confirm that the endpoint is reachable from the MCP server process.",
+        ],
     }
 
 
@@ -61,6 +121,7 @@ def query_descriptors(
     """Query and paginate descriptors from the active openLCA database."""
     model_type = _validate_query(entity_type, search, limit, offset)
     endpoint = build_endpoint(host, port)
+    client = None
     try:
         client = create_ipc_client(host, port)
         descriptors = list(client.get_descriptors(model_type) or [])
@@ -68,6 +129,8 @@ def query_descriptors(
         raise RuntimeError(
             f"Failed to query {entity_type} descriptors from {endpoint}: {exc}"
         ) from exc
+    finally:
+        close_ipc_client(client)
 
     search_text = search.strip()
     search_key = search_text.casefold()
@@ -104,6 +167,7 @@ def get_process_details(
     """Return the location and quantitative reference for one Process UUID."""
     _validate_identifier("process_id", process_id)
     endpoint = build_endpoint(host, port)
+    client = None
     try:
         client = create_ipc_client(host, port)
         process = client.get(olca_schema.Process, process_id)
@@ -111,6 +175,8 @@ def get_process_details(
         raise RuntimeError(
             f"Failed to read Process {process_id} from {endpoint}: {exc}"
         ) from exc
+    finally:
+        close_ipc_client(client)
 
     return {
         "ok": True,
@@ -136,6 +202,7 @@ def get_flow_providers(
         raise ValueError("location must be a string")
 
     endpoint = build_endpoint(host, port)
+    client = None
     try:
         client = create_ipc_client(host, port)
         flow = client.get(olca_schema.Flow, flow_id)
@@ -144,6 +211,8 @@ def get_flow_providers(
         raise RuntimeError(
             f"Failed to query providers for Flow {flow_id} from {endpoint}: {exc}"
         ) from exc
+    finally:
+        close_ipc_client(client)
 
     location_text = location.strip()
     location_key = location_text.casefold()

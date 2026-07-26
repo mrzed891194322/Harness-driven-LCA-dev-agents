@@ -71,8 +71,8 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="localhost",
-        help="openLCA IPC Server 主机地址（默认 localhost）",
+        default="127.0.0.1",
+        help="openLCA IPC Server 主机地址（默认 127.0.0.1）",
     )
     parser.add_argument(
         "--port",

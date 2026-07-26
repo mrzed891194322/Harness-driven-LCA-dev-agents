@@ -5,6 +5,7 @@ import gradio as gr
 from functions.lca_run import manifest_fingerprint, parse_lca_result
 from functions.plan_editor import (
     is_plan_ready,
+    parse_markdown_document_text,
     parse_execution_plan_text,
     save_execution_plan,
     save_structured_plan,
@@ -12,13 +13,20 @@ from functions.plan_editor import (
 from functions.utils.executor.private_utils.executor_utils import (
     run_opencode_command_console,
 )
+from ui.components.render_mdfile import (
+    MarkdownDocumentView,
+    cleared_document_outputs,
+    document_output_components,
+    loaded_document_outputs,
+)
 
 
 def bind_tab_result_events(
     *,
+    view_lca_result_btn: gr.Button,
     execute_lca_btn: gr.Button,
-    plan_inputs: list[gr.Textbox],
-    plan_source_state: gr.State,
+    plan_view: MarkdownDocumentView,
+    report_view: MarkdownDocumentView,
     plan_ready_state: gr.State,
     env_gate_state: gr.State,
     openlca_gate_state: gr.State,
@@ -26,14 +34,10 @@ def bind_tab_result_events(
     status: gr.Textbox,
     run_result_state: gr.State,
     right_tabs: gr.Tabs,
-    result_tab: gr.Tab,
     result_heading: gr.Markdown,
     success_panel: gr.Column,
     failure_panel: gr.Column,
     failure_markdown: gr.Markdown,
-    show_lci_btn: gr.Button,
-    lci_mapping_tab: gr.Tab,
-    report_markdown: gr.Markdown,
     report_warning: gr.Markdown,
     download_report_btn: gr.DownloadButton,
 ) -> None:
@@ -103,24 +107,70 @@ def bind_tab_result_events(
 
     def load_lca_report():
         import config
-        from functions.utils.file_loader.private_utils.template_metadata import (
-            split_front_matter,
-        )
 
         path = config.LCA_REPORT_PATH
         try:
-            content = path.read_text(encoding="utf-8")
-            _, body = split_front_matter(content)
+            content = path.read_text(encoding="utf-8-sig")
+            document = parse_markdown_document_text(
+                content,
+                source=path,
+            )
+        except FileNotFoundError:
+            return (
+                *cleared_document_outputs(report_view),
+                gr.update(visible=False),
+                gr.update(
+                    value=(
+                        "### ⚠️ 缺少 LCA 报告\n\n"
+                        f"未找到 `{config.LCA_REPORT_RELATIVE_PATH.as_posix()}`。"
+                    ),
+                    visible=True,
+                ),
+                gr.update(interactive=False, value=None),
+            )
         except (OSError, UnicodeError):
             return (
-                "",
-                gr.update(visible=True),
+                *cleared_document_outputs(report_view),
+                gr.update(visible=False),
+                gr.update(
+                    value=(
+                        "### ⚠️ 无法读取 LCA 报告\n\n"
+                        f"无法读取 `{config.LCA_REPORT_RELATIVE_PATH.as_posix()}`，"
+                        "请检查文件编码和访问权限。"
+                    ),
+                    visible=True,
+                ),
+                gr.update(interactive=False, value=None),
+            )
+        except ValueError as exc:
+            return (
+                *cleared_document_outputs(report_view),
+                gr.update(visible=False),
+                gr.update(
+                    value=f"### ⚠️ LCA 报告格式错误\n\n{exc}",
+                    visible=True,
+                ),
                 gr.update(interactive=False, value=None),
             )
         return (
-            body,
+            *loaded_document_outputs(
+                report_view,
+                document,
+            ),
+            gr.update(visible=True),
             gr.update(visible=False),
             gr.update(interactive=True, value=str(path)),
+        )
+
+    def open_lca_report():
+        report_updates = load_lca_report()
+        return (
+            gr.update(visible=False),
+            gr.update(visible=True),
+            gr.update(visible=False),
+            "",
+            *report_updates,
+            gr.update(selected="lca_result_tab"),
         )
 
     def render_result(result, env_ok, openlca_ok, plan_ready):
@@ -132,25 +182,19 @@ def bind_tab_result_events(
         }
         success = bool(result.get("success"))
         if success:
-            report_body, report_warning_update, download_report_update = (
-                load_lca_report()
-            )
+            report_updates = load_lca_report()
         else:
-            report_body = ""
-            report_warning_update = gr.update(visible=False)
-            download_report_update = gr.update(
-                interactive=False,
-                value=None,
+            report_updates = (
+                *cleared_document_outputs(report_view),
+                gr.update(visible=False),
+                gr.update(visible=False),
+                gr.update(
+                    interactive=False,
+                    value=None,
+                ),
             )
 
         return (
-            gr.update(
-                label=(
-                    "LCA执行结果"
-                    if success
-                    else result["tab_label"]
-                )
-            ),
             gr.update(
                 value=f"### ⚠️ LCA 提前中止（{result.get('status', 'unknown')}）",
                 visible=not success,
@@ -158,9 +202,7 @@ def bind_tab_result_events(
             gr.update(visible=success),
             gr.update(visible=not success),
             result.get("failure_markdown", ""),
-            report_body,
-            report_warning_update,
-            download_report_update,
+            *report_updates,
             gr.update(selected="lca_result_tab"),
             gr.update(
                 interactive=bool(env_ok)
@@ -169,9 +211,26 @@ def bind_tab_result_events(
             ),
         )
 
+    view_lca_result_btn.click(
+        fn=open_lca_report,
+        inputs=None,
+        outputs=[
+            result_heading,
+            success_panel,
+            failure_panel,
+            failure_markdown,
+            *document_output_components(report_view),
+            report_view.content_row,
+            report_warning,
+            download_report_btn,
+            right_tabs,
+        ],
+        js="window.guiOpenResultMode",
+    )
+
     prepare_event = execute_lca_btn.click(
         fn=prepare_lca_flow,
-        inputs=[*plan_inputs, plan_source_state],
+        inputs=[*plan_view.inputs, plan_view.source_state],
         outputs=[
             output_console,
             status,
@@ -199,26 +258,16 @@ def bind_tab_result_events(
             plan_ready_state,
         ],
         outputs=[
-            result_tab,
             result_heading,
             success_panel,
             failure_panel,
             failure_markdown,
-            report_markdown,
+            *document_output_components(report_view),
+            report_view.content_row,
             report_warning,
             download_report_btn,
             right_tabs,
             execute_lca_btn,
         ],
         js="window.guiOpenResultMode",
-    )
-
-    show_lci_btn.click(
-        fn=lambda: (
-            gr.update(visible=True),
-            gr.update(selected="lci_mapping_tab"),
-        ),
-        inputs=None,
-        outputs=[lci_mapping_tab, right_tabs],
-        js="window.guiOpenLciReportMode",
     )

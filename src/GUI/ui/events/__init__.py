@@ -1,6 +1,8 @@
 import gradio as gr
 
+from ui.components.render_mdfile import MarkdownDocumentView
 from ui.events.left_sidebar import bind_left_sidebar_events
+from ui.events.tab_improvement import bind_tab_improvement_events
 from ui.events.tab_initial import bind_tab_initial_events
 from ui.events.tab_lci import bind_tab_lci_events
 from ui.events.tab_plan import bind_tab_plan_events
@@ -13,7 +15,7 @@ def bind_ui_events(
     run_btn: gr.Button,
     start_lca_btn: gr.Button,
     execute_lca_btn: gr.Button,
-    clear_file_inputs_btn: gr.Button,
+    view_lca_result_btn: gr.Button,
     ref_materials_file: gr.File,
     ref_data_file: gr.File,
     right_tabs: gr.Tabs,
@@ -34,28 +36,24 @@ def bind_ui_events(
     rag_btn: gr.Button,
     openlca_status: gr.Markdown,
     openlca_recheck_btn: gr.Button,
-    lci_mapping_tab: gr.Tab,
-    lci_mapping_content_row: gr.Row,
+    close_lci_mapping_btn: gr.Button,
+    lci_mapping_view: MarkdownDocumentView,
     lci_mapping_warning_row: gr.Row,
-    lci_mapping_toc_html: gr.HTML,
-    lci_mapping_markdown: gr.Markdown,
     download_lci_mapping_btn: gr.DownloadButton,
     run_result_state: gr.State,
-    result_tab: gr.Tab,
     result_heading: gr.Markdown,
     success_panel: gr.Column,
     failure_panel: gr.Column,
     failure_markdown: gr.Markdown,
     show_lci_btn: gr.Button,
     modify_rerun_btn: gr.Button,
-    plan_markdowns: list[gr.Markdown],
-    plan_toc: gr.Markdown,
-    plan_status: gr.Markdown,
-    plan_inputs: list[gr.Textbox],
-    plan_source_state: gr.State,
+    improvement_view: MarkdownDocumentView,
+    close_improvement_btn: gr.Button,
+    upload_improvement_btn: gr.UploadButton,
+    plan_view: MarkdownDocumentView,
     close_plan_btn: gr.Button,
     upload_plan_btn: gr.UploadButton,
-    report_markdown: gr.Markdown,
+    report_view: MarkdownDocumentView,
     report_warning: gr.Markdown,
     download_report_btn: gr.DownloadButton,
     env_gate_state: gr.State,
@@ -65,9 +63,6 @@ def bind_ui_events(
     """Bind events for the currently supported GUI features."""
     bind_left_sidebar_events(
         run_btn=run_btn,
-        clear_file_inputs_btn=clear_file_inputs_btn,
-        ref_materials_file=ref_materials_file,
-        ref_data_file=ref_data_file,
         right_tabs=right_tabs,
     )
 
@@ -103,12 +98,7 @@ def bind_ui_events(
 
     bind_tab_plan_events(
         start_lca_btn=start_lca_btn,
-        modify_rerun_btn=modify_rerun_btn,
-        plan_markdowns=plan_markdowns,
-        plan_toc=plan_toc,
-        plan_status=plan_status,
-        plan_inputs=plan_inputs,
-        plan_source_state=plan_source_state,
+        plan_view=plan_view,
         close_plan_btn=close_plan_btn,
         upload_plan_btn=upload_plan_btn,
         execute_lca_btn=execute_lca_btn,
@@ -118,21 +108,30 @@ def bind_ui_events(
         openlca_gate_state=openlca_gate_state,
     )
 
+    bind_tab_improvement_events(
+        modify_rerun_btn=modify_rerun_btn,
+        improvement_view=improvement_view,
+        close_improvement_btn=close_improvement_btn,
+        upload_improvement_btn=upload_improvement_btn,
+        right_tabs=right_tabs,
+    )
+
     # The mapping report is read-only and does not invoke the removed LCI
     # design command, so its tab can continue to display existing output.
     bind_tab_lci_events(
-        lci_mapping_tab=lci_mapping_tab,
-        lci_mapping_content_row=lci_mapping_content_row,
+        show_lci_btn=show_lci_btn,
+        close_lci_mapping_btn=close_lci_mapping_btn,
+        right_tabs=right_tabs,
+        lci_mapping_view=lci_mapping_view,
         lci_mapping_warning_row=lci_mapping_warning_row,
-        lci_mapping_toc_html=lci_mapping_toc_html,
-        lci_mapping_markdown=lci_mapping_markdown,
         download_lci_mapping_btn=download_lci_mapping_btn,
     )
 
     bind_tab_result_events(
+        view_lca_result_btn=view_lca_result_btn,
         execute_lca_btn=execute_lca_btn,
-        plan_inputs=plan_inputs,
-        plan_source_state=plan_source_state,
+        plan_view=plan_view,
+        report_view=report_view,
         plan_ready_state=plan_ready_state,
         env_gate_state=env_gate_state,
         openlca_gate_state=openlca_gate_state,
@@ -140,14 +139,10 @@ def bind_ui_events(
         status=status,
         run_result_state=run_result_state,
         right_tabs=right_tabs,
-        result_tab=result_tab,
         result_heading=result_heading,
         success_panel=success_panel,
         failure_panel=failure_panel,
         failure_markdown=failure_markdown,
-        show_lci_btn=show_lci_btn,
-        lci_mapping_tab=lci_mapping_tab,
-        report_markdown=report_markdown,
         report_warning=report_warning,
         download_report_btn=download_report_btn,
     )

@@ -72,13 +72,12 @@ next_lci_review_action = load_stage_validation(
 ).next_lci_review_action
 
 
-def compliant_plan(extra: str = "", version: str = "1", functional_unit: str = "1 kg bottled product") -> str:
-    return f"""---
-template_kind: lca_plan_input
-template_version: {version}
----
-
-# LCA 项目执行计划
+def compliant_plan(
+    extra: str = "",
+    functional_unit: str = "1 kg bottled product",
+    front_matter: str = "",
+) -> str:
+    return f"""{front_matter}# LCA 项目执行计划
 
 ## 1. 研究目的与范围定义
 - **研究对象**：标准包装产品
@@ -177,10 +176,28 @@ class PlanIntakeTests(unittest.TestCase):
         )
         self.assertTrue(issue["spec_ref"].startswith("01-plan-quality-gate-spec.md#"))
 
-    def test_unknown_template_version_blocks(self) -> None:
-        result = validate_plan_intake(compliant_plan(version="99"))
-        self.assertEqual(result["status"], "needs_input")
-        self.assertIn("PLAN-FORMAT-VERSION", {issue["issue_id"] for issue in result["issues"]})
+    def test_missing_or_arbitrary_metadata_does_not_block(self) -> None:
+        plans = (
+            compliant_plan(),
+            compliant_plan(
+                front_matter=(
+                    "---\n"
+                    "template_kind: arbitrary\n"
+                    "template_version: 99\n"
+                    "custom_key: preserved\n"
+                    "---\n\n"
+                )
+            ),
+        )
+        for plan in plans:
+            result = validate_plan_intake(plan)
+            self.assertEqual(result["status"], "passed")
+            self.assertFalse(
+                any(
+                    issue["issue_id"].startswith("PLAN-FORMAT-")
+                    for issue in result["issues"]
+                )
+            )
 
     def test_legacy_reference_path_blocks(self) -> None:
         plan = compliant_plan(
@@ -189,18 +206,6 @@ class PlanIntakeTests(unittest.TestCase):
         result = validate_plan_intake(plan)
         self.assertIn(
             "PLAN-REF-LEGACY-PATH",
-            {issue["issue_id"] for issue in result["issues"]},
-        )
-
-    def test_previous_template_kind_blocks(self) -> None:
-        plan = compliant_plan().replace(
-            "template_kind: lca_plan_input",
-            "template_kind: lca_execution_plan",
-        )
-        result = validate_plan_intake(plan)
-        self.assertEqual(result["status"], "needs_input")
-        self.assertIn(
-            "PLAN-FORMAT-KIND",
             {issue["issue_id"] for issue in result["issues"]},
         )
 

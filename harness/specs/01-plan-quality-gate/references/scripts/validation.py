@@ -16,7 +16,6 @@ DEFAULT_REFERENCE_ROOTS = (
     PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_ref" / "data",
 )
 REFERENCE_CONTROL_FILES = {".gitignore", "readme.md"}
-FRONTMATTER_PATTERN = re.compile(r"\A---\s*\n(?P<body>.*?)\n---\s*\n", re.DOTALL)
 FIELD_PATTERN = r"\*\*{label}\*\*\s*[:：]"
 PLAN_INPUT_START_PATTERN = re.compile(r"^\s*<!--\s*PLAN_INPUT\b[^\n]*-->", re.DOTALL)
 PLAN_INPUT_VALUE_END_PATTERN = re.compile(
@@ -35,19 +34,6 @@ UNIT_PATTERN = re.compile(
     r"\b(?:kg|g|mg|t|tonne|L|mL|m3|m³|MJ|kWh|Wh|piece|unit|p-km|tkm)\b|千克|克|吨|升|件",
     re.IGNORECASE,
 )
-
-
-def _frontmatter(text: str) -> dict[str, str]:
-    match = FRONTMATTER_PATTERN.search(text)
-    if not match:
-        return {}
-    values: dict[str, str] = {}
-    for line in match.group("body").splitlines():
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        values[key.strip()] = value.strip().strip('"\'')
-    return values
 
 
 def _field(text: str, *labels: str) -> str | None:
@@ -155,26 +141,6 @@ def validate_plan_intake(
 ) -> dict[str, Any]:
     """Apply deterministic checks from the stage 01 plan quality specification."""
     issues: list[dict[str, str]] = []
-    metadata = _frontmatter(text)
-    if metadata.get("template_kind") != "lca_plan_input":
-        issues.append(
-            _issue(
-                "PLAN-FORMAT-KIND",
-                "01-plan-quality-gate-spec.md#1-文件与版本",
-                "YAML front matter",
-                "Set template_kind to lca_plan_input.",
-            )
-        )
-    version = metadata.get("template_version")
-    if version != "1":
-        issues.append(
-            _issue(
-                "PLAN-FORMAT-VERSION",
-                "01-plan-quality-gate-spec.md#1-文件与版本",
-                "YAML front matter.template_version",
-                "Migrate to supported template_version 1 or request explicit user direction.",
-            )
-        )
 
     legacy_reference_paths = sorted(
         set(
@@ -189,7 +155,7 @@ def validate_plan_intake(
         issues.append(
             _issue(
                 "PLAN-REF-LEGACY-PATH",
-                "01-plan-quality-gate-spec.md#1-文件与版本",
+                "01-plan-quality-gate-spec.md#1-文件格式",
                 path,
                 "Replace the legacy path with "
                 f"harness/knowledge/inputs/user_ref/{kind}/...",

@@ -1,11 +1,3 @@
-#plan-toc-column {
-    border-right: 1px solid var(--border-color-primary, #e5e7eb) !important;
-    padding-right: 16px !important;
-    height: 100% !important;
-    min-height: 0 !important;
-    overflow-y: auto !important;
-}
-
 .toc-wrapper {
     display: flex !important;
     flex-direction: column !important;
@@ -44,29 +36,6 @@
     padding-left: 14px !important;
     font-size: 12px !important;
     color: var(--body-text-color-subdued, #6b7280) !important;
-}
-
-#plan-form-column,
-#plan-form-scroll {
-    height: 100% !important;
-    min-height: 0 !important;
-}
-
-#plan-form-scroll {
-    overflow-y: auto !important;
-    padding-right: 8px !important;
-}
-
-.plan-static-markdown {
-    margin: 0 !important;
-}
-
-.plan-form-input {
-    margin: 0 0 14px 0 !important;
-}
-
-.plan-form-input textarea {
-    resize: vertical !important;
 }
 
 #plan-editor-actions-row {

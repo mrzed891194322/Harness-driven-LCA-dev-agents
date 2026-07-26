@@ -59,6 +59,9 @@ uv run python src/scripts/initialization/main.py --only openlca --port 8080
 uv run python src/scripts/initialization/main.py --only rag --mapping path/to/mapping.json
 ~~~
 
+openLCA 检查与 MCP 共用有界健康探测：默认连接 `127.0.0.1:8080`，首次失败后新建客户端
+重连 3 次。4 次均失败时命令返回非零，GUI 保持执行门禁锁定。
+
 --clean 为兼容参数。staged build 本身总是在成功后完整替换对应知识库，不再构建前清空活动库。
 
 ## 离线测试

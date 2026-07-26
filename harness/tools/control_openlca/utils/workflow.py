@@ -11,7 +11,13 @@ from typing import Any, Callable
 
 import olca_schema
 
-from .connection import build_endpoint, create_ipc_client
+from .connection import (
+    LONG_REQUEST_TIMEOUT,
+    build_endpoint,
+    close_ipc_client,
+    create_ipc_client,
+    is_transport_error,
+)
 from .entity import find_entity
 
 
@@ -201,20 +207,36 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
     foreground_process_ids = {
         item["id"] for item in inventory if item["entity_type"] == "Process"
     }
-    explicit_foreground_links: set[tuple[str, str]] = set()
+    foreground_outputs: dict[str, set[str]] = {
+        process_id: set() for process_id in foreground_process_ids
+    }
+
     for item in inventory:
-        if item["entity_type"] != "ProductSystem":
+        if item["entity_type"] != "Process":
             continue
-        data = item["data"]
-        if data.get("linkingMode", "auto") != "explicit":
+        exchanges = item["data"].get("exchanges", [])
+        if not isinstance(exchanges, list):
+            errors.append(f"{item['path']}: exchanges must be an array")
             continue
-        for link in data.get("processLinks", []):
-            if not isinstance(link, dict):
+        for index, exchange in enumerate(exchanges, start=1):
+            if not isinstance(exchange, dict):
+                errors.append(f"{item['path']}: exchanges[{index}] must be an object")
                 continue
-            process_id = (link.get("process") or {}).get("@id")
-            flow_id = (link.get("flow") or {}).get("@id")
-            if isinstance(process_id, str) and isinstance(flow_id, str):
-                explicit_foreground_links.add((process_id, flow_id))
+            if "input" in exchange:
+                errors.append(
+                    f"{item['path']}: exchanges[{index}] uses unsupported field "
+                    "'input'; use boolean 'isInput'"
+                )
+            is_input = exchange.get("isInput")
+            if not isinstance(is_input, bool):
+                errors.append(
+                    f"{item['path']}: exchanges[{index}].isInput must be an "
+                    "explicit boolean"
+                )
+                continue
+            flow_id = (exchange.get("flow") or {}).get("@id")
+            if is_input is False and isinstance(flow_id, str):
+                foreground_outputs[item["id"]].add(flow_id)
 
     for item in inventory:
         if item["entity_type"] != "Process":
@@ -227,74 +249,75 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
             provider_id = (
                 provider.get("@id") if isinstance(provider, dict) else None
             )
-            if (
-                flow_id in foreground_flow_ids
-                and not provider_id
-                and (item["id"], flow_id) not in explicit_foreground_links
-            ):
+            if flow_id not in foreground_flow_ids:
+                continue
+            if not provider_id:
                 errors.append(
                     f"{item['path']}: exchanges[{index}] foreground input "
-                    f"{flow_id} has no defaultProvider or explicit processLink"
+                    f"{flow_id} requires defaultProvider"
                 )
+                continue
+            if provider.get("@type") != "Process":
+                errors.append(
+                    f"{item['path']}: exchanges[{index}].defaultProvider must "
+                    "reference @type Process"
+                )
+            if provider_id not in foreground_process_ids:
+                continue
+            if flow_id not in foreground_outputs.get(provider_id, set()):
+                errors.append(
+                    f"{item['path']}: exchanges[{index}].defaultProvider "
+                    f"{provider_id} does not output foreground Flow {flow_id}"
+                )
+
     for item in inventory:
         if item["entity_type"] != "ProductSystem":
             continue
         data = item["data"]
-        linking_mode = data.get("linkingMode", "auto")
-        if linking_mode not in {"auto", "explicit"}:
+        if data.get("linkingMode") != "auto":
             errors.append(
-                f"{item['path']}: linkingMode must be 'auto' or 'explicit'"
+                f"{item['path']}: linkingMode must be explicitly set to 'auto'"
             )
-            continue
-        if linking_mode != "explicit":
-            continue
-        processes = data.get("processes")
-        links = data.get("processLinks")
+        if data.get("preferDefaultProviders") is not True:
+            errors.append(
+                f"{item['path']}: preferDefaultProviders must be true"
+            )
+        ref_process_id = (data.get("refProcess") or {}).get("@id")
+        if ref_process_id not in foreground_process_ids:
+            errors.append(
+                f"{item['path']}: refProcess must reference a foreground Process"
+            )
         expected = data.get("expectedProcessIds")
-        if not isinstance(processes, list) or not processes:
-            errors.append(
-                f"{item['path']}: explicit topology requires non-empty processes"
-            )
-            continue
-        node_ids = {
-            process.get("@id")
-            for process in processes
-            if isinstance(process, dict) and isinstance(process.get("@id"), str)
-        }
         if not isinstance(expected, list) or not expected:
             errors.append(
-                f"{item['path']}: explicit topology requires expectedProcessIds"
+                f"{item['path']}: expectedProcessIds must be a non-empty array"
             )
         else:
-            missing = sorted(
-                process_id
-                for process_id in expected
-                if not isinstance(process_id, str) or process_id not in node_ids
+            invalid_expected = sorted(
+                {
+                    str(process_id)
+                    for process_id in expected
+                    if not isinstance(process_id, str)
+                    or process_id not in foreground_process_ids
+                }
             )
-            if missing:
+            if invalid_expected:
                 errors.append(
-                    f"{item['path']}: expectedProcessIds are absent from processes: "
-                    f"{missing}"
+                    f"{item['path']}: expectedProcessIds must reference foreground "
+                    f"Processes: {invalid_expected}"
                 )
-        if not isinstance(links, list) or not links:
+            if ref_process_id not in expected:
+                errors.append(
+                    f"{item['path']}: expectedProcessIds must include refProcess"
+                )
+        if "processes" in data:
             errors.append(
-                f"{item['path']}: explicit topology requires non-empty processLinks"
+                f"{item['path']}: auto linking must not provide processes"
             )
-            continue
-        for index, link in enumerate(links, start=1):
-            if not isinstance(link, dict):
-                errors.append(
-                    f"{item['path']}: processLinks[{index}] must be an object"
-                )
-                continue
-            provider_id = (link.get("provider") or {}).get("@id")
-            process_id = (link.get("process") or {}).get("@id")
-            flow_id = (link.get("flow") or {}).get("@id")
-            if provider_id not in node_ids or process_id not in node_ids or not flow_id:
-                errors.append(
-                    f"{item['path']}: processLinks[{index}] references a missing "
-                    "node or flow"
-                )
+        if "processLinks" in data:
+            errors.append(
+                f"{item['path']}: auto linking must not provide processLinks"
+            )
     return errors
 
 
@@ -532,10 +555,13 @@ def _inspect_import(
             [],
         )
 
+    owns_client = client is None
     ipc_client = client or create_ipc_client(host, port)
     try:
         database_records, target_descriptors = _database_snapshot(ipc_client, category)
     except Exception as exc:
+        if owns_client:
+            close_ipc_client(ipc_client)
         raise RuntimeError(f"Failed to inspect active openLCA database at {endpoint}: {exc}") from exc
 
     planned_entities = [
@@ -561,6 +587,8 @@ def _inspect_import(
         inventory,
         database_records,
     )
+    if owns_client:
+        close_ipc_client(ipc_client)
     lci_fingerprint = stable_hash(planned_entities)
     target_scope_fingerprint = stable_hash(overwrite_scope)
     background_provider_fingerprint = stable_hash(provider_checks)
@@ -644,41 +672,11 @@ def _put_product_system(
     entity: olca_schema.ProductSystem,
     source_data: dict[str, Any],
 ) -> object:
-    """Persist an explicit topology or create an officially auto-linked topology."""
-    linking_mode = source_data.get("linkingMode", "auto")
-    if linking_mode not in {"auto", "explicit"}:
-        raise ValueError("ProductSystem linkingMode must be 'auto' or 'explicit'")
-    if linking_mode == "explicit":
-        processes = list(getattr(entity, "processes", None) or [])
-        process_links = list(getattr(entity, "process_links", None) or [])
-        if not processes or not process_links:
-            raise ValueError(
-                "Explicit ProductSystem requires non-empty processes and processLinks"
-            )
-        node_ids = {
-            getattr(process, "id", None)
-            for process in processes
-            if getattr(process, "id", None)
-        }
-        for index, link in enumerate(process_links, start=1):
-            provider_id = getattr(getattr(link, "provider", None), "id", None)
-            process_id = getattr(getattr(link, "process", None), "id", None)
-            flow_id = getattr(getattr(link, "flow", None), "id", None)
-            if (
-                not provider_id
-                or provider_id not in node_ids
-                or not process_id
-                or process_id not in node_ids
-                or not flow_id
-            ):
-                raise ValueError(
-                    f"Explicit ProductSystem processLinks[{index}] references "
-                    "a missing node or flow"
-                )
-        reference = client.put(entity)
-        if reference is None:
-            raise RuntimeError("IPC Server did not return an entity reference")
-        return reference
+    """Create a Product System through openLCA's official auto-linking API."""
+    if source_data.get("linkingMode") != "auto":
+        raise ValueError("ProductSystem linkingMode must be 'auto'")
+    if source_data.get("preferDefaultProviders") is not True:
+        raise ValueError("ProductSystem preferDefaultProviders must be true")
 
     ref_process = getattr(entity, "ref_process", None)
     if ref_process is None or not getattr(ref_process, "id", None):
@@ -771,6 +769,7 @@ def _execute_import(
                 continue
             entity_id = getattr(descriptor, "id", None)
             entity_name = getattr(descriptor, "name", None)
+            transport_failed = False
             try:
                 reference = descriptor.to_ref()
                 client.delete(reference)
@@ -789,6 +788,7 @@ def _execute_import(
                 )
             except Exception as exc:
                 failed += 1
+                transport_failed = is_transport_error(exc)
                 message = f"delete {entity_type} {entity_id}: {exc}"
                 errors.append(message)
                 output(f"  [错误] {message}")
@@ -805,9 +805,12 @@ def _execute_import(
                 )
             if on_progress is not None:
                 on_progress(records, imported, failed, deleted, errors)
+            if transport_failed:
+                return records, imported, failed, deleted, errors
 
     for item in inventory:
         output(f"正在处理文件: {item['path']}...")
+        transport_failed = False
         try:
             entity = _deserialize_entity(item, target_category)
             if isinstance(entity, olca_schema.ProductSystem):
@@ -835,6 +838,7 @@ def _execute_import(
             )
         except Exception as exc:
             failed += 1
+            transport_failed = is_transport_error(exc)
             message = f"import {item['path']}: {exc}"
             errors.append(message)
             output(f"[错误] {message}")
@@ -851,6 +855,8 @@ def _execute_import(
             )
         if on_progress is not None:
             on_progress(records, imported, failed, deleted, errors)
+        if transport_failed:
+            return records, imported, failed, deleted, errors
     return records, imported, failed, deleted, errors
 
 
@@ -975,7 +981,12 @@ def import_lci(
         if existing["status"] in {"running", "success", "partial_failure", "failed"}:
             return existing["report"]
 
-    ipc_client = client or create_ipc_client(host, port)
+    owns_client = client is None
+    ipc_client = client or create_ipc_client(
+        host,
+        port,
+        timeout=LONG_REQUEST_TIMEOUT,
+    )
     current, inventory, target_descriptors = _inspect_import(
         host=host,
         port=port,
@@ -996,6 +1007,8 @@ def import_lci(
         )
         if operation_dir is not None:
             _write_json_atomic(_operation_path(operation_dir, preflight_hash), report)
+        if owns_client:
+            close_ipc_client(ipc_client)
         return report
     if current["preflight_hash"] != preflight_hash:
         report = _rejected_import_report(
@@ -1017,6 +1030,8 @@ def import_lci(
         )
         if operation_dir is not None:
             _write_json_atomic(_operation_path(operation_dir, preflight_hash), report)
+        if owns_client:
+            close_ipc_client(ipc_client)
         return report
 
     def report_value(
@@ -1098,6 +1113,8 @@ def import_lci(
     )
     if operation_path is not None:
         _write_json_atomic(operation_path, report)
+    if owns_client:
+        close_ipc_client(ipc_client)
     return report
 
 
@@ -1308,10 +1325,11 @@ def get_model_graph(
     expected_process_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     endpoint = build_endpoint(host, port)
+    owns_client = client is None
     ipc_client = client or create_ipc_client(host, port)
     system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
     if system is None:
-        return {
+        result = {
             "schema": "whole-lca/model-graph",
             "version": "1.1",
             "status": "failed",
@@ -1327,16 +1345,22 @@ def get_model_graph(
             "timestamp": utc_now(),
             "error": f"Product System not found: {product_system}",
         }
+        if owns_client:
+            close_ipc_client(ipc_client)
+        return result
     system_id = getattr(system, "id", None)
     if system_id:
         loaded = ipc_client.get(olca_schema.ProductSystem, system_id)
         if loaded is not None:
             system = loaded
-    return model_graph_from_product_system(
+    result = model_graph_from_product_system(
         system,
         endpoint,
         expected_process_ids=expected_process_ids,
     )
+    if owns_client:
+        close_ipc_client(ipc_client)
+    return result
 
 
 def build_calculation_setup(
@@ -1402,7 +1426,12 @@ def calculate_product_system(
     client: object | None = None,
 ) -> dict[str, Any]:
     endpoint = build_endpoint(host, port)
-    ipc_client = client or create_ipc_client(host, port)
+    owns_client = client is None
+    ipc_client = client or create_ipc_client(
+        host,
+        port,
+        timeout=LONG_REQUEST_TIMEOUT,
+    )
     system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
     method = find_entity(ipc_client, olca_schema.ImpactMethod, impact_method)
     started_at = utc_now()
@@ -1433,7 +1462,15 @@ def calculate_product_system(
     }
     if system is None or method is None:
         missing = "Product System" if system is None else "Impact Method"
-        return {**base, "status": "failed", "ended_at": utc_now(), "error": f"{missing} not found"}
+        failed_result = {
+            **base,
+            "status": "failed",
+            "ended_at": utc_now(),
+            "error": f"{missing} not found",
+        }
+        if owns_client:
+            close_ipc_client(ipc_client)
+        return failed_result
 
     result = None
     status = "failed"
@@ -1474,7 +1511,7 @@ def calculate_product_system(
                 error = f"{error}; dispose failed: {exc}" if error else f"dispose failed: {exc}"
                 status = "failed"
 
-    return {
+    calculation = {
         **base,
         "status": status,
         "impact_categories": impacts,
@@ -1482,3 +1519,6 @@ def calculate_product_system(
         "ended_at": utc_now(),
         "error": error,
     }
+    if owns_client:
+        close_ipc_client(ipc_client)
+    return calculation

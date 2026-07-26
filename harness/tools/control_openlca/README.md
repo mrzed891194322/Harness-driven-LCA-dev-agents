@@ -72,7 +72,8 @@ control_openlca/
 
 `main.py` 启动名为 `openLCA-Control` 的 stdio MCP server，注册以下工具：
 
-- `health_check`：检查 IPC Server 是否可连接，以及当前数据库是否能响应描述符查询。
+- `health_check`：使用有界轻量 descriptor 请求检查 IPC Server 和活动数据库；首次失败后
+  新建客户端重连 3 次，并返回每次尝试的耗时和错误类别。
 - `query_descriptors`：按名称片段查询实体名称和 UUID，并返回分类、地域、参考单位及分页信息。
 - `get_process_details`：按一个确切 Process UUID 返回紧凑元数据、地域和定量参考 exchange。
 - `get_flow_providers`：按一个确切 Flow UUID 返回可用 Process Provider 的 UUID、名称、分类、地域和 Flow 引用；支持地域过滤与分页。
@@ -114,9 +115,9 @@ uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
 未来任何 Agent 在编写连接或操纵 openLCA IPC Server 的代码时，必须引用以下公共模块：
 
 ### 1. IPC 连接模块 (`utils/connection.py`)
-*   **核心函数**：`connect_ipc(host, port, test_model_type)`
-*   **用途**：创建 `olca_ipc.Client` 连接，并利用 `test_model_type`（如 `olca_schema.ProductSystem` 或 `olca_schema.Process`）快速测试连接是否通畅。
-*   **规范**：若连接失败，该函数将自动输出诊断建议并直接执行 `sys.exit(1)` 退出，无需在业务脚本中编写冗余的连接 try-except。
+*   **核心函数**：`create_ipc_client(...)`、`probe_ipc(...)`、`close_ipc_client(...)` 和兼容 CLI 的 `connect_ipc(...)`。
+*   **用途**：统一构造带 HTTP timeout 的 `BoundedIPCClient`；探测使用较小的 Currency descriptor 请求，并显式识别 JSON-RPC 错误。
+*   **规范**：普通只读请求使用 30 秒读取 timeout，导入/计算使用 285 秒，健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。工具自行创建的客户端在返回前关闭。
 
 ### 2. 实体检索模块 (`utils/entity.py`)
 *   **核心函数**：`find_entity(client, model_type, name_or_uuid)`
@@ -141,7 +142,9 @@ uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
 ### 5. Whole-LCA 共用服务 (`utils/workflow.py`)
 
 * `preflight_import_lci(...)`：只读加载 LCI、计算 LCI/目标范围/相关 Provider 哈希。
-* `import_lci(...)`：在重新预检并核对哈希后返回结构化 operation report。
+* `import_lci(...)`：在重新预检并核对哈希后，使用 exchange `defaultProvider` 和 openLCA
+  auto-link 创建 Product System，返回结构化 operation report；不接受待导入的 explicit
+  `processLinks`。
 * `get_import_operation(...)`：只读返回持久化导入状态。
 * `get_model_graph(...)`：构建带预期节点和图指纹检查的模型图结果。
 * `calculate_product_system(...)`：执行产品系统 LCIA，并在成功/异常路径释放结果句柄。

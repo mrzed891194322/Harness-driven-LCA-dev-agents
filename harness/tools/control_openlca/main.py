@@ -88,7 +88,10 @@ def _target_category(target_category: str) -> str:
 
 
 @mcp.tool(
-    description="Check whether the configured openLCA IPC Server is reachable and can query the active database.",
+    description=(
+        "Check whether the configured openLCA IPC Server and active database "
+        "respond, retrying with three fresh clients after the first failed probe."
+    ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )

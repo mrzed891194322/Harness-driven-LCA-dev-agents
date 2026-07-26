@@ -464,6 +464,44 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         self.assertNotIn("workspace/logs/whole-lca", content)
         self.assertNotIn("workspace/outputs/reports/<run_id>", content)
 
+    def test_openlca_connection_and_auto_link_gates_are_shared(self) -> None:
+        runtime = (
+            PROJECT_ROOT
+            / "harness"
+            / "specs"
+            / "public"
+            / "references"
+            / "workflow-runtime-spec.md"
+        ).read_text(encoding="utf-8")
+        stage03 = (
+            PROJECT_ROOT
+            / "harness"
+            / "specs"
+            / "03-lci-construction"
+            / "references"
+            / "03-lci-construction-spec.md"
+        ).read_text(encoding="utf-8")
+        adapters = "\n".join(
+            (PROJECT_ROOT / path).read_text(encoding="utf-8")
+            for path in (
+                "harness/pipelines/LCA-main.md",
+                ".codex/skills/workflow-main/SKILL.md",
+                ".opencode/agents/major-orchestrator.md",
+                ".opencode/agents/sub-executor.md",
+                ".codex/agents/major-orchestrator.toml",
+                ".codex/agents/sub-executor.toml",
+            )
+        )
+
+        self.assertIn("health_check", runtime)
+        self.assertRegex(runtime, r"(?:3 次重连|重连 3 次)")
+        self.assertIn("failed", runtime)
+        self.assertNotRegex(adapters, r"(?:3 次重连|重连 3 次|4 次有界探测)")
+        self.assertIn("`isInput`", stage03)
+        self.assertIn("`defaultProvider`", stage03)
+        self.assertIn("`linkingMode: auto`", stage03)
+        self.assertNotIn("`linkingMode: explicit`", stage03)
+
     def test_workflow_has_no_runtime_confirmation_parameter_or_state(self) -> None:
         paths = (
             "harness/pipelines/LCA-main.md",

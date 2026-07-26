@@ -4,8 +4,8 @@
 
 | 文件 | 覆盖范围 |
 | --- | --- |
-| `test_gui.py` | GUI 配置与界面构建 |
-| `test_plan_editor.py` | 计划编辑器解析/序列化 |
+| `test_gui.py` | GUI 构建、四个共享 Markdown 文档视图及其事件 |
+| `test_plan_editor.py` | Markdown 文档解析、metadata 兼容、目录与序列化 |
 | `test_initialization.py` | 项目初始化与就绪检查 |
 | `test_clean_dir.py` | `clean_dir` 清理目标 |
 | `test_lca_result.py` | LCA 结果解析 |
