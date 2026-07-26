@@ -11,6 +11,7 @@
 - 只允许 `flows/`、`processes/`、`product_systems/` 三个实体目录；每个 JSON 文件只能包含一个与目录匹配的 openLCA JSON-LD 实体。根目录或嵌套目录中的 JSON、聚合容器和辅助报告均不属于可导入 LCI。
 - 每个实体必须包含固定 `@context`、合法 `@type`、非空 `@id` 和 `name`。映射报告固定为 `workspace/outputs/LCI/human_readable_mapping.md`；机器报告写入 `workspace/outputs/reports/`。
 - 每个 Process exchange 必须显式使用布尔字段 `isInput`；不得缺失、写为 `null`、使用非布尔值或写成会被 `olca-schema` 忽略的 `input`。
+- 每个 Process 必须且只能有一个输出 exchange 使用布尔字段 `isQuantitativeReference: true`，且该 exchange 必须引用非空 Flow UUID；不得使用会被 `olca-schema` 静默忽略的 `quantitativeReference`，也不得把输入 exchange 标记为定量参考。
 - Product System 统一使用 `linkingMode: auto`、`preferDefaultProviders: true`、明确 `refProcess` 和非空 `expectedProcessIds`；不得提供 `processes` 或 `processLinks` 作为待导入拓扑。比较情景用不同的 `defaultProvider` 固定前景连接，并用 `expectedProcessIds` 读回验证。
 - 引用当前 LCI Flow 的输入 exchange 必须具有 `defaultProvider`。若 Provider 是当前 LCI Process，该 Process 必须以 `isInput: false` 输出同一 Flow；背景 Provider 继续由正式数据库查询和 Stage 05 预检验证。
 - 数值、单位、Provider、UUID 和系统边界必须能回链到计划或第 02 阶段证据；不得猜测缺失事实。
@@ -21,5 +22,5 @@
 ## 3. 输出与完成条件
 
 - 阶段交接必须列出全部 LCI 产物及 SHA-256、来源 artifact ID、所用证据、未解决项和下一动作。
-- 进入第 04 阶段前必须运行 `references/scripts/validation.py`；只有 Flow、Process、Product System 均非空，全部 exchange 方向和前景 Provider 连接有效，Product System 满足 auto-link 契约，校验返回 `ok=true` 且无阻断性证据缺口时才能继续。
+- 进入第 04 阶段前必须运行 `references/scripts/validation.py`；只有 Flow、Process、Product System 均非空，每个 Process 具有唯一有效的输出定量参考 exchange，全部 exchange 方向和前景 Provider 连接有效，Product System 满足 auto-link 契约，校验返回 `ok=true` 且无阻断性证据缺口时才能继续。
 - 本阶段完成不表示 LCI 已通过质量评估，也不允许跳过第 04 阶段进入预检。

@@ -498,6 +498,8 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         self.assertIn("failed", runtime)
         self.assertNotRegex(adapters, r"(?:3 次重连|重连 3 次|4 次有界探测)")
         self.assertIn("`isInput`", stage03)
+        self.assertIn("`isQuantitativeReference: true`", stage03)
+        self.assertIn("`quantitativeReference`", stage03)
         self.assertIn("`defaultProvider`", stage03)
         self.assertIn("`linkingMode: auto`", stage03)
         self.assertNotIn("`linkingMode: explicit`", stage03)

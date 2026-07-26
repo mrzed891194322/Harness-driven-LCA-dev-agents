@@ -175,6 +175,19 @@ class RubricTests(unittest.TestCase):
             if item["criterion_id"] == "LCI-05"
         )
         self.assertIn("节点非空", lci_model["required_evidence"])
+        quantitative_reference = next(
+            item
+            for item in load_rubric()["criteria"]
+            if item["criterion_id"] == "LCI-04"
+        )
+        self.assertIn(
+            "isQuantitativeReference: true",
+            quantitative_reference["required_evidence"],
+        )
+        self.assertIn(
+            "quantitativeReference",
+            quantitative_reference["required_evidence"],
+        )
 
 
 class EvaluationContractTests(unittest.TestCase):

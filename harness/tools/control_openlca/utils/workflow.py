@@ -214,10 +214,18 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
     for item in inventory:
         if item["entity_type"] != "Process":
             continue
-        exchanges = item["data"].get("exchanges", [])
+        process_data = item["data"]
+        if "quantitativeReference" in process_data:
+            errors.append(
+                f"{item['path']}: uses unsupported field "
+                "'quantitativeReference'; mark exactly one output exchange with "
+                "boolean 'isQuantitativeReference: true'"
+            )
+        exchanges = process_data.get("exchanges", [])
         if not isinstance(exchanges, list):
             errors.append(f"{item['path']}: exchanges must be an array")
             continue
+        quantitative_references: list[int] = []
         for index, exchange in enumerate(exchanges, start=1):
             if not isinstance(exchange, dict):
                 errors.append(f"{item['path']}: exchanges[{index}] must be an object")
@@ -227,6 +235,20 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                     f"{item['path']}: exchanges[{index}] uses unsupported field "
                     "'input'; use boolean 'isInput'"
                 )
+            if "quantitativeReference" in exchange:
+                errors.append(
+                    f"{item['path']}: exchanges[{index}] uses unsupported field "
+                    "'quantitativeReference'; use boolean "
+                    "'isQuantitativeReference'"
+                )
+            if (
+                "isQuantitativeReference" in exchange
+                and not isinstance(exchange["isQuantitativeReference"], bool)
+            ):
+                errors.append(
+                    f"{item['path']}: exchanges[{index}].isQuantitativeReference "
+                    "must be a boolean when present"
+                )
             is_input = exchange.get("isInput")
             if not isinstance(is_input, bool):
                 errors.append(
@@ -234,9 +256,28 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                     "explicit boolean"
                 )
                 continue
-            flow_id = (exchange.get("flow") or {}).get("@id")
+            flow = exchange.get("flow")
+            flow_id = flow.get("@id") if isinstance(flow, dict) else None
+            if exchange.get("isQuantitativeReference") is True:
+                quantitative_references.append(index)
+                if is_input is not False:
+                    errors.append(
+                        f"{item['path']}: exchanges[{index}] quantitative "
+                        "reference must be an output exchange"
+                    )
+                if not isinstance(flow_id, str) or not flow_id:
+                    errors.append(
+                        f"{item['path']}: exchanges[{index}] quantitative "
+                        "reference requires a non-empty Flow @id"
+                    )
             if is_input is False and isinstance(flow_id, str):
                 foreground_outputs[item["id"]].add(flow_id)
+        if len(quantitative_references) != 1:
+            errors.append(
+                f"{item['path']}: Process requires exactly one output exchange "
+                "with boolean 'isQuantitativeReference: true'; found "
+                f"{len(quantitative_references)}"
+            )
 
     for item in inventory:
         if item["entity_type"] != "Process":
@@ -244,7 +285,8 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
         for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
             if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
                 continue
-            flow_id = (exchange.get("flow") or {}).get("@id")
+            flow = exchange.get("flow")
+            flow_id = flow.get("@id") if isinstance(flow, dict) else None
             provider = exchange.get("defaultProvider")
             provider_id = (
                 provider.get("@id") if isinstance(provider, dict) else None
@@ -282,7 +324,10 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
             errors.append(
                 f"{item['path']}: preferDefaultProviders must be true"
             )
-        ref_process_id = (data.get("refProcess") or {}).get("@id")
+        ref_process = data.get("refProcess")
+        ref_process_id = (
+            ref_process.get("@id") if isinstance(ref_process, dict) else None
+        )
         if ref_process_id not in foreground_process_ids:
             errors.append(
                 f"{item['path']}: refProcess must reference a foreground Process"

@@ -35,8 +35,8 @@ flowchart TD
 | 输入审查 | `harness/specs/public/references/schemas/review.schema.json` | 进入阶段前 | 01 → 03 | 计划已通过、可检索缺口已列明 | review 非通过时不得进入 |
 | 输入交接 | `harness/specs/public/references/schemas/handoff.schema.json` | 建立 LCI 前 | 02 → 03 | 查询、原文位置、UUID、选择理由、未解决项和输入 hashes | 阻断证据缺口停止 |
 | 请求/返回交接 | `harness/specs/public/references/schemas/handoff.schema.json` | 委派制定前后 | 主编排 Agent ↔ `sub-executor` | 允许写入的 LCI 范围、输入/输出 artifact、来源 artifact ID、SHA-256、证据和下一动作 | 不接受未登记产物 |
-| LCI 产物 | `workspace/outputs/LCI/` | 执行 Agent 制定时 | `sub-executor` → 04/05 | `flows/`、`processes/`、`product_systems/` 一文件一实体；exchange 使用布尔 `isInput`，前景输入使用 `defaultProvider`；Product System 使用 auto-link、默认 Provider 和 `expectedProcessIds`；映射报告为 `human_readable_mapping.md` | 聚合容器、错误方向字段、缺失前景 Provider、explicit 拓扑、缺少实体类型或重复 UUID 均失败 |
-| 确定性校验 | `references/scripts/validation.py` | 03 完成及每轮 04 审查前 | 执行 Agent / reviewer | 调用共享 `validate_lci_directory`，返回实体计数、hash、exchange 方向、Provider-Flow 一致性、auto-link 契约和错误 | `ok!=true` 不得进入预检 |
+| LCI 产物 | `workspace/outputs/LCI/` | 执行 Agent 制定时 | `sub-executor` → 04/05 | `flows/`、`processes/`、`product_systems/` 一文件一实体；exchange 使用布尔 `isInput`，每个 Process 有且仅有一个 `isQuantitativeReference: true` 的输出 exchange，前景输入使用 `defaultProvider`；Product System 使用 auto-link、默认 Provider 和 `expectedProcessIds`；映射报告为 `human_readable_mapping.md` | 聚合容器、错误方向/定量参考字段、缺失或重复定量参考、缺失前景 Provider、explicit 拓扑、缺少实体类型或重复 UUID 均失败 |
+| 确定性校验 | `references/scripts/validation.py` | 03 完成及每轮 04 审查前 | 执行 Agent / reviewer | 调用共享 `validate_lci_directory`，返回实体计数、hash、exchange 方向、唯一定量参考、Provider-Flow 一致性、auto-link 契约和错误 | `ok!=true` 不得进入预检 |
 | 阶段 schema | `harness/specs/public/references/schemas/stage.schema.json` | 阶段开始与结束 | 主编排 Agent → stages | 状态、LCI artifact IDs、evidence refs、issue IDs | 非通过状态不进入 04 |
 | 清单 schema | `harness/specs/public/references/schemas/workflow-manifest.schema.json` | LCI artifact 登记时 | 主编排 Agent → manifest | 每个产物的 kind、路径、hash、来源和 revision 关系 | 无法追踪时停止 |
 

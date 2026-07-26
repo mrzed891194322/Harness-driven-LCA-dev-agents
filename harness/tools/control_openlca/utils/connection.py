@@ -50,6 +50,46 @@ class BoundedIPCClient(olca_ipc.Client):
         self._s.mount("http://", adapter)
         self._s.mount("https://", adapter)
 
+    def create_product_system(
+        self,
+        process: olca_schema.Ref | olca_schema.Process,
+        config: olca_schema.LinkingConfig | None = None,
+    ) -> olca_schema.Ref:
+        """Create a system without discarding the server's JSON-RPC error."""
+        linking_config = config or olca_schema.LinkingConfig(
+            prefer_unit_processes=False,
+            provider_linking=olca_schema.ProviderLinking.PREFER_DEFAULTS,
+        )
+        result, error = self.rpc_call(
+            "data/create/system",
+            {
+                "process": olca_schema.as_ref(process).to_dict(),
+                "config": linking_config.to_dict(),
+            },
+        )
+        if error:
+            raise OpenLCARequestError(
+                f"openLCA data/create/system failed at {self.url}: {error}"
+            )
+        if not isinstance(result, dict):
+            raise OpenLCARequestError(
+                "openLCA data/create/system returned an invalid response at "
+                f"{self.url}: expected an object"
+            )
+        try:
+            reference = olca_schema.Ref.from_dict(result)
+        except Exception as exc:
+            raise OpenLCARequestError(
+                "openLCA data/create/system returned an invalid reference at "
+                f"{self.url}: {exc}"
+            ) from exc
+        if not isinstance(reference.id, str) or not reference.id.strip():
+            raise OpenLCARequestError(
+                "openLCA data/create/system returned a reference without a UUID "
+                f"at {self.url}"
+            )
+        return reference
+
     def close(self) -> None:
         self._s.close()
 

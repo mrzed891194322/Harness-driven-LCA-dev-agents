@@ -41,6 +41,7 @@ class FakeImportClient:
         self.fail_put_names: set[str] = set()
         self.fail_delete_ids: set[str] = set()
         self.fail_create_product_system = False
+        self.create_product_system_error: Exception | None = None
         self.query_error: Exception | None = None
         self.create_product_system_calls: list[tuple[object, object]] = []
         self.entities: dict[tuple[type, str], object] = {}
@@ -73,6 +74,8 @@ class FakeImportClient:
         self, process: object, config: object
     ) -> SimpleNamespace | None:
         self.create_product_system_calls.append((process, config))
+        if self.create_product_system_error is not None:
+            raise self.create_product_system_error
         if self.fail_create_product_system:
             return None
         generated = olca_schema.ProductSystem(
@@ -149,7 +152,14 @@ def write_product_system_fixture(root: Path) -> None:
                 "@type": "Process",
                 "@id": PROCESS_ID,
                 "name": "P01 Foreground process",
-                "exchanges": [],
+                "exchanges": [
+                    {
+                        "@type": "Exchange",
+                        "flow": {"@type": "Flow", "@id": FLOW_ID},
+                        "isInput": False,
+                        "isQuantitativeReference": True,
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -182,6 +192,12 @@ def write_linked_auto_product_system_fixture(root: Path) -> None:
         {
             "@type": "Exchange",
             "flow": {"@type": "Flow", "@id": FLOW_ID},
+            "isInput": False,
+            "isQuantitativeReference": True,
+        },
+        {
+            "@type": "Exchange",
+            "flow": {"@type": "Flow", "@id": FLOW_ID},
             "isInput": True,
             "defaultProvider": {
                 "@type": "Process",
@@ -202,6 +218,7 @@ def write_linked_auto_product_system_fixture(root: Path) -> None:
                         "@type": "Exchange",
                         "flow": {"@type": "Flow", "@id": FLOW_ID},
                         "isInput": False,
+                        "isQuantitativeReference": True,
                     }
                 ],
             }
@@ -328,6 +345,102 @@ class ImportWorkflowTests(unittest.TestCase):
             any("unsupported field 'input'" in error for error in result["errors"])
         )
 
+    def test_preflight_rejects_ignored_quantitative_reference_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            process_path = root / "processes" / "p01-test.json"
+            process = json.loads(process_path.read_text(encoding="utf-8"))
+            exchange = process["exchanges"][0]
+            del exchange["isQuantitativeReference"]
+            exchange["quantitativeReference"] = True
+            process_path.write_text(json.dumps(process), encoding="utf-8")
+            client = FakeImportClient()
+            result = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"], "invalid_lci")
+        self.assertIsNone(result["preflight_hash"])
+        self.assertTrue(
+            any(
+                "unsupported field 'quantitativeReference'" in error
+                for error in result["errors"]
+            )
+        )
+        self.assertEqual(client.put_calls, [])
+        self.assertEqual(client.delete_calls, [])
+
+    def test_lci_validation_requires_one_output_quantitative_reference(self) -> None:
+        cases = ("missing", "duplicate", "input")
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                write_product_system_fixture(root)
+                (root / "human_readable_mapping.md").write_text(
+                    "# Mapping\n",
+                    encoding="utf-8",
+                )
+                process_path = root / "processes" / "p01-test.json"
+                process = json.loads(process_path.read_text(encoding="utf-8"))
+                exchange = process["exchanges"][0]
+                if case == "missing":
+                    del exchange["isQuantitativeReference"]
+                elif case == "duplicate":
+                    process["exchanges"].append(dict(exchange))
+                else:
+                    exchange["isInput"] = True
+                process_path.write_text(json.dumps(process), encoding="utf-8")
+                result = workflow.validate_lci_directory(root)
+
+            self.assertFalse(result["ok"])
+            if case == "missing":
+                self.assertTrue(
+                    any("found 0" in error for error in result["errors"])
+                )
+            elif case == "duplicate":
+                self.assertTrue(
+                    any("found 2" in error for error in result["errors"])
+                )
+            else:
+                self.assertTrue(
+                    any(
+                        "quantitative reference must be an output exchange" in error
+                        for error in result["errors"]
+                    )
+                )
+
+    def test_lci_validation_checks_quantitative_reference_shape(self) -> None:
+        cases = ("non_boolean", "missing_flow")
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                write_product_system_fixture(root)
+                (root / "human_readable_mapping.md").write_text(
+                    "# Mapping\n",
+                    encoding="utf-8",
+                )
+                process_path = root / "processes" / "p01-test.json"
+                process = json.loads(process_path.read_text(encoding="utf-8"))
+                exchange = process["exchanges"][0]
+                if case == "non_boolean":
+                    exchange["isQuantitativeReference"] = "true"
+                else:
+                    del exchange["flow"]
+                process_path.write_text(json.dumps(process), encoding="utf-8")
+                result = workflow.validate_lci_directory(root)
+
+            self.assertFalse(result["ok"])
+            expected = (
+                "isQuantitativeReference must be a boolean"
+                if case == "non_boolean"
+                else "requires a non-empty Flow @id"
+            )
+            self.assertTrue(
+                any(expected in error for error in result["errors"])
+            )
+
     def test_lci_validation_requires_foreground_provider_to_output_flow(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -407,6 +520,16 @@ class ImportWorkflowTests(unittest.TestCase):
             process_path = root / "processes" / "p01-test.json"
             process_data = json.loads(process_path.read_text(encoding="utf-8"))
             process_data["exchanges"] = [
+                {
+                    "@type": "Exchange",
+                    "flow": {
+                        "@type": "Flow",
+                        "@id": FLOW_ID,
+                        "name": "Test product",
+                    },
+                    "isInput": False,
+                    "isQuantitativeReference": True,
+                },
                 {
                     "@type": "Exchange",
                     "flow": {"@type": "Flow", "@id": FLOW_ID, "name": "Test product"},
@@ -777,6 +900,34 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual(report["status"], "partial_failure")
         self.assertEqual(report["failed_count"], 1)
         self.assertIn("did not create an auto-linked ProductSystem", report["errors"][0])
+
+    def test_product_system_auto_link_report_preserves_rpc_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_product_system_fixture(root)
+            client = FakeImportClient()
+            client.create_product_system_error = RuntimeError(
+                "reference process has no quantitative reference"
+            )
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            report = workflow.import_lci(
+                "localhost",
+                8080,
+                root,
+                "project-a",
+                preflight["preflight_hash"],
+                "isolated-db",
+                client,
+            )
+
+        self.assertEqual(report["status"], "partial_failure")
+        self.assertEqual(report["failed_count"], 1)
+        self.assertIn(
+            "reference process has no quantitative reference",
+            report["errors"][0],
+        )
 
     def test_product_system_temporary_cleanup_failure_is_structured(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

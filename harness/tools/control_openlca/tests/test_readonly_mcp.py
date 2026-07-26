@@ -77,6 +77,89 @@ class ReadOnlyServiceTests(unittest.TestCase):
 
         self.assertEqual(send.call_args.kwargs["timeout"], (1.0, 3.0))
 
+    def test_product_system_creation_returns_valid_reference(self) -> None:
+        client = connection.BoundedIPCClient("http://localhost:8080")
+        process = olca_schema.Ref(id="process-id", name="Reference process")
+        config = olca_schema.LinkingConfig(
+            prefer_unit_processes=False,
+            provider_linking=olca_schema.ProviderLinking.PREFER_DEFAULTS,
+        )
+        try:
+            with patch.object(
+                client,
+                "rpc_call",
+                return_value=(
+                    {
+                        "@type": "ProductSystem",
+                        "@id": "product-system-id",
+                        "name": "Generated system",
+                    },
+                    None,
+                ),
+            ) as rpc_call:
+                result = client.create_product_system(process, config)
+        finally:
+            client.close()
+
+        self.assertEqual(result.id, "product-system-id")
+        rpc_call.assert_called_once_with(
+            "data/create/system",
+            {
+                "process": {"@id": "process-id", "name": "Reference process"},
+                "config": {
+                    "preferUnitProcesses": False,
+                    "providerLinking": "PREFER_DEFAULTS",
+                },
+            },
+        )
+
+    def test_product_system_creation_preserves_rpc_error(self) -> None:
+        client = connection.BoundedIPCClient("http://localhost:8080")
+        try:
+            with (
+                patch.object(
+                    client,
+                    "rpc_call",
+                    return_value=(
+                        None,
+                        "reference process has no quantitative reference",
+                    ),
+                ),
+                self.assertRaisesRegex(
+                    connection.OpenLCARequestError,
+                    "reference process has no quantitative reference",
+                ),
+            ):
+                client.create_product_system(
+                    olca_schema.Ref(id="process-id"),
+                )
+        finally:
+            client.close()
+
+    def test_product_system_creation_rejects_invalid_response(self) -> None:
+        responses = (
+            None,
+            {"@type": "ProductSystem", "name": "Missing UUID"},
+            {"@type": "ProductSystem", "@id": 42},
+        )
+        for response in responses:
+            with self.subTest(response=response):
+                client = connection.BoundedIPCClient("http://localhost:8080")
+                try:
+                    with (
+                        patch.object(
+                            client,
+                            "rpc_call",
+                            return_value=(response, None),
+                        ),
+                        self.assertRaises(connection.OpenLCARequestError),
+                    ):
+                        client.create_product_system(
+                            olca_schema.Ref(id="process-id"),
+                        )
+                finally:
+                    client.close()
+
     def test_probe_ipc_reuses_client_and_resolves_model_name(self) -> None:
         client = FakeClient()
         with patch.object(

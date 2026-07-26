@@ -8,7 +8,7 @@
 - `query_descriptors(entity_type, search="", limit=50, offset=0)`：只读查询实体名称、UUID、分类、地域和分页信息。`entity_type` 只可使用工具 schema 声明的类型。
 - `get_process_details(process_id)`：只读回读一个确切 Process UUID 的地域和定量参考 exchange。
 - `get_flow_providers(flow_id, location="", limit=50, offset=0)`：只读查询一个确切 Flow UUID 的可用 Process Provider；返回紧凑引用，可按地域文本过滤和分页。
-- `preflight_import_lci(lci_dir="workspace/outputs/LCI", target_category="", database_name=null)`：只读校验独立实体 LCI、明确数据库身份、目标分类和背景 Provider，返回分项指纹、创建/覆盖/删除范围及稳定 `preflight_hash`。必须传 `database_name` 或设置 `OPENLCA_DATABASE_NAME`。
+- `preflight_import_lci(lci_dir="workspace/outputs/LCI", target_category="", database_name=null)`：只读校验独立实体 LCI、每个 Process 唯一有效的输出定量参考 exchange、明确数据库身份、目标分类和背景 Provider，返回分项指纹、创建/覆盖/删除范围及稳定 `preflight_hash`。必须传 `database_name` 或设置 `OPENLCA_DATABASE_NAME`。
 - `import_lci(preflight_hash, lci_dir="workspace/outputs/LCI", target_category="", database_name=null)`：唯一的数据库写入工具。调用前会重新预检；只有当前哈希完全一致时才写入。
 - `get_import_operation(preflight_hash)`：导入超时后的只读 operation journal 查询。
 - `get_model_graph(product_system, expected_process_ids=null)`：只读返回 Product System 的节点、边、图指纹、断链、孤立节点和缺失预期节点。
