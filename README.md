@@ -6,7 +6,7 @@
 
 - `harness/`：workflow 契约、stage 规则、OpenLCA 和 RAG 工具实现。
 - `src/`：GUI、脚本、初始化与文件同步逻辑。
-- `workspace/`：当前运行期唯一输入与产物目录（`workspace/inputs/plan.md`、`workspace/outputs/LCI/`、`workspace/outputs/reports/`）。
+- `workspace/`：当前运行期唯一输入与产物目录（`workspace/inputs/plan.md`、可选的 `workspace/inputs/revise.md`、`workspace/outputs/LCI/`、`workspace/outputs/reports/`）。
 - `docs/lang_CN/`：中文文档集合（原 `docs/wiki` 已迁移并清理）。
 - `.opencode/`：OpenCode 命令、Agent 和适配配置。
 
@@ -43,7 +43,7 @@
 
 ## 🖥️ 启动控制面板 GUI (推荐)
 
-项目已提供 **Gradio Web 控制面板**（位于 [src/GUI](src/GUI)），当前支持可视化项目初始化、资料上传、RAG 构建、环境检查、完整 LCA 执行和结构化结果查看。
+项目已提供 **Gradio Web 控制面板**（位于 [src/GUI](src/GUI)），当前支持可视化项目初始化、资料上传、RAG 构建、环境检查、完整 LCA 执行、既有结果修订和结构化结果查看。
 
 ### 启动方式 (通用)
 
@@ -87,6 +87,12 @@ uv run python src/scripts/initialization/main.py
 1. **准备/修改文件**：放置原始参考文档到 `workspace/inputs/references/file/`，原始数据到 `workspace/inputs/references/data/`，将计划文件放到 `workspace/inputs/plan.md`。
 2. **执行 OpenCode 任务** (支持命令行或 CLI 交互界面) ：
    * **端到端受控执行**：以 `workspace/inputs/plan.md` 作为计划输入，运行 `opencode run --command whole-lca`（或 `/whole-lca`）；系统保存精确预检范围，并在哈希一致时自动完成导入、读回和计算。
+   * **修订既有结果**：保留已完成运行的 plan、LCI、memory 和 `lca_report.md`，将意见写入 `workspace/inputs/revise.md`，运行 `opencode run --command revise-lca`（或 `/revise-lca`）。系统先保存直接上一轮 baseline，再覆盖 plan、重建 LCI、重算并覆盖最终报告。
+
+Codex 中对应入口为 `$workflow-main` 与 `$revise-lca`。后者实现位于
+`.codex/skills/revise-lca/`，使用与 OpenCode 相同的
+`harness/pipelines/LCA-revise.md` 和
+`harness/specs/08-lca-revise-pipeline/` 专属契约。
 
 
 > 💡 **关于文件放置路径、人工审核交互及完整调试步骤，请参见**：[手动调试与文件同步指南](docs/lang_CN/manual_debug.md)

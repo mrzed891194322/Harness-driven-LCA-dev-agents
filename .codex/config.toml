@@ -30,15 +30,15 @@ max_depth = 2
 
 
 [agents.major-orchestrator]
-description = "编排无人值守 whole-lca 状态机、专用子 agent、哈希预检和运行证据。"
+description = "编排无人值守 whole-lca/revise-lca 状态机、专用子 agent、哈希预检和运行证据。"
 config_file = "agents/major-orchestrator.toml"
 
 [agents.sub-executor]
-description = "执行 whole-lca 检索、LCI、openLCA 预检/导入/读回/计算阶段。"
+description = "执行 whole-lca/revise-lca 检索、LCI、openLCA 预检/导入/读回/计算阶段。"
 config_file = "agents/sub-executor.toml"
 
 [agents.eval-reviewer]
-description = "只读审查 whole-lca 的计划或 LCI，返回结构化问题。"
+description = "只读审查 whole-lca/revise-lca 的计划或 LCI，返回结构化问题。"
 config_file = "agents/eval-reviewer.toml"
 
 [agents.lca-quality-evaluator]

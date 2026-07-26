@@ -50,6 +50,7 @@ def bind_ui_events(
     improvement_view: MarkdownDocumentView,
     close_improvement_btn: gr.Button,
     upload_improvement_btn: gr.UploadButton,
+    execute_improvement_btn: gr.Button,
     plan_view: MarkdownDocumentView,
     close_plan_btn: gr.Button,
     upload_plan_btn: gr.UploadButton,
@@ -59,6 +60,7 @@ def bind_ui_events(
     env_gate_state: gr.State,
     openlca_gate_state: gr.State,
     plan_ready_state: gr.State,
+    improvement_ready_state: gr.State,
 ) -> None:
     """Bind events for the currently supported GUI features."""
     bind_left_sidebar_events(
@@ -108,12 +110,19 @@ def bind_ui_events(
         openlca_gate_state=openlca_gate_state,
     )
 
-    bind_tab_improvement_events(
+    revision_execute_event = bind_tab_improvement_events(
         modify_rerun_btn=modify_rerun_btn,
         improvement_view=improvement_view,
         close_improvement_btn=close_improvement_btn,
         upload_improvement_btn=upload_improvement_btn,
+        execute_improvement_btn=execute_improvement_btn,
         right_tabs=right_tabs,
+        env_gate_state=env_gate_state,
+        openlca_gate_state=openlca_gate_state,
+        improvement_ready_state=improvement_ready_state,
+        output_console=output_console,
+        status=status,
+        run_result_state=run_result_state,
     )
 
     # The mapping report is read-only and does not invoke the removed LCI
@@ -133,6 +142,9 @@ def bind_ui_events(
         plan_view=plan_view,
         report_view=report_view,
         plan_ready_state=plan_ready_state,
+        improvement_ready_state=improvement_ready_state,
+        execute_improvement_btn=execute_improvement_btn,
+        revision_execute_event=revision_execute_event,
         env_gate_state=env_gate_state,
         openlca_gate_state=openlca_gate_state,
         output_console=output_console,

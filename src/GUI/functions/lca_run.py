@@ -8,6 +8,12 @@ from typing import Any
 import config
 
 
+SUPPORTED_WORKFLOW_MANIFESTS = {
+    "whole-lca/workflow-manifest": "2.0",
+    "revise-lca/workflow-manifest": "1.0",
+}
+
+
 def manifest_fingerprint(path: Path | None = None) -> str | None:
     manifest_path = path or config.WORKFLOW_MANIFEST_PATH
     try:
@@ -210,17 +216,16 @@ def parse_lca_result(
             "status": "invalid",
             "failure_markdown": f"### 失败原因\n\n- {detail}",
         }
-    if (
-        manifest.get("schema") != "whole-lca/workflow-manifest"
-        or str(manifest.get("version")) != "2.0"
-    ):
+    schema = str(manifest.get("schema") or "")
+    version = str(manifest.get("version") or "")
+    if SUPPORTED_WORKFLOW_MANIFESTS.get(schema) != version:
         return {
             "success": False,
             "tab_label": "LCA执行结果（LCA提前中止）",
             "status": "invalid",
             "failure_markdown": (
                 "### 失败原因\n\n"
-                "- workflow manifest 的 schema 或 version 不符合当前 Whole-LCA 契约。"
+                "- workflow manifest 的 schema 或 version 不符合当前 LCA 工作流契约。"
             ),
         }
 

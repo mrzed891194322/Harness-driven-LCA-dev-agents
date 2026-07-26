@@ -129,7 +129,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                         improvement_view,
                         close_improvement_btn,
                         upload_improvement_btn,
-                        _execute_improvement_btn,
+                        execute_improvement_btn,
                     ) = build_tab_revise()
 
                     # 常驻挂载、由导航模式按需显示入口的只读 LCI 清单组件。
@@ -146,6 +146,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
         env_gate_state = gr.State(value=False)
         openlca_gate_state = gr.State(value=False)
         plan_ready_state = gr.State(value=False)
+        improvement_ready_state = gr.State(value=False)
 
         # 绑定事件
         bind_ui_events(
@@ -187,6 +188,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             improvement_view=improvement_view,
             close_improvement_btn=close_improvement_btn,
             upload_improvement_btn=upload_improvement_btn,
+            execute_improvement_btn=execute_improvement_btn,
             plan_view=plan_view,
             close_plan_btn=close_plan_btn,
             upload_plan_btn=upload_plan_btn,
@@ -196,6 +198,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             env_gate_state=env_gate_state,
             openlca_gate_state=openlca_gate_state,
             plan_ready_state=plan_ready_state,
+            improvement_ready_state=improvement_ready_state,
         )
         
     return demo, theme, css, js_code

@@ -32,7 +32,7 @@ Windows 用户也可以运行 `src/scripts/_launch_gui.bat`。启动后访问
 `workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。
 报告缺失或不可读时面板会显示原因，不会保留上一次加载的正文。
 
-“计划制定”“LCA评估修改”“查看LCA结果(仅开发过程使用)”和“LCI清单”四个文档型
+“计划制定”“LCA评估修改面板(功能开发中)”“LCA评估结果”和“LCI清单”四个文档型
 Tab 共用同一个 Markdown 文档视图：左侧为 Markdown 标题目录，右侧为滚动正文，
 每个 Tab 使用独立组件前缀、标题锚点和暂存 State。视图会隐藏可选 YAML
 front matter；若文档包含完整的 `PLAN_TEXTBOX` 区域，则在原位置显示 Textbox，
@@ -57,16 +57,19 @@ openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败
 悬停显示“请检查环境连接及填写计划”。执行后 GUI 调用 OpenCode
 `whole-lca` 命令，并根据 `workspace/memory/manifest.json` 展示完成或提前
 中止结果。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
-“查看LCA结果(仅开发过程使用)”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
+“LCA评估结果”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
 用户可下载报告或按需打开
 `workspace/outputs/LCI/human_readable_mapping.md`。LCI Tab 始终保持挂载，但其导航入口
 仅在打开映射时显示；底部“关闭面板”只返回 LCA 结果并隐藏导航入口，不再卸载 Tab。
 结果和 LCI 文档若包含 `PLAN_TEXTBOX` 也会显示原位输入框，但当前不会把这些
 临时输入写回报告文件。
-“修改LCA评估”打开独立、常驻挂载的“LCA评估修改”Tab。该面板每次打开都
+“修改LCA评估”打开独立、常驻挂载的“LCA评估修改面板(功能开发中)”Tab。该面板每次打开都
 重新加载 `ui/assets/template/revise.md`，可在内存中暂存最多 20 个
-`PLAN_TEXTBOX` 输入区域的 `.md` 改进方案；“执行改进”当前为禁用且无事件的
-占位按钮，“关闭面板”返回 LCA 结果。“修改LCI清单”当前仅
+`PLAN_TEXTBOX` 输入区域的 `.md` 改进方案。环境/openLCA 门禁通过、意见非空，
+且现有 plan、manifest、LCI 和最终报告齐备时启用“执行改进”；点击后原子保存到
+`workspace/inputs/revise.md` 并调用 OpenCode `revise-lca`。成功后结果 Tab
+重新加载被覆盖的 `lca_report.md`，失败时读取 revise manifest 展示原因。
+“关闭面板”返回 LCA 结果。“修改LCI清单”当前仅
 作为禁用的功能占位按钮显示。
 
 GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界面，不依赖在线字体；

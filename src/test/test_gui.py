@@ -77,6 +77,10 @@ class GuiConfigurationTests(unittest.TestCase):
             config.LCA_REPORT_PATH,
             PROJECT_ROOT / "workspace" / "outputs" / "reports" / "lca_report.md",
         )
+        self.assertEqual(
+            config.CURRENT_REVISION_PATH,
+            PROJECT_ROOT / "workspace" / "inputs" / "revise.md",
+        )
         renamed_paths = (
             GUI_ROOT / "ui" / "components" / "render_mdfile.py",
             GUI_ROOT / "ui" / "components" / "tab_revise.py",
@@ -201,7 +205,7 @@ class GuiBuildTests(unittest.TestCase):
             in (
                 "项目初始化",
                 "终端显示",
-                "查看LCA结果(仅开发过程使用)",
+                "LCA评估结果",
             )
         ]
         self.assertEqual(
@@ -209,7 +213,7 @@ class GuiBuildTests(unittest.TestCase):
             [
                 "项目初始化",
                 "终端显示",
-                "查看LCA结果(仅开发过程使用)",
+                "LCA评估结果",
             ],
         )
 
@@ -307,7 +311,7 @@ class GuiBuildTests(unittest.TestCase):
             component
             for component in self.demo.blocks.values()
             if type(component).__name__ == "Tab"
-            and component.label == "LCA评估修改"
+            and component.label == "LCA评估修改面板(功能开发中)"
         ]
         self.assertEqual(len(improvement_tabs), 1)
         for legacy_label in ("计划输入", "计划输出", "计划修改"):
@@ -493,8 +497,8 @@ class GuiBuildTests(unittest.TestCase):
         for label in (
             "项目初始化",
             "终端显示",
-            "查看LCA结果(仅开发过程使用)",
-            "LCA评估修改",
+            "LCA评估结果",
+            "LCA评估修改面板(功能开发中)",
         ):
             self.assertIn(f"'{label}'", improvement_mode)
         self.assertIn("button.dataset.tabId || label", source)
@@ -505,7 +509,7 @@ class GuiBuildTests(unittest.TestCase):
         self.assertIn("window.guiOpenImprovementMode", source)
         self.assertIn("window.guiCloseImprovementPanel", source)
         self.assertIn(
-            "selectRightTabByText('查看LCA结果(仅开发过程使用)')",
+            "selectRightTabByText('LCA评估结果')",
             source,
         )
 
@@ -579,7 +583,11 @@ class GuiBuildTests(unittest.TestCase):
             for item in self.demo.config["dependencies"]
             if item.get("targets") == [(execute_improvement._id, "click")]
         ]
-        self.assertEqual(execute_dependencies, [])
+        self.assertEqual(len(execute_dependencies), 1)
+        self.assertEqual(
+            execute_dependencies[0]["api_name"],
+            "prepare_revision_flow",
+        )
 
         close_btn = components_by_elem_id["close-improvement-btn"]
         close_dependencies = [
@@ -596,7 +604,7 @@ class GuiBuildTests(unittest.TestCase):
         )
 
         load_default = self._event_fn("load_improvement_panel")
-        loaded = load_default()
+        loaded = load_default(False, False)
         self.assertEqual(loaded[0]["selected"], "lca_improvement_tab")
         self.assertIn("LCA评估修改", loaded[1]["value"])
         markdown_count = plan_editor.MAX_PLAN_INPUTS + 1
@@ -637,7 +645,7 @@ class GuiBuildTests(unittest.TestCase):
                 "CURRENT_PLAN_PATH",
                 workspace_plan,
             ):
-                staged = stage(str(upload_path))
+                staged = stage(str(upload_path), False, False)
 
             markdown_count = plan_editor.MAX_PLAN_INPUTS + 1
             field_start = markdown_count + 2
@@ -655,11 +663,59 @@ class GuiBuildTests(unittest.TestCase):
             invalid_path = root / "improvement.txt"
             invalid_path.write_text("# invalid", encoding="utf-8")
             with self.assertRaisesRegex(gr.Error, "当前页面未改变"):
-                stage(str(invalid_path))
+                stage(str(invalid_path), False, False)
             self.assertEqual(
                 workspace_plan.read_text(encoding="utf-8"),
                 "original",
             )
+
+    def test_execute_improvement_saves_fixed_revision_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            inputs = root / "inputs"
+            outputs = root / "outputs"
+            memory = root / "memory"
+            inputs.mkdir()
+            (outputs / "LCI").mkdir(parents=True)
+            (outputs / "reports").mkdir()
+            memory.mkdir()
+            plan_path = inputs / "plan.md"
+            revision_path = inputs / "revise.md"
+            report_path = outputs / "reports" / "lca_report.md"
+            manifest_path = memory / "manifest.json"
+            plan_path.write_text("# plan\n", encoding="utf-8")
+            report_path.write_text("# report\n", encoding="utf-8")
+            manifest_path.write_text("{}", encoding="utf-8")
+
+            runtime_config = sys.modules["config"]
+            prepare = self._event_fn("prepare_revision_flow")
+            source = runtime_config.REVISE_TEMPLATE_PATH.read_text(
+                encoding="utf-8"
+            )
+            values = ["提高前景电力数据的地域代表性"] + [""] * (
+                plan_editor.MAX_PLAN_INPUTS - 1
+            )
+            with (
+                patch.object(runtime_config, "CURRENT_PLAN_PATH", plan_path),
+                patch.object(
+                    runtime_config,
+                    "CURRENT_REVISION_PATH",
+                    revision_path,
+                ),
+                patch.object(runtime_config, "LCA_REPORT_PATH", report_path),
+                patch.object(
+                    runtime_config,
+                    "WORKFLOW_MANIFEST_PATH",
+                    manifest_path,
+                ),
+                patch.object(runtime_config, "WORKSPACE_OUTPUTS", outputs),
+            ):
+                prepared = prepare(*values, source)
+
+            self.assertEqual(prepared[1], "Running")
+            saved = revision_path.read_text(encoding="utf-8")
+            self.assertIn("提高前景电力数据的地域代表性", saved)
+            self.assertIn("<!-- PLAN_TEXTBOX -->", saved)
 
     def test_lci_inventory_loads_without_template_front_matter(self) -> None:
         load_mapping = self._event_fn("open_lci_mapping")

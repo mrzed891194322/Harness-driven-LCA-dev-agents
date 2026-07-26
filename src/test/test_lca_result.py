@@ -61,6 +61,20 @@ class LcaResultTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["tab_label"], "LCA执行结果")
 
+    def test_completed_revise_manifest_is_success(self) -> None:
+        lca_run.config.WORKFLOW_MANIFEST_PATH.write_text(
+            json.dumps(
+                {
+                    "schema": "revise-lca/workflow-manifest",
+                    "version": "1.0",
+                    "status": "completed",
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = lca_run.parse_lca_result()
+        self.assertTrue(result["success"])
+
     def test_failure_aggregates_stage_review_and_tool_reasons(self) -> None:
         self._write_manifest(
             "needs_input",

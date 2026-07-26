@@ -28,6 +28,9 @@ def bind_tab_result_events(
     plan_view: MarkdownDocumentView,
     report_view: MarkdownDocumentView,
     plan_ready_state: gr.State,
+    improvement_ready_state: gr.State,
+    execute_improvement_btn: gr.Button,
+    revision_execute_event,
     env_gate_state: gr.State,
     openlca_gate_state: gr.State,
     output_console: gr.Textbox,
@@ -268,6 +271,32 @@ def bind_tab_result_events(
             download_report_btn,
             right_tabs,
             execute_lca_btn,
+        ],
+        js="window.guiOpenResultMode",
+    )
+
+    def render_revision_result(result, env_ok, openlca_ok, revision_ready):
+        return render_result(result, env_ok, openlca_ok, revision_ready)
+
+    revision_execute_event.then(
+        fn=render_revision_result,
+        inputs=[
+            run_result_state,
+            env_gate_state,
+            openlca_gate_state,
+            improvement_ready_state,
+        ],
+        outputs=[
+            result_heading,
+            success_panel,
+            failure_panel,
+            failure_markdown,
+            *document_output_components(report_view),
+            report_view.content_row,
+            report_warning,
+            download_report_btn,
+            right_tabs,
+            execute_improvement_btn,
         ],
         js="window.guiOpenResultMode",
     )

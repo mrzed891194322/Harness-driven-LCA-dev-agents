@@ -42,16 +42,16 @@
 环境和 openLCA 是“执行LCA计划”的两项门禁。初始化子进程的退出码必须
 逐层传递到 GUI，失败不得显示为 `Finished`。
 
-### 3. Whole-LCA 结果模块
+### 3. LCA 工作流结果模块
 
-- `lca_run.py`：识别本次 manifest，区分完成与提前中止，并从阶段、审查及
-  工具报告中聚合失败原因。
+- `lca_run.py`：识别本次 whole-lca v2 或 revise-lca v1 manifest，区分完成与
+  提前中止，并从阶段、审查及工具报告中聚合失败原因。
 - `plan_editor.py`：仅用 `PLAN_TEXTBOX` 注释识别其后的“用户填写内容区”，
   并把正文拆成原位交替的 Markdown/Textbox；无 front matter、任意 front matter
   和纯 Markdown 均可解析，已有 front matter 原样保留且不校验类型或版本。
   同时为所有文档型 Tab 生成可配置标题层级的 Markdown 目录和匹配锚点。
-  上传内容只在内存暂存；计划执行时仅替换输入值，保留文档标记和静态内容并
-  原子写入唯一计划路径，其他文档视图输入则不写入 workspace。
+  上传内容只在内存暂存；计划执行时原子写入唯一计划路径，改进执行时原子写入
+  `workspace/inputs/revise.md`；其他文档视图输入不写入 workspace。
 
 ### 4. 历史计划需求模块
 

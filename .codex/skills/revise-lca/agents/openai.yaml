@@ -1,0 +1,4 @@
+interface:
+  display_name: "Revise LCA"
+  short_description: "Revise an existing LCA from its report and user feedback"
+  default_prompt: "Use $revise-lca to snapshot the current LCA evidence, revise it from workspace/inputs/revise.md, and replace the canonical plan and report."

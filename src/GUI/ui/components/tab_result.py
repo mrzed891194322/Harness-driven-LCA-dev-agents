@@ -22,7 +22,7 @@ def build_tab_result() -> tuple[
 
     report_relative_path = config.LCA_REPORT_RELATIVE_PATH.as_posix()
     with gr.Tab(
-        "查看LCA结果(仅开发过程使用)",
+        "LCA评估结果",
         id="lca_result_tab",
     ) as result_tab:
         with gr.Column(

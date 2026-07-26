@@ -18,7 +18,10 @@ def build_tab_revise() -> tuple[
     """Build the independent in-memory LCA assessment improvement form."""
     import config
 
-    with gr.Tab("LCA评估修改", id="lca_improvement_tab") as improvement_tab:
+    with gr.Tab(
+        "LCA评估修改面板(功能开发中)",
+        id="lca_improvement_tab",
+    ) as improvement_tab:
         with gr.Column(
             elem_id="improvement-workspace",
             elem_classes=["right-tab-workspace", "right-workspace-panel"],

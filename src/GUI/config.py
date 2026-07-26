@@ -48,7 +48,8 @@ REPORTS_DIR = WORKSPACE_OUTPUTS / "reports"
 # -----------------------------------------------------------------------------
 # Markdown 文档
 # 相对路径用于界面来源/错误提示并构造绝对路径；绝对路径用于实际读取和下载。
-# CURRENT_PLAN_PATH 是“执行LCA计划”唯一允许写入的计划文件。
+# CURRENT_PLAN_PATH 是唯一执行计划；CURRENT_REVISION_PATH 是 revise-lca
+# 固定意见输入。两者都只在对应执行按钮被点击后写入。
 # -----------------------------------------------------------------------------
 PLAN_INPUT_TEMPLATE_RELATIVE_PATH = (
     Path("src") / "GUI" / "ui" / "assets" / "template" / "plan.md"
@@ -61,6 +62,7 @@ REVISE_TEMPLATE_RELATIVE_PATH = (
 REVISE_TEMPLATE_PATH = PROJECT_ROOT / REVISE_TEMPLATE_RELATIVE_PATH
 
 CURRENT_PLAN_PATH = WORKSPACE_INPUTS / "plan.md"
+CURRENT_REVISION_PATH = WORKSPACE_INPUTS / "revise.md"
 
 LCI_MAPPING_RELATIVE_PATH = (
     Path("workspace") / "outputs" / "LCI" / "human_readable_mapping.md"

@@ -35,9 +35,9 @@ function visibleRightTabLabels(mode) {
         terminal: ['项目初始化', '终端显示'],
         plan: ['项目初始化', '终端显示', '计划制定'],
         running: ['项目初始化', '终端显示'],
-        result: ['项目初始化', '终端显示', '查看LCA结果(仅开发过程使用)'],
-        lciReport: ['项目初始化', '终端显示', '查看LCA结果(仅开发过程使用)', 'LCI清单'],
-        improvement: ['项目初始化', '终端显示', '查看LCA结果(仅开发过程使用)', 'LCA评估修改'],
+        result: ['项目初始化', '终端显示', 'LCA评估结果'],
+        lciReport: ['项目初始化', '终端显示', 'LCA评估结果', 'LCI清单'],
+        improvement: ['项目初始化', '终端显示', 'LCA评估结果', 'LCA评估修改面板(功能开发中)'],
     };
     return visibleByMode[mode] || visibleByMode.project;
 }
@@ -113,7 +113,7 @@ window.setQuickActionMode = setQuickActionMode;
 window.selectRightTabByText = selectRightTabByText;
 window.selectProjectInitTab = () => selectRightTabByText('项目初始化');
 window.selectPlanEditorTab = () => selectRightTabByText('计划制定');
-window.selectImprovementTab = () => selectRightTabByText('LCA评估修改');
+window.selectImprovementTab = () => selectRightTabByText('LCA评估修改面板(功能开发中)');
 window.selectLciMappingTab = () => selectRightTabByText('LCI清单');
 window.selectTerminalTab = () => selectRightTabByText('终端显示');
 
@@ -145,19 +145,19 @@ window.guiOpenLciReportMode = (...args) => {
 
 window.guiOpenImprovementMode = (...args) => {
     setRightTabMode('improvement');
-    selectRightTabByText('LCA评估修改');
+    selectRightTabByText('LCA评估修改面板(功能开发中)');
     return args;
 };
 
 window.guiCloseImprovementPanel = (...args) => {
     setRightTabMode('result');
-    selectRightTabByText('查看LCA结果(仅开发过程使用)');
+    selectRightTabByText('LCA评估结果');
     return args;
 };
 
 window.guiCloseLciReportPanel = (...args) => {
     setRightTabMode('result');
-    selectRightTabByText('查看LCA结果(仅开发过程使用)');
+    selectRightTabByText('LCA评估结果');
     return args;
 };
 

@@ -29,3 +29,10 @@ When a task starts from an existing execution plan, first read `public/README.md
 7. `07-lcia-calculation-reporting/README.md`
 
 Do not load all seven stage specifications at startup. Move through them in order and follow each package's own references.
+
+### Revise-LCA Workflow Run
+
+When a task starts from an existing LCA result plus
+`workspace/inputs/revise.md`, first read `08-lca-revise-pipeline/README.md`,
+then follow `harness/pipelines/LCA-revise.md`. The revision intake is specific
+to that package; stages 02–07 continue to use the numbered Whole-LCA packages.

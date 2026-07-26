@@ -43,6 +43,8 @@ uv.lock
 !.codex/skills/read-knowledge/**
 !.codex/skills/workflow-main/
 !.codex/skills/workflow-main/**
+!.codex/skills/revise-lca/
+!.codex/skills/revise-lca/**
 !.codex/skills/evaluate-lca-quality/
 !.codex/skills/evaluate-lca-quality/**
 !.codex/skills/improve-whole-lca-workflow/
