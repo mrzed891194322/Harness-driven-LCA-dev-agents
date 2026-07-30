@@ -117,7 +117,7 @@ uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
 ### 1. IPC 连接模块 (`utils/connection.py`)
 *   **核心函数**：`create_ipc_client(...)`、`probe_ipc(...)`、`close_ipc_client(...)` 和兼容 CLI 的 `connect_ipc(...)`。
 *   **用途**：统一构造带 HTTP timeout 的 `BoundedIPCClient`；探测使用较小的 Currency descriptor 请求，并显式识别 JSON-RPC 错误。
-*   **规范**：普通只读请求使用 30 秒读取 timeout，导入/计算使用 285 秒，健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。工具自行创建的客户端在返回前关闭。
+*   **规范**：普通只读请求使用 30 秒读取 timeout，Provider 全索引反查、清理范围扫描、预检、导入和计算使用 285 秒，健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。
 
 ### 2. 实体检索模块 (`utils/entity.py`)
 *   **核心函数**：`find_entity(client, model_type, name_or_uuid)`

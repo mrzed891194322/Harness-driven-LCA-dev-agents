@@ -9,6 +9,7 @@ from .connection import (
     HEALTH_BACKOFF_SECONDS,
     HEALTH_RECONNECTS,
     HEALTH_REQUEST_TIMEOUT,
+    LONG_REQUEST_TIMEOUT,
     build_endpoint,
     close_ipc_client,
     connection_error_kind,
@@ -204,7 +205,11 @@ def get_flow_providers(
     endpoint = build_endpoint(host, port)
     client = None
     try:
-        client = create_ipc_client(host, port)
+        client = create_ipc_client(
+            host,
+            port,
+            timeout=LONG_REQUEST_TIMEOUT,
+        )
         flow = client.get(olca_schema.Flow, flow_id)
         tech_flows = list(client.get_providers(flow) or []) if flow is not None else []
     except Exception as exc:

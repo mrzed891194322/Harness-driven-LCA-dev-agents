@@ -267,8 +267,41 @@ class ReadOnlyServiceTests(unittest.TestCase):
         self.assertIs(result, operation_client)
         self.assertTrue(probe_client.closed)
         self.assertEqual(probe.call_count, 4)
-        create.assert_called_once_with("127.0.0.1", 8080)
+        create.assert_called_once_with(
+            "127.0.0.1",
+            8080,
+            timeout=connection.READ_REQUEST_TIMEOUT,
+        )
         self.assertEqual(sleep.call_count, 3)
+
+    def test_legacy_cli_connection_applies_requested_long_timeout(self) -> None:
+        probe_client = FakeClient()
+        operation_client = FakeClient()
+        with (
+            patch.object(
+                connection,
+                "probe_ipc",
+                return_value=probe_client,
+            ),
+            patch.object(
+                connection,
+                "create_ipc_client",
+                return_value=operation_client,
+            ) as create,
+        ):
+            result = connection.connect_ipc(
+                "127.0.0.1",
+                8080,
+                olca_schema.ProductSystem,
+                timeout=connection.LONG_REQUEST_TIMEOUT,
+            )
+
+        self.assertIs(result, operation_client)
+        create.assert_called_once_with(
+            "127.0.0.1",
+            8080,
+            timeout=connection.LONG_REQUEST_TIMEOUT,
+        )
 
     def test_query_filters_case_insensitively_and_paginates(self) -> None:
         client = FakeClient([
@@ -383,7 +416,11 @@ class ReadOnlyServiceTests(unittest.TestCase):
             entities={(olca_schema.Flow, flow_id): flow},
             providers=providers,
         )
-        with patch.object(readonly, "create_ipc_client", return_value=client):
+        with patch.object(
+            readonly,
+            "create_ipc_client",
+            return_value=client,
+        ) as client_factory:
             result = readonly.get_flow_providers(
                 "localhost",
                 8080,
@@ -400,6 +437,11 @@ class ReadOnlyServiceTests(unittest.TestCase):
         self.assertEqual(result["next_offset"], 1)
         self.assertEqual(result["items"][0]["provider_id"], "provider-1")
         self.assertEqual(result["items"][0]["flow_ref_unit"], "kWh")
+        client_factory.assert_called_once_with(
+            "localhost",
+            8080,
+            timeout=connection.LONG_REQUEST_TIMEOUT,
+        )
 
     def test_process_details_return_location_and_quantitative_reference(self) -> None:
         process_id = "process-1"

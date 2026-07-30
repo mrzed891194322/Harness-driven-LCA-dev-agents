@@ -176,7 +176,13 @@ def is_transport_error(exc: BaseException) -> bool:
     return isinstance(exc, (requests.Timeout, requests.ConnectionError))
 
 
-def connect_ipc(host, port, test_model_type):
+def connect_ipc(
+    host,
+    port,
+    test_model_type,
+    *,
+    timeout: TimeoutValue = READ_REQUEST_TIMEOUT,
+):
     endpoint = build_endpoint(host, port)
     print(f"Connecting to openLCA IPC Server ({endpoint})...")
 
@@ -193,7 +199,7 @@ def connect_ipc(host, port, test_model_type):
         try:
             probe_client = probe_ipc(host, port, olca_schema.Currency)
             close_ipc_client(probe_client)
-            client = create_ipc_client(host, port)
+            client = create_ipc_client(host, port, timeout=timeout)
             print(f"IPC connection established after {attempt} attempt(s).")
             return client
         except Exception as e:

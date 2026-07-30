@@ -601,7 +601,11 @@ def _inspect_import(
         )
 
     owns_client = client is None
-    ipc_client = client or create_ipc_client(host, port)
+    ipc_client = client or create_ipc_client(
+        host,
+        port,
+        timeout=LONG_REQUEST_TIMEOUT,
+    )
     try:
         database_records, target_descriptors = _database_snapshot(ipc_client, category)
     except Exception as exc:

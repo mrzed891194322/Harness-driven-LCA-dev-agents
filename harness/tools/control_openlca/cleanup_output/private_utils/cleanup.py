@@ -10,8 +10,10 @@ def collect_entities(client, project_name: str, model_types: list[type]) -> list
         try:
             descriptors = client.get_descriptors(model_type)
         except Exception as exc:
-            print(f"[WARNING] Failed to get {model_type.__name__} descriptors: {exc}")
-            continue
+            raise RuntimeError(
+                f"Failed to get {model_type.__name__} descriptors; "
+                "cleanup scope is incomplete"
+            ) from exc
 
         for descriptor in descriptors:
             if is_in_project_category(getattr(descriptor, "category", None), project_name):

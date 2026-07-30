@@ -7,6 +7,9 @@ This tool deletes entities created under an openLCA project category through the
 - `Flow`
 
 The script runs in preview mode by default. Add `--yes` to execute deletion after reviewing the matched entities.
+Descriptor enumeration uses the bounded long-request timeout. If any requested
+entity type cannot be enumerated, cleanup fails without deleting anything; a
+partial scan is never reported as an empty project category.
 
 ## Usage
 

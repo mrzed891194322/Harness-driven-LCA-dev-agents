@@ -11,6 +11,7 @@ docs/test
 
 # logs
 logs/
+*.log
 
 # Virtual environments
 .venv

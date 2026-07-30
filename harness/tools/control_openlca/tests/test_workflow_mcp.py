@@ -45,6 +45,7 @@ class FakeImportClient:
         self.query_error: Exception | None = None
         self.create_product_system_calls: list[tuple[object, object]] = []
         self.entities: dict[tuple[type, str], object] = {}
+        self.close_calls = 0
 
     def get_descriptors(self, model_type: type) -> list[FakeDescriptor]:
         if self.query_error is not None:
@@ -115,6 +116,9 @@ class FakeImportClient:
                 for descriptor in descriptors
                 if descriptor.id != getattr(reference, "id", None)
             ]
+
+    def close(self) -> None:
+        self.close_calls += 1
 
 
 def write_flow(
@@ -479,6 +483,61 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual(first["counts"], {"planned": 1, "overwrite_or_delete": 1})
         self.assertEqual(client.put_calls, [])
         self.assertEqual(client.delete_calls, [])
+
+    def test_preflight_owned_client_uses_long_timeout_and_closes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_flow(root)
+            client = FakeImportClient()
+            with patch.object(
+                workflow,
+                "create_ipc_client",
+                return_value=client,
+            ) as client_factory:
+                result = workflow.preflight_import_lci(
+                    "localhost",
+                    8080,
+                    root,
+                    "project-a",
+                    "isolated-db",
+                )
+
+        self.assertTrue(result["ok"], result["errors"])
+        client_factory.assert_called_once_with(
+            "localhost",
+            8080,
+            timeout=workflow.LONG_REQUEST_TIMEOUT,
+        )
+        self.assertEqual(client.close_calls, 1)
+
+    def test_preflight_owned_client_closes_after_snapshot_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_flow(root)
+            client = FakeImportClient()
+            client.query_error = OSError("wrong database")
+            with (
+                patch.object(
+                    workflow,
+                    "create_ipc_client",
+                    return_value=client,
+                ) as client_factory,
+                self.assertRaisesRegex(RuntimeError, "http://localhost:8080"),
+            ):
+                workflow.preflight_import_lci(
+                    "localhost",
+                    8080,
+                    root,
+                    "project-a",
+                    "isolated-db",
+                )
+
+        client_factory.assert_called_once_with(
+            "localhost",
+            8080,
+            timeout=workflow.LONG_REQUEST_TIMEOUT,
+        )
+        self.assertEqual(client.close_calls, 1)
 
     def test_unrelated_database_changes_do_not_change_preflight_hash(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
