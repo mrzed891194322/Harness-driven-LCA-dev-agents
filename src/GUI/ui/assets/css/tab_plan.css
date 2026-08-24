@@ -54,7 +54,7 @@
 }
 
 #execute-lca-button-wrap:has(button:disabled)::after {
-    content: "请检查环境连接及填写计划";
+    content: "请先完成初始化检查并填写计划";
     position: absolute;
     left: 50%;
     bottom: calc(100% + 8px);

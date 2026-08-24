@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Generator
 
+from functions.utils.executor.private_utils.codex_jsonl import CodexJsonlFormatter
 from functions.utils.path_utils import find_project_root
 
 MAX_DISPLAY_CHARS = 240_000
@@ -177,6 +178,114 @@ def run_init_rag_database_console() -> Generator[tuple[str, str], None, None]:
         yield render_terminal_text(accumulated_output), "Stopped"
     else:
         yield render_terminal_text(accumulated_output), "Finished"
+
+
+WORKFLOW_COMMANDS = {
+    "opencode": {
+        "whole-lca": [
+            "opencode",
+            "run",
+            "--command",
+            "whole-lca",
+            "--dangerously-skip-permissions",
+        ],
+        "revise-lca": [
+            "opencode",
+            "run",
+            "--command",
+            "revise-lca",
+            "--dangerously-skip-permissions",
+        ],
+    },
+    "claude": {
+        "whole-lca": [
+            "claude",
+            "--agent",
+            "major-orchestrator",
+            "-p",
+            "/whole-lca",
+            "--permission-mode",
+            "dontAsk",
+        ],
+        "revise-lca": [
+            "claude",
+            "--agent",
+            "major-orchestrator",
+            "-p",
+            "/revise-lca",
+            "--permission-mode",
+            "dontAsk",
+        ],
+    },
+    "codex": {
+        "whole-lca": [
+            "codex",
+            "exec",
+            "--json",
+            "--color",
+            "never",
+            "-s",
+            "workspace-write",
+            "$whole-lca",
+        ],
+        "revise-lca": [
+            "codex",
+            "exec",
+            "--json",
+            "--color",
+            "never",
+            "-s",
+            "workspace-write",
+            "$revise-lca",
+        ],
+    },
+}
+
+
+def workflow_command_args(task: str, agent: str) -> list[str]:
+    """Return the one-line CLI used to launch a GUI workflow task."""
+    agent_key = (agent or "opencode").strip().lower()
+    if agent_key not in WORKFLOW_COMMANDS:
+        raise ValueError(f"Unsupported harness agent: {agent}")
+    if task not in WORKFLOW_COMMANDS[agent_key]:
+        raise ValueError(f"Unsupported workflow task: {task}")
+    return list(WORKFLOW_COMMANDS[agent_key][task])
+
+
+def run_workflow_command_console(
+    task: str,
+) -> Generator[tuple[str, str], None, None]:
+    """
+    Run whole-lca or revise-lca with the persisted harness CLI.
+    """
+    from functions.project_init.settings import load_harness_agent
+
+    agent = load_harness_agent()
+    command = workflow_command_args(task, agent)
+    accumulated_output = ""
+    formatter = CodexJsonlFormatter() if agent == "codex" else None
+
+    yield f"[System] Preparing to start {task} ({agent})...\n", "Running"
+
+    from functions.utils.process_manager import should_stop
+
+    for chunk in execute_command_stream(command):
+        if should_stop():
+            break
+        if formatter is not None:
+            chunk = formatter.consume(chunk)
+            if not chunk:
+                continue
+        accumulated_output += chunk
+        yield render_terminal_text(accumulated_output), "Running"
+
+    if should_stop():
+        if not accumulated_output.endswith("已停止\n") and not accumulated_output.endswith("已停止"):
+            accumulated_output += "\n[System] 已停止\n"
+        yield render_terminal_text(accumulated_output), "Stopped"
+    else:
+        yield render_terminal_text(accumulated_output), "Finished"
+
 
 def run_opencode_command_console(
     command_name: str,

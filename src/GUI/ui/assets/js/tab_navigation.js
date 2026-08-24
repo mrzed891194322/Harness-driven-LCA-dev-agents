@@ -11,13 +11,12 @@ let rightTabsUpdateScheduled = false;
 function setQuickActionMode(mode) {
     const activeId = mode === 'plan'
         ? 'quick-action-start-lca'
-        : ['result', 'lciReport', 'improvement'].includes(mode)
-            ? 'quick-action-view-results'
+        : mode === 'project'
+            ? 'quick-action-project'
             : null;
     [
         'quick-action-project',
         'quick-action-start-lca',
-        'quick-action-view-results',
     ].forEach((id) => {
         const element = document.getElementById(id);
         if (!element) return;
@@ -31,13 +30,13 @@ function setQuickActionMode(mode) {
 
 function visibleRightTabLabels(mode) {
     const visibleByMode = {
-        project: ['项目初始化', '终端显示'],
-        terminal: ['项目初始化', '终端显示'],
-        plan: ['项目初始化', '终端显示', '计划制定'],
-        running: ['项目初始化', '终端显示'],
-        result: ['项目初始化', '终端显示', 'LCA评估结果'],
-        lciReport: ['项目初始化', '终端显示', 'LCA评估结果', 'LCI清单'],
-        improvement: ['项目初始化', '终端显示', 'LCA评估结果', 'LCA评估修改面板(功能开发中)'],
+        project: ['终端显示', '设置&初始化'],
+        terminal: ['终端显示'],
+        plan: ['终端显示', '计划制定'],
+        running: ['终端显示'],
+        result: ['终端显示', 'LCA评估结果'],
+        lciReport: ['终端显示', 'LCA评估结果', 'LCI清单'],
+        improvement: ['终端显示', 'LCA评估结果', 'LCA评估修改面板(功能开发中)'],
     };
     return visibleByMode[mode] || visibleByMode.project;
 }
@@ -86,6 +85,7 @@ function observeRightTabs() {
 function selectRightTabByText(label, attempt = 0) {
     const button = rightTabButtons().find(el => el.textContent.includes(label));
     if (button) {
+        button.style.display = '';
         button.click();
         return;
     }
@@ -98,8 +98,8 @@ function selectRightTabByText(label, attempt = 0) {
 function initializeRightTabs(attempt = 0) {
     if (rightTabButtons().length > 0) {
         observeRightTabs();
-        setRightTabMode('project');
-        selectRightTabByText('项目初始化');
+        setRightTabMode('terminal');
+        selectRightTabByText('终端显示');
         return;
     }
 
@@ -111,20 +111,66 @@ function initializeRightTabs(attempt = 0) {
 window.setRightTabMode = setRightTabMode;
 window.setQuickActionMode = setQuickActionMode;
 window.selectRightTabByText = selectRightTabByText;
-window.selectProjectInitTab = () => selectRightTabByText('项目初始化');
+window.selectProjectInitTab = () => selectRightTabByText('设置&初始化');
 window.selectPlanEditorTab = () => selectRightTabByText('计划制定');
 window.selectImprovementTab = () => selectRightTabByText('LCA评估修改面板(功能开发中)');
 window.selectLciMappingTab = () => selectRightTabByText('LCI清单');
 window.selectTerminalTab = () => selectRightTabByText('终端显示');
 
+const SETTINGS_SECTION_IDS = {
+    init_check: 'settings-section-init-check',
+    agent: 'settings-section-agent',
+    rag: 'settings-section-rag',
+    developer: 'settings-section-developer',
+};
+
+function applySettingsSection(key) {
+    Object.entries(SETTINGS_SECTION_IDS).forEach(([itemKey, id]) => {
+        const element = document.getElementById(id);
+        if (!element) return;
+        const shouldShow = itemKey === key;
+        const hosts = [element];
+        const classified = element.closest('.settings-section');
+        if (classified && classified !== element) hosts.push(classified);
+        hosts.forEach((host) => {
+            host.classList.toggle('settings-section-hidden', !shouldShow);
+            host.classList.remove('hide', 'hidden');
+            host.style.removeProperty('display');
+            host.removeAttribute('hidden');
+        });
+    });
+
+    Object.keys(SETTINGS_SECTION_IDS).forEach((itemKey) => {
+        const nav = document.getElementById(`settings-nav-${itemKey}`);
+        if (!nav) return;
+        const shouldActivate = itemKey === key;
+        nav.classList.toggle('settings-nav-item-active', shouldActivate);
+        const button = nav.matches('button') ? nav : nav.querySelector('button');
+        if (button) button.classList.toggle('settings-nav-item-active', shouldActivate);
+    });
+}
+
+function bindSettingsSectionHandler(key) {
+    return (...args) => {
+        applySettingsSection(key);
+        return args;
+    };
+}
+
+window.guiSelectSettings_init_check = bindSettingsSectionHandler('init_check');
+window.guiSelectSettings_agent = bindSettingsSectionHandler('agent');
+window.guiSelectSettings_rag = bindSettingsSectionHandler('rag');
+window.guiSelectSettings_developer = bindSettingsSectionHandler('developer');
+
 window.guiOpenProjectMode = (...args) => {
     setRightTabMode('project');
-    selectRightTabByText('项目初始化');
+    selectRightTabByText('设置&初始化');
     return args;
 };
 
 window.guiOpenPlanMode = (...args) => {
     setRightTabMode('plan');
+    selectRightTabByText('计划制定');
     return args;
 };
 
@@ -136,11 +182,13 @@ window.guiStartLca = (...args) => {
 
 window.guiOpenResultMode = (...args) => {
     setRightTabMode('result');
+    selectRightTabByText('LCA评估结果');
     return args;
 };
 
 window.guiOpenLciReportMode = (...args) => {
     setRightTabMode('lciReport');
+    selectRightTabByText('LCI清单');
     return args;
 };
 
@@ -163,8 +211,8 @@ window.guiCloseLciReportPanel = (...args) => {
 };
 
 window.guiClosePanel = (...args) => {
-    setRightTabMode('project');
-    selectRightTabByText('项目初始化');
+    setRightTabMode('terminal');
+    selectRightTabByText('终端显示');
     return args;
 };
 

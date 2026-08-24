@@ -19,7 +19,7 @@
 - **[process_manager.py](utils/process_manager.py)**：负责跟踪当前活动命令执行子进程，并提供强制杀死底层任务进程树的统一实现。
 - **[log_exporter.py](utils/log_exporter.py)**：管理命令输出日志存放目录、路径规则以及将 stdout 实时追加写入本地日志文件。
   - **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `pyproject.toml`、`.opencode` 或 `.git` 的父目录）。
-- **命令执行子包 (`functions/utils/executor/`)**：负责运行后台 `opencode` 指令任务。
+- **命令执行子包 (`functions/utils/executor/`)**：负责按所选 harness CLI 运行 whole-lca / revise-lca，以及其它 OpenCode 命令。
   - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数。
   - **私有辅助包 (`private_utils/`)**：
     - `executor_utils.py`：流式捕获进程输出、过滤 ANSI 颜色与特殊控制符，并将日志以符合 Gradio 页面组件渲染的方式输出。
@@ -39,8 +39,11 @@
   - `file_handler.py`：将左侧上传的材料/数据文件暂存到 `workspace/inputs/references/`，再由文件同步脚本送入 RAG 输入目录。
   - `init_rag.py`：调用 RAG 向量库与模型数据库的本地初始化逻辑。
 
-环境和 openLCA 是“执行LCA计划”的两项门禁。初始化子进程的退出码必须
-逐层传递到 GUI，失败不得显示为 `Finished`。
+环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测 AI Agent CLI、
+RAG Embedding、openLCA 与知识库构建；四项全部通过后才解锁“执行LCA计划”。
+Agent / RAG 页的单项检查只弹对话框，不解锁执行。初始化子进程的退出码必须
+逐层传递到 GUI，失败不得显示为 `Finished`。选择的 Agent 与 RAG 配置写入
+`.env` 的 `HARNESS_AGENT` 和 `EMBEDDING_*`。
 
 ### 3. LCA 工作流结果模块
 

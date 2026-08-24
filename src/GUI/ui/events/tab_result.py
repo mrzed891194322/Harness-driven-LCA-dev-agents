@@ -11,8 +11,9 @@ from functions.plan_editor import (
     save_structured_plan,
 )
 from functions.utils.executor.private_utils.executor_utils import (
-    run_opencode_command_console,
+    run_workflow_command_console,
 )
+from functions.project_init.check_status import execution_ready
 from ui.components.render_mdfile import (
     MarkdownDocumentView,
     cleared_document_outputs,
@@ -31,8 +32,7 @@ def bind_tab_result_events(
     improvement_ready_state: gr.State,
     execute_improvement_btn: gr.Button,
     revision_execute_event,
-    env_gate_state: gr.State,
-    openlca_gate_state: gr.State,
+    init_check_ok_state: gr.State,
     output_console: gr.Textbox,
     status: gr.Textbox,
     run_result_state: gr.State,
@@ -89,7 +89,7 @@ def bind_tab_result_events(
             None,
             gr.update(interactive=False),
         )
-        for latest_console, latest_status in run_opencode_command_console("whole-lca"):
+        for latest_console, latest_status in run_workflow_command_console("whole-lca"):
             yield (
                 latest_console,
                 latest_status,
@@ -176,7 +176,7 @@ def bind_tab_result_events(
             gr.update(selected="lca_result_tab"),
         )
 
-    def render_result(result, env_ok, openlca_ok, plan_ready):
+    def render_result(result, init_ok, content_ready):
         result = result or {
             "success": False,
             "tab_label": "LCA执行结果（LCA提前中止）",
@@ -208,9 +208,7 @@ def bind_tab_result_events(
             *report_updates,
             gr.update(selected="lca_result_tab"),
             gr.update(
-                interactive=bool(env_ok)
-                and bool(openlca_ok)
-                and bool(plan_ready)
+                interactive=execution_ready(init_ok, content_ready)
             ),
         )
 
@@ -256,8 +254,7 @@ def bind_tab_result_events(
         fn=render_result,
         inputs=[
             run_result_state,
-            env_gate_state,
-            openlca_gate_state,
+            init_check_ok_state,
             plan_ready_state,
         ],
         outputs=[
@@ -275,15 +272,14 @@ def bind_tab_result_events(
         js="window.guiOpenResultMode",
     )
 
-    def render_revision_result(result, env_ok, openlca_ok, revision_ready):
-        return render_result(result, env_ok, openlca_ok, revision_ready)
+    def render_revision_result(result, init_ok, revision_ready):
+        return render_result(result, init_ok, revision_ready)
 
     revision_execute_event.then(
         fn=render_revision_result,
         inputs=[
             run_result_state,
-            env_gate_state,
-            openlca_gate_state,
+            init_check_ok_state,
             improvement_ready_state,
         ],
         outputs=[

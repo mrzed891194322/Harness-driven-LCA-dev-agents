@@ -15,8 +15,9 @@ from functions.plan_editor import (
 )
 from functions.lca_run import manifest_fingerprint, parse_lca_result
 from functions.utils.executor.private_utils.executor_utils import (
-    run_opencode_command_console,
+    run_workflow_command_console,
 )
+from functions.project_init.check_status import execution_ready
 from ui.components.render_mdfile import (
     MarkdownDocumentView,
     document_output_components,
@@ -34,8 +35,7 @@ def bind_tab_improvement_events(
     upload_improvement_btn: gr.UploadButton,
     execute_improvement_btn: gr.Button,
     right_tabs: gr.Tabs,
-    env_gate_state: gr.State,
-    openlca_gate_state: gr.State,
+    init_check_ok_state: gr.State,
     improvement_ready_state: gr.State,
     output_console: gr.Textbox,
     status: gr.Textbox,
@@ -58,8 +58,7 @@ def bind_tab_improvement_events(
     def _readiness(
         template: PlanTemplate,
         values: list[object],
-        env_ok: object,
-        openlca_ok: object,
+        init_ok: object,
     ):
         active_values = values[: len(template.fields)]
         feedback_ready = (
@@ -69,20 +68,18 @@ def bind_tab_improvement_events(
         )
         ready = feedback_ready and _baseline_available()
         return ready, gr.update(
-            interactive=bool(env_ok) and bool(openlca_ok) and ready
+            interactive=execution_ready(init_ok, ready)
         )
 
     def _loaded_outputs(
         template: PlanTemplate,
         source_label: str,
-        env_ok: object,
-        openlca_ok: object,
+        init_ok: object,
     ):
         ready, button = _readiness(
             template,
             list(template.values),
-            env_ok,
-            openlca_ok,
+            init_ok,
         )
         return (
             *loaded_document_outputs(
@@ -94,7 +91,7 @@ def bind_tab_improvement_events(
             button,
         )
 
-    def load_improvement_panel(env_ok, openlca_ok):
+    def load_improvement_panel(init_ok):
         import config
 
         try:
@@ -114,14 +111,13 @@ def bind_tab_improvement_events(
             updates = _loaded_outputs(
                 template,
                 "默认模板",
-                env_ok,
-                openlca_ok,
+                init_ok,
             )
         return gr.update(selected="lca_improvement_tab"), *updates
 
     modify_rerun_btn.click(
         fn=load_improvement_panel,
-        inputs=[env_gate_state, openlca_gate_state],
+        inputs=[init_check_ok_state],
         outputs=[
             right_tabs,
             *document_outputs,
@@ -134,23 +130,23 @@ def bind_tab_improvement_events(
     )
 
     def update_improvement_readiness(*arguments):
-        if len(arguments) < MAX_PLAN_INPUTS + 3:
+        extra_count = 2
+        if len(arguments) < MAX_PLAN_INPUTS + extra_count:
             return False, gr.update(interactive=False)
         values = list(arguments[:MAX_PLAN_INPUTS])
-        source_text, env_ok, openlca_ok = arguments[MAX_PLAN_INPUTS:]
+        source_text, init_ok = arguments[MAX_PLAN_INPUTS:]
         if not source_text:
             return False, gr.update(interactive=False)
         try:
             template = parse_execution_plan_text(source_text)
         except PlanTemplateError:
             return False, gr.update(interactive=False)
-        return _readiness(template, values, env_ok, openlca_ok)
+        return _readiness(template, values, init_ok)
 
     readiness_inputs = [
         *improvement_view.inputs,
         improvement_view.source_state,
-        env_gate_state,
-        openlca_gate_state,
+        init_check_ok_state,
     ]
     for improvement_input in improvement_view.inputs:
         improvement_input.input(
@@ -159,7 +155,7 @@ def bind_tab_improvement_events(
             outputs=[improvement_ready_state, execute_improvement_btn],
         )
 
-    def stage_uploaded_improvement(file_obj, env_ok, openlca_ok):
+    def stage_uploaded_improvement(file_obj, init_ok):
         try:
             text = read_uploaded_markdown(
                 file_obj,
@@ -181,16 +177,14 @@ def bind_tab_improvement_events(
         return _loaded_outputs(
             template,
             "上传改进方案",
-            env_ok,
-            openlca_ok,
+            init_ok,
         )
 
     upload_improvement_btn.upload(
         fn=stage_uploaded_improvement,
         inputs=[
             upload_improvement_btn,
-            env_gate_state,
-            openlca_gate_state,
+            init_check_ok_state,
         ],
         outputs=[
             *document_outputs,
@@ -260,7 +254,7 @@ def bind_tab_improvement_events(
             None,
             gr.update(interactive=False),
         )
-        for latest_console, latest_status in run_opencode_command_console(
+        for latest_console, latest_status in run_workflow_command_console(
             "revise-lca"
         ):
             yield (

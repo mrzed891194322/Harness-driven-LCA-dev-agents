@@ -4,7 +4,6 @@ import gradio as gr
 def build_left_sidebar() -> tuple[
     gr.Button,
     gr.Button,
-    gr.Button,
     gr.File,
     gr.File,
 ]:
@@ -43,7 +42,7 @@ def build_left_sidebar() -> tuple[
         )
 
         open_init_btn = gr.Button(
-            "打开初始化面板",
+            "设置&初始化",
             variant="secondary",
             size="lg",
             interactive=True,
@@ -52,24 +51,16 @@ def build_left_sidebar() -> tuple[
         )
         start_lca_btn = gr.Button(
             "开始LCA工作",
-            variant="primary",
+            variant="secondary",
             size="lg",
             interactive=True,
             elem_id="quick-action-start-lca",
-            elem_classes=["quick-action-btn"],
-        )
-        view_lca_result_btn = gr.Button(
-            "查看LCA结果(仅开发过程使用)",
-            variant="secondary",
-            size="lg",
-            elem_id="quick-action-view-results",
             elem_classes=["quick-action-btn"],
         )
 
     return (
         open_init_btn,
         start_lca_btn,
-        view_lca_result_btn,
         ref_materials_file,
         ref_data_file,
     )

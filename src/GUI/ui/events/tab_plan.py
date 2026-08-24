@@ -11,6 +11,7 @@ from functions.plan_editor import (
     parse_execution_plan_template,
     read_uploaded_plan,
 )
+from functions.project_init.check_status import execution_ready
 from ui.components.render_mdfile import (
     MarkdownDocumentView,
     document_output_components,
@@ -29,8 +30,7 @@ def bind_tab_plan_events(
     execute_lca_btn: gr.Button,
     right_tabs: gr.Tabs,
     plan_ready_state: gr.State,
-    env_gate_state: gr.State,
-    openlca_gate_state: gr.State,
+    init_check_ok_state: gr.State,
 ) -> None:
     """Bind default loading, upload staging and the execution readiness gate."""
 
@@ -39,8 +39,7 @@ def bind_tab_plan_events(
     def _readiness(
         template: PlanTemplate,
         values: list[object],
-        env_ok: object,
-        openlca_ok: object,
+        init_ok: object,
     ):
         active_values = values[: len(template.fields)]
         ready = (
@@ -49,20 +48,18 @@ def bind_tab_plan_events(
             else bool(template.source.strip())
         )
         return ready, gr.update(
-            interactive=bool(env_ok) and bool(openlca_ok) and ready
+            interactive=execution_ready(init_ok, ready)
         )
 
     def _loaded_document_outputs(
         template: PlanTemplate,
         source_label: str,
-        env_ok: object,
-        openlca_ok: object,
+        init_ok: object,
     ):
         ready, button = _readiness(
             template,
             list(template.values),
-            env_ok,
-            openlca_ok,
+            init_ok,
         )
         return (
             *loaded_document_outputs(
@@ -81,7 +78,7 @@ def bind_tab_plan_events(
             gr.update(interactive=False),
         )
 
-    def load_plan_panel(env_ok, openlca_ok):
+    def load_plan_panel(init_ok):
         import config
 
         try:
@@ -94,8 +91,7 @@ def bind_tab_plan_events(
             document_outputs = _loaded_document_outputs(
                 template,
                 "默认模板",
-                env_ok,
-                openlca_ok,
+                init_ok,
             )
         return (
             gr.update(selected="plan_editor_tab"),
@@ -110,7 +106,7 @@ def bind_tab_plan_events(
     ]
     start_lca_btn.click(
         fn=load_plan_panel,
-        inputs=[env_gate_state, openlca_gate_state],
+        inputs=[init_check_ok_state],
         outputs=open_outputs,
         queue=False,
         show_progress="hidden",
@@ -118,23 +114,23 @@ def bind_tab_plan_events(
     )
 
     def update_form_readiness(*arguments):
-        if len(arguments) < MAX_PLAN_INPUTS + 3:
+        extra_count = 2
+        if len(arguments) < MAX_PLAN_INPUTS + extra_count:
             return False, gr.update(interactive=False)
         values = list(arguments[:MAX_PLAN_INPUTS])
-        source_text, env_ok, openlca_ok = arguments[MAX_PLAN_INPUTS:]
+        source_text, init_ok = arguments[MAX_PLAN_INPUTS:]
         if not source_text:
             return False, gr.update(interactive=False)
         try:
             template = parse_execution_plan_text(source_text)
         except PlanTemplateError:
             return False, gr.update(interactive=False)
-        return _readiness(template, values, env_ok, openlca_ok)
+        return _readiness(template, values, init_ok)
 
     readiness_inputs = [
         *plan_view.inputs,
         plan_view.source_state,
-        env_gate_state,
-        openlca_gate_state,
+        init_check_ok_state,
     ]
     for plan_input in plan_view.inputs:
         plan_input.input(
@@ -143,7 +139,7 @@ def bind_tab_plan_events(
             outputs=[plan_ready_state, execute_lca_btn],
         )
 
-    def stage_uploaded_plan(file_obj, env_ok, openlca_ok):
+    def stage_uploaded_plan(file_obj, init_ok):
         try:
             text = read_uploaded_plan(file_obj)
             template = parse_execution_plan_text(
@@ -156,13 +152,15 @@ def bind_tab_plan_events(
         return _loaded_document_outputs(
             template,
             "上传计划",
-            env_ok,
-            openlca_ok,
+            init_ok,
         )
 
     upload_plan_btn.upload(
         fn=stage_uploaded_plan,
-        inputs=[upload_plan_btn, env_gate_state, openlca_gate_state],
+        inputs=[
+            upload_plan_btn,
+            init_check_ok_state,
+        ],
         outputs=[
             *document_output_components(plan_view),
             plan_ready_state,
@@ -171,7 +169,7 @@ def bind_tab_plan_events(
     )
 
     close_plan_btn.click(
-        fn=lambda: gr.update(selected="project_init_tab"),
+        fn=lambda: gr.update(selected="terminal_tab"),
         inputs=None,
         outputs=right_tabs,
         js="window.guiClosePanel",

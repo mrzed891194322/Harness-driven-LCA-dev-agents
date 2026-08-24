@@ -76,32 +76,33 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                 (
                     open_init_btn,
                     start_lca_btn,
-                    view_lca_result_btn,
                     ref_materials_file,
                     ref_data_file
                 ) = build_left_sidebar()
                 
             with gr.Column(scale=2, elem_id="right-panel"):
                 with gr.Tabs(elem_id="right-tabs") as right_tabs:
-                    # 项目初始化始终位于最左侧，并作为默认 Tab。
+                    _, output_console, status, clear_btn, stop_btn = build_tab_terminal()
+
                     (
-                        project_init_tab,
-                        close_init_btn,
-                        refresh_init_status_btn,
-                        exec_init_btn,
-                        env_status,
-                        env_recheck_btn,
-                        clean_status,
-                        clean_check_btn,
-                        clean_btn,
-                        rag_status,
+                        _settings_init_tab,
+                        init_check_btn,
+                        init_check_status_agent,
+                        init_check_status_rag,
+                        init_check_status_openlca,
+                        init_check_status_kb,
+                        agent_radio,
+                        agent_check_btn,
+                        rag_url,
+                        rag_model,
+                        rag_api_key,
                         rag_check_btn,
                         rag_btn,
-                        openlca_status,
-                        openlca_recheck_btn,
+                        dev_gui_port,
+                        dev_openlca_port,
+                        dev_ports_save_btn,
+                        view_lca_result_btn,
                     ) = build_tab_initial()
-
-                    _, output_console, status, clear_btn, stop_btn = build_tab_terminal()
 
                     (
                         _result_tab,
@@ -132,7 +133,6 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                         execute_improvement_btn,
                     ) = build_tab_revise()
 
-                    # 常驻挂载、由导航模式按需显示入口的只读 LCI 清单组件。
                     (
                         _lci_mapping_tab,
                         close_lci_mapping_btn,
@@ -143,12 +143,10 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                     ) = build_tab_lci()
 
         run_result_state = gr.State(value=None)
-        env_gate_state = gr.State(value=False)
-        openlca_gate_state = gr.State(value=False)
+        init_check_ok_state = gr.State(value=False)
         plan_ready_state = gr.State(value=False)
         improvement_ready_state = gr.State(value=False)
 
-        # 绑定事件
         bind_ui_events(
             open_init_btn=open_init_btn,
             start_lca_btn=start_lca_btn,
@@ -161,19 +159,23 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             status=status,
             clear_btn=clear_btn,
             stop_btn=stop_btn,
-            close_init_btn=close_init_btn,
-            refresh_init_status_btn=refresh_init_status_btn,
-            exec_init_btn=exec_init_btn,
-            env_status=env_status,
-            env_recheck_btn=env_recheck_btn,
-            clean_status=clean_status,
-            clean_check_btn=clean_check_btn,
-            clean_btn=clean_btn,
-            rag_status=rag_status,
+            init_check_btn=init_check_btn,
+            init_check_status_values=[
+                init_check_status_agent,
+                init_check_status_rag,
+                init_check_status_openlca,
+                init_check_status_kb,
+            ],
+            agent_radio=agent_radio,
+            agent_check_btn=agent_check_btn,
+            rag_url=rag_url,
+            rag_model=rag_model,
+            rag_api_key=rag_api_key,
             rag_check_btn=rag_check_btn,
             rag_btn=rag_btn,
-            openlca_status=openlca_status,
-            openlca_recheck_btn=openlca_recheck_btn,
+            dev_gui_port=dev_gui_port,
+            dev_openlca_port=dev_openlca_port,
+            dev_ports_save_btn=dev_ports_save_btn,
             close_lci_mapping_btn=close_lci_mapping_btn,
             lci_mapping_view=lci_mapping_view,
             lci_mapping_warning_row=lci_mapping_warning_row,
@@ -195,8 +197,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             report_view=report_view,
             report_warning=report_warning,
             download_report_btn=download_report_btn,
-            env_gate_state=env_gate_state,
-            openlca_gate_state=openlca_gate_state,
+            init_check_ok_state=init_check_ok_state,
             plan_ready_state=plan_ready_state,
             improvement_ready_state=improvement_ready_state,
         )

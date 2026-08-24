@@ -19,19 +19,24 @@
 uv run python src/GUI/main.py
 ```
 
-Windows 用户也可以运行 `src/scripts/_launch_gui.bat`。启动后访问
-<http://127.0.0.1:7860>。
+启动后访问 <http://127.0.0.1:7860>。关闭终端或按 `Ctrl+C` 结束 GUI。
 
 ## 当前功能边界
 
-项目初始化 Tab 始终位于最左侧并默认打开，“终端显示”Tab 始终位于其后。
-参考资料上传、目录清理、RAG 构建、环境检查、openLCA 连接检查和终端日志
-控制仍由 GUI 处理。
+“终端显示”Tab 始终位于最左侧并作为启动后的默认页。“设置&初始化”与“计划制定”
+一样由左侧按钮打开，启动时不显示。页内为左侧配置目录与右侧可滚动详情，
+点击目录进入对应配置项：初始化检查、AI Agent 工具、RAG 模型、RAG知识库构建、
+开发者选项。可选择 AI Agent（codex / claude / opencode）、填写 RAG
+模型（URL、模型、API Key），并分别检查 Agent CLI 或 RAG Embedding。
+「开始初始化检查」会依次探测 Agent、RAG 模型、openLCA 与知识库是否已构建，
+全部通过后才解锁「执行LCA计划」。参考资料上传、RAG 构建（构建前先清理生成物）
+和终端日志控制仍由 GUI 处理。Agent 与 RAG 配置写入仓库根目录 `.env`
+（`HARNESS_AGENT` 与 `EMBEDDING_*`），不会把密钥打印到终端。
 
-快捷操作区的“查看LCA结果(仅开发过程使用)”会读取已有的
+「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
 `workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。
 报告缺失或不可读时面板会显示原因，不会保留上一次加载的正文。
-快捷操作区底部的“打开初始化面板”会直接切换到“项目初始化”Tab。
+关闭计划面板会回到“终端显示”。
 
 “计划制定”“LCA评估修改面板(功能开发中)”“LCA评估结果”和“LCI清单”四个文档型
 Tab 共用同一个 Markdown 文档视图：左侧为 Markdown 标题目录，右侧为滚动正文，
@@ -52,12 +57,13 @@ Markdown/Textbox 交替组件池动态更新；无标记的普通 Markdown 作�
 metadata，GUI 会原样保留而不校验类型或版本。
 旧显式 `PLAN_INPUT` 注释不再支持。
 
-面板内执行按钮需要环境、openLCA 两项检查均通过；带输入区域的计划还需任一字段有内容，
+面板内执行按钮需要「初始化检查」四项全部通过；带输入区域的计划还需任一字段有内容，
 openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败时保持执行按钮禁用，
 无输入标记的 Markdown 计划可直接执行。不可用时
-悬停显示“请检查环境连接及填写计划”。执行后 GUI 调用 OpenCode
-`whole-lca` 命令，并根据 `workspace/memory/manifest.json` 展示完成或提前
-中止结果。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
+悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 调用
+对应平台的 `whole-lca` 一行命令，并根据 `workspace/memory/manifest.json` 展示完成或提前
+中止结果。Codex 在 GUI 中以 `codex exec --json` 运行，终端会把命令、MCP 调用和
+Agent 消息转成可读行；子 Agent 内部过程仍由其返回摘要体现。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
 “LCA评估结果”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
 用户可下载报告或按需打开
 `workspace/outputs/LCI/human_readable_mapping.md`。LCI Tab 始终保持挂载，但其导航入口
@@ -66,9 +72,9 @@ openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败
 临时输入写回报告文件。
 “修改LCA评估”打开独立、常驻挂载的“LCA评估修改面板(功能开发中)”Tab。该面板每次打开都
 重新加载 `ui/assets/template/revise.md`，可在内存中暂存最多 20 个
-`PLAN_TEXTBOX` 输入区域的 `.md` 改进方案。环境/openLCA 门禁通过、意见非空，
+`PLAN_TEXTBOX` 输入区域的 `.md` 改进方案。初始化检查通过、意见非空，
 且现有 plan、manifest、LCI 和最终报告齐备时启用“执行改进”；点击后原子保存到
-`workspace/inputs/revise.md` 并调用 OpenCode `revise-lca`。成功后结果 Tab
+`workspace/inputs/revise.md` 并按所选 Agent 调用 `revise-lca`。成功后结果 Tab
 重新加载被覆盖的 `lca_report.md`，失败时读取 revise manifest 展示原因。
 “关闭面板”返回 LCA 结果。“修改LCI清单”当前仅
 作为禁用的功能占位按钮显示。

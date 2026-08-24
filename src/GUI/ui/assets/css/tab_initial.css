@@ -1,31 +1,121 @@
+#project-init-panel.inner-panel-grid {
+    grid-template-rows: minmax(0, 1fr) !important;
+}
+
 #project-init-content-row {
-    padding: 10px 0 18px !important;
+    padding: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    gap: 0 !important;
+}
+
+#project-init-nav-column,
+#project-init-nav-column > .styler,
+#project-init-detail-column,
+#project-init-detail-column > .styler {
     height: 100% !important;
     min-height: 0 !important;
 }
 
-#project-init-template-column,
-#project-init-template-column > .styler {
-    height: 100% !important;
-    min-height: 0 !important;
-}
-
-#project-init-status-row {
+#project-init-detail-column {
     display: flex !important;
     flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 14px !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin-top: 8px !important;
+    min-width: 0 !important;
 }
 
-#project-init-status-row > div {
-    flex: 0 0 auto !important;
+#project-init-detail-scroll {
+    flex: 1 1 auto !important;
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+#project-init-detail-scroll > .styler {
+    height: auto !important;
+    min-height: 100% !important;
+}
+
+.settings-nav-column {
+    min-width: 160px !important;
+}
+
+.settings-nav-title h3,
+.settings-nav-title p {
+    margin: 0 0 6px !important;
+    color: #1f2937 !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+}
+
+#settings-nav-radio .wrap,
+#project-init-nav-column {
+    --settings-nav-gap: 2px;
+}
+
+#project-init-nav-column .settings-nav-item,
+#project-init-nav-column .settings-nav-item button {
+    display: block !important;
     width: 100% !important;
     min-width: 0 !important;
     height: auto !important;
     min-height: 0 !important;
+    box-sizing: border-box !important;
+    margin: 0 0 var(--settings-nav-gap, 2px) !important;
+    padding: 5px 8px !important;
+    border: 1px solid transparent !important;
+    border-radius: 6px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #1f2937 !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    line-height: 1.4 !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    cursor: pointer !important;
+}
+
+#project-init-nav-column .settings-nav-item-active,
+#project-init-nav-column .settings-nav-item-active button,
+#project-init-nav-column .settings-nav-item.settings-nav-item-active button {
+    border-color: #0d9488 !important;
+    background: #f0fdfa !important;
+    color: #0f766e !important;
+}
+
+#project-init-detail-scroll.settings-detail-scroll,
+#project-init-detail-scroll {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-gutter: stable !important;
+}
+
+.settings-section:not(.settings-section-hidden) {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+.settings-section:not(.settings-section-hidden) > .styler {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+.settings-section.settings-section-hidden,
+.settings-section.settings-section-hidden > .styler {
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
 }
 
 .project-init-section-label,
@@ -52,18 +142,62 @@
 .project-init-status-card {
     position: relative !important;
     overflow: hidden !important;
-    display: grid !important;
-    grid-template-rows: auto !important;
-    gap: 10px !important;
-    align-content: stretch !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
     height: auto !important;
     min-height: 0 !important;
-    padding: 18px 24px !important;
+    padding: 8px 18px !important;
     border: 1px solid #dbe4ef !important;
     border-radius: 8px !important;
     background:
         linear-gradient(180deg, rgba(248, 250, 252, 0.94), rgba(255, 255, 255, 0.99)) !important;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08) !important;
+    gap: 12px !important;
+    margin: 0 !important;
+}
+
+.init-check-status-list .project-init-status-card > .styler,
+.init-check-status-list .project-init-status-card > .wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 16px !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.init-check-status-list .project-init-status-card .column,
+.init-check-status-list .project-init-status-card .block,
+.init-check-status-list .project-init-status-card .form {
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+}
+
+.init-check-status-list .project-init-status-card .column:first-child,
+.init-check-status-list .project-init-status-card .block:first-child {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+}
+
+.init-check-status-list .project-init-status-card .column:last-child,
+.init-check-status-list .project-init-status-card .block:last-child {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
 }
 
 .project-init-status-value-container {
@@ -254,18 +388,169 @@
     box-shadow: 0 4px 14px rgba(15, 23, 42, 0.10) !important;
 }
 
-#project-init-actions-row {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    justify-content: stretch !important;
-    gap: 16px !important;
+.settings-section-fields {
+    padding: 12px 16px !important;
+    border: 1px solid #dbe4ef !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06) !important;
+}
+
+#settings-agent-radio,
+#settings-agent-radio > .wrap {
     width: 100% !important;
 }
 
-#project-init-actions-row > div {
+#settings-agent-radio .wrap {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px 18px !important;
+    justify-content: flex-start !important;
+}
+
+#settings-rag-fields label,
+#settings-rag-url label,
+#settings-rag-model label,
+#settings-rag-api-key label {
+    color: #475569 !important;
+    font-weight: 650 !important;
+}
+
+.settings-rag-build-heading,
+.settings-rag-build-heading > .styler,
+.settings-rag-build-heading .prose {
+    margin-top: 16px !important;
+}
+
+.settings-rag-build-heading p {
+    margin-top: 0 !important;
+}
+
+.init-check-status-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+    align-items: stretch !important;
+}
+
+.init-check-status-list > .wrap,
+.init-check-status-list > .column,
+.init-check-status-list > .block {
+    width: 100% !important;
+    max-width: 100% !important;
+    align-self: stretch !important;
+}
+
+.init-check-status-list .project-init-status-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    align-self: stretch !important;
+    min-height: 44px !important;
+    padding: 14px 18px !important;
+    gap: 16px !important;
+    overflow: visible !important;
+}
+
+.init-check-status-list .project-init-status-card .column,
+.init-check-status-list .project-init-status-card .block {
+    display: flex !important;
+    align-items: center !important;
+    overflow: visible !important;
+}
+
+.init-check-status-row {
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+}
+
+.init-check-status-row > .column,
+.init-check-status-row > .block {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.init-check-status-label,
+.init-check-status-label > .styler,
+.init-check-status-label .prose {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+}
+
+.init-check-status-list .project-init-status-value,
+.init-check-status-list .project-init-status-value > .styler,
+.init-check-status-list .project-init-status-value .prose {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    grid-column: auto !important;
+    justify-self: auto !important;
+    overflow: visible !important;
+}
+
+/* 覆盖全局 .project-init-status-value 的 width:100% / min-width:max-content */
+.init-check-status-list .project-init-status-value.project-init-status-value {
+    width: auto !important;
     min-width: 0 !important;
 }
 
-#project-init-actions-row button {
+.init-check-status-label p {
+    margin: 0 !important;
+    color: #1f2937 !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+}
+
+.init-check-status-list .project-init-status-value p {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: right !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    overflow: visible !important;
+    white-space: nowrap !important;
+}
+
+#settings-section-init-check .init-check-status-list,
+#settings-section-init-check #settings-init-check-btn {
     width: 100% !important;
+    max-width: 100% !important;
+}
+
+#settings-section-init-check .settings-section-fields,
+#settings-section-init-check > .styler {
+    width: 100% !important;
+}
+
+.init-check-status-pending p {
+    color: #64748b !important;
+}
+
+.init-check-status-ok p {
+    color: #0f766e !important;
+}
+
+.init-check-status-fail p {
+    color: #b91c1c !important;
 }
