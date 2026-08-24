@@ -114,16 +114,34 @@ class OpenCodeConfigurationTests(unittest.TestCase):
 
 
 class CodexConfigurationTests(unittest.TestCase):
-    def test_code_maintenance_guide_is_conditionally_loaded(self) -> None:
+    def test_codex_is_lca_orchestrator_only(self) -> None:
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
             config = tomllib.load(stream)
 
         instructions = config["developer_instructions"]
+        self.assertIn("只作为 LCA 编排", instructions)
         self.assertIn(".codex/AGENTS.md", instructions)
-        self.assertIn("修改、审查、调试或重构项目代码", instructions)
-        self.assertIn("Whole-LCA、LCA 计算或 LCA 质量评价", instructions)
-        self.assertIn("不要读取 `.codex/AGENTS.md`", instructions)
+        self.assertIn("项目开发由 Cursor", instructions)
+        self.assertIn("$whole-lca", instructions)
+        self.assertIn("$revise-lca", instructions)
+        self.assertNotIn("$workflow-main", instructions)
+        self.assertNotIn("$evaluate-lca-quality", instructions)
+        self.assertNotIn("不要读取 `.codex/AGENTS.md`", instructions)
         self.assertNotIn("model_instructions_file", config)
+
+        agents_md = (PROJECT_ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertNotIn("代码维护指南", agents_md)
+        self.assertIn("$whole-lca", agents_md)
+        self.assertNotIn("$workflow-main", agents_md)
+        self.assertIn("$revise-lca", agents_md)
+        self.assertNotIn("$evaluate-lca-quality", agents_md)
+        self.assertIn("$bootstrap-env", agents_md)
+        self.assertIn("不要使用 `$improve-whole-lca-workflow`", agents_md)
+
+        root_agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("Codex 只作为 LCA 编排", root_agents)
+        self.assertNotIn("代码维护说明见 `.codex/AGENTS.md`", root_agents)
+
         self.assertTrue((PROJECT_ROOT / ".codex" / "AGENTS.md").is_file())
         self.assertTrue((PROJECT_ROOT / "AGENTS.md").is_file())
         self.assertTrue((PROJECT_ROOT / "CLAUDE.md").is_file())
@@ -136,29 +154,40 @@ class CodexConfigurationTests(unittest.TestCase):
             "major-orchestrator",
             "sub-executor",
             "eval-reviewer",
-            "lca-quality-evaluator",
         ):
             path = PROJECT_ROOT / ".codex" / "agents" / f"{name}.toml"
             with path.open("rb") as stream:
                 agent = tomllib.load(stream)
             self.assertEqual(agent["name"], name)
             self.assertTrue((PROJECT_ROOT / ".codex" / config["agents"][name]["config_file"]).is_file())
+        self.assertNotIn("lca-quality-evaluator", config["agents"])
+        self.assertEqual(config["model"], "gpt-5.6-sol")
+        self.assertEqual(config["model_reasoning_effort"], "high")
+        expected_models = {
+            "major-orchestrator": ("gpt-5.6-sol", "high"),
+            "eval-reviewer": ("gpt-5.6-sol", "xhigh"),
+            "sub-executor": ("gpt-5.6-terra", "medium"),
+        }
+        for name, (model, effort) in expected_models.items():
+            path = PROJECT_ROOT / ".codex" / "agents" / f"{name}.toml"
+            with path.open("rb") as stream:
+                agent = tomllib.load(stream)
+            self.assertEqual(agent["model"], model, name)
+            self.assertEqual(agent["model_reasoning_effort"], effort, name)
 
-    def test_quality_evaluator_is_standalone_and_uses_shared_contract(self) -> None:
-        path = PROJECT_ROOT / ".codex" / "agents" / "lca-quality-evaluator.toml"
-        with path.open("rb") as stream:
-            agent = tomllib.load(stream)
-        self.assertEqual(agent["sandbox_mode"], "workspace-write")
-        self.assertIn("禁止生成或委派其他 Agent", agent["developer_instructions"])
-        self.assertIn(".codex/specs/lca-quality-evaluation", agent["developer_instructions"])
-        self.assertTrue(
-            (
-                PROJECT_ROOT
-                / ".codex"
-                / "specs"
-                / "lca-quality-evaluation"
-                / "README.md"
-            ).is_file()
+    def test_quality_evaluator_is_removed(self) -> None:
+        with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
+            config = tomllib.load(stream)
+        self.assertNotIn("lca-quality-evaluator", config["agents"])
+        self.assertNotIn("$evaluate-lca-quality", config["developer_instructions"])
+        self.assertFalse(
+            (PROJECT_ROOT / ".codex" / "agents" / "lca-quality-evaluator.toml").exists()
+        )
+        self.assertFalse(
+            (PROJECT_ROOT / ".codex" / "skills" / "evaluate-lca-quality").exists()
+        )
+        self.assertFalse(
+            (PROJECT_ROOT / ".codex" / "specs" / "lca-quality-evaluation").exists()
         )
         self.assertFalse(
             (PROJECT_ROOT / "harness" / "specs" / "lca-quality-evaluation").exists()
@@ -171,6 +200,14 @@ class CodexConfigurationTests(unittest.TestCase):
         self.assertEqual(
             config["mcp_servers"]["control_openlca"]["tool_timeout_sec"],
             300,
+        )
+        self.assertEqual(
+            config["mcp_servers"]["control_openlca"]["default_tools_approval_mode"],
+            "approve",
+        )
+        self.assertEqual(
+            config["mcp_servers"]["query_rag"]["default_tools_approval_mode"],
+            "auto",
         )
         self.assertTrue(
             {
@@ -186,10 +223,8 @@ class CodexConfigurationTests(unittest.TestCase):
             }.issubset(enabled)
         )
 
-    def test_continuous_improvement_skill_and_cli_prompt_are_wired(self) -> None:
+    def test_continuous_improvement_skill_and_cli_prompt_are_removed(self) -> None:
         skill_root = PROJECT_ROOT / ".codex" / "skills" / "improve-whole-lca-workflow"
-        skill_path = skill_root / "SKILL.md"
-        metadata_path = skill_root / "agents" / "openai.yaml"
         prompt_path = PROJECT_ROOT / ".codex" / "prompts" / "improve-whole-lca.md"
         quality_prompt_path = (
             PROJECT_ROOT
@@ -198,91 +233,9 @@ class CodexConfigurationTests(unittest.TestCase):
             / "improve-whole-lca-with-quality.md"
         )
 
-        frontmatter = load_frontmatter(skill_path)
-        self.assertEqual(set(frontmatter), {"name", "description"})
-        self.assertEqual(frontmatter["name"], "improve-whole-lca-workflow")
-
-        skill = skill_path.read_text(encoding="utf-8")
-        self.assertIn("$workflow-main", skill)
-        self.assertIn("$evaluate-lca-quality", skill)
-        self.assertIn("禁止读取", skill)
-        self.assertIn("任何历史 `docs/dev/walkthrough/`", skill)
-        self.assertIn("harness/tools/control_openlca/cleanup_output/main.py", skill)
-        self.assertIn("cleanup_output/main.py --yes", skill)
-        self.assertIn("--dry-run --target workspace_without_inputs", skill)
-        self.assertIn("--yes --target workspace_without_inputs", skill)
-        self.assertIn("workspace/tmp/", skill)
-        self.assertIn("运行期间禁止修改任何 tracked 文件", skill)
-        self.assertIn("始终排除 `harness/knowledge/`", skill)
-        self.assertIn("优先删除、合并、放宽", skill)
-        self.assertIn("只有存在明确失败模式", skill)
-        self.assertIn("对 validator 使用同一原则", skill)
-        for documentation in (
-            "`README.md`",
-            "schema mapping",
-            "操作说明",
-        ):
-            self.assertIn(documentation, skill)
-
-        baseline_position = skill.index("## 1. 建立无历史基线")
-        run_position = skill.index("## 3. 前向运行并持续排障")
-        issues_position = skill.index("## 4. 固化本轮结论")
-        evaluation_position = skill.index("## 5. 按显式请求评价 LCA 质量")
-        repair_position = skill.index("## 6. 最后统一修正")
-        readme_position = skill.index("## 7. 验证并完成 README")
-        self.assertEqual(
-            [
-                baseline_position,
-                run_position,
-                issues_position,
-                evaluation_position,
-                repair_position,
-                readme_position,
-            ],
-            sorted(
-                [
-                    baseline_position,
-                    run_position,
-                    issues_position,
-                    evaluation_position,
-                    repair_position,
-                    readme_position,
-                ]
-            ),
-        )
-        self.assertIn("docs/dev/walkthrough/<run-id>/", skill)
-        self.assertIn("issues.md", skill)
-        self.assertIn("eval.md", skill)
-        self.assertIn("README.md", skill)
-        self.assertIn("默认分支不要执行质量评价", skill)
-
-        metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
-        self.assertEqual(set(metadata), {"interface"})
-        interface = metadata["interface"]
-        self.assertIn("$improve-whole-lca-workflow", interface["default_prompt"])
-        self.assertGreaterEqual(len(interface["short_description"]), 25)
-        self.assertLessEqual(len(interface["short_description"]), 64)
-
-        prompt = prompt_path.read_text(encoding="utf-8")
-        self.assertIn("codex exec", prompt)
-        self.assertIn("-s workspace-write", prompt)
-        self.assertIn("$improve-whole-lca-workflow", prompt)
-        self.assertIn("本次不要检查 LCA 质量", prompt)
-        self.assertNotIn("$evaluate-lca-quality", prompt)
-        self.assertIn("禁止读取任何历史 issue 或 walkthrough", prompt)
-        self.assertIn("workspace/tmp/", prompt)
-        self.assertIn("harness/knowledge 以外", prompt)
-        self.assertIn("优先删除、合并或放宽", prompt)
-        self.assertIn("同步更新 README、schema mapping 和相关说明", prompt)
-
-        quality_prompt = quality_prompt_path.read_text(encoding="utf-8")
-        self.assertIn("codex exec", quality_prompt)
-        self.assertIn("$improve-whole-lca-workflow", quality_prompt)
-        self.assertIn("同时检查本次 LCA 质量", quality_prompt)
-        self.assertIn("$evaluate-lca-quality", quality_prompt)
-        self.assertIn("docs/dev/walkthrough/<run-id>/eval.md", quality_prompt)
-        self.assertIn("canonical JSON/Markdown", quality_prompt)
-
+        self.assertFalse(skill_root.exists())
+        self.assertFalse(prompt_path.exists())
+        self.assertFalse(quality_prompt_path.exists())
         self.assertFalse(
             (PROJECT_ROOT / ".codex" / "skills" / "diagnose-whole-lca-workflow").exists()
         )
@@ -290,44 +243,20 @@ class CodexConfigurationTests(unittest.TestCase):
             (PROJECT_ROOT / ".codex" / "prompts" / "diagnose-whole-lca.md").exists()
         )
 
-        docs_ignore = (PROJECT_ROOT / "docs" / ".gitignore").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn(
-            "!/dev/walkthrough/whole-lca-improvement-*.md",
-            docs_ignore,
-        )
-        for run_artifact in ("issues.md", "eval.md", "README.md"):
-            self.assertIn(f"!/dev/walkthrough/*/{run_artifact}", docs_ignore)
-        self.assertNotIn("whole-lca-diagnostic-", docs_ignore)
-        dev_ignore = (PROJECT_ROOT / "docs" / "dev" / ".gitignore").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn(
-            "!/walkthrough/whole-lca-improvement-*.md",
-            dev_ignore,
-        )
-        for run_artifact in ("issues.md", "eval.md", "README.md"):
-            self.assertIn(f"!/walkthrough/*/{run_artifact}", dev_ignore)
-        self.assertNotIn("whole-lca-diagnostic-", dev_ignore)
-
         root_ignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
-        self.assertIn(
-            "!.codex/prompts/improve-whole-lca-with-quality.md",
-            root_ignore,
-        )
+        self.assertNotIn("improve-whole-lca", root_ignore)
+        self.assertNotIn("evaluate-lca-quality", root_ignore)
+        self.assertNotIn("lca-quality-evaluator", root_ignore)
+        self.assertIn("!.codex/skills/bootstrap-env/", root_ignore)
+        self.assertIn("!.codex/skills/whole-lca/", root_ignore)
 
         project_readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
-        maintenance_guide = (PROJECT_ROOT / ".codex" / "AGENTS.md").read_text(
-            encoding="utf-8"
-        )
-        for documented_entry in (
-            "$improve-whole-lca-workflow",
-            ".codex/prompts/improve-whole-lca.md",
+        self.assertNotIn("$improve-whole-lca-workflow", project_readme)
+        self.assertNotIn(".codex/prompts/improve-whole-lca.md", project_readme)
+        self.assertNotIn(
             ".codex/prompts/improve-whole-lca-with-quality.md",
-        ):
-            self.assertIn(documented_entry, project_readme)
-            self.assertIn(documented_entry, maintenance_guide)
+            project_readme,
+        )
 
 
 class WorkflowSpecificationRoutingTests(unittest.TestCase):
@@ -361,7 +290,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             ".opencode/agents/major-orchestrator.md",
             ".opencode/agents/eval-reviewer.md",
             ".opencode/agents/sub-executor.md",
-            ".codex/skills/workflow-main/SKILL.md",
+            ".codex/skills/whole-lca/SKILL.md",
             ".codex/agents/major-orchestrator.toml",
             ".codex/agents/eval-reviewer.toml",
             ".codex/agents/sub-executor.toml",
@@ -448,7 +377,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
 
     def test_codex_workflow_skills_delegate_to_workflows(self) -> None:
         workflow_main = (
-            PROJECT_ROOT / ".codex/skills/workflow-main/SKILL.md"
+            PROJECT_ROOT / ".codex/skills/whole-lca/SKILL.md"
         ).read_text(encoding="utf-8")
         revise_lca = (
             PROJECT_ROOT / ".codex/skills/revise-lca/SKILL.md"
@@ -456,10 +385,22 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
 
         self.assertIn("harness/workflows/LCA-main.md", workflow_main)
         self.assertIn("file_sync", workflow_main)
+        self.assertIn(
+            "harness/tools/control_openlca/cleanup_output/main.py --yes",
+            workflow_main,
+        )
+        self.assertIn(
+            "src/scripts/clean_dir/main.py --yes --target workspace_without_inputs",
+            workflow_main,
+        )
         for index in range(1, 8):
             self.assertNotIn(f"### {index:02d}", workflow_main)
+        self.assertNotIn("根线程不执行业务阶段", workflow_main)
+        self.assertIn("不要再 spawn 另一个 `major-orchestrator`", workflow_main)
 
         self.assertIn("harness/workflows/LCA-revise.md", revise_lca)
+        self.assertNotIn("根线程不执行业务阶段", revise_lca)
+        self.assertIn("不要再 spawn 另一个 `major-orchestrator`", revise_lca)
         for index in range(2, 8):
             self.assertNotIn(f"### {index:02d}", revise_lca)
 
@@ -470,7 +411,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             "harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md",
             "harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md",
             "harness/workflows/LCA-main.md",
-            ".codex/skills/workflow-main/SKILL.md",
+            ".codex/skills/whole-lca/SKILL.md",
         )
         content = "\n".join(
             (PROJECT_ROOT / path).read_text(encoding="utf-8") for path in paths
@@ -506,7 +447,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             (PROJECT_ROOT / path).read_text(encoding="utf-8")
             for path in (
                 "harness/workflows/LCA-main.md",
-                ".codex/skills/workflow-main/SKILL.md",
+                ".codex/skills/whole-lca/SKILL.md",
                 ".opencode/agents/major-orchestrator.md",
                 ".opencode/agents/sub-executor.md",
                 ".codex/agents/major-orchestrator.toml",
@@ -530,7 +471,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             "harness/workflows/LCA-main.md",
             ".opencode/agents/major-orchestrator.md",
             ".opencode/agents/sub-executor.md",
-            ".codex/skills/workflow-main/SKILL.md",
+            ".codex/skills/whole-lca/SKILL.md",
             ".codex/agents/major-orchestrator.toml",
             ".codex/agents/sub-executor.toml",
             "harness/rules/openlca-operation/README.md",
@@ -606,7 +547,8 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         self.assertIn("opencode run --command whole-lca", content)
         self.assertIn("opencode run --command revise-lca", content)
         self.assertIn("codex exec", content)
-        self.assertIn("$workflow-main", content)
+        self.assertIn("$whole-lca", content)
+        self.assertNotIn("$workflow-main", content)
         self.assertIn("$revise-lca", content)
         self.assertIn("claude", content)
         self.assertIn("whole-lca", content)
@@ -617,10 +559,23 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
             ".opencode/commands/revise-lca.md",
             ".claude/commands/whole-lca.md",
             ".claude/commands/revise-lca.md",
-            ".codex/skills/workflow-main/SKILL.md",
+            ".codex/skills/whole-lca/SKILL.md",
             ".codex/skills/revise-lca/SKILL.md",
         ):
             self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
+
+        cleanup_commands = (
+            "harness/tools/control_openlca/cleanup_output/main.py --yes",
+            "src/scripts/clean_dir/main.py --yes --target workspace_without_inputs",
+        )
+        for relative in (
+            ".opencode/commands/whole-lca.md",
+            ".claude/commands/whole-lca.md",
+            ".codex/skills/whole-lca/SKILL.md",
+        ):
+            content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            for command in cleanup_commands:
+                self.assertIn(command, content, relative)
 
         for name in ("major-orchestrator", "sub-executor", "eval-reviewer"):
             self.assertTrue(
@@ -650,6 +605,69 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         self.assertIn("checklist", content)
         for index in range(1, 8):
             self.assertNotIn(f"### {index:02d}", content)
+
+
+class BootstrapEnvAdapterTests(unittest.TestCase):
+    PROMPT_PATH = "src/scripts/setup_env/PROMPT.md"
+    ADAPTERS = (
+        ".opencode/commands/bootstrap-env.md",
+        ".claude/commands/bootstrap-env.md",
+        ".codex/skills/bootstrap-env/SKILL.md",
+        ".cursor/skills/bootstrap-env/SKILL.md",
+    )
+    COPIED_STEPS = (
+        "uv sync",
+        "EMBEDDING_API_KEY",
+        "环境检测不通过",
+        "RAG 模型未配置",
+        "RAG 模型无法调用",
+    )
+
+    def test_adapters_exist_and_only_reference_shared_prompt(self) -> None:
+        prompt = PROJECT_ROOT / self.PROMPT_PATH
+        self.assertTrue(prompt.is_file())
+        for relative in self.ADAPTERS:
+            path = PROJECT_ROOT / relative
+            self.assertTrue(path.is_file(), relative)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn(self.PROMPT_PATH, text)
+            for fragment in self.COPIED_STEPS:
+                self.assertNotIn(fragment, text, relative)
+
+    def test_opencode_command_uses_env_bootstrap_agent(self) -> None:
+        command = load_frontmatter(
+            PROJECT_ROOT / ".opencode" / "commands" / "bootstrap-env.md"
+        )
+        self.assertEqual(command["agent"], "env-bootstrap")
+        self.assertTrue(
+            (PROJECT_ROOT / ".opencode" / "agents" / "env-bootstrap.md").is_file()
+        )
+        config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
+        self.assertIn("env-bootstrap", config["agent"])
+
+    def test_readme_documents_prerequisites_and_bootstrap_cli(self) -> None:
+        readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("uv", readme)
+        self.assertIn("https://docs.astral.sh/uv/getting-started/installation/", readme)
+        self.assertIn("Codex", readme)
+        self.assertIn("Claude Code", readme)
+        self.assertIn("OpenCode", readme)
+        self.assertIn("CLI", readme)
+        self.assertIn("openLCA", readme)
+        self.assertIn("IPC Server", readme)
+        self.assertIn("每次开始项目前", readme)
+        self.assertIn("opencode run --command bootstrap-env", readme)
+        self.assertIn("codex exec", readme)
+        self.assertIn("$bootstrap-env", readme)
+        self.assertIn("/bootstrap-env", readme)
+        self.assertNotIn("_setup_env.bat", readme)
+        self.assertNotIn("_launch_gui.bat", readme)
+        self.assertTrue((PROJECT_ROOT / "src/scripts/setup_env/PROMPT.md").is_file())
+        self.assertFalse((PROJECT_ROOT / "src/scripts/_setup_env.bat").exists())
+        self.assertFalse((PROJECT_ROOT / "src/scripts/_launch_gui.bat").exists())
+        self.assertFalse(
+            (PROJECT_ROOT / "src/scripts/gui_control/launch_gui.ps1").exists()
+        )
 
 
 if __name__ == "__main__":

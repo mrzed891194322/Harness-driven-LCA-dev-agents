@@ -41,7 +41,7 @@ uv run python src/scripts/initialization/main.py --only openlca
 
 ```bash
 opencode run --command whole-lca
-codex exec -s workspace-write '$workflow-main'
+codex exec -s workspace-write '$whole-lca'
 claude --agent major-orchestrator -p "/whole-lca" --permission-mode dontAsk
 ```
 

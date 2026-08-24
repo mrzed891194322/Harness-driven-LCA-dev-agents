@@ -35,5 +35,3 @@ openLCA 计算与资源释放的通用纪律见 `harness/rules/openlca-operation
 ## 4. 最终完成门禁
 
 生成全部结果后必须运行 `references/scripts/validation.py`。只有导入无失败、模型图包含全部预期节点、所有 LCIA 原始结果非空、计算资源已释放、每对情景 comparison check 正确，且第 06、07 阶段全部必需文件通过结构验收时，manifest 才能置为 `completed`。图不同但 LCIA 完全相同时必须记录非空解释，否则置为 `needs_review`，不得自动宣称情景等效。
-
-本阶段的必需结果、schema、模板、文件名或语义发生变化时，必须同步更新 LCA 质量评估的固定产物覆盖矩阵、受影响检查项和契约测试。该要求是开发变更门禁，不表示 whole-lca 会自动运行质量评估。

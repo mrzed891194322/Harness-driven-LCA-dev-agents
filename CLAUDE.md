@@ -2,7 +2,11 @@
 
 本仓库的 Whole-LCA 业务运行由 CLI 拉起，不要把 IDE 对话当成 whole-lca 启动器。
 
+环境引导例外：可以执行 `/bootstrap-env`，或读取 `src/scripts/setup_env/PROMPT.md`。不要加 `--agent major-orchestrator`。
+
 ```bash
+claude -p "/bootstrap-env"
+
 claude --agent major-orchestrator -p "/whole-lca" --permission-mode dontAsk
 claude --agent major-orchestrator -p "/revise-lca" --permission-mode dontAsk
 ```

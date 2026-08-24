@@ -142,26 +142,6 @@ def validate_plan_intake(
     """Apply deterministic checks from the stage 01 plan quality specification."""
     issues: list[dict[str, str]] = []
 
-    legacy_reference_paths = sorted(
-        set(
-            re.findall(
-                r"harness/knowledge/inputs/(?:user_file|user_data)(?:/[^\s`'\"<>)]*)?",
-                text,
-            )
-        )
-    )
-    for path in legacy_reference_paths:
-        kind = "file" if "/user_file" in path else "data"
-        issues.append(
-            _issue(
-                "PLAN-REF-LEGACY-PATH",
-                "01-plan-quality-gate-spec.md#1-文件格式",
-                path,
-                "Replace the legacy path with "
-                f"harness/knowledge/inputs/user_ref/{kind}/...",
-            )
-        )
-
     required_fields = (
         ("OBJECT", ("研究对象", "研究主体"), "Provide a concrete study object."),
         (
@@ -205,29 +185,9 @@ def validate_plan_intake(
             )
         )
 
-    gap_ids = sorted(set(re.findall(r"\bGAP-[A-Z0-9-]+\b", text)))
-    retrievable_gaps: list[str] = []
-    for gap_id in gap_ids:
-        gap_window_match = re.search(
-            rf"{re.escape(gap_id)}(?P<body>.{{0,600}})",
-            text,
-            re.DOTALL,
-        )
-        gap_window = gap_window_match.group("body") if gap_window_match else ""
-        has_type = re.search(r"gap_type\s*[:：]\s*retrievable", gap_window, re.IGNORECASE)
-        has_target = re.search(r"(?:retrieval_target|检索目标)\s*[:：]\s*\S+", gap_window, re.IGNORECASE)
-        has_source = re.search(r"(?:source_domain|来源域)\s*[:：]\s*\S+", gap_window, re.IGNORECASE)
-        if has_type and has_target and has_source:
-            retrievable_gaps.append(gap_id)
-        else:
-            issues.append(
-                _issue(
-                    f"PLAN-GAP-{gap_id.removeprefix('GAP-')}",
-                    "01-plan-quality-gate-spec.md#3-可检索缺口",
-                    gap_id,
-                    "Add gap_type: retrievable, a retrieval target, and an allowed source domain.",
-                )
-            )
+    # Optional hints only. User plans do not need GAP-* tokens or structured
+    # gap fields; reviewers mint tracking IDs into review.retrievable_gaps.
+    retrievable_gaps = sorted(set(re.findall(r"\bGAP-[A-Z0-9-]+\b", text)))
 
     return {
         "status": "passed" if not issues else "needs_input",

@@ -19,16 +19,18 @@ description: 从现有 LCA 最终报告、plan、LCI、运行 memory 和 workspa
    失败时不得激活快照。
 4. 清理成功后运行
    `uv run python src/scripts/revise_lca/main.py activate --yes`。
-5. 如果当前活动 Agent 不是 `major-orchestrator`，只生成一个该 Agent，传递
-   `platform=codex`、`workflow=revise-lca`、意见路径和执行
-   `harness/workflows/LCA-revise.md` 的要求；根线程不执行业务阶段。
-6. `major-orchestrator` 完整读取并执行 `harness/workflows/LCA-revise.md`。Codex
-   中知识检索与 openLCA 规则均按 workflow 条件加载。
+5. 当前 `codex exec` 会话即担任 `major-orchestrator`：先读取
+   `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行
+   `harness/workflows/LCA-revise.md`。不要再 spawn 另一个 `major-orchestrator`。
+   只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明
+   当前阶段、被委派角色和等待原因；子 Agent 返回后立即摘要结论，不要用空的
+   Wait 心跳代替阶段进展。
 
 ## 无人值守中继
 
 `major-orchestrator` 只可生成 `sub-executor` 和 `eval-reviewer`，等待其返回并按
-workflow 持久化证据。预检成功后在同一 import_scope 下立即继续导入，不请求额外确认。
+workflow 持久化证据。Codex 中知识检索与 openLCA 规则均按 workflow 条件加载。
+预检成功后在同一 import_scope 下立即继续导入，不请求额外确认。
 
 ## 强制完成
 

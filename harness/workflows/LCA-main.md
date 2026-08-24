@@ -22,7 +22,7 @@
 ### 02 证据检索
 
 - 计划通过后，主 Agent 才完整读取 `harness/specs/02-evidence-retrieval/README.md` 和 `harness/specs/02-evidence-retrieval/references/02-evidence-retrieval-spec.md`。
-- 从计划提取 `GAP-*` 和背景映射任务后调用 `sub-executor`；委派任务必须明确要求它在检索前完整读取上述两个第 02 阶段文件。RAG 检索遵守已加载的知识检索规则；只有 MCP 暴露的参数或错误不足以解释当前调用时，才在首次相关调用前读取 `harness/tools/query_rag/README.md`。只有任务包含 openLCA 候选查询时，才要求它在调用 MCP 前读取 `harness/rules/openlca-operation/README.md`。
+- 从已通过计划的自然语言、审查中的 `retrievable_gaps` 以及默认的资料提取/背景映射任务调用 `sub-executor`；用户计划不要求 `GAP-*` 字面量。委派任务必须明确要求它在检索前完整读取上述两个第 02 阶段文件。RAG 检索遵守已加载的知识检索规则；只有 MCP 暴露的参数或错误不足以解释当前调用时，才在首次相关调用前读取 `harness/tools/query_rag/README.md`。只有任务包含 openLCA 候选查询时，才要求它在调用 MCP 前读取 `harness/rules/openlca-operation/README.md`。
 
 ### 03 LCI 制定
 

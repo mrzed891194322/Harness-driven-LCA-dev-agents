@@ -154,7 +154,7 @@ class PlanIntakeTests(unittest.TestCase):
             sorted((file_root.resolve().as_posix(), data_root.resolve().as_posix())),
         )
 
-    def test_explicit_retrievable_gap_is_allowed(self) -> None:
+    def test_explicit_retrievable_gap_is_optional_hint(self) -> None:
         gap = """- GAP-METHOD
   - gap_type: retrievable
   - retrieval_target: 活动数据库中的 LCIA 方法名称与 UUID
@@ -163,6 +163,38 @@ class PlanIntakeTests(unittest.TestCase):
         result = validate_plan_intake(compliant_plan(extra=gap))
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["retrievable_gaps"], ["GAP-METHOD"])
+
+    def test_natural_language_retrieval_without_gap_ids_passes(self) -> None:
+        extra = (
+            "Agent 从该资料提取物料、质量、运输、地域和建模关系，"
+            "并从活动数据库匹配背景数据。"
+            "Agent 按项目 LCI 规范自行完成 Provider 映射。"
+        )
+        result = validate_plan_intake(compliant_plan(extra=extra))
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["issues"], [])
+        self.assertEqual(result["retrievable_gaps"], [])
+
+    def test_bare_gap_token_is_hint_not_blocking(self) -> None:
+        result = validate_plan_intake(compliant_plan(extra="请检索 GAP-METHOD"))
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["retrievable_gaps"], ["GAP-METHOD"])
+        self.assertFalse(
+            any(issue["issue_id"].startswith("PLAN-GAP-") for issue in result["issues"])
+        )
+
+    def test_spec_forbids_blocking_on_missing_gap_tokens(self) -> None:
+        spec = (
+            PROJECT_ROOT
+            / "harness"
+            / "specs"
+            / "01-plan-quality-gate"
+            / "references"
+            / "01-plan-quality-gate-spec.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("不要求出现 `GAP-*`", spec)
+        self.assertIn("PLAN-RETRIEVABLE-GAPS-UNTRACKED", spec)
+        self.assertIn("不得因此将审查置为 `needs_input`", spec)
 
     def test_missing_functional_unit_blocks(self) -> None:
         result = validate_plan_intake(
@@ -198,12 +230,13 @@ class PlanIntakeTests(unittest.TestCase):
                 )
             )
 
-    def test_legacy_reference_path_blocks(self) -> None:
+    def test_legacy_reference_path_does_not_block(self) -> None:
         plan = compliant_plan(
             extra="harness/knowledge/inputs/user_file/report.md",
         )
         result = validate_plan_intake(plan)
-        self.assertIn(
+        self.assertEqual(result["status"], "passed")
+        self.assertNotIn(
             "PLAN-REF-LEGACY-PATH",
             {issue["issue_id"] for issue in result["issues"]},
         )

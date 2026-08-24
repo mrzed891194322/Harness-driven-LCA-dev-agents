@@ -9,10 +9,10 @@
 | 平台 | Whole-LCA | Revise-LCA |
 | --- | --- | --- |
 | OpenCode | `opencode run --command whole-lca` | `opencode run --command revise-lca` |
-| Codex | `codex exec -s workspace-write '$workflow-main'` | `codex exec -s workspace-write '$revise-lca'` |
+| Codex | `codex exec -s workspace-write '$whole-lca'` | `codex exec -s workspace-write '$revise-lca'` |
 | Claude Code | `claude --agent major-orchestrator -p "/whole-lca" --permission-mode dontAsk` | `claude --agent major-orchestrator -p "/revise-lca" --permission-mode dontAsk` |
 
-不要把 IDE 对话当成启动器。交互会话里的 `/whole-lca`、`$workflow-main` 与上表是同一 command。
+不要把 IDE 对话当成启动器。交互会话里的 `/whole-lca`、`$whole-lca` 与上表是同一 command。
 
 ## MCP 接线（实现不复制）
 
@@ -41,7 +41,7 @@
 | --- | --- | --- | --- |
 | 模型/MCP/默认 agent | `.opencode/opencode.json` | `.codex/config.toml` | `.claude/settings.json` |
 | 角色与权限 | `.opencode/agents/*.md` | `.codex/agents/*.toml` | `.claude/agents/*.md` |
-| CLI 拉起 | `.opencode/commands/*.md` | `.codex/skills/workflow-main`、`revise-lca` | `.claude/commands/*.md` |
+| CLI 拉起 | `.opencode/commands/*.md` | `.codex/skills/whole-lca`、`revise-lca` | `.claude/commands/*.md` |
 | 业务步骤 | `harness/workflows/LCA-*.md` | 同左 | 同左 |
 
-质量评价 agent 与 improve skill 可以留在 `.codex/`；evaluator 不是跨平台公共包。
+不要在 Codex 里放代码维护、harness 改进或独立质量评价 skill。

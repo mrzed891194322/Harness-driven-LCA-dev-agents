@@ -1,98 +1,20 @@
-# 代码维护指南
+# Codex：LCA 编排 Agent
 
-## 适用范围
+本仓库里 Codex 只负责业务运行，不是项目开发入口。不要修改 `harness/`、`src/GUI/`、`src/scripts/`、平台 adapter 或其他 tracked 源码来“修 harness”或做代码审查/重构。项目开发由 Cursor 负责。
 
-本文件只服务于代码修改、审查、调试和重构。项目是面向 Codex 与 OpenCode 的受控 Whole-LCA harness，覆盖计划门禁、证据检索、LCI 构建与审查、openLCA 预检/导入/计算、报告归档和质量评价。
+## 允许的任务
 
-代码维护任务不得自行启动 Whole-LCA、LCA 计算或质量评价。用户明确要求执行这些任务时，应改用对应 skill 和 Agent 工作流，不以本文件替代业务运行契约。
+- `$bootstrap-env`：检查运行环境（uv、依赖、`.env` Embedding、MCP）。没有 uv 时请用户手动安装，禁止代装。不要启动 whole-lca。
+- `$whole-lca`：执行 `harness/workflows/LCA-main.md`。
+- `$revise-lca`：执行 `harness/workflows/LCA-revise.md`。
+- `$read-knowledge`：检索知识库；不要改知识源或 harness。
 
-## 目录职责
+编排步骤只在 `harness/workflows/`。MCP 实现只在 `harness/tools/`。不要把 workflow 正文复制进 skill。正式 CLI 入口见仓库根目录 `AGENTS.md` 的 `codex exec` 一行命令。
 
-| 路径 | 职责 |
-| --- | --- |
-| `.codex/`、`.opencode/`、`.claude/` | 各平台配置、skills/commands、agents；Codex 另含平台专用评价契约 |
-| `harness/workflows/` | Whole-LCA / Revise 编排入口（平台 command/skill 引用，不重述阶段正文） |
-| `harness/specs/` | 工作流契约：阶段门禁、schema、校验；`rules/` 为跨场景 Agent 纪律，`tools/` 为 MCP 实现 |
-| `harness/rules/` | 跨任务的知识检索、openLCA 和代码/目录约束 |
-| `harness/tools/` | `query_rag`、`control_openlca` 等 MCP 工具及其离线测试 |
-| `harness/knowledge/` | 静态标准、openLCA 手册、同步后的用户资料和生成的 RAG 数据库 |
-| `src/GUI/` | Gradio 界面、事件、组件和 GUI 业务函数 |
-| `src/scripts/` | 初始化、文件同步、清理、环境准备和 GUI 启停等维护脚本 |
-| `workspace/` | 用户输入、运行记忆和运行结果；不是源码目录或测试夹具目录 |
+运行产物写在 `workspace/memory/`、`workspace/outputs/LCI/`、`workspace/outputs/reports/`；计划输入是 `workspace/inputs/plan.md`，修订意见是 `workspace/inputs/revise.md`。不要使用旧的 `workspace/plan/`、`workspace/LCI/`、`workspace/results/`。
 
-## 关键入口与固定路径
+## 禁止
 
-- Codex Whole-LCA 入口：`$workflow-main`，实现位于 `.codex/skills/workflow-main/SKILL.md`。
-- OpenCode Whole-LCA 入口：`/whole-lca`，命令位于 `.opencode/commands/whole-lca.md`，并加载 `harness/workflows/LCA-main.md`。
-- OpenCode Revise-LCA 入口：`/revise-lca`，命令位于 `.opencode/commands/revise-lca.md`，并加载 `harness/workflows/LCA-revise.md`。
-- Codex Revise-LCA 入口：`$revise-lca`，实现位于 `.codex/skills/revise-lca/SKILL.md`，专属契约位于 `harness/specs/08-lca-revise-workflow/`。
-- Codex 质量评价入口：`$evaluate-lca-quality` 或项目注册的 `lca-quality-evaluator`，契约位于 `.codex/specs/lca-quality-evaluation/`。
-- Codex Whole-LCA harness 持续改进入口：`$improve-whole-lca-workflow`；默认无质量评价提示词位于 `.codex/prompts/improve-whole-lca.md`，显式带质量评价的提示词位于 `.codex/prompts/improve-whole-lca-with-quality.md`。
-- 唯一计划输入：`workspace/inputs/plan.md`。
-- 修订意见输入：`workspace/inputs/revise.md`；revise-lca 直接上一轮证据位于 `workspace/memory/baseline/`。
-- 运行状态与阶段证据：`workspace/memory/`。
-- LCI 产物：`workspace/outputs/LCI/`。
-- 导入、模型图、LCIA 和最终报告：`workspace/outputs/reports/`。
-- 用户资料链路：`workspace/inputs/references/{file,data}/` 经 `src/scripts/file_sync/main.py --direction upload-to-work` 同步到 `harness/knowledge/inputs/user_ref/{file,data}/`，再由 RAG 初始化代码建立对应知识库。
-
-这些路径是运行契约的一部分。不要恢复旧的 `workspace/plan/`、`workspace/LCI/`、`workspace/results/` 或按运行 ID 分层的结果目录。
-
-## 修改定位
-
-| 变更内容 | 首要修改位置 | 同步检查 |
-| --- | --- | --- |
-| 状态机、阶段、schema、模板或产物语义 | 共享契约修改 `harness/specs/public/`；阶段独占契约修改对应 `harness/specs/01-*`–`08-*` | 两个平台 adapter、质量 rubric、公共契约测试 |
-| Codex 行为 | `.codex/config.toml`、`.codex/skills/`、`.codex/agents/` | `harness/specs/public/references/scripts/tests/test_platform_config.py` |
-| OpenCode 行为 | `.opencode/opencode.json`、`.opencode/commands/`、`.opencode/skills/`、`.opencode/agents/` | 同一平台配置测试及 Codex 语义一致性 |
-| openLCA 查询、预检、导入、读回或计算 | `harness/tools/control_openlca/`、`harness/rules/openlca-operation/README.md` | `harness/tools/control_openlca/tests/` 和阶段 05–07 契约 |
-| RAG 检索、建库或用户知识源 | `harness/tools/query_rag/`、`harness/rules/knowledge-retrieval/README.md`、`src/scripts/initialization/rag_init/` | 对应 tool、建库和文件同步测试 |
-| 初始化、同步、清理、环境或 GUI 启停 | `src/scripts/` | 对应脚本内 tests、固定 workspace 路径 |
-| GUI 页面或交互 | `src/GUI/` | `src/GUI/README.md`、事件/组件调用链和相关脚本 |
-| LCA 质量评分、schema 或报告 | `.codex/specs/lca-quality-evaluation/` | `.codex/skills/evaluate-lca-quality/`、rubric 覆盖和质量契约测试 |
-
-修改前先用 `rg` 定位引用和测试；优先修改语义来源，再更新 adapter。不要把公共状态机复制进平台 skill 或 agent。
-
-## 契约联动
-
-- `.codex` 与 `.opencode` 是 `harness/specs` 的 adapter。共享状态、阶段顺序、终止条件和产物 schema 只在 harness 契约中定义。
-- schema、必需产物、模板、状态语义或固定路径发生变化时，必须在同一变更中更新 `.codex/specs/lca-quality-evaluation/references/rubric.json`、相关评价 schema/模板以及公共和质量契约测试。
-- `workspace/outputs/LCI/` 中的实体经 `control_openlca` 预检、导入、读回和计算后，在 `workspace/outputs/reports/` 形成结构化证据；阶段、审查和 Agent 交接证据写入 `workspace/memory/`。
-- 改动跨平台公共行为时，同时检查 Codex 与 OpenCode adapter；平台能力差异应保留在各自目录，不得反向污染公共契约。
-
-## 验证
-
-从仓库根目录运行与改动范围匹配的最小测试集：
-
-```bash
-# 平台配置、公共状态机、schema 和 workflow 契约
-uv run python -m unittest discover -s harness/specs/public/references/scripts/tests -v
-
-# LCA 质量评价 schema、rubric 和报告契约
-uv run python -m unittest discover -s .codex/specs/lca-quality-evaluation/references/scripts/tests -v
-
-# openLCA MCP 离线测试（mock IPC，不需要运行 openLCA）
-uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
-
-# RAG 查询、建库和文件同步
-uv run python -m unittest discover -s harness/tools/query_rag/tests -v
-uv run python -m unittest discover -s src/scripts/initialization/rag_init/tests -v
-uv run python -m unittest discover -s src/scripts/file_sync/tests -v
-```
-
-路径或配置变更至少补充以下检查：
-
-```bash
-uv run python -c "import tomllib; tomllib.load(open('.codex/config.toml', 'rb'))"
-rg -n "workspace/(inputs/plan\.md|memory|outputs/LCI|outputs/reports)" .codex .opencode harness src
-uv run python -m compileall -q src harness .codex/specs/lca-quality-evaluation/references/scripts
-git diff --check
-```
-
-测试必须使用临时目录或仓库内的测试资源，不得读取或改写真实 `workspace` 运行产物。
-
-## 禁止事项
-
-- 不因代码维护任务调用 `$workflow-main`、`/whole-lca`、openLCA 写入工具或质量评价 Agent。
-- 不修改 `workspace/inputs/plan.md`、`workspace/inputs/references/` 或用户运行产物，除非用户明确要求的是对应业务任务。
-- 不把 `workspace/memory/`、`workspace/outputs/` 或生成的 `harness/knowledge/rag_db/` 当作源码、金标或应提交的修复位置。
-- 不通过修改平台 adapter 绕过共享 schema、预检哈希、审查次数或终止状态。
+- 不要使用 `$improve-whole-lca-workflow`，也不要接受“先跑 LCA 再改 harness”的混合任务。
+- 不要为了排障去改 tracked 文件。
+- 不要把 IDE 对话当成 whole-lca / revise-lca 启动器。

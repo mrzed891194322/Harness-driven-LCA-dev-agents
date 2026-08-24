@@ -22,6 +22,8 @@ logs/
 # uv file
 uv.lock
 
+#
+.cursor/
 
 # dev: AI agents
 .codex/*
@@ -33,31 +35,19 @@ uv.lock
 !.codex/agents/major-orchestrator.toml
 !.codex/agents/sub-executor.toml
 !.codex/agents/eval-reviewer.toml
-!.codex/agents/lca-quality-evaluator.toml
-!.codex/prompts/
-.codex/prompts/*
-!.codex/prompts/improve-whole-lca.md
-!.codex/prompts/improve-whole-lca-with-quality.md
 !.codex/skills/
 .codex/skills/*
+!.codex/skills/bootstrap-env/
+!.codex/skills/bootstrap-env/**
 !.codex/skills/read-knowledge/
 !.codex/skills/read-knowledge/**
-!.codex/skills/workflow-main/
-!.codex/skills/workflow-main/**
+!.codex/skills/whole-lca/
+!.codex/skills/whole-lca/**
 !.codex/skills/revise-lca/
 !.codex/skills/revise-lca/**
-!.codex/skills/evaluate-lca-quality/
-!.codex/skills/evaluate-lca-quality/**
-!.codex/skills/improve-whole-lca-workflow/
-!.codex/skills/improve-whole-lca-workflow/**
-!.codex/specs/
-.codex/specs/*
-!.codex/specs/lca-quality-evaluation/
-!.codex/specs/lca-quality-evaluation/**
+
 .agents/
 
 # Generated caches inside tracked Codex packages
 .codex/skills/**/__pycache__/
 .codex/skills/**/*.py[oc]
-.codex/specs/**/__pycache__/
-.codex/specs/**/*.py[oc]

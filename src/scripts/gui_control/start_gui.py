@@ -11,7 +11,13 @@ import sys
 import time
 
 from utils.config import GUI_SCRIPT, LOG_DIR, PID_FILE, PORT, PROJECT_ROOT
-from utils.process import port_listeners, resolve_pythonw, is_process_alive
+from utils.process import (
+    is_process_alive,
+    port_listeners,
+    refresh_gui_record,
+    resolve_pythonw,
+    write_gui_record,
+)
 
 
 def start_gui() -> None:
@@ -30,7 +36,7 @@ def start_gui() -> None:
 
     pyw = resolve_pythonw(PROJECT_ROOT)
     if pyw and pyw.endswith("pythonw.exe"):
-        pyw = pyw[:-11] + "python.exe" # 使用 python.exe 配合 CREATE_NO_WINDOW 避免 uvicorn 流缺失崩溃
+        pyw = pyw[:-11] + "python.exe"  # 使用 python.exe 配合 CREATE_NO_WINDOW 避免 uvicorn 流缺失崩溃
 
     if sys.platform == "win32" and pyw:
         cmd = [pyw, "-u", str(GUI_SCRIPT)]
@@ -65,8 +71,23 @@ def start_gui() -> None:
         print("    uv run python src/GUI/main.py", file=sys.stderr)
         sys.exit(1)
 
-    PID_FILE.write_text(str(proc.pid), encoding="ascii")
+    record = write_gui_record(PID_FILE, proc.pid)
+    if record is None:
+        print(
+            "==> GUI 已启动，但无法写入进程身份文件；后续 stop/restart 不会按 PID 强杀。",
+            file=sys.stderr,
+        )
+    else:
+        for _ in range(30):
+            if port_listeners():
+                refresh_gui_record(PID_FILE, record)
+                break
+            if not is_process_alive(proc.pid):
+                break
+            time.sleep(0.1)
+
     print(f"GUI 已成功启动 (PID: {proc.pid})。")
+    print(f"进程身份: {PID_FILE}")
     print(f"访问地址: http://127.0.0.1:{PORT}")
 
 

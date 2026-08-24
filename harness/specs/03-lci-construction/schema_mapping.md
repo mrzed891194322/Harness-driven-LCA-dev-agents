@@ -30,7 +30,7 @@ flowchart TD
 
 | 类型 | 契约或产物 | 触发时机 | 生产者 → 消费者 | 校验与握手内容 | 失败/缺口处理 |
 | --- | --- | --- | --- | --- | --- |
-| 输入审查 | `review.schema.json`（public） | 进入阶段前 | 01 → 03 | 计划已通过、可检索缺口已列明 | review 非通过时不得进入 |
+| 输入审查 | `review.schema.json`（public） | 进入阶段前 | 01 → 03 | 计划已通过；检索任务以 01 review 与 02 handoff 为准，不要求用户计划含 `GAP-*` 字面量 | review 非通过时不得进入 |
 | 输入交接 | 02 handoff | 建立 LCI 前 | 02 → 03 | 查询、原文位置、UUID、选择理由、未解决项和输入 hashes | 阻断证据缺口停止 |
 | LCI 产物 | `workspace/outputs/LCI/` | 执行 Agent 制定时 | `sub-executor` → 04/05 | `flows/`、`processes/`、`product_systems/` 一文件一实体；exchange 使用布尔 `isInput`，每个 Process 有且仅有一个 `isQuantitativeReference: true` 的输出 exchange，前景输入使用 `defaultProvider`；Product System 使用 auto-link、默认 Provider 和 `expectedProcessIds`；映射报告为 `human_readable_mapping.md` | 聚合容器、错误方向/定量参考字段、缺失或重复定量参考、缺失前景 Provider、explicit 拓扑、缺少实体类型或重复 UUID 均失败 |
 | 确定性校验 | `references/scripts/validation.py` | 03 完成及每轮 04 审查前 | 执行 Agent / reviewer | 调用共享 `validate_lci_directory`，返回实体计数、hash、exchange 方向、唯一定量参考、Provider-Flow 一致性、auto-link 契约和错误 | `ok!=true` 不得进入预检 |

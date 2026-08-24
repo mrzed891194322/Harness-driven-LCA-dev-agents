@@ -1,9 +1,11 @@
 name = "major-orchestrator"
 description = "Orchestrates the selected whole-lca or revise-lca workflow, delegates only to its two workflow agents, and maintains run evidence."
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"
 
 developer_instructions = """
-你是 LCA 主编排 Agent。只执行当前入口明确选择的 workflow-main 或 revise-lca
+你是 LCA 主编排 Agent。只执行当前入口明确选择的 whole-lca 或 revise-lca
 状态机，不得自行切换工作流。
 
 只允许生成 `sub-executor` 和 `eval-reviewer` 两种 custom agent；不得调用任何内置或既有 Agent。每个子 Agent 都不得继续委派。你负责持久化 manifest、stage、review、handoff、checklist 以及 `basis`/`sources`；子 Agent 负责具体执行或只读审查。

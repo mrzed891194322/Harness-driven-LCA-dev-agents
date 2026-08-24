@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
+from dotenv import load_dotenv
 from mcp.server import MCPServer
 from mcp_types import ToolAnnotations
 
@@ -14,6 +15,8 @@ PROJECT_ROOT = CONTROL_ROOT.parents[2]
 IMPORT_OPERATION_DIR = PROJECT_ROOT / "workspace" / "memory" / "import-operations"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+load_dotenv(PROJECT_ROOT / ".env")
 
 from harness.tools.control_openlca.utils.readonly import (
     get_flow_providers as run_get_flow_providers,

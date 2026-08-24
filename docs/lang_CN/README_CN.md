@@ -5,11 +5,11 @@
 
 ## 首次使用
 
-1. [环境准备与配置](env_setup.md)：安装 uv、OpenCode，配置模型、Embedding 服务和
-   Python 环境。
-2. [项目准备说明](project_prep.md)：准备计划、参考资料和 openLCA IPC Server。
-3. 返回[项目 README](../../README.md)，按照“快速开始”和“使用 GUI 完成一次 LCA”
-   运行工作流。
+1. 满足 README 前置要求（uv、Codex / Claude Code / OpenCode 三者之一的 CLI，以及每次开工前打开 openLCA 并启用 IPC Server）。
+2. 用命令行执行 `bootstrap-env`（或把 `src/scripts/setup_env/PROMPT.md` 发给 agent）。
+3. 需要手动安装细节时看 [环境准备与配置](env_setup.md)。
+4. [项目准备说明](project_prep.md)：准备计划、参考资料和 openLCA IPC Server。
+5. 返回[项目 README](../../README.md) 运行 GUI 或 whole-lca。
 
 ## 专题指南
 

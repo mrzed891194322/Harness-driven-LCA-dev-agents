@@ -2,7 +2,7 @@
 项目初始化脚本
 
 功能：
-    1. 检查 opencode CLI 与 RAG embedding API 是否可用
+    1. 检查所选 harness CLI（codex / claude / opencode）与 RAG embedding API 是否可用
     2. 构建 RAG 知识库（依据映射规则将原始文档向量化写入 Chroma 数据库）
     3. 检查 openLCA IPC Server 是否已启动并可连接，并在连接成功后清理项目对应的 openLCA 实体
 
@@ -35,12 +35,24 @@ import argparse
 import subprocess
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # 将本脚本所在目录加入 sys.path 以便导入同目录模块
 SCRIPT_DIR = Path(__file__).parent
 sys.path.append(str(SCRIPT_DIR))
 
 PROJECT_ROOT = next(
     parent for parent in SCRIPT_DIR.parents if (parent / "pyproject.toml").is_file()
+)
+load_dotenv(PROJECT_ROOT / ".env")
+
+_src_root = PROJECT_ROOT / "src"
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
+
+from GUI.functions.project_init.settings import (  # noqa: E402
+    DEFAULT_OPENLCA_IPC_PORT,
+    load_port_settings,
 )
 
 from rag_init.main import build_all_rag
@@ -77,8 +89,8 @@ def main():
     parser.add_argument(
         "--port",
         type=int,
-        default=8080,
-        help="openLCA IPC Server 端口（默认 8080）",
+        default=load_port_settings(PROJECT_ROOT)["openlca_ipc_port"],
+        help=f"openLCA IPC Server 端口（默认 {DEFAULT_OPENLCA_IPC_PORT} 或 .env 中的 OPENLCA_IPC_PORT）",
     )
     parser.add_argument(
         "--clean",

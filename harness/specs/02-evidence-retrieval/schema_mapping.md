@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    input["已通过计划 + plan review<br/>GAP-* 与背景映射任务"]
+    input["已通过计划 + plan review<br/>自然语言检索任务 / retrievable_gaps"]
     request["委派请求 handoff"]
     executor["sub-executor"]
     libs["list_rag_libraries"]
@@ -30,7 +30,7 @@ flowchart TD
 
 | 类型 | 契约、规则或接口 | 触发时机 | 生产者 → 消费者 | 校验与握手内容 | 条件/失败处理 |
 | --- | --- | --- | --- | --- | --- |
-| 输入审查 | `review.schema.json`（public） | 进入阶段前 | 01 → 02 | 只接收 `review_type=plan` 且 `status=passed` 的审查及其中 `retrievable_gaps` | 不满足则不得进入 02 |
+| 输入审查 | `review.schema.json`（public） | 进入阶段前 | 01 → 02 | 只接收 `review_type=plan` 且 `status=passed` 的审查；`retrievable_gaps` 可为空，检索任务还可来自计划自然语言 | review 非通过时不得进入 02 |
 | 检索交接 | handoff `queries` 字段 | 委派检索前后 | 主编排 Agent ↔ `sub-executor` | 候选、选择理由、来源位置、未解决项和 issue ID | 未解决阻断项转受控停止 |
 | RAG 规则 | `harness/rules/knowledge-retrieval/README.md` | 查询用户资料、标准或手册时 | 平台/Agent → RAG 调用 | library 白名单、先列库、命中回读原文、记录定位字段 | 配置/数据库错误不得当作无结果 |
 | MCP schema | `list_rag_libraries()` | 首次访问目标知识库前 | `query_rag` MCP → `sub-executor` | `available`、`status`、chunks、embedding model、build ID | 目标库不可用时保存错误 |

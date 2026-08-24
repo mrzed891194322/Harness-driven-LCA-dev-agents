@@ -1,102 +1,53 @@
 """
-Environment setup script.
+Environment bootstrap script.
 
-Steps:
-    1. Run `uv sync` to install/update all dependencies.
-    2. Check if `.env` exists in the project root.
-       - If missing, copy `.env.example` to `.env` and remind the user to fill in values.
-       - If present, report success.
+Checks:
+    1. uv is on PATH (does not install it).
+    2. uv sync, Python version, and .env template.
+    3. RAG Embedding API callability.
+    4. MCP module import and registered tool names.
 
 Usage:
     uv run python src/scripts/setup_env/main.py
 """
 
-import shutil
-import subprocess
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = next(
-    parent for parent in SCRIPT_DIR.parents if (parent / "pyproject.toml").is_file()
-)
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-ENV_FILE = PROJECT_ROOT / ".env"
-ENV_EXAMPLE = PROJECT_ROOT / ".env.example"
+from utils.bootstrap import dumps_report, run_bootstrap
 
 
-def run_uv_sync() -> bool:
-    """Run `uv sync` in the project root. Returns True on success."""
-    print("=" * 60)
-    print("Step 1/2: uv sync")
-    print("=" * 60)
-    print(f"Working directory: {PROJECT_ROOT}")
+def main() -> int:
     print()
-
-    result = subprocess.run(
-        ["uv", "sync"],
-        cwd=PROJECT_ROOT,
-    )
-
-    if result.returncode != 0:
-        print()
-        print(f"[ERROR] uv sync failed with exit code {result.returncode}.")
-        print("Please check the output above and fix the issue before retrying.")
-        return False
-
+    print("LCA Agent - Environment Bootstrap")
     print()
-    print("[OK] uv sync completed successfully.")
-    return True
-
-
-def check_env_file() -> bool:
-    """Check .env existence; copy from .env.example if missing. Returns True if ready."""
+    exit_code, report = run_bootstrap()
     print()
     print("=" * 60)
-    print("Step 2/2: Check .env file")
-    print("=" * 60)
-
-    if ENV_FILE.exists():
-        print(f"[OK] .env already exists at: {ENV_FILE}")
-        return True
-
-    print(f"[WARN] .env not found at: {ENV_FILE}")
-
-    if not ENV_EXAMPLE.exists():
-        print(f"[ERROR] .env.example not found at: {ENV_EXAMPLE}")
-        print("Cannot auto-create .env. Please create it manually.")
-        return False
-
-    shutil.copy2(ENV_EXAMPLE, ENV_FILE)
-    print(f"[OK] Copied .env.example -> .env")
-    print()
-    print("!" * 60)
-    print("  ACTION REQUIRED: Please edit .env and fill in your values:")
-    print(f"    {ENV_FILE}")
-    print("!" * 60)
-    return False
-
-
-def main():
-    print()
-    print("LCA Agent - Environment Setup")
-    print()
-
-    sync_ok = run_uv_sync()
-    if not sync_ok:
-        sys.exit(1)
-
-    env_ready = check_env_file()
-
-    print()
-    print("=" * 60)
-    if env_ready:
-        print("Environment setup complete. You are ready to go!")
+    if exit_code == 0:
+        if report["rag_embedding"]["ok"]:
+            print("Environment bootstrap passed.")
+        else:
+            print("Environment bootstrap passed with warnings.")
+            reminder = report["rag_embedding"].get("reminder")
+            if reminder:
+                print(reminder)
     else:
-        print("Environment setup partially complete.")
-        print("Please fill in .env before running the application.")
+        print("Environment bootstrap failed.")
+        reminder = report["uv"].get("reminder")
+        if reminder:
+            print(reminder)
     print("=" * 60)
+    print("--- json ---")
+    print(dumps_report(report))
+    return exit_code
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

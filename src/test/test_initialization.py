@@ -11,7 +11,7 @@ from support import PROJECT_ROOT  # noqa: E402
 
 from GUI.functions.project_init.check_status import (  # noqa: E402
     check_openlca_result,
-    refresh_execution_readiness,
+    run_initialization_checks,
 )
 from scripts.initialization import main as initialization_main  # noqa: E402
 from scripts.initialization.env_check import check_rag_embedding_api  # noqa: E402
@@ -47,23 +47,30 @@ class InitializationStatusTests(unittest.TestCase):
             "scripts.initialization.openlca_check.get_openlca_health",
             return_value={"ok": True, "attempt_count": 1},
         ):
-            self.assertEqual(check_openlca_result(), (True, "成功连接（尝试 1 次）"))
+            self.assertEqual(check_openlca_result(), (True, "可用"))
 
-    def test_execution_gate_requires_both_checks(self) -> None:
+    def test_execution_gate_requires_all_checks(self) -> None:
         with (
             patch(
-                "GUI.functions.project_init.check_status.check_env_result",
+                "GUI.functions.project_init.check_status.check_agent_result",
+                return_value=(True, "可用"),
+            ),
+            patch(
+                "GUI.functions.project_init.check_status.check_rag_result",
                 return_value=(True, "可用"),
             ),
             patch(
                 "GUI.functions.project_init.check_status.check_openlca_result",
-                return_value=(False, "连接失败"),
+                return_value=(False, "不可用"),
+            ),
+            patch(
+                "GUI.functions.project_init.check_status.check_knowledge_base_result",
+                return_value=(True, "可用"),
             ),
         ):
-            self.assertEqual(
-                refresh_execution_readiness(),
-                ("可用", "连接失败", False),
-            )
+            ok, failed = run_initialization_checks()
+        self.assertFalse(ok)
+        self.assertEqual(failed, ["OpenLCA"])
 
     def test_initialization_fails_when_environment_check_fails(self) -> None:
         with (

@@ -2,6 +2,8 @@
 
 本文档介绍运行 **Harness-driven LCA Agents** 所需的环境与配置。
 
+推荐先用命令行让 agent 做环境引导（`opencode run --command bootstrap-env`、`codex exec -s workspace-write '$bootstrap-env'` 或 `claude -p "/bootstrap-env"`）。步骤正文在 `src/scripts/setup_env/PROMPT.md`。没有 uv 时 agent 会判定不通过，需要你按下面说明手动安装。
+
 ## 1. 运行依赖
 
 项目需要 uv、OpenCode、可用的模型服务，以及能够访问 OpenAI 兼容

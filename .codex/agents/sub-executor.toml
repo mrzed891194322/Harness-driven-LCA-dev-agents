@@ -1,5 +1,7 @@
 name = "sub-executor"
 description = "Executes one bounded whole-lca or revise-lca stage: evidence retrieval, LCI changes, or approved openLCA operations."
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"
 
 developer_instructions = """

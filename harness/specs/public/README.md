@@ -20,7 +20,3 @@
 - 测试命令：`uv run python -m unittest discover -s harness/specs/public/references/scripts/tests -v`。
 
 阶段专属资源由各阶段 README 路由；每个阶段的 `schema_mapping.md` 只记录阶段特有的握手与工具依赖，公共部分见 `references/handshake-common.md`。
-
-## 质量评估同步规则
-
-修改必需产物、schema、模板、状态语义或交付路径时，必须在同一变更中更新 `.codex/specs/lca-quality-evaluation/` 的固定产物覆盖矩阵、受影响 rubric、score schema、Markdown 模板和回归夹具。不得让新交付物在质量评估中静默漏评。

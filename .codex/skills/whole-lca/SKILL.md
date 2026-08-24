@@ -1,5 +1,5 @@
 ---
-name: workflow-main
+name: whole-lca
 description: 通过分阶段的计划接收、证据检索、最多三次 LCI 审查循环、openLCA 写入预检、自动导入回读、LCIA 计算及结果归档，来无人值守地执行已有的 LCA 执行计划（plan.md）。适用于本仓库中的 whole-lca 或端到端 plan-to-LCIA 运行。
 ---
 
@@ -9,9 +9,12 @@ description: 通过分阶段的计划接收、证据检索、最多三次 LCI �
 
 ## 启动
 
-1. 在读取计划之前，运行 `uv run python src/scripts/file_sync/main.py --direction upload-to-work`，将参考资料同步到 harness 知识源。当环境需要时，可使用可写的临时 uv 缓存。
-2. 仅使用 `workspace/inputs/plan.md` 作为计划输入。如果当前活动 Agent 不是 `major-orchestrator`，只生成一个该 Agent，并传递 `platform=codex`、计划路径及执行 `harness/workflows/LCA-main.md` 的要求；根线程不执行业务阶段。
-3. `major-orchestrator` 完整读取并执行 `harness/workflows/LCA-main.md`。
+1. 执行下列脚本清理 openLCA 与 workspace 生成文件（如有）：
+   `uv run python harness/tools/control_openlca/cleanup_output/main.py --yes`
+   `uv run python src/scripts/clean_dir/main.py --yes --target workspace_without_inputs`
+2. 在读取计划之前，运行 `uv run python src/scripts/file_sync/main.py --direction upload-to-work`，将参考资料同步到 harness 知识源。当环境需要时，可使用可写的临时 uv 缓存。
+3. 仅使用 `workspace/inputs/plan.md` 作为计划输入。当前 `codex exec` 会话即担任 `major-orchestrator`：先读取 `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行 `harness/workflows/LCA-main.md`。不要再 spawn 另一个 `major-orchestrator`。
+4. 只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明当前阶段、被委派角色、输入产物路径和等待原因；子 Agent 返回后立即摘要结论与产物，不要用空的 Wait 心跳代替阶段进展。
 
 ## Codex 运行时补充
 

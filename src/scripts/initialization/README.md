@@ -31,6 +31,7 @@ input 和 data 会排除占位 README，并允许发布合法空库，防止已�
 EMBEDDING_API_KEY="..."
 EMBEDDING_API_URL="https://.../v1"  # 可选
 EMBEDDING_MODEL="..."
+HARNESS_AGENT="opencode"  # 可选：codex / claude / opencode
 ~~~
 
 构建端会把模型名和向量维度写入数据库 schema；查询端配置必须与构建时一致。

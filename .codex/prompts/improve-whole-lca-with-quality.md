@@ -1,8 +1,0 @@
-codex exec \
-  -C /home/yuandu/Programming/202606-harness-agent-LCA \
-  -s workspace-write \
-  --json \
-  '请使用 $improve-whole-lca-workflow 持续改进当前 workspace/inputs/plan.md 的 Whole-LCA 工作流，并同时检查本次 LCA 质量。开始时禁止读取任何历史 issue 或 walkthrough；先预览并清理当前项目分类下的 openLCA ProductSystem、Process、Flow，再清理 workspace 中除 inputs 外的生成物。运行期间不要修改 tracked 文件或 harness；遇到 harness 接口、门禁、validator、pipeline、rule、spec 或 tool 问题时，在 workspace/tmp/ 创建可追踪的兼容文件或转换产物使工作流继续，并把问题留到最终阶段。形成明确 LCA 报告结论后，先将本轮问题写入 docs/dev/walkthrough/<run-id>/issues.md，再调用 $evaluate-lca-quality 完成独立评价，保留 canonical JSON/Markdown，并把带 review_id、源路径和哈希的评价报告归档到 docs/dev/walkthrough/<run-id>/eval.md。随后读取该 run 目录内全部文件，才允许在 harness/knowledge 以外的 harness 目录统一修正。所有接口、schema、validator 和门禁保持最简单状态：只有明确需要时才新增或保留，优先删除、合并或放宽无消费者、重复或过度约束的规则。所有修复同步更新 README、schema mapping 和相关说明，完成正负回归与受影响测试后，最后写 docs/dev/walkthrough/<run-id>/README.md。'
-
-
-请使用 $improve-whole-lca-workflow 持续改进当前 workspace/inputs/plan.md 的 Whole-LCA 工作流，并同时检查本次 LCA 质量。开始时禁止读取任何历史 issue 或 walkthrough；先预览并清理当前项目分类下的 openLCA ProductSystem、Process、Flow，再清理 workspace 中除 inputs 外的生成物。运行期间不要修改 tracked 文件或 harness；遇到 harness 接口、门禁、validator、pipeline、rule、spec 或 tool 问题时，在 workspace/tmp/ 创建可追踪的兼容文件或转换产物使工作流继续，并把问题留到最终阶段。形成明确 LCA 报告结论后，先将本轮问题写入 docs/dev/walkthrough/<run-id>/issues.md，再调用 $evaluate-lca-quality 完成独立评价，保留 canonical JSON/Markdown，并把带 review_id、源路径和哈希的评价报告归档到 docs/dev/walkthrough/<run-id>/eval.md。随后读取该 run 目录内全部文件，才允许在 harness/knowledge 以外的 harness 目录统一修正。所有接口、schema、validator 和门禁保持最简单状态：只有明确需要时才新增或保留，优先删除、合并或放宽无消费者、重复或过度约束的规则。所有修复同步更新 README、schema mapping 和相关说明，完成正负回归与受影响测试后，最后写 docs/dev/walkthrough/<run-id>/README.md。

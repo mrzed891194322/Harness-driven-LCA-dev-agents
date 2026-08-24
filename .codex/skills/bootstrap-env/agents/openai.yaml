@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bootstrap Environment"
+  short_description: "Check uv, project env, MCP, and RAG embedding"
+  default_prompt: "Read and execute src/scripts/setup_env/PROMPT.md. Do not install uv. Do not start whole-lca."
