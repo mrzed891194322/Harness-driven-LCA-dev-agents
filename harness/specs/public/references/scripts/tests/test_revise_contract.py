@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import hashlib
 import importlib.util
 import re
 import tempfile
@@ -12,6 +11,7 @@ from pathlib import Path
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
+from referencing import Registry, Resource
 
 
 PROJECT_ROOT = next(
@@ -20,13 +20,8 @@ PROJECT_ROOT = next(
     if (parent / "pyproject.toml").is_file()
 )
 REVISE_ROOT = (
-    PROJECT_ROOT / "harness" / "specs" / "08-lca-revise-pipeline"
+    PROJECT_ROOT / "harness" / "specs" / "08-lca-revise-workflow"
 )
-HASH = "a" * 64
-
-
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def load_revision_validation():
@@ -60,10 +55,25 @@ def artifact(identifier: str, path: str, *, revision_of=None) -> dict:
         "artifact_id": identifier,
         "kind": "document",
         "path": path,
-        "sha256": HASH,
         "source_artifact_ids": [],
         "revision_of": revision_of,
     }
+
+
+def schema_registry() -> Registry:
+    registry = Registry()
+    schema_dirs = (
+        PROJECT_ROOT / "harness" / "specs" / "public" / "references" / "schemas",
+        REVISE_ROOT / "references" / "schemas",
+    )
+    for schema_dir in schema_dirs:
+        for path in sorted(schema_dir.glob("*.schema.json")):
+            schema = json.loads(path.read_text(encoding="utf-8"))
+            registry = registry.with_resource(
+                schema["$id"],
+                Resource.from_contents(schema),
+            )
+    return registry
 
 
 class ReviseLcaContractTests(unittest.TestCase):
@@ -72,7 +82,7 @@ class ReviseLcaContractTests(unittest.TestCase):
         command = load_frontmatter(command_path)
         self.assertEqual(command["agent"], "major-orchestrator")
         command_text = command_path.read_text(encoding="utf-8")
-        self.assertIn("harness/pipelines/LCA-revise.md", command_text)
+        self.assertIn("harness/workflows/LCA-revise.md", command_text)
         self.assertIn("snapshot --yes", command_text)
         self.assertIn("activate --yes", command_text)
 
@@ -80,11 +90,11 @@ class ReviseLcaContractTests(unittest.TestCase):
         skill = load_frontmatter(skill_path)
         self.assertEqual(skill["name"], "revise-lca")
         self.assertIn(
-            "harness/pipelines/LCA-revise.md",
+            "harness/workflows/LCA-revise.md",
             skill_path.read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "harness/specs/08-lca-revise-pipeline/",
+            "harness/specs/08-lca-revise-workflow/",
             skill_path.read_text(encoding="utf-8"),
         )
         self.assertFalse(
@@ -93,18 +103,18 @@ class ReviseLcaContractTests(unittest.TestCase):
 
     def test_pipeline_reuses_stages_02_through_07_in_order(self) -> None:
         pipeline = (
-            PROJECT_ROOT / "harness" / "pipelines" / "LCA-revise.md"
+            PROJECT_ROOT / "harness" / "workflows" / "LCA-revise.md"
         ).read_text(encoding="utf-8")
         positions = [pipeline.index(f"## {index:02d}") for index in range(1, 8)]
         self.assertEqual(positions, sorted(positions))
         self.assertIn("workspace/memory/baseline/", pipeline)
-        self.assertIn("harness/specs/08-lca-revise-pipeline/", pipeline)
+        self.assertIn("harness/specs/08-lca-revise-workflow/", pipeline)
         self.assertIn(
-            "harness/specs/08-lca-revise-pipeline/references/scripts/validation.py",
+            "harness/specs/08-lca-revise-workflow/references/scripts/validation.py",
             pipeline,
         )
         self.assertIn(
-            "harness/specs/08-lca-revise-pipeline/references/templates/"
+            "harness/specs/08-lca-revise-workflow/references/templates/"
             "revision-report-sections.md",
             pipeline,
         )
@@ -151,13 +161,14 @@ class ReviseLcaContractTests(unittest.TestCase):
             "updated_at": "2026-07-26T01:10:00Z",
             "status": "running",
             "current_stage": "03-lci-construction",
-            "preflight_hash": None,
+            "import_scope": None,
             "lci_review_attempt": 0,
             "artifact_index": [],
             "issue_ids": [],
         }
         Draft202012Validator(
             manifest_schema,
+            registry=schema_registry(),
             format_checker=FormatChecker(),
         ).validate(manifest)
 
@@ -172,8 +183,8 @@ class ReviseLcaContractTests(unittest.TestCase):
         brief = {
             "schema": "revise-lca/revision-brief",
             "version": "1.0",
-            "baseline_manifest_sha256": HASH,
-            "feedback_sha256": HASH,
+            "baseline_manifest_path": "workspace/memory/baseline/memory/manifest.json",
+            "feedback_path": "workspace/inputs/revise.md",
             "changes": [
                 {
                     "change_id": "REV-ELECTRICITY",
@@ -206,7 +217,7 @@ class ReviseLcaContractTests(unittest.TestCase):
         ):
             self.assertIn(heading, template)
 
-    def test_final_validator_checks_hashes_statuses_and_report_overlay(self) -> None:
+    def test_final_validator_checks_paths_statuses_and_report_overlay(self) -> None:
         validate = load_revision_validation()
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -246,8 +257,8 @@ class ReviseLcaContractTests(unittest.TestCase):
             brief = {
                 "schema": "revise-lca/revision-brief",
                 "version": "1.0",
-                "baseline_manifest_sha256": sha256(old_manifest),
-                "feedback_sha256": sha256(feedback),
+                "baseline_manifest_path": "workspace/memory/baseline/memory/manifest.json",
+                "feedback_path": "workspace/inputs/revise.md",
                 "changes": [
                     {
                         "change_id": "REV-DATA",
@@ -269,30 +280,21 @@ class ReviseLcaContractTests(unittest.TestCase):
                 "version": "1.0",
                 "platform": "codex",
                 "orchestrator_agent": "major-orchestrator",
-                "feedback": {
-                    **artifact("feedback-1", "workspace/inputs/revise.md"),
-                    "sha256": sha256(feedback),
-                },
-                "baseline": {
-                    **artifact(
-                        "baseline-1",
-                        "workspace/memory/baseline/snapshot.json",
-                    ),
-                    "sha256": sha256(snapshot),
-                },
-                "plan": {
-                    **artifact(
-                        "plan-2",
-                        "workspace/inputs/plan.md",
-                        revision_of="plan-1",
-                    ),
-                    "sha256": sha256(plan),
-                },
+                "feedback": artifact("feedback-1", "workspace/inputs/revise.md"),
+                "baseline": artifact(
+                    "baseline-1",
+                    "workspace/memory/baseline/snapshot.json",
+                ),
+                "plan": artifact(
+                    "plan-2",
+                    "workspace/inputs/plan.md",
+                    revision_of="plan-1",
+                ),
                 "started_at": "2026-07-26T01:00:00Z",
                 "updated_at": "2026-07-26T02:00:00Z",
                 "status": "completed",
                 "current_stage": "07-lcia-calculation-reporting",
-                "preflight_hash": HASH,
+                "import_scope": None,
                 "lci_review_attempt": 1,
                 "artifact_index": [],
                 "issue_ids": [],

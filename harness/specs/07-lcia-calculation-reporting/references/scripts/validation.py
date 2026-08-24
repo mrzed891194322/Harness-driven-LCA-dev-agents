@@ -1,31 +1,17 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import itertools
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
+_SCRIPTS_DIR = Path(__file__).resolve().parents[3] / "public" / "references" / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
 
-def _read_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return None, f"{path}: {exc}"
-    if not isinstance(value, dict):
-        return None, f"{path}: JSON root must be an object"
-    return value, None
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
+from lib.json_io import read_json as _read_json
 def _profile(raw: dict[str, Any]) -> tuple[str, ...]:
     return tuple(
         sorted(
@@ -107,8 +93,6 @@ def validate_calculation_evidence(
         if raw_error or raw is None:
             errors.append(raw_error or f"{raw_path}: raw result missing")
             continue
-        if _sha256(raw_path) != raw_ref.get("sha256"):
-            errors.append(f"{raw_path}: SHA-256 does not match calculation manifest")
         if raw.get("status") != "success" or not raw.get("impact_categories"):
             errors.append(f"{raw_path}: raw LCIA result is not a non-empty success")
         profiles[system_id] = _profile(raw)
@@ -155,24 +139,9 @@ def validate_calculation_evidence(
             continue
         left_graph = graph_by_system.get(left, {})
         right_graph = graph_by_system.get(right, {})
-        left_fingerprint = left_graph.get("graph_fingerprint")
-        right_fingerprint = right_graph.get("graph_fingerprint")
-        if check.get("left_product_system_id") == right:
-            recorded_left = check.get("right_graph_fingerprint")
-            recorded_right = check.get("left_graph_fingerprint")
-        else:
-            recorded_left = check.get("left_graph_fingerprint")
-            recorded_right = check.get("right_graph_fingerprint")
-        if recorded_left != left_fingerprint or recorded_right != right_fingerprint:
-            errors.append(f"Comparison graph fingerprints do not match {left}/{right}")
         expected_differ = set(left_graph.get("expected_process_ids") or []) != set(
             right_graph.get("expected_process_ids") or []
         )
-        if expected_differ and left_fingerprint == right_fingerprint:
-            errors.append(
-                f"{left} and {right} declare different expected processes but "
-                "have the same graph fingerprint"
-            )
         results_equal = (
             left in profiles
             and right in profiles
@@ -180,13 +149,13 @@ def validate_calculation_evidence(
         )
         if check.get("results_equal") is not results_equal:
             errors.append(f"Comparison results_equal is incorrect for {left}/{right}")
-        if results_equal and left_fingerprint != right_fingerprint:
+        if results_equal and expected_differ:
             if check.get("status") != "explained" or not str(
                 check.get("explanation") or ""
             ).strip():
                 review_items.append(
-                    f"{left} and {right} have different model graphs but identical "
-                    "LCIA profiles"
+                    f"{left} and {right} declare different expected processes but "
+                    "have identical LCIA profiles"
                 )
         elif not results_equal and check.get("status") != "distinct":
             errors.append(f"Distinct results for {left}/{right} must use status distinct")

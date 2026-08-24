@@ -12,7 +12,7 @@ agent: major-orchestrator
    失败时不得激活快照或清理旧 canonical 结果。
 4. 只有清理成功后运行
    `uv run python src/scripts/revise_lca/main.py activate --yes`。
-5. 完整读取并执行 `harness/pipelines/LCA-revise.md`，固定意见输入为
+5. 完整读取并执行 `harness/workflows/LCA-revise.md`，固定意见输入为
    `workspace/inputs/revise.md`。
 6. 返回后保留当前 `workspace/memory/`、`workspace/outputs/LCI/` 和
    `workspace/outputs/reports/`，立即结束会话。

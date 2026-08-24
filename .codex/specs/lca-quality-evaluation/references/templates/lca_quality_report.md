@@ -21,17 +21,17 @@ rubric_version: "<rubric_version>"
 
 ## 3. 标准依据
 
-| 标准 | 版本 | 原文路径 | SHA-256 | 定位 |
-| :--- | :--- | :--- | :--- | :--- |
-| `<id>` | `<edition>` | `<path>` | `<sha256>` | `<locator>` |
+| 标准 | 版本 | 原文路径 | 定位 |
+| :--- | :--- | :--- | :--- |
+| `<id>` | `<edition>` | `<path>` | `<locator>` |
 
 ## 4. 输入证据与产物覆盖
 
 workflow manifest 必须为 `completed`；ProductSystem 模型图必须状态成功、节点非空且不存在断链或断连节点。
 
-| Artifact ID | 类型 | 路径 | 文件状态 | Schema 状态 | SHA-256 | 说明 |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `<id>` | `<kind>` | `<path>` | `<status>` | `<schema-status>` | `<sha256>` | `<details>` |
+| Artifact ID | 类型 | 路径 | 文件状态 | Schema 状态 | 说明 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `<id>` | `<kind>` | `<path>` | `<status>` | `<schema-status>` | `<details>` |
 
 ## 5. 维度汇总
 

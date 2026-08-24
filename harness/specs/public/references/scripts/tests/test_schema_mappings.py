@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -59,7 +60,9 @@ EXPECTED_SOURCE_PATHS = (
     "src/GUI/ui/assets/template/plan.md",
     "harness/rules/knowledge-retrieval/README.md",
     "harness/rules/openlca-operation/README.md",
+    "harness/specs/public/references/handshake-common.md",
     "harness/specs/public/references/workflow-runtime-spec.md",
+    "harness/specs/public/references/schemas/common.schema.json",
     "harness/specs/public/references/schemas/workflow-manifest.schema.json",
     "harness/specs/public/references/schemas/stage.schema.json",
     "harness/specs/public/references/schemas/review.schema.json",
@@ -91,12 +94,7 @@ class StageSchemaMappingTests(unittest.TestCase):
             mapping = mapping_path.read_text(encoding="utf-8")
             self.assertIn("```mermaid", mapping, stage)
             self.assertIn("| 类型 |", mapping, stage)
-            for common_token in (
-                "workflow-manifest.schema.json",
-                "stage.schema.json",
-                "handoff.schema.json",
-            ):
-                self.assertIn(common_token, mapping, f"{stage}: {common_token}")
+            self.assertIn("handshake-common.md", mapping, stage)
             for token in expected_tokens:
                 self.assertIn(token, mapping, f"{stage}: {token}")
 
@@ -118,13 +116,9 @@ class StageSchemaMappingTests(unittest.TestCase):
             self.assertFalse((public_references / relative_path).exists(), relative_path)
 
     def test_workflow_adapters_route_stage_local_contracts(self) -> None:
-        adapter_content = "\n".join(
-            (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
-            for relative_path in (
-                "harness/pipelines/LCA-main.md",
-                ".codex/skills/workflow-main/SKILL.md",
-            )
-        )
+        adapter_content = (
+            PROJECT_ROOT / "harness/workflows/LCA-main.md"
+        ).read_text(encoding="utf-8")
         for relative_path in (
             "harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json",
             "harness/specs/06-openlca-import-readback/references/schemas/import-operation-status.schema.json",
@@ -138,6 +132,32 @@ class StageSchemaMappingTests(unittest.TestCase):
         self.assertNotIn(
             "harness/specs/public/references/schemas/import-report",
             adapter_content,
+        )
+
+    def test_common_artifact_schema_is_shared(self) -> None:
+        schema_dir = SPEC_ROOT / "public" / "references" / "schemas"
+        common = json.loads((schema_dir / "common.schema.json").read_text(encoding="utf-8"))
+        required = set(common["$defs"]["artifact"]["required"])
+        for schema_name in (
+            "workflow-manifest.schema.json",
+            "handoff.schema.json",
+            "review.schema.json",
+        ):
+            schema = json.loads((schema_dir / schema_name).read_text(encoding="utf-8"))
+            self.assertNotIn("artifact", schema.get("$defs", {}), schema_name)
+        revise_manifest = json.loads(
+            (
+                SPEC_ROOT
+                / "08-lca-revise-workflow"
+                / "references"
+                / "schemas"
+                / "workflow-manifest.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(required, {"artifact_id", "kind", "path"})
+        self.assertIn(
+            "whole-lca/common.schema.json#/$defs/artifact",
+            json.dumps(revise_manifest),
         )
 
 

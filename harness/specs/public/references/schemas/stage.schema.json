@@ -4,7 +4,7 @@
   "title": "Whole-LCA stage record",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "stage_id", "supersedes_stage_id", "sequence", "stage", "agent", "started_at", "ended_at", "status", "artifact_ids", "evidence_refs", "issue_ids"],
+  "required": ["schema", "version", "stage_id", "supersedes_stage_id", "sequence", "stage", "agent", "started_at", "ended_at", "status", "artifact_ids", "evidence_refs", "issue_ids", "basis", "sources"],
   "properties": {
     "schema": {"const": "whole-lca/stage"},
     "version": {"const": "2.0"},
@@ -19,6 +19,11 @@
     "artifact_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "evidence_refs": {"type": "array", "items": {"type": "string"}},
     "issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "basis": {"type": "string", "minLength": 1},
+    "sources": {
+      "type": "array",
+      "items": {"$ref": "whole-lca/common.schema.json#/$defs/source"}
+    },
     "summary": {"type": "string"}
   }
 }

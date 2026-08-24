@@ -1,6 +1,6 @@
 # query_rag MCP
 
-该目录提供只读 RAG MCP 服务。
+该目录提供只读 RAG MCP 服务。Agent 检索纪律（回读原文、library 白名单、负向证据）见 [`harness/rules/knowledge-retrieval/README.md`](../../rules/knowledge-retrieval/README.md)。
 
 - main.py：注册 list_rag_libraries 和 query_rag，维护知识库白名单。
 - utils/query.py：参数、schema、模型、维度和距离校验。
@@ -15,6 +15,11 @@ OpenCode 通过项目配置自动启动服务。手动执行以下命令只会�
 ~~~bash
 uv run python harness/tools/query_rag/main.py
 ~~~
+
+## MCP 工具
+
+- `list_rag_libraries()`：返回 `standards`、`openlca_manual`、`input`、`data` 的可用性、状态、chunks、embedding model 和 build ID。
+- `query_rag(query, libraries, n_results, max_distance)`：`query` 非空；`libraries` 仅可为上述四类；`n_results` 为 1–50；`max_distance` 为有限非负数。
 
 ## 只读边界
 

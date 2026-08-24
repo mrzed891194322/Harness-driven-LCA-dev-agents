@@ -10,8 +10,9 @@
 
 | 路径 | 职责 |
 | --- | --- |
-| `.codex/`、`.opencode/` | Codex/OpenCode 平台配置、skills、agents、命令和平台专用评价契约 |
-| `harness/specs/` | 公共工作流状态机、Whole-LCA 01–07 阶段及 Revise-LCA 08 规范；共享契约位于 `public/`，阶段独占 schema、模板和校验脚本随对应阶段保存 |
+| `.codex/`、`.opencode/`、`.claude/` | 各平台配置、skills/commands、agents；Codex 另含平台专用评价契约 |
+| `harness/workflows/` | Whole-LCA / Revise 编排入口（平台 command/skill 引用，不重述阶段正文） |
+| `harness/specs/` | 工作流契约：阶段门禁、schema、校验；`rules/` 为跨场景 Agent 纪律，`tools/` 为 MCP 实现 |
 | `harness/rules/` | 跨任务的知识检索、openLCA 和代码/目录约束 |
 | `harness/tools/` | `query_rag`、`control_openlca` 等 MCP 工具及其离线测试 |
 | `harness/knowledge/` | 静态标准、openLCA 手册、同步后的用户资料和生成的 RAG 数据库 |
@@ -22,9 +23,9 @@
 ## 关键入口与固定路径
 
 - Codex Whole-LCA 入口：`$workflow-main`，实现位于 `.codex/skills/workflow-main/SKILL.md`。
-- OpenCode Whole-LCA 入口：`/whole-lca`，命令位于 `.opencode/commands/whole-lca.md`，并加载 `harness/pipelines/LCA-main.md`。
-- OpenCode Revise-LCA 入口：`/revise-lca`，命令位于 `.opencode/commands/revise-lca.md`，并加载 `harness/pipelines/LCA-revise.md`。
-- Codex Revise-LCA 入口：`$revise-lca`，实现位于 `.codex/skills/revise-lca/SKILL.md`，专属契约位于 `harness/specs/08-lca-revise-pipeline/`。
+- OpenCode Whole-LCA 入口：`/whole-lca`，命令位于 `.opencode/commands/whole-lca.md`，并加载 `harness/workflows/LCA-main.md`。
+- OpenCode Revise-LCA 入口：`/revise-lca`，命令位于 `.opencode/commands/revise-lca.md`，并加载 `harness/workflows/LCA-revise.md`。
+- Codex Revise-LCA 入口：`$revise-lca`，实现位于 `.codex/skills/revise-lca/SKILL.md`，专属契约位于 `harness/specs/08-lca-revise-workflow/`。
 - Codex 质量评价入口：`$evaluate-lca-quality` 或项目注册的 `lca-quality-evaluator`，契约位于 `.codex/specs/lca-quality-evaluation/`。
 - Codex Whole-LCA harness 持续改进入口：`$improve-whole-lca-workflow`；默认无质量评价提示词位于 `.codex/prompts/improve-whole-lca.md`，显式带质量评价的提示词位于 `.codex/prompts/improve-whole-lca-with-quality.md`。
 - 唯一计划输入：`workspace/inputs/plan.md`。

@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator, FormatChecker
+_SCRIPTS_DIR = Path(__file__).resolve().parents[3] / "public" / "references" / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from lib.json_io import read_json as _read_json
+from lib.schema_check import validate_schema as _validate_schema_at
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -21,41 +26,12 @@ REQUIRED_REPORT_HEADINGS = (
 )
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def _read_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return None, f"{path}: {exc}"
-    if not isinstance(value, dict):
-        return None, f"{path}: JSON root must be an object"
-    return value, None
-
-
 def _validate_schema(
     value: dict[str, Any],
     schema_name: str,
     errors: list[str],
 ) -> None:
-    schema, error = _read_json(SCHEMA_DIR / schema_name)
-    if error or schema is None:
-        errors.append(error or f"missing schema {schema_name}")
-        return
-    for issue in Draft202012Validator(
-        schema,
-        format_checker=FormatChecker(),
-    ).iter_errors(value):
-        location = "/".join(str(part) for part in issue.absolute_path)
-        errors.append(
-            f"{schema_name}{'/' + location if location else ''}: {issue.message}"
-        )
+    _validate_schema_at(value, SCHEMA_DIR / schema_name, errors)
 
 
 def _resolve_artifact(project_root: Path, artifact: Any) -> Path | None:
@@ -116,19 +92,17 @@ def validate_revision_evidence(project_root: Path) -> dict[str, Any]:
                 continue
             if not expected_path.is_file():
                 errors.append(f"{expected_path}: artifact is missing")
-            elif artifact.get("sha256") != _sha256(expected_path):
-                errors.append(f"{expected_path}: SHA-256 does not match manifest")
 
     if brief is not None:
         baseline_manifest = memory / "baseline" / "memory" / "manifest.json"
-        if baseline_manifest.is_file() and brief.get(
-            "baseline_manifest_sha256"
-        ) != _sha256(baseline_manifest):
-            errors.append("revision brief baseline manifest SHA-256 is incorrect")
-        if feedback_path.is_file() and brief.get("feedback_sha256") != _sha256(
-            feedback_path
-        ):
-            errors.append("revision brief feedback SHA-256 is incorrect")
+        expected_baseline = str(baseline_manifest)
+        expected_feedback = str(feedback_path)
+        brief_baseline = str(brief.get("baseline_manifest_path") or "")
+        brief_feedback = str(brief.get("feedback_path") or "")
+        if brief_baseline not in {expected_baseline, "workspace/memory/baseline/memory/manifest.json"}:
+            errors.append("revision brief baseline_manifest_path is incorrect")
+        if brief_feedback not in {expected_feedback, "workspace/inputs/revise.md"}:
+            errors.append("revision brief feedback_path is incorrect")
         if manifest is not None and manifest.get("status") == "completed":
             for change in brief.get("changes", []):
                 if isinstance(change, dict) and change.get("status") not in (

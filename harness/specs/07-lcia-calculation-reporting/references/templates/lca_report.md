@@ -1,7 +1,7 @@
 ---
 template_kind: whole_lca_report
 template_version: "2"
-raw_result_sha256: "<sha256>"
+raw_result_path: "<path>"
 ---
 
 # LCA 结果报告

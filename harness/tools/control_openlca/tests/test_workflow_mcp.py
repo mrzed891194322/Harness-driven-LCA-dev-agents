@@ -21,6 +21,24 @@ GENERATED_SYSTEM_ID = "44444444-4444-4444-8444-444444444444"
 PROVIDER_ID = "55555555-5555-4555-8555-555555555555"
 
 
+def run_import(
+    root: Path,
+    client: FakeImportClient,
+    category: str = "project-a",
+    database: str = "isolated-db",
+    operation_dir: Path | None = None,
+) -> dict:
+    return workflow.import_lci(
+        "localhost",
+        8080,
+        root,
+        category,
+        database_name=database,
+        client=client,
+        operation_dir=operation_dir,
+    )
+
+
 class FakeDescriptor:
     def __init__(self, entity_id: str, name: str, category: str | None = None) -> None:
         self.id = entity_id
@@ -366,7 +384,7 @@ class ImportWorkflowTests(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         self.assertEqual(result["status"], "invalid_lci")
-        self.assertIsNone(result["preflight_hash"])
+        self.assertNotIn("preflight_hash", result)
         self.assertTrue(
             any(
                 "unsupported field 'quantitativeReference'" in error
@@ -479,7 +497,10 @@ class ImportWorkflowTests(unittest.TestCase):
             )
 
         self.assertTrue(first["ok"])
-        self.assertEqual(first["preflight_hash"], second["preflight_hash"])
+        self.assertEqual(first["active_database"], second["active_database"])
+        self.assertEqual(first["target_category"], second["target_category"])
+        self.assertEqual(first["lci_dir"], second["lci_dir"])
+        self.assertNotIn("preflight_hash", first)
         self.assertEqual(first["counts"], {"planned": 1, "overwrite_or_delete": 1})
         self.assertEqual(client.put_calls, [])
         self.assertEqual(client.delete_calls, [])
@@ -539,7 +560,7 @@ class ImportWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(client.close_calls, 1)
 
-    def test_unrelated_database_changes_do_not_change_preflight_hash(self) -> None:
+    def test_unrelated_database_changes_do_not_change_import_scope(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_flow(root)
@@ -554,7 +575,11 @@ class ImportWorkflowTests(unittest.TestCase):
                 "localhost", 8080, root, "project-a", "isolated-db", client
             )
 
-        self.assertEqual(first["preflight_hash"], second["preflight_hash"])
+        self.assertEqual(first["active_database"], second["active_database"])
+        self.assertEqual(first["target_category"], second["target_category"])
+        self.assertEqual(first["lci_dir"], second["lci_dir"])
+        self.assertTrue(first["ok"])
+        self.assertTrue(second["ok"])
 
     def test_preflight_requires_explicit_database_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -652,40 +677,38 @@ class ImportWorkflowTests(unittest.TestCase):
                 for error in third["errors"]
             )
         )
-        self.assertNotEqual(
-            first["background_provider_fingerprint"],
-            second["background_provider_fingerprint"],
-        )
+        self.assertNotIn("background_provider_fingerprint", first)
+        self.assertNotIn("preflight_hash", first)
 
-    def test_import_rejects_unmatched_hash_without_writes(self) -> None:
+    def test_import_rejects_unmatched_scope_without_writes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            operation_dir = Path(temp_dir) / "operations"
             write_flow(root)
             client = FakeImportClient()
-            report = workflow.import_lci(
+            preflight = workflow.preflight_import_lci(
                 "localhost",
                 8080,
                 root,
                 "project-a",
-                "0" * 64,
                 "isolated-db",
                 client,
+                operation_dir,
+            )
+            report = run_import(
+                root,
+                client,
+                category="other-project",
+                operation_dir=operation_dir,
             )
 
+        self.assertTrue(preflight["ok"])
         self.assertEqual(report["status"], "rejected")
+        self.assertIn("does not match the last successful preflight", report["errors"][0])
         self.assertEqual(client.put_calls, [])
         self.assertEqual(client.delete_calls, [])
 
-    def test_import_rejects_malformed_preflight_hash(self) -> None:
-        client = FakeImportClient()
-        with self.assertRaisesRegex(ValueError, "64-character SHA-256"):
-            workflow.import_lci(
-                "localhost", 8080, ".", "project-a", "not-a-hash", "isolated-db", client
-            )
-        self.assertEqual(client.put_calls, [])
-        self.assertEqual(client.delete_calls, [])
-
-    def test_changed_lci_or_scope_rejects_old_hash_without_writes(self) -> None:
+    def test_changed_lci_content_keeps_same_scope_writable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_flow(root)
@@ -694,22 +717,13 @@ class ImportWorkflowTests(unittest.TestCase):
                 "localhost", 8080, root, "project-a", "isolated-db", client
             )
             write_flow(root, name="F01 Changed product")
-            report = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-            )
+            report = run_import(root, client)
 
-        self.assertEqual(report["status"], "rejected")
-        self.assertIn("hash mismatch", report["errors"][0])
-        self.assertEqual(client.put_calls, [])
-        self.assertEqual(client.delete_calls, [])
+        self.assertTrue(preflight["ok"])
+        self.assertEqual(report["status"], "success")
+        self.assertGreater(len(client.put_calls), 0)
 
-    def test_changed_database_scope_rejects_old_hash(self) -> None:
+    def test_changed_overwrite_set_keeps_same_scope_writable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_flow(root)
@@ -718,19 +732,11 @@ class ImportWorkflowTests(unittest.TestCase):
                 "localhost", 8080, root, "project-a", "isolated-db", client
             )
             client.descriptors["Flow"] = [FakeDescriptor("new-old", "Existing", "project-a")]
-            report = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-            )
+            report = run_import(root, client)
 
-        self.assertEqual(report["status"], "rejected")
-        self.assertEqual(client.put_calls, [])
-        self.assertEqual(client.delete_calls, [])
+        self.assertTrue(preflight["ok"])
+        self.assertEqual(report["status"], "success")
+        self.assertGreater(len(client.put_calls), 0)
 
     def test_success_partial_failure_and_repeated_execution_are_structured(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -739,31 +745,19 @@ class ImportWorkflowTests(unittest.TestCase):
             client = FakeImportClient(
                 {"Flow": [FakeDescriptor("old-flow", "Old", "project-a")]}
             )
-            preflight = workflow.preflight_import_lci(
-                "localhost", 8080, root, "project-a", "isolated-db", client
-            )
-            first = workflow.import_lci(
-                "localhost", 8080, root, "project-a", preflight["preflight_hash"], "isolated-db", client
-            )
-            second = workflow.import_lci(
-                "localhost", 8080, root, "project-a", preflight["preflight_hash"], "isolated-db", client
-            )
+            first = run_import(root, client)
+            second = run_import(root, client)
             write_flow(
                 root,
                 name="F02 Failing product",
                 entity_id="22222222-2222-4222-8222-222222222222",
                 filename="f02-failing-product.json",
             )
-            current = workflow.preflight_import_lci(
-                "localhost", 8080, root, "project-a", "isolated-db", client
-            )
             client.fail_put_names.add("F02 Failing product")
-            failed = workflow.import_lci(
-                "localhost", 8080, root, "project-a", current["preflight_hash"], "isolated-db", client
-            )
+            failed = run_import(root, client)
 
         self.assertEqual(first["status"], "success")
-        self.assertEqual(second["status"], "rejected")
+        self.assertEqual(second["status"], "success")
         self.assertEqual(first["success_count"], 1)
         self.assertEqual(first["deleted_count"], 1)
         self.assertEqual(failed["status"], "partial_failure")
@@ -805,18 +799,7 @@ class ImportWorkflowTests(unittest.TestCase):
             root = Path(temp_dir)
             write_product_system_fixture(root)
             client = FakeImportClient()
-            preflight = workflow.preflight_import_lci(
-                "localhost", 8080, root, "project-a", "isolated-db", client
-            )
-            report = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-            )
+            report = run_import(root, client)
 
         self.assertEqual(report["status"], "success")
         self.assertEqual(report["success_count"], 3)
@@ -857,18 +840,7 @@ class ImportWorkflowTests(unittest.TestCase):
             )
             validation = workflow.validate_lci_directory(root)
             client = FakeImportClient()
-            preflight = workflow.preflight_import_lci(
-                "localhost", 8080, root, "project-a", "isolated-db", client
-            )
-            report = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-            )
+            report = run_import(root, client)
 
         self.assertTrue(validation["ok"], validation["errors"])
         self.assertEqual(report["status"], "success")
@@ -903,34 +875,10 @@ class ImportWorkflowTests(unittest.TestCase):
             operation_dir = Path(temp_dir) / "operations"
             write_flow(root)
             client = FakeImportClient()
-            preflight = workflow.preflight_import_lci(
-                "localhost", 8080, root, "project-a", "isolated-db", client
-            )
-            first = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-                operation_dir,
-            )
+            first = run_import(root, client, operation_dir=operation_dir)
             put_count = len(client.put_calls)
-            repeated = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-                operation_dir,
-            )
-            status = workflow.get_import_operation(
-                operation_dir,
-                preflight["preflight_hash"],
-            )
+            repeated = run_import(root, client, operation_dir=operation_dir)
+            status = workflow.get_import_operation(operation_dir)
 
         self.assertEqual(first["status"], "success")
         self.assertEqual(repeated["operation_id"], first["operation_id"])
@@ -943,18 +891,7 @@ class ImportWorkflowTests(unittest.TestCase):
             write_product_system_fixture(root)
             client = FakeImportClient()
             client.fail_create_product_system = True
-            preflight = workflow.preflight_import_lci(
-                "localhost", 8080, root, "project-a", "isolated-db", client
-            )
-            report = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-            )
+            report = run_import(root, client)
 
         self.assertEqual(report["status"], "partial_failure")
         self.assertEqual(report["failed_count"], 1)
@@ -968,18 +905,7 @@ class ImportWorkflowTests(unittest.TestCase):
             client.create_product_system_error = RuntimeError(
                 "reference process has no quantitative reference"
             )
-            preflight = workflow.preflight_import_lci(
-                "localhost", 8080, root, "project-a", "isolated-db", client
-            )
-            report = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-            )
+            report = run_import(root, client)
 
         self.assertEqual(report["status"], "partial_failure")
         self.assertEqual(report["failed_count"], 1)
@@ -994,18 +920,7 @@ class ImportWorkflowTests(unittest.TestCase):
             write_product_system_fixture(root)
             client = FakeImportClient()
             client.fail_delete_ids.add(GENERATED_SYSTEM_ID)
-            preflight = workflow.preflight_import_lci(
-                "localhost", 8080, root, "project-a", "isolated-db", client
-            )
-            report = workflow.import_lci(
-                "localhost",
-                8080,
-                root,
-                "project-a",
-                preflight["preflight_hash"],
-                "isolated-db",
-                client,
-            )
+            report = run_import(root, client)
 
         self.assertEqual(report["status"], "partial_failure")
         self.assertEqual(report["failed_count"], 1)
@@ -1075,7 +990,7 @@ class GraphWorkflowTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "broken")
         self.assertEqual(result["missing_expected_nodes"], ["train-process"])
-        self.assertEqual(len(result["graph_fingerprint"]), 64)
+        self.assertNotIn("graph_fingerprint", result)
 
     def test_graph_reports_broken_links(self) -> None:
         system = olca_schema.ProductSystem(id="ps-id", name="PS1 Test")

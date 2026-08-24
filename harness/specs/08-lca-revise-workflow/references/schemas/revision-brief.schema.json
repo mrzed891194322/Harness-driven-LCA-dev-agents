@@ -4,12 +4,12 @@
   "title": "Revise-LCA revision brief",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "baseline_manifest_sha256", "feedback_sha256", "changes", "unchanged_decisions"],
+  "required": ["schema", "version", "baseline_manifest_path", "feedback_path", "changes", "unchanged_decisions"],
   "properties": {
     "schema": {"const": "revise-lca/revision-brief"},
     "version": {"const": "1.0"},
-    "baseline_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "feedback_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "baseline_manifest_path": {"type": "string", "minLength": 1},
+    "feedback_path": {"type": "string", "minLength": 1},
     "changes": {
       "type": "array",
       "minItems": 1,

@@ -37,8 +37,12 @@ uv run python src/scripts/initialization/main.py --only openlca
 
 ## 3. 启动完整工作流
 
+正式入口是各平台一行 CLI，不要把 IDE 对话当成启动器。
+
 ```bash
 opencode run --command whole-lca
+codex exec -s workspace-write '$workflow-main'
+claude --agent major-orchestrator -p "/whole-lca" --permission-mode dontAsk
 ```
 
 该命令以 `workspace/inputs/plan.md` 作为唯一计划输入，完成计划门禁、证据检索、LCI
@@ -65,6 +69,8 @@ opencode run --command whole-lca
 
 ```bash
 opencode run --command revise-lca
+codex exec -s workspace-write '$revise-lca'
+claude --agent major-orchestrator -p "/revise-lca" --permission-mode dontAsk
 ```
 
 流程会保存直接上一轮 baseline，完整重建 LCI、重新导入、重算 LCIA，并覆盖当前最终

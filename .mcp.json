@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "query_rag": {
+      "command": "uv",
+      "args": ["run", "python", "harness/tools/query_rag/main.py"]
+    },
+    "control_openlca": {
+      "command": "uv",
+      "args": ["run", "python", "harness/tools/control_openlca/main.py"]
+    }
+  }
+}

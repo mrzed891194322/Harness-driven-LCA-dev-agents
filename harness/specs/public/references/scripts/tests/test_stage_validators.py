@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import hashlib
 import json
 import tempfile
 import unittest
@@ -44,30 +43,37 @@ stage07_validation = importlib.util.module_from_spec(STAGE07_SPEC)
 STAGE07_SPEC.loader.exec_module(stage07_validation)
 
 
-HASH_A = "a" * 64
-HASH_B = "b" * 64
-
-
 def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
 class Stage06EvidenceValidationTests(unittest.TestCase):
-    def test_hash_timeline_and_scenario_graphs_must_be_consistent(self) -> None:
+    def test_import_scope_timeline_and_graphs_must_be_consistent(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             manifest_path = root / "memory" / "manifest.json"
             report_path = root / "reports" / "import_report.json"
             graph_dir = root / "reports" / "model_graph"
             stage_path = root / "memory" / "stages" / "stage-006.json"
-            write_json(manifest_path, {"preflight_hash": HASH_A})
+            write_json(
+                manifest_path,
+                {
+                    "import_scope": {
+                        "database_name": "isolated-db",
+                        "category": "project-a",
+                        "lci_dir": "workspace/outputs/LCI",
+                    }
+                },
+            )
             write_json(
                 report_path,
                 {
                     "version": "1.1",
                     "status": "success",
-                    "preflight_hash": HASH_A,
+                    "active_database": "isolated-db",
+                    "target_category": "project-a",
+                    "lci_dir": "workspace/outputs/LCI",
                     "failed_count": 0,
                     "ended_at": "2026-07-24T11:30:00Z",
                 },
@@ -82,6 +88,7 @@ class Stage06EvidenceValidationTests(unittest.TestCase):
             graph_base = {
                 "version": "1.1",
                 "status": "success",
+                "nodes": [{"id": "p1", "name": "P1"}],
                 "broken_links": [],
                 "disconnected_nodes": [],
                 "missing_expected_nodes": [],
@@ -91,7 +98,6 @@ class Stage06EvidenceValidationTests(unittest.TestCase):
                 {
                     **graph_base,
                     "expected_process_ids": ["train"],
-                    "graph_fingerprint": HASH_A,
                 },
             )
             write_json(
@@ -99,7 +105,6 @@ class Stage06EvidenceValidationTests(unittest.TestCase):
                 {
                     **graph_base,
                     "expected_process_ids": ["ship"],
-                    "graph_fingerprint": HASH_B,
                 },
             )
             valid = stage06_validation.validate_import_evidence(
@@ -110,13 +115,13 @@ class Stage06EvidenceValidationTests(unittest.TestCase):
             )
 
             report = json.loads(report_path.read_text(encoding="utf-8"))
-            report["preflight_hash"] = HASH_B
+            report["target_category"] = "other-project"
             write_json(report_path, report)
             stage = json.loads(stage_path.read_text(encoding="utf-8"))
             stage["ended_at"] = "2026-07-24T11:08:00Z"
             write_json(stage_path, stage)
             sea = json.loads((graph_dir / "sea.json").read_text(encoding="utf-8"))
-            sea["graph_fingerprint"] = HASH_A
+            sea["broken_links"] = [{"reason": "missing provider"}]
             write_json(graph_dir / "sea.json", sea)
             invalid = stage06_validation.validate_import_evidence(
                 manifest_path,
@@ -125,16 +130,16 @@ class Stage06EvidenceValidationTests(unittest.TestCase):
                 stage_path,
             )
 
-        self.assertTrue(valid["ok"])
+        self.assertTrue(valid["ok"], valid["errors"])
         self.assertFalse(invalid["ok"])
         joined = "\n".join(invalid["errors"])
         self.assertIn("does not match", joined)
         self.assertIn("before import_report", joined)
-        self.assertIn("same graph_fingerprint", joined)
+        self.assertIn("connection errors", joined)
 
 
 class Stage07EvidenceValidationTests(unittest.TestCase):
-    def test_identical_profiles_with_different_graphs_require_explanation(self) -> None:
+    def test_identical_profiles_with_different_expected_processes_require_explanation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             graph_dir = root / "graphs"
@@ -157,14 +162,12 @@ class Stage07EvidenceValidationTests(unittest.TestCase):
                 write_json(raw_path, raw_value)
                 raw_refs[system_id] = {
                     "path": f"raw/{system_id}.json",
-                    "sha256": hashlib.sha256(raw_path.read_bytes()).hexdigest(),
                 }
                 write_json(
                     graph_dir / f"{system_id}.json",
                     {
                         "product_system": {"id": system_id},
                         "expected_process_ids": [system_id],
-                        "graph_fingerprint": HASH_A if system_id == "rail" else HASH_B,
                     },
                 )
             calculations = [
@@ -179,8 +182,6 @@ class Stage07EvidenceValidationTests(unittest.TestCase):
             comparison = {
                 "left_product_system_id": "rail",
                 "right_product_system_id": "sea",
-                "left_graph_fingerprint": HASH_A,
-                "right_graph_fingerprint": HASH_B,
                 "results_equal": True,
                 "status": "explained",
                 "explanation": "The equal profile is retained as a reviewed limitation.",
@@ -216,7 +217,7 @@ class Stage07EvidenceValidationTests(unittest.TestCase):
                 root,
             )
 
-        self.assertTrue(explained["ok"])
+        self.assertTrue(explained["ok"], explained["errors"])
         self.assertEqual(unexplained["status"], "needs_review")
         self.assertFalse(unexplained["ok"])
 

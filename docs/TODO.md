@@ -3,7 +3,7 @@
 
 - [ ] 增加专门的spec内容，让主agent思考完成lca任务需要哪些资料，想明白后再委托子agent收集信息
 
-- [ ] 移除多余的hash、schema
+- [x] 移除多余的hash、schema
 
 - [x] 工作流schema连接写文档
 

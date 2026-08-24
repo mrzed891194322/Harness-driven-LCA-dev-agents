@@ -25,7 +25,6 @@ PROJECT_ROOT = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
-HASH = "a" * 64
 REVIEW_ID = "20260722T090000Z-cafebabe"
 TIMESTAMP = "2026-07-22T09:00:00Z"
 
@@ -91,7 +90,6 @@ def build_evaluation() -> dict:
                     "path": item["path_patterns"][0],
                     "file_status": "present",
                     "schema_status": "valid",
-                    "sha256": HASH,
                     "details": "Fixture evidence.",
                 }
             )
@@ -114,8 +112,8 @@ def build_evaluation() -> dict:
         "evaluated_at": TIMESTAMP,
         "evaluator": {"agent": "lca-quality-evaluator", "platform": "codex"},
         "standards": [
-            {"id": "ISO 14040", "edition": "2006", "path": rubric["standards"][0]["path"], "sha256": HASH, "locators": ["5.1", "6"]},
-            {"id": "ISO 14044", "edition": "2006", "path": rubric["standards"][1]["path"], "sha256": HASH, "locators": ["4.1-4.5", "5.1-5.3", "6.1-6.3"]},
+            {"id": "ISO 14040", "edition": "2006", "path": rubric["standards"][0]["path"], "locators": ["5.1", "6"]},
+            {"id": "ISO 14044", "edition": "2006", "path": rubric["standards"][1]["path"], "locators": ["4.1-4.5", "5.1-5.3", "6.1-6.3"]},
         ],
         "applicability": {
             "study_type": "lca",
@@ -155,11 +153,11 @@ class RubricTests(unittest.TestCase):
         self.assertEqual(len(ids), 52)
         self.assertEqual(len(ids), len(set(ids)))
         required_kinds = {item["kind"] for item in rubric["artifact_coverage"] if item["required"]}
-        self.assertTrue({"execution-plan", "workflow-manifest", "workflow-history", "lci-flows", "lci-processes", "lci-product-systems", "lci-mapping-report", "import-report", "model-graph", "raw-lcia-results", "calculation-manifest", "lca-report"}.issubset(required_kinds))
+        self.assertTrue({"execution-plan", "workflow-manifest", "workflow-history", "workflow-checklist", "lci-flows", "lci-processes", "lci-product-systems", "lci-mapping-report", "import-report", "model-graph", "raw-lcia-results", "calculation-manifest", "lca-report"}.issubset(required_kinds))
 
     def test_current_delivery_files_are_covered(self) -> None:
         rubric_text = json.dumps(load_rubric(), ensure_ascii=False)
-        for value in ("workspace/memory/manifest.json", "workspace/memory/stages/*.json", "workspace/outputs/reports/import_report.json", "workspace/outputs/reports/model_graph/*.json", "workspace/outputs/reports/raw/*.json", "workspace/outputs/reports/calculation_manifest.json", "workspace/outputs/reports/lca_report.md", "outputs/LCI/flows/*.json", "outputs/LCI/processes/*.json", "outputs/LCI/product_systems/*.json", "outputs/LCI/human_readable_mapping.md"):
+        for value in ("workspace/memory/manifest.json", "workspace/memory/stages/*.json", "workspace/memory/checklist.md", "workspace/outputs/reports/import_report.json", "workspace/outputs/reports/model_graph/*.json", "workspace/outputs/reports/raw/*.json", "workspace/outputs/reports/calculation_manifest.json", "workspace/outputs/reports/lca_report.md", "outputs/LCI/flows/*.json", "outputs/LCI/processes/*.json", "outputs/LCI/product_systems/*.json", "outputs/LCI/human_readable_mapping.md"):
             self.assertIn(value, rubric_text)
         self.assertNotIn("<run_id>", rubric_text)
 

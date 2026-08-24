@@ -1,14 +1,8 @@
 # 03 Whole-LCA LCI 制定
 
-本目录定义 Whole-LCA 中 LCI 制定阶段的输入、委派、交付物和完成条件。
+将已通过计划与检索证据转化为结构化 LCI 产物。
 
-## References
-
-- `references/03-lci-construction-spec.md`
-- `references/scripts/validation.py`
-- `schema_mapping.md`
-
-## 公共依赖
-
-- `../public/references/workflow-runtime-spec.md`
-- `../public/references/schemas/handoff.schema.json`
+Normative：`references/03-lci-construction-spec.md`  
+握手（阶段特有）：`schema_mapping.md` · 公共：`../public/references/handshake-common.md`  
+校验：`references/scripts/validation.py`  
+运行契约：`../public/README.md`

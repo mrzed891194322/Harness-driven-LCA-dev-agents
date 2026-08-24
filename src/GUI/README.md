@@ -84,7 +84,8 @@ GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界
   相对路径集中声明，当前脚本路径位于 `src/scripts/`。
 - LCA 状态必须读取结构化 manifest；不得仅凭命令退出码或终端文本宣称完成。
 - 用户上传文件先写入 `workspace/inputs/references/{file,data}`，初始化时再同步到 RAG 输入目录。
-- 修改 GUI 代码后，必须从仓库根目录运行 GUI 测试：
+- 修改 GUI 代码后，必须从仓库根目录运行 `src/test` 回归（GUI 为路径与
+  `build_ui()` 冒烟，计划解析与写盘逻辑在同目录其余模块）：
 
   ```bash
   uv run python -m unittest discover -s src/test -v

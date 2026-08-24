@@ -4,7 +4,7 @@
   "title": "openLCA product-system model graph",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "status", "endpoint", "product_system", "nodes", "edges", "broken_links", "disconnected_nodes", "expected_process_ids", "missing_expected_nodes", "graph_fingerprint", "timestamp"],
+  "required": ["schema", "version", "status", "endpoint", "product_system", "nodes", "edges", "broken_links", "disconnected_nodes", "expected_process_ids", "missing_expected_nodes", "timestamp"],
   "properties": {
     "schema": {"const": "whole-lca/model-graph"},
     "version": {"const": "1.1"},
@@ -17,7 +17,6 @@
     "disconnected_nodes": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
     "expected_process_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
     "missing_expected_nodes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
-    "graph_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "timestamp": {"type": "string", "format": "date-time"},
     "error": {"type": ["string", "null"]}
   },

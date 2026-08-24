@@ -4,7 +4,7 @@
   "title": "openLCA LCI import report",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "operation_id", "status", "endpoint", "active_database", "target_category", "preflight_hash", "started_at", "ended_at", "duration_ms", "success_count", "failed_count", "deleted_count", "entities", "errors"],
+  "required": ["schema", "version", "operation_id", "status", "endpoint", "active_database", "target_category", "lci_dir", "started_at", "ended_at", "duration_ms", "success_count", "failed_count", "deleted_count", "entities", "errors"],
   "properties": {
     "schema": {"const": "whole-lca/import-report"},
     "version": {"const": "1.1"},
@@ -13,7 +13,7 @@
     "endpoint": {"type": "string"},
     "active_database": {"type": "string", "minLength": 1},
     "target_category": {"type": "string", "minLength": 1},
-    "preflight_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "lci_dir": {"type": "string", "minLength": 1},
     "started_at": {"type": "string", "format": "date-time"},
     "ended_at": {"type": ["string", "null"], "format": "date-time"},
     "duration_ms": {"type": "integer", "minimum": 0},

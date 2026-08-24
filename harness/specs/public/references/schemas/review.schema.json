@@ -15,7 +15,7 @@
     "reviewer": {"const": "eval-reviewer"},
     "timestamp": {"type": "string", "format": "date-time"},
     "status": {"enum": ["passed", "needs_input", "needs_review", "failed"]},
-    "reviewed_artifacts": {"type": "array", "items": {"$ref": "workflow-manifest.schema.json#/$defs/artifact"}, "minItems": 1},
+    "reviewed_artifacts": {"type": "array", "items": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"}, "minItems": 1},
     "issues": {
       "type": "array",
       "items": {

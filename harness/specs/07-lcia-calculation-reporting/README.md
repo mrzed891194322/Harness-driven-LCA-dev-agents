@@ -1,16 +1,10 @@
 # 07 Whole-LCA LCIA 计算与报告
 
-本目录定义 Product System LCIA 计算、原始结果验收、计算清单、报告边界和最终完成门禁。
+LCIA 计算、结果验收与最终报告归档。
 
-## References
-
-- `references/07-lcia-calculation-reporting-spec.md`
-- `references/scripts/validation.py`
-- `references/schemas/raw-lcia-results.schema.json`
-- `references/schemas/calculation-manifest.schema.json`
-- `references/templates/lca_report.md`
-- `schema_mapping.md`
-
-## 公共依赖
-
-- `../public/references/workflow-runtime-spec.md`
+Normative：`references/07-lcia-calculation-reporting-spec.md`  
+握手（阶段特有）：`schema_mapping.md` · 公共：`../public/references/handshake-common.md`  
+校验：`references/scripts/validation.py`  
+Schema：`references/schemas/raw-lcia-results.schema.json`、`calculation-manifest.schema.json`  
+模板：`references/templates/lca_report.md`  
+运行契约：`../public/README.md`

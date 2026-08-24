@@ -549,9 +549,13 @@ class MCPServerTests(unittest.TestCase):
         self.assertTrue(tools["import_lci"].annotations.destructive_hint)
         self.assertTrue(tools["get_import_operation"].annotations.read_only_hint)
         self.assertFalse(tools["import_lci"].annotations.idempotent_hint)
-        self.assertEqual(
-            tools["import_lci"].input_schema["required"],
-            ["preflight_hash"],
+        self.assertNotIn(
+            "preflight_hash",
+            tools["import_lci"].input_schema.get("required", []),
+        )
+        self.assertNotIn(
+            "preflight_hash",
+            tools["import_lci"].input_schema["properties"],
         )
         self.assertNotIn(
             "user_confirmed",

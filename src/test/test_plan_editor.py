@@ -96,6 +96,9 @@ class PlanEditorTests(unittest.TestCase):
             self.assertEqual(values, ["测试对象"])
 
     def test_documents_with_no_or_arbitrary_metadata_round_trip(self) -> None:
+        prompt_plan = (
+            PROJECT_ROOT / "docs" / "dev" / "prompts" / "plan.md"
+        ).read_text(encoding="utf-8")
         documents = (
             self.VALID_PLAN,
             (
@@ -107,6 +110,7 @@ class PlanEditorTests(unittest.TestCase):
                 f"{self.VALID_PLAN}"
             ),
             "# 纯 Markdown\n\n没有输入区域。\n",
+            prompt_plan,
         )
         for source in documents:
             template = plan_editor.parse_execution_plan_text(source)
@@ -350,16 +354,6 @@ class PlanEditorTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "不再支持 `PLAN_INPUT`"):
             plan_editor.parse_execution_plan_text(old_plan_input)
-
-    def test_dev_prompt_plan_remains_importable(self) -> None:
-        plan_path = PROJECT_ROOT / "docs" / "dev" / "prompts" / "plan.md"
-        source = plan_path.read_text(encoding="utf-8")
-        template = plan_editor.parse_execution_plan_template(plan_path)
-        self.assertEqual(len(template.fields), 13)
-        self.assertEqual(
-            plan_editor.serialize_execution_plan(template, template.values),
-            source,
-        )
 
 
 if __name__ == "__main__":

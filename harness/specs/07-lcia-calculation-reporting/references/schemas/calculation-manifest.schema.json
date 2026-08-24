@@ -62,10 +62,9 @@
     "raw_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "sha256"],
+      "required": ["path"],
       "properties": {
-        "path": {"type": "string", "minLength": 1},
-        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        "path": {"type": "string", "minLength": 1}
       }
     },
     "calculation": {
@@ -94,12 +93,10 @@
     "comparison_check": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["left_product_system_id", "right_product_system_id", "left_graph_fingerprint", "right_graph_fingerprint", "results_equal", "status", "explanation"],
+      "required": ["left_product_system_id", "right_product_system_id", "results_equal", "status", "explanation"],
       "properties": {
         "left_product_system_id": {"type": "string", "minLength": 1},
         "right_product_system_id": {"type": "string", "minLength": 1},
-        "left_graph_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "right_graph_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "results_equal": {"type": "boolean"},
         "status": {"enum": ["distinct", "explained", "needs_review"]},
         "explanation": {"type": ["string", "null"]}

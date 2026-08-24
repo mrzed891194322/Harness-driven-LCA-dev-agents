@@ -14,7 +14,7 @@
     "from_agent": {"type": "string", "minLength": 1},
     "to_agent": {"type": "string", "minLength": 1},
     "timestamp": {"type": "string", "format": "date-time"},
-    "input_artifacts": {"type": "array", "items": {"$ref": "workflow-manifest.schema.json#/$defs/artifact"}},
+    "input_artifacts": {"type": "array", "items": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"}},
     "decision": {"type": "string", "minLength": 1},
     "evidence_refs": {"type": "array", "items": {"type": "string"}},
     "unresolved_items": {"type": "array", "items": {"type": "string"}},
@@ -25,11 +25,12 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["query", "source_domain", "timestamp", "candidates", "selection_reason", "source_locations"],
+        "required": ["query", "source_domain", "timestamp", "selection_reason", "source_locations"],
         "properties": {
           "query": {"type": "string"},
-          "source_domain": {"enum": ["rag", "openlca", "user-file", "standard"]},
+          "source_domain": {"enum": ["rag", "openlca", "user-file", "standard", "tool"]},
           "timestamp": {"type": "string", "format": "date-time"},
+          "tool": {"type": "string"},
           "candidates": {"type": "array", "items": {"type": "string"}},
           "selection_reason": {"type": "string"},
           "source_locations": {"type": "array", "items": {"type": "string"}}

@@ -36,7 +36,6 @@ SCHEMA_ROOTS = (
     / "schemas",
 )
 TIMESTAMP = "2026-07-22T08:00:00Z"
-HASH = "a" * 64
 
 
 def load_stage_validation(stage: str):
@@ -346,7 +345,6 @@ class SchemaContractTests(unittest.TestCase):
             "artifact_id": artifact_id,
             "kind": "plan",
             "path": "workspace/inputs/plan.md",
-            "sha256": HASH,
             "source_artifact_ids": [],
             "revision_of": None,
         }
@@ -362,7 +360,7 @@ class SchemaContractTests(unittest.TestCase):
             "updated_at": TIMESTAMP,
             "status": "running",
             "current_stage": "plan-review",
-            "preflight_hash": None,
+            "import_scope": None,
             "lci_review_attempt": 0,
             "artifact_index": [self.artifact()],
             "issue_ids": [],
@@ -381,6 +379,13 @@ class SchemaContractTests(unittest.TestCase):
             "artifact_ids": ["artifact:plan"],
             "evidence_refs": ["workspace/memory/reviews/plan-review.json"],
             "issue_ids": [],
+            "basis": "计划通过接收门禁。",
+            "sources": [
+                {
+                    "type": "user-file",
+                    "locator": "workspace/inputs/plan.md",
+                }
+            ],
             "summary": "Plan passed intake.",
         }
         review = {
@@ -430,7 +435,7 @@ class SchemaContractTests(unittest.TestCase):
             "endpoint": "http://localhost:8080",
             "active_database": "isolated-db",
             "target_category": "test-project",
-            "preflight_hash": HASH,
+            "lci_dir": "workspace/outputs/LCI",
             "started_at": TIMESTAMP,
             "ended_at": TIMESTAMP,
             "duration_ms": 10,
@@ -452,7 +457,6 @@ class SchemaContractTests(unittest.TestCase):
             "disconnected_nodes": [],
             "expected_process_ids": ["p1"],
             "missing_expected_nodes": [],
-            "graph_fingerprint": HASH,
             "timestamp": TIMESTAMP,
             "error": None,
         }
@@ -490,7 +494,6 @@ class SchemaContractTests(unittest.TestCase):
                     "calculated_at": TIMESTAMP,
                     "raw_result": {
                         "path": "workspace/outputs/reports/raw/ps1.json",
-                        "sha256": HASH,
                     },
                     "resource_released": True,
                 }
@@ -505,7 +508,6 @@ class SchemaContractTests(unittest.TestCase):
                 "schema": "whole-lca/import-operation-status",
                 "version": "1.0",
                 "status": "success",
-                "preflight_hash": HASH,
                 "report": import_report,
             },
         )
@@ -517,15 +519,12 @@ class SchemaContractTests(unittest.TestCase):
         second["product_system"] = {"id": "ps2", "name": "Scenario 2"}
         second["raw_result"] = {
             "path": "workspace/outputs/reports/raw/ps2.json",
-            "sha256": HASH,
         }
         calculation["calculations"].append(second)
         calculation["comparison_checks"].append(
             {
                 "left_product_system_id": entity_ref["id"],
                 "right_product_system_id": "ps2",
-                "left_graph_fingerprint": HASH,
-                "right_graph_fingerprint": "b" * 64,
                 "results_equal": False,
                 "status": "distinct",
                 "explanation": None,
@@ -539,7 +538,6 @@ class SchemaContractTests(unittest.TestCase):
             "product_system": entity_ref,
             "raw_result": {
                 "path": "workspace/outputs/reports/raw/ps1.json",
-                "sha256": HASH,
             },
         }
         with self.assertRaises(ValidationError):
@@ -592,7 +590,7 @@ class SchemaContractTests(unittest.TestCase):
             / "templates"
             / "lca_report.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("raw_result_sha256", template)
+        self.assertIn("raw_result_path", template)
         self.assertIn("原始结果位置", template)
         self.assertIn("不自动构成 ISO 认证", template)
 

@@ -1,22 +1,22 @@
 # LCA 修订主工作流
 
 本工作流由 `/revise-lca` 与 `$revise-lca` 加载。修订专属语义只存在于
-`harness/specs/08-lca-revise-pipeline/`；公共证据对象和阶段 02–07 的业务契约继续使用
+`harness/specs/08-lca-revise-workflow/`；公共证据对象和阶段 02–07 的业务契约继续使用
 `harness/specs/public/` 与对应编号阶段包，不在本文件重定义 schema。
 
 ## 渐进式资源加载
 
 1. 确认当前 Agent 是 `major-orchestrator`，固定意见输入为
    `workspace/inputs/revise.md`。
-2. 基线激活后只读取 `harness/specs/08-lca-revise-pipeline/README.md`、
-   `harness/specs/08-lca-revise-pipeline/references/revise-lca-spec.md`、
+2. 基线激活后只读取 `harness/specs/08-lca-revise-workflow/README.md`、
+   `harness/specs/08-lca-revise-workflow/references/revise-lca-spec.md`、
    `harness/specs/public/README.md` 和
    `harness/specs/public/references/workflow-runtime-spec.md`；不得预读编号阶段规范。
 3. 写 revision brief 和 manifest 前分别读取
-   `harness/specs/08-lca-revise-pipeline/references/schemas/` 中的对应 schema；
+   `harness/specs/08-lca-revise-workflow/references/schemas/` 中的对应 schema；
    写 stage、handoff、review 前按需读取 public 中的对应 schema。
-4. 每次委派列出当前阶段、允许读取的 baseline/current memory、输入 artifact/hash、
-   允许输出、`REV-*`/issue ID 或 `preflight_hash`。子 Agent 不得扫描其他阶段。
+4. 每次委派列出当前阶段、允许读取的 baseline/current memory、输入产物路径、
+   允许输出、`REV-*`/issue ID 或 `import_scope`。子 Agent 不得扫描其他阶段。
 5. 进入 02–07 的某阶段时才读取该阶段 README/spec，完成并持久化后不预读下一阶段。
 
 OpenCode 已全局加载知识检索规则；Codex 仅在当前检索或审查需要时加载
@@ -26,15 +26,15 @@ MCP 时才读取 `harness/rules/openlca-operation/README.md`。
 ## 01 修订基线与计划门禁
 
 - 主 Agent 按
-  `harness/specs/08-lca-revise-pipeline/references/revise-lca-spec.md`
+  `harness/specs/08-lca-revise-workflow/references/revise-lca-spec.md`
   核对已激活的 `workspace/memory/baseline/` 与当前
   `workspace/inputs/revise.md`，生成 `revision-brief.json` 和候选计划。
 - 调用 `eval-reviewer` 时，委派任务必须明确要求它完整读取
-  `harness/specs/08-lca-revise-pipeline/README.md`、该包的 spec/revision brief
+  `harness/specs/08-lca-revise-workflow/README.md`、该包的 spec/revision brief
   schema、01 计划质量门禁 README/spec 和 public review schema；
   只交付意见、baseline、revision brief 与候选计划。
 - 审查通过后主 Agent原子覆盖 `workspace/inputs/plan.md`，把新旧计划及意见的
-  artifact/hash/revision 关系写入 revise manifest。未通过则持久化证据并停止。
+  路径与修订关系写入 revise manifest。未通过则持久化证据并停止。
 
 ## 02 证据检索
 
@@ -62,15 +62,15 @@ MCP 时才读取 `harness/rules/openlca-operation/README.md`。
 
 - 此时才完整读取 `harness/specs/05-openlca-preflight-confirmation/README.md` 和对应 spec。
 - 调用 `sub-executor` 时，委派任务必须明确要求它读取上述文件和 openLCA 规则，
-  使用明确数据库运行 `preflight_import_lci`，保存完整范围与 `preflight_hash`，
+  使用明确数据库运行 `preflight_import_lci`，保存完整 `import_scope`，
   不执行导入或等待确认。
 
 ## 06 openLCA 导入与读回
 
 - 此时才完整读取 `harness/specs/06-openlca-import-readback/README.md` 和对应 spec。
 - 调用 `sub-executor` 时，委派任务必须明确要求它读取上述文件、openLCA 规则及三个
-  结果 schema，只使用紧邻的成功预检范围/hash 调用 `import_lci` 并读回模型图。
-- 超时、范围/hash 变化、部分失败和验证失败完全按 06 规范停止，不得重试写操作或
+  结果 schema，只使用紧邻的成功预检 `import_scope` 调用 `import_lci` 并读回模型图。
+- 超时、范围变化、部分失败和验证失败完全按 06 规范停止，不得重试写操作或
   使用 legacy CLI。
 
 ## 07 LCIA 重算与报告覆盖
@@ -78,11 +78,11 @@ MCP 时才读取 `harness/rules/openlca-operation/README.md`。
 - 此时才完整读取 `harness/specs/07-lcia-calculation-reporting/README.md` 和对应 spec。
 - 调用 `sub-executor` 时，委派任务必须明确要求它读取上述文件、openLCA 规则、
   raw/calculation schema、07 报告模板，以及
-  `harness/specs/08-lca-revise-pipeline/references/templates/revision-report-sections.md`。
+  `harness/specs/08-lca-revise-workflow/references/templates/revision-report-sections.md`。
 - 保存全部 raw、计算清单和带修订三节的新 `lca_report.md` 后运行 07 validator。
   通过后再运行
-  `harness/specs/08-lca-revise-pipeline/references/scripts/validation.py`。
-  报告中的旧新数值差异必须回链双方 raw/hash；无法比较时明确说明。
+  `harness/specs/08-lca-revise-workflow/references/scripts/validation.py`。
+  报告中的旧新数值差异必须回链双方 raw 文件路径；无法比较时明确说明。
 
 ## 完成与停止
 

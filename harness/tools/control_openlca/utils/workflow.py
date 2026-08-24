@@ -689,6 +689,59 @@ def _inspect_import(
     )
 
 
+def _public_preflight(preflight: dict[str, Any]) -> dict[str, Any]:
+    hidden = {
+        "preflight_hash",
+        "lci_fingerprint",
+        "target_scope_fingerprint",
+        "background_provider_fingerprint",
+        "database_fingerprint",
+    }
+    public = {key: value for key, value in preflight.items() if key not in hidden}
+    planned = []
+    for item in public.get("planned_entities") or []:
+        copy = dict(item)
+        copy.pop("sha256", None)
+        planned.append(copy)
+    public["planned_entities"] = planned
+    return public
+
+
+def _scope_record(
+    database_name: str | None,
+    category: str,
+    lci_dir: str | Path,
+) -> dict[str, str]:
+    return {
+        "database_name": str(database_name or "").strip(),
+        "category": str(category or "").strip(),
+        "lci_dir": str(Path(lci_dir).resolve()),
+    }
+
+
+def _last_scope_path(operation_dir: Path) -> Path:
+    return operation_dir / "last-scope.json"
+
+
+def _current_operation_path(operation_dir: Path) -> Path:
+    return operation_dir / "current.json"
+
+
+def _write_last_scope(operation_dir: Path, scope: dict[str, str]) -> None:
+    _write_json_atomic(_last_scope_path(operation_dir), scope)
+
+
+def _read_last_scope(operation_dir: Path) -> dict[str, str] | None:
+    path = _last_scope_path(operation_dir)
+    if not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def preflight_import_lci(
     host: str,
     port: int,
@@ -696,6 +749,7 @@ def preflight_import_lci(
     target_category: str,
     database_name: str | None = None,
     client: object | None = None,
+    operation_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Inspect an LCI import without calling openLCA put or delete operations."""
     preflight, _, _ = _inspect_import(
@@ -706,7 +760,17 @@ def preflight_import_lci(
         database_name=database_name,
         client=client,
     )
-    return preflight
+    public = _public_preflight(preflight)
+    if public.get("ok") and operation_dir is not None:
+        _write_last_scope(
+            operation_dir,
+            _scope_record(
+                public.get("active_database"),
+                str(public.get("target_category") or target_category),
+                public.get("lci_dir") or lci_dir,
+            ),
+        )
+    return public
 
 
 def _deserialize_entity(item: dict[str, Any], target_category: str) -> object:
@@ -919,27 +983,14 @@ def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
-def _operation_path(operation_dir: Path, preflight_hash: str) -> Path:
-    return operation_dir / f"{preflight_hash}.json"
-
-
-def get_import_operation(
-    operation_dir: Path,
-    preflight_hash: str,
-) -> dict[str, Any]:
+def get_import_operation(operation_dir: Path) -> dict[str, Any]:
     """Read a persisted import operation without touching openLCA."""
-    if (
-        len(preflight_hash) != 64
-        or any(character not in "0123456789abcdef" for character in preflight_hash)
-    ):
-        raise ValueError("preflight_hash must be a lowercase 64-character SHA-256")
-    path = _operation_path(operation_dir, preflight_hash)
+    path = _current_operation_path(operation_dir)
     if not path.is_file():
         return {
             "schema": "whole-lca/import-operation-status",
             "version": "1.0",
             "status": "not_found",
-            "preflight_hash": preflight_hash,
             "report": None,
         }
     try:
@@ -949,7 +1000,6 @@ def get_import_operation(
             "schema": "whole-lca/import-operation-status",
             "version": "1.0",
             "status": "indeterminate",
-            "preflight_hash": preflight_hash,
             "report": None,
             "error": str(exc),
         }
@@ -963,7 +1013,6 @@ def get_import_operation(
             in {"running", "success", "partial_failure", "failed", "rejected"}
             else "indeterminate"
         ),
-        "preflight_hash": preflight_hash,
         "report": report,
     }
 
@@ -972,7 +1021,7 @@ def _rejected_import_report(
     endpoint: str,
     active_database: str,
     target_category: str,
-    preflight_hash: str,
+    lci_dir: str,
     started_at: str,
     started_clock: float,
     errors: list[str],
@@ -986,7 +1035,7 @@ def _rejected_import_report(
         "endpoint": endpoint,
         "active_database": active_database,
         "target_category": target_category,
-        "preflight_hash": preflight_hash,
+        "lci_dir": lci_dir,
         "started_at": started_at,
         "ended_at": ended_at,
         "duration_ms": max(0, round((time.monotonic() - started_clock) * 1000)),
@@ -1003,32 +1052,44 @@ def import_lci(
     port: int,
     lci_dir: str | Path,
     target_category: str,
-    preflight_hash: str,
     database_name: str | None = None,
     client: object | None = None,
     operation_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Import LCI only after verifying an unchanged preflight hash."""
-    if (
-        not isinstance(preflight_hash, str)
-        or len(preflight_hash) != 64
-        or any(character not in "0123456789abcdef" for character in preflight_hash)
-    ):
-        raise ValueError("preflight_hash must be a lowercase 64-character SHA-256")
+    """Import LCI after re-preflighting the requested database, category, and LCI path."""
     started_at = utc_now()
     started_clock = time.monotonic()
     operation_id = str(uuid.uuid4())
     endpoint = build_endpoint(host, port)
     active_database, _ = _active_database_label(endpoint, database_name)
+    resolved_lci = str(Path(lci_dir).resolve())
+    requested_scope = _scope_record(
+        database_name or active_database, target_category, lci_dir
+    )
     operation_path = (
-        _operation_path(operation_dir, preflight_hash)
-        if operation_dir is not None
-        else None
+        _current_operation_path(operation_dir) if operation_dir is not None else None
     )
     if operation_dir is not None:
-        existing = get_import_operation(operation_dir, preflight_hash)
+        existing = get_import_operation(operation_dir)
         if existing["status"] in {"running", "success", "partial_failure", "failed"}:
             return existing["report"]
+        last_scope = _read_last_scope(operation_dir)
+        if last_scope is not None and last_scope != requested_scope:
+            report = _rejected_import_report(
+                endpoint,
+                active_database or requested_scope["database_name"],
+                target_category,
+                resolved_lci,
+                started_at,
+                started_clock,
+                [
+                    "Import rejected: import scope does not match the last successful preflight.",
+                    f"requested_scope={requested_scope}",
+                    f"last_scope={last_scope}",
+                ],
+            )
+            _write_json_atomic(operation_path, report)
+            return report
 
     owns_client = client is None
     ipc_client = client or create_ipc_client(
@@ -1047,41 +1108,45 @@ def import_lci(
     if not current["ok"]:
         report = _rejected_import_report(
             endpoint,
-            active_database,
+            active_database or requested_scope["database_name"],
             target_category,
-            preflight_hash,
+            resolved_lci,
             started_at,
             started_clock,
             ["Import rejected: current preflight is not ready.", *current["errors"]],
         )
-        if operation_dir is not None:
-            _write_json_atomic(_operation_path(operation_dir, preflight_hash), report)
+        if operation_path is not None:
+            _write_json_atomic(operation_path, report)
         if owns_client:
             close_ipc_client(ipc_client)
         return report
-    if current["preflight_hash"] != preflight_hash:
+
+    current_scope = _scope_record(
+        current.get("active_database"),
+        str(current.get("target_category") or target_category),
+        current.get("lci_dir") or lci_dir,
+    )
+    if current_scope != requested_scope:
         report = _rejected_import_report(
             endpoint,
-            current["active_database"],
+            current.get("active_database") or requested_scope["database_name"],
             target_category,
-            preflight_hash,
+            resolved_lci,
             started_at,
             started_clock,
             [
-                "Import rejected: preflight hash mismatch; LCI, database, category, "
-                "or overwrite scope changed.",
-                f"current_preflight_hash={current['preflight_hash']}",
-                f"current_lci_fingerprint={current['lci_fingerprint']}",
-                f"current_target_scope_fingerprint={current['target_scope_fingerprint']}",
-                "current_background_provider_fingerprint="
-                f"{current['background_provider_fingerprint']}",
+                "Import rejected: inspected import scope does not match the request.",
+                f"requested_scope={requested_scope}",
+                f"current_scope={current_scope}",
             ],
         )
-        if operation_dir is not None:
-            _write_json_atomic(_operation_path(operation_dir, preflight_hash), report)
+        if operation_path is not None:
+            _write_json_atomic(operation_path, report)
         if owns_client:
             close_ipc_client(ipc_client)
         return report
+    if operation_dir is not None:
+        _write_last_scope(operation_dir, current_scope)
 
     def report_value(
         status: str,
@@ -1101,7 +1166,7 @@ def import_lci(
             "endpoint": endpoint,
             "active_database": current["active_database"],
             "target_category": target_category,
-            "preflight_hash": preflight_hash,
+            "lci_dir": resolved_lci,
             "started_at": started_at,
             "ended_at": ended_at,
             "duration_ms": max(
@@ -1321,19 +1386,6 @@ def model_graph_from_product_system(
     missing_expected_nodes = [
         process_id for process_id in expected_ids if process_id not in node_ids
     ]
-    graph_fingerprint = stable_hash(
-        {
-            "nodes": sorted(node_ids),
-            "edges": sorted(
-                (
-                    str(edge["provider"]["id"] or ""),
-                    str(edge["flow"]["id"] or ""),
-                    str(edge["process"]["id"] or ""),
-                )
-                for edge in edges
-            ),
-        }
-    )
     if not nodes:
         status = "failed"
         error = (
@@ -1360,7 +1412,6 @@ def model_graph_from_product_system(
         "disconnected_nodes": disconnected_nodes,
         "expected_process_ids": expected_ids,
         "missing_expected_nodes": missing_expected_nodes,
-        "graph_fingerprint": graph_fingerprint,
         "timestamp": utc_now(),
         "error": error,
     }
@@ -1390,7 +1441,6 @@ def get_model_graph(
             "disconnected_nodes": [],
             "expected_process_ids": expected_process_ids or [],
             "missing_expected_nodes": expected_process_ids or [],
-            "graph_fingerprint": stable_hash({"nodes": [], "edges": []}),
             "timestamp": utc_now(),
             "error": f"Product System not found: {product_system}",
         }

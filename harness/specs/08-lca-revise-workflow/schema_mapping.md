@@ -1,5 +1,7 @@
 # Revise-LCA schema mapping
 
+公共 handoff / stage / review 握手机制见 [`../public/references/handshake-common.md`](../public/references/handshake-common.md)。阶段 02–07 使用对应编号阶段包的 `schema_mapping.md`（阶段特有部分）。
+
 | 交接 | 唯一契约 | 主要产物 |
 | --- | --- | --- |
 | GUI/CLI → 修订接收 | `references/revise-lca-spec.md` | `workspace/inputs/revise.md` |

@@ -1,2 +1,6 @@
 /dev/*
+!/dev/walkthrough/whole-lca-improvement-*.md
+!/dev/walkthrough/*/issues.md
+!/dev/walkthrough/*/eval.md
+!/dev/walkthrough/*/README.md
 history/

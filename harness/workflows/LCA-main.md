@@ -7,7 +7,7 @@
 1. 确认当前 Agent 是 `major-orchestrator`，并只使用 `workspace/inputs/plan.md` 作为计划输入。
 2. 启动时只读取 `harness/specs/public/README.md` 和 `harness/specs/public/references/workflow-runtime-spec.md`。不得在此时读取任何编号阶段规范。
 3. 创建 manifest 前读取 `harness/specs/public/references/schemas/workflow-manifest.schema.json`。以后只在即将写某类对象前读取对应 schema：stage 读取 `harness/specs/public/references/schemas/stage.schema.json`，handoff 读取 `harness/specs/public/references/schemas/handoff.schema.json`，review 读取 `harness/specs/public/references/schemas/review.schema.json`。
-4. 每次委派必须明确列出当前阶段、此时允许读取的文件、输入产物及哈希、允许的输出、关联 issue ID 或 `preflight_hash`。子 Agent 不得自行扫描其他阶段。
+4. 每次委派必须明确列出当前阶段、此时允许读取的文件、输入产物路径、允许的输出、关联 issue ID 或 `import_scope`。子 Agent 不得自行扫描其他阶段。
 5. 进入一个阶段时，主 Agent 才读取该阶段的 README 及其路由的 spec；当前任务需要同一规范的子 Agent，在该次委派中再被明确要求读取。完成阶段并持久化证据后，不预读下一阶段。
 
 知识检索规则 `harness/rules/knowledge-retrieval/README.md` 由平台入口按配置加载；执行时不要重复加载。`harness/rules/openlca-operation/README.md` 不属于全局指令，只能在某次任务确实要调用 openLCA MCP 时按需读取。
@@ -38,15 +38,15 @@
 ### 05 openLCA 写入预检
 
 - LCI 审查通过后，主 Agent 才完整读取 `harness/specs/05-openlca-preflight-confirmation/README.md` 和 `harness/specs/05-openlca-preflight-confirmation/references/05-openlca-preflight-confirmation-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在预检前完整读取上述两个第 05 阶段文件和 `harness/rules/openlca-operation/README.md`，使用明确 `database_name` 调用 `preflight_import_lci`。保存三个分项指纹、Provider 检查、活动数据库、目标分类、完整范围和 `preflight_hash`，不得执行导入或等待确认。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在预检前完整读取上述两个第 05 阶段文件和 `harness/rules/openlca-operation/README.md`，使用明确 `database_name` 调用 `preflight_import_lci`。保存活动数据库、目标分类、LCI 目录、Provider 检查和完整范围到 `import_scope` 与 checklist，不得执行导入或等待确认。
 
 ### 06 openLCA 导入与读回
 
 - 预检通过后，主 Agent 才完整读取 `harness/specs/06-openlca-import-readback/README.md` 和 `harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md`，并立即发起下一次委派。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前读取 `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json`、`harness/specs/06-openlca-import-readback/references/schemas/import-operation-status.schema.json` 和 `harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json`。只把当前成功预检的范围与哈希交给它调用 `import_lci`，并把各 Product System 的 `expectedProcessIds` 传给 `get_model_graph`。
-- `import_lci` 超时后只调用 `get_import_operation`；状态为 `running`/`indeterminate` 时停止并保存证据，不得重试或使用 CLI。Stage 05/manifest/import report 的哈希或时间线不一致时 Stage 06 失败。
+- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前读取 `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json`、`harness/specs/06-openlca-import-readback/references/schemas/import-operation-status.schema.json` 和 `harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json`。只把当前成功预检的 `import_scope`（库名、分类、LCI 目录）交给它调用 `import_lci`，并把各 Product System 的 `expectedProcessIds` 传给 `get_model_graph`。
+- `import_lci` 超时后只调用 `get_import_operation`；状态为 `running`/`indeterminate` 时停止并保存证据，不得重试或使用 CLI。Stage 05/manifest/import report 的范围或时间线不一致时 Stage 06 失败。
 - 保存导入报告和所有模型图后必须运行第 06 阶段 `references/scripts/validation.py`；只有 `ok=true` 才能写入 passed 的 Stage 06 记录。
-- `import_lci` 重新预检后若范围或哈希变化，不得写入；保存结构化失败证据并将运行置为 `failed`。
+- `import_lci` 重新预检后若库名、分类或 LCI 目录变化，不得写入；保存结构化失败证据并将运行置为 `failed`。
 
 ### 07 LCIA 计算与报告
 
@@ -59,5 +59,6 @@
 - 每次委派前后在 `workspace/memory/` 写 handoff，每个阶段写新 stage 文件；同一次运行内不得覆盖历史记录。
 - Reviewer 只读；由主 Agent 持久化其返回的 review。
 - 不调用任何既有 Agent。子 Agent 只读取本次交接列出的相关记忆，只有主 Agent 持久化运行状态与历史记录。
-- 运行启动即授权在当前预检哈希与范围完全一致时导入；运行中不得设置 `awaiting_confirmation` 或向用户请求额外确认。
+- 运行启动即授权在当前预检范围完全一致时导入；运行中不得设置 `awaiting_confirmation` 或向用户请求额外确认。
+- 每次阶段结束时更新 `workspace/memory/checklist.md`（状态、依据、资料/工具、产物路径），不要记录哈希。
 - 无部分失败、无断链、非空结果且全部契约通过前，不得标记 `completed`。

@@ -1,6 +1,8 @@
 # openLCA 控制脚本说明及公共工具规范 (README.md)
 
-本目录为 `control-openlca` 技能的脚本目录。为了保证代码复用性、降低维护成本，本技能采用了“**共享公共工具包 + 专属私有任务包**”的架构设计。
+本目录为 `control-openlca` 技能的脚本目录。Agent 在调用 openLCA MCP 时的行为约束（何时读规则、禁止临时脚本、范围门禁、健康检查停止条件）见 [`harness/rules/openlca-operation/README.md`](../../rules/openlca-operation/README.md)。
+
+为了保证代码复用性、降低维护成本，本技能采用了“**共享公共工具包 + 专属私有任务包**”的架构设计。
 
 在未来为本项目或 openLCA 控制技能扩充新功能、编写新计算脚本或子任务模块时，**智能体 (Agent) 必须优先参考和复用本目录下的公共工具函数**。
 
@@ -77,10 +79,10 @@ control_openlca/
 - `query_descriptors`：按名称片段查询实体名称和 UUID，并返回分类、地域、参考单位及分页信息。
 - `get_process_details`：按一个确切 Process UUID 返回紧凑元数据、地域和定量参考 exchange。
 - `get_flow_providers`：按一个确切 Flow UUID 返回可用 Process Provider 的 UUID、名称、分类、地域和 Flow 引用；支持地域过滤与分页。
-- `preflight_import_lci`：只读解析一文件一实体 JSON-LD，验证明确数据库身份、目标分类和背景 Provider，返回 LCI/目标范围/Provider 分项指纹及稳定 `preflight_hash`。
-- `import_lci`：唯一的 Whole-LCA 数据库写入工具。必须传入未变化的 `preflight_hash`；执行前重新预检，执行中持续写 operation journal。
-- `get_import_operation`：按预检哈希只读查询导入状态，供 MCP 超时后判断是否已经成功、失败或仍不可确定。
-- `get_model_graph`：读回 Product System 节点、边、图指纹、断链、孤立节点和缺失预期节点。
+- `preflight_import_lci`：只读解析一文件一实体 JSON-LD，验证明确数据库身份、目标分类和背景 Provider，返回库名、分类、LCI 目录、计划实体和 Provider 检查。
+- `import_lci`：唯一的 Whole-LCA 数据库写入工具。写入前工具内部再预检；库名、分类或 LCI 目录与上次成功预检不一致则拒绝。执行中持续写 `workspace/memory/import-operations/current.json`。
+- `get_import_operation`：只读查询当前导入 journal，供 MCP 超时后判断是否已经成功、失败或仍不可确定。
+- `get_model_graph`：读回 Product System 节点、边、断链、孤立节点和缺失预期节点。
 - `calculate_product_system`：执行 LCIA，返回方法/类别名称与 UUID、数值、单位、计算设置和句柄释放状态。
 
 `import_lci` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径默认为
@@ -141,12 +143,12 @@ uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
 
 ### 5. Whole-LCA 共用服务 (`utils/workflow.py`)
 
-* `preflight_import_lci(...)`：只读加载 LCI、计算 LCI/目标范围/相关 Provider 哈希。
-* `import_lci(...)`：在重新预检并核对哈希后，使用 exchange `defaultProvider` 和 openLCA
+* `preflight_import_lci(...)`：只读加载 LCI、检查数据库身份、目标分类和相关 Provider。
+* `import_lci(...)`：在重新预检并核对 import_scope 后，使用 exchange `defaultProvider` 和 openLCA
   auto-link 创建 Product System，返回结构化 operation report；不接受待导入的 explicit
   `processLinks`。
 * `get_import_operation(...)`：只读返回持久化导入状态。
-* `get_model_graph(...)`：构建带预期节点和图指纹检查的模型图结果。
+* `get_model_graph(...)`：构建带预期节点和连接性检查的模型图结果。
 * `calculate_product_system(...)`：执行产品系统 LCIA，并在成功/异常路径释放结果句柄。
 * `legacy_import_lci(...)`、`model_graph_from_product_system(...)`、`build_calculation_setup(...)`：供既有 CLI 复用，避免 MCP 与 CLI 产生两套实现。
 
@@ -159,7 +161,7 @@ uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
 
 ## Agent 开发与扩展规范
 
-1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。
+1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。完整 Agent 纪律见 [`harness/rules/openlca-operation/README.md`](../../rules/openlca-operation/README.md)。
 2.  **首选复用**：当开发正式新脚本时，主程序顶部必须通过追加 `sys.path` 导入 `scripts/utils/` 下的对应功能。
 3.  **单一职责**：请勿在新脚本主文件中编写关于连接、查找、导出等繁琐实现。`main.py` 应当只负责顶层流程编排。
 4.  **升级与扩展**：

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "whole-lca/revise-workflow-manifest.schema.json",
+  "title": "Revise-LCA workflow manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "platform", "orchestrator_agent", "feedback", "baseline", "plan", "started_at", "updated_at", "status", "lci_review_attempt", "artifact_index"],
+  "properties": {
+    "schema": {"const": "revise-lca/workflow-manifest"},
+    "version": {"const": "1.0"},
+    "platform": {"type": "string", "minLength": 1},
+    "orchestrator_agent": {"const": "major-orchestrator"},
+    "feedback": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"},
+    "baseline": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"},
+    "plan": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["not_started", "running", "needs_input", "needs_review", "failed", "completed"]},
+    "current_stage": {"type": ["string", "null"]},
+    "import_scope": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "whole-lca/common.schema.json#/$defs/import_scope"}
+      ]
+    },
+    "lci_review_attempt": {"type": "integer", "minimum": 0, "maximum": 3},
+    "artifact_index": {"type": "array", "items": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"}},
+    "issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}

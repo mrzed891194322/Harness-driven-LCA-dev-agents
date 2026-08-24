@@ -4,12 +4,11 @@
   "title": "openLCA import operation journal status",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "status", "preflight_hash", "report"],
+  "required": ["schema", "version", "status", "report"],
   "properties": {
     "schema": {"const": "whole-lca/import-operation-status"},
     "version": {"const": "1.0"},
     "status": {"enum": ["not_found", "indeterminate", "running", "success", "partial_failure", "failed", "rejected"]},
-    "preflight_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "report": {
       "oneOf": [
         {"type": "null"},

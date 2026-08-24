@@ -35,7 +35,7 @@ mcp = MCPServer(
     instructions=(
         "Query and gated workflow access to the openLCA IPC Server configured "
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci is destructive "
-        "and requires a matching current preflight hash."
+        "and requires a matching current import scope."
     ),
 )
 
@@ -180,9 +180,8 @@ def get_flow_providers(
 @mcp.tool(
     description=(
         "Read and validate canonical workspace/outputs/LCI or a compatibility LCI under "
-        "workspace/tmp, inspect the active database and target category, list "
-        "create/overwrite/delete scope, and return a stable preflight hash. This tool "
-        "performs no database writes."
+        "workspace/tmp, inspect the active database and target category, and list "
+        "create/overwrite/delete scope. This tool performs no database writes."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -200,20 +199,21 @@ def preflight_import_lci(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
+        operation_dir=IMPORT_OPERATION_DIR,
     )
 
 
 @mcp.tool(
     description=(
         "Destructively import canonical workspace/outputs/LCI or a compatibility LCI "
-        "under workspace/tmp after rerunning preflight. Requires an unchanged "
-        "preflight_hash; otherwise no writes occur."
+        "under workspace/tmp after rerunning preflight. Rejects the write when the "
+        "database name, target category, or LCI directory does not match the last "
+        "successful preflight scope."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,
 )
 def import_lci(
-    preflight_hash: str,
     lci_dir: str = "workspace/outputs/LCI",
     target_category: str = "",
     database_name: str | None = None,
@@ -225,7 +225,6 @@ def import_lci(
         port=port,
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
-        preflight_hash=preflight_hash,
         database_name=database_name,
         operation_dir=IMPORT_OPERATION_DIR,
     )
@@ -233,15 +232,15 @@ def import_lci(
 
 @mcp.tool(
     description=(
-        "Read a persisted import status by preflight hash. Use this after a timeout "
-        "before deciding whether another destructive call is safe."
+        "Read the persisted import journal. Use this after a timeout before deciding "
+        "whether another destructive call is safe."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-def get_import_operation(preflight_hash: str) -> dict[str, Any]:
+def get_import_operation() -> dict[str, Any]:
     """Read an import journal without writing to openLCA."""
-    return run_get_import_operation(IMPORT_OPERATION_DIR, preflight_hash)
+    return run_get_import_operation(IMPORT_OPERATION_DIR)
 
 
 @mcp.tool(
