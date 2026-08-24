@@ -13,10 +13,10 @@ RAG 与 openLCA 调用的通用纪律见 `harness/rules/knowledge-retrieval/READ
 - 检索范围必须服从每个缺口声明的来源域，只能使用用户资料/RAG、活动 openLCA 数据库或二者。
 - RAG 命中只作为定位线索；用于决策的关键事实必须回读原文，并记录来源文件、章节或页码。
 - openLCA 候选必须记录实体类型、名称、UUID、活动数据库、查询词、查询时间和选择理由。候选 Process 的地域和定量参考用 `get_process_details` 按 UUID 回读；背景 Provider 映射先查询 Flow UUID，再用 `get_flow_providers` 回读可用 Provider。不得为这些选择批量导出完整 Process 实体集合。
-- 找不到证据时不得编造或以模糊默认值关闭缺口。
+- 背景匹配与无人值守决定遵守已加载或按需读取的 `harness/rules/openlca-operation/README.md`：可留档的选择自行决定并写入证据，不得停下来征求用户。
 
 ## 3. 交接证据
 
 检索交接必须遵守 `harness/specs/public/references/schemas/handoff.schema.json`，并记录查询词、候选项、选择理由、原文位置或数据库实体 UUID、未解决项和关联 issue ID。
 
-每项检索任务必须明确标记为已解决或未解决。未解决项根据其对后续 LCI 的影响置为 `needs_input` 或 `needs_review`；只有所有阻断检索均有可追踪证据时才能进入第 03 阶段。
+每项检索任务必须明确标记为已解决或未解决。已按 openLCA 规则记录 UUID 的匹配决定不算未解决项。同类活动完全不存在、或缺口属于计划第 01 阶段阻断性事实时，均将运行置为 `failed`，并在 `status_reason` 写明具体原因。只有阻断检索均有可追踪证据（含已记录的匹配决定）时才能进入第 03 阶段。

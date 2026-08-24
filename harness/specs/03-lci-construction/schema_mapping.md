@@ -16,7 +16,7 @@ flowchart TD
     returned["LCI 返回 handoff<br/>artifact 路径"]
     gate{"文件齐全且无阻断证据缺口"}
     next["04 LCI 质量评估"]
-    stop["needs_input / needs_review"]
+    stop["failed"]
 
     inputs --> request --> executor
     executor --> lci --> returned

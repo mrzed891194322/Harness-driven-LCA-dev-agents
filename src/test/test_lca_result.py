@@ -77,16 +77,17 @@ class LcaResultTests(unittest.TestCase):
 
     def test_failure_aggregates_stage_review_and_tool_reasons(self) -> None:
         self._write_manifest(
-            "needs_input",
+            "failed",
             current_stage="01-plan-quality-gate",
             issue_ids=["PLAN-MISSING"],
+            status_reason="01 计划质量门禁失败：缺少功能单位（PLAN-MISSING）。",
         )
         lca_run.config.WORKFLOW_STAGES_DIR.mkdir()
         (lca_run.config.WORKFLOW_STAGES_DIR / "stage-001.json").write_text(
             json.dumps(
                 {
                     "sequence": 1,
-                    "status": "needs_input",
+                    "status": "failed",
                     "summary": "计划缺少功能单位。",
                     "issue_ids": ["PLAN-MISSING"],
                 },
@@ -98,7 +99,7 @@ class LcaResultTests(unittest.TestCase):
         (lca_run.config.WORKFLOW_REVIEWS_DIR / "plan-review.json").write_text(
             json.dumps(
                 {
-                    "status": "needs_input",
+                    "status": "failed",
                     "summary": "计划门禁未通过。",
                     "issues": [
                         {
@@ -115,7 +116,8 @@ class LcaResultTests(unittest.TestCase):
         )
         result = lca_run.parse_lca_result()
         self.assertFalse(result["success"])
-        self.assertIn("计划缺少功能单位", result["failure_markdown"])
+        self.assertIn("PLAN-MISSING", result["failure_markdown"])
+        self.assertIn("缺少功能单位", result["failure_markdown"])
         self.assertIn("补充功能单位", result["failure_markdown"])
 
     def test_stale_manifest_is_not_accepted(self) -> None:
@@ -125,9 +127,9 @@ class LcaResultTests(unittest.TestCase):
         self.assertFalse(result["success"])
         self.assertEqual(result["status"], "stale")
 
-    def test_v3_comparison_review_is_reported(self) -> None:
+    def test_v3_comparison_failure_is_reported(self) -> None:
         self._write_manifest(
-            "needs_review",
+            "failed",
             current_stage="07-lcia-calculation-reporting",
         )
         lca_run.config.CALCULATION_MANIFEST_PATH.write_text(
@@ -140,7 +142,8 @@ class LcaResultTests(unittest.TestCase):
                         {
                             "left_product_system_id": "rail",
                             "right_product_system_id": "sea",
-                            "status": "needs_review",
+                            "results_equal": True,
+                            "status": "explained",
                             "explanation": None,
                         }
                     ],

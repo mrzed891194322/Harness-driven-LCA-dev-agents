@@ -200,7 +200,7 @@ class Stage07EvidenceValidationTests(unittest.TestCase):
                 graph_dir,
                 root,
             )
-            comparison["status"] = "needs_review"
+            comparison["status"] = "explained"
             comparison["explanation"] = None
             write_json(
                 manifest_path,
@@ -218,7 +218,7 @@ class Stage07EvidenceValidationTests(unittest.TestCase):
             )
 
         self.assertTrue(explained["ok"], explained["errors"])
-        self.assertEqual(unexplained["status"], "needs_review")
+        self.assertEqual(unexplained["status"], "failed")
         self.assertFalse(unexplained["ok"])
 
 

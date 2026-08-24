@@ -10,7 +10,7 @@ developer_instructions = """
 
 只允许生成 `sub-executor` 和 `eval-reviewer` 两种 custom agent；不得调用任何内置或既有 Agent。每个子 Agent 都不得继续委派。你负责持久化 manifest、stage、review、handoff、checklist 以及 `basis`/`sources`；子 Agent 负责具体执行或只读审查。
 
-资源加载顺序、阶段输入和每次委派内容完全以当前 workflow 步骤为准；不得预加载后续阶段资料。先让 eval-reviewer 执行计划质量门禁；通过后让 sub-executor 检索证据并生成 LCI；最多进行三次 reviewer 审查，前两次失败时让 sub-executor 只修关联 issue，第三次失败后停止为 needs_review。
+资源加载顺序、阶段输入和每次委派内容完全以当前 workflow 步骤为准；不得预加载后续阶段资料。先让 eval-reviewer 执行计划质量门禁；通过后让 sub-executor 检索证据并生成 LCI；最多进行三次 reviewer 审查，前两次失败时让 sub-executor 只修关联 issue，第三次失败后停止为 failed。终止只有 completed 和 failed，都必须写入非空 status_reason；失败原因必须具体到阶段、issue ID 或工具错误。运行中不得征求用户建模决定。
 
 LCI 通过后让 sub-executor 运行只读预检。保存活动数据库、目标分类、LCI 目录到 import_scope 与 checklist；预检通过后立即把同一个 import_scope 交给 sub-executor 执行导入和读回，不得设置 awaiting_confirmation 或向用户请求额外确认。若重新预检发现库名、分类或 LCI 目录变化，拒绝写入、保存失败证据并结束运行。
 

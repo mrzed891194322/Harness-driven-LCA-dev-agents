@@ -16,7 +16,7 @@
 - reviewer 对用户资料作“不存在”结论前，必须给出覆盖上述两个固定根目录的 inventory
   负向结果，或状态为 `complete` 的 `input`/`data` RAG 负向查询证据。仅因某次目录枚举、
   默认文件搜索或 Git 列表未返回文件，不得创建 `PLAN-REFERENCE-NOT-LOCATED` 或将审查置为
-  `needs_input`。
+  `failed`。
 
 ## 2. 阻断性信息
 
@@ -29,13 +29,13 @@
 - 多产出是否存在，以及适用时的分配原则；
 - 预期应用、结果解释范围和至少一种完成判断方式。
 
-任一项缺失、仍为模板占位符、相互矛盾或无法唯一解释时，记录稳定 issue ID，保存 `reviews/plan-review.json`，将 manifest 置为 `needs_input` 并停止。
+任一项缺失、仍为模板占位符、相互矛盾或无法唯一解释时，记录稳定 issue ID，保存 `reviews/plan-review.json`，将 manifest 置为 `failed`，在 `status_reason` 写明缺哪一项并停止。
 
 ## 3. 可检索工作
 
 用户计划是自由格式 Markdown，不要求出现 `GAP-*`、`gap_type`、`retrieval_target`、`source_domain` 或固定章节标题。这些符号只用于审查 JSON 与第 02 阶段交接的内部追踪，不是用户填写门禁。
 
-第 02 阶段的默认工作包括：从用户资料提取前景数据（物料、质量、运输、地域、建模关系等），以及在活动数据库中匹配背景 Process、Flow、Provider 或 LCIA 方法。计划用自然语言表达这些任务即有效，例如“从资料提取”“匹配背景数据”“由 Agent 完成 Provider 映射”。不得因为计划缺少 `GAP-*` 字面量而创建 `PLAN-RETRIEVABLE-GAPS-UNTRACKED`，也不得因此将审查置为 `needs_input`。
+第 02 阶段的默认工作包括：从用户资料提取前景数据（物料、质量、运输、地域、建模关系等），以及在活动数据库中匹配背景 Process、Flow、Provider 或 LCIA 方法。计划用自然语言表达这些任务即有效，例如“从资料提取”“匹配背景数据”“由 Agent 完成 Provider 映射”。不得因为计划缺少 `GAP-*` 字面量而创建 `PLAN-RETRIEVABLE-GAPS-UNTRACKED`，也不得因此将审查置为 `failed`。
 
 审查员在 `review.retrievable_gaps` 中为检索任务分配稳定 ID，格式为 `GAP-<大写字母或数字及连字符>`。优先沿用计划中已出现的 `GAP-*`；否则按任务铸造，常用 ID 为：
 
@@ -43,12 +43,11 @@
 - `GAP-OPENLCA-BACKGROUND`：在活动数据库中匹配背景实体；
 - `GAP-LCIA-METHOD`：在活动数据库中定位 LCIA 方法。
 
-可检索工作不得改写第 2 节的用户价值判断或目标范围。典型项包括背景 Process/Flow/Provider 候选、UUID、活动数据库中的 LCIA 方法，以及用户资料中已给出但尚未写入计划正文的数据位置。检索不到时不得编造；将其转为未解决项，并根据影响置为 `needs_input` 或 `needs_review`。
+可检索工作不得改写第 2 节的用户价值判断或目标范围。典型项包括背景 Process/Flow/Provider 候选、UUID、活动数据库中的 LCIA 方法，以及用户资料中已给出但尚未写入计划正文的数据位置。同类活动不存在时不得编造 UUID。精确地域或其他匹配选择由第 02 阶段按 openLCA 操作规则自行决定并留档，不得因此将运行置为 `failed`。
 
 ## 4. 审查输出
 
 计划审查必须使用 `harness/specs/public/references/schemas/review.schema.json`，`review_type` 为 `plan`、`attempt` 为 `1`。每个问题都必须包含 issue ID、严重度、规范引用、证据位置和可执行修正要求。
 
-- `passed`：无第 2 节阻断问题；自然语言描述的检索任务已写入 `retrievable_gaps`（若计划已给出全部确定值且无检索任务，该数组可为空）；可进入第 02 阶段。
-- `needs_input`：存在第 2 节阻断性缺失。不得把路径写法或缺少 `GAP-*` 符号当作阻断。
-- `needs_review`：内容完整但存在需要人类判断且不适合自动检索的风险。
+- `passed`：无第 2 节阻断问题；自然语言描述的检索任务已写入 `retrievable_gaps`（若计划已给出全部确定值且无检索任务，该数组可为空）；可进入第 02 阶段。残留建模风险记为 `minor`/`accepted_risk` 并继续。
+- `failed`：存在第 2 节阻断性缺失，或审查产物非法、无法形成有效审查记录。`summary` 必须写明具体原因与 issue ID。不得把路径写法、缺少 `GAP-*` 符号或背景匹配选择当作失败。

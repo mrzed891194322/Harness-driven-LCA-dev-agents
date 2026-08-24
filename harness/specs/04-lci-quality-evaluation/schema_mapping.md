@@ -15,7 +15,7 @@ flowchart TD
     attempt{"attempt < 3"}
     fix["定向修正 handoff<br/>sub-executor"]
     next["05 openLCA 预检"]
-    stop["needs_review"]
+    stop["failed"]
 
     inputs --> request --> reviewer --> review --> action --> passed
     passed -->|是| next
@@ -30,7 +30,7 @@ flowchart TD
 | --- | --- | --- | --- | --- | --- |
 | 输入交接 | 02/03 handoff + LCI artifacts | 每轮审查前 | 02/03/修正 Agent → reviewer | 计划、检索证据、LCI artifacts/hashes、布尔 `isInput`、前景 `defaultProvider`、auto-link 拓扑、历史 issue IDs | 输入不可追踪或连接元数据不完整时不通过 |
 | LCI 审查 | `review.schema.json`（public） | 每轮 reviewer 返回后 | `eval-reviewer` → 主编排 Agent | `review_type=lci`、attempt 1–3、稳定 `LCI-*` issue、状态和修正要求 | schema 非法不得进入下一动作 |
-| 轮次脚本 | `harness/specs/04-lci-quality-evaluation/references/scripts/validation.py` | 每轮 review 持久化后 | 主编排 Agent → `next_lci_review_action` | passed → 05；attempt 1/2 失败 → 定向修正；attempt 3 失败 → 停止 | 非法 attempt 抛错并保存失败证据 |
+| 轮次脚本 | `harness/specs/04-lci-quality-evaluation/references/scripts/validation.py` | 每轮 review 持久化后 | 主编排 Agent → `next_lci_review_action` | passed → 05；attempt 1/2 失败 → 定向修正；attempt 3 失败 → `failed` 停止 | 非法 attempt 抛错并保存失败证据 |
 | 修正交接 | handoff（定向修正） | attempt 1/2 未通过时 | 主编排 Agent ↔ `sub-executor` | 仅交付未解决 issue ID 与受影响 artifacts；返回 revision/hash | 禁止无关重写或第 4 轮 |
 
 ## 维护联动

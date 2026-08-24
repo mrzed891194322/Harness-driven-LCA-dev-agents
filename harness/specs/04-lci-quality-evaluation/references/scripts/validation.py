@@ -9,4 +9,4 @@ def next_lci_review_action(attempt: int, passed: bool) -> str:
         return "proceed_to_preflight"
     if attempt < 3:
         return "targeted_fix_and_review"
-    return "stop_needs_review"
+    return "stop_failed"

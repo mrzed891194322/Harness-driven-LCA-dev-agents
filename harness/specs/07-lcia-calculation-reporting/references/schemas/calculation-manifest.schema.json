@@ -98,13 +98,13 @@
         "left_product_system_id": {"type": "string", "minLength": 1},
         "right_product_system_id": {"type": "string", "minLength": 1},
         "results_equal": {"type": "boolean"},
-        "status": {"enum": ["distinct", "explained", "needs_review"]},
+        "status": {"enum": ["distinct", "explained"]},
         "explanation": {"type": ["string", "null"]}
       },
       "allOf": [
         {
           "if": {"properties": {"results_equal": {"const": true}}},
-          "then": {"properties": {"status": {"enum": ["explained", "needs_review"]}}}
+          "then": {"properties": {"status": {"enum": ["explained"]}}}
         },
         {
           "if": {

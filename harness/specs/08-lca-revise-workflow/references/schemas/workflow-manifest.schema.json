@@ -15,7 +15,8 @@
     "plan": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"},
     "started_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"},
-    "status": {"enum": ["not_started", "running", "needs_input", "needs_review", "failed", "completed"]},
+    "status": {"enum": ["not_started", "running", "failed", "completed"]},
+    "status_reason": {"type": ["string", "null"]},
     "current_stage": {"type": ["string", "null"]},
     "import_scope": {
       "oneOf": [
@@ -26,5 +27,19 @@
     "lci_review_attempt": {"type": "integer", "minimum": 0, "maximum": 3},
     "artifact_index": {"type": "array", "items": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"}},
     "issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"enum": ["failed", "completed"]}},
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["status_reason"],
+        "properties": {
+          "status_reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  ]
 }

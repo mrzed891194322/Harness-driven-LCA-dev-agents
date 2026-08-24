@@ -466,6 +466,25 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         self.assertIn("`linkingMode: auto`", stage03)
         self.assertNotIn("`linkingMode: explicit`", stage03)
 
+        openlca_rule = (
+            PROJECT_ROOT / "harness" / "rules" / "openlca-operation" / "README.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("背景匹配与无人值守决定", openlca_rule)
+        self.assertIn("status_reason", openlca_rule)
+        self.assertIn("任何建模选择", openlca_rule)
+        self.assertIn("自行选择代理", openlca_rule)
+        self.assertNotRegex(adapters, r"置为 `needs_review`")
+        eval_reviewers = "\n".join(
+            (PROJECT_ROOT / path).read_text(encoding="utf-8")
+            for path in (
+                ".opencode/agents/eval-reviewer.md",
+                ".claude/agents/eval-reviewer.md",
+                ".codex/agents/eval-reviewer.toml",
+            )
+        )
+        self.assertNotRegex(eval_reviewers, r"只给出 `passed`、`needs_input`")
+        self.assertRegex(eval_reviewers, r"只给出 `passed` 或 `failed`|只返回 passed 或 failed")
+
     def test_workflow_has_no_runtime_confirmation_parameter_or_state(self) -> None:
         paths = (
             "harness/workflows/LCA-main.md",

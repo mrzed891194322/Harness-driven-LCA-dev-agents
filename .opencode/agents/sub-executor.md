@@ -22,7 +22,7 @@ permission:
 # 工具调用
 
 - 需要调用 openLCA MCP 工具时，按需读取 `harness/rules/openlca-operation/README.md`。
-- 名称、Flow、Process、Provider、方法与 UUID 必须使用正式工具查询，禁止臆造。
+- 名称、Flow、Process、Provider、方法与 UUID 必须使用正式工具查询，禁止臆造。可留档的匹配与建模决定按 openLCA 操作规则自行选择并留档，不得停下来征求用户。
 
 # 阶段输出
 

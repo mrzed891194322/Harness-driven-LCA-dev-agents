@@ -16,7 +16,7 @@
 - 引用当前 LCI Flow 的输入 exchange 必须具有 `defaultProvider`。若 Provider 是当前 LCI Process，该 Process 必须以 `isInput: false` 输出同一 Flow；背景 Provider 继续由正式数据库查询和 Stage 05 预检验证。
 - 数值、单位、Provider、UUID 和系统边界必须能回链到计划或第 02 阶段证据；不得猜测缺失事实。
 - 映射报告中的每个换算公式必须写明输入和输出单位及换算因子；例如质量以 kg、运输工作以 t*km 时必须显式记录 kg→tonne 的 `/1000`。
-- 背景 Provider 必须使用正式查询得到的 UUID，并输出 exchange 引用的 flow。`expectedProviderGeography` 可记录计划中的地域文本，但只作可追踪诊断；openLCA 的地域代码、名称或别名不一致不得覆盖 UUID 与输出 flow 的一致性判断。
+- 背景 Provider 必须使用正式查询得到的 UUID，并输出 exchange 引用的 flow。`expectedProviderGeography` 可记录计划中的地域文本，但只作可追踪诊断；openLCA 的地域代码、名称或别名不一致不得覆盖 UUID 与输出 flow 的一致性判断。第 02 阶段已记录的地域代理必须写入映射报告（请求地域、选用地域、UUID、理由），不得当作未解决缺口或等待用户批准。
 - 初次制定不得提前执行 openLCA 写入；本阶段只形成可审查的 LCI 材料。
 
 ## 3. 输出与完成条件

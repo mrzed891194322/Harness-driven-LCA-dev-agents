@@ -16,7 +16,7 @@ flowchart TD
     returned["检索返回 handoff<br/>queries 字段"]
     gate{"阻断检索均有证据"}
     next["03 LCI 制定"]
-    stop["needs_input / needs_review"]
+    stop["failed"]
 
     input --> request --> executor
     executor --> libs --> rag --> evidence
@@ -35,7 +35,7 @@ flowchart TD
 | RAG 规则 | `harness/rules/knowledge-retrieval/README.md` | 查询用户资料、标准或手册时 | 平台/Agent → RAG 调用 | library 白名单、先列库、命中回读原文、记录定位字段 | 配置/数据库错误不得当作无结果 |
 | MCP schema | `list_rag_libraries()` | 首次访问目标知识库前 | `query_rag` MCP → `sub-executor` | `available`、`status`、chunks、embedding model、build ID | 目标库不可用时保存错误 |
 | MCP schema | `query_rag(query, libraries, n_results, max_distance)` | 每个 RAG 检索任务 | `sub-executor` → `query_rag` MCP | 非空查询、library 白名单、数量/距离范围；结果需回读来源 | 空结果保留为未解决，不编造 |
-| openLCA 规则 | `harness/rules/openlca-operation/README.md` | 任务包含数据库候选时 | `sub-executor` → openLCA MCP | 活动数据库、正式 UUID 查询和只读边界 | 条件加载 |
+| openLCA 规则 | `harness/rules/openlca-operation/README.md` | 任务包含数据库候选时 | `sub-executor` → openLCA MCP | 活动数据库、正式 UUID 查询、只读边界；可留档的匹配决定自行选择并留档 | 条件加载；匹配决定不得转为 `failed`；同类活动不存在时 `failed` 并写明原因 |
 | MCP schema | `health_check()`、`query_descriptors(...)`、`get_process_details(...)`、`get_flow_providers(...)` | 查询 Process/Flow/Product System/Impact Method 候选 | `sub-executor` ↔ `control_openlca` MCP | 连接门禁后记录 entity type、查询词、UUID、地域、定量参考、Flow-Provider 引用和查询时间 | 连接失败按公共运行契约停止 |
 
 ## 维护联动

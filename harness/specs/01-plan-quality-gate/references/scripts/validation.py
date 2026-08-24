@@ -190,7 +190,7 @@ def validate_plan_intake(
     retrievable_gaps = sorted(set(re.findall(r"\bGAP-[A-Z0-9-]+\b", text)))
 
     return {
-        "status": "passed" if not issues else "needs_input",
+        "status": "passed" if not issues else "failed",
         "issues": issues,
         "retrievable_gaps": retrievable_gaps,
         "reference_inventory": build_reference_inventory(reference_roots),

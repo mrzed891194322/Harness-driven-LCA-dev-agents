@@ -23,7 +23,7 @@ openLCA 计算与资源释放的通用纪律见 `harness/rules/openlca-operation
 
 ## 3. 报告边界
 
-`lca_report.md` 只能陈述原始结果支持的影响类别数值、方法、单位、系统边界、数据来源、限制和未解决项。不得自动宣称：
+`lca_report.md` 只能陈述原始结果支持的影响类别数值、方法、单位、系统边界、数据来源、限制和未解决项。第 02 阶段采用的背景数据地域代理必须在限制节写明请求地域、选用地域、Provider UUID 和原因。不得自动宣称：
 
 - ISO 认证或符合性认证；
 - 关键审查已经通过；
@@ -34,4 +34,4 @@ openLCA 计算与资源释放的通用纪律见 `harness/rules/openlca-operation
 
 ## 4. 最终完成门禁
 
-生成全部结果后必须运行 `references/scripts/validation.py`。只有导入无失败、模型图包含全部预期节点、所有 LCIA 原始结果非空、计算资源已释放、每对情景 comparison check 正确，且第 06、07 阶段全部必需文件通过结构验收时，manifest 才能置为 `completed`。图不同但 LCIA 完全相同时必须记录非空解释，否则置为 `needs_review`，不得自动宣称情景等效。
+生成全部结果后必须运行 `references/scripts/validation.py`。只有导入无失败、模型图包含全部预期节点、所有 LCIA 原始结果非空、计算资源已释放、每对情景 comparison check 正确，且第 06、07 阶段全部必需文件通过结构验收时，manifest 才能置为 `completed`，并在 `status_reason` 概括通过依据。图不同但 LCIA 完全相同时必须把 comparison check 写成 `explained` 并记录非空解释；缺少解释则 validator 失败、运行置为 `failed`，`status_reason` 写明哪一对情景缺少解释。不得自动宣称情景等效。

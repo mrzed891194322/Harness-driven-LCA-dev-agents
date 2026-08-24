@@ -48,4 +48,4 @@ uv run python src/scripts/setup_env/main.py
 3. `.env` 与 RAG Embedding
 4. MCP 接线
 
-最后一句：下一步仍是 `docs/lang_CN/project_prep.md`（资料、RAG、openLCA），不是 whole-lca。
+最后一句：下一步启动 GUI 完成初始化检查（见 `README.md`），openLCA IPC 见 `docs/lang_CN/project_prep.md`，不要启动 whole-lca。

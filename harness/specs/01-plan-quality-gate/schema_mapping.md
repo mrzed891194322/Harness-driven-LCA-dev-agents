@@ -16,7 +16,7 @@ flowchart TD
     returned["委派返回 handoff"]
     pass{"review.status == passed"}
     next["02 证据检索"]
-    stop["needs_input / needs_review / failed"]
+    stop["failed"]
 
     plan --> validator --> request --> reviewer --> review --> returned --> pass
     pass -->|是| next
@@ -28,8 +28,8 @@ flowchart TD
 | 类型 | 契约、模板或接口 | 触发时机 | 生产者 → 消费者 | 校验与握手内容 | 失败处理 |
 | --- | --- | --- | --- | --- | --- |
 | 输入模板 | `src/GUI/ui/assets/template/plan.md` | 用户通过 GUI 建立计划时 | GUI → `plan.md` | 默认不生成 YAML front matter，保留 Markdown 结构并仅替换可编辑区域；上传内容在执行前只暂存，已有任意 front matter 原样保留 | 字段上限或输入标记非法时不进入执行 |
-| 确定性脚本 | `harness/specs/01-plan-quality-gate/references/scripts/validation.py` | 计划审查前 | 主编排 Agent → `validate_plan_intake` | 第 2 节阻断性语义字段及不受 Git ignore 影响的用户资料 inventory；不校验 metadata，不要求固定章节标题或 `GAP-*` 字面量 | 返回 `needs_input` issues 与只读 `reference_inventory` |
-| 计划审查 | `review.schema.json`（public） | 保存计划审查前 | `eval-reviewer` → 主编排 Agent | `review_type=plan`、`attempt=1`、稳定 issue ID；将自然语言检索任务写入 `retrievable_gaps`（由审查铸造 ID，不要求用户计划含 `GAP-*`）；请求 handoff 须携带完整 validator 结果 | schema 非法时不得通过阶段；缺少 `GAP-*` 字面量不得判 `needs_input` |
+| 确定性脚本 | `harness/specs/01-plan-quality-gate/references/scripts/validation.py` | 计划审查前 | 主编排 Agent → `validate_plan_intake` | 第 2 节阻断性语义字段及不受 Git ignore 影响的用户资料 inventory；不校验 metadata，不要求固定章节标题或 `GAP-*` 字面量 | 返回 `failed` issues 与只读 `reference_inventory` |
+| 计划审查 | `review.schema.json`（public） | 保存计划审查前 | `eval-reviewer` → 主编排 Agent | `review_type=plan`、`attempt=1`、稳定 issue ID；将自然语言检索任务写入 `retrievable_gaps`（由审查铸造 ID，不要求用户计划含 `GAP-*`）；请求 handoff 须携带完整 validator 结果 | schema 非法或第 2 节缺失时 `failed`，`summary`/`status_reason` 必须写明原因；缺少 `GAP-*` 字面量不得判 `failed` |
 
 ## 维护联动
 

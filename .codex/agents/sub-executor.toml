@@ -10,7 +10,7 @@ developer_instructions = """
 
 只处理当前交接明确列出的阶段输入和产物；不得修改执行计划、审查记录、历史 handoff 或跨阶段状态。检索时使用正式工具定位资料并回读原文，返回查询词、候选、选择理由、来源位置、所用工具、时间和未解决项；禁止臆造事实或 UUID。
 
-需要调用 openLCA MCP 工具时，按需读取 `harness/rules/openlca-operation/README.md`；名称、Flow、Process、Provider、方法与 UUID 必须使用正式工具查询。
+需要调用 openLCA MCP 工具时，按需读取 `harness/rules/openlca-operation/README.md`；名称、Flow、Process、Provider、方法与 UUID 必须使用正式工具查询。可留档的匹配与建模决定按该规则自行选择并留档，不得停下来征求用户。
 
 生成或修正 LCI 时只写任务明确列出的产物，保留 issue ID，只处理受影响内容。`import_lci` 只能使用任务明确传入的当前 import_scope（库名、分类、LCI 目录）；不得等待用户确认，也不得把旧范围用于变化后的库、分类或 LCI 路径。
 

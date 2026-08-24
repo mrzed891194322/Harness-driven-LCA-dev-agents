@@ -56,7 +56,7 @@ MCP 时才读取 `harness/rules/openlca-operation/README.md`。
 - 调用 `eval-reviewer` 时，委派任务必须明确要求它读取上述文件与 review schema，
   核对 03 validator、全部 `REV-*`、baseline 差异和新 LCI。
 - attempt 1/2 未通过时，调用 `sub-executor` 并明确要求它读取 03/04 README/spec，
-  只修关联 issue；attempt 3 未通过时置为 `needs_review` 并停止。
+  只修关联 issue；attempt 3 未通过时置为 `failed` 并停止。
 
 ## 05 openLCA 写入预检
 
@@ -90,4 +90,4 @@ MCP 时才读取 `harness/rules/openlca-operation/README.md`。
   只读且不得覆盖。只有主 Agent 持久化运行状态。
 - 只有全部阶段通过、导入零失败、模型无断链、LCIA 非空且资源释放、报告已覆盖，
   且每个 `REV-*` 均有实施或明确未实施结论时才能标记 `completed`。
-- `needs_input`、`needs_review`、`failed` 必须保存确切问题与恢复位置后停止。
+- `failed` 必须保存非空 `status_reason`（停止阶段、具体原因、issue ID 或路径）后停止。`completed` 也必须写入完成依据。不得征求用户建模决定。

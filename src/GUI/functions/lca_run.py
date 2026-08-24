@@ -76,6 +76,7 @@ def _collect_failure_reasons(manifest: dict[str, Any]) -> tuple[list[str], list[
     reasons: list[str] = []
     warnings: list[str] = []
 
+    _append_unique(reasons, manifest.get("status_reason"))
     _append_unique(reasons, f"工作流状态：{manifest.get('status', 'unknown')}")
     if manifest.get("current_stage"):
         _append_unique(reasons, f"停止阶段：{manifest['current_stage']}")
@@ -164,16 +165,19 @@ def _collect_failure_reasons(manifest: dict[str, Any]) -> tuple[list[str], list[
             for item in calculation.get("unresolved_items", []):
                 _append_unique(reasons, item)
             for check in calculation.get("comparison_checks", []):
-                if not isinstance(check, dict) or check.get("status") != "needs_review":
+                if not isinstance(check, dict):
+                    continue
+                status = check.get("status")
+                explanation = str(check.get("explanation") or "").strip()
+                if status == "distinct" or (status == "explained" and explanation):
                     continue
                 left = check.get("left_product_system_id") or "unknown"
                 right = check.get("right_product_system_id") or "unknown"
-                explanation = check.get("explanation")
                 _append_unique(
                     reasons,
-                    str(explanation)
+                    explanation
                     if explanation
-                    else f"情景 {left} 与 {right} 的比较结果需要复核。",
+                    else f"情景 {left} 与 {right} 的比较结果缺少有效解释。",
                 )
 
     return reasons, warnings

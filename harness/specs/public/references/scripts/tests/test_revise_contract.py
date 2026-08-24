@@ -293,6 +293,7 @@ class ReviseLcaContractTests(unittest.TestCase):
                 "started_at": "2026-07-26T01:00:00Z",
                 "updated_at": "2026-07-26T02:00:00Z",
                 "status": "completed",
+                "status_reason": "第 07 阶段全部完成条件已有证据，全部 REV-* 已有终态。",
                 "current_stage": "07-lcia-calculation-reporting",
                 "import_scope": None,
                 "lci_review_attempt": 1,

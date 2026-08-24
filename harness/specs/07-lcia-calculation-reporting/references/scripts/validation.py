@@ -38,7 +38,6 @@ def validate_calculation_evidence(
     project_root: Path,
 ) -> dict[str, Any]:
     errors: list[str] = []
-    review_items: list[str] = []
     manifest, error = _read_json(manifest_path)
     if error or manifest is None:
         return {
@@ -153,24 +152,19 @@ def validate_calculation_evidence(
             if check.get("status") != "explained" or not str(
                 check.get("explanation") or ""
             ).strip():
-                review_items.append(
+                errors.append(
                     f"{left} and {right} declare different expected processes but "
-                    "have identical LCIA profiles"
+                    "have identical LCIA profiles without an explanation"
                 )
         elif not results_equal and check.get("status") != "distinct":
             errors.append(f"Distinct results for {left}/{right} must use status distinct")
 
     manifest_status = manifest.get("status")
-    if not errors and review_items and manifest_status != "failed":
-        errors.append(
-            "calculation manifest status must be failed while comparison review is open"
-        )
-    if not errors and not review_items and manifest_status != "success":
-        errors.append("calculation manifest status must be success")
     if errors:
         status = "failed"
-    elif review_items:
-        status = "needs_review"
+    elif manifest_status != "success":
+        errors.append("calculation manifest status must be success")
+        status = "failed"
     else:
         status = "passed"
     return {
@@ -179,7 +173,7 @@ def validate_calculation_evidence(
         "status": status,
         "ok": status == "passed",
         "errors": errors,
-        "review_items": review_items,
+        "review_items": [],
     }
 
 

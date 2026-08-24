@@ -2,7 +2,7 @@
 
 ## 1. 状态机
 
-合法 manifest 状态为：`not_started`、`running`、`needs_input`、`needs_review`、`failed`、`completed`。
+合法 manifest 状态为：运行中 `not_started`、`running`；终止只有 `failed`、`completed`。不得使用 `needs_input` 或 `needs_review`。
 
 执行顺序固定为：
 
@@ -14,7 +14,7 @@
 6. `06-openlca-import-readback`：导入与模型图读回；
 7. `07-lcia-calculation-reporting`：LCIA 计算、结果验收与报告。
 
-不得跳过计划审查、LCI 审查或写入预检。启动 whole-LCA 即授权在当前预检范围（库名、分类、LCI 目录）一致时执行导入；运行中不得请求额外确认。各阶段的进入、通过和受控停止条件由对应编号规范定义。
+不得跳过计划审查、LCI 审查或写入预检。启动 whole-LCA 即授权在当前预检范围（库名、分类、LCI 目录）一致时执行导入。本框架无人值守，运行中不得征求用户建模决定，也不得因判断分歧暂停。凡可留档的选择由执行 Agent 自行决定并写入证据。计划缺少第 01 阶段阻断性事实时将运行置为 `failed`，并在 `status_reason` 写明缺哪一项。各阶段的进入、通过和受控停止条件由对应编号规范定义。
 
 所有需要访问 openLCA 的委派在首次相关工具调用前必须调用 `health_check`。该工具在首次
 失败后重新建立客户端并重连 3 次，共最多 4 次有界探测。若仍返回 `ok=false`，主 Agent
@@ -49,9 +49,9 @@ operation journal；计算中断也不得自动重复。
 
 ## 4. 通用终止状态
 
-- `completed`：第 07 阶段的全部完成条件已有结构化证据。
-- `needs_input`：必须由用户补充范围或事实才能继续。
-- `needs_review`：达到审查上限或结果需人类判断。
-- `failed`：已授权的执行发生不可恢复的工具、导入或计算失败，证据已持久化。
+终止只有两种状态，都必须写入非空 `status_reason`：
 
-不得因文件存在、工具返回 exit 0 或 agent 自称完成而标记 `completed`。
+- `completed`：第 07 阶段的全部完成条件已有结构化证据。`status_reason` 概括通过依据（导入零失败、模型图无断链、LCIA 非空、资源已释放等）。
+- `failed`：运行无法继续完成。包括计划缺少第 01 阶段阻断性事实、LCI 审查三次仍未通过、以及工具/导入/计算不可恢复失败。`status_reason` 必须写明停止阶段、具体原因，以及关联 issue ID 或工具错误；不得只写 `failed`。
+
+不得因文件存在、工具返回 exit 0 或 agent 自称完成而标记 `completed`。不得将运行置为 `needs_input` 或 `needs_review`。

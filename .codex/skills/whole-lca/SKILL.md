@@ -20,7 +20,7 @@ description: 通过分阶段的计划接收、证据检索、最多三次 LCI �
 
 - 知识检索与 openLCA 规则在 Codex 中均不全局加载；按 workflow 条件读取 `harness/rules/knowledge-retrieval/README.md` 与 `harness/rules/openlca-operation/README.md`。
 - `major-orchestrator` 仅可生成 `sub-executor` 和 `eval-reviewer`，等待其返回并按 workflow 持久化证据。
-- 如果返回 `needs_input`、`needs_review` 或 `failed`，保留已记录状态并报告确切问题。
+- 如果返回 `failed`，保留已记录状态并报告 `status_reason` 与确切问题。终止只有 `completed` 和 `failed`。
 - 运行启动即授权在当前预检范围完全一致时执行导入；预检通过后立即继续第 06 阶段，不得请求额外确认。
 - 工作流产物保存在 `workspace/memory/`、`workspace/outputs/LCI/` 和 `workspace/outputs/reports/`；返回后不执行反向文件同步。
 

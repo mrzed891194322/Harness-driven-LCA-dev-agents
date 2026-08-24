@@ -23,7 +23,7 @@
           "affected_artifacts": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
           "acceptance_criteria": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
           "evidence_refs": {"type": "array", "items": {"type": "string"}},
-          "status": {"enum": ["planned", "implemented", "not_implemented", "needs_input", "needs_review"]}
+          "status": {"enum": ["planned", "implemented", "not_implemented"]}
         }
       }
     },

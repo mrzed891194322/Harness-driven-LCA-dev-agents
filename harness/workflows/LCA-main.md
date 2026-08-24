@@ -22,7 +22,7 @@
 ### 02 证据检索
 
 - 计划通过后，主 Agent 才完整读取 `harness/specs/02-evidence-retrieval/README.md` 和 `harness/specs/02-evidence-retrieval/references/02-evidence-retrieval-spec.md`。
-- 从已通过计划的自然语言、审查中的 `retrievable_gaps` 以及默认的资料提取/背景映射任务调用 `sub-executor`；用户计划不要求 `GAP-*` 字面量。委派任务必须明确要求它在检索前完整读取上述两个第 02 阶段文件。RAG 检索遵守已加载的知识检索规则；只有 MCP 暴露的参数或错误不足以解释当前调用时，才在首次相关调用前读取 `harness/tools/query_rag/README.md`。只有任务包含 openLCA 候选查询时，才要求它在调用 MCP 前读取 `harness/rules/openlca-operation/README.md`。
+- 从已通过计划的自然语言、审查中的 `retrievable_gaps` 以及默认的资料提取/背景映射任务调用 `sub-executor`；用户计划不要求 `GAP-*` 字面量。委派任务必须明确要求它在检索前完整读取上述两个第 02 阶段文件。RAG 检索遵守已加载的知识检索规则；只有 MCP 暴露的参数或错误不足以解释当前调用时，才在首次相关调用前读取 `harness/tools/query_rag/README.md`。只有任务包含 openLCA 候选查询时，才要求它在调用 MCP 前读取 `harness/rules/openlca-operation/README.md`（可留档的匹配与建模决定自行选择并留档，不得停下来征求用户）。
 
 ### 03 LCI 制定
 
@@ -33,7 +33,7 @@
 
 - LCI 形成后，主 Agent 才完整读取 `harness/specs/04-lci-quality-evaluation/README.md` 和 `harness/specs/04-lci-quality-evaluation/references/04-lci-quality-evaluation-spec.md`。
 - 调用 `eval-reviewer` 时，委派任务必须明确要求它在审查前完整读取上述两个第 04 阶段文件和 review schema，并先核对第 03 阶段确定性校验结果；只交付计划目标、第 02/03 阶段证据、当前 LCI 与历史未解决 issue。核对来源时使用已加载的知识检索规则；只有实际调用 openLCA MCP 核验时才读取 openLCA 规则。
-- attempt 1/2 未通过时，调用 `sub-executor` 并明确要求它此时完整读取第 03 阶段和第 04 阶段的 README/spec，只交付关联 issue ID 与受影响产物进行定向修正；attempt 3 未通过时置为 `needs_review`，不得继续。
+- attempt 1/2 未通过时，调用 `sub-executor` 并明确要求它此时完整读取第 03 阶段和第 04 阶段的 README/spec，只交付关联 issue ID 与受影响产物进行定向修正；attempt 3 未通过时置为 `failed`，不得继续。
 
 ### 05 openLCA 写入预检
 
@@ -52,13 +52,13 @@
 
 - 第 06 阶段通过后，主 Agent 才完整读取 `harness/specs/07-lcia-calculation-reporting/README.md` 和 `harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md`。
 - 调用 `sub-executor` 时，委派任务必须明确要求它在计算前完整读取上述两个第 07 阶段文件和 openLCA 规则；在保存原始计算结果、计算清单和最终报告前，依次读取 `harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json`、`harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json` 和 `harness/specs/07-lcia-calculation-reporting/references/templates/lca_report.md`，不得提前加载。
-- 使用 calculation manifest v3 `calculations` 数组记录全部情景，并为每对情景生成 `comparison_checks`。保存 raw、清单和报告后运行第 07 阶段 `references/scripts/validation.py`；只有 passed 才能完成，needs_review 必须停止复核。
+- 使用 calculation manifest v3 `calculations` 数组记录全部情景，并为每对情景生成 `comparison_checks`。图不同但 LCIA 相同时必须写入非空 `explained`。保存 raw、清单和报告后运行第 07 阶段 `references/scripts/validation.py`；只有 passed 才能完成，否则置为 `failed`。
 
 ## 证据与停止
 
 - 每次委派前后在 `workspace/memory/` 写 handoff，每个阶段写新 stage 文件；同一次运行内不得覆盖历史记录。
 - Reviewer 只读；由主 Agent 持久化其返回的 review。
 - 不调用任何既有 Agent。子 Agent 只读取本次交接列出的相关记忆，只有主 Agent 持久化运行状态与历史记录。
-- 运行启动即授权在当前预检范围完全一致时导入；运行中不得设置 `awaiting_confirmation` 或向用户请求额外确认。
+- 运行启动即授权在当前预检范围完全一致时导入；运行中不得设置 `awaiting_confirmation`、不得向用户征求任何建模决定。可留档的选择由执行 Agent 按 openLCA 操作规则自行决定并写入证据。终止状态只有 `completed` 和 `failed`，都必须写入非空 `status_reason`：`failed` 写明停止阶段、具体原因和 issue ID 或工具错误；`completed` 写明第 07 阶段完成依据。
 - 每次阶段结束时更新 `workspace/memory/checklist.md`（状态、依据、资料/工具、产物路径），不要记录哈希。
 - 无部分失败、无断链、非空结果且全部契约通过前，不得标记 `completed`。

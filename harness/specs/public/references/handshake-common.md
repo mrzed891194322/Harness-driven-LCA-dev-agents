@@ -14,7 +14,7 @@ flowchart TD
     stage["stage 记录"]
     checklist["checklist.md"]
     manifest["manifest 状态与 artifact 索引"]
-    stop["needs_input / needs_review / failed"]
+    stop["failed"]
 
     request --> worker --> returned --> stage --> checklist --> manifest
     manifest -->|门禁未通过| stop
@@ -27,10 +27,10 @@ flowchart TD
 | 类型 | 契约 | 路径 | 生产者 → 消费者 | 核心内容 |
 | --- | --- | --- | --- | --- |
 | 交接 | handoff | `harness/specs/public/references/schemas/handoff.schema.json` | 主编排 Agent ↔ `sub-executor` / `eval-reviewer` | 输入 artifact 路径、决策、依据、资料/工具、未解决项、状态、下一动作、issue IDs |
-| 阶段 | stage | `harness/specs/public/references/schemas/stage.schema.json` | 主编排 Agent → `workspace/memory/stages/` | 阶段 ID、Agent、状态、`basis`、`sources`、artifact、evidence、issue IDs |
-| 清单 | workflow manifest | `harness/specs/public/references/schemas/workflow-manifest.schema.json` | 主编排 Agent → `workspace/memory/manifest.json` | 计划 artifact、当前阶段、状态、`import_scope`、`lci_review_attempt`、`artifact_index` |
+| 阶段 | stage | `harness/specs/public/references/schemas/stage.schema.json` | 主编排 Agent → `workspace/memory/stages/` | 阶段 ID、Agent、状态（`running`/`passed`/`failed`）、失败时必填 `summary`、`basis`、`sources`、artifact、evidence、issue IDs |
+| 清单 | workflow manifest | `harness/specs/public/references/schemas/workflow-manifest.schema.json` | 主编排 Agent → `workspace/memory/manifest.json` | 计划 artifact、当前阶段、状态（运行中 `not_started`/`running`，终止 `failed`/`completed`）、终止时必填 `status_reason`、`import_scope`、`lci_review_attempt`、`artifact_index` |
 | 人读清单 | checklist | `harness/specs/public/references/templates/checklist.md` | 主编排 Agent → `workspace/memory/checklist.md` | 每阶段状态、依据、资料/工具、产物路径 |
-| 审查 | review | `harness/specs/public/references/schemas/review.schema.json` | `eval-reviewer` → 主编排 Agent | `review_type`（plan/lci）、attempt、issues、`retrievable_gaps`、reviewed artifacts |
+| 审查 | review | `harness/specs/public/references/schemas/review.schema.json` | `eval-reviewer` → 主编排 Agent | `review_type`（plan/lci）、attempt、`passed`/`failed`、失败时必填 `summary`、issues、`retrievable_gaps`、reviewed artifacts |
 
 共享 artifact 与 source 字段定义：`harness/specs/public/references/schemas/common.schema.json`。不要在记忆或清单中记录 SHA-256。
 

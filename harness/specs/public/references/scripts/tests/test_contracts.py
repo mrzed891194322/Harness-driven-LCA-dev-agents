@@ -194,13 +194,13 @@ class PlanIntakeTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("不要求出现 `GAP-*`", spec)
         self.assertIn("PLAN-RETRIEVABLE-GAPS-UNTRACKED", spec)
-        self.assertIn("不得因此将审查置为 `needs_input`", spec)
+        self.assertIn("不得因此将审查置为 `failed`", spec)
 
     def test_missing_functional_unit_blocks(self) -> None:
         result = validate_plan_intake(
             compliant_plan(functional_unit="[请填写功能单位]")
         )
-        self.assertEqual(result["status"], "needs_input")
+        self.assertEqual(result["status"], "failed")
         self.assertIn("PLAN-BLOCKING-FU", {issue["issue_id"] for issue in result["issues"]})
         issue = next(
             issue for issue in result["issues"] if issue["issue_id"] == "PLAN-BLOCKING-FU"
@@ -334,7 +334,7 @@ class PlanIntakeTests(unittest.TestCase):
 
         result = validate_plan_intake(plan)
 
-        self.assertEqual(result["status"], "needs_input")
+        self.assertEqual(result["status"], "failed")
         self.assertIn(
             "PLAN-BLOCKING-FU",
             {issue["issue_id"] for issue in result["issues"]},
@@ -345,7 +345,7 @@ class ReviewLoopTests(unittest.TestCase):
     def test_first_two_failures_fix_and_third_failure_stops(self) -> None:
         self.assertEqual(next_lci_review_action(1, False), "targeted_fix_and_review")
         self.assertEqual(next_lci_review_action(2, False), "targeted_fix_and_review")
-        self.assertEqual(next_lci_review_action(3, False), "stop_needs_review")
+        self.assertEqual(next_lci_review_action(3, False), "stop_failed")
         self.assertEqual(next_lci_review_action(2, True), "proceed_to_preflight")
         with self.assertRaises(ValueError):
             next_lci_review_action(4, False)
@@ -592,9 +592,79 @@ class SchemaContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.validate("workflow-manifest.schema.json", invalid_manifest)
 
+        invalid_manifest["status"] = "needs_input"
+        with self.assertRaises(ValidationError):
+            self.validate("workflow-manifest.schema.json", invalid_manifest)
+
+        invalid_manifest["status"] = "needs_review"
+        with self.assertRaises(ValidationError):
+            self.validate("workflow-manifest.schema.json", invalid_manifest)
+
         invalid_manifest["status"] = "awaiting_confirmation"
         with self.assertRaises(ValidationError):
             self.validate("workflow-manifest.schema.json", invalid_manifest)
+
+    def test_terminal_status_requires_status_reason(self) -> None:
+        running = {
+            "schema": "whole-lca/workflow-manifest",
+            "version": "2.0",
+            "platform": "codex",
+            "orchestrator_agent": "major-orchestrator",
+            "plan": self.artifact(),
+            "started_at": TIMESTAMP,
+            "updated_at": TIMESTAMP,
+            "status": "running",
+            "current_stage": "01-plan-quality-gate",
+            "import_scope": None,
+            "lci_review_attempt": 0,
+            "artifact_index": [self.artifact()],
+            "issue_ids": [],
+        }
+        self.validate("workflow-manifest.schema.json", running)
+
+        failed = dict(running)
+        failed["status"] = "failed"
+        with self.assertRaises(ValidationError):
+            self.validate("workflow-manifest.schema.json", failed)
+
+        failed["status_reason"] = "01 计划质量门禁失败：缺少功能单位 PLAN-BLOCKING-FU。"
+        failed["issue_ids"] = ["PLAN-BLOCKING-FU"]
+        self.validate("workflow-manifest.schema.json", failed)
+
+        completed = dict(running)
+        completed["status"] = "completed"
+        with self.assertRaises(ValidationError):
+            self.validate("workflow-manifest.schema.json", completed)
+        completed["status_reason"] = "第 07 阶段全部完成条件已有证据。"
+        self.validate("workflow-manifest.schema.json", completed)
+
+        failed_review = {
+            "schema": "whole-lca/review",
+            "version": "2.0",
+            "review_id": "review-plan",
+            "supersedes_review_id": None,
+            "review_type": "plan",
+            "attempt": 1,
+            "reviewer": "eval-reviewer",
+            "timestamp": TIMESTAMP,
+            "status": "failed",
+            "reviewed_artifacts": [self.artifact()],
+            "issues": [
+                {
+                    "issue_id": "PLAN-BLOCKING-FU",
+                    "severity": "critical",
+                    "spec_ref": "01-plan-quality-gate-spec.md#2-阻断性信息",
+                    "evidence_location": "workspace/inputs/plan.md",
+                    "required_correction": "补充数值、基准流和物理单位。",
+                    "status": "open",
+                }
+            ],
+            "retrievable_gaps": [],
+        }
+        with self.assertRaises(ValidationError):
+            self.validate("review.schema.json", failed_review)
+        failed_review["summary"] = "计划缺少功能单位。"
+        self.validate("review.schema.json", failed_review)
 
     def test_legacy_run_id_is_rejected(self) -> None:
         manifest = {
@@ -626,6 +696,7 @@ class SchemaContractTests(unittest.TestCase):
         self.assertIn("raw_result_path", template)
         self.assertIn("原始结果位置", template)
         self.assertIn("不自动构成 ISO 认证", template)
+        self.assertIn("背景数据地域代理", template)
 
 
 if __name__ == "__main__":

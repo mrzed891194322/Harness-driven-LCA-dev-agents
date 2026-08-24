@@ -16,7 +16,7 @@ flowchart TD
     returned["计算返回 handoff"]
     gate{"结果非空、资源释放、全部契约通过"}
     done["completed"]
-    stop["failed / needs_review"]
+    stop["failed"]
 
     graph --> request --> executor --> calc --> raw --> manifestOut --> report --> returned --> gate
     gate -->|是| done
@@ -32,7 +32,7 @@ flowchart TD
 | MCP schema | `calculate_product_system(product_system, impact_method, amount, allocation, regionalized, costs, parameters)` | 06 门禁通过后 | `sub-executor` ↔ `control_openlca` MCP | 类别名称/UUID、数值、单位、设置、时间和 `resource_released` | 空类别或未释放资源置 `failed` |
 | 产物 schema | `references/schemas/raw-lcia-results.schema.json` | 保存原始结果前 | MCP 原始返回 → raw JSON | Product System、方法、计算设置、影响类别和资源释放状态 | schema 非法不得生成完成结论 |
 | 产物 schema | `references/schemas/calculation-manifest.schema.json` v3 | 保存计算清单前 | 计算证据 → calculation manifest | 共享 database/method/tool、每个情景 calculation 及每对情景 comparison check | 数组为空、任一 calculation 失败、比较对缺失或 v2 workaround 均停止 |
-| 确定性验收 | `references/scripts/validation.py` | raw、图和清单齐全后 | Stage 07 证据 → 主编排 Agent | 核对 raw 存在与非空结果、全部情景对；相同 LCIA 而预期过程不同时需解释 | failed 停止，needs_review 不得 completed |
+| 确定性验收 | `references/scripts/validation.py` | raw、图和清单齐全后 | Stage 07 证据 → 主编排 Agent | 核对 raw 存在与非空结果、全部情景对；相同 LCIA 而预期过程不同时需 `explained` | 缺少解释或契约失败则 `failed`，不得 `completed` |
 | 报告模板 | `references/templates/lca_report.md` | raw 与清单通过后 | 结构化结果 → `lca_report.md` | 核心数值回链类别 UUID 和 raw 路径，并保留声明边界 | 不支持 ISO 认证或比较优势声明 |
 
 ## 维护联动

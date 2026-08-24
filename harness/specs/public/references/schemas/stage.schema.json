@@ -15,7 +15,7 @@
     "agent": {"type": "string", "minLength": 1},
     "started_at": {"type": "string", "format": "date-time"},
     "ended_at": {"type": ["string", "null"], "format": "date-time"},
-    "status": {"enum": ["running", "passed", "failed", "needs_input", "needs_review"]},
+    "status": {"enum": ["running", "passed", "failed"]},
     "artifact_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "evidence_refs": {"type": "array", "items": {"type": "string"}},
     "issue_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
@@ -25,5 +25,19 @@
       "items": {"$ref": "whole-lca/common.schema.json#/$defs/source"}
     },
     "summary": {"type": "string"}
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"const": "failed"}},
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["summary"],
+        "properties": {
+          "summary": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  ]
 }

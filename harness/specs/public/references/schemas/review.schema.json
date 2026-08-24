@@ -14,7 +14,7 @@
     "attempt": {"type": "integer", "minimum": 1, "maximum": 3},
     "reviewer": {"const": "eval-reviewer"},
     "timestamp": {"type": "string", "format": "date-time"},
-    "status": {"enum": ["passed", "needs_input", "needs_review", "failed"]},
+    "status": {"enum": ["passed", "failed"]},
     "reviewed_artifacts": {"type": "array", "items": {"$ref": "whole-lca/common.schema.json#/$defs/artifact"}, "minItems": 1},
     "issues": {
       "type": "array",
@@ -34,5 +34,19 @@
     },
     "retrievable_gaps": {"type": "array", "items": {"type": "string", "pattern": "^GAP-[A-Z0-9-]+$"}, "uniqueItems": true},
     "summary": {"type": "string"}
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"const": "failed"}},
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["summary"],
+        "properties": {
+          "summary": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  ]
 }
