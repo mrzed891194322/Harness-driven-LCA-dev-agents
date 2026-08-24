@@ -2,7 +2,6 @@
 
 这是一个使用多智能体（Multi-agent）在 harness 框架下进行合规化 **LCA（Life Cycle Assessment，生命周期评价）** 输出的项目。
 
-
 ## 前置要求
 
 运行本仓库前请先安装：
@@ -48,20 +47,27 @@ claude -p "/bootstrap-env"
 ```bash
 uv run python src/GUI/main.py
 ```
-启动成功后，在浏览器中手动访问 [http://127.0.0.1:7860](http://127.0.0.1:7860)。
 
-7860为默认端口，端口值可以在`.env`文件中进行修改
+浏览器访问 [http://127.0.0.1:7860](http://127.0.0.1:7860)。默认端口 `7860` 可在 `.env` 的 `GUI_PORT` 修改。
 
+### 1. 设置并完成初始化检查
 
+左侧点 **设置&初始化**，再点 **开始初始化检查**。四项全部通过后才会解锁 **执行LCA计划**。未通过时按失败项处理，然后重新检查：
 
+| 检查项 | 处理 |
+| --- | --- |
+| AI Agent 工具 | 配置目录「设置 AI Agent 工具」选 `codex` / `claude` / `opencode`，点「保存并检查可用性」。对应 CLI 必须在 PATH 上。 |
+| RAG 模型 | 配置目录「设置RAG知识库」填写 URL、模型和 API Key。详见 [RAG 指南](docs/lang_CN/rag_guide.md)。 |
+| OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [项目准备说明](docs/lang_CN/project_prep.md)。 |
+| 知识库构建 | 左侧可先上传参考资料/数据，再在 RAG 页点「构建知识库」。 |
 
+### 2. 编写或传入计划并执行
 
+1. 左侧点 **开始LCA工作**，打开计划模板。
+2. 直接填写输入区，或点 **上传计划** 传入已有 `.md`。
+3. 初始化检查已通过、计划非空后，点 **执行LCA计划**。
+4. 完成后在 **LCA评估结果** 查看报告。
 
----
+## 命令行
 
-## 🛠️ 辅助功能（手动/命令行执行）
-
-在无图形界面（GUI）环境下或开发调试时，核心交互逻辑为：**先将输入文件放入 `workspace/inputs/`（参考文件放在 `workspace/inputs/references/file/`、数据文件放在 `workspace/inputs/references/data/`），再运行对应的 `opencode` 指令执行任务**。
-
-
-> 💡 **关于文件放置路径、人工审核交互及完整调试步骤，请参见**：[手动调试与文件同步指南](docs/lang_CN/manual_debug.md)
+无 GUI 或开发调试时，把输入放到 `workspace/inputs/`，再用所选 Agent 的一行命令运行。步骤见 [手动调试与文件同步指南](docs/lang_CN/manual_debug.md)。

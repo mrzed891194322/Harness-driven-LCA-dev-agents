@@ -1,6 +1,6 @@
 # 手动调试与文件同步指南
 
-不使用 GUI 时，可以通过命令行准备资料、初始化项目并运行工作流。
+有 GUI 时按[项目 README](../../README.md) 操作。本文仅用于无图形界面或开发调试：用命令行准备资料、初始化并运行工作流。
 
 ## 1. 准备输入文件
 
@@ -53,8 +53,8 @@ claude --agent major-orchestrator -p "/whole-lca" --permission-mode dontAsk
 - `workspace/outputs/reports/`
 
 不要仅根据命令退出码判断工作流是否完成。应检查
-`workspace/memory/manifest.json`；`needs_input`、`needs_review` 和 `failed` 都表示
-需要继续处理。
+`workspace/memory/manifest.json`。只有 `completed` 才算完成；`failed` 必须带
+`status_reason`，并根据该原因与阶段证据继续处理。
 
 ## 4. 修订既有结果
 
