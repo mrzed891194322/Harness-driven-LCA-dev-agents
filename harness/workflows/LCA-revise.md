@@ -13,7 +13,7 @@
 ## 渐进式资源加载
 
 1. 确认当前 Agent 是 `major-orchestrator`，固定意见输入为
-   `workspace/inputs/revise.md`。
+   `workspace/inputs/revise.md`。用户参考资料只从 `harness/knowledge/` 读取，不得把 `workspace` 其他目录当作知识库。
 2. 基线激活后只读取 `harness/specs/08-lca-revise-workflow/README.md`、
    `harness/specs/08-lca-revise-workflow/references/revise-lca-spec.md`、
    `harness/specs/public/README.md` 和

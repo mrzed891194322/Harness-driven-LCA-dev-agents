@@ -11,6 +11,7 @@ from functions.plan_editor import (
     save_structured_plan,
 )
 from functions.utils.executor.private_utils.executor_utils import (
+    run_clean_workspace_console,
     run_workflow_command_console,
 )
 from functions.settings.check_status import execution_ready
@@ -89,6 +90,30 @@ def bind_tab_result_events(
             None,
             gr.update(interactive=False),
         )
+        for latest_console, latest_status in run_clean_workspace_console():
+            yield (
+                latest_console,
+                latest_status,
+                None,
+                gr.update(interactive=False),
+            )
+        if latest_status in {"Failed", "Stopped"}:
+            yield (
+                latest_console,
+                latest_status,
+                {
+                    "success": False,
+                    "tab_label": "LCA执行结果（LCA提前中止）",
+                    "status": "failed",
+                    "failure_markdown": (
+                        "### 失败原因\n\n"
+                        "- workspace 清理失败，未启动 LCA 工作流。"
+                    ),
+                },
+                gr.update(interactive=False),
+            )
+            return
+
         for latest_console, latest_status in run_workflow_command_console("whole-lca"):
             yield (
                 latest_console,

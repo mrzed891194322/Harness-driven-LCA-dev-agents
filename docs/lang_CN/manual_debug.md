@@ -16,7 +16,7 @@
 uv run python src/scripts/check_status/main.py
 ```
 
-默认会清理 workspace 生成物并检查环境与 openLCA 连接。openLCA 前景实体清理由 whole-lca / revise-lca 工作流通过 MCP `cleanup_output` 执行，不在初始化脚本中。
+默认会清理 workspace 生成物（保留 `inputs/` 中的 plan/revise）并检查环境与 openLCA 连接。whole-lca 由 GUI 在启动 agent 前清理 workspace；agent 启动后通过 MCP `cleanup_output` 清理 openLCA 前景实体。
 
 > [!WARNING]
 > 默认初始化和 `whole-lca` 都包含清理操作。请先确认活动数据库、项目分类和
@@ -40,7 +40,13 @@ codex exec -s workspace-write '$whole-lca'
 claude --agent major-orchestrator -p "/whole-lca" --permission-mode dontAsk
 ```
 
-该命令以 `workspace/inputs/plan.md` 作为唯一计划输入，完成计划门禁、证据检索、LCI
+该命令以 `workspace/inputs/plan.md` 作为唯一计划输入；用户参考资料在 `harness/knowledge/`。手动 CLI 启动 whole-lca 前应先执行：
+
+```bash
+uv run python src/scripts/clean_dir/main.py --yes
+```
+
+然后运行平台命令。工作流完成计划门禁、证据检索、LCI
 生成与审查、预检、导入读回、LCIA 计算和报告归档，并在以下固定路径保留证据：
 
 - `workspace/memory/`

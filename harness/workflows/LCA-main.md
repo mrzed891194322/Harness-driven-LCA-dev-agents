@@ -2,17 +2,18 @@
 
 本工作流说明由平台入口加载。共享状态机和产物契约只存在于 `harness/specs/public/`，阶段规则只存在于 `harness/specs/01-*` 至 `07-*`；不要在本文件中重定义 schema。
 
-## 运行前清理
+## 运行前 openLCA 清理
 
-1. 执行 `uv run python src/scripts/clean_dir/main.py --yes --target workspace_without_inputs`。
-2. 读取 `harness/rules/openlca-operation/README.md`。
-3. 调用 openLCA MCP `health_check`；失败则将 manifest 置为 `failed` 并停止。
-4. 调用 MCP `cleanup_output`：`confirm=false` 预览后立即以 `confirm=true` 执行删除（无人值守，不等待用户确认）。
-5. 将清理结果写入 `workspace/memory/stages/` 下只读证据（或可在 `status_reason` 引用）。
+1. 读取 `harness/rules/openlca-operation/README.md`。
+2. 调用 openLCA MCP `health_check`；失败则将 manifest 置为 `failed` 并停止。
+3. 调用 MCP `cleanup_output`：`confirm=false` 预览后立即以 `confirm=true` 执行删除（无人值守，不等待用户确认）。
+4. 将清理结果写入 `workspace/memory/stages/` 下只读证据（或可在 `status_reason` 引用）。
+
+workspace 生成物（`memory/`、`outputs/`、`tmp/`）由 GUI 或 CLI 在启动 agent 前通过 `src/scripts/clean_dir/` 清理，并保留 `workspace/inputs/` 中的 `plan.md`。本工作流不再调用 `clean_dir`。
 
 ## 渐进式资源加载
 
-1. 确认当前 Agent 是 `major-orchestrator`，并只使用 `workspace/inputs/plan.md` 作为计划输入。
+1. 确认当前 Agent 是 `major-orchestrator`，并只使用 `workspace/inputs/plan.md` 作为计划输入。用户参考资料只从 `harness/knowledge/` 读取，不得把 `workspace` 其他目录当作知识库。
 2. 启动时只读取 `harness/specs/public/README.md` 和 `harness/specs/public/references/workflow-runtime-spec.md`。不得在此时读取任何编号阶段规范。
 3. 创建 manifest 前读取 `harness/specs/public/references/schemas/workflow-manifest.schema.json`。以后只在即将写某类对象前读取对应 schema：stage 读取 `harness/specs/public/references/schemas/stage.schema.json`，handoff 读取 `harness/specs/public/references/schemas/handoff.schema.json`，review 读取 `harness/specs/public/references/schemas/review.schema.json`。
 4. 每次委派必须明确列出当前阶段、此时允许读取的文件、输入产物路径、允许的输出、关联 issue ID 或 `import_scope`。子 Agent 不得自行扫描其他阶段。

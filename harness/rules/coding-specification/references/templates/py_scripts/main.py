@@ -9,7 +9,7 @@ def main():
     config = load_config()
     
     # 从配置中读取输入输出路径
-    input_path = config.get("input_path", "workspace/inputs/references/data/example.csv")
+    input_path = config.get("input_path", "harness/knowledge/example.csv")
     output_path = config.get("output_path", "workspace/tmp/processed_example.csv")
     
     process_data(input_path, output_path)

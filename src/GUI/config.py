@@ -36,7 +36,7 @@ GUI_MONO_FONT_FAMILY = (
 
 # -----------------------------------------------------------------------------
 # workspace 基础目录
-# 输入目录保存计划和修订意见；记忆目录保存工作流证据；输出目录保存结果。
+# inputs/ 仅保存 plan.md 与 revise.md；memory/ 与 outputs/ 为运行产物。
 # -----------------------------------------------------------------------------
 WORKSPACE_INPUTS = PROJECT_ROOT / "workspace" / "inputs"
 WORKSPACE_MEMORY = PROJECT_ROOT / "workspace" / "memory"

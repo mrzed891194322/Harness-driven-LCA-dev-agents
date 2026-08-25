@@ -224,6 +224,45 @@ def workflow_command_args(task: str, agent: str) -> list[str]:
     return list(WORKFLOW_COMMANDS[agent_key][task])
 
 
+CLEAN_WORKSPACE_COMMAND = [
+    "uv",
+    "run",
+    "python",
+    "src/scripts/clean_dir/main.py",
+    "-y",
+]
+
+
+def run_clean_workspace_console() -> Generator[tuple[str, str], None, None]:
+    """Clean workspace generated artifacts before starting whole-lca."""
+    project_root = find_project_root(Path(__file__).resolve())
+    accumulated_output = ""
+
+    yield "[System] 正在清理 workspace 生成物...\n", "Running"
+
+    from functions.utils.process_manager import should_stop
+
+    for chunk in execute_command_stream(CLEAN_WORKSPACE_COMMAND):
+        if should_stop():
+            break
+        accumulated_output += chunk
+        yield render_terminal_text(accumulated_output), "Running"
+
+    if should_stop():
+        if not accumulated_output.endswith("已停止\n") and not accumulated_output.endswith(
+            "已停止"
+        ):
+            accumulated_output += "\n[System] 已停止\n"
+        yield render_terminal_text(accumulated_output), "Stopped"
+        return
+
+    if "Process finished with exit code 0." not in accumulated_output:
+        yield render_terminal_text(accumulated_output), "Failed"
+        return
+
+    yield render_terminal_text(accumulated_output), "Finished"
+
+
 def run_workflow_command_console(
     task: str,
 ) -> Generator[tuple[str, str], None, None]:
