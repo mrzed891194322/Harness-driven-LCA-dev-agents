@@ -40,19 +40,29 @@ def load_frontmatter(path: Path) -> dict:
     return yaml.safe_load(match.group("header"))
 
 
+ROLE_NAMES = ("major-orchestrator", "sub-executor", "eval-reviewer")
+HARDCODED_MODEL_PATTERNS = (
+    "gpt-5.6",
+    "deepseek",
+    "model_reasoning_effort",
+)
+
+
 class OpenCodeConfigurationTests(unittest.TestCase):
-    def test_workflow_models_and_disabled_builtin_agents_are_configured(self) -> None:
+    def test_builtin_agents_and_custom_agents_have_no_fixed_models(self) -> None:
         config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
         agents = config["agent"]
         self.assertTrue(agents["plan"]["disable"])
-        self.assertTrue(agents["build"]["disable"])
-        self.assertEqual(agents["major-orchestrator"]["temperature"], 0.3)
-        self.assertEqual(agents["sub-executor"]["temperature"], 0.2)
-        self.assertEqual(agents["eval-reviewer"]["temperature"], 0.1)
+        self.assertNotIn("disable", agents.get("build", {}))
+        self.assertNotIn("env-bootstrap", agents)
+        for name in ROLE_NAMES:
+            agent_config = agents[name]
+            self.assertNotIn("model", agent_config, name)
+            self.assertNotIn("temperature", agent_config, name)
 
     def test_rules_are_directory_packages_and_only_knowledge_is_global(self) -> None:
         config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
-        knowledge_rule = "harness/rules/knowledge-retrieval/README.md"
+        knowledge_rule = "harness/rules/lca-knowledge/README.md"
         openlca_rule = "harness/rules/openlca-operation/README.md"
         instructions = set(config["instructions"])
         self.assertIn(knowledge_rule, instructions)
@@ -60,7 +70,7 @@ class OpenCodeConfigurationTests(unittest.TestCase):
         self.assertTrue((PROJECT_ROOT / knowledge_rule).is_file())
         self.assertTrue((PROJECT_ROOT / openlca_rule).is_file())
         self.assertFalse(
-            (PROJECT_ROOT / "harness" / "rules" / "knowledge-retrieval.md").exists()
+            (PROJECT_ROOT / "harness" / "rules" / "lca-knowledge.md").exists()
         )
         self.assertFalse(
             (PROJECT_ROOT / "harness" / "rules" / "openlca-mcp.md").exists()
@@ -120,60 +130,55 @@ class CodexConfigurationTests(unittest.TestCase):
 
         instructions = config["developer_instructions"]
         self.assertIn("只作为 LCA 编排", instructions)
-        self.assertIn(".codex/AGENTS.md", instructions)
+        self.assertNotIn(".codex/AGENTS.md", instructions)
         self.assertIn("项目开发由 Cursor", instructions)
         self.assertIn("$whole-lca", instructions)
         self.assertIn("$revise-lca", instructions)
+        self.assertIn("$bootstrap-env", instructions)
         self.assertNotIn("$workflow-main", instructions)
         self.assertNotIn("$evaluate-lca-quality", instructions)
-        self.assertNotIn("不要读取 `.codex/AGENTS.md`", instructions)
         self.assertNotIn("model_instructions_file", config)
-
-        agents_md = (PROJECT_ROOT / ".codex" / "AGENTS.md").read_text(encoding="utf-8")
-        self.assertNotIn("代码维护指南", agents_md)
-        self.assertIn("$whole-lca", agents_md)
-        self.assertNotIn("$workflow-main", agents_md)
-        self.assertIn("$revise-lca", agents_md)
-        self.assertNotIn("$evaluate-lca-quality", agents_md)
-        self.assertIn("$bootstrap-env", agents_md)
-        self.assertIn("不要使用 `$improve-whole-lca-workflow`", agents_md)
+        self.assertNotIn("model", config)
+        self.assertNotIn("model_reasoning_effort", config)
 
         root_agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("Codex 只作为 LCA 编排", root_agents)
+        self.assertIn("$whole-lca", root_agents)
+        self.assertIn("$revise-lca", root_agents)
+        self.assertIn("$bootstrap-env", root_agents)
+        self.assertIn("不要使用 `$improve-whole-lca-workflow`", root_agents)
+        self.assertIn("harness/roles/", root_agents)
         self.assertNotIn("代码维护说明见 `.codex/AGENTS.md`", root_agents)
 
-        self.assertTrue((PROJECT_ROOT / ".codex" / "AGENTS.md").is_file())
+        self.assertFalse((PROJECT_ROOT / ".codex" / "AGENTS.md").exists())
         self.assertTrue((PROJECT_ROOT / "AGENTS.md").is_file())
         self.assertTrue((PROJECT_ROOT / "CLAUDE.md").is_file())
+        claude_target = (PROJECT_ROOT / "CLAUDE.md").resolve()
+        self.assertEqual(claude_target, (PROJECT_ROOT / "AGENTS.md").resolve())
 
     def test_agent_names_and_depth_are_exact(self) -> None:
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
             config = tomllib.load(stream)
         self.assertEqual(config["agents"]["max_depth"], 2)
-        for name in (
-            "major-orchestrator",
-            "sub-executor",
-            "eval-reviewer",
-        ):
+        for name in ROLE_NAMES:
             path = PROJECT_ROOT / ".codex" / "agents" / f"{name}.toml"
             with path.open("rb") as stream:
                 agent = tomllib.load(stream)
             self.assertEqual(agent["name"], name)
-            self.assertTrue((PROJECT_ROOT / ".codex" / config["agents"][name]["config_file"]).is_file())
+            self.assertIn("harness/roles/", agent["developer_instructions"])
+            self.assertNotIn("model", agent, name)
+            self.assertNotIn("model_reasoning_effort", agent, name)
+            self.assertTrue(
+                (PROJECT_ROOT / ".codex" / config["agents"][name]["config_file"]).is_file()
+            )
         self.assertNotIn("lca-quality-evaluator", config["agents"])
-        self.assertEqual(config["model"], "gpt-5.6-sol")
-        self.assertEqual(config["model_reasoning_effort"], "high")
-        expected_models = {
-            "major-orchestrator": ("gpt-5.6-sol", "high"),
-            "eval-reviewer": ("gpt-5.6-sol", "xhigh"),
-            "sub-executor": ("gpt-5.6-terra", "medium"),
-        }
-        for name, (model, effort) in expected_models.items():
-            path = PROJECT_ROOT / ".codex" / "agents" / f"{name}.toml"
-            with path.open("rb") as stream:
-                agent = tomllib.load(stream)
-            self.assertEqual(agent["model"], model, name)
-            self.assertEqual(agent["model_reasoning_effort"], effort, name)
+        self.assertNotIn("model", config)
+        self.assertNotIn("model_reasoning_effort", config)
+        self.assertNotIn("default_subagent_model", config.get("agents", {}))
+        self.assertNotIn(
+            "default_subagent_reasoning_effort",
+            config.get("agents", {}),
+        )
 
     def test_quality_evaluator_is_removed(self) -> None:
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
@@ -205,10 +210,7 @@ class CodexConfigurationTests(unittest.TestCase):
             config["mcp_servers"]["control_openlca"]["default_tools_approval_mode"],
             "approve",
         )
-        self.assertEqual(
-            config["mcp_servers"]["query_rag"]["default_tools_approval_mode"],
-            "auto",
-        )
+        self.assertNotIn("query_rag", config["mcp_servers"])
         self.assertTrue(
             {
                 "health_check",
@@ -249,6 +251,9 @@ class CodexConfigurationTests(unittest.TestCase):
         self.assertNotIn("lca-quality-evaluator", root_ignore)
         self.assertIn("!.codex/skills/bootstrap-env/", root_ignore)
         self.assertIn("!.codex/skills/whole-lca/", root_ignore)
+        self.assertNotIn("!.codex/AGENTS.md", root_ignore)
+        self.assertNotIn("!.codex/skills/read-knowledge/", root_ignore)
+        self.assertIn("!.cursor/skills/bootstrap-env/", root_ignore)
 
         project_readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertNotIn("$improve-whole-lca-workflow", project_readme)
@@ -311,7 +316,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             self.assertNotIn(fragment, content)
 
     def test_agent_prompts_defer_file_routing_to_workflow_skills(self) -> None:
-        agent_paths = (
+        adapter_paths = (
             ".opencode/agents/major-orchestrator.md",
             ".opencode/agents/eval-reviewer.md",
             ".opencode/agents/sub-executor.md",
@@ -322,30 +327,30 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             ".claude/agents/eval-reviewer.md",
             ".claude/agents/sub-executor.md",
         )
-        contents = {
+        role_paths = tuple(f"harness/roles/{name}.md" for name in ROLE_NAMES)
+        adapter_contents = {
             path: (PROJECT_ROOT / path).read_text(encoding="utf-8")
-            for path in agent_paths
+            for path in adapter_paths
         }
-        for path, content in contents.items():
+        role_contents = {
+            path: (PROJECT_ROOT / path).read_text(encoding="utf-8")
+            for path in role_paths
+        }
+        for path, content in adapter_contents.items():
+            self.assertIn("harness/roles/", content, path)
+            self.assertNotIn("harness/specs/", content, path)
+            self.assertNotIn("knowledge-retrieval/README.md", content, path)
+
+        for path, content in role_contents.items():
             self.assertNotIn("harness/specs/", content, path)
             self.assertNotIn("knowledge-retrieval/README.md", content, path)
 
         openlca_rule = "harness/rules/openlca-operation/README.md"
-        for platform, extension in (
-            (".opencode/agents", "md"),
-            (".codex/agents", "toml"),
-            (".claude/agents", "md"),
-        ):
-            self.assertNotIn(
-                openlca_rule,
-                contents[f"{platform}/major-orchestrator.{extension}"],
-            )
-            for name in ("sub-executor", "eval-reviewer"):
-                content = contents[f"{platform}/{name}.{extension}"]
-                self.assertIn("需要调用 openLCA MCP 工具时", content)
-                self.assertIn(openlca_rule, content)
-                if platform == ".opencode/agents":
-                    self.assertEqual(content.count("# 工具调用"), 1)
+        self.assertNotIn(openlca_rule, role_contents["harness/roles/major-orchestrator.md"])
+        for name in ("sub-executor", "eval-reviewer"):
+            role_content = role_contents[f"harness/roles/{name}.md"]
+            self.assertIn("需要调用 openLCA MCP 工具时", role_content)
+            self.assertIn(openlca_rule, role_content)
 
     def test_workflow_files_route_resources_at_each_stage(self) -> None:
         for relative_path in (
@@ -370,7 +375,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
                 "harness/rules/openlca-operation/README.md", content, relative_path
             )
             self.assertIn(
-                "harness/rules/knowledge-retrieval/README.md",
+                "harness/rules/lca-knowledge/README.md",
                 content,
                 relative_path,
             )
@@ -384,21 +389,22 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("harness/workflows/LCA-main.md", workflow_main)
-        self.assertIn("file_sync", workflow_main)
-        self.assertIn(
-            "harness/tools/control_openlca/cleanup_output/main.py --yes",
-            workflow_main,
-        )
-        self.assertIn(
-            "src/scripts/clean_dir/main.py --yes --target workspace_without_inputs",
-            workflow_main,
-        )
+        self.assertNotIn("file_sync", workflow_main)
+        self.assertNotIn("cleanup_output/main.py", workflow_main)
+        self.assertNotIn("src/scripts/clean_dir", workflow_main)
+        self.assertIn("cleanup_output", (PROJECT_ROOT / "harness/workflows/LCA-main.md").read_text(encoding="utf-8"))
         for index in range(1, 8):
             self.assertNotIn(f"### {index:02d}", workflow_main)
         self.assertNotIn("根线程不执行业务阶段", workflow_main)
         self.assertIn("不要再 spawn 另一个 `major-orchestrator`", workflow_main)
 
         self.assertIn("harness/workflows/LCA-revise.md", revise_lca)
+        self.assertNotIn("src/scripts/revise_lca", revise_lca)
+        self.assertNotIn("cleanup_output/main.py", revise_lca)
+        self.assertIn(
+            "references/scripts/baseline.py",
+            (PROJECT_ROOT / "harness/workflows/LCA-revise.md").read_text(encoding="utf-8"),
+        )
         self.assertNotIn("根线程不执行业务阶段", revise_lca)
         self.assertIn("不要再 spawn 另一个 `major-orchestrator`", revise_lca)
         for index in range(2, 8):
@@ -448,10 +454,8 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             for path in (
                 "harness/workflows/LCA-main.md",
                 ".codex/skills/whole-lca/SKILL.md",
-                ".opencode/agents/major-orchestrator.md",
-                ".opencode/agents/sub-executor.md",
-                ".codex/agents/major-orchestrator.toml",
-                ".codex/agents/sub-executor.toml",
+                "harness/roles/major-orchestrator.md",
+                "harness/roles/sub-executor.md",
             )
         )
 
@@ -477,9 +481,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         eval_reviewers = "\n".join(
             (PROJECT_ROOT / path).read_text(encoding="utf-8")
             for path in (
-                ".opencode/agents/eval-reviewer.md",
-                ".claude/agents/eval-reviewer.md",
-                ".codex/agents/eval-reviewer.toml",
+                "harness/roles/eval-reviewer.md",
             )
         )
         self.assertNotRegex(eval_reviewers, r"只给出 `passed`、`needs_input`")
@@ -488,11 +490,9 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
     def test_workflow_has_no_runtime_confirmation_parameter_or_state(self) -> None:
         paths = (
             "harness/workflows/LCA-main.md",
-            ".opencode/agents/major-orchestrator.md",
-            ".opencode/agents/sub-executor.md",
+            "harness/roles/major-orchestrator.md",
+            "harness/roles/sub-executor.md",
             ".codex/skills/whole-lca/SKILL.md",
-            ".codex/agents/major-orchestrator.toml",
-            ".codex/agents/sub-executor.toml",
             "harness/rules/openlca-operation/README.md",
             "harness/tools/control_openlca/main.py",
             "harness/tools/control_openlca/utils/workflow.py",
@@ -525,13 +525,12 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         query_rag = "harness/tools/query_rag/main.py"
         control_openlca = "harness/tools/control_openlca/main.py"
         opencode = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
-        self.assertIn(query_rag, opencode["mcp"]["query_rag"]["command"])
+        self.assertNotIn("query_rag", opencode["mcp"])
         self.assertIn(control_openlca, opencode["mcp"]["control_openlca"]["command"])
 
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
             codex = tomllib.load(stream)
-        self.assertEqual(codex["mcp_servers"]["query_rag"]["command"], "uv")
-        self.assertIn(query_rag, codex["mcp_servers"]["query_rag"]["args"])
+        self.assertNotIn("query_rag", codex["mcp_servers"])
         self.assertIn(control_openlca, codex["mcp_servers"]["control_openlca"]["args"])
         self.assertFalse((PROJECT_ROOT / "harness" / "tools" / "mcp.json").exists())
 
@@ -540,14 +539,12 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         )
         mcp_json = json.loads((PROJECT_ROOT / ".mcp.json").read_text(encoding="utf-8"))
         for config in (claude_settings, mcp_json):
-            self.assertEqual(
-                config["mcpServers"]["query_rag"]["args"][-1],
-                query_rag,
-            )
+            self.assertNotIn("query_rag", config["mcpServers"])
             self.assertEqual(
                 config["mcpServers"]["control_openlca"]["args"][-1],
                 control_openlca,
             )
+        self.assertTrue((PROJECT_ROOT / query_rag).is_file())
 
     def test_one_line_cli_is_documented_for_each_platform(self) -> None:
         documents = (
@@ -583,39 +580,43 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         ):
             self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
 
-        cleanup_commands = (
-            "harness/tools/control_openlca/cleanup_output/main.py --yes",
-            "src/scripts/clean_dir/main.py --yes --target workspace_without_inputs",
-        )
         for relative in (
             ".opencode/commands/whole-lca.md",
             ".claude/commands/whole-lca.md",
             ".codex/skills/whole-lca/SKILL.md",
         ):
             content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            for command in cleanup_commands:
-                self.assertIn(command, content, relative)
+            self.assertNotIn("cleanup_output/main.py", content, relative)
+            self.assertNotIn("src/scripts/clean_dir", content, relative)
 
-        for name in ("major-orchestrator", "sub-executor", "eval-reviewer"):
-            self.assertTrue(
-                (PROJECT_ROOT / ".claude" / "agents" / f"{name}.md").is_file(),
-                name,
+        for relative in (
+            ".opencode/commands/revise-lca.md",
+            ".claude/commands/revise-lca.md",
+            ".codex/skills/revise-lca/SKILL.md",
+        ):
+            content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            self.assertNotIn("src/scripts/revise_lca", content, relative)
+            self.assertNotIn("cleanup_output/main.py", content, relative)
+
+        for name in ROLE_NAMES:
+            role_path = PROJECT_ROOT / "harness" / "roles" / f"{name}.md"
+            self.assertTrue(role_path.is_file(), name)
+            role = role_path.read_text(encoding="utf-8")
+            self.assertGreater(len(role.splitlines()), 8, name)
+            self.assertNotIn("harness/workflows/LCA-main.md", role)
+
+            adapter_paths = (
+                PROJECT_ROOT / ".claude" / "agents" / f"{name}.md",
+                PROJECT_ROOT / ".opencode" / "agents" / f"{name}.md",
+                PROJECT_ROOT / ".codex" / "agents" / f"{name}.toml",
             )
-            agent = (PROJECT_ROOT / ".claude" / "agents" / f"{name}.md").read_text(
-                encoding="utf-8"
-            )
-            self.assertGreater(len(agent.splitlines()), 8, name)
-            self.assertNotIn("harness/workflows/LCA-main.md", agent)
+            for adapter_path in adapter_paths:
+                adapter = adapter_path.read_text(encoding="utf-8")
+                self.assertIn(f"harness/roles/{name}.md", adapter, str(adapter_path))
+                self.assertNotIn("harness/workflows/LCA-main.md", adapter, str(adapter_path))
 
     def test_agents_do_not_copy_hashes_or_seven_stages(self) -> None:
-        paths = (
-            ".opencode/agents/major-orchestrator.md",
-            ".opencode/agents/sub-executor.md",
-            ".codex/agents/major-orchestrator.toml",
-            ".codex/agents/sub-executor.toml",
-            ".claude/agents/major-orchestrator.md",
-            ".claude/agents/sub-executor.md",
-        )
+        paths = tuple(f"harness/roles/{name}.md" for name in ("major-orchestrator", "sub-executor"))
         content = "\n".join(
             (PROJECT_ROOT / path).read_text(encoding="utf-8") for path in paths
         )
@@ -623,11 +624,30 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         self.assertIn("import_scope", content)
         self.assertIn("checklist", content)
         for index in range(1, 8):
-            self.assertNotIn(f"### {index:02d}", content)
+            self.assertNotIn(f"### {index:02d}", content        )
+
+
+class RoleDocumentationTests(unittest.TestCase):
+    def test_role_files_exist_and_adapters_point_at_them(self) -> None:
+        for name in ROLE_NAMES:
+            role_path = PROJECT_ROOT / "harness" / "roles" / f"{name}.md"
+            self.assertTrue(role_path.is_file(), name)
+
+    def test_no_hardcoded_models_in_codex_roles_or_opencode(self) -> None:
+        paths = (
+            PROJECT_ROOT / ".codex" / "config.toml",
+            PROJECT_ROOT / ".opencode" / "opencode.json",
+        )
+        for name in ROLE_NAMES:
+            paths = (*paths, PROJECT_ROOT / ".codex" / "agents" / f"{name}.toml")
+            paths = (*paths, PROJECT_ROOT / "harness" / "roles" / f"{name}.md")
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+        for pattern in HARDCODED_MODEL_PATTERNS:
+            self.assertNotIn(pattern, combined, pattern)
 
 
 class BootstrapEnvAdapterTests(unittest.TestCase):
-    PROMPT_PATH = "src/scripts/setup_env/PROMPT.md"
+    PROMPT_PATH = "src/scripts/proj_init/PROMPT.md"
     ADAPTERS = (
         ".opencode/commands/bootstrap-env.md",
         ".claude/commands/bootstrap-env.md",
@@ -636,10 +656,7 @@ class BootstrapEnvAdapterTests(unittest.TestCase):
     )
     COPIED_STEPS = (
         "uv sync",
-        "EMBEDDING_API_KEY",
         "环境检测不通过",
-        "RAG 模型未配置",
-        "RAG 模型无法调用",
     )
 
     def test_adapters_exist_and_only_reference_shared_prompt(self) -> None:
@@ -653,16 +670,17 @@ class BootstrapEnvAdapterTests(unittest.TestCase):
             for fragment in self.COPIED_STEPS:
                 self.assertNotIn(fragment, text, relative)
 
-    def test_opencode_command_uses_env_bootstrap_agent(self) -> None:
+    def test_opencode_command_uses_build_agent(self) -> None:
         command = load_frontmatter(
             PROJECT_ROOT / ".opencode" / "commands" / "bootstrap-env.md"
         )
-        self.assertEqual(command["agent"], "env-bootstrap")
-        self.assertTrue(
-            (PROJECT_ROOT / ".opencode" / "agents" / "env-bootstrap.md").is_file()
+        self.assertEqual(command["agent"], "build")
+        self.assertFalse(
+            (PROJECT_ROOT / ".opencode" / "agents" / "env-bootstrap.md").exists()
         )
         config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
-        self.assertIn("env-bootstrap", config["agent"])
+        self.assertNotIn("env-bootstrap", config["agent"])
+        self.assertNotIn("disable", config["agent"].get("build", {}))
 
     def test_readme_documents_prerequisites_and_bootstrap_cli(self) -> None:
         readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
@@ -681,7 +699,7 @@ class BootstrapEnvAdapterTests(unittest.TestCase):
         self.assertIn("/bootstrap-env", readme)
         self.assertNotIn("_setup_env.bat", readme)
         self.assertNotIn("_launch_gui.bat", readme)
-        self.assertTrue((PROJECT_ROOT / "src/scripts/setup_env/PROMPT.md").is_file())
+        self.assertTrue((PROJECT_ROOT / "src/scripts/proj_init/PROMPT.md").is_file())
         self.assertFalse((PROJECT_ROOT / "src/scripts/_setup_env.bat").exists())
         self.assertFalse((PROJECT_ROOT / "src/scripts/_launch_gui.bat").exists())
         self.assertFalse(

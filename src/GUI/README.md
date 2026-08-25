@@ -25,13 +25,10 @@ uv run python src/GUI/main.py
 
 “终端显示”Tab 始终位于最左侧并作为启动后的默认页。“设置&初始化”与“计划制定”
 一样由左侧按钮打开，启动时不显示。页内为左侧配置目录与右侧可滚动详情，
-点击目录进入对应配置项：初始化检查、AI Agent 工具、RAG 模型、RAG知识库构建、
-开发者选项。可选择 AI Agent（codex / claude / opencode）、填写 RAG
-模型（URL、模型、API Key），并分别检查 Agent CLI 或 RAG Embedding。
-「开始初始化检查」会依次探测 Agent、RAG 模型、openLCA 与知识库是否已构建，
-全部通过后才解锁「执行LCA计划」。参考资料上传、RAG 构建（构建前先清理生成物）
-和终端日志控制仍由 GUI 处理。Agent 与 RAG 配置写入仓库根目录 `.env`
-（`HARNESS_AGENT` 与 `EMBEDDING_*`），不会把密钥打印到终端。
+点击目录进入对应配置项：初始化检查、AI Agent 工具、开发者选项。
+可选择 AI Agent（codex / claude / opencode）并检查 CLI 是否可用。
+「开始初始化检查」会依次探测 Agent 与 openLCA，两项全部通过后才解锁「执行LCA计划」。
+参考资料上传写入 `harness/knowledge/`，由 Agent 直接读取。所选 Agent 写入仓库根目录 `.env` 的 `HARNESS_AGENT`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
 `workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。
@@ -57,7 +54,7 @@ Markdown/Textbox 交替组件池动态更新；无标记的普通 Markdown 作�
 metadata，GUI 会原样保留而不校验类型或版本。
 旧显式 `PLAN_INPUT` 注释不再支持。
 
-面板内执行按钮需要「初始化检查」四项全部通过；带输入区域的计划还需任一字段有内容，
+面板内执行按钮需要「初始化检查」两项全部通过；带输入区域的计划还需任一字段有内容，
 openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败时保持执行按钮禁用，
 无输入标记的 Markdown 计划可直接执行。不可用时
 悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 调用
@@ -87,9 +84,9 @@ GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界
 ## 开发约定
 
 - 外部路径必须通过 `config.py` 配置；Tab 展示用 Markdown 使用项目根目录
-  相对路径集中声明，当前脚本路径位于 `src/scripts/`。
+  相对路径集中声明。
 - LCA 状态必须读取结构化 manifest；不得仅凭命令退出码或终端文本宣称完成。
-- 用户上传文件先写入 `workspace/inputs/references/{file,data}`，初始化时再同步到 RAG 输入目录。
+- 用户上传文件直接写入 `harness/knowledge/`。
 - 修改 GUI 代码后，必须从仓库根目录运行 `src/test` 回归（GUI 为路径与
   `build_ui()` 冒烟，计划解析与写盘逻辑在同目录其余模块）：
 

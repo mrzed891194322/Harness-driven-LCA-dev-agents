@@ -6,5 +6,5 @@ Normative：`references/revise-lca-spec.md`
 握手（阶段特有）：`schema_mapping.md` · 公共：`../public/references/handshake-common.md`  
 Schema：`references/schemas/revision-brief.schema.json`、`references/schemas/workflow-manifest.schema.json`  
 模板：`references/templates/revision-report-sections.md`  
-校验：`references/scripts/validation.py`  
+校验：`references/scripts/baseline.py`、`references/scripts/validation.py`
 编排：`../../workflows/LCA-revise.md`

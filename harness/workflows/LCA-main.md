@@ -2,15 +2,24 @@
 
 本工作流说明由平台入口加载。共享状态机和产物契约只存在于 `harness/specs/public/`，阶段规则只存在于 `harness/specs/01-*` 至 `07-*`；不要在本文件中重定义 schema。
 
+## 运行前 openLCA 清理
+
+1. 读取 `harness/rules/openlca-operation/README.md`。
+2. 调用 openLCA MCP `health_check`；失败则将 manifest 置为 `failed` 并停止。
+3. 调用 MCP `cleanup_output`：`confirm=false` 预览后立即以 `confirm=true` 执行删除（无人值守，不等待用户确认）。
+4. 将清理结果写入 `workspace/memory/stages/` 下只读证据（或可在 `status_reason` 引用）。
+
+workspace 生成物（`memory/`、`outputs/`、`tmp/`）由 GUI 或 CLI 在启动 agent 前通过 `src/scripts/clean_dir/` 清理，并保留 `workspace/inputs/` 中的 `plan.md`。本工作流不再调用 `clean_dir`。
+
 ## 渐进式资源加载
 
-1. 确认当前 Agent 是 `major-orchestrator`，并只使用 `workspace/inputs/plan.md` 作为计划输入。
+1. 确认当前 Agent 是 `major-orchestrator`，并只使用 `workspace/inputs/plan.md` 作为计划输入。用户参考资料只从 `harness/knowledge/` 读取，不得把 `workspace` 其他目录当作知识库。
 2. 启动时只读取 `harness/specs/public/README.md` 和 `harness/specs/public/references/workflow-runtime-spec.md`。不得在此时读取任何编号阶段规范。
 3. 创建 manifest 前读取 `harness/specs/public/references/schemas/workflow-manifest.schema.json`。以后只在即将写某类对象前读取对应 schema：stage 读取 `harness/specs/public/references/schemas/stage.schema.json`，handoff 读取 `harness/specs/public/references/schemas/handoff.schema.json`，review 读取 `harness/specs/public/references/schemas/review.schema.json`。
 4. 每次委派必须明确列出当前阶段、此时允许读取的文件、输入产物路径、允许的输出、关联 issue ID 或 `import_scope`。子 Agent 不得自行扫描其他阶段。
 5. 进入一个阶段时，主 Agent 才读取该阶段的 README 及其路由的 spec；当前任务需要同一规范的子 Agent，在该次委派中再被明确要求读取。完成阶段并持久化证据后，不预读下一阶段。
 
-知识检索规则 `harness/rules/knowledge-retrieval/README.md` 由平台入口按配置加载；执行时不要重复加载。`harness/rules/openlca-operation/README.md` 不属于全局指令，只能在某次任务确实要调用 openLCA MCP 时按需读取。
+LCA 知识规则 `harness/rules/lca-knowledge/README.md` 由平台入口按配置加载；执行时不要重复加载。`harness/rules/openlca-operation/README.md` 不属于全局指令，只能在某次任务确实要调用 openLCA MCP 时按需读取。
 
 ## 七阶段执行
 
@@ -22,7 +31,7 @@
 ### 02 证据检索
 
 - 计划通过后，主 Agent 才完整读取 `harness/specs/02-evidence-retrieval/README.md` 和 `harness/specs/02-evidence-retrieval/references/02-evidence-retrieval-spec.md`。
-- 从已通过计划的自然语言、审查中的 `retrievable_gaps` 以及默认的资料提取/背景映射任务调用 `sub-executor`；用户计划不要求 `GAP-*` 字面量。委派任务必须明确要求它在检索前完整读取上述两个第 02 阶段文件。RAG 检索遵守已加载的知识检索规则；只有 MCP 暴露的参数或错误不足以解释当前调用时，才在首次相关调用前读取 `harness/tools/query_rag/README.md`。只有任务包含 openLCA 候选查询时，才要求它在调用 MCP 前读取 `harness/rules/openlca-operation/README.md`（可留档的匹配与建模决定自行选择并留档，不得停下来征求用户）。
+- 从已通过计划的自然语言、审查中的 `retrievable_gaps` 以及默认的资料提取/背景映射任务调用 `sub-executor`；用户计划不要求 `GAP-*` 字面量。委派任务必须明确要求它在检索前完整读取上述两个第 02 阶段文件。用户资料只从 `harness/knowledge/` 直接读取，遵守已加载的 LCA 知识规则。只有任务包含 openLCA 候选查询时，才要求它在调用 MCP 前读取 `harness/rules/openlca-operation/README.md`（可留档的匹配与建模决定自行选择并留档，不得停下来征求用户）。
 
 ### 03 LCI 制定
 
@@ -32,7 +41,7 @@
 ### 04 LCI 质量评估
 
 - LCI 形成后，主 Agent 才完整读取 `harness/specs/04-lci-quality-evaluation/README.md` 和 `harness/specs/04-lci-quality-evaluation/references/04-lci-quality-evaluation-spec.md`。
-- 调用 `eval-reviewer` 时，委派任务必须明确要求它在审查前完整读取上述两个第 04 阶段文件和 review schema，并先核对第 03 阶段确定性校验结果；只交付计划目标、第 02/03 阶段证据、当前 LCI 与历史未解决 issue。核对来源时使用已加载的知识检索规则；只有实际调用 openLCA MCP 核验时才读取 openLCA 规则。
+- 调用 `eval-reviewer` 时，委派任务必须明确要求它在审查前完整读取上述两个第 04 阶段文件和 review schema，并先核对第 03 阶段确定性校验结果；只交付计划目标、第 02/03 阶段证据、当前 LCI 与历史未解决 issue。核对来源时使用已加载的 LCA 知识规则；只有实际调用 openLCA MCP 核验时才读取 openLCA 规则。
 - attempt 1/2 未通过时，调用 `sub-executor` 并明确要求它此时完整读取第 03 阶段和第 04 阶段的 README/spec，只交付关联 issue ID 与受影响产物进行定向修正；attempt 3 未通过时置为 `failed`，不得继续。
 
 ### 05 openLCA 写入预检

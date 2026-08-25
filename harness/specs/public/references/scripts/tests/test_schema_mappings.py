@@ -19,8 +19,7 @@ STAGE_EXPECTATIONS = {
         "src/GUI/ui/assets/template/plan.md",
     ),
     "02-evidence-retrieval": (
-        "list_rag_libraries",
-        "query_rag",
+        "harness/knowledge",
         "query_descriptors",
         "get_process_details",
         "get_flow_providers",
@@ -58,7 +57,7 @@ STAGE_EXPECTATIONS = {
 
 EXPECTED_SOURCE_PATHS = (
     "src/GUI/ui/assets/template/plan.md",
-    "harness/rules/knowledge-retrieval/README.md",
+    "harness/rules/lca-knowledge/README.md",
     "harness/rules/openlca-operation/README.md",
     "harness/specs/public/references/handshake-common.md",
     "harness/specs/public/references/workflow-runtime-spec.md",

@@ -13,11 +13,11 @@
 
 ## 2. 两步基线快照
 
-1. 运行 `uv run python src/scripts/revise_lca/main.py snapshot --yes`。
+1. 运行 `uv run python harness/specs/08-lca-revise-workflow/references/scripts/baseline.py snapshot --yes`。
 2. 只有快照清单与路径核对通过，才可清理当前项目分类下的
-   openLCA ProductSystem、Process 和 Flow。
+   openLCA ProductSystem、Process 和 Flow（通过 openLCA MCP `cleanup_output`）。
 3. openLCA 清理成功后运行
-   `uv run python src/scripts/revise_lca/main.py activate --yes`。
+   `uv run python harness/specs/08-lca-revise-workflow/references/scripts/baseline.py activate --yes`。
 
 激活后的直接上一轮证据固定保存在 `workspace/memory/baseline/`，包含旧
 plan、revise 输入副本、旧 LCI、旧结构化报告和旧 memory；再次修订时不递归

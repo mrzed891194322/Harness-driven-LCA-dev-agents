@@ -83,8 +83,16 @@ class ReviseLcaContractTests(unittest.TestCase):
         self.assertEqual(command["agent"], "major-orchestrator")
         command_text = command_path.read_text(encoding="utf-8")
         self.assertIn("harness/workflows/LCA-revise.md", command_text)
-        self.assertIn("snapshot --yes", command_text)
-        self.assertIn("activate --yes", command_text)
+        self.assertNotIn("src/scripts/revise_lca", command_text)
+        self.assertNotIn("cleanup_output/main.py", command_text)
+
+        workflow_text = (
+            PROJECT_ROOT / "harness" / "workflows" / "LCA-revise.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("references/scripts/baseline.py", workflow_text)
+        self.assertIn("snapshot --yes", workflow_text)
+        self.assertIn("activate --yes", workflow_text)
+        self.assertIn("cleanup_output", workflow_text)
 
         skill_path = PROJECT_ROOT / ".codex" / "skills" / "revise-lca" / "SKILL.md"
         skill = load_frontmatter(skill_path)

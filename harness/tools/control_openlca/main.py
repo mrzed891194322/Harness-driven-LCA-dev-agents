@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 load_dotenv(PROJECT_ROOT / ".env")
 
+from harness.tools.control_openlca.utils.cleanup import run_cleanup_output
 from harness.tools.control_openlca.utils.readonly import (
     get_flow_providers as run_get_flow_providers,
     get_process_details as run_get_process_details,
@@ -37,8 +38,8 @@ mcp = MCPServer(
     "openLCA-Control",
     instructions=(
         "Query and gated workflow access to the openLCA IPC Server configured "
-        "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci is destructive "
-        "and requires a matching current import scope."
+        "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci and cleanup_output "
+        "are destructive; import_lci requires a matching current import scope."
     ),
 )
 
@@ -297,6 +298,31 @@ def calculate_product_system(
         regionalized=regionalized,
         costs=costs,
         parameters=parameters,
+    )
+
+
+@mcp.tool(
+    description=(
+        "Preview or delete ProductSystem, Process, and Flow entities under the "
+        "configured project category. Use confirm=false to list scope only; "
+        "confirm=true executes deletion."
+    ),
+    annotations=DESTRUCTIVE_ANNOTATIONS,
+    structured_output=True,
+)
+def cleanup_output(
+    target_category: str = "",
+    include_supporting: bool = False,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Clean workflow-imported entities from the active openLCA database."""
+    host, port = _endpoint_config()
+    return run_cleanup_output(
+        host=host,
+        port=port,
+        target_category=_target_category(target_category),
+        include_supporting=include_supporting,
+        confirm=confirm,
     )
 
 

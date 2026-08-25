@@ -4,10 +4,16 @@
 `harness/specs/08-lca-revise-workflow/`；公共证据对象和阶段 02–07 的业务契约继续使用
 `harness/specs/public/` 与对应编号阶段包，不在本文件重定义 schema。
 
+## 运行前基线准备
+
+1. 运行 `uv run python harness/specs/08-lca-revise-workflow/references/scripts/baseline.py snapshot --yes`；失败时保留旧 workspace/openLCA 并停止。
+2. 读取 `harness/rules/openlca-operation/README.md`；调用 MCP `health_check`，再以 `cleanup_output` 预览（`confirm=false`）后立即执行删除（`confirm=true`）；失败时不得激活快照。
+3. 运行 `baseline.py activate --yes`；失败时保留旧 canonical 结果并停止。
+
 ## 渐进式资源加载
 
 1. 确认当前 Agent 是 `major-orchestrator`，固定意见输入为
-   `workspace/inputs/revise.md`。
+   `workspace/inputs/revise.md`。用户参考资料只从 `harness/knowledge/` 读取，不得把 `workspace` 其他目录当作知识库。
 2. 基线激活后只读取 `harness/specs/08-lca-revise-workflow/README.md`、
    `harness/specs/08-lca-revise-workflow/references/revise-lca-spec.md`、
    `harness/specs/public/README.md` 和
@@ -19,8 +25,8 @@
    允许输出、`REV-*`/issue ID 或 `import_scope`。子 Agent 不得扫描其他阶段。
 5. 进入 02–07 的某阶段时才读取该阶段 README/spec，完成并持久化后不预读下一阶段。
 
-OpenCode 已全局加载知识检索规则；Codex 仅在当前检索或审查需要时加载
-`harness/rules/knowledge-retrieval/README.md`。两平台都只有实际调用 openLCA
+OpenCode 已全局加载 LCA 知识规则；Codex 仅在当前检索或审查需要时加载
+`harness/rules/lca-knowledge/README.md`。两平台都只有实际调用 openLCA
 MCP 时才读取 `harness/rules/openlca-operation/README.md`。
 
 ## 01 修订基线与计划门禁

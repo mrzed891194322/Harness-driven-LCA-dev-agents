@@ -131,7 +131,7 @@ def main() -> None:
         "--target",
         type=str,
         default=None,
-        help="指定清理目标 (workspace / workspace_without_inputs / harness)，不指定则清理全部",
+        help="指定清理目标 (workspace)，不指定则清理 workspace",
     )
     args = parser.parse_args()
     raise SystemExit(run_clean(dry_run=args.dry_run, yes=args.yes, target=args.target))

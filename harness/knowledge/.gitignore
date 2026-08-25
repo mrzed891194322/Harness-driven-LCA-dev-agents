@@ -1,10 +1,4 @@
-# Ignore all generated vector databases in knowledge/rag_db/
-rag_db/**
-
-# Ignore synchronized user references
-inputs/user_ref/data/**
-inputs/user_ref/file/**
-
-# Keep README files
-!inputs/user_ref/data/README.md
-!inputs/user_ref/file/README.md
+# Ignore user-uploaded files; keep this directory's tracked docs.
+*
+!.gitignore
+!README.md

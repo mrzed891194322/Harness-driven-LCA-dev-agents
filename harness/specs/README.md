@@ -10,9 +10,9 @@ Agents must use this file as a routing index only. Read the smallest relevant sp
 
 | Directory | Question it answers | Normative for |
 | --- | --- | --- |
-| `knowledge/` | What reference data exists? | Content consumed via RAG; not workflow gates |
+| `knowledge/` | What user reference files exist? | Uploaded reports and data; not workflow gates |
 | `specs/` (this tree) | What must each stage produce and when does it pass or stop? | Whole-LCA / Revise stage order, schemas, handoffs, validators |
-| `rules/` | How must agents behave when reading, retrieving, or calling tools? | Cross-stage discipline (directory bounds, RAG, openLCA) |
+| `rules/` | How must agents behave when reading files or calling tools? | Cross-stage discipline (directory bounds, LCA method, openLCA) |
 | `tools/` | How are MCP tools implemented? | Signatures, CLI, tests |
 
 Placement rule: stage enter/pass/stop gates belong in `specs/`; reusable agent discipline belongs in `rules/`; implementation detail belongs in `tools/`. Full definitions: `harness/rules/directory-structure/references/harness-structure.md`.

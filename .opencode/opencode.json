@@ -4,19 +4,9 @@
   "instructions": [
     "harness/rules/directory-structure/README.md",
     "harness/rules/coding-specification/README.md",
-    "harness/rules/knowledge-retrieval/README.md"
+    "harness/rules/lca-knowledge/README.md"
   ],
   "mcp": {
-    "query_rag": {
-      "type": "local",
-      "command": [
-        "uv",
-        "run",
-        "python",
-        "harness/tools/query_rag/main.py"
-      ],
-      "enabled": true
-    },
     "control_openlca": {
       "type": "local",
       "command": [
@@ -32,24 +22,8 @@
     "plan": {
       "disable": true
     },
-    "build": {
-      "disable": true
-    },
-    "major-orchestrator": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.3
-    },
-    "sub-executor": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.2
-    },
-    "eval-reviewer": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.1
-    },
-    "env-bootstrap": {
-      "model": "deepseek/deepseek-v4-pro",
-      "temperature": 0.1
-    }
+    "major-orchestrator": {},
+    "sub-executor": {},
+    "eval-reviewer": {}
   }
 }

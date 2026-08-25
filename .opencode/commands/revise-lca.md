@@ -5,14 +5,6 @@ agent: major-orchestrator
 
 **任务执行**：
 
-1. 运行 `uv run python src/scripts/file_sync/main.py --direction upload-to-work`。
-2. 运行 `uv run python src/scripts/revise_lca/main.py snapshot --yes`。失败时保留旧
-   workspace/openLCA，记录缺失输入并停止。
-3. 运行 `uv run python harness/tools/control_openlca/cleanup_output/main.py --yes`。
-   失败时不得激活快照或清理旧 canonical 结果。
-4. 只有清理成功后运行
-   `uv run python src/scripts/revise_lca/main.py activate --yes`。
-5. 完整读取并执行 `harness/workflows/LCA-revise.md`，固定意见输入为
-   `workspace/inputs/revise.md`。
-6. 返回后保留当前 `workspace/memory/`、`workspace/outputs/LCI/` 和
-   `workspace/outputs/reports/`，立即结束会话。
+- 启动后**首先**按 `harness/workflows/LCA-revise.md` 的「运行前基线准备」完成 baseline 快照后的 MCP `health_check` 与 `cleanup_output`；**不要**在 agent 内清理 workspace。
+- 完整读取并执行 `harness/workflows/LCA-revise.md`，固定意见输入为 `workspace/inputs/revise.md`；用户参考资料只从 `harness/knowledge/` 读取。
+- 返回后保留当前 `workspace/memory/`、`workspace/outputs/LCI/` 和 `workspace/outputs/reports/`，立即结束会话。

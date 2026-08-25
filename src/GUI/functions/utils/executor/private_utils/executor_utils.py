@@ -152,34 +152,6 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
                 safe_console_print(f"[Process Manager] Error cleaning up command process: {e}")
         clear_active_process()
 
-def run_init_rag_database_console() -> Generator[tuple[str, str], None, None]:
-    """
-    运行项目内置的 RAG 初始化脚本，
-    并将终端日志流式更新到 Gradio 原生文本组件中。
-    """
-    import config
-
-    command = [sys.executable, str(config.INIT_RAG_SCRIPT_PATH), "--only", "rag"]
-    accumulated_output = ""
-
-    yield "[System] Preparing to build RAG knowledge libraries...\n", "Running"
-
-    from functions.utils.process_manager import should_stop
-
-    for chunk in execute_command_stream(command):
-        if should_stop():
-            break
-        accumulated_output += chunk
-        yield render_terminal_text(accumulated_output), "Running"
-
-    if should_stop():
-        if not accumulated_output.endswith("已停止\n") and not accumulated_output.endswith("已停止"):
-            accumulated_output += "\n[System] 已停止\n"
-        yield render_terminal_text(accumulated_output), "Stopped"
-    else:
-        yield render_terminal_text(accumulated_output), "Finished"
-
-
 WORKFLOW_COMMANDS = {
     "opencode": {
         "whole-lca": [
@@ -252,13 +224,52 @@ def workflow_command_args(task: str, agent: str) -> list[str]:
     return list(WORKFLOW_COMMANDS[agent_key][task])
 
 
+CLEAN_WORKSPACE_COMMAND = [
+    "uv",
+    "run",
+    "python",
+    "src/scripts/clean_dir/main.py",
+    "-y",
+]
+
+
+def run_clean_workspace_console() -> Generator[tuple[str, str], None, None]:
+    """Clean workspace generated artifacts before starting whole-lca."""
+    project_root = find_project_root(Path(__file__).resolve())
+    accumulated_output = ""
+
+    yield "[System] 正在清理 workspace 生成物...\n", "Running"
+
+    from functions.utils.process_manager import should_stop
+
+    for chunk in execute_command_stream(CLEAN_WORKSPACE_COMMAND):
+        if should_stop():
+            break
+        accumulated_output += chunk
+        yield render_terminal_text(accumulated_output), "Running"
+
+    if should_stop():
+        if not accumulated_output.endswith("已停止\n") and not accumulated_output.endswith(
+            "已停止"
+        ):
+            accumulated_output += "\n[System] 已停止\n"
+        yield render_terminal_text(accumulated_output), "Stopped"
+        return
+
+    if "Process finished with exit code 0." not in accumulated_output:
+        yield render_terminal_text(accumulated_output), "Failed"
+        return
+
+    yield render_terminal_text(accumulated_output), "Finished"
+
+
 def run_workflow_command_console(
     task: str,
 ) -> Generator[tuple[str, str], None, None]:
     """
     Run whole-lca or revise-lca with the persisted harness CLI.
     """
-    from functions.project_init.settings import load_harness_agent
+    from functions.settings.settings import load_harness_agent
 
     agent = load_harness_agent()
     command = workflow_command_args(task, agent)

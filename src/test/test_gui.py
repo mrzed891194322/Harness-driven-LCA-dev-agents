@@ -18,9 +18,7 @@ class GuiConfigurationTests(unittest.TestCase):
         expected_paths = (
             config.PLAN_INPUT_TEMPLATE_PATH,
             config.REVISE_TEMPLATE_PATH,
-            config.CLEAN_SCRIPT_PATH,
-            config.FILE_SYNC_SCRIPT_PATH,
-            config.INIT_RAG_SCRIPT_PATH,
+            config.KNOWLEDGE_DIR,
         )
         for path in expected_paths:
             self.assertTrue(path.exists(), path)
@@ -33,33 +31,26 @@ class GuiBuildTests(unittest.TestCase):
         self.assertGreater(len(demo.blocks), 0)
 
 
-class SettingsNavTests(unittest.TestCase):
-    def test_settings_section_visibility_covers_nav_keys(self) -> None:
+class SettingsTabTests(unittest.TestCase):
+    def test_init_check_status_update_pending_prefix(self) -> None:
         from ui.components.tab_initial import (
-            DEFAULT_SETTINGS_NAV,
-            SETTINGS_NAV_ITEMS,
-            SETTINGS_SECTION_VISIBILITY,
-            SETTINGS_SECTION_HIDDEN_CLASS,
-            apply_settings_nav,
-            apply_settings_nav_ui,
-            settings_section_classes,
+            AGENT_CHOICES,
+            PENDING_INIT_STATUS,
+            init_check_status_update,
         )
 
-        self.assertEqual(len(SETTINGS_SECTION_VISIBILITY[DEFAULT_SETTINGS_NAV]), 4)
-        self.assertEqual(
-            set(SETTINGS_SECTION_VISIBILITY),
-            {key for key, _label in SETTINGS_NAV_ITEMS},
-        )
-        updates = apply_settings_nav("init_check")
-        self.assertEqual(len(updates), 4)
-        unknown = apply_settings_nav("missing")
-        self.assertEqual(len(unknown), 4)
-        self.assertEqual(len(apply_settings_nav_ui("agent")), 8)
-        self.assertEqual(settings_section_classes(True), ["settings-section"])
-        self.assertEqual(
-            settings_section_classes(False),
-            ["settings-section", SETTINGS_SECTION_HIDDEN_CLASS],
-        )
+        self.assertEqual(PENDING_INIT_STATUS, "状态：待检查")
+        self.assertEqual(AGENT_CHOICES, ["codex", "claude", "opencode"])
+        update = init_check_status_update(None)
+        self.assertEqual(update["value"], "状态：待检查")
+        self.assertIn("init-check-status-pending", update["elem_classes"])
+
+    def test_init_check_status_update_success_prefix(self) -> None:
+        from ui.components.tab_initial import init_check_status_update
+
+        update = init_check_status_update(True, "成功")
+        self.assertEqual(update["value"], "状态：成功")
+        self.assertIn("init-check-status-ok", update["elem_classes"])
 
 
 if __name__ == "__main__":

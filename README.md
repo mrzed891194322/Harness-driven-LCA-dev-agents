@@ -12,11 +12,7 @@
 
 ## 环境配置
 
-在首次运行本项目前需要完成的工作（）
-
-### 命令行让 agent 一键配环境（推荐）
-
-通过终端在仓库根目录下执行下列CLI命令（之一），让agent自主完成环境配置工作：
+首次运行前，通过终端在仓库根目录下执行下列 CLI 命令（之一），让 agent 自主完成环境配置：
 
 ```bash
 # opencode 用户在终端中粘贴并执行
@@ -29,11 +25,7 @@ codex exec -s workspace-write '$bootstrap-env'
 claude -p "/bootstrap-env"
 ```
 
-
-
-### 手动配环境
-
-也可以自行安装 uv、执行 `uv sync`、复制并填写 `.env`。详细步骤见 [环境准备与配置](docs/lang_CN/env_setup.md)。
+详细步骤见 [环境准备与配置](docs/lang_CN/env_setup.md)。
 
 ---
 
@@ -52,14 +44,15 @@ uv run python src/GUI/main.py
 
 ### 1. 设置并完成初始化检查
 
-左侧点 **设置&初始化**，再点 **开始初始化检查**。四项全部通过后才会解锁 **执行LCA计划**。未通过时按失败项处理，然后重新检查：
+左侧点 **设置&初始化**，再点 **开始初始化检查**。两项全部通过后才会解锁 **执行LCA计划**。未通过时按失败项处理，然后重新检查：
 
 | 检查项 | 处理 |
 | --- | --- |
 | AI Agent 工具 | 配置目录「设置 AI Agent 工具」选 `codex` / `claude` / `opencode`，点「保存并检查可用性」。对应 CLI 必须在 PATH 上。 |
-| RAG 模型 | 配置目录「设置RAG知识库」填写 URL、模型和 API Key。详见 [RAG 指南](docs/lang_CN/rag_guide.md)。 |
-| OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [项目准备说明](docs/lang_CN/project_prep.md)。 |
-| 知识库构建 | 左侧可先上传参考资料/数据，再在 RAG 页点「构建知识库」。 |
+| OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [环境准备与配置](docs/lang_CN/env_setup.md)。 |
+
+
+![setting and check](docs/assets/images/readme/set-check.png)
 
 ### 2. 编写或传入计划并执行
 
@@ -68,6 +61,4 @@ uv run python src/GUI/main.py
 3. 初始化检查已通过、计划非空后，点 **执行LCA计划**。
 4. 完成后在 **LCA评估结果** 查看报告。
 
-## 命令行
-
-无 GUI 或开发调试时，把输入放到 `workspace/inputs/`，再用所选 Agent 的一行命令运行。步骤见 [手动调试与文件同步指南](docs/lang_CN/manual_debug.md)。
+![start LCA](docs/assets/images/readme/start-lca.png)
