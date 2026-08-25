@@ -22,6 +22,6 @@ _src_root = PROJECT_ROOT / "src"
 if str(_src_root) not in __import__("sys").path:
     __import__("sys").path.insert(0, str(_src_root))
 
-from GUI.functions.project_init.settings import load_port_settings  # noqa: E402
+from GUI.functions.settings.settings import load_port_settings  # noqa: E402
 
 PORT: int = load_port_settings(PROJECT_ROOT)["gui_port"]

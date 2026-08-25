@@ -32,7 +32,6 @@ uv.lock
 # dev: AI agents
 .codex/*
 !.codex/config.toml
-!.codex/AGENTS.md
 !.codex/agents/
 .codex/agents/*
 !.codex/agents/opencode_lca_user.toml

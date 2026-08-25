@@ -7,7 +7,7 @@ Checks:
     3. MCP module import and registered tool names.
 
 Usage:
-    uv run python src/scripts/setup_env/main.py
+    uv run python src/scripts/proj_init/main.py
 """
 
 from __future__ import annotations

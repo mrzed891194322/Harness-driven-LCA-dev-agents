@@ -28,7 +28,7 @@ uv 可用之后，在仓库根目录执行：
 
 ```bash
 uv sync
-uv run python src/scripts/setup_env/main.py
+uv run python src/scripts/proj_init/main.py
 ```
 
 以脚本退出码和结尾 `--- json ---` 之后的 JSON 为准。

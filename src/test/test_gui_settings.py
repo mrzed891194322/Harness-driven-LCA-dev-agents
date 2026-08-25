@@ -9,12 +9,12 @@ from unittest.mock import patch
 
 from support import PROJECT_ROOT  # noqa: F401,E402
 
-from GUI.functions.project_init.check_status import (  # noqa: E402
+from GUI.functions.settings.check_status import (  # noqa: E402
     check_agent_result,
     execution_ready,
     run_initialization_checks,
 )
-from GUI.functions.project_init.settings import (  # noqa: E402
+from GUI.functions.settings.settings import (  # noqa: E402
     DEFAULT_GUI_PORT,
     DEFAULT_HARNESS_AGENT,
     DEFAULT_OPENLCA_IPC_PORT,
@@ -32,7 +32,7 @@ from GUI.functions.utils.executor.private_utils.codex_jsonl import (  # noqa: E4
 from GUI.functions.utils.executor.private_utils.executor_utils import (  # noqa: E402
     workflow_command_args,
 )
-from scripts.initialization.env_check import (  # noqa: E402
+from scripts.check_status.agents_check import (  # noqa: E402
     check_harness_cli,
     check_project_environment,
 )
@@ -206,7 +206,7 @@ class WorkflowCommandTests(unittest.TestCase):
 
 class HarnessCliCheckTests(unittest.TestCase):
     def test_check_harness_cli_reports_missing_binary(self) -> None:
-        with patch("scripts.initialization.env_check.main.shutil.which", return_value=None):
+        with patch("scripts.check_status.agents_check.main.shutil.which", return_value=None):
             ok, message = check_harness_cli("claude")
         self.assertFalse(ok)
         self.assertEqual(message, "未安装")
@@ -229,7 +229,7 @@ class HarnessCliCheckTests(unittest.TestCase):
                 return None
 
             with patch(
-                "scripts.initialization.env_check.main.shutil.which",
+                "scripts.check_status.agents_check.main.shutil.which",
                 side_effect=fake_which,
             ):
                 ok, message = check_project_environment(project_root=root)
@@ -249,7 +249,7 @@ class HarnessCliCheckTests(unittest.TestCase):
                 return None
 
             with patch(
-                "scripts.initialization.env_check.main.shutil.which",
+                "scripts.check_status.agents_check.main.shutil.which",
                 side_effect=fake_which,
             ):
                 ok, message = check_project_environment(project_root=root)
@@ -267,11 +267,11 @@ class ExecutionGateTests(unittest.TestCase):
     def test_run_initialization_checks_lists_failed_items(self) -> None:
         with (
             patch(
-                "GUI.functions.project_init.check_status.check_agent_result",
+                "GUI.functions.settings.check_status.check_agent_result",
                 return_value=(True, "可用"),
             ),
             patch(
-                "GUI.functions.project_init.check_status.check_openlca_result",
+                "GUI.functions.settings.check_status.check_openlca_result",
                 return_value=(False, "不可用"),
             ),
         ):
@@ -283,7 +283,7 @@ class ExecutionGateTests(unittest.TestCase):
 class InitCheckStatusMessageTests(unittest.TestCase):
     def test_check_agent_result_includes_agent_name(self) -> None:
         with patch(
-            "scripts.initialization.env_check.check_harness_cli",
+            "scripts.check_status.agents_check.check_harness_cli",
             return_value=(True, "可用"),
         ):
             ok, message = check_agent_result("codex")
