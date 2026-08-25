@@ -49,7 +49,7 @@ uv sync
    uv run python src/scripts/check_status/main.py --only openlca
    ```
 
+![openLCA IPC Service](../assets/images/project_prep/openlca-ipc.png)
+
 连接检查首次失败后会重新创建客户端并重试三次；全部失败时命令返回非零，GUI 的执行
 按钮保持禁用。
-
-截图与 GUI 外的准备步骤见[项目准备说明](project_prep.md)。

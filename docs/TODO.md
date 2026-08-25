@@ -6,6 +6,8 @@
 
 - [ ] clean up 脚本新增 openlca，新增多参数（仓库级清理，项目级清理），不再使用agent清理openlca
 
+- [ ] GUI 文件交换区 不再区分文档与数据
+
 - [x] 移除多余的hash、schema
 
 - [x] 工作流schema连接写文档

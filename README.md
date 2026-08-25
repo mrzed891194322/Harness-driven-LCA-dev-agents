@@ -12,11 +12,7 @@
 
 ## 环境配置
 
-在首次运行本项目前需要完成的工作（）
-
-### 命令行让 agent 一键配环境（推荐）
-
-通过终端在仓库根目录下执行下列CLI命令（之一），让agent自主完成环境配置工作：
+首次运行前，通过终端在仓库根目录下执行下列 CLI 命令（之一），让 agent 自主完成环境配置：
 
 ```bash
 # opencode 用户在终端中粘贴并执行
@@ -29,11 +25,7 @@ codex exec -s workspace-write '$bootstrap-env'
 claude -p "/bootstrap-env"
 ```
 
-
-
-### 手动配环境
-
-也可以自行安装 uv、执行 `uv sync`、复制并填写 `.env`。详细步骤见 [环境准备与配置](docs/lang_CN/env_setup.md)。
+详细步骤见 [环境准备与配置](docs/lang_CN/env_setup.md)。
 
 ---
 
@@ -57,9 +49,10 @@ uv run python src/GUI/main.py
 | 检查项 | 处理 |
 | --- | --- |
 | AI Agent 工具 | 配置目录「设置 AI Agent 工具」选 `codex` / `claude` / `opencode`，点「保存并检查可用性」。对应 CLI 必须在 PATH 上。 |
-| OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [项目准备说明](docs/lang_CN/project_prep.md)。 |
+| OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [环境准备与配置](docs/lang_CN/env_setup.md)。 |
 
-参考资料在左侧上传后写入 `harness/knowledge/`，Agent 直接读取该目录。
+
+![setting and check](docs/assets/images/readme/set-check.png)
 
 ### 2. 编写或传入计划并执行
 
@@ -68,6 +61,4 @@ uv run python src/GUI/main.py
 3. 初始化检查已通过、计划非空后，点 **执行LCA计划**。
 4. 完成后在 **LCA评估结果** 查看报告。
 
-## 命令行
-
-无 GUI 或开发调试时，把计划放到 `workspace/inputs/`、参考资料放到 `harness/knowledge/`，再用所选 Agent 的一行命令运行。步骤见 [手动调试指南](docs/lang_CN/manual_debug.md)。
+![start LCA](docs/assets/images/readme/start-lca.png)

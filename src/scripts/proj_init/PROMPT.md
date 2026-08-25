@@ -45,4 +45,4 @@ uv run python src/scripts/proj_init/main.py
 3. `.env`
 4. MCP 接线
 
-最后一句：下一步启动 GUI 完成初始化检查（见 `README.md`），openLCA IPC 见 `docs/lang_CN/project_prep.md`，不要启动 whole-lca。
+最后一句：下一步启动 GUI 完成初始化检查（见 `README.md`），openLCA IPC 见 `docs/lang_CN/env_setup.md`，不要启动 whole-lca。
