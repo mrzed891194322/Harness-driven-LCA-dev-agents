@@ -39,9 +39,14 @@
 
 | 层 | OpenCode | Codex | Claude Code |
 | --- | --- | --- | --- |
-| 模型/MCP/默认 agent | `.opencode/opencode.json` | `.codex/config.toml` | `.claude/settings.json` |
-| 角色与权限 | `.opencode/agents/*.md` | `.codex/agents/*.toml` | `.claude/agents/*.md` |
+| MCP / 默认 agent | `.opencode/opencode.json` | `.codex/config.toml` | `.claude/settings.json` |
+| 角色语义（唯一来源） | `harness/roles/*.md` | 同左 | 同左 |
+| 平台 adapter（权限/沙箱/启动） | `.opencode/agents/*.md` | `.codex/agents/*.toml` | `.claude/agents/*.md` |
 | CLI 拉起 | `.opencode/commands/*.md` | `.codex/skills/whole-lca`、`revise-lca` | `.claude/commands/*.md` |
 | 业务步骤 | `harness/workflows/LCA-*.md` | 同左 | 同左 |
+
+OpenCode 环境引导使用内置 `build` agent（`opencode run --command bootstrap-env` → `agent: build`），不注册自定义 env-bootstrap。
+
+不要在 Codex 配置或角色文档中硬编码模型名称；子 agent 模型由主编排在委派时按任务复杂度动态选择。
 
 不要在 Codex 里放代码维护、harness 改进或独立质量评价 skill。

@@ -11,7 +11,7 @@
 在项目根目录检查连接：
 
 ```bash
-uv run python src/scripts/initialization/main.py --only openlca
+uv run python src/scripts/check_status/main.py --only openlca
 ```
 
 底层操作约束和工具接口分别记录在 `harness/rules/openlca-operation/README.md` 与
@@ -29,7 +29,7 @@ uv run python src/scripts/initialization/main.py --only openlca
 计划至少需要明确研究对象、功能单位、系统边界、背景数据库和 LCIA 方法。模板见
 [`src/GUI/ui/assets/template/plan.md`](../../src/GUI/ui/assets/template/plan.md)。
 
-命令行初始化与执行见 [手动调试](manual_debug.md)。`query_rag` 仍可作为独立 MCP 实现保留，见 [RAG 指南](rag_guide.md)，但当前 Agent 路径不使用它。
+命令行初始化与执行见 [手动调试](manual_debug.md)。`query_rag` 仍可作为独立 MCP 实现保留于 `harness/tools/query_rag/`，但当前 Agent 路径不使用它。
 
 > [!WARNING]
 > 不带 `--only` 的默认手动初始化会清理运行目录，并清理活动数据库中当前

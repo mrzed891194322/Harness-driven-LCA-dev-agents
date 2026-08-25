@@ -4,6 +4,12 @@
 `harness/specs/08-lca-revise-workflow/`；公共证据对象和阶段 02–07 的业务契约继续使用
 `harness/specs/public/` 与对应编号阶段包，不在本文件重定义 schema。
 
+## 运行前基线准备
+
+1. 运行 `uv run python harness/specs/08-lca-revise-workflow/references/scripts/baseline.py snapshot --yes`；失败时保留旧 workspace/openLCA 并停止。
+2. 读取 `harness/rules/openlca-operation/README.md`；调用 MCP `health_check`，再以 `cleanup_output` 预览（`confirm=false`）后立即执行删除（`confirm=true`）；失败时不得激活快照。
+3. 运行 `baseline.py activate --yes`；失败时保留旧 canonical 结果并停止。
+
 ## 渐进式资源加载
 
 1. 确认当前 Agent 是 `major-orchestrator`，固定意见输入为

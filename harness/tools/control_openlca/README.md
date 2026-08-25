@@ -8,12 +8,12 @@
 
 > **硬约束**
 > - 严禁为 openLCA 连接检测、描述符遍历、UUID 查询、模型图读取、导入或计算编写临时 Python 脚本。
-> - CLI 中只检查连接时，运行 `src/scripts/initialization/openlca_check/main.py`；MCP 客户端调用 `health_check`。
+> - CLI 中只检查连接时，运行 `src/scripts/check_status/openlca_check/main.py`；MCP 客户端调用 `health_check`。
 > - 查询数据库实体名称、UUID 或描述符时，必须使用 `query_descriptors/main.py`。
 > - 按 Process UUID 回读地域和定量参考时，MCP 客户端必须使用 `get_process_details`。
 > - 按 Flow UUID 查询可用 Provider 时，MCP 客户端必须使用 `get_flow_providers`。
 > - 读取产品系统模型图时，必须使用 `get_model_graph/main.py`。
-> - 清理工作流导入的项目分类实体时，必须使用 `cleanup_output/main.py`。
+> - 清理工作流导入的项目分类实体时，必须使用 MCP `cleanup_output`。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
 
 ---
@@ -33,6 +33,7 @@ control_openlca/
 │   ├── connection.py               # IPC 连接建立与测试连接可用性
 │   ├── readonly.py                 # MCP 健康检查、描述符/Flow Provider 查询与分页
 │   ├── workflow.py                 # 预检/导入、模型图与计算的 CLI/MCP 共用服务
+│   ├── cleanup.py                  # 项目分类前景实体清理（MCP cleanup_output）
 │   ├── entity.py                   # 实体模糊查找与匹配 (UUID/名称)
 │   ├── export.py                   # 结果解析提取、Markdown 打印与 JSON/CSV 写出
 │   └── validation.py               # 分配方案校验与参数重定义 Fail-Fast 解析
@@ -52,11 +53,6 @@ control_openlca/
 │   ├── README.md                   # 该导入任务的配置使用文档
 │   ├── examples/                   # 示例 JSON 配置目录
 │   └── private_utils/              # 导入任务局部的私有工具目录
-│
-├── cleanup_output/                 # 任务：清理项目分类下导入的 ProductSystem/Process/Flow
-│   ├── main.py                     # 入口主程序
-│   ├── README.md                   # 该清理任务的配置使用文档
-│   └── private_utils/              # 清理任务局部的私有工具目录
 │
 ├── get_model_graph/                # 任务：获取产品系统的模型图依赖及连线拓扑目录
 │   ├── main.py                     # 入口主程序
@@ -84,8 +80,9 @@ control_openlca/
 - `get_import_operation`：只读查询当前导入 journal，供 MCP 超时后判断是否已经成功、失败或仍不可确定。
 - `get_model_graph`：读回 Product System 节点、边、断链、孤立节点和缺失预期节点。
 - `calculate_product_system`：执行 LCIA，返回方法/类别名称与 UUID、数值、单位、计算设置和句柄释放状态。
+- `cleanup_output`：预览或删除当前项目分类下的 ProductSystem、Process 和 Flow；`confirm=false` 只列范围，`confirm=true` 执行删除。
 
-`import_lci` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径默认为
+`import_lci` 与 `cleanup_output` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径默认为
 `workspace/outputs/LCI`；连续改进运行可改用 `workspace/tmp/` 下的具体兼容 LCI 子目录。
 路径解析会拒绝 `workspace/tmp` 根目录、inputs、其他 workspace 目录、项目外路径及通过
 `..` 或符号链接逃逸的路径。CLI 原参数和调用入口保持兼容，并与 MCP 共用

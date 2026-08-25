@@ -5,7 +5,7 @@
 ## 首次使用
 
 1. 满足 README 前置要求（uv、Codex / Claude Code / OpenCode 三者之一的 CLI，以及每次开工前打开 openLCA 并启用 IPC Server）。
-2. 用命令行执行 `bootstrap-env`（或把 `src/scripts/setup_env/PROMPT.md` 发给 agent）。
+2. 用命令行执行 `bootstrap-env`（或把 `src/scripts/proj_init/PROMPT.md` 发给 agent）。
 3. 按[项目 README](../../README.md) 启动 GUI：设置&初始化 → 开始初始化检查 → 开始LCA工作 → 执行LCA计划。
 4. 检查未通过时：uv 细节见 [环境准备与配置](env_setup.md)，openLCA IPC 见 [项目准备说明](project_prep.md)。
 
@@ -15,7 +15,6 @@
 | --- | --- |
 | [项目 README](../../README.md) | GUI 使用：初始化检查、填写或上传计划、执行 LCA |
 | [环境准备与配置](env_setup.md) | 手动安装 uv、`uv sync`、命令行检查 openLCA |
-| [RAG MCP（未接入 Agent）](rag_guide.md) | 独立保留的 query_rag 实现与密钥位置 |
 | [项目准备说明](project_prep.md) | openLCA IPC 截图；不用 GUI 时的输入路径 |
 | [手动调试](manual_debug.md) | 不使用 GUI、检查固定路径或手动执行 whole-lca / revise-lca |
 | [GUI 模块说明](../../src/GUI/README.md) | 界面功能、状态门禁和 GUI 开发约定 |

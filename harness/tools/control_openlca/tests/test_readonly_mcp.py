@@ -535,6 +535,7 @@ class MCPServerTests(unittest.TestCase):
                 "get_import_operation",
                 "get_model_graph",
                 "calculate_product_system",
+                "cleanup_output",
             },
         )
         self.assertTrue(tools["health_check"].annotations.read_only_hint)
@@ -549,6 +550,12 @@ class MCPServerTests(unittest.TestCase):
         self.assertTrue(tools["import_lci"].annotations.destructive_hint)
         self.assertTrue(tools["get_import_operation"].annotations.read_only_hint)
         self.assertFalse(tools["import_lci"].annotations.idempotent_hint)
+        self.assertFalse(tools["cleanup_output"].annotations.read_only_hint)
+        self.assertTrue(tools["cleanup_output"].annotations.destructive_hint)
+        self.assertIn(
+            "confirm",
+            tools["cleanup_output"].input_schema["properties"],
+        )
         self.assertNotIn(
             "preflight_hash",
             tools["import_lci"].input_schema.get("required", []),

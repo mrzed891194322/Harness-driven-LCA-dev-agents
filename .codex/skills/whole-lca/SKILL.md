@@ -9,11 +9,8 @@ description: 通过分阶段的计划接收、证据检索、最多三次 LCI �
 
 ## 启动
 
-1. 执行下列脚本清理 openLCA 与 workspace 生成文件（如有）：
-   `uv run python harness/tools/control_openlca/cleanup_output/main.py --yes`
-   `uv run python src/scripts/clean_dir/main.py --yes --target workspace_without_inputs`
-2. 仅使用 `workspace/inputs/plan.md` 作为计划输入。当前 `codex exec` 会话即担任 `major-orchestrator`：先读取 `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行 `harness/workflows/LCA-main.md`。不要再 spawn 另一个 `major-orchestrator`。
-3. 只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明当前阶段、被委派角色、输入产物路径和等待原因；子 Agent 返回后立即摘要结论与产物，不要用空的 Wait 心跳代替阶段进展。
+1. 仅使用 `workspace/inputs/plan.md` 作为计划输入。当前 `codex exec` 会话即担任 `major-orchestrator`：先读取 `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行 `harness/workflows/LCA-main.md`。不要再 spawn 另一个 `major-orchestrator`。
+2. 只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明当前阶段、被委派角色、输入产物路径和等待原因；子 Agent 返回后立即摘要结论与产物，不要用空的 Wait 心跳代替阶段进展。
 
 ## Codex 运行时补充
 

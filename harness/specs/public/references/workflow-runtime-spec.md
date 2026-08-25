@@ -35,7 +35,7 @@ operation journal；计算中断也不得自动重复。
 - 计划审查固定为 `reviews/plan-review.json`；LCI 审查为 `reviews/lci-review-<attempt>.json`。
 - 阶段、审查和交接记录一经写入不得覆盖。需要修订时创建后续序号文件，并用 issue ID 和产物路径建立关联。
 
-运行开始前的旧产物清理由外部流程负责。工作流使用上述固定路径，不生成运行 ID 或按运行 ID 分层；如果旧文件仍然存在，固定文件可以被本次运行覆盖，但同一次运行内不得覆盖已有阶段、审查或交接历史。
+运行开始前的旧产物清理由工作流负责：workspace 生成物由 `src/scripts/clean_dir/` 清理；openLCA 前景实体由 `control_openlca` MCP 的 `cleanup_output` 清理。工作流使用上述固定路径，不生成运行 ID 或按运行 ID 分层；如果旧文件仍然存在，固定文件可以被本次运行覆盖，但同一次运行内不得覆盖已有阶段、审查或交接历史。
 
 所有时间戳使用带 `Z` 的 RFC 3339 UTC 格式。不要在记忆、handoff、checklist 或报告中记录 SHA-256。
 

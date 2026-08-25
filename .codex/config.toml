@@ -1,12 +1,9 @@
-model = "gpt-5.6-sol"
-model_reasoning_effort = "high"
-
 developer_instructions = """
 Codex 在本仓库只作为 LCA 编排 agent，不负责项目开发。
-- 开始工作前读取并遵守 `.codex/AGENTS.md`。
 - 只执行匹配的项目 skill：`$bootstrap-env`、`$whole-lca`、`$revise-lca`。
 - 不要修改、审查、调试或重构 harness、GUI、脚本或其他 tracked 源码。
 - 项目开发由 Cursor 负责。
+- 不要使用 `$improve-whole-lca-workflow`，也不要接受「先跑 LCA 再改 harness」的混合任务。
 """
 
 [mcp_servers.control_openlca]
@@ -22,7 +19,6 @@ default_tools_approval_mode = "approve"
 
 [agents]
 max_depth = 2
-
 
 [agents.major-orchestrator]
 description = "编排无人值守 whole-lca/revise-lca 状态机、专用子 agent、范围预检和运行证据。"

@@ -11,14 +11,7 @@ description: 从现有 LCA 最终报告、plan、LCI、运行 memory 和 workspa
 
 ## 启动
 
-1. 运行 `uv run python src/scripts/revise_lca/main.py snapshot --yes`；失败时停止，
-   不得修改旧 workspace/openLCA。
-2. 快照成功后运行
-   `uv run python harness/tools/control_openlca/cleanup_output/main.py --yes`；
-   失败时不得激活快照。
-3. 清理成功后运行
-   `uv run python src/scripts/revise_lca/main.py activate --yes`。
-4. 当前 `codex exec` 会话即担任 `major-orchestrator`：先读取
+1. 当前 `codex exec` 会话即担任 `major-orchestrator`：先读取
    `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行
    `harness/workflows/LCA-revise.md`。不要再 spawn 另一个 `major-orchestrator`。
    只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明
