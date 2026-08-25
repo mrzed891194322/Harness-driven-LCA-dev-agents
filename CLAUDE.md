@@ -17,4 +17,4 @@ claude --agent major-orchestrator -p "/revise-lca" --permission-mode dontAsk
 claude --agent major-orchestrator -p "读取并执行 .claude/commands/whole-lca.md" --permission-mode dontAsk
 ```
 
-对应 OpenCode / Codex 一行命令见根目录 `AGENTS.md`。编排步骤只在 `harness/workflows/`；MCP 启动命令指向 `harness/tools/query_rag/main.py` 与 `harness/tools/control_openlca/main.py`。
+对应 OpenCode / Codex 一行命令见根目录 `AGENTS.md`。编排步骤只在 `harness/workflows/`；MCP 启动命令指向 `harness/tools/control_openlca/main.py`。

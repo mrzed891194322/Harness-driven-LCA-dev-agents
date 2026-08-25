@@ -33,17 +33,17 @@
 
 ### 2. 项目初始化模块 (`functions/project_init/`)
 整合项目启动阶段的资源清理与环境初始化流程：
-- **功能入口**：[main_init.py](project_init/main_init.py) 中的 `main` 函数。
+- **功能入口**：[main_init.py](project_init/main_init.py) 中的 `main` 函数（GUI 当前不再触发完整初始化脚本）。
 - **私有辅助包 (`private_utils/`)**：
   - `clean.py`：调用项目清理脚本 `clean_dir.py`。
-  - `file_handler.py`：将左侧上传的材料/数据文件暂存到 `workspace/inputs/references/`，再由文件同步脚本送入 RAG 输入目录。
-  - `init_rag.py`：调用 RAG 向量库与模型数据库的本地初始化逻辑。
+  - `file_handler.py`：将左侧上传的材料/数据文件写入 `harness/knowledge/`。
+  - `init_rag.py`：保留的 RAG 构建调用入口；GUI 当前不再触发。
 
-环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测 AI Agent CLI、
-RAG Embedding、openLCA 与知识库构建；四项全部通过后才解锁“执行LCA计划”。
-Agent / RAG 页的单项检查只弹对话框，不解锁执行。初始化子进程的退出码必须
-逐层传递到 GUI，失败不得显示为 `Finished`。选择的 Agent 与 RAG 配置写入
-`.env` 的 `HARNESS_AGENT` 和 `EMBEDDING_*`。
+环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测 AI Agent CLI
+与 openLCA；两项全部通过后才解锁“执行LCA计划”。
+Agent 页的单项检查只弹对话框，不解锁执行。初始化子进程的退出码必须
+逐层传递到 GUI，失败不得显示为 `Finished`。选择的 Agent 写入
+`.env` 的 `HARNESS_AGENT`。
 
 ### 3. LCA 工作流结果模块
 

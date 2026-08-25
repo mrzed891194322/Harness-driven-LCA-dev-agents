@@ -52,7 +52,7 @@ class OpenCodeConfigurationTests(unittest.TestCase):
 
     def test_rules_are_directory_packages_and_only_knowledge_is_global(self) -> None:
         config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
-        knowledge_rule = "harness/rules/knowledge-retrieval/README.md"
+        knowledge_rule = "harness/rules/lca-knowledge/README.md"
         openlca_rule = "harness/rules/openlca-operation/README.md"
         instructions = set(config["instructions"])
         self.assertIn(knowledge_rule, instructions)
@@ -60,7 +60,7 @@ class OpenCodeConfigurationTests(unittest.TestCase):
         self.assertTrue((PROJECT_ROOT / knowledge_rule).is_file())
         self.assertTrue((PROJECT_ROOT / openlca_rule).is_file())
         self.assertFalse(
-            (PROJECT_ROOT / "harness" / "rules" / "knowledge-retrieval.md").exists()
+            (PROJECT_ROOT / "harness" / "rules" / "lca-knowledge.md").exists()
         )
         self.assertFalse(
             (PROJECT_ROOT / "harness" / "rules" / "openlca-mcp.md").exists()
@@ -136,6 +136,8 @@ class CodexConfigurationTests(unittest.TestCase):
         self.assertIn("$revise-lca", agents_md)
         self.assertNotIn("$evaluate-lca-quality", agents_md)
         self.assertIn("$bootstrap-env", agents_md)
+        self.assertNotIn("$read-knowledge", agents_md)
+        self.assertNotIn("$read-knowledge", instructions)
         self.assertIn("不要使用 `$improve-whole-lca-workflow`", agents_md)
 
         root_agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
@@ -205,10 +207,7 @@ class CodexConfigurationTests(unittest.TestCase):
             config["mcp_servers"]["control_openlca"]["default_tools_approval_mode"],
             "approve",
         )
-        self.assertEqual(
-            config["mcp_servers"]["query_rag"]["default_tools_approval_mode"],
-            "auto",
-        )
+        self.assertNotIn("query_rag", config["mcp_servers"])
         self.assertTrue(
             {
                 "health_check",
@@ -249,6 +248,8 @@ class CodexConfigurationTests(unittest.TestCase):
         self.assertNotIn("lca-quality-evaluator", root_ignore)
         self.assertIn("!.codex/skills/bootstrap-env/", root_ignore)
         self.assertIn("!.codex/skills/whole-lca/", root_ignore)
+        self.assertNotIn("!.codex/skills/read-knowledge/", root_ignore)
+        self.assertIn("!.cursor/skills/bootstrap-env/", root_ignore)
 
         project_readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertNotIn("$improve-whole-lca-workflow", project_readme)
@@ -370,7 +371,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
                 "harness/rules/openlca-operation/README.md", content, relative_path
             )
             self.assertIn(
-                "harness/rules/knowledge-retrieval/README.md",
+                "harness/rules/lca-knowledge/README.md",
                 content,
                 relative_path,
             )
@@ -384,7 +385,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("harness/workflows/LCA-main.md", workflow_main)
-        self.assertIn("file_sync", workflow_main)
+        self.assertNotIn("file_sync", workflow_main)
         self.assertIn(
             "harness/tools/control_openlca/cleanup_output/main.py --yes",
             workflow_main,
@@ -525,13 +526,12 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         query_rag = "harness/tools/query_rag/main.py"
         control_openlca = "harness/tools/control_openlca/main.py"
         opencode = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
-        self.assertIn(query_rag, opencode["mcp"]["query_rag"]["command"])
+        self.assertNotIn("query_rag", opencode["mcp"])
         self.assertIn(control_openlca, opencode["mcp"]["control_openlca"]["command"])
 
         with (PROJECT_ROOT / ".codex" / "config.toml").open("rb") as stream:
             codex = tomllib.load(stream)
-        self.assertEqual(codex["mcp_servers"]["query_rag"]["command"], "uv")
-        self.assertIn(query_rag, codex["mcp_servers"]["query_rag"]["args"])
+        self.assertNotIn("query_rag", codex["mcp_servers"])
         self.assertIn(control_openlca, codex["mcp_servers"]["control_openlca"]["args"])
         self.assertFalse((PROJECT_ROOT / "harness" / "tools" / "mcp.json").exists())
 
@@ -540,14 +540,12 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         )
         mcp_json = json.loads((PROJECT_ROOT / ".mcp.json").read_text(encoding="utf-8"))
         for config in (claude_settings, mcp_json):
-            self.assertEqual(
-                config["mcpServers"]["query_rag"]["args"][-1],
-                query_rag,
-            )
+            self.assertNotIn("query_rag", config["mcpServers"])
             self.assertEqual(
                 config["mcpServers"]["control_openlca"]["args"][-1],
                 control_openlca,
             )
+        self.assertTrue((PROJECT_ROOT / query_rag).is_file())
 
     def test_one_line_cli_is_documented_for_each_platform(self) -> None:
         documents = (
@@ -636,10 +634,7 @@ class BootstrapEnvAdapterTests(unittest.TestCase):
     )
     COPIED_STEPS = (
         "uv sync",
-        "EMBEDDING_API_KEY",
         "环境检测不通过",
-        "RAG 模型未配置",
-        "RAG 模型无法调用",
     )
 
     def test_adapters_exist_and_only_reference_shared_prompt(self) -> None:

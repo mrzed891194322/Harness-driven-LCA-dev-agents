@@ -1,13 +1,10 @@
-# 手动调试与文件同步指南
+# 手动调试指南
 
 有 GUI 时按[项目 README](../../README.md) 操作。本文仅用于无图形界面或开发调试：用命令行准备资料、初始化并运行工作流。
 
 ## 1. 准备输入文件
 
-将文件放入 `workspace/inputs/`：
-
-- 参考文档：`workspace/inputs/references/file/`
-- 结构化数据：`workspace/inputs/references/data/`
+- 参考资料：`harness/knowledge/`（扁平目录，唯一落点）
 - 计划文件：`workspace/inputs/plan.md`
 - 修订意见：`workspace/inputs/revise.md`（仅 revise-lca 需要）
 
@@ -19,8 +16,9 @@
 uv run python src/scripts/initialization/main.py
 ```
 
-默认 `manual` 模式会清理工作目录、同步 inputs、检查环境、构建知识库、检查 openLCA，
-并清理当前项目分类下的 openLCA 前景实体。
+默认 `manual` 模式会清理工作目录、检查环境、检查 openLCA，
+并清理当前项目分类下的 openLCA 前景实体。当前 Agent 路径不依赖 RAG 知识库；
+`--only rag` 仍可用于独立构建遗留向量库。
 
 > [!WARNING]
 > 默认初始化和 `whole-lca` 都包含清理操作。请先确认活动数据库、项目分类和
@@ -76,13 +74,7 @@ claude --agent major-orchestrator -p "/revise-lca" --permission-mode dontAsk
 流程会保存直接上一轮 baseline，完整重建 LCI、重新导入、重算 LCIA，并覆盖当前最终
 报告。缺少必需基线时会受控停止，不应手工拼接不完整结果。
 
-## 5. 手动同步与清理
-
-只同步用户资料到知识库输入目录：
-
-```bash
-uv run python src/scripts/file_sync/main.py --direction upload-to-work
-```
+## 5. 清理
 
 预览 workspace 清理范围：
 

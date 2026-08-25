@@ -1,5 +1,5 @@
 ---
-description: 执行仓库环境引导：检查 uv、同步依赖、探测 Embedding 与 MCP。禁止代装 uv，禁止启动 whole-lca。
+description: 执行仓库环境引导：检查 uv、同步依赖与 MCP。禁止代装 uv，禁止启动 whole-lca。
 mode: primary
 permission:
   edit: allow

@@ -52,14 +52,14 @@ uv run python src/GUI/main.py
 
 ### 1. 设置并完成初始化检查
 
-左侧点 **设置&初始化**，再点 **开始初始化检查**。四项全部通过后才会解锁 **执行LCA计划**。未通过时按失败项处理，然后重新检查：
+左侧点 **设置&初始化**，再点 **开始初始化检查**。两项全部通过后才会解锁 **执行LCA计划**。未通过时按失败项处理，然后重新检查：
 
 | 检查项 | 处理 |
 | --- | --- |
 | AI Agent 工具 | 配置目录「设置 AI Agent 工具」选 `codex` / `claude` / `opencode`，点「保存并检查可用性」。对应 CLI 必须在 PATH 上。 |
-| RAG 模型 | 配置目录「设置RAG知识库」填写 URL、模型和 API Key。详见 [RAG 指南](docs/lang_CN/rag_guide.md)。 |
 | OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [项目准备说明](docs/lang_CN/project_prep.md)。 |
-| 知识库构建 | 左侧可先上传参考资料/数据，再在 RAG 页点「构建知识库」。 |
+
+参考资料在左侧上传后写入 `harness/knowledge/`，Agent 直接读取该目录。
 
 ### 2. 编写或传入计划并执行
 
@@ -70,4 +70,4 @@ uv run python src/GUI/main.py
 
 ## 命令行
 
-无 GUI 或开发调试时，把输入放到 `workspace/inputs/`，再用所选 Agent 的一行命令运行。步骤见 [手动调试与文件同步指南](docs/lang_CN/manual_debug.md)。
+无 GUI 或开发调试时，把计划放到 `workspace/inputs/`、参考资料放到 `harness/knowledge/`，再用所选 Agent 的一行命令运行。步骤见 [手动调试指南](docs/lang_CN/manual_debug.md)。

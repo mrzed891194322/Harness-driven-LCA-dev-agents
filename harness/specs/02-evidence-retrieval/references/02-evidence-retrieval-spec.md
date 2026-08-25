@@ -8,10 +8,10 @@
 
 ## 2. 来源与回读
 
-RAG 与 openLCA 调用的通用纪律见 `harness/rules/knowledge-retrieval/README.md` 与 `harness/rules/openlca-operation/README.md`。本阶段 additionally 要求：
+用户资料与方法纪律见 `harness/rules/lca-knowledge/README.md`，openLCA 调用纪律见 `harness/rules/openlca-operation/README.md`。本阶段 additionally 要求：
 
-- 检索范围必须服从每个缺口声明的来源域，只能使用用户资料/RAG、活动 openLCA 数据库或二者。
-- RAG 命中只作为定位线索；用于决策的关键事实必须回读原文，并记录来源文件、章节或页码。
+- 检索范围必须服从每个缺口声明的来源域，只能使用 `harness/knowledge/` 中的用户文件、活动 openLCA 数据库或二者。
+- 用于决策的关键事实必须读取原文，并记录来源文件、章节或页码。禁止调用 `query_rag`。
 - openLCA 候选必须记录实体类型、名称、UUID、活动数据库、查询词、查询时间和选择理由。候选 Process 的地域和定量参考用 `get_process_details` 按 UUID 回读；背景 Provider 映射先查询 Flow UUID，再用 `get_flow_providers` 回读可用 Provider。不得为这些选择批量导出完整 Process 实体集合。
 - 背景匹配与无人值守决定遵守已加载或按需读取的 `harness/rules/openlca-operation/README.md`：可留档的选择自行决定并写入证据，不得停下来征求用户。
 

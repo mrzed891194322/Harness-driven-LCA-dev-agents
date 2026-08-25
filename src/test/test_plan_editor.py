@@ -97,7 +97,7 @@ class PlanEditorTests(unittest.TestCase):
 
     def test_documents_with_no_or_arbitrary_metadata_round_trip(self) -> None:
         prompt_plan = (
-            PROJECT_ROOT / "docs" / "dev" / "prompts" / "plan.md"
+            PROJECT_ROOT / "src" / "GUI" / "ui" / "assets" / "template" / "plan.md"
         ).read_text(encoding="utf-8")
         documents = (
             self.VALID_PLAN,

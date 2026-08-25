@@ -19,8 +19,6 @@ from .constants import (
     PLACEHOLDER_VALUES,
     QUERY_RAG_MAIN,
     QUERY_RAG_TOOLS,
-    RAG_UNCALLABLE_REMINDER,
-    RAG_UNCONFIGURED_REMINDER,
     REQUIRED_ENV_KEYS,
     REQUIRED_PYTHON,
     UV_MISSING_REMINDER,
@@ -29,7 +27,6 @@ from .constants import (
 
 WhichFn = Callable[[str], str | None]
 RunFn = Callable[..., subprocess.CompletedProcess[str]]
-EmbeddingProbeFn = Callable[[Path], tuple[bool, str]]
 McpProbeFn = Callable[[Path], dict[str, Any]]
 
 
@@ -204,36 +201,6 @@ def probe_mcp_modules(project_root: Path) -> dict[str, Any]:
     }
 
 
-def probe_rag_embedding(
-    project_root: Path,
-    env_status: dict[str, Any],
-    embedding_probe: EmbeddingProbeFn | None = None,
-) -> dict[str, Any]:
-    """Probe Embedding API when .env looks configured. Never print secrets."""
-    if (
-        not env_status.get("exists")
-        or not env_status.get("keys_present")
-        or env_status.get("placeholders")
-    ):
-        print(RAG_UNCONFIGURED_REMINDER)
-        return {"ok": False, "reminder": RAG_UNCONFIGURED_REMINDER}
-
-    probe = embedding_probe
-    if probe is None:
-        initialization_root = project_root / "src" / "scripts" / "initialization"
-        if str(initialization_root) not in sys.path:
-            sys.path.insert(0, str(initialization_root))
-        from env_check.main import check_rag_embedding_api_result as probe
-
-    ok, _message = probe(project_root)
-    if ok:
-        print("[OK] RAG Embedding API is callable.")
-        return {"ok": True, "reminder": None}
-
-    print(RAG_UNCALLABLE_REMINDER)
-    return {"ok": False, "reminder": RAG_UNCALLABLE_REMINDER}
-
-
 def empty_report() -> dict[str, Any]:
     """Return a JSON-serializable report with unset optional sections."""
     return {
@@ -247,7 +214,6 @@ def empty_report() -> dict[str, Any]:
             "keys_present": False,
             "placeholders": True,
         },
-        "rag_embedding": {"ok": False, "reminder": None},
         "harness_clis": {"found": [], "ok": False},
         "mcp": {"ok": False, "query_rag_tools": [], "control_openlca_tools": []},
     }
@@ -258,7 +224,6 @@ def run_bootstrap(
     project_root: Path | None = None,
     which: WhichFn = shutil.which,
     run: RunFn = subprocess.run,
-    embedding_probe: EmbeddingProbeFn | None = None,
     mcp_probe: McpProbeFn | None = None,
     skip_sync: bool = False,
 ) -> tuple[int, dict[str, Any]]:
@@ -266,7 +231,7 @@ def run_bootstrap(
     Run bootstrap checks.
 
     Exit code 1 if uv is missing, sync fails, Python version is wrong, or MCP
-    import fails. Embedding failure is a warning and still returns 0.
+    import fails.
     """
     root = project_root or find_project_root()
     report = empty_report()
@@ -291,9 +256,6 @@ def run_bootstrap(
 
     env_status = ensure_env_file(root)
     report["env_file"] = env_status
-    report["rag_embedding"] = probe_rag_embedding(
-        root, env_status, embedding_probe=embedding_probe
-    )
     report["harness_clis"] = detect_harness_clis(which=which)
 
     mcp_fn = mcp_probe or probe_mcp_modules

@@ -4,19 +4,9 @@
   "instructions": [
     "harness/rules/directory-structure/README.md",
     "harness/rules/coding-specification/README.md",
-    "harness/rules/knowledge-retrieval/README.md"
+    "harness/rules/lca-knowledge/README.md"
   ],
   "mcp": {
-    "query_rag": {
-      "type": "local",
-      "command": [
-        "uv",
-        "run",
-        "python",
-        "harness/tools/query_rag/main.py"
-      ],
-      "enabled": true
-    },
     "control_openlca": {
       "type": "local",
       "command": [

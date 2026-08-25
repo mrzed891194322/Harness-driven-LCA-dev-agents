@@ -1,4 +1,4 @@
-"""Read and write GUI harness/RAG settings in the repository .env file."""
+"""Read and write GUI harness settings in the repository .env file."""
 
 from __future__ import annotations
 
@@ -11,22 +11,12 @@ from typing import Mapping
 HARNESS_AGENTS = ("codex", "claude", "opencode")
 DEFAULT_HARNESS_AGENT = "opencode"
 HARNESS_AGENT_KEY = "HARNESS_AGENT"
-EMBEDDING_API_KEY = "EMBEDDING_API_KEY"
-EMBEDDING_API_URL = "EMBEDDING_API_URL"
-EMBEDDING_MODEL = "EMBEDDING_MODEL"
 GUI_PORT_KEY = "GUI_PORT"
 OPENLCA_IPC_PORT_KEY = "OPENLCA_IPC_PORT"
 DEFAULT_GUI_PORT = 7860
 DEFAULT_OPENLCA_IPC_PORT = 8080
 MIN_PORT = 1
 MAX_PORT = 65535
-
-_PLACEHOLDER_VALUES = {
-    "your-api-key",
-    "your-api-url",
-    "your-embedding-model",
-    "sk-your-api-key-here",
-}
 
 
 def _project_root() -> Path:
@@ -172,7 +162,7 @@ def save_port_settings(
 
 
 def load_gui_settings(project_root: Path | None = None) -> dict[str, str | int]:
-    """Load Agent, Embedding, and port fields for the settings panel."""
+    """Load Agent and port fields for the settings panel."""
     root = project_root or _project_root()
     values = parse_env_file(root / ".env")
     agent = normalize_harness_agent(
@@ -181,9 +171,6 @@ def load_gui_settings(project_root: Path | None = None) -> dict[str, str | int]:
     ports = load_port_settings(root)
     return {
         "agent": agent,
-        "embedding_url": values.get(EMBEDDING_API_URL, ""),
-        "embedding_model": values.get(EMBEDDING_MODEL, ""),
-        "embedding_api_key": values.get(EMBEDDING_API_KEY, ""),
         "gui_port": ports["gui_port"],
         "openlca_ipc_port": ports["openlca_ipc_port"],
     }
@@ -191,41 +178,19 @@ def load_gui_settings(project_root: Path | None = None) -> dict[str, str | int]:
 
 def load_harness_agent(project_root: Path | None = None) -> str:
     """Return the persisted harness CLI used by GUI workflow launch."""
-    return load_gui_settings(project_root)["agent"]
+    return str(load_gui_settings(project_root)["agent"])
 
 
 def save_gui_settings(
     *,
     agent: object,
-    embedding_url: object = "",
-    embedding_model: object = "",
-    embedding_api_key: object = "",
     project_root: Path | None = None,
-) -> dict[str, str]:
-    """
-    Persist Agent and Embedding settings.
-
-    An empty API key field keeps the existing key so a blank password box cannot
-    wipe a previously saved secret.
-    """
+) -> dict[str, str | int]:
+    """Persist the selected harness Agent."""
     root = project_root or _project_root()
     env_path = ensure_env_path(root)
-    current = parse_env_file(env_path)
     selected = normalize_harness_agent(agent)
-    url = str(embedding_url or "").strip()
-    model = str(embedding_model or "").strip()
-    api_key = str(embedding_api_key or "").strip()
-    if not api_key:
-        api_key = current.get(EMBEDDING_API_KEY, "")
-
-    updates = {
-        HARNESS_AGENT_KEY: selected,
-        EMBEDDING_API_URL: url,
-        EMBEDDING_MODEL: model,
-    }
-    if api_key and api_key not in _PLACEHOLDER_VALUES:
-        updates[EMBEDDING_API_KEY] = api_key
-
+    updates = {HARNESS_AGENT_KEY: selected}
     upsert_env_keys(env_path, updates)
     _apply_environ(updates)
     return load_gui_settings(root)

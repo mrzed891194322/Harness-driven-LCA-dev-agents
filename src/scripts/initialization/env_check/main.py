@@ -153,7 +153,7 @@ def _selected_harness_agent(project_root: Path) -> str | None:
 
 def check_project_environment(project_root: Path | None = None) -> tuple[bool, str]:
     """
-    Check harness CLI and RAG embedding prerequisites.
+    Check harness CLI prerequisites.
 
     If `.env` sets `HARNESS_AGENT`, that CLI must be available. Otherwise any
     of Codex / Claude / OpenCode on PATH is enough.
@@ -174,11 +174,5 @@ def check_project_environment(project_root: Path | None = None) -> tuple[bool, s
         found = [name for name in SUPPORTED_HARNESS_CLIS if shutil.which(name)]
         if not found:
             return False, "未找到 codex / claude / opencode"
-
-    embedding_ok, embedding_message = check_rag_embedding_api_result(
-        project_root=project_root
-    )
-    if not embedding_ok:
-        return False, embedding_message
 
     return True, "可用"

@@ -2,8 +2,8 @@
 项目初始化脚本
 
 功能：
-    1. 检查所选 harness CLI（codex / claude / opencode）与 RAG embedding API 是否可用
-    2. 构建 RAG 知识库（依据映射规则将原始文档向量化写入 Chroma 数据库）
+    1. 检查所选 harness CLI（codex / claude / opencode）是否可用
+    2. 可选：构建遗留 RAG 知识库（仅 ``--only rag``；Agent 路径不使用）
     3. 检查 openLCA IPC Server 是否已启动并可连接，并在连接成功后清理项目对应的 openLCA 实体
 
 参考来源：
@@ -11,10 +11,10 @@
     - src/scripts/initialization/openlca_check
 
 使用方式：
-    # 手动模式（默认）：先清理目录并同步文件，再执行环境检查、RAG 构建与 openLCA 检查
+    # 手动模式（默认）：先清理目录，再执行环境检查与 openLCA 检查
     uv run python src/scripts/initialization/main.py
 
-    # GUI 模式：只执行环境检查、RAG 构建与 openLCA 检查
+    # GUI 模式：只执行环境检查与 openLCA 检查
     uv run python src/scripts/initialization/main.py --mode gui
 
     # 仅检查环境
@@ -66,7 +66,7 @@ def main():
     setup_io_encoding()
 
     parser = argparse.ArgumentParser(
-        description="项目初始化：检查环境 + 构建 RAG 知识库 + 检查 openLCA IPC 连接"
+        description="项目初始化：检查环境 + 检查 openLCA IPC 连接（RAG 仅 --only rag）"
     )
     parser.add_argument(
         "--only",
@@ -78,7 +78,7 @@ def main():
         "--mode",
         choices=["gui", "manual"],
         default="manual",
-        help="初始化模式：gui 仅执行初始化检查与构建；manual 会先执行目录清理和文件同步（默认 manual）",
+        help="初始化模式：gui 仅执行初始化检查与构建；manual 会先执行目录清理（默认 manual）",
     )
     parser.add_argument(
         "--host",
@@ -109,7 +109,7 @@ def main():
     args = parser.parse_args()
 
     run_env = args.only in (None, "env")
-    run_rag = args.only in (None, "rag")
+    run_rag = args.only == "rag"
     run_openlca = args.only in (None, "openlca")
 
     if args.only == "clean":
@@ -128,26 +128,17 @@ def main():
 
     if args.mode == "manual" and args.only is None:
         print("=" * 60)
-        print("Pre-step 1/2: Clean Directories")
+        print("Pre-step: Clean Directories")
         print("=" * 60)
         command = ["uv", "run", "python", "src/scripts/clean_dir/main.py", "-y"]
         print("Running:", " ".join(command))
         result = subprocess.run(command, cwd=str(PROJECT_ROOT), check=False)
         if result.returncode != 0:
-            raise RuntimeError(f"Pre-step 1/2: Clean Directories failed with exit code {result.returncode}")
-
-        print("=" * 60)
-        print("Pre-step 2/2: Sync Files")
-        print("=" * 60)
-        command = ["uv", "run", "python", "src/scripts/file_sync/main.py"]
-        print("Running:", " ".join(command))
-        result = subprocess.run(command, cwd=str(PROJECT_ROOT), check=False)
-        if result.returncode != 0:
-            raise RuntimeError(f"Pre-step 2/2: Sync Files failed with exit code {result.returncode}")
+            raise RuntimeError(f"Pre-step: Clean Directories failed with exit code {result.returncode}")
 
     if run_env:
         print("=" * 60)
-        print("Step 1/3: Check Environment")
+        print("Check Environment")
         print("=" * 60)
         env_ok, env_message = check_project_environment(project_root=PROJECT_ROOT)
         if not env_ok:
@@ -155,7 +146,7 @@ def main():
 
     if run_rag:
         print("=" * 60)
-        print("Step 2/3: Build RAG Knowledge Base")
+        print("Build RAG Knowledge Base (legacy)")
         print("=" * 60)
         mapping = DEFAULT_MAPPING
         if args.mapping:
@@ -169,7 +160,7 @@ def main():
 
     if run_openlca:
         print("=" * 60)
-        print("Step 3/3: Check openLCA IPC Server Connection")
+        print("Check openLCA IPC Server Connection")
         print("=" * 60)
         if not check_openlca(host=args.host, port=args.port):
             raise RuntimeError("openLCA IPC Server connection check failed")

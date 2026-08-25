@@ -8,7 +8,7 @@
       "additionalProperties": false,
       "required": ["type", "locator"],
       "properties": {
-        "type": {"enum": ["rag", "openlca", "user-file", "standard", "tool"]},
+        "type": {"enum": ["openlca", "user-file", "standard", "tool"]},
         "locator": {"type": "string", "minLength": 1},
         "tool": {"type": "string"},
         "note": {"type": "string"}

@@ -12,8 +12,7 @@ PROJECT_ROOT = next(
     if (parent / "pyproject.toml").is_file()
 )
 DEFAULT_REFERENCE_ROOTS = (
-    PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_ref" / "file",
-    PROJECT_ROOT / "harness" / "knowledge" / "inputs" / "user_ref" / "data",
+    PROJECT_ROOT / "harness" / "knowledge",
 )
 REFERENCE_CONTROL_FILES = {".gitignore", "readme.md"}
 FIELD_PATTERN = r"\*\*{label}\*\*\s*[:：]"

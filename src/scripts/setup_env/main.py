@@ -4,8 +4,7 @@ Environment bootstrap script.
 Checks:
     1. uv is on PATH (does not install it).
     2. uv sync, Python version, and .env template.
-    3. RAG Embedding API callability.
-    4. MCP module import and registered tool names.
+    3. MCP module import and registered tool names.
 
 Usage:
     uv run python src/scripts/setup_env/main.py
@@ -31,13 +30,7 @@ def main() -> int:
     print()
     print("=" * 60)
     if exit_code == 0:
-        if report["rag_embedding"]["ok"]:
-            print("Environment bootstrap passed.")
-        else:
-            print("Environment bootstrap passed with warnings.")
-            reminder = report["rag_embedding"].get("reminder")
-            if reminder:
-                print(reminder)
+        print("Environment bootstrap passed.")
     else:
         print("Environment bootstrap failed.")
         reminder = report["uv"].get("reminder")

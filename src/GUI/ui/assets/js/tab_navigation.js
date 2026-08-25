@@ -120,7 +120,6 @@ window.selectTerminalTab = () => selectRightTabByText('终端显示');
 const SETTINGS_SECTION_IDS = {
     init_check: 'settings-section-init-check',
     agent: 'settings-section-agent',
-    rag: 'settings-section-rag',
     developer: 'settings-section-developer',
 };
 
@@ -159,7 +158,6 @@ function bindSettingsSectionHandler(key) {
 
 window.guiSelectSettings_init_check = bindSettingsSectionHandler('init_check');
 window.guiSelectSettings_agent = bindSettingsSectionHandler('agent');
-window.guiSelectSettings_rag = bindSettingsSectionHandler('rag');
 window.guiSelectSettings_developer = bindSettingsSectionHandler('developer');
 
 window.guiOpenProjectMode = (...args) => {

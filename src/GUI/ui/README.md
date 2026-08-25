@@ -5,7 +5,7 @@
 ## 组件
 
 - `components/left_sidebar.py`：参考资料/数据上传区和快捷操作按钮。
-- `components/tab_initial.py`：设置&初始化（左侧文字目录、初始化检查、Agent 选择、RAG 配置、知识库构建、开发者选项）。
+- `components/tab_initial.py`：设置&初始化（左侧文字目录、初始化检查、Agent 选择、开发者选项）。
 - `components/tab_terminal.py`：终端输出、状态、清空和停止任务。
 - `components/render_mdfile.py`：所有文档型 Tab 共用的
   `MarkdownDocumentView`，统一构建左侧目录、右侧滚动正文、21/20 交替组件池、
@@ -18,7 +18,7 @@
 ## 事件绑定
 
 - `events/left_sidebar.py`：绑定侧栏“设置&初始化”，按需显示并切换到设置 Tab，同时回填 `.env`。
-- `events/tab_initial.py`：绑定设置保存、初始化检查、单项 Agent/RAG 探测和 RAG 构建。
+- `events/tab_initial.py`：绑定设置保存、初始化检查、单项 Agent 探测，以及把上传文件写入 `harness/knowledge/`。
 - `events/tab_terminal.py`：绑定日志清空和任务停止。
 - `events/tab_plan.py`：每次打开时重载默认模板，上传成功后只替换暂存文档及当前
   Markdown 片段/目录/字段状态，上传失败不改变页面，并维护执行门禁。

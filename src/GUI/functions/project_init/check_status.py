@@ -1,7 +1,7 @@
 """
 项目初始化状态检测模块
 
-提供 AI Agent、RAG Embedding、openLCA 与知识库四项探测，以及执行门禁。
+提供 AI Agent 与 openLCA 两项探测，以及执行门禁。
 """
 
 from __future__ import annotations
@@ -9,9 +9,7 @@ from __future__ import annotations
 
 INIT_CHECK_LABELS = (
     "AI Agent 工具",
-    "RAG 模型",
     "OpenLCA",
-    "知识库构建",
 )
 
 
@@ -27,17 +25,6 @@ def _format_agent_message(agent: str, detail: str) -> str:
     return f"{agent} · {detail}"
 
 
-def _format_model_message(model: str, detail: str) -> str:
-    label = model.strip() or "未配置"
-    return f"{label} · {detail}"
-
-
-def _load_embedding_model() -> str:
-    from functions.project_init.settings import load_gui_settings
-
-    return str(load_gui_settings().get("embedding_model", "")).strip()
-
-
 def _load_openlca_endpoint() -> tuple[str, int]:
     from functions.project_init.settings import load_port_settings
 
@@ -45,9 +32,6 @@ def _load_openlca_endpoint() -> tuple[str, int]:
     return "127.0.0.1", ports["openlca_ipc_port"]
 
 
-# ---------------------------------------------------------------------------
-# 子函数 1：AI Agent CLI
-# ---------------------------------------------------------------------------
 def check_agent_result(agent: str | None = None) -> tuple[bool, str]:
     """
     检测当前选中的 harness CLI 是否可用。
@@ -86,36 +70,6 @@ def check_env_status() -> str:
     return check_agent_result()[1]
 
 
-# ---------------------------------------------------------------------------
-# 子函数 2：RAG Embedding 连通
-# ---------------------------------------------------------------------------
-def check_rag_result() -> tuple[bool, str]:
-    """探测 Embedding API，不暴露密钥或长异常文本。"""
-    model = _load_embedding_model()
-    try:
-        import config
-        from scripts.initialization.env_check import check_rag_embedding_api_result
-
-        ok, message = check_rag_embedding_api_result(
-            project_root=config.PROJECT_ROOT
-        )
-        if ok:
-            return True, _format_model_message(model, "可用")
-        lowered = message.lower()
-        if "配置无效" in message or "please set" in lowered or "placeholder" in lowered:
-            return False, _format_model_message(model, "未配置")
-        return False, _format_model_message(model, "连接失败")
-    except Exception:
-        return False, _format_model_message(model, "连接失败")
-
-
-def check_rag_status() -> str:
-    return check_rag_result()[1]
-
-
-# ---------------------------------------------------------------------------
-# 子函数 3：openLCA 连接状态
-# ---------------------------------------------------------------------------
 def check_openlca_result(
     host: str | None = None,
     port: int | None = None,
@@ -144,36 +98,13 @@ def check_openlca_status(host: str | None = None, port: int | None = None) -> st
     return check_openlca_result(host=host, port=port)[1]
 
 
-# ---------------------------------------------------------------------------
-# 子函数 4：知识库是否已构建
-# ---------------------------------------------------------------------------
-def check_knowledge_base_result() -> tuple[bool, str]:
-    """探测已映射的 RAG 知识库是否存在且可打开，不重建、不调用 Embedding。"""
-    try:
-        import config
-        from scripts.initialization.rag_init.check import check_rag_knowledge_base
-
-        ok, message = check_rag_knowledge_base(project_root=config.PROJECT_ROOT)
-        if ok:
-            return True, "可用"
-        return False, "未通过"
-    except Exception:
-        return False, "未通过"
-
-
-def check_knowledge_base_status() -> str:
-    return check_knowledge_base_result()[1]
-
-
 def collect_initialization_statuses(
     agent: str | None = None,
 ) -> list[tuple[str, bool, str]]:
-    """依次探测四项初始化条件，返回 (label, ok, message) 列表。"""
+    """依次探测初始化条件，返回 (label, ok, message) 列表。"""
     probes = (
         (INIT_CHECK_LABELS[0], lambda: check_agent_result(agent)),
-        (INIT_CHECK_LABELS[1], check_rag_result),
-        (INIT_CHECK_LABELS[2], check_openlca_result),
-        (INIT_CHECK_LABELS[3], check_knowledge_base_result),
+        (INIT_CHECK_LABELS[1], check_openlca_result),
     )
     return [(label, ok, message) for label, probe in probes for ok, message in [probe()]]
 
@@ -182,7 +113,7 @@ def run_initialization_checks(
     agent: str | None = None,
 ) -> tuple[bool, list[str]]:
     """
-    依次探测四项初始化条件，不因单项失败中断。
+    依次探测初始化条件，不因单项失败中断。
 
     Returns:
         (all_ok, failed_labels)

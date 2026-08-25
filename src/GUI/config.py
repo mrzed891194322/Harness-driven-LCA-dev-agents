@@ -36,13 +36,11 @@ GUI_MONO_FONT_FAMILY = (
 
 # -----------------------------------------------------------------------------
 # workspace 基础目录
-# 输入目录保存计划和上传资料；记忆目录保存工作流证据；输出目录保存结果；
-# 参考资料和报告目录是后续配置共用的派生基路径。
+# 输入目录保存计划和修订意见；记忆目录保存工作流证据；输出目录保存结果。
 # -----------------------------------------------------------------------------
 WORKSPACE_INPUTS = PROJECT_ROOT / "workspace" / "inputs"
 WORKSPACE_MEMORY = PROJECT_ROOT / "workspace" / "memory"
 WORKSPACE_OUTPUTS = PROJECT_ROOT / "workspace" / "outputs"
-REFERENCE_INPUTS = WORKSPACE_INPUTS / "references"
 REPORTS_DIR = WORKSPACE_OUTPUTS / "reports"
 
 # -----------------------------------------------------------------------------
@@ -89,17 +87,16 @@ CALCULATION_MANIFEST_PATH = REPORTS_DIR / "calculation_manifest.json"
 
 # -----------------------------------------------------------------------------
 # 用户上传目录
-# 文件目录接收文档类参考资料；数据目录接收结构化参考数据。项目初始化时，
-# 两类资料都会通过同步脚本送入知识库输入目录。
+# 参考资料与参考数据都写入 harness/knowledge/（扁平目录，唯一落点）。
 # -----------------------------------------------------------------------------
-USER_FILE_DIR = REFERENCE_INPUTS / "file"
-USER_DATA_DIR = REFERENCE_INPUTS / "data"
+KNOWLEDGE_DIR = PROJECT_ROOT / "harness" / "knowledge"
+USER_FILE_DIR = KNOWLEDGE_DIR
+USER_DATA_DIR = KNOWLEDGE_DIR
 
 # -----------------------------------------------------------------------------
 # 项目维护脚本
-# 分别用于清理 workspace、同步用户资料，以及执行项目/RAG 初始化。
+# 分别用于清理 workspace，以及执行项目初始化。
 # openLCA 健康检查直接导入 scripts.initialization.openlca_check，无需路径常量。
 # -----------------------------------------------------------------------------
 CLEAN_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "clean_dir" / "main.py"
-FILE_SYNC_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "file_sync" / "main.py"
 INIT_RAG_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "initialization" / "main.py"

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import gradio as gr
 
 from functions.project_init.settings import load_gui_settings
@@ -6,16 +8,14 @@ from functions.project_init.settings import load_gui_settings
 SETTINGS_NAV_ITEMS = (
     ("init_check", "初始化检查"),
     ("agent", "- 设置 AI Agent 工具"),
-    ("rag", "- 设置RAG知识库"),
     ("developer", "开发者选项"),
 )
 
-# (init_check, agent, rag, developer)
+# (init_check, agent, developer)
 SETTINGS_SECTION_VISIBILITY = {
-    "init_check": (True, False, False, False),
-    "agent": (False, True, False, False),
-    "rag": (False, False, True, False),
-    "developer": (False, False, False, True),
+    "init_check": (True, False, False),
+    "agent": (False, True, False),
+    "developer": (False, False, True),
 }
 
 DEFAULT_SETTINGS_NAV = "init_check"
@@ -25,9 +25,7 @@ PENDING_INIT_STATUS = "待检查"
 
 INIT_CHECK_STATUS_ITEMS = (
     ("status-card-env", "AI Agent 工具"),
-    ("status-card-rag", "RAG 模型"),
     ("status-card-openlca", "OpenLCA"),
-    ("status-card-clean", "知识库构建"),
 )
 
 
@@ -101,13 +99,11 @@ def _bind_settings_nav(
     nav_buttons: list[gr.Button],
     init_check_section: gr.Column,
     agent_section: gr.Column,
-    rag_section: gr.Column,
     developer_section: gr.Column,
 ) -> None:
     outputs = [
         init_check_section,
         agent_section,
-        rag_section,
         developer_section,
         *nav_buttons,
     ]
@@ -241,57 +237,8 @@ def build_tab_initial() -> tuple:
                                 )
 
                             with gr.Column(
-                                elem_id="settings-section-rag",
-                                elem_classes=settings_section_classes(default_visibility[2]),
-                            ) as rag_section:
-                                gr.Markdown(
-                                    "设置RAG模型",
-                                    elem_classes=["project-init-section-label"],
-                                )
-                                with gr.Column(
-                                    elem_id="settings-rag-fields",
-                                    elem_classes=["settings-section-fields"],
-                                ):
-                                    rag_url = gr.Textbox(
-                                        label="URL",
-                                        value=settings["embedding_url"],
-                                        elem_id="settings-rag-url",
-                                    )
-                                    rag_model = gr.Textbox(
-                                        label="模型",
-                                        value=settings["embedding_model"],
-                                        elem_id="settings-rag-model",
-                                    )
-                                    rag_api_key = gr.Textbox(
-                                        label="API Key",
-                                        value=settings["embedding_api_key"],
-                                        type="password",
-                                        elem_id="settings-rag-api-key",
-                                    )
-                                rag_check_btn = gr.Button(
-                                    "保存并检查可用性",
-                                    variant="secondary",
-                                    elem_id="settings-rag-check-btn",
-                                )
-                                gr.Markdown(
-                                    "构建RAG知识库",
-                                    elem_classes=[
-                                        "project-init-section-label",
-                                        "settings-rag-build-heading",
-                                    ],
-                                )
-                                gr.Markdown(
-                                    "参考资料准备好后，可点击下方按钮清理目录并构建知识库。"
-                                )
-                                rag_btn = gr.Button(
-                                    "构建知识库",
-                                    variant="primary",
-                                    elem_id="settings-rag-build-btn",
-                                )
-
-                            with gr.Column(
                                 elem_id="settings-section-developer",
-                                elem_classes=settings_section_classes(default_visibility[3]),
+                                elem_classes=settings_section_classes(default_visibility[2]),
                             ) as developer_section:
                                 gr.Markdown(
                                     "开发者选项",
@@ -331,7 +278,6 @@ def build_tab_initial() -> tuple:
             nav_buttons,
             init_check_section,
             agent_section,
-            rag_section,
             developer_section,
         )
 
@@ -341,11 +287,6 @@ def build_tab_initial() -> tuple:
         *init_check_status_values,
         agent_radio,
         agent_check_btn,
-        rag_url,
-        rag_model,
-        rag_api_key,
-        rag_check_btn,
-        rag_btn,
         dev_gui_port,
         dev_openlca_port,
         dev_ports_save_btn,

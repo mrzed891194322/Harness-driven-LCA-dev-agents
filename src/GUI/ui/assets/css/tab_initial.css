@@ -235,12 +235,6 @@
     --project-init-accent-text: #334155;
 }
 
-.status-card-rag {
-    --project-init-accent: #4f46e5;
-    --project-init-accent-soft: #eef2ff;
-    --project-init-accent-text: #4338ca;
-}
-
 .status-card-openlca {
     --project-init-accent: #0ea5e9;
     --project-init-accent-soft: #e0f2fe;
@@ -406,24 +400,6 @@
     flex-wrap: wrap !important;
     gap: 8px 18px !important;
     justify-content: flex-start !important;
-}
-
-#settings-rag-fields label,
-#settings-rag-url label,
-#settings-rag-model label,
-#settings-rag-api-key label {
-    color: #475569 !important;
-    font-weight: 650 !important;
-}
-
-.settings-rag-build-heading,
-.settings-rag-build-heading > .styler,
-.settings-rag-build-heading .prose {
-    margin-top: 16px !important;
-}
-
-.settings-rag-build-heading p {
-    margin-top: 0 !important;
 }
 
 .init-check-status-list {

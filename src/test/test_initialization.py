@@ -35,9 +35,16 @@ class InitializationStatusTests(unittest.TestCase):
 
     def test_embedding_probe_imports_in_gui_context(self) -> None:
         collection = Mock()
-        with patch(
-            "rag_init.private_utils.db.init_chroma_collection",
-            return_value=collection,
+        config = Mock(model="test-model")
+        with (
+            patch(
+                "rag_init.private_utils.embedding.load_embedding_config",
+                return_value=config,
+            ),
+            patch(
+                "rag_init.private_utils.db.init_chroma_collection",
+                return_value=collection,
+            ),
         ):
             self.assertTrue(check_rag_embedding_api(project_root=PROJECT_ROOT))
         collection.add.assert_called_once()
@@ -56,16 +63,8 @@ class InitializationStatusTests(unittest.TestCase):
                 return_value=(True, "可用"),
             ),
             patch(
-                "GUI.functions.project_init.check_status.check_rag_result",
-                return_value=(True, "可用"),
-            ),
-            patch(
                 "GUI.functions.project_init.check_status.check_openlca_result",
                 return_value=(False, "不可用"),
-            ),
-            patch(
-                "GUI.functions.project_init.check_status.check_knowledge_base_result",
-                return_value=(True, "可用"),
             ),
         ):
             ok, failed = run_initialization_checks()

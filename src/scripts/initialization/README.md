@@ -1,8 +1,10 @@
 # 项目初始化脚本
 
-`src/scripts/initialization` 负责环境检查、RAG 知识库构建以及 openLCA IPC 连接检查。
+`src/scripts/initialization` 负责环境检查与 openLCA IPC 连接检查。Whole-LCA / Revise-LCA **不使用 RAG**；遗留构建器仍可通过 `--only rag` 调用。
 
-## RAG 构建保证
+## RAG 构建（遗留）
+
+Agent 路径不读取向量库。`--only rag` 仍调用 `rag_init`，映射输入目录指向已删除的 `harness/knowledge/inputs/` 树，属已知遗留，待后续初始化流程更新。Embedding 密钥写在 `harness/tools/query_rag/.env`；构建脚本仍可能读取仓库根 `.env`。
 
 RAG 构建采用 staged publish：
 
@@ -14,7 +16,7 @@ RAG 构建采用 staged publish：
 
 文档转换副本存放在数据库内部的 markdown 目录，不会在源资料目录生成或覆盖同名 Markdown。通用 clean 流程也不会提前删除活动 RAG 数据库。
 
-## 默认知识库
+## 默认知识库映射（遗留，见 mapping_rules.py）
 
 | library | 输入目录 | 输出目录 | 说明 |
 | :--- | :--- | :--- | :--- |
@@ -41,7 +43,7 @@ HARNESS_AGENT="opencode"  # 可选：codex / claude / opencode
 在项目根目录执行：
 
 ~~~bash
-# 完整初始化
+# 完整初始化（清理 + 环境检查 + openLCA；不构建 RAG）
 uv run python src/scripts/initialization/main.py
 
 # GUI 调用模式

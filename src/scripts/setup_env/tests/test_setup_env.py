@@ -11,11 +11,7 @@ if str(SETUP_ENV_DIR) not in sys.path:
     sys.path.insert(0, str(SETUP_ENV_DIR))
 
 from utils.bootstrap import run_bootstrap
-from utils.constants import (
-    RAG_UNCALLABLE_REMINDER,
-    RAG_UNCONFIGURED_REMINDER,
-    UV_MISSING_REMINDER,
-)
+from utils.constants import UV_MISSING_REMINDER
 
 
 def _ok_mcp(_root: Path) -> dict:
@@ -53,16 +49,13 @@ class SetupEnvBootstrapTests(unittest.TestCase):
         self.assertEqual(report["uv"]["reminder"], UV_MISSING_REMINDER)
         self.assertEqual(calls, [])
 
-    def test_placeholder_env_warns_with_fixed_reminder(self) -> None:
+    def test_missing_env_is_copied_from_example(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            example = (
-                'EMBEDDING_API_KEY="your-api-key"\n'
-                'EMBEDDING_API_URL="your-api-url"\n'
-                'EMBEDDING_MODEL="your-embedding-model"\n'
+            (root / ".env.example").write_text(
+                'HARNESS_AGENT="opencode"\n',
+                encoding="utf-8",
             )
-            (root / ".env.example").write_text(example, encoding="utf-8")
-            (root / ".env").write_text(example, encoding="utf-8")
             code, report = run_bootstrap(
                 project_root=root,
                 which=_which_uv_only,
@@ -72,35 +65,8 @@ class SetupEnvBootstrapTests(unittest.TestCase):
             )
         self.assertEqual(code, 0)
         self.assertTrue(report["ok"])
-        self.assertFalse(report["rag_embedding"]["ok"])
-        self.assertEqual(
-            report["rag_embedding"]["reminder"], RAG_UNCONFIGURED_REMINDER
-        )
-
-    def test_embedding_probe_failure_uses_uncallable_reminder(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            (root / ".env").write_text(
-                'EMBEDDING_API_KEY="sk-live"\n'
-                'EMBEDDING_API_URL="https://example.com/v1"\n'
-                'EMBEDDING_MODEL="text-embedding"\n',
-                encoding="utf-8",
-            )
-
-            def fail_probe(_project_root: Path) -> tuple[bool, str]:
-                return False, "secret-should-not-leak"
-
-            code, report = run_bootstrap(
-                project_root=root,
-                which=_which_uv_only,
-                run=_run_uv_ok,
-                skip_sync=True,
-                embedding_probe=fail_probe,
-                mcp_probe=_ok_mcp,
-            )
-        self.assertEqual(code, 0)
-        self.assertFalse(report["rag_embedding"]["ok"])
-        self.assertEqual(report["rag_embedding"]["reminder"], RAG_UNCALLABLE_REMINDER)
+        self.assertTrue(report["env_file"]["created"])
+        self.assertNotIn("rag_embedding", report)
 
     def test_success_path_does_not_call_install_commands(self) -> None:
         commands: list[list[str]] = []
@@ -111,26 +77,17 @@ class SetupEnvBootstrapTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            (root / ".env").write_text(
-                'EMBEDDING_API_KEY="sk-live"\n'
-                'EMBEDDING_API_URL="https://example.com/v1"\n'
-                'EMBEDDING_MODEL="text-embedding"\n',
-                encoding="utf-8",
-            )
-
-            def ok_probe(_project_root: Path) -> tuple[bool, str]:
-                return True, "ok"
+            (root / ".env").write_text('HARNESS_AGENT="opencode"\n', encoding="utf-8")
 
             code, report = run_bootstrap(
                 project_root=root,
                 which=_which_uv_only,
                 run=fake_run,
                 skip_sync=True,
-                embedding_probe=ok_probe,
                 mcp_probe=_ok_mcp,
             )
         self.assertEqual(code, 0)
-        self.assertTrue(report["rag_embedding"]["ok"])
+        self.assertTrue(report["ok"])
         flattened = " ".join(" ".join(cmd) for cmd in commands)
         self.assertNotIn("curl", flattened)
         self.assertNotIn("pip install uv", flattened)

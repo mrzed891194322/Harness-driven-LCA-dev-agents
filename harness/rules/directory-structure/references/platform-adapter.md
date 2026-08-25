@@ -16,12 +16,11 @@
 
 ## MCP 接线（实现不复制）
 
-各平台 config 的 command 必须包含：
+各平台 config 当前只注册：
 
-- `harness/tools/query_rag/main.py`
 - `harness/tools/control_openlca/main.py`
 
-推荐启动方式：`uv run python harness/tools/<server>/main.py`。
+`harness/tools/query_rag/main.py` 实现保留，但**不**写入 `.opencode/`、`.codex/`、`.claude/` 或 `.mcp.json`。推荐启动方式：`uv run python harness/tools/<server>/main.py`。
 
 | 平台 | 配置位置 |
 | --- | --- |
@@ -31,9 +30,10 @@
 
 禁止：
 
-- 在 `.opencode/`、`.codex/`、`.claude/` 再实现一套 query_rag / control_openlca
+- 在 `.opencode/`、`.codex/`、`.claude/` 再实现一套 control_openlca / query_rag
 - 新增 `harness/tools/mcp.json` 当平台只能翻译的总目录
 - 把 `harness/workflows/` 七阶段正文复制进 agent
+- 把未接入工作流的 `query_rag` 重新写进 agent config（除非后续初始化流程明确注册）
 
 ## Agent / command 分层
 

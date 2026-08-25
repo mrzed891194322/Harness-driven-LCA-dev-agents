@@ -19,7 +19,7 @@ class GuiConfigurationTests(unittest.TestCase):
             config.PLAN_INPUT_TEMPLATE_PATH,
             config.REVISE_TEMPLATE_PATH,
             config.CLEAN_SCRIPT_PATH,
-            config.FILE_SYNC_SCRIPT_PATH,
+            config.KNOWLEDGE_DIR,
             config.INIT_RAG_SCRIPT_PATH,
         )
         for path in expected_paths:
@@ -45,16 +45,16 @@ class SettingsNavTests(unittest.TestCase):
             settings_section_classes,
         )
 
-        self.assertEqual(len(SETTINGS_SECTION_VISIBILITY[DEFAULT_SETTINGS_NAV]), 4)
+        self.assertEqual(len(SETTINGS_SECTION_VISIBILITY[DEFAULT_SETTINGS_NAV]), 3)
         self.assertEqual(
             set(SETTINGS_SECTION_VISIBILITY),
             {key for key, _label in SETTINGS_NAV_ITEMS},
         )
         updates = apply_settings_nav("init_check")
-        self.assertEqual(len(updates), 4)
+        self.assertEqual(len(updates), 3)
         unknown = apply_settings_nav("missing")
-        self.assertEqual(len(unknown), 4)
-        self.assertEqual(len(apply_settings_nav_ui("agent")), 8)
+        self.assertEqual(len(unknown), 3)
+        self.assertEqual(len(apply_settings_nav_ui("agent")), 6)
         self.assertEqual(settings_section_classes(True), ["settings-section"])
         self.assertEqual(
             settings_section_classes(False),

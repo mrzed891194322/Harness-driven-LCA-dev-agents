@@ -23,7 +23,11 @@ logs/
 uv.lock
 
 #
-.cursor/
+.cursor/*
+!.cursor/skills/
+.cursor/skills/*
+!.cursor/skills/bootstrap-env/
+!.cursor/skills/bootstrap-env/**
 
 # dev: AI agents
 .codex/*
@@ -39,8 +43,6 @@ uv.lock
 .codex/skills/*
 !.codex/skills/bootstrap-env/
 !.codex/skills/bootstrap-env/**
-!.codex/skills/read-knowledge/
-!.codex/skills/read-knowledge/**
 !.codex/skills/whole-lca/
 !.codex/skills/whole-lca/**
 !.codex/skills/revise-lca/

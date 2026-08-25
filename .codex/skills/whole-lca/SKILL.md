@@ -12,17 +12,16 @@ description: 通过分阶段的计划接收、证据检索、最多三次 LCI �
 1. 执行下列脚本清理 openLCA 与 workspace 生成文件（如有）：
    `uv run python harness/tools/control_openlca/cleanup_output/main.py --yes`
    `uv run python src/scripts/clean_dir/main.py --yes --target workspace_without_inputs`
-2. 在读取计划之前，运行 `uv run python src/scripts/file_sync/main.py --direction upload-to-work`，将参考资料同步到 harness 知识源。当环境需要时，可使用可写的临时 uv 缓存。
-3. 仅使用 `workspace/inputs/plan.md` 作为计划输入。当前 `codex exec` 会话即担任 `major-orchestrator`：先读取 `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行 `harness/workflows/LCA-main.md`。不要再 spawn 另一个 `major-orchestrator`。
-4. 只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明当前阶段、被委派角色、输入产物路径和等待原因；子 Agent 返回后立即摘要结论与产物，不要用空的 Wait 心跳代替阶段进展。
+2. 仅使用 `workspace/inputs/plan.md` 作为计划输入。当前 `codex exec` 会话即担任 `major-orchestrator`：先读取 `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行 `harness/workflows/LCA-main.md`。不要再 spawn 另一个 `major-orchestrator`。
+3. 只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明当前阶段、被委派角色、输入产物路径和等待原因；子 Agent 返回后立即摘要结论与产物，不要用空的 Wait 心跳代替阶段进展。
 
 ## Codex 运行时补充
 
-- 知识检索与 openLCA 规则在 Codex 中均不全局加载；按 workflow 条件读取 `harness/rules/knowledge-retrieval/README.md` 与 `harness/rules/openlca-operation/README.md`。
+- LCA 知识与 openLCA 规则在 Codex 中均不全局加载；按 workflow 条件读取 `harness/rules/lca-knowledge/README.md` 与 `harness/rules/openlca-operation/README.md`。
 - `major-orchestrator` 仅可生成 `sub-executor` 和 `eval-reviewer`，等待其返回并按 workflow 持久化证据。
 - 如果返回 `failed`，保留已记录状态并报告 `status_reason` 与确切问题。终止只有 `completed` 和 `failed`。
 - 运行启动即授权在当前预检范围完全一致时执行导入；预检通过后立即继续第 06 阶段，不得请求额外确认。
-- 工作流产物保存在 `workspace/memory/`、`workspace/outputs/LCI/` 和 `workspace/outputs/reports/`；返回后不执行反向文件同步。
+- 工作流产物保存在 `workspace/memory/`、`workspace/outputs/LCI/` 和 `workspace/outputs/reports/`。
 
 ## 禁止
 

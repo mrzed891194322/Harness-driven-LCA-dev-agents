@@ -12,7 +12,7 @@ def main(
     """
     整合项目初始化的三个步骤：
     1. 调用 clean_dir 清理项目
-    2. 将文件交换区上传的文件同步到 harness/knowledge/inputs/user_ref/file 和 user_ref/data
+    2. 将文件交换区上传的文件写入 harness/knowledge
     3. 调用 src/scripts/initialization
     """
     project_root = find_project_root(Path(__file__))
@@ -44,7 +44,7 @@ def main(
         yield accumulated_output, "Failed"
         return
  
-    # 步骤 2：将上传文件同步到 user_ref/file 与 user_ref/data
+    # 步骤 2：将上传文件写入 harness/knowledge
     accumulated_output += "\n"
     yield accumulated_output + "[System] Step 2/3: Copying uploaded files to target directories...\n", "Running"
     for chunk in copy_uploaded_files(ref_materials, ref_data, project_root):

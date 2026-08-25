@@ -4,20 +4,10 @@ model_reasoning_effort = "high"
 developer_instructions = """
 Codex 在本仓库只作为 LCA 编排 agent，不负责项目开发。
 - 开始工作前读取并遵守 `.codex/AGENTS.md`。
-- 只执行匹配的项目 skill：`$bootstrap-env`、`$whole-lca`、`$revise-lca`、`$read-knowledge`。
+- 只执行匹配的项目 skill：`$bootstrap-env`、`$whole-lca`、`$revise-lca`。
 - 不要修改、审查、调试或重构 harness、GUI、脚本或其他 tracked 源码。
 - 项目开发由 Cursor 负责。
 """
-
-[mcp_servers.query_rag]
-command = "uv"
-args = ["run", "python", "harness/tools/query_rag/main.py"]
-cwd = "."
-enabled = true
-enabled_tools = ["list_rag_libraries", "query_rag"]
-startup_timeout_sec = 30
-tool_timeout_sec = 120
-default_tools_approval_mode = "auto"
 
 [mcp_servers.control_openlca]
 command = "uv"

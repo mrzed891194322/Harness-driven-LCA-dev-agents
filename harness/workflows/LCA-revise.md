@@ -19,8 +19,8 @@
    允许输出、`REV-*`/issue ID 或 `import_scope`。子 Agent 不得扫描其他阶段。
 5. 进入 02–07 的某阶段时才读取该阶段 README/spec，完成并持久化后不预读下一阶段。
 
-OpenCode 已全局加载知识检索规则；Codex 仅在当前检索或审查需要时加载
-`harness/rules/knowledge-retrieval/README.md`。两平台都只有实际调用 openLCA
+OpenCode 已全局加载 LCA 知识规则；Codex 仅在当前检索或审查需要时加载
+`harness/rules/lca-knowledge/README.md`。两平台都只有实际调用 openLCA
 MCP 时才读取 `harness/rules/openlca-operation/README.md`。
 
 ## 01 修订基线与计划门禁

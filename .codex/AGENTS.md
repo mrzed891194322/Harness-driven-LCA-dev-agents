@@ -4,10 +4,9 @@
 
 ## 允许的任务
 
-- `$bootstrap-env`：检查运行环境（uv、依赖、`.env` Embedding、MCP）。没有 uv 时请用户手动安装，禁止代装。不要启动 whole-lca。
+- `$bootstrap-env`：检查运行环境（uv、依赖、`.env`、MCP）。没有 uv 时请用户手动安装，禁止代装。不要启动 whole-lca。
 - `$whole-lca`：执行 `harness/workflows/LCA-main.md`。
 - `$revise-lca`：执行 `harness/workflows/LCA-revise.md`。
-- `$read-knowledge`：检索知识库；不要改知识源或 harness。
 
 编排步骤只在 `harness/workflows/`。MCP 实现只在 `harness/tools/`。不要把 workflow 正文复制进 skill。正式 CLI 入口见仓库根目录 `AGENTS.md` 的 `codex exec` 一行命令。
 

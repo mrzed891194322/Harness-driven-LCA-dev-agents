@@ -8,15 +8,14 @@
 - 文件为 Markdown；YAML front matter 可省略。若文件包含 front matter，
   不以 `template_kind`、`template_version` 或其他 metadata 作为格式门禁。
 - Markdown 的章节数量、标题文字和排序不作为格式门禁；计划可使用 GUI 默认模板（包括 `PLAN_TEXTBOX` 包裹的旧“用户填写内容区”）、带 `PLAN_INPUT` 标记的上传模板，或不含输入标记的普通 Markdown。审查必须依据下节的语义内容，而不能依赖固定六章标题。
-- 计划中引用的参考文档，Agent 应主动在 `harness/knowledge/inputs/user_ref/file/` 和 `harness/knowledge/inputs/user_ref/data/` 中按文件名关键词匹配查找。用户可写完整路径、相对路径、文件名、简称，或旧前缀 `user_file` / `user_data`；Agent 负责解析和定位，不因路径格式、目录前缀或是否使用现行 `user_ref` 路径而阻断。
+- 计划中引用的参考文档，Agent 应主动在 `harness/knowledge/` 中按文件名关键词匹配查找。用户可写完整路径、相对路径、文件名或简称；Agent 负责解析和定位，不因路径格式而阻断。
 - 计划审查前必须运行本阶段 `validation.py`，并把完整结果（包括
   `reference_inventory.roots` 和 `reference_inventory.files`）作为请求 handoff 的证据交给
   reviewer。inventory 必须使用不受 `.gitignore` 影响的文件系统遍历；不得用默认遵循
   ignore 规则的文件列表替代。
-- reviewer 对用户资料作“不存在”结论前，必须给出覆盖上述两个固定根目录的 inventory
-  负向结果，或状态为 `complete` 的 `input`/`data` RAG 负向查询证据。仅因某次目录枚举、
-  默认文件搜索或 Git 列表未返回文件，不得创建 `PLAN-REFERENCE-NOT-LOCATED` 或将审查置为
-  `failed`。
+- reviewer 对用户资料作“不存在”结论前，必须给出覆盖 `harness/knowledge/` 的 inventory
+  负向结果。仅因某次目录枚举、默认文件搜索或 Git 列表未返回文件，不得创建
+  `PLAN-REFERENCE-NOT-LOCATED` 或将审查置为 `failed`。
 
 ## 2. 阻断性信息
 
@@ -39,7 +38,7 @@
 
 审查员在 `review.retrievable_gaps` 中为检索任务分配稳定 ID，格式为 `GAP-<大写字母或数字及连字符>`。优先沿用计划中已出现的 `GAP-*`；否则按任务铸造，常用 ID 为：
 
-- `GAP-USER-REF-EXTRACT`：从用户资料或 RAG 提取已给定数据；
+- `GAP-USER-REF-EXTRACT`：从 `harness/knowledge/` 用户资料提取已给定数据；
 - `GAP-OPENLCA-BACKGROUND`：在活动数据库中匹配背景实体；
 - `GAP-LCIA-METHOD`：在活动数据库中定位 LCIA 方法。
 
