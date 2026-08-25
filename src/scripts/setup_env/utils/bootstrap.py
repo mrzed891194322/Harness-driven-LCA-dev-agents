@@ -159,12 +159,32 @@ def detect_harness_clis(which: WhichFn = shutil.which) -> dict[str, Any]:
     return {"found": found, "ok": bool(found)}
 
 
+def _purge_utils_modules() -> dict[str, Any]:
+    """Pop any cached top-level ``utils`` package and return the removed entries."""
+    removed: dict[str, Any] = {}
+    for key in [k for k in sys.modules if k == "utils" or k.startswith("utils.")]:
+        removed[key] = sys.modules.pop(key)
+    return removed
+
+
 def _load_module(path: Path, name: str) -> Any:
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load {path}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Each MCP tool main inserts its own directory at sys.path[0] and imports a
+    # top-level ``utils`` package. Several packages in this repo (setup_env,
+    # query_rag, control_openlca) share that name, so a previously cached
+    # ``utils`` would shadow the tool's package and break the import. Isolate
+    # sys.path and the ``utils`` namespace around each in-process load.
+    saved_path = list(sys.path)
+    saved_utils = _purge_utils_modules()
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        _purge_utils_modules()
+        sys.modules.update(saved_utils)
+        sys.path[:] = saved_path
     return module
 
 
