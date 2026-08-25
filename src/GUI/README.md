@@ -84,7 +84,7 @@ GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界
 ## 开发约定
 
 - 外部路径必须通过 `config.py` 配置；Tab 展示用 Markdown 使用项目根目录
-  相对路径集中声明，当前脚本路径位于 `src/scripts/`。
+  相对路径集中声明。
 - LCA 状态必须读取结构化 manifest；不得仅凭命令退出码或终端文本宣称完成。
 - 用户上传文件直接写入 `harness/knowledge/`。
 - 修改 GUI 代码后，必须从仓库根目录运行 `src/test` 回归（GUI 为路径与

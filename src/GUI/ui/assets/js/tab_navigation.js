@@ -117,49 +117,6 @@ window.selectImprovementTab = () => selectRightTabByText('LCA评估修改面板(
 window.selectLciMappingTab = () => selectRightTabByText('LCI清单');
 window.selectTerminalTab = () => selectRightTabByText('终端显示');
 
-const SETTINGS_SECTION_IDS = {
-    init_check: 'settings-section-init-check',
-    agent: 'settings-section-agent',
-    developer: 'settings-section-developer',
-};
-
-function applySettingsSection(key) {
-    Object.entries(SETTINGS_SECTION_IDS).forEach(([itemKey, id]) => {
-        const element = document.getElementById(id);
-        if (!element) return;
-        const shouldShow = itemKey === key;
-        const hosts = [element];
-        const classified = element.closest('.settings-section');
-        if (classified && classified !== element) hosts.push(classified);
-        hosts.forEach((host) => {
-            host.classList.toggle('settings-section-hidden', !shouldShow);
-            host.classList.remove('hide', 'hidden');
-            host.style.removeProperty('display');
-            host.removeAttribute('hidden');
-        });
-    });
-
-    Object.keys(SETTINGS_SECTION_IDS).forEach((itemKey) => {
-        const nav = document.getElementById(`settings-nav-${itemKey}`);
-        if (!nav) return;
-        const shouldActivate = itemKey === key;
-        nav.classList.toggle('settings-nav-item-active', shouldActivate);
-        const button = nav.matches('button') ? nav : nav.querySelector('button');
-        if (button) button.classList.toggle('settings-nav-item-active', shouldActivate);
-    });
-}
-
-function bindSettingsSectionHandler(key) {
-    return (...args) => {
-        applySettingsSection(key);
-        return args;
-    };
-}
-
-window.guiSelectSettings_init_check = bindSettingsSectionHandler('init_check');
-window.guiSelectSettings_agent = bindSettingsSectionHandler('agent');
-window.guiSelectSettings_developer = bindSettingsSectionHandler('developer');
-
 window.guiOpenProjectMode = (...args) => {
     setRightTabMode('project');
     selectRightTabByText('设置&初始化');

@@ -1,85 +1,41 @@
 #project-init-panel.inner-panel-grid {
     grid-template-rows: minmax(0, 1fr) !important;
-}
-
-#project-init-content-row {
-    padding: 0 !important;
-    height: 100% !important;
-    min-height: 0 !important;
-    gap: 0 !important;
-}
-
-#project-init-nav-column,
-#project-init-nav-column > .styler,
-#project-init-detail-column,
-#project-init-detail-column > .styler {
-    height: 100% !important;
-    min-height: 0 !important;
-}
-
-#project-init-detail-column {
-    display: flex !important;
-    flex-direction: column !important;
-    min-width: 0 !important;
+    height: auto !important;
+    max-height: 100% !important;
 }
 
 #project-init-detail-scroll {
     flex: 1 1 auto !important;
-    height: 100% !important;
+    height: auto !important;
+    max-height: 100% !important;
     min-height: 0 !important;
 }
 
 #project-init-detail-scroll > .styler {
     height: auto !important;
-    min-height: 100% !important;
+    min-height: 0 !important;
 }
 
-.settings-nav-column {
-    min-width: 160px !important;
-}
-
-.settings-nav-title h3,
-.settings-nav-title p {
-    margin: 0 0 6px !important;
-    color: #1f2937 !important;
-    font-size: 16px !important;
-    font-weight: 700 !important;
-}
-
-#settings-nav-radio .wrap,
-#project-init-nav-column {
-    --settings-nav-gap: 2px;
-}
-
-#project-init-nav-column .settings-nav-item,
-#project-init-nav-column .settings-nav-item button {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
+/* layout.css 的 .inner-panel-grid .styler { height:100% } 会撑爆卡片，此处强制覆盖 */
+#project-init-panel .styler,
+#project-init-panel .column,
+#project-init-panel .block,
+#project-init-panel .wrap,
+.init-check-status-list,
+.init-check-status-list > .styler,
+.init-check-status-list > .column,
+.init-check-status-list > .block,
+.init-check-status-list .project-init-status-card,
+.init-check-status-list .project-init-status-card > .styler,
+.init-check-status-list .project-init-status-card > .wrap,
+.init-check-status-list .project-init-status-card .column,
+.init-check-status-list .project-init-status-card .block,
+.init-check-control-slot,
+.init-check-control-slot > .styler,
+.init-check-control-slot > .wrap {
     height: auto !important;
     min-height: 0 !important;
-    box-sizing: border-box !important;
-    margin: 0 0 var(--settings-nav-gap, 2px) !important;
-    padding: 5px 8px !important;
-    border: 1px solid transparent !important;
-    border-radius: 6px !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    color: #1f2937 !important;
-    font-size: 14px !important;
-    font-weight: 400 !important;
-    line-height: 1.4 !important;
-    text-align: left !important;
-    justify-content: flex-start !important;
-    cursor: pointer !important;
-}
-
-#project-init-nav-column .settings-nav-item-active,
-#project-init-nav-column .settings-nav-item-active button,
-#project-init-nav-column .settings-nav-item.settings-nav-item-active button {
-    border-color: #0d9488 !important;
-    background: #f0fdfa !important;
-    color: #0f766e !important;
+    max-height: none !important;
 }
 
 #project-init-detail-scroll.settings-detail-scroll,
@@ -87,35 +43,89 @@
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 16px !important;
+    gap: 10px !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
     scrollbar-gutter: stable !important;
 }
 
-.settings-section:not(.settings-section-hidden) {
+#project-init-detail-scroll > .styler,
+#project-init-detail-scroll > .wrap {
     display: flex !important;
     flex-direction: column !important;
-    gap: 14px !important;
-    height: auto !important;
-    min-height: 0 !important;
+    gap: 10px !important;
 }
 
-.settings-section:not(.settings-section-hidden) > .styler {
+#project-init-detail-scroll .block,
+#project-init-detail-scroll .column {
+    margin-bottom: 0 !important;
+}
+
+.settings-init-section,
+.settings-init-section > .styler,
+.settings-init-section > .wrap,
+.settings-dev-section,
+.settings-dev-section > .styler,
+.settings-dev-section > .wrap {
     display: flex !important;
     flex-direction: column !important;
-    gap: 14px !important;
-    height: auto !important;
-    min-height: 0 !important;
-}
-
-.settings-section.settings-section-hidden,
-.settings-section.settings-section-hidden > .styler {
-    display: none !important;
-    height: 0 !important;
+    gap: 8px !important;
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
+}
+
+.settings-dev-section {
+    margin-top: 2px !important;
+}
+
+.settings-dev-hint,
+.settings-dev-hint > .styler,
+.settings-dev-hint .prose,
+#settings-dev-hint,
+#settings-dev-hint > .styler,
+#settings-dev-hint .prose {
+    margin: 2px 0 0 !important;
+    padding: 0 !important;
+}
+
+.settings-dev-hint p,
+#settings-dev-hint p {
+    margin: 0 !important;
+    color: #64748b !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+}
+
+#settings-dev-list,
+#settings-dev-list > .styler,
+#settings-dev-list > .wrap,
+.settings-dev-list,
+.settings-dev-list > .styler,
+.settings-dev-list > .wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+}
+
+#settings-dev-list .block,
+#settings-dev-list .column,
+.settings-dev-list .block,
+.settings-dev-list .column {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+}
+
+#settings-view-lca-result-btn,
+#settings-view-lca-result-btn > .wrap {
+    margin-top: 16px !important;
 }
 
 .project-init-section-label,
@@ -137,6 +147,129 @@
 
 .project-init-section-label-actions p {
     margin-top: 2px !important;
+}
+
+.init-check-header-row,
+.init-check-header-row > .wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 16px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.init-check-header-row .column,
+.init-check-header-row .block {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.init-check-header-copy {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+}
+
+.init-check-subtitle p {
+    margin: 4px 0 0 !important;
+    color: #64748b !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    line-height: 1.45 !important;
+}
+
+#settings-init-check-btn,
+#settings-init-check-btn > .wrap,
+.init-check-top-btn,
+.init-check-top-btn button {
+    width: auto !important;
+    min-width: 148px !important;
+    max-width: max-content !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+    padding: 0 18px !important;
+    white-space: nowrap !important;
+}
+
+.init-check-label-col,
+.init-check-label-col > .styler,
+.init-check-label-col .prose {
+    flex: 0 0 var(--init-check-label-width, 148px) !important;
+    width: var(--init-check-label-width, 148px) !important;
+    min-width: var(--init-check-label-width, 148px) !important;
+    max-width: var(--init-check-label-width, 148px) !important;
+}
+
+.init-check-control-slot,
+.init-check-control-slot > .styler,
+.init-check-control-slot > .wrap {
+    flex: 0 0 var(--init-check-control-width, 268px) !important;
+    width: var(--init-check-control-width, 268px) !important;
+    min-width: var(--init-check-control-width, 268px) !important;
+    max-width: var(--init-check-control-width, 268px) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.init-check-control-slot .column,
+.init-check-control-slot .block,
+.init-check-control-slot .form {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.init-check-control-slot.init-check-inline-control,
+.init-check-control-slot.init-check-inline-control > .wrap {
+    display: grid !important;
+    grid-template-columns:
+        var(--init-check-inline-label-width, 72px)
+        var(--init-check-input-width, 188px) !important;
+    column-gap: 8px !important;
+    width: var(--init-check-control-width, 268px) !important;
+    min-width: var(--init-check-control-width, 268px) !important;
+    max-width: var(--init-check-control-width, 268px) !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.init-check-control-slot.init-check-inline-control .column,
+.init-check-control-slot.init-check-inline-control .block,
+.init-check-control-slot.init-check-inline-control .form {
+    width: auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.init-check-control-slot.init-check-inline-control .block:nth-child(1),
+.init-check-control-slot.init-check-inline-control .column:nth-child(1) {
+    grid-column: 1 !important;
+    justify-self: start !important;
+}
+
+.init-check-control-slot.init-check-inline-control .block:nth-child(2),
+.init-check-control-slot.init-check-inline-control .column:nth-child(2) {
+    grid-column: 2 !important;
+    justify-self: stretch !important;
+    width: 100% !important;
+    max-width: 100% !important;
 }
 
 .project-init-status-card {
@@ -161,17 +294,50 @@
 
 .init-check-status-list .project-init-status-card > .styler,
 .init-check-status-list .project-init-status-card > .wrap {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
+    display: grid !important;
+    grid-template-columns: var(--init-check-label-width, 148px) minmax(0, 1fr) auto !important;
     align-items: center !important;
-    justify-content: space-between !important;
     width: 100% !important;
     gap: 16px !important;
     min-height: 0 !important;
     height: auto !important;
     padding: 0 !important;
     margin: 0 !important;
+}
+
+.init-check-status-list .project-init-status-card > .wrap > .block:nth-child(1),
+.init-check-status-list .project-init-status-card > .wrap > .column:nth-child(1),
+.init-check-status-list .project-init-status-card > .styler > .block:nth-child(1),
+.init-check-status-list .project-init-status-card > .styler > .column:nth-child(1) {
+    grid-column: 1 !important;
+    justify-self: start !important;
+}
+
+.init-check-status-list .project-init-status-card > .wrap > .block:nth-child(2),
+.init-check-status-list .project-init-status-card > .wrap > .column:nth-child(2),
+.init-check-status-list .project-init-status-card > .styler > .block:nth-child(2),
+.init-check-status-list .project-init-status-card > .styler > .column:nth-child(2) {
+    grid-column: 2 !important;
+    justify-self: center !important;
+    width: var(--init-check-control-width, 268px) !important;
+    max-width: var(--init-check-control-width, 268px) !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+.init-check-status-list .project-init-status-card > .wrap > .block:nth-child(3),
+.init-check-status-list .project-init-status-card > .wrap > .column:nth-child(3),
+.init-check-status-list .project-init-status-card > .styler > .block:nth-child(3),
+.init-check-status-list .project-init-status-card > .styler > .column:nth-child(3) {
+    grid-column: 3 !important;
+    justify-self: end !important;
+}
+
+.init-check-status-list .project-init-status-card .project-init-status-value,
+.init-check-status-list .project-init-status-card .project-init-status-value > .styler {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    margin-left: 0 !important;
 }
 
 .init-check-status-list .project-init-status-card .column,
@@ -182,22 +348,9 @@
     margin: 0 !important;
     padding: 0 !important;
     gap: 0 !important;
-}
-
-.init-check-status-list .project-init-status-card .column:first-child,
-.init-check-status-list .project-init-status-card .block:first-child {
-    flex: 0 0 auto !important;
-    width: auto !important;
-    min-width: 0 !important;
-}
-
-.init-check-status-list .project-init-status-card .column:last-child,
-.init-check-status-list .project-init-status-card .block:last-child {
-    flex: 1 1 auto !important;
-    width: auto !important;
-    min-width: 0 !important;
-    display: flex !important;
-    justify-content: flex-end !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 .project-init-status-value-container {
@@ -292,7 +445,7 @@
     grid-column: 1 !important;
 }
 
-.project-init-status-value {
+.project-init-card-header .project-init-status-value {
     grid-column: 2 !important;
     justify-self: center !important;
 }
@@ -390,16 +543,126 @@
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06) !important;
 }
 
-#settings-agent-radio,
-#settings-agent-radio > .wrap {
-    width: 100% !important;
+.settings-dev-port-row,
+.settings-dev-port-row > .wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
-#settings-agent-radio .wrap {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 8px 18px !important;
-    justify-content: flex-start !important;
+.settings-dev-port-row .column,
+.settings-dev-port-row .block {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.init-check-inline-label,
+.init-check-inline-label > .styler,
+.init-check-inline-label .prose {
+    flex: 0 0 var(--init-check-inline-label-width, 72px) !important;
+    width: var(--init-check-inline-label-width, 72px) !important;
+    min-width: var(--init-check-inline-label-width, 72px) !important;
+    max-width: var(--init-check-inline-label-width, 72px) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.init-check-inline-label p {
+    margin: 0 !important;
+    color: #475569 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    line-height: 1.35 !important;
+    white-space: nowrap !important;
+}
+
+#settings-agent-dropdown,
+#settings-init-openlca-port,
+#settings-agent-dropdown > .wrap,
+#settings-init-openlca-port > .wrap,
+.init-check-control-slot.init-check-inline-control .init-check-status-control,
+.init-check-control-slot.init-check-inline-control .init-check-status-control > .wrap,
+.init-check-control-slot:not(.init-check-inline-control) .init-check-status-control,
+.init-check-control-slot:not(.init-check-inline-control) #settings-agent-dropdown {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: var(--init-check-input-width, 188px) !important;
+    flex: 0 0 auto !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+#settings-dev-gui-port,
+#settings-dev-gui-port > .wrap {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+}
+
+.init-check-dev-card > .wrap > .block:nth-child(3),
+.init-check-dev-card > .wrap > .column:nth-child(3),
+.init-check-dev-card > .styler > .block:nth-child(3),
+.init-check-dev-card > .styler > .column:nth-child(3) {
+    grid-column: 3 !important;
+    justify-self: end !important;
+}
+
+.init-check-card-action-btn,
+.init-check-card-action-btn > .wrap,
+.init-check-card-action-btn button,
+#settings-dev-ports-save-btn,
+#settings-dev-ports-save-btn > .wrap,
+#settings-dev-ports-save-btn button {
+    width: auto !important;
+    min-width: 120px !important;
+    max-width: max-content !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    white-space: nowrap !important;
+}
+
+#project-init-detail-scroll .init-check-status-list,
+#project-init-detail-scroll .settings-dev-list {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+.init-check-status-control .wrap,
+.init-check-status-control .block,
+.init-check-status-control .form {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.init-check-status-control input,
+.init-check-status-control textarea {
+    text-align: left !important;
 }
 
 .init-check-status-list {
@@ -407,7 +670,15 @@
     flex-direction: column !important;
     gap: 8px !important;
     width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
     align-items: stretch !important;
+    align-self: stretch !important;
+    --init-check-label-width: 148px;
+    --init-check-inline-label-width: 72px;
+    --init-check-input-width: 188px;
+    --init-check-control-width: 268px;
 }
 
 .init-check-status-list > .wrap,
@@ -422,8 +693,9 @@
     width: 100% !important;
     max-width: 100% !important;
     align-self: stretch !important;
-    min-height: 44px !important;
-    padding: 14px 18px !important;
+    min-height: 52px !important;
+    max-height: none !important;
+    padding: 12px 18px !important;
     gap: 16px !important;
     overflow: visible !important;
 }
@@ -448,6 +720,9 @@
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    background: transparent !important;
 }
 
 .init-check-status-label,
@@ -466,7 +741,7 @@
 .init-check-status-list .project-init-status-value,
 .init-check-status-list .project-init-status-value > .styler,
 .init-check-status-list .project-init-status-value .prose {
-    flex: 1 1 auto !important;
+    flex: 0 0 auto !important;
     width: auto !important;
     min-width: 0 !important;
     max-width: none !important;
@@ -506,16 +781,17 @@
     line-height: 1.35 !important;
     overflow: visible !important;
     white-space: nowrap !important;
+    justify-content: flex-end !important;
 }
 
-#settings-section-init-check .init-check-status-list,
-#settings-section-init-check #settings-init-check-btn {
+#project-init-detail-scroll .init-check-status-list {
     width: 100% !important;
     max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
 }
 
-#settings-section-init-check .settings-section-fields,
-#settings-section-init-check > .styler {
+#project-init-detail-scroll > .styler {
     width: 100% !important;
 }
 

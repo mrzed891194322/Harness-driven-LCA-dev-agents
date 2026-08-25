@@ -26,7 +26,7 @@ def _format_agent_message(agent: str, detail: str) -> str:
 
 
 def _load_openlca_endpoint() -> tuple[str, int]:
-    from functions.project_init.settings import load_port_settings
+    from functions.settings.settings import load_port_settings
 
     ports = load_port_settings()
     return "127.0.0.1", ports["openlca_ipc_port"]
@@ -40,11 +40,11 @@ def check_agent_result(agent: str | None = None) -> tuple[bool, str]:
         带 CLI 名的状态文案。
     """
     try:
-        from functions.project_init.settings import (
+        from functions.settings.settings import (
             load_harness_agent,
             normalize_harness_agent,
         )
-        from scripts.initialization.env_check import check_harness_cli
+        from scripts.check_status.agents_check import check_harness_cli
 
         selected = (
             normalize_harness_agent(agent) if agent else load_harness_agent()
@@ -84,7 +84,7 @@ def check_openlca_result(
     resolved_host = host or default_host
     resolved_port = default_port if port is None else port
     try:
-        from scripts.initialization.openlca_check import get_openlca_health
+        from scripts.check_status.openlca_check import get_openlca_health
 
         result = get_openlca_health(host=resolved_host, port=resolved_port)
         if result["ok"]:

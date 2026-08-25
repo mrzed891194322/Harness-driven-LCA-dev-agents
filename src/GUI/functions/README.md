@@ -31,18 +31,16 @@
       Tab 的目录与锚点统一由 `MarkdownDocumentView` 使用 `plan_editor.py` 生成。
     - `value_handler.py`：读取已有的 markdown 计划文件回填到表单，或将表单内容保存合成到模板中。
 
-### 2. 项目初始化模块 (`functions/project_init/`)
-整合项目启动阶段的资源清理与环境初始化流程：
-- **功能入口**：[main_init.py](project_init/main_init.py) 中的 `main` 函数（GUI 当前不再触发完整初始化脚本）。
+### 2. 设置模块 (`functions/settings/`)
+提供设置页门禁探测与参考资料写入：
+- **[check_status.py](settings/check_status.py)**：依次探测 AI Agent CLI 与 openLCA，供「开始初始化检查」使用。
+- **[settings.py](settings/settings.py)**：读写 `.env` 中的 `HARNESS_AGENT` 与端口配置。
 - **私有辅助包 (`private_utils/`)**：
-  - `clean.py`：调用项目清理脚本 `clean_dir.py`。
   - `file_handler.py`：将左侧上传的材料/数据文件写入 `harness/knowledge/`。
-  - `init_rag.py`：保留的 RAG 构建调用入口；GUI 当前不再触发。
 
 环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测 AI Agent CLI
 与 openLCA；两项全部通过后才解锁“执行LCA计划”。
-Agent 页的单项检查只弹对话框，不解锁执行。初始化子进程的退出码必须
-逐层传递到 GUI，失败不得显示为 `Finished`。选择的 Agent 写入
+Agent 页的单项检查只弹对话框，不解锁执行。选择的 Agent 写入
 `.env` 的 `HARNESS_AGENT`。
 
 ### 3. LCA 工作流结果模块
@@ -55,9 +53,3 @@ Agent 页的单项检查只弹对话框，不解锁执行。初始化子进程�
   同时为所有文档型 Tab 生成可配置标题层级的 Markdown 目录和匹配锚点。
   上传内容只在内存暂存；计划执行时原子写入唯一计划路径，改进执行时原子写入
   `workspace/inputs/revise.md`；其他文档视图输入不写入 workspace。
-
-### 4. 历史计划需求模块
-
-`functions/make_plan/` 和 `functions/revise_plan/` 保留兼容代码，但不再由
-当前 GUI 绑定；当前面板直接维护最终的 LCA 执行计划，不调用旧
-`make-plan` 或 `revise-plan` 命令。

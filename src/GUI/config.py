@@ -92,11 +92,3 @@ CALCULATION_MANIFEST_PATH = REPORTS_DIR / "calculation_manifest.json"
 KNOWLEDGE_DIR = PROJECT_ROOT / "harness" / "knowledge"
 USER_FILE_DIR = KNOWLEDGE_DIR
 USER_DATA_DIR = KNOWLEDGE_DIR
-
-# -----------------------------------------------------------------------------
-# 项目维护脚本
-# 分别用于清理 workspace，以及执行项目初始化。
-# openLCA 健康检查直接导入 scripts.initialization.openlca_check，无需路径常量。
-# -----------------------------------------------------------------------------
-CLEAN_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "clean_dir" / "main.py"
-INIT_RAG_SCRIPT_PATH = PROJECT_ROOT / "src" / "scripts" / "initialization" / "main.py"

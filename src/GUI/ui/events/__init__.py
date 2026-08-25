@@ -25,10 +25,9 @@ def bind_ui_events(
     stop_btn: gr.Button,
     init_check_btn: gr.Button,
     init_check_status_values: list[gr.Markdown],
-    agent_radio: gr.Radio,
-    agent_check_btn: gr.Button,
+    agent_dropdown: gr.Dropdown,
+    init_openlca_port: gr.Number,
     dev_gui_port: gr.Number,
-    dev_openlca_port: gr.Number,
     dev_ports_save_btn: gr.Button,
     close_lci_mapping_btn: gr.Button,
     lci_mapping_view: MarkdownDocumentView,
@@ -59,9 +58,9 @@ def bind_ui_events(
     bind_left_sidebar_events(
         open_init_btn=open_init_btn,
         right_tabs=right_tabs,
-        agent_radio=agent_radio,
+        agent_dropdown=agent_dropdown,
+        init_openlca_port=init_openlca_port,
         dev_gui_port=dev_gui_port,
-        dev_openlca_port=dev_openlca_port,
     )
 
     bind_tab_terminal_events(
@@ -74,13 +73,12 @@ def bind_ui_events(
     bind_tab_initial_events(
         init_check_btn=init_check_btn,
         init_check_status_values=init_check_status_values,
-        agent_check_btn=agent_check_btn,
         dev_ports_save_btn=dev_ports_save_btn,
         ref_materials_file=ref_materials_file,
         ref_data_file=ref_data_file,
-        agent_radio=agent_radio,
+        agent_dropdown=agent_dropdown,
+        init_openlca_port=init_openlca_port,
         dev_gui_port=dev_gui_port,
-        dev_openlca_port=dev_openlca_port,
         execute_lca_btn=execute_lca_btn,
         execute_improvement_btn=execute_improvement_btn,
         init_check_ok_state=init_check_ok_state,

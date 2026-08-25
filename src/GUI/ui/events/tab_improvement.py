@@ -17,7 +17,7 @@ from functions.lca_run import manifest_fingerprint, parse_lca_result
 from functions.utils.executor.private_utils.executor_utils import (
     run_workflow_command_console,
 )
-from functions.project_init.check_status import execution_ready
+from functions.settings.check_status import execution_ready
 from ui.components.render_mdfile import (
     MarkdownDocumentView,
     document_output_components,

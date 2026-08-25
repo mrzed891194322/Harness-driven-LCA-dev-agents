@@ -1,33 +1,45 @@
 import gradio as gr
-from functions.project_init.check_status import (
-    check_agent_result,
+from functions.settings.check_status import (
     collect_initialization_statuses,
     execution_ready,
 )
-from functions.project_init.settings import save_gui_settings, save_port_settings
+from functions.settings.settings import (
+    load_port_settings,
+    save_gui_settings,
+    save_port_settings,
+)
 from ui.components.tab_initial import (
     init_check_status_update,
     pending_init_check_status_updates,
 )
 
 
+def _parse_openlca_port(value: object) -> int:
+    try:
+        port = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("IPC 端口只能填写数字") from exc
+    if port < 1 or port > 65535:
+        raise ValueError("IPC 端口必须在 1 到 65535 之间")
+    return port
+
+
 def bind_tab_initial_events(
     init_check_btn: gr.Button,
     init_check_status_values: list[gr.Markdown],
-    agent_check_btn: gr.Button,
     dev_ports_save_btn: gr.Button,
     ref_materials_file: gr.File,
     ref_data_file: gr.File,
-    agent_radio: gr.Radio,
+    agent_dropdown: gr.Dropdown,
+    init_openlca_port: gr.Number,
     dev_gui_port: gr.Number,
-    dev_openlca_port: gr.Number,
     execute_lca_btn: gr.Button,
     execute_improvement_btn: gr.Button,
     init_check_ok_state: gr.State,
     plan_ready_state: gr.State,
     improvement_ready_state: gr.State,
 ):
-    settings_inputs = [agent_radio]
+    settings_inputs = [agent_dropdown, init_openlca_port]
     gate_outputs = [
         init_check_ok_state,
         execute_lca_btn,
@@ -35,8 +47,13 @@ def bind_tab_initial_events(
     ]
     status_outputs = [*init_check_status_values]
 
-    def persist_settings(agent):
+    def persist_settings(agent, openlca_port):
         save_gui_settings(agent=agent)
+        ports = load_port_settings()
+        save_port_settings(
+            gui_port=ports["gui_port"],
+            openlca_ipc_port=_parse_openlca_port(openlca_port),
+        )
 
     def _gate_updates(init_ok, plan_ready, improvement_ready):
         return (
@@ -57,18 +74,31 @@ def bind_tab_initial_events(
 
     def persist_and_invalidate(
         agent,
+        openlca_port,
         plan_ready,
         improvement_ready,
     ):
-        persist_settings(agent)
+        try:
+            persist_settings(agent, openlca_port)
+        except ValueError as exc:
+            gr.Warning(str(exc))
+            return invalidate_init_gate(plan_ready, improvement_ready)
         return invalidate_init_gate(plan_ready, improvement_ready)
 
     def run_init_check(
         agent,
+        openlca_port,
         plan_ready,
         improvement_ready,
     ):
-        persist_settings(agent)
+        try:
+            persist_settings(agent, openlca_port)
+        except ValueError as exc:
+            gr.Warning(str(exc))
+            return (
+                *_gate_updates(False, plan_ready, improvement_ready),
+                *pending_init_check_status_updates(),
+            )
         statuses = collect_initialization_statuses(agent)
         failed = [label for label, ok, _message in statuses if not ok]
         init_ok = not failed
@@ -81,29 +111,21 @@ def bind_tab_initial_events(
         return (
             *_gate_updates(init_ok, plan_ready, improvement_ready),
             *[
-                init_check_status_update(ok, message)
-                for _label, ok, message in statuses
+                init_check_status_update(ok, "成功" if ok else "失败")
+                for _label, ok, _message in statuses
             ],
         )
 
-    def check_agent_only(agent):
-        persist_settings(agent)
-        ok, _message = check_agent_result(agent)
-        if ok:
-            gr.Info("成功")
-        else:
-            gr.Warning("未通过")
-
     def save_dev_ports(
         gui_port,
-        openlca_port,
         plan_ready,
         improvement_ready,
     ):
+        ports = load_port_settings()
         try:
             save_port_settings(
                 gui_port=gui_port,
-                openlca_ipc_port=openlca_port,
+                openlca_ipc_port=ports["openlca_ipc_port"],
             )
         except ValueError as exc:
             gr.Warning(str(exc))
@@ -119,7 +141,7 @@ def bind_tab_initial_events(
     ):
         from pathlib import Path
 
-        from functions.project_init.private_utils.file_handler import copy_uploaded_files
+        from functions.settings.private_utils.file_handler import copy_uploaded_files
         from functions.utils.path_utils import find_project_root
 
         project_root = find_project_root(Path(__file__))
@@ -133,16 +155,10 @@ def bind_tab_initial_events(
         outputs=[*gate_outputs, *status_outputs],
     )
 
-    agent_check_btn.click(
-        fn=check_agent_only,
-        inputs=settings_inputs,
-    )
-
     dev_ports_save_btn.click(
         fn=save_dev_ports,
         inputs=[
             dev_gui_port,
-            dev_openlca_port,
             plan_ready_state,
             improvement_ready_state,
         ],
@@ -154,7 +170,12 @@ def bind_tab_initial_events(
         plan_ready_state,
         improvement_ready_state,
     ]
-    agent_radio.change(
+    agent_dropdown.change(
+        fn=persist_and_invalidate,
+        inputs=invalidate_inputs,
+        outputs=[*gate_outputs, *status_outputs],
+    )
+    init_openlca_port.change(
         fn=persist_and_invalidate,
         inputs=invalidate_inputs,
         outputs=[*gate_outputs, *status_outputs],

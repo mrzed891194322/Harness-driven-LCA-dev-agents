@@ -13,7 +13,7 @@ from functions.plan_editor import (
 from functions.utils.executor.private_utils.executor_utils import (
     run_workflow_command_console,
 )
-from functions.project_init.check_status import execution_ready
+from functions.settings.check_status import execution_ready
 from ui.components.render_mdfile import (
     MarkdownDocumentView,
     cleared_document_outputs,

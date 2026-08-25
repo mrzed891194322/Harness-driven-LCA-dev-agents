@@ -18,7 +18,7 @@ for d in [main_dir, src_root, project_root]:
 # 加载仓库根目录 .env 中的 API Key 等配置。
 load_dotenv(project_root / ".env")
 
-from functions.project_init.settings import load_port_settings
+from functions.settings.settings import load_port_settings
 from ui.ui_main import build_ui
 
 

@@ -11,7 +11,7 @@ from functions.plan_editor import (
     parse_execution_plan_template,
     read_uploaded_plan,
 )
-from functions.project_init.check_status import execution_ready
+from functions.settings.check_status import execution_ready
 from ui.components.render_mdfile import (
     MarkdownDocumentView,
     document_output_components,
