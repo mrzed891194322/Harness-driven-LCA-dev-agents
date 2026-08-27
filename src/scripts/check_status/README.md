@@ -11,7 +11,7 @@
 | `openlca_check/` | 检查 openLCA IPC Server 连接（与 MCP 共用有界重试） |
 | `main.py` | CLI 编排：可选 pre-clean、agents、openlca 健康检查 |
 
-Agent 路径直接读取 `harness/knowledge/` 用户资料。openLCA 前景清理由工作流通过 MCP `cleanup_output` 执行。
+Agent 路径直接读取 `harness/knowledge/` 用户资料。openLCA 前景清理由 GUI/CLI 在启动 agent 前通过 `src/scripts/clean_dir/main.py -t openlca` 或 `--preset` 执行。
 
 ## 环境变量
 

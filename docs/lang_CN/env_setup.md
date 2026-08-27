@@ -53,3 +53,14 @@ uv sync
 
 连接检查首次失败后会重新创建客户端并重试三次；全部失败时命令返回非零，GUI 的执行
 按钮保持禁用。
+
+## 4. 命令行运行 LCA 前的清理
+
+无 GUI 时，在启动 whole-lca / revise-lca agent 之前执行：
+
+```bash
+uv run python src/scripts/clean_dir/main.py -y --preset whole-lca
+# 或 revise-lca：--preset revise-lca（不清理 workspace）
+```
+
+然后手工复制资料到 `harness/knowledge/`，并编写 `workspace/inputs/plan.md`（或 `revise.md`）。详见根目录 `README.md` 与 `src/scripts/clean_dir/README.md`。

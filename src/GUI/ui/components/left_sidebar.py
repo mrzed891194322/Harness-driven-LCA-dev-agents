@@ -5,7 +5,6 @@ def build_left_sidebar() -> tuple[
     gr.Button,
     gr.Button,
     gr.File,
-    gr.File,
 ]:
     """
     构建左侧栏：文件交换区与快捷操作区。
@@ -14,24 +13,15 @@ def build_left_sidebar() -> tuple[
         gr.Markdown(
             """
             ### 📁 文件交换区
-            点击标签切换参考资料与参考数据上传视图。
+            上传的用户资料将在执行 LCA 或改进前同步到 `harness/knowledge/`。
             """
         )
-        with gr.Tabs():
-            with gr.Tab("参考资料"):
-                ref_materials_file = gr.File(
-                    label="参考资料上传 (Reference Materials)",
-                    file_count="multiple",
-                    interactive=True,
-                    elem_id="reference-materials-upload",
-                )
-            with gr.Tab("参考数据"):
-                ref_data_file = gr.File(
-                    label="参考数据上传 (Reference Data)",
-                    file_count="multiple",
-                    interactive=True,
-                    elem_id="reference-data-upload",
-                )
+        ref_upload_file = gr.File(
+            label="用户资料上传 (User Materials)",
+            file_count="multiple",
+            interactive=True,
+            elem_id="reference-upload",
+        )
 
     with gr.Column(elem_id="quick-actions-section"):
         gr.Markdown(
@@ -61,6 +51,5 @@ def build_left_sidebar() -> tuple[
     return (
         open_init_btn,
         start_lca_btn,
-        ref_materials_file,
-        ref_data_file,
+        ref_upload_file,
     )

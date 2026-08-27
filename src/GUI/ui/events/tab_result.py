@@ -2,19 +2,16 @@ from __future__ import annotations
 
 import gradio as gr
 
-from functions.lca_run import manifest_fingerprint, parse_lca_result
+from functions.lca_run import build_precheck_failure, manifest_fingerprint, parse_lca_result
 from functions.plan_editor import (
     is_plan_ready,
-    parse_markdown_document_text,
     parse_execution_plan_text,
-    save_execution_plan,
-    save_structured_plan,
-)
-from functions.utils.executor.private_utils.executor_utils import (
-    run_clean_workspace_console,
-    run_workflow_command_console,
 )
 from functions.settings.check_status import execution_ready
+from functions.utils.executor.private_utils.executor_utils import (
+    run_pre_workflow_console,
+    run_workflow_command_console,
+)
 from ui.components.render_mdfile import (
     MarkdownDocumentView,
     cleared_document_outputs,
@@ -34,6 +31,7 @@ def bind_tab_result_events(
     execute_improvement_btn: gr.Button,
     revision_execute_event,
     init_check_ok_state: gr.State,
+    ref_upload_file: gr.File,
     output_console: gr.Textbox,
     status: gr.Textbox,
     run_result_state: gr.State,
@@ -45,42 +43,31 @@ def bind_tab_result_events(
     report_warning: gr.Markdown,
     download_report_btn: gr.DownloadButton,
 ) -> None:
-    def prepare_lca_flow(*arguments):
-        import config
-
+    def _validate_plan(*arguments):
         *plan_values, source_text = arguments
-        try:
-            if not source_text or not source_text.strip():
-                raise gr.Error("当前没有可执行的计划模板或上传计划。")
-            template = parse_execution_plan_text(source_text)
-            active_values = plan_values[: len(template.fields)]
-            if template.fields:
-                if not is_plan_ready(active_values):
-                    raise gr.Error("计划至少需要填写一个字段。")
-                plan_path = save_structured_plan(
-                    template=template,
-                    values=active_values,
-                    target_path=config.CURRENT_PLAN_PATH,
-                )
-            else:
-                plan_path = save_execution_plan(
-                    text=source_text,
-                    target_path=config.CURRENT_PLAN_PATH,
-                )
-        except (OSError, UnicodeError, ValueError) as exc:
-            raise gr.Error(str(exc)) from exc
+        if not source_text or not source_text.strip():
+            raise gr.Error("当前没有可执行的计划模板或上传计划。")
+        template = parse_execution_plan_text(source_text)
+        active_values = plan_values[: len(template.fields)]
+        if template.fields:
+            if not is_plan_ready(active_values):
+                raise gr.Error("计划至少需要填写一个字段。")
+        return True
 
+    def prepare_lca_flow(*arguments):
+        _validate_plan(*arguments)
         return (
-            f"[System] 已保存 LCA 执行计划：{plan_path}\n",
+            "[System] 计划校验通过，开始执行前置清理与文件同步...\n",
             "Running",
             None,
             gr.update(interactive=False),
         )
 
-    def run_lca_flow():
+    def run_lca_flow(*arguments):
         from functions.utils.process_manager import reset_stop
 
         reset_stop()
+        *plan_values, source_text, ref_upload = arguments
         previous = manifest_fingerprint()
         latest_console = ""
         latest_status = "Running"
@@ -90,7 +77,12 @@ def bind_tab_result_events(
             None,
             gr.update(interactive=False),
         )
-        for latest_console, latest_status in run_clean_workspace_console():
+        for latest_console, latest_status in run_pre_workflow_console(
+            "whole-lca",
+            document_values=list(plan_values),
+            source_text=source_text,
+            ref_upload_file=ref_upload,
+        ):
             yield (
                 latest_console,
                 latest_status,
@@ -98,18 +90,15 @@ def bind_tab_result_events(
                 gr.update(interactive=False),
             )
         if latest_status in {"Failed", "Stopped"}:
+            reason = (
+                "用户停止了本次执行。"
+                if latest_status == "Stopped"
+                else "前置清理或文件同步失败，未启动 LCA 工作流。"
+            )
             yield (
                 latest_console,
-                latest_status,
-                {
-                    "success": False,
-                    "tab_label": "LCA执行结果（LCA提前中止）",
-                    "status": "failed",
-                    "failure_markdown": (
-                        "### 失败原因\n\n"
-                        "- workspace 清理失败，未启动 LCA 工作流。"
-                    ),
-                },
+                latest_status if latest_status == "Stopped" else "Failed",
+                build_precheck_failure(reason),
                 gr.update(interactive=False),
             )
             return
@@ -138,6 +127,8 @@ def bind_tab_result_events(
 
         path = config.LCA_REPORT_PATH
         try:
+            from functions.plan_editor import parse_markdown_document_text
+
             content = path.read_text(encoding="utf-8-sig")
             document = parse_markdown_document_text(
                 content,
@@ -254,9 +245,15 @@ def bind_tab_result_events(
         js="window.guiOpenResultMode",
     )
 
+    lca_run_inputs = [
+        *plan_view.inputs,
+        plan_view.source_state,
+        ref_upload_file,
+    ]
+
     prepare_event = execute_lca_btn.click(
         fn=prepare_lca_flow,
-        inputs=[*plan_view.inputs, plan_view.source_state],
+        inputs=lca_run_inputs,
         outputs=[
             output_console,
             status,
@@ -266,7 +263,7 @@ def bind_tab_result_events(
     )
     execute_event = prepare_event.success(
         fn=run_lca_flow,
-        inputs=None,
+        inputs=lca_run_inputs,
         outputs=[
             output_console,
             status,

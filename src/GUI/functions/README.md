@@ -22,7 +22,7 @@
 - **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 按所选 harness CLI 运行 whole-lca / revise-lca（四平台：codex、claude、opencode、dsh）。`executor/main.py` 非 GUI 入口；bootstrap-env 仅 CLI。
   - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数（非 GUI 使用）。
   - **私有辅助包 (`private_utils/`)**：
-    - `executor_utils.py`：流式捕获进程输出、过滤 ANSI 颜色与特殊控制符，并将日志以符合 Gradio 页面组件渲染的方式输出。
+    - `executor_utils.py`：流式捕获进程输出；`run_pre_workflow_console` 编排 clean_dir preset 与 file_sync。
 - **文件处理子包 (`functions/utils/file_loader/`)**：承担不同类型的文件读取、保存以及 LCA 计划模板解析与填写值加载的工作。
   - **功能入口**：[main.py](utils/file_loader/main.py) 中的 `main` 函数。
   - **私有辅助包 (`private_utils/`)**：
@@ -31,19 +31,23 @@
       Tab 的目录与锚点统一由 `MarkdownDocumentView` 使用 `plan_editor.py` 生成。
     - `value_handler.py`：读取已有的 markdown 计划文件回填到表单，或将表单内容保存合成到模板中。
 
-### 2. 设置模块 (`functions/settings/`)
+### 3. 文件同步 (`functions/file_sync/`)
+执行 LCA / 改进前将 GUI 暂存内容落盘（CLI 用户手工复制，不调用此模块）：
+- **[main.py](file_sync/main.py)**：`sync_files(target)` 支持 `knowledge`、`plan`、`revise`。
+
+### 4. 设置模块 (`functions/settings/`)
 提供设置页门禁探测与参考资料写入：
 - **[check_status.py](settings/check_status.py)**：依次探测 AI Agent CLI 与 openLCA，供「开始初始化检查」使用。
 - **[settings.py](settings/settings.py)**：读写 `.env` 中的 `HARNESS_AGENT` 与端口配置。
 - **私有辅助包 (`private_utils/`)**：
-  - `file_handler.py`：将左侧上传的材料/数据文件写入 `harness/knowledge/`。
+  - `file_handler.py`：已废弃；请使用 `file_sync`。
 
 环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测 AI Agent CLI
 与 openLCA；两项全部通过后才解锁“执行LCA计划”。
 Agent 页的单项检查只弹对话框，不解锁执行。选择的 Agent 写入
 `.env` 的 `HARNESS_AGENT`。
 
-### 3. LCA 工作流结果模块
+### 5. LCA 工作流结果模块
 
 - `lca_run.py`：识别本次 whole-lca v2 或 revise-lca v1 manifest，区分完成与
   提前中止，并从阶段、审查及工具报告中聚合失败原因。
@@ -51,5 +55,5 @@ Agent 页的单项检查只弹对话框，不解锁执行。选择的 Agent 写�
   并把正文拆成原位交替的 Markdown/Textbox；无 front matter、任意 front matter
   和纯 Markdown 均可解析，已有 front matter 原样保留且不校验类型或版本。
   同时为所有文档型 Tab 生成可配置标题层级的 Markdown 目录和匹配锚点。
-  上传内容只在内存暂存；计划执行时原子写入唯一计划路径，改进执行时原子写入
-  `workspace/inputs/revise.md`；其他文档视图输入不写入 workspace。
+  上传内容只在内存暂存；执行按钮触发 `file_sync` 原子写入
+  `workspace/inputs/plan.md` 或 `revise.md`。

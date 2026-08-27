@@ -401,7 +401,11 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         self.assertNotIn("file_sync", workflow_main)
         self.assertNotIn("cleanup_output/main.py", workflow_main)
         self.assertNotIn("src/scripts/clean_dir", workflow_main)
-        self.assertIn("cleanup_output", (PROJECT_ROOT / "harness/workflows/LCA-main.md").read_text(encoding="utf-8"))
+        workflow_main_text = (
+            PROJECT_ROOT / "harness/workflows/LCA-main.md"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("调用 MCP `cleanup_output`", workflow_main_text)
+        self.assertIn("clean_dir", workflow_main_text)
         for index in range(1, 8):
             self.assertNotIn(f"### {index:02d}", workflow_main)
         self.assertNotIn("根线程不执行业务阶段", workflow_main)
@@ -599,7 +603,11 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         ):
             content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             self.assertNotIn("cleanup_output/main.py", content, relative)
-            self.assertNotIn("src/scripts/clean_dir", content, relative)
+            if relative.endswith("SKILL.md"):
+                self.assertIn("clean_dir", content, relative)
+            else:
+                self.assertIn("src/scripts/clean_dir", content, relative)
+            self.assertIn("不要", content, relative)
 
         for relative in (
             ".opencode/commands/revise-lca.md",
@@ -609,6 +617,10 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
             content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             self.assertNotIn("src/scripts/revise_lca", content, relative)
             self.assertNotIn("cleanup_output/main.py", content, relative)
+            if relative.endswith("SKILL.md"):
+                self.assertIn("clean_dir", content, relative)
+            else:
+                self.assertIn("src/scripts/clean_dir", content, relative)
 
         for name in ROLE_NAMES:
             role_path = PROJECT_ROOT / "harness" / "roles" / f"{name}.md"
@@ -846,11 +858,11 @@ class DshConfigurationTests(unittest.TestCase):
             self.assertIn("subagent", text)
             for fragment in (
                 "cleanup_output/main.py",
-                "src/scripts/clean_dir",
                 "src/scripts/revise_lca",
                 "awaiting_confirmation",
             ):
                 self.assertNotIn(fragment, text, str(path))
+            self.assertIn("clean_dir", text, str(path))
             for index in range(1, 8):
                 self.assertNotIn(f"### {index:02d}", text, str(path))
 

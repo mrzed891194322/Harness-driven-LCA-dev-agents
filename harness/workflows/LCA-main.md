@@ -2,14 +2,9 @@
 
 本工作流说明由平台入口加载。共享状态机和产物契约只存在于 `harness/specs/public/`，阶段规则只存在于 `harness/specs/01-*` 至 `07-*`；不要在本文件中重定义 schema。
 
-## 运行前 openLCA 清理
+## 运行前清理（由 GUI/CLI 完成）
 
-1. 读取 `harness/rules/openlca-operation/README.md`。
-2. 调用 openLCA MCP `health_check`；失败则将 manifest 置为 `failed` 并停止。
-3. 调用 MCP `cleanup_output`：`confirm=false` 预览后立即以 `confirm=true` 执行删除（无人值守，不等待用户确认）。
-4. 将清理结果写入 `workspace/memory/stages/` 下只读证据（或可在 `status_reason` 引用）。
-
-workspace 生成物（`memory/`、`outputs/`、`tmp/`）由 GUI 或 CLI 在启动 agent 前通过 `src/scripts/clean_dir/` 清理，并保留 `workspace/inputs/` 中的 `plan.md`。本工作流不再调用 `clean_dir`。
+`harness/knowledge/`、`workspace` 生成物（`memory/`、`outputs/`、`tmp/`）与 openLCA 前景实体须在启动本工作流**之前**由 GUI 或 CLI 调用 `src/scripts/clean_dir/` 清理（whole-lca 使用 `--preset whole-lca`）。须保留 `workspace/inputs/plan.md`。用户资料由 GUI `file_sync` 或手工复制写入 `harness/knowledge/`。openLCA 前景清理已由 `clean_dir` 前置完成，本工作流不在 agent 内重复清理。
 
 ## 渐进式资源加载
 

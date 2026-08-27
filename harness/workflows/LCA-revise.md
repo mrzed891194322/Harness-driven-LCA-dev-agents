@@ -7,8 +7,9 @@
 ## 运行前基线准备
 
 1. 运行 `uv run python harness/specs/08-lca-revise-workflow/references/scripts/baseline.py snapshot --yes`；失败时保留旧 workspace/openLCA 并停止。
-2. 读取 `harness/rules/openlca-operation/README.md`；调用 MCP `health_check`，再以 `cleanup_output` 预览（`confirm=false`）后立即执行删除（`confirm=true`）；失败时不得激活快照。
-3. 运行 `baseline.py activate --yes`；失败时保留旧 canonical 结果并停止。
+2. 运行 `baseline.py activate --yes`；失败时保留旧 canonical 结果并停止。
+
+`harness/knowledge/` 与 openLCA 前景实体须在启动 revise-lca **之前**由 GUI 或 CLI 调用 `src/scripts/clean_dir/main.py -y --preset revise-lca` 清理（**不**清理 workspace，以免破坏本快照所需产物）。用户资料与 `workspace/inputs/revise.md` 由 GUI `file_sync` 或手工落盘。openLCA 前景清理已由 `clean_dir` 前置完成，本工作流不在 agent 内重复清理。
 
 ## 渐进式资源加载
 

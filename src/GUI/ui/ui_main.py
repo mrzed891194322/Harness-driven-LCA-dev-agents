@@ -76,8 +76,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                 (
                     open_init_btn,
                     start_lca_btn,
-                    ref_materials_file,
-                    ref_data_file
+                    ref_upload_file,
                 ) = build_left_sidebar()
                 
             with gr.Column(scale=2, elem_id="right-panel"):
@@ -144,8 +143,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             start_lca_btn=start_lca_btn,
             execute_lca_btn=execute_lca_btn,
             view_lca_result_btn=view_lca_result_btn,
-            ref_materials_file=ref_materials_file,
-            ref_data_file=ref_data_file,
+            ref_upload_file=ref_upload_file,
             right_tabs=right_tabs,
             output_console=output_console,
             status=status,

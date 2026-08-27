@@ -357,7 +357,7 @@ def workflow_command_args(task: str, agent: str) -> list[str]:
     return list(WORKFLOW_COMMANDS[agent_key][task])
 
 
-CLEAN_WORKSPACE_COMMAND = [
+CLEAN_DIR_SCRIPT = [
     "uv",
     "run",
     "python",
@@ -366,16 +366,33 @@ CLEAN_WORKSPACE_COMMAND = [
 ]
 
 
-def run_clean_workspace_console() -> Generator[tuple[str, str], None, None]:
-    """Clean workspace generated artifacts before starting whole-lca."""
-    project_root = find_project_root(Path(__file__).resolve())
-    accumulated_output = ""
+def clean_dir_command(
+    *,
+    preset: str | None = None,
+    target: str | None = None,
+) -> list[str]:
+    command = list(CLEAN_DIR_SCRIPT)
+    if preset:
+        command.extend(["--preset", preset])
+    elif target:
+        command.extend(["-t", target])
+    return command
 
-    yield "[System] 正在清理 workspace 生成物...\n", "Running"
+
+CLEAN_WORKSPACE_COMMAND = clean_dir_command(target="workspace")
+
+
+def _stream_subprocess_command(
+    command: list[str],
+    *,
+    start_message: str,
+) -> Generator[tuple[str, str], None, None]:
+    accumulated_output = start_message
+    yield render_terminal_text(accumulated_output), "Running"
 
     from functions.utils.process_manager import should_stop
 
-    for chunk in execute_command_stream(CLEAN_WORKSPACE_COMMAND):
+    for chunk in execute_command_stream(command):
         if should_stop():
             break
         accumulated_output += chunk
@@ -394,6 +411,83 @@ def run_clean_workspace_console() -> Generator[tuple[str, str], None, None]:
         return
 
     yield render_terminal_text(accumulated_output), "Finished"
+
+
+def run_clean_preset_console(preset: str) -> Generator[tuple[str, str], None, None]:
+    """Run clean_dir with a whole-lca or revise-lca preset."""
+    yield from _stream_subprocess_command(
+        clean_dir_command(preset=preset),
+        start_message=f"[System] 正在执行 clean_dir --preset {preset}...\n",
+    )
+
+
+def run_clean_workspace_console() -> Generator[tuple[str, str], None, None]:
+    """Clean workspace generated artifacts before starting whole-lca."""
+    yield from _stream_subprocess_command(
+        CLEAN_WORKSPACE_COMMAND,
+        start_message="[System] 正在清理 workspace 生成物...\n",
+    )
+
+
+def _format_sync_lines(result) -> str:
+    lines = [f"[System] file_sync ({result.target}): {result.message}\n"]
+    for detail in result.details:
+        lines.append(f"  - {detail}\n")
+    return "".join(lines)
+
+
+def run_pre_workflow_console(
+    task: str,
+    *,
+    document_values: list[object],
+    source_text: str,
+    ref_upload_file: object,
+) -> Generator[tuple[str, str], None, None]:
+    """Clean, then sync GUI inputs before launching whole-lca or revise-lca."""
+    import config
+
+    from functions.file_sync.main import sync_files
+
+    preset = task if task in {"whole-lca", "revise-lca"} else None
+    if preset is None:
+        yield "[System] 未知工作流任务，无法执行前置清理。\n", "Failed"
+        return
+
+    latest_console = ""
+    latest_status = "Running"
+    for latest_console, latest_status in run_clean_preset_console(preset):
+        yield latest_console, latest_status
+    if latest_status in {"Failed", "Stopped"}:
+        return
+
+    sync_target = "plan" if task == "whole-lca" else "revise"
+    doc_path = (
+        config.CURRENT_PLAN_PATH
+        if sync_target == "plan"
+        else config.CURRENT_REVISION_PATH
+    )
+
+    knowledge_result = sync_files("knowledge", uploads=ref_upload_file)
+    latest_console += _format_sync_lines(knowledge_result)
+    yield render_terminal_text(latest_console), "Running"
+    if not knowledge_result.ok:
+        yield render_terminal_text(latest_console), "Failed"
+        return
+
+    doc_result = sync_files(
+        sync_target,
+        values=document_values,
+        source_text=source_text,
+        target_path=doc_path,
+    )
+    latest_console += _format_sync_lines(doc_result)
+    yield render_terminal_text(latest_console), "Running"
+    if not doc_result.ok:
+        yield render_terminal_text(latest_console), "Failed"
+        return
+
+    latest_console += f"[System] 前置清理与文件同步完成 ({task})。\n"
+    yield render_terminal_text(latest_console), "Finished"
 
 
 def run_workflow_command_console(

@@ -28,7 +28,7 @@ uv run python src/GUI/main.py
 点击目录进入对应配置项：初始化检查、AI Agent 工具、开发者选项。
 可选择 AI Agent（codex / claude / opencode / dsh）并检查 CLI 是否可用。
 「开始初始化检查」会依次探测所选 Agent CLI（`--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导见 `AGENTS.md` 终端一行 CLI 或 `src/scripts/proj_init/main.py`）。
-参考资料上传写入 `harness/knowledge/`，由 Agent 直接读取。所选 Agent 写入仓库根目录 `.env` 的 `HARNESS_AGENT`。
+侧栏「用户资料上传」仅暂存于 GUI；点击「执行LCA计划」或「执行改进」时，先 `clean_dir --preset`，再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 写入仓库根目录 `.env` 的 `HARNESS_AGENT`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
 `workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。
@@ -48,8 +48,9 @@ front matter；若文档包含完整的 `PLAN_TEXTBOX` 区域，则在原位置�
 其后的“用户填写内容区”区块会在原位显示为 Textbox；其他 Markdown 原样分段显示。
 左侧目录直接使用 `#`、`##` 两级标题的完整文字。最多 20 个输入区域由固定的
 Markdown/Textbox 交替组件池动态更新；无标记的普通 Markdown 作为只读计划显示。
-上传 `.md` 只替换当前页面的暂存内容，只有点击“执行LCA计划”时才会保留当前
-模板结构、写入字段并原子保存到唯一计划输入 `workspace/inputs/plan.md`。
+上传 `.md` 只替换当前页面的暂存内容。点击「执行LCA计划」时先清理（`knowledge`、
+`workspace`、`openLCA`）再同步计划与用户资料，最后启动 agent；同步后才写入
+`workspace/inputs/plan.md`。
 默认模板不含 YAML front matter；上传计划可省略 front matter，也可携带任意
 metadata，GUI 会原样保留而不校验类型或版本。
 旧显式 `PLAN_INPUT` 注释不再支持。
@@ -88,7 +89,7 @@ GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界
 - 外部路径必须通过 `config.py` 配置；Tab 展示用 Markdown 使用项目根目录
   相对路径集中声明。
 - LCA 状态必须读取结构化 manifest；不得仅凭命令退出码或终端文本宣称完成。
-- 用户上传文件直接写入 `harness/knowledge/`。
+- 用户上传文件在执行前由 `file_sync` 写入 `harness/knowledge/`；不要在上传时直写磁盘。
 - 修改 GUI 代码后，必须从仓库根目录运行 `src/test` 回归（GUI 为路径与
   `build_ui()` 冒烟，计划解析与写盘逻辑在同目录其余模块）：
 

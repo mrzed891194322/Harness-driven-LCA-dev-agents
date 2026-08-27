@@ -10,12 +10,13 @@
 
 - [ ] memory 改名为 state
 
+- [ ] 初始化（Bootstrap），在agent中以提示词形式：uv、openLCA、检查CLI、自动模式
+
 - [x] 加入DSHagent
 
 - [x] 移除多余的hash、schema
 
 - [x] 工作流schema连接写文档
-
 
 
 

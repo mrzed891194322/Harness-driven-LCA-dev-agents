@@ -12,12 +12,12 @@ whenToUse: 用户要求运行 revise-lca、按 workspace/inputs/revise.md 修订
 
 ## 启动
 
-1. 当前 headless 会话即担任 `major-orchestrator`：先完整读取 `harness/roles/major-orchestrator.md` 的职责边界，再完整读取并执行 `harness/workflows/LCA-revise.md`。执行 workflow 前**首先**完成其中的「运行前基线准备」（`uv run python harness/specs/08-lca-revise-workflow/references/scripts/baseline.py snapshot --yes`，随后 openLCA MCP `health_check` 与 `cleanup_output`，再 `baseline.py activate --yes`）；**不要**调用 `clean_dir`。固定意见输入为 `workspace/inputs/revise.md`；用户参考资料只从 `harness/knowledge/` 读取。不要再生成另一个 `major-orchestrator`。
+1. 当前 headless 会话即担任 `major-orchestrator`：先完整读取 `harness/roles/major-orchestrator.md` 的职责边界，再完整读取并执行 `harness/workflows/LCA-revise.md`。执行 workflow 中的 baseline 准备（`baseline.py snapshot --yes` 与 `activate --yes`）。GUI/CLI 已前置 `clean_dir --preset revise-lca`；**不要**在 agent 内调用 `clean_dir` 或 MCP `cleanup_output`。固定意见输入为 `workspace/inputs/revise.md`；用户参考资料只从 `harness/knowledge/` 读取。不要再生成另一个 `major-orchestrator`。
 2. 只生成 `sub-executor` 和 `eval-reviewer` 两个角色的子 agent。每次委派前后在用户可见输出中写明当前阶段、被委派角色、输入产物路径和等待原因；子 agent 返回后立即摘要结论与产物，不要用空的 Wait 心跳代替阶段进展。
 
 ## DSH 运行时补充
 
-- workflow 文本中的 MCP 裸工具名在 DSH 中带前缀：`mcp__control_openlca__health_check`、`mcp__control_openlca__cleanup_output` 等（`mcp__control_openlca__<原名>`）。若工具列表中不存在 `mcp__control_openlca__*` 工具，视为 `health_check` 失败：按 workflow 将运行置为 `failed` 并写非空 `status_reason`，不得绕过或重试。
+- workflow 文本中的 MCP 裸工具名在 DSH 中带前缀：`mcp__control_openlca__health_check` 等（`mcp__control_openlca__<原名>`）。若工具列表中不存在 `mcp__control_openlca__*` 工具，视为 openLCA 不可用：按 workflow 将运行置为 `failed` 并写非空 `status_reason`，不得绕过或重试。
 - 子 agent 用 `subagent` 工具生成。委派 prompt 必须写明角色名（`sub-executor` / `eval-reviewer`）并明确要求其先完整读取对应的 `harness/roles/*.md` 与本次交接列出的文件；只委派这两个角色，不得生成其他 agent，子 agent 不得继续委派。
 - LCA 知识与 openLCA 规则在 DSH 中均不全局加载；按 workflow 条件读取 `harness/rules/lca-knowledge/README.md` 与 `harness/rules/openlca-operation/README.md`。
 - 无人值守：运行中不得征求用户建模决定、不得尝试扩大权限；预检成功后在同一 `import_scope` 下立即继续导入，不请求额外确认。

@@ -11,7 +11,7 @@ description: 从现有 LCA 最终报告、plan、LCI、运行 memory 和 workspa
 
 ## 启动
 
-1. 当前 `codex exec` 会话即担任 `major-orchestrator`：先读取 `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行 `harness/workflows/LCA-revise.md`。执行 workflow 前**首先**完成其中的 baseline 准备与 openLCA MCP `health_check`、`cleanup_output`；**不要**调用 `clean_dir`。用户参考资料只从 `harness/knowledge/` 读取。不要再 spawn 另一个 `major-orchestrator`。只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明当前阶段、被委派角色和等待原因；子 Agent 返回后立即摘要结论，不要用空的 Wait 心跳代替阶段进展。
+1. 当前 `codex exec` 会话即担任 `major-orchestrator`：先读取 `.codex/agents/major-orchestrator.toml` 的职责边界，再完整读取并执行 `harness/workflows/LCA-revise.md`。GUI/CLI 已前置 `clean_dir --preset revise-lca`；**不要**在 agent 内调用 `clean_dir` 或 MCP `cleanup_output`。用户参考资料只从 `harness/knowledge/` 读取。不要再 spawn 另一个 `major-orchestrator`。只生成 `sub-executor` 和 `eval-reviewer`。每次委派前后在用户可见输出中写明当前阶段、被委派角色和等待原因；子 Agent 返回后立即摘要结论，不要用空的 Wait 心跳代替阶段进展。
 
 ## 无人值守中继
 

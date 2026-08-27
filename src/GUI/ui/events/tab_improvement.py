@@ -10,8 +10,6 @@ from functions.plan_editor import (
     parse_execution_plan_text,
     parse_execution_plan_template,
     read_uploaded_markdown,
-    save_execution_plan,
-    save_structured_plan,
 )
 from functions.lca_run import manifest_fingerprint, parse_lca_result
 from functions.utils.executor.private_utils.executor_utils import (
@@ -37,6 +35,7 @@ def bind_tab_improvement_events(
     right_tabs: gr.Tabs,
     init_check_ok_state: gr.State,
     improvement_ready_state: gr.State,
+    ref_upload_file: gr.File,
     output_console: gr.Textbox,
     status: gr.Textbox,
     run_result_state: gr.State,
@@ -206,45 +205,34 @@ def bind_tab_improvement_events(
     )
 
     def prepare_revision_flow(*arguments):
-        import config
-
         *revision_values, source_text = arguments
-        try:
-            if not _baseline_available():
-                raise gr.Error(
-                    "revise-lca 需要现有 plan、manifest、LCI 和最终报告。"
-                )
-            if not source_text or not source_text.strip():
-                raise gr.Error("当前没有可执行的改进模板或上传方案。")
-            template = parse_execution_plan_text(source_text)
-            active_values = revision_values[: len(template.fields)]
-            if template.fields:
-                if not is_plan_ready(active_values):
-                    raise gr.Error("改进意见至少需要填写一个字段。")
-                revision_path = save_structured_plan(
-                    template=template,
-                    values=active_values,
-                    target_path=config.CURRENT_REVISION_PATH,
-                )
-            else:
-                revision_path = save_execution_plan(
-                    text=source_text,
-                    target_path=config.CURRENT_REVISION_PATH,
-                )
-        except (OSError, UnicodeError, ValueError) as exc:
-            raise gr.Error(str(exc)) from exc
-
+        if not _baseline_available():
+            raise gr.Error(
+                "revise-lca 需要现有 plan、manifest、LCI 和最终报告。"
+            )
+        if not source_text or not source_text.strip():
+            raise gr.Error("当前没有可执行的改进模板或上传方案。")
+        template = parse_execution_plan_text(source_text)
+        active_values = revision_values[: len(template.fields)]
+        if template.fields:
+            if not is_plan_ready(active_values):
+                raise gr.Error("改进意见至少需要填写一个字段。")
         return (
-            f"[System] 已保存 LCA 改进意见：{revision_path}\n",
+            "[System] 改进意见校验通过，开始执行前置清理与文件同步...\n",
             "Running",
             None,
             gr.update(interactive=False),
         )
 
-    def run_revision_flow():
+    def run_revision_flow(*arguments):
+        from functions.lca_run import build_precheck_failure
+        from functions.utils.executor.private_utils.executor_utils import (
+            run_pre_workflow_console,
+        )
         from functions.utils.process_manager import reset_stop
 
         reset_stop()
+        *revision_values, source_text, ref_upload = arguments
         previous = manifest_fingerprint()
         latest_console = ""
         latest_status = "Running"
@@ -254,6 +242,32 @@ def bind_tab_improvement_events(
             None,
             gr.update(interactive=False),
         )
+        for latest_console, latest_status in run_pre_workflow_console(
+            "revise-lca",
+            document_values=list(revision_values),
+            source_text=source_text,
+            ref_upload_file=ref_upload,
+        ):
+            yield (
+                latest_console,
+                latest_status,
+                None,
+                gr.update(interactive=False),
+            )
+        if latest_status in {"Failed", "Stopped"}:
+            reason = (
+                "用户停止了本次执行。"
+                if latest_status == "Stopped"
+                else "前置清理或文件同步失败，未启动 Revise-LCA 工作流。"
+            )
+            yield (
+                latest_console,
+                latest_status if latest_status == "Stopped" else "Failed",
+                build_precheck_failure(reason),
+                gr.update(interactive=False),
+            )
+            return
+
         for latest_console, latest_status in run_workflow_command_console(
             "revise-lca"
         ):
@@ -274,12 +288,15 @@ def bind_tab_improvement_events(
             gr.update(interactive=False),
         )
 
+    revision_run_inputs = [
+        *improvement_view.inputs,
+        improvement_view.source_state,
+        ref_upload_file,
+    ]
+
     prepare_event = execute_improvement_btn.click(
         fn=prepare_revision_flow,
-        inputs=[
-            *improvement_view.inputs,
-            improvement_view.source_state,
-        ],
+        inputs=revision_run_inputs,
         outputs=[
             output_console,
             status,
@@ -289,7 +306,7 @@ def bind_tab_improvement_events(
     )
     execute_event = prepare_event.success(
         fn=run_revision_flow,
-        inputs=None,
+        inputs=revision_run_inputs,
         outputs=[
             output_console,
             status,

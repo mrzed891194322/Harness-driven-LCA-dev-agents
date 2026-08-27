@@ -15,7 +15,8 @@
 
 1. 运行 `uv run python harness/specs/08-lca-revise-workflow/references/scripts/baseline.py snapshot --yes`。
 2. 只有快照清单与路径核对通过，才可清理当前项目分类下的
-   openLCA ProductSystem、Process 和 Flow（通过 openLCA MCP `cleanup_output`）。
+   openLCA ProductSystem、Process 和 Flow（由 GUI/CLI 在启动 agent 前通过
+   `src/scripts/clean_dir/main.py -y --preset revise-lca` 完成；agent 不调用 MCP `cleanup_output`）。
 3. openLCA 清理成功后运行
    `uv run python harness/specs/08-lca-revise-workflow/references/scripts/baseline.py activate --yes`。
 

@@ -183,6 +183,21 @@ def _collect_failure_reasons(manifest: dict[str, Any]) -> tuple[list[str], list[
     return reasons, warnings
 
 
+def build_precheck_failure(reason: str) -> dict[str, Any]:
+    """Build a run_result_state payload when pre-agent clean/sync fails."""
+    detail = reason.strip() or "执行前清理或文件同步失败。"
+    return {
+        "success": False,
+        "tab_label": "LCA执行结果（LCA提前中止）",
+        "status": "precheck_failed",
+        "failure_markdown": (
+            "### 失败原因\n\n"
+            f"- {detail}\n\n"
+            "详见终端输出中的 `[FAIL]` 或 file_sync 错误。"
+        ),
+    }
+
+
 def parse_lca_result(
     *,
     previous_fingerprint: str | None = None,

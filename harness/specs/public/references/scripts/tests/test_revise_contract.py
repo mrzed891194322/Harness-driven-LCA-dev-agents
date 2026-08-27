@@ -92,7 +92,8 @@ class ReviseLcaContractTests(unittest.TestCase):
         self.assertIn("references/scripts/baseline.py", workflow_text)
         self.assertIn("snapshot --yes", workflow_text)
         self.assertIn("activate --yes", workflow_text)
-        self.assertIn("cleanup_output", workflow_text)
+        self.assertNotIn("调用 MCP `cleanup_output`", workflow_text)
+        self.assertIn("clean_dir", workflow_text)
 
         skill_path = PROJECT_ROOT / ".codex" / "skills" / "revise-lca" / "SKILL.md"
         skill = load_frontmatter(skill_path)

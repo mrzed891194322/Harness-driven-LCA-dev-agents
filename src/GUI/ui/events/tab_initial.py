@@ -28,8 +28,7 @@ def bind_tab_initial_events(
     init_check_btn: gr.Button,
     init_check_status_values: list[gr.Markdown],
     dev_ports_save_btn: gr.Button,
-    ref_materials_file: gr.File,
-    ref_data_file: gr.File,
+    ref_upload_file: gr.File,
     agent_dropdown: gr.Dropdown,
     init_openlca_port: gr.Number,
     dev_gui_port: gr.Number,
@@ -133,22 +132,6 @@ def bind_tab_initial_events(
         gr.Info("端口配置已保存；修改 GUI 端口后需重启界面方可生效。")
         return invalidate_init_gate(plan_ready, improvement_ready)
 
-    def copy_uploads_and_invalidate(
-        ref_materials,
-        ref_data,
-        plan_ready,
-        improvement_ready,
-    ):
-        from pathlib import Path
-
-        from functions.settings.private_utils.file_handler import copy_uploaded_files
-        from functions.utils.path_utils import find_project_root
-
-        project_root = find_project_root(Path(__file__))
-        for _chunk in copy_uploaded_files(ref_materials, ref_data, project_root):
-            pass
-        return invalidate_init_gate(plan_ready, improvement_ready)
-
     init_check_btn.click(
         fn=run_init_check,
         inputs=[*settings_inputs, plan_ready_state, improvement_ready_state],
@@ -181,15 +164,9 @@ def bind_tab_initial_events(
         outputs=[*gate_outputs, *status_outputs],
     )
 
-    for upload_component in (ref_materials_file, ref_data_file):
-        for event in (upload_component.upload, upload_component.delete):
-            event(
-                fn=copy_uploads_and_invalidate,
-                inputs=[
-                    ref_materials_file,
-                    ref_data_file,
-                    plan_ready_state,
-                    improvement_ready_state,
-                ],
-                outputs=[*gate_outputs, *status_outputs],
-            )
+    for event in (ref_upload_file.upload, ref_upload_file.delete):
+        event(
+            fn=invalidate_init_gate,
+            inputs=[plan_ready_state, improvement_ready_state],
+            outputs=[*gate_outputs, *status_outputs],
+        )

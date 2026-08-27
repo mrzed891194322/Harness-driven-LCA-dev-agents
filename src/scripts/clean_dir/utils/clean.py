@@ -118,3 +118,45 @@ def clean_ignored_dir(
             print(f"  删除目录失败: {root_path}，错误: {exc}", file=sys.stderr)
 
     return deleted_files, deleted_dirs, kept_files, failed
+
+
+def clean_root_files(
+    root_dir: Path,
+    project_root: Path,
+    keep_patterns: list[str],
+    dry_run: bool = False,
+) -> tuple[int, int, int, int]:
+    """Delete direct files under a flat directory while preserving keep patterns."""
+    deleted_files = 0
+    deleted_dirs = 0
+    kept_files = 0
+    failed = 0
+
+    if not root_dir.exists() or not root_dir.is_dir():
+        return deleted_files, deleted_dirs, kept_files, failed
+
+    for child in sorted(root_dir.iterdir()):
+        if not child.is_file():
+            continue
+        if match_keep(child, root_dir, keep_patterns):
+            kept_files += 1
+            continue
+        try:
+            display_path = child.relative_to(project_root)
+        except ValueError:
+            display_path = child
+
+        if dry_run:
+            print(f"  [待删除] 文件: {display_path}")
+            deleted_files += 1
+            continue
+
+        try:
+            child.unlink()
+            deleted_files += 1
+            print(f"  已删除文件: {display_path}")
+        except Exception as exc:
+            failed += 1
+            print(f"  删除文件失败: {child}，错误: {exc}", file=sys.stderr)
+
+    return deleted_files, deleted_dirs, kept_files, failed

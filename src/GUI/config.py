@@ -87,8 +87,7 @@ CALCULATION_MANIFEST_PATH = REPORTS_DIR / "calculation_manifest.json"
 
 # -----------------------------------------------------------------------------
 # 用户上传目录
-# 参考资料与参考数据都写入 harness/knowledge/（扁平目录，唯一落点）。
+# GUI 侧栏用户资料在执行前经 file_sync 写入 harness/knowledge/（扁平目录）。
 # -----------------------------------------------------------------------------
 KNOWLEDGE_DIR = PROJECT_ROOT / "harness" / "knowledge"
-USER_FILE_DIR = KNOWLEDGE_DIR
-USER_DATA_DIR = KNOWLEDGE_DIR
+USER_UPLOAD_DIR = KNOWLEDGE_DIR

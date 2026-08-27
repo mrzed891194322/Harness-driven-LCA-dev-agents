@@ -65,3 +65,27 @@ uv run python src/GUI/main.py
 4. 完成后在 **LCA评估结果** 查看报告。
 
 ![start LCA](docs/assets/images/readme/start-lca.png)
+
+---
+
+## 命令行直接运行（无 GUI）
+
+GUI 会在执行前自动清理并同步文件；命令行用户需手动完成等价步骤：
+
+### whole-lca
+
+```bash
+uv run python src/scripts/clean_dir/main.py -y --preset whole-lca
+# 复制资料到 harness/knowledge/，编写 workspace/inputs/plan.md
+opencode run --command whole-lca --dangerously-skip-permissions
+```
+
+### revise-lca
+
+```bash
+uv run python src/scripts/clean_dir/main.py -y --preset revise-lca
+# 更新 harness/knowledge/ 与 workspace/inputs/revise.md（保留既有 plan/manifest/报告）
+opencode run --command revise-lca --dangerously-skip-permissions
+```
+
+其他平台一行命令见 [.dsh/README.md](.dsh/README.md)。`clean_dir` 详见 [src/scripts/clean_dir/README.md](src/scripts/clean_dir/README.md)。

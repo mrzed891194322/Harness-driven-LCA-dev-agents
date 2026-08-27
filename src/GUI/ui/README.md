@@ -4,7 +4,7 @@
 
 ## 组件
 
-- `components/left_sidebar.py`：参考资料/数据上传区和快捷操作按钮。
+- `components/left_sidebar.py`：用户资料上传区与快捷操作按钮。
 - `components/tab_initial.py`：设置&初始化（左侧文字目录、初始化检查、Agent 选择、开发者选项）。
 - `components/tab_terminal.py`：终端输出、状态、清空和停止任务。
 - `components/render_mdfile.py`：所有文档型 Tab 共用的
