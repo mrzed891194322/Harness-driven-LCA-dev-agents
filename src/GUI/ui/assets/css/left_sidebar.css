@@ -20,6 +20,14 @@
     box-shadow: none !important;
 }
 
+#reference-upload,
+#reference-upload.block {
+    border: none !important;
+    border-width: 0 !important;
+    border-style: none !important;
+    box-shadow: none !important;
+}
+
 #quick-actions-section {
     align-self: end !important;
     width: 100% !important;

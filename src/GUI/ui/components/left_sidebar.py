@@ -13,7 +13,7 @@ def build_left_sidebar() -> tuple[
         gr.Markdown(
             """
             ### 📁 文件交换区
-            上传的用户资料将在执行 LCA 或改进前同步到 `harness/knowledge/`。
+            上传用于智能体制定LCA报告的参考资料
             """
         )
         ref_upload_file = gr.File(
