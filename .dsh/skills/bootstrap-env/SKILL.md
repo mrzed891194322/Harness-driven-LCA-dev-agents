@@ -1,0 +1,9 @@
+---
+name: bootstrap-env
+description: 检查并配置本仓库运行环境：uv、项目依赖、.env、MCP。适用于初始化、bootstrap-env 或首次配环境。没有 uv 时判定不通过并请用户手动安装，禁止代装。不要启动 whole-lca。
+whenToUse: 用户要求 bootstrap-env、初始化或首次配置本仓库运行环境时。
+---
+
+读取并执行 `src/scripts/proj_init/PROMPT.md`。不要改写其中的步骤。不要启动 whole-lca。
+
+DSH 注记：本技能通过 headless 一行 CLI 运行（`DSH_PERMISSION_MODE=danger-full-access`，uv 缓存可用）；按 PROMPT.md 的要求逐项汇报，不要代装 uv，不要打开 `.env` 把值贴进对话。

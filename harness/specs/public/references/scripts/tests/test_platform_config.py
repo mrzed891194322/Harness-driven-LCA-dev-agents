@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import tomllib
 import unittest
 from pathlib import Path
@@ -142,13 +143,21 @@ class CodexConfigurationTests(unittest.TestCase):
         self.assertNotIn("model_reasoning_effort", config)
 
         root_agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("你是 LCA 编排 agent", root_agents)
         self.assertIn("Codex 只作为 LCA 编排", root_agents)
         self.assertIn("$whole-lca", root_agents)
         self.assertIn("$revise-lca", root_agents)
         self.assertIn("$bootstrap-env", root_agents)
         self.assertIn("不要使用 `$improve-whole-lca-workflow`", root_agents)
         self.assertIn("harness/roles/", root_agents)
+        self.assertIn("harness/workflows/", root_agents)
+        self.assertIn("workspace/inputs/plan.md", root_agents)
+        self.assertIn("workspace/outputs/LCI/", root_agents)
+        self.assertIn("workspace/outputs/reports/", root_agents)
         self.assertNotIn("代码维护说明见 `.codex/AGENTS.md`", root_agents)
+        self.assertNotIn("你不是代码维护者", root_agents)
+        self.assertNotIn("Cursor 忽略", root_agents)
+        self.assertNotIn("opencode run --command whole-lca", root_agents)
 
         self.assertFalse((PROJECT_ROOT / ".codex" / "AGENTS.md").exists())
         self.assertTrue((PROJECT_ROOT / "AGENTS.md").is_file())
@@ -547,11 +556,8 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         self.assertTrue((PROJECT_ROOT / query_rag).is_file())
 
     def test_one_line_cli_is_documented_for_each_platform(self) -> None:
-        documents = (
+        operator_docs = (
             PROJECT_ROOT / "README.md",
-            PROJECT_ROOT / "AGENTS.md",
-            PROJECT_ROOT / "CLAUDE.md",
-            PROJECT_ROOT / "docs" / "lang_CN" / "manual_debug.md",
             PROJECT_ROOT
             / "harness"
             / "rules"
@@ -559,7 +565,7 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
             / "references"
             / "platform-adapter.md",
         )
-        content = "\n".join(path.read_text(encoding="utf-8") for path in documents)
+        content = "\n".join(path.read_text(encoding="utf-8") for path in operator_docs)
         self.assertIn("opencode run --command whole-lca", content)
         self.assertIn("opencode run --command revise-lca", content)
         self.assertIn("codex exec", content)
@@ -569,6 +575,12 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         self.assertIn("claude", content)
         self.assertIn("whole-lca", content)
         self.assertIn("不要把 IDE 对话当成", content)
+
+        cursor_dev = (
+            PROJECT_ROOT / ".cursor" / "rules" / "cursor-dev.mdc"
+        ).read_text(encoding="utf-8")
+        self.assertIn("功能性说明", cursor_dev)
+        self.assertIn("不允许按其实际内容执行", cursor_dev)
 
         for relative in (
             ".opencode/commands/whole-lca.md",
@@ -653,6 +665,7 @@ class BootstrapEnvAdapterTests(unittest.TestCase):
         ".claude/commands/bootstrap-env.md",
         ".codex/skills/bootstrap-env/SKILL.md",
         ".cursor/skills/bootstrap-env/SKILL.md",
+        ".dsh/skills/bootstrap-env/SKILL.md",
     )
     COPIED_STEPS = (
         "uv sync",
@@ -705,6 +718,208 @@ class BootstrapEnvAdapterTests(unittest.TestCase):
         self.assertFalse(
             (PROJECT_ROOT / "src/scripts/gui_control/launch_gui.ps1").exists()
         )
+
+
+class KnowledgeGitignoreTests(unittest.TestCase):
+    def test_parent_gitignore_ignores_user_knowledge_files(self) -> None:
+        harness_ignore = (PROJECT_ROOT / "harness" / ".gitignore").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("knowledge/**", harness_ignore)
+        self.assertIn("!knowledge/.gitignore", harness_ignore)
+        self.assertIn("!knowledge/README.md", harness_ignore)
+
+        knowledge_ignore = (
+            PROJECT_ROOT / "harness" / "knowledge" / ".gitignore"
+        ).read_text(encoding="utf-8")
+        self.assertIn("*", knowledge_ignore)
+        self.assertIn("!.gitignore", knowledge_ignore)
+        self.assertIn("!README.md", knowledge_ignore)
+
+        def check_ignore(relative: str) -> int:
+            return subprocess.run(
+                ["git", "check-ignore", "-q", relative],
+                cwd=PROJECT_ROOT,
+                check=False,
+            ).returncode
+
+        self.assertEqual(check_ignore("harness/knowledge/__user_upload__.pdf"), 0)
+        self.assertEqual(check_ignore("harness/knowledge/nested/dir/file.csv"), 0)
+        self.assertEqual(check_ignore("harness/knowledge/README.md"), 1)
+        self.assertEqual(check_ignore("harness/knowledge/.gitignore"), 1)
+
+
+class DshConfigurationTests(unittest.TestCase):
+    CONTROL_OPENLCA = "harness/tools/control_openlca/main.py"
+    SKILL_NAMES = ("whole-lca", "revise-lca", "bootstrap-env")
+    # agent.cordis.yml 是 Cordis 组合（其中 @deepseek-ai/* 是包名），不做模型名扫描。
+    MODEL_SCAN_PATHS = (
+        ".dsh/skills/whole-lca/SKILL.md",
+        ".dsh/skills/revise-lca/SKILL.md",
+        ".dsh/skills/bootstrap-env/SKILL.md",
+        ".dsh/agent-presets/lca/preset.yml",
+        ".dsh/README.md",
+    )
+
+    def _load_cordis_patch(self) -> list:
+        return yaml.safe_load(
+            (PROJECT_ROOT / ".dsh" / "cordis.patch.yml").read_text(encoding="utf-8")
+        )
+
+    def test_mcp_points_at_harness_tools(self) -> None:
+        patch = self._load_cordis_patch()
+        mcp_rows = [
+            row
+            for entry in patch
+            if isinstance(entry, dict) and "insert" in entry
+            for row in entry["insert"]
+            if row.get("id") == "mcp-control_openlca"
+        ]
+        self.assertEqual(len(mcp_rows), 1)
+        config = mcp_rows[0]["config"]
+        self.assertEqual(config["serverName"], "control_openlca")
+        self.assertEqual(config["transport"], "stdio")
+        self.assertEqual(config["args"][-1], self.CONTROL_OPENLCA)
+        self.assertEqual(config["toolCallTimeoutMs"], 300000)
+        self.assertNotIn("failOnStartupError", config)
+        patch_text = yaml.safe_dump(patch)
+        self.assertNotIn("query_rag", patch_text)
+        self.assertNotIn("agent-default-model", patch_text)
+        self.assertNotIn("model_reasoning_effort", patch_text)
+
+    def test_cordis_patch_uses_relative_paths(self) -> None:
+        patch_text = (
+            PROJECT_ROOT / ".dsh" / "cordis.patch.yml"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("/home/", patch_text)
+
+        patch = self._load_cordis_patch()
+        mcp_rows = [
+            row
+            for entry in patch
+            if isinstance(entry, dict) and "insert" in entry
+            for row in entry["insert"]
+            if row.get("id") == "mcp-control_openlca"
+        ]
+        mcp_config = mcp_rows[0]["config"]
+        self.assertEqual(mcp_config["command"], "uv")
+        self.assertEqual(mcp_config["cwd"], ".")
+
+        preset_rows = [
+            entry
+            for entry in patch
+            if isinstance(entry, dict) and entry.get("id") == "agent-presets"
+        ]
+        roots = preset_rows[0]["config"]["roots"]
+        self.assertEqual(roots[0]["path"], ".dsh/agent-presets")
+
+    def test_one_line_cli_is_documented(self) -> None:
+        readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        adapter = (
+            PROJECT_ROOT
+            / "harness"
+            / "rules"
+            / "directory-structure"
+            / "references"
+            / "platform-adapter.md"
+        ).read_text(encoding="utf-8")
+        operator = "\n".join((readme, adapter))
+        self.assertIn("dsh --profile headless", operator)
+        self.assertIn("--patch .dsh/cordis.patch.yml", operator)
+        self.assertIn("DSH_PERMISSION_MODE=danger-full-access", operator)
+
+        agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        for name in self.SKILL_NAMES:
+            self.assertIn(f".dsh/skills/{name}/SKILL.md", agents)
+        self.assertIn("DSH 只作为 LCA 编排", agents)
+        self.assertIn("workspace/inputs/plan.md", agents)
+        self.assertIn("workspace/outputs/reports/", agents)
+
+    def test_workflow_skills_delegate_to_workflows(self) -> None:
+        for name, workflow in (("whole-lca", "LCA-main.md"), ("revise-lca", "LCA-revise.md")):
+            path = PROJECT_ROOT / ".dsh" / "skills" / name / "SKILL.md"
+            self.assertTrue(path.is_file(), str(path))
+            text = path.read_text(encoding="utf-8")
+            self.assertIn(f"harness/workflows/{workflow}", text)
+            self.assertIn("harness/roles/", text)
+            self.assertIn("mcp__control_openlca__", text)
+            self.assertIn("subagent", text)
+            for fragment in (
+                "cleanup_output/main.py",
+                "src/scripts/clean_dir",
+                "src/scripts/revise_lca",
+                "awaiting_confirmation",
+            ):
+                self.assertNotIn(fragment, text, str(path))
+            for index in range(1, 8):
+                self.assertNotIn(f"### {index:02d}", text, str(path))
+
+    def test_bootstrap_skill_only_references_shared_prompt(self) -> None:
+        path = PROJECT_ROOT / ".dsh" / "skills" / "bootstrap-env" / "SKILL.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("src/scripts/proj_init/PROMPT.md", text)
+        self.assertIn("不要启动 whole-lca", text)
+        for fragment in ("uv sync", "环境检测不通过"):
+            self.assertNotIn(fragment, text)
+
+    def test_no_hardcoded_models_in_dsh_adapter_docs(self) -> None:
+        combined = "\n".join(
+            (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            for relative in self.MODEL_SCAN_PATHS
+            if relative != ".dsh/README.md"
+        )
+        for pattern in HARDCODED_MODEL_PATTERNS:
+            self.assertNotIn(pattern, combined, pattern)
+        # README 的 yaml 示例含 @deepseek-ai/* 包名（不是模型配置），只查真实模型标识。
+        readme = (PROJECT_ROOT / ".dsh/README.md").read_text(encoding="utf-8")
+        for pattern in (
+            "deepseek-chat",
+            "deepseek-v",
+            "deepseek-r",
+            "gpt-",
+            "model_reasoning_effort",
+        ):
+            self.assertNotIn(pattern, readme, pattern)
+
+    def test_lca_preset_composition_keeps_standard_rows_and_lca_persona(self) -> None:
+        root = PROJECT_ROOT / ".dsh" / "agent-presets" / "lca"
+        self.assertTrue((root / "preset.yml").is_file())
+
+        class _NoopTagLoader(yaml.SafeLoader):
+            pass
+
+        _NoopTagLoader.add_constructor(
+            "tag:yaml.org,2002:js", lambda loader, node: None
+        )
+        composition = yaml.load(
+            (root / "agent.cordis.yml").read_text(encoding="utf-8"),
+            Loader=_NoopTagLoader,
+        )
+        self.assertIsInstance(composition, list)
+        persona = next(
+            row for row in composition if row.get("id") == "persona"
+        )
+        persona_text = persona["config"]["text"]
+        self.assertIn("harness/roles/major-orchestrator.md", persona_text)
+        self.assertIn("sub-executor", persona_text)
+        self.assertIn("eval-reviewer", persona_text)
+        for tool_id in (
+            "tool-bash",
+            "tool-fs",
+            "tool-skill",
+            "tool-goal",
+        ):
+            self.assertTrue(
+                any(row.get("id") == tool_id for row in composition), tool_id
+            )
+        delegation = next(
+            row for row in composition if row.get("id") == "delegation"
+        )
+        for tool_id in ("tool-subagent", "tool-workflow"):
+            self.assertTrue(
+                any(row.get("id") == tool_id for row in delegation["config"]),
+                tool_id,
+            )
 
 
 if __name__ == "__main__":

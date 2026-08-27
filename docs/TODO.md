@@ -8,6 +8,10 @@
 
 - [ ] GUI 文件交换区 不再区分文档与数据
 
+- [ ] memory 改名为 state
+
+- [x] 加入DSHagent
+
 - [x] 移除多余的hash、schema
 
 - [x] 工作流schema连接写文档

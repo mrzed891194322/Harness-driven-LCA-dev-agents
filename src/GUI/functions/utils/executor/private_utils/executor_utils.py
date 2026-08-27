@@ -2,10 +2,13 @@ import subprocess
 import re
 import os
 import sys
+import select
+import time
 from pathlib import Path
 from typing import Generator
 
 from functions.utils.executor.private_utils.codex_jsonl import CodexJsonlFormatter
+from functions.utils.executor.private_utils.dsh_session_stream import DshSessionLogTailer
 from functions.utils.path_utils import find_project_root
 
 MAX_DISPLAY_CHARS = 240_000
@@ -74,7 +77,11 @@ def render_terminal_text(raw_logs: str) -> str:
         )
     return rendered
 
-def execute_command_stream(command_args: list[str]) -> Generator[str, None, None]:
+def execute_command_stream(
+    command_args: list[str],
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> Generator[str, None, None]:
     """
     运行指定的命令，并以生成器形式实时 yield 进程的标准输出与标准错误。
     同时将所有输出重定向打印到本地控制台，并保存到本地 log 文件中。
@@ -91,7 +98,9 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
     env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
     env["PYTHONHTTPSVERIFY"] = "0"
     env["PYTHONUNBUFFERED"] = "1"
-    
+    if env_overrides:
+        env.update(env_overrides)
+
     from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
 
     try:
@@ -142,6 +151,112 @@ def execute_command_stream(command_args: list[str]) -> Generator[str, None, None
                 if os.name == 'nt':
                     subprocess.run(
                         ['taskkill', '/F', '/T', '/PID', str(process.pid)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                else:
+                    process.terminate()
+                    process.wait(timeout=2)
+            except Exception as e:
+                safe_console_print(f"[Process Manager] Error cleaning up command process: {e}")
+        clear_active_process()
+
+def execute_dsh_command_stream(
+    command_args: list[str],
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> Generator[str, None, None]:
+    """
+    Run DSH headless and stream session-log events to the GUI terminal.
+
+    DSH headless only prints the final assistant line on stdout; incremental work
+    is persisted to ~/.dsh/sessions JSONL logs and tailed here.
+    """
+    project_root = find_project_root(Path(__file__).resolve())
+    command_str = subprocess.list2cmdline(command_args)
+    start_time = time.time()
+
+    yield f"[System] Executing command in: {project_root}\n"
+    yield f"[System] Command: {command_str}\n"
+    yield "[System] Streaming DSH session logs to this console…\n"
+    yield "=" * 80 + "\n"
+
+    env = os.environ.copy()
+    env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
+    env["PYTHONHTTPSVERIFY"] = "0"
+    env["PYTHONUNBUFFERED"] = "1"
+    if env_overrides:
+        env.update(env_overrides)
+
+    from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
+
+    tailer = DshSessionLogTailer(project_root, since=start_time)
+
+    try:
+        process = subprocess.Popen(
+            command_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=str(project_root),
+            shell=(os.name == "nt"),
+            bufsize=0,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+        set_active_process(process)
+    except Exception as e:
+        msg = f"[System ERROR] Failed to start command process: {e}\n"
+        yield msg
+        return
+
+    completed = False
+    try:
+        stdout = process.stdout
+        while True:
+            if should_stop():
+                break
+
+            for line in tailer.poll():
+                safe_console_print(f"[CLI Output] {line.rstrip()}")
+                yield line
+
+            if stdout is None:
+                if process.poll() is not None:
+                    break
+            else:
+                ready, _, _ = select.select([stdout], [], [], 0.25)
+                if ready:
+                    chunk = stdout.read(4096)
+                    if chunk:
+                        safe_console_print(f"[CLI Output] {chunk.rstrip()}")
+                        yield chunk
+                elif process.poll() is not None:
+                    remainder = stdout.read()
+                    if remainder:
+                        safe_console_print(f"[CLI Output] {remainder.rstrip()}")
+                        yield remainder
+                    break
+
+        for line in tailer.poll():
+            safe_console_print(f"[CLI Output] {line.rstrip()}")
+            yield line
+
+        return_code = process.wait()
+        completed = True
+        if should_stop():
+            msg = "\n[System] Process terminated by user.\n"
+        else:
+            msg = f"\n[System] Process finished with exit code {return_code}.\n"
+        safe_console_print(f"[Process State] {msg.strip()}")
+        yield msg
+    finally:
+        if not completed and process.poll() is None:
+            try:
+                if os.name == "nt":
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(process.pid)],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
@@ -211,6 +326,24 @@ WORKFLOW_COMMANDS = {
             "$revise-lca",
         ],
     },
+    "dsh": {
+        "whole-lca": [
+            "dsh",
+            "--profile",
+            "headless",
+            "--patch",
+            ".dsh/cordis.patch.yml",
+            "读取并执行 .dsh/skills/whole-lca/SKILL.md",
+        ],
+        "revise-lca": [
+            "dsh",
+            "--profile",
+            "headless",
+            "--patch",
+            ".dsh/cordis.patch.yml",
+            "读取并执行 .dsh/skills/revise-lca/SKILL.md",
+        ],
+    },
 }
 
 
@@ -275,12 +408,21 @@ def run_workflow_command_console(
     command = workflow_command_args(task, agent)
     accumulated_output = ""
     formatter = CodexJsonlFormatter() if agent == "codex" else None
+    env_overrides = (
+        {"DSH_PERMISSION_MODE": "danger-full-access"} if agent == "dsh" else None
+    )
 
     yield f"[System] Preparing to start {task} ({agent})...\n", "Running"
 
     from functions.utils.process_manager import should_stop
 
-    for chunk in execute_command_stream(command):
+    stream = (
+        execute_dsh_command_stream(command, env_overrides=env_overrides)
+        if agent == "dsh"
+        else execute_command_stream(command, env_overrides=env_overrides)
+    )
+
+    for chunk in stream:
         if should_stop():
             break
         if formatter is not None:

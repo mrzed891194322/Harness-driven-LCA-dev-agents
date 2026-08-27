@@ -26,8 +26,8 @@ uv run python src/GUI/main.py
 “终端显示”Tab 始终位于最左侧并作为启动后的默认页。“设置&初始化”与“计划制定”
 一样由左侧按钮打开，启动时不显示。页内为左侧配置目录与右侧可滚动详情，
 点击目录进入对应配置项：初始化检查、AI Agent 工具、开发者选项。
-可选择 AI Agent（codex / claude / opencode）并检查 CLI 是否可用。
-「开始初始化检查」会依次探测 Agent 与 openLCA，两项全部通过后才解锁「执行LCA计划」。
+可选择 AI Agent（codex / claude / opencode / dsh）并检查 CLI 是否可用。
+「开始初始化检查」会依次探测所选 Agent CLI（`--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导见 `AGENTS.md` 终端一行 CLI 或 `src/scripts/proj_init/main.py`）。
 参考资料上传写入 `harness/knowledge/`，由 Agent 直接读取。所选 Agent 写入仓库根目录 `.env` 的 `HARNESS_AGENT`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
@@ -60,7 +60,9 @@ openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败
 悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 调用
 对应平台的 `whole-lca` 一行命令，并根据 `workspace/memory/manifest.json` 展示完成或提前
 中止结果。Codex 在 GUI 中以 `codex exec --json` 运行，终端会把命令、MCP 调用和
-Agent 消息转成可读行；子 Agent 内部过程仍由其返回摘要体现。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
+Agent 消息转成可读行；DSH 以 `dsh --profile headless --patch .dsh/cordis.patch.yml` 运行，
+GUI 会注入 `DSH_PERMISSION_MODE=danger-full-access`，并尾随 `~/.dsh/sessions/` 下本项目 session 日志，
+在终端实时显示工具调用与助手摘要（headless stdout 仅含最终一行）。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
 “LCA评估结果”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
 用户可下载报告或按需打开
 `workspace/outputs/LCI/human_readable_mapping.md`。LCI Tab 始终保持挂载，但其导航入口

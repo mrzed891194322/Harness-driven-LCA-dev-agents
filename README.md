@@ -7,7 +7,7 @@
 运行本仓库前请先安装：
 
 1. **uv** - Python 包和项目管理工具（[下载&安装链接](https://docs.astral.sh/uv/getting-started/installation/)）
-2. **Codex、Claude Code、OpenCode 三者之一的 CLI**（终端里能执行 `codex` / `claude` / `opencode` 任一即可）。仅 IDE 插件或网页对话不算满足前置要求。
+2. **Codex、Claude Code、OpenCode、DSH 四者之一的 CLI**（终端里能执行 `codex` / `claude` / `opencode` / `dsh` 任一即可）。仅 IDE 插件或网页对话不算满足前置要求。
 3. **[openLCA](https://www.openlca.org/download/)** 桌面客户端。**每次开始项目前**必须打开 openLCA、打开目标数据库，并启用 IPC Server（默认 `127.0.0.1:8080`），否则后续导入与计算无法进行。
 
 ## 环境配置
@@ -23,6 +23,9 @@ codex exec -s workspace-write '$bootstrap-env'
 
 # claude 用户在终端中粘贴并执行
 claude -p "/bootstrap-env"
+
+# dsh 用户在终端中粘贴并执行
+DSH_PERMISSION_MODE=danger-full-access dsh --profile headless --patch .dsh/cordis.patch.yml "读取并执行 .dsh/skills/bootstrap-env/SKILL.md"
 ```
 
 详细步骤见 [环境准备与配置](docs/lang_CN/env_setup.md)。

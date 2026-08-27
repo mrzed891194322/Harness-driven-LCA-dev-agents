@@ -1,4 +1,5 @@
-# Ignore user-uploaded files; keep this directory's tracked docs.
+# Ignore user-uploaded files at any depth; keep this directory's tracked docs.
 *
 !.gitignore
 !README.md
+

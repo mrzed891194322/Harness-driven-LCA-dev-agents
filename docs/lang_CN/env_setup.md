@@ -2,9 +2,9 @@
 
 本文档介绍运行 **Harness-driven LCA Agents** 所需的环境与配置。
 
-推荐先用命令行让 agent 做环境引导（`opencode run --command bootstrap-env`、`codex exec -s workspace-write '$bootstrap-env'` 或 `claude -p "/bootstrap-env"`）。步骤正文在 `src/scripts/proj_init/PROMPT.md`。没有 uv 时 agent 会判定不通过，需要你按下面说明手动安装。
+推荐先用命令行让 agent 做环境引导（`opencode run --command bootstrap-env`、`codex exec -s workspace-write '$bootstrap-env'`、`claude -p "/bootstrap-env"`，或 `DSH_PERMISSION_MODE=danger-full-access dsh --profile headless --patch .dsh/cordis.patch.yml "读取并执行 .dsh/skills/bootstrap-env/SKILL.md"`）。步骤正文在 `src/scripts/proj_init/PROMPT.md`。没有 uv 时 agent 会判定不通过，需要你按下面说明手动安装。
 
-Agent CLI（`codex` / `claude` / `opencode`）的安装与登录以各工具自己的文档为准；GUI 里只需在「设置 AI Agent 工具」中选择已安装的那一个。
+Agent CLI（`codex` / `claude` / `opencode` / `dsh`）的安装与登录以各工具自己的文档为准；GUI 里只需在「设置 AI Agent 工具」中选择已安装的那一个。GUI「初始化检查」只探测 CLI `--version`，不运行 bootstrap-env。
 
 ## 1. 安装 uv
 

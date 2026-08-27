@@ -15,7 +15,7 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-SUPPORTED_HARNESS_CLIS = ("codex", "claude", "opencode")
+SUPPORTED_HARNESS_CLIS = ("codex", "claude", "opencode", "dsh")
 
 
 def check_harness_cli(name: str, timeout: int = 10) -> tuple[bool, str]:
@@ -116,6 +116,6 @@ def check_project_environment(project_root: Path | None = None) -> tuple[bool, s
     else:
         found = [name for name in SUPPORTED_HARNESS_CLIS if shutil.which(name)]
         if not found:
-            return False, "未找到 codex / claude / opencode"
+            return False, "未找到 codex / claude / opencode / dsh"
 
     return True, "可用"
