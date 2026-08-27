@@ -19,8 +19,8 @@
 - **[process_manager.py](utils/process_manager.py)**：负责跟踪当前活动命令执行子进程，并提供强制杀死底层任务进程树的统一实现。
 - **[log_exporter.py](utils/log_exporter.py)**：管理命令输出日志存放目录、路径规则以及将 stdout 实时追加写入本地日志文件。
   - **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `pyproject.toml`、`.opencode` 或 `.git` 的父目录）。
-- **命令执行子包 (`functions/utils/executor/`)**：负责按所选 harness CLI 运行 whole-lca / revise-lca，以及其它 OpenCode 命令。
-  - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数。
+- **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 按所选 harness CLI 运行 whole-lca / revise-lca（四平台：codex、claude、opencode、dsh）。`executor/main.py` 非 GUI 入口；bootstrap-env 仅 CLI。
+  - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数（非 GUI 使用）。
   - **私有辅助包 (`private_utils/`)**：
     - `executor_utils.py`：流式捕获进程输出、过滤 ANSI 颜色与特殊控制符，并将日志以符合 Gradio 页面组件渲染的方式输出。
 - **文件处理子包 (`functions/utils/file_loader/`)**：承担不同类型的文件读取、保存以及 LCA 计划模板解析与填写值加载的工作。

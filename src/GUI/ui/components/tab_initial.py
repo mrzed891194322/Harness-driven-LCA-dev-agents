@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import gradio as gr
 
-from functions.settings.settings import load_gui_settings
+from functions.settings.settings import HARNESS_AGENTS, load_gui_settings
 
 PENDING_INIT_STATUS = "状态：待检查"
 
@@ -11,7 +11,7 @@ INIT_CHECK_STATUS_ITEMS = (
     ("status-card-openlca", "OpenLCA"),
 )
 
-AGENT_CHOICES = ["codex", "claude", "opencode"]
+AGENT_CHOICES = list(HARNESS_AGENTS)
 
 
 def pending_init_check_status_updates() -> list[gr.Update]:

@@ -94,8 +94,10 @@ MCP endpoint 固定由服务进程环境配置，工具调用方不能传入任�
 - `OPENLCA_IPC_HOST`：默认 `127.0.0.1`。
 - `OPENLCA_IPC_PORT`：默认 `8080`。
 
-项目已在 `.codex/config.toml` 与 `.opencode/opencode.json` 中注册此服务。也可以从项目
-根目录手动启动 stdio server：
+项目已在 `.codex/config.toml`、`.opencode/opencode.json`、`.claude/settings.json` 与
+`.mcp.json`、`.dsh/cordis.patch.yml` 中注册此服务（DSH 模型侧工具名为
+`mcp__control_openlca__<原名>`，经 `dsh --profile headless --patch .dsh/cordis.patch.yml` 挂载）。
+也可以从项目根目录手动启动 stdio server：
 
 ```bash
 uv run python harness/tools/control_openlca/main.py

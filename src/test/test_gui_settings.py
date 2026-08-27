@@ -59,6 +59,7 @@ class GuiSettingsTests(unittest.TestCase):
     def test_normalize_harness_agent_defaults_to_opencode(self) -> None:
         self.assertEqual(normalize_harness_agent("codex"), "codex")
         self.assertEqual(normalize_harness_agent("CLAUDE"), "claude")
+        self.assertEqual(normalize_harness_agent("dsh"), "dsh")
         self.assertEqual(normalize_harness_agent("unknown"), DEFAULT_HARNESS_AGENT)
         self.assertEqual(normalize_harness_agent(None), DEFAULT_HARNESS_AGENT)
 
@@ -194,6 +195,28 @@ class WorkflowCommandTests(unittest.TestCase):
                 "-s",
                 "workspace-write",
                 "$revise-lca",
+            ],
+        )
+        self.assertEqual(
+            workflow_command_args("whole-lca", "dsh"),
+            [
+                "dsh",
+                "--profile",
+                "headless",
+                "--patch",
+                ".dsh/cordis.patch.yml",
+                "读取并执行 .dsh/skills/whole-lca/SKILL.md",
+            ],
+        )
+        self.assertEqual(
+            workflow_command_args("revise-lca", "dsh"),
+            [
+                "dsh",
+                "--profile",
+                "headless",
+                "--patch",
+                ".dsh/cordis.patch.yml",
+                "读取并执行 .dsh/skills/revise-lca/SKILL.md",
             ],
         )
 

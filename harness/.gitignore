@@ -1,1 +1,6 @@
-# User-uploaded files in knowledge/ are ignored by knowledge/.gitignore
+# Ignore user-uploaded files under knowledge/ at any depth.
+# Nested knowledge/.gitignore is a second layer; this parent rule
+# still applies if that file is missing after a branch switch.
+knowledge/**
+!knowledge/.gitignore
+!knowledge/README.md

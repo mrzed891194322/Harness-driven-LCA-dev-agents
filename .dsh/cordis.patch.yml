@@ -1,0 +1,41 @@
+# 项目级 DSH 覆盖层（仿照 .codex/config.toml 配置）。
+#
+# 挂载方式：dsh --profile <p> --patch .dsh/cordis.patch.yml（当前唯一激活路径，
+# headless 一行 CLI 即如此）。web profile 同步到
+# ~/.dsh/profiles/web/cordis.patch.yml 为「二选一」的本机替代（见 .dsh/README.md），
+# 二者勿同时使用：同时挂载会让 insert 的行重复进组合树。
+#
+# 行语义：顶层 YAML 数组，即 @deepseek-ai/cordis-plugin-include 的 PatchOptions；
+# 非 insert 行按 id 整体替换目标行 config（不会深度合并），insert 行追加新行。
+# headless 树没有 agent-presets 行，该非 insert 行会被「告警并跳过」，属预期。
+
+# ── openLCA control MCP（与 .codex/config.toml 的 [mcp_servers.control_openlca] 等价）──
+# 模型侧工具名为 mcp__control_openlca__<rawName>（如 mcp__control_openlca__health_check）。
+# stdio 传输，spawn 自宿主进程环境；main.py 从自身位置解析项目根并加载 .env。
+- insert:
+    - id: mcp-control_openlca
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: control_openlca
+        transport: stdio
+        command: uv
+        args:
+          - run
+          - python
+          - harness/tools/control_openlca/main.py
+        cwd: .
+        # import_lci / calculate_product_system 可能较慢；对齐 .codex 的 300s。
+        toolCallTimeoutMs: 300000
+        # 故意不设 failOnStartupError: true —— MCP 起不来（openLCA IPC 未开）时
+        # 让 workflow 自己把 health_check 失败写入 manifest，而不是整进程 boot 失败。
+
+# ── agent preset 名单：追加项目根（trust: user）───────────────────────────────
+# patch 整体替换 config，故重述 default；发行版系统根由 launcher 另行追加，
+# 用户根 <dshHome>/.agent-presets 由 dsh-agent-presets 默认追加。
+- id: agent-presets
+  name: '@deepseek-ai/dsh-agent-presets'
+  config:
+    default: standard
+    roots:
+      - path: .dsh/agent-presets
+        trust: user
