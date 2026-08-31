@@ -15,9 +15,8 @@
 | 阶段顺序、主编排该做什么 | `harness/workflows/LCA-main.md` 或 `LCA-revise.md` |
 | 阶段顺序、终止状态 | `harness/specs/public/`，进入阶段后再读 `01-*`–`04-*` 与 revise 的 `08-*` |
 | 角色边界 | `harness/roles/` 下的 `major-orchestrator.md`、`sub-executor.md`、`eval-reviewer.md` |
-| 目录与写边界 | `harness/rules/directory-structure/` |
-| LCA 方法与用户资料口径 | `harness/rules/lca-knowledge/`；用户文件只在 `harness/knowledge/` |
-| openLCA 怎么调 | 真正要调 MCP 时再读 `harness/rules/openlca-operation/` |
+| 行为规则 | 角色按 `harness/rules/injection.md` 加载；不要从 workflow 读规则 |
+| 用户资料 | 只在 `harness/knowledge/` |
 | 工具实现 | 已注册：`harness/tools/control_openlca/` |
 | 计划输入 | `workspace/inputs/plan.md`（修订另加 `workspace/inputs/revise.md`） |
 | 运行产物 | `workspace/memory/`、`workspace/outputs/inventory/`、`workspace/outputs/LCI/`、`workspace/outputs/reports/`；不要使用已删除的 `workspace/plan/`、`workspace/LCI/`、`workspace/results/`、`workspace/inputs/references/` |

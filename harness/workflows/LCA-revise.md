@@ -13,10 +13,8 @@
 
 1. 当前 Agent 是 `major-orchestrator`。意见输入为 `workspace/inputs/revise.md`；资料只从 `harness/knowledge/` 读。
 2. 基线激活后只读取 `harness/specs/08-lca-revise-workflow/README.md`、`harness/specs/08-lca-revise-workflow/references/revise-lca-spec.md`、`harness/specs/public/README.md` 和 `harness/specs/public/references/workflow-runtime-spec.md`。不得预读编号阶段规范。
-3. 每次委派列出当前阶段与允许读取的 baseline/当前路径。子 Agent 不得扫描其他阶段。
+3. 每次委派列出当前阶段与允许读取的 baseline/当前路径。子 Agent 不得扫描其他阶段。不要在委派 prompt 中抄规则路径。
 4. 进入 01–04 某阶段时才读取该阶段 README/spec。
-
-OpenCode 已全局加载 LCA 知识规则。两平台都只有实际调用 openLCA MCP 时才读取 `harness/rules/openlca-operation/README.md`。Codex 在需要时加载 `harness/rules/lca-knowledge/README.md`。
 
 ## 修订计划
 

@@ -6,12 +6,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SETUP_ENV_DIR = Path(__file__).resolve().parents[1]
-if str(SETUP_ENV_DIR) not in sys.path:
-    sys.path.insert(0, str(SETUP_ENV_DIR))
+_SRC_TEST = Path(__file__).resolve().parents[3] / "test"
+if str(_SRC_TEST) not in sys.path:
+    sys.path.insert(0, str(_SRC_TEST))
 
-from utils.bootstrap import detect_harness_clis, run_bootstrap
-from utils.constants import HARNESS_CLIS, UV_MISSING_REMINDER
+from support import local_script_packages  # noqa: E402
+
+SETUP_ENV_DIR = Path(__file__).resolve().parents[1]
+
+with local_script_packages(SETUP_ENV_DIR):
+    from utils.bootstrap import detect_harness_clis, run_bootstrap
+    from utils.constants import HARNESS_CLIS, UV_MISSING_REMINDER
 
 
 def _ok_mcp(_root: Path) -> dict:

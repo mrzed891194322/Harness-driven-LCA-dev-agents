@@ -15,7 +15,7 @@ description: 从现有 LCA 最终报告、plan、LCI、运行 memory 和 workspa
 ## 无人值守中继
 
 `major-orchestrator` 只可生成 `sub-executor` 和 `eval-reviewer`，等待其返回并按
-workflow 持久化证据。Codex 中知识检索与 openLCA 规则均按 workflow 条件加载。
+workflow 持久化证据。规则由角色自读 `harness/rules/injection.md` 加载，不要在本 skill 或 workflow 中列出规则路径。
 预检成功后在同一 import_scope 下立即继续导入，不请求额外确认。
 
 ## 强制完成

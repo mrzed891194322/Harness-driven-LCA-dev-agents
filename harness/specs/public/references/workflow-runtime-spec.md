@@ -40,6 +40,6 @@
 
 不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定。可留档的匹配由执行方自行选择并写入 BOM/映射/报告。
 
-首次调用 openLCA MCP 前，由 **该步的 `sub-executor`** 调用 `health_check`；失败则 `failed` 并写明原因。重连次数以 `harness/rules/openlca-operation/README.md` 为准。
+首次调用 openLCA MCP 前，由 **该步的 `sub-executor`** 调用 `health_check`；失败则 `failed` 并写明原因。
 
 示例见 `references/examples/`。

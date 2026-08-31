@@ -13,17 +13,23 @@
 
 revise 基线快照与激活测试见 `harness/specs/public/references/scripts/tests/test_revise_baseline.py`。
 
-从仓库根目录运行全部测试：
+从仓库根目录运行本目录测试：
 
 ```bash
-uv run python -m unittest discover -s src/test -v
+uv run pytest src/test -v
+```
+
+仓库全部测试：
+
+```bash
+uv run pytest
 ```
 
 按模块运行示例：
 
 ```bash
-uv run python -m unittest discover -s src/test -p 'test_clean_dir.py' -v
-uv run python -m unittest discover -s src/test -p 'test_gui.py' -v
+uv run pytest src/test/test_clean_dir.py -v
+uv run pytest src/test/test_gui.py -v
 ```
 
 修改 GUI 或相关脚本后必须重新运行上述命令。GUI 测试只做路径与界面构建冒烟；

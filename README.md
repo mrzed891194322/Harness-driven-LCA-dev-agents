@@ -91,4 +91,4 @@ uv run python src/scripts/clean_dir/main.py -y --preset revise-lca
 3. 更新 `harness/knowledge/` 与 `workspace/inputs/revise.md`（保留既有 plan / manifest / 报告）。
 4. 在当前 AI 工具中输入 `/revise-lca`、`$revise-lca`，或 DSH「读取并执行 `.dsh/skills/revise-lca/SKILL.md`」。
 
-`clean_dir` 详见 [src/scripts/clean_dir/README.md](src/scripts/clean_dir/README.md)。GUI 内部启动命令见 [platform-adapter.md](harness/rules/directory-structure/references/platform-adapter.md)。
+`clean_dir` 详见 [src/scripts/clean_dir/README.md](src/scripts/clean_dir/README.md)。GUI 内部启动命令见 [platform-adapter.md](docs/lang_CN/platform-adapter.md)。

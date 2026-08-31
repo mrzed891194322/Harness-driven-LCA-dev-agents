@@ -2,9 +2,9 @@
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "major-orchestrator",
   "instructions": [
-    "harness/rules/directory-structure/README.md",
-    "harness/rules/coding-specification/README.md",
-    "harness/rules/lca-knowledge/README.md"
+    "harness/rules/project/write-boundary.md",
+    "harness/rules/project/runtime.md",
+    "harness/rules/project/paths.md"
   ],
   "mcp": {
     "control_openlca": {

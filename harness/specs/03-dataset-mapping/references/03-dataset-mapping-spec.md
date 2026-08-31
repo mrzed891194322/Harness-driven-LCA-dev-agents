@@ -4,7 +4,7 @@
 
 主编排先委派 `sub-executor` 映射并写 LCI，再委派 `eval-reviewer`。最多 3 轮。审查通过前禁止 `import_lci`。
 
-首次调用 openLCA 前读取 `harness/rules/openlca-operation/README.md` 并做 `health_check`。UUID 必须来自正式查询；禁止编造。不得用错误功能冒充（再生粒料不得代替原生，除非计划要求）。地域无精确候选时按操作规则自行选区域市场或 `RoW`/`GLO`，并记下请求值、选用值和理由。
+首次调用 openLCA 前做 `health_check`。UUID 必须来自正式查询；禁止编造。不得用错误功能冒充（再生粒料不得代替原生，除非计划要求）。地域无精确候选时自行选区域市场或 `RoW`/`GLO`，并记下请求值、选用值和理由。
 
 ## 产物
 

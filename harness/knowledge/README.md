@@ -4,6 +4,6 @@
 
 **不含** `plan.md` 或 `revise.md`；这两类工作流输入固定在 `workspace/inputs/`。
 
-Agent 需要项目事实、数值或清单时，直接读取本目录中的文件。LCA 方法要求见 `harness/rules/lca-knowledge/README.md`；openLCA 操作见 `harness/rules/openlca-operation/README.md`。
+Agent 需要项目事实、数值或清单时，直接读取本目录中的文件。LCA 方法与资料口径由角色按 `harness/rules/injection.md` 加载。
 
 本目录不存放 ISO 标准全文或 openLCA 手册。

@@ -7,7 +7,7 @@ agent: major-orchestrator
 
 ## 第一部分：清理 openLCA 数据库
 
-1. 读取 `harness/rules/openlca-operation/README.md`。
+1. 读取 `harness/rules/tools/control_openlca.md`。
 2. 调用 openLCA MCP `health_check`。
 3. 调用 MCP `cleanup_output`，`confirm=false` 预览待删除实体，将结果呈现给用户并等待确认。
 4. 用户确认后，调用 MCP `cleanup_output`，`confirm=true` 执行删除。

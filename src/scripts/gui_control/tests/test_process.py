@@ -8,23 +8,28 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-GUI_CONTROL_DIR = Path(__file__).resolve().parents[1]
-if str(GUI_CONTROL_DIR) not in sys.path:
-    sys.path.insert(0, str(GUI_CONTROL_DIR))
+_SRC_TEST = Path(__file__).resolve().parents[3] / "test"
+if str(_SRC_TEST) not in sys.path:
+    sys.path.insert(0, str(_SRC_TEST))
 
-from utils import process as process_mod  # noqa: E402
-from utils.process import (  # noqa: E402
-    cmdline_looks_like_gui,
-    is_gui_running,
-    is_process_alive,
-    kill_process_tree,
-    kill_recorded_target,
-    live_matches,
-    load_gui_record,
-    record_targets,
-    write_gui_record,
-)
-from stop_gui import stop_gui  # noqa: E402
+from support import local_script_packages  # noqa: E402
+
+GUI_CONTROL_DIR = Path(__file__).resolve().parents[1]
+
+with local_script_packages(GUI_CONTROL_DIR):
+    from utils import process as process_mod  # noqa: E402
+    from utils.process import (  # noqa: E402
+        cmdline_looks_like_gui,
+        is_gui_running,
+        is_process_alive,
+        kill_process_tree,
+        kill_recorded_target,
+        live_matches,
+        load_gui_record,
+        record_targets,
+        write_gui_record,
+    )
+    from stop_gui import stop_gui  # noqa: E402
 
 
 class CmdlineIdentityTests(unittest.TestCase):

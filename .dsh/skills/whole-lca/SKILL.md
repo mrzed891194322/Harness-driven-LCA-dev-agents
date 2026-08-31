@@ -18,7 +18,7 @@ whenToUse: 用户要求运行 whole-lca、执行 LCA 计划，或从 workspace/i
 
 - workflow 文本中的 MCP 裸工具名在 DSH 中带前缀：`mcp__control_openlca__health_check` 等（`mcp__control_openlca__<原名>`）。若工具列表中不存在 `mcp__control_openlca__*` 工具，视为 openLCA 不可用：按 workflow 将运行置为 `failed` 并写非空 `status_reason`，不得绕过或重试。
 - 子 agent 用 `subagent` 工具生成。委派 prompt 必须写明角色名（`sub-executor` / `eval-reviewer`）并明确要求其先完整读取对应的 `harness/roles/*.md` 与本次交接列出的文件；只委派这两个角色，不得生成其他 agent，子 agent 不得继续委派。
-- LCA 知识与 openLCA 规则在 DSH 中均不全局加载；按 workflow 条件读取 `harness/rules/lca-knowledge/README.md` 与 `harness/rules/openlca-operation/README.md`。
+- 规则由角色按 `harness/roles/` 自读 `harness/rules/injection.md` 加载；本 skill 与 workflow 不列出规则路径。
 - 无人值守：运行中不得征求用户建模决定、不得尝试扩大权限；运行启动即授权在当前预检范围完全一致时执行导入，预检通过后立即继续导入与报告，不得请求额外确认。
 - 如果返回 `failed`，保留已记录状态并报告 `status_reason` 与确切问题。终止只有 `completed` 和 `failed`。
 - 工作流产物只写 `workspace/memory/`、`workspace/outputs/inventory/`、`workspace/outputs/LCI/` 和 `workspace/outputs/reports/`；不要在别处写运行状态。

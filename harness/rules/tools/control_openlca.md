@@ -1,13 +1,10 @@
 # control_openlca MCP 使用规则
 
-本规则适用于查询、预检、导入、读回或计算 openLCA 数据的 Agent。MCP 服务连接由服务进程的 `OPENLCA_IPC_HOST` 和 `OPENLCA_IPC_PORT` 配置，调用方不得传入任意 endpoint。
+本规则适用于查询、预检、导入、读回或计算 openLCA 数据的 Agent。按 [`../injection.md`](../injection.md) 在 03/04 等需要调用本工具的角色 × 阶段加载。
+
+MCP 服务连接由服务进程的 `OPENLCA_IPC_HOST` 和 `OPENLCA_IPC_PORT` 配置，调用方不得传入任意 endpoint。
 
 工具签名、参数默认值、目录结构与开发规范见 [`harness/tools/control_openlca/README.md`](../../tools/control_openlca/README.md)。
-
-## 何时读取本规则
-
-- workflow 或阶段 spec 要求在首次 openLCA MCP 调用前读取本文件时。
-- 任务涉及候选查询、预检、导入、模型图读回或 LCIA 计算时。
 
 ## 强制约束
 

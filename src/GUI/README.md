@@ -95,7 +95,7 @@ GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界
   `build_ui()` 冒烟，计划解析与写盘逻辑在同目录其余模块）：
 
   ```bash
-  uv run python -m unittest discover -s src/test -v
+  uv run pytest src/test -v
   ```
 
 - 提交前同时运行 `git diff --check`。测试不得修改真实 `workspace` 运行产物。

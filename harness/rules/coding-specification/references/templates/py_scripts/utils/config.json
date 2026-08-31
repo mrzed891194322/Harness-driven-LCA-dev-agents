@@ -1,4 +1,0 @@
-{
-  "input_path": "harness/knowledge/example.csv",
-  "output_path": "workspace/tmp/processed_example.csv"
-}

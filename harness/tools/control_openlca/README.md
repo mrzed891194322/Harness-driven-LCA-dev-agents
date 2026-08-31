@@ -1,6 +1,6 @@
 # openLCA 控制脚本说明及公共工具规范 (README.md)
 
-本目录为 `control-openlca` 技能的脚本目录。Agent 在调用 openLCA MCP 时的行为约束（何时读规则、禁止临时脚本、范围门禁、健康检查停止条件）见 [`harness/rules/openlca-operation/README.md`](../../rules/openlca-operation/README.md)。
+本目录为 `control-openlca` 技能的脚本目录。Agent 在调用 openLCA MCP 时的行为约束见 [`harness/rules/tools/control_openlca.md`](../../rules/tools/control_openlca.md)。
 
 为了保证代码复用性、降低维护成本，本技能采用了“**共享公共工具包 + 专属私有任务包**”的架构设计。
 
@@ -106,7 +106,7 @@ uv run python harness/tools/control_openlca/main.py
 离线测试不要求启动 openLCA：
 
 ```bash
-uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
+uv run pytest harness/tools/control_openlca/tests -v
 ```
 
 ---
@@ -160,7 +160,7 @@ uv run python -m unittest discover -s harness/tools/control_openlca/tests -v
 
 ## Agent 开发与扩展规范
 
-1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。完整 Agent 纪律见 [`harness/rules/openlca-operation/README.md`](../../rules/openlca-operation/README.md)。
+1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。完整 Agent 纪律见 [`harness/rules/tools/control_openlca.md`](../../rules/tools/control_openlca.md)。
 2.  **首选复用**：当开发正式新脚本时，主程序顶部必须通过追加 `sys.path` 导入 `scripts/utils/` 下的对应功能。
 3.  **单一职责**：请勿在新脚本主文件中编写关于连接、查找、导出等繁琐实现。`main.py` 应当只负责顶层流程编排。
 4.  **升级与扩展**：

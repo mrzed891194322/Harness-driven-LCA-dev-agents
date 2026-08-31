@@ -36,14 +36,14 @@ Agent CLI（`codex` / `claude` / `opencode` / `dsh`）的安装与登录以各�
 
 ## 2. Python 依赖
 
-项目由 `.python-version` 和 `pyproject.toml` 固定使用 Python `3.14`。在项目根目录
+项目由 `.python-version` 和 `pyproject.toml` 固定使用 Python `3.12`。在项目根目录
 执行：
 
 ```bash
 uv sync
 ```
 
-该命令会创建虚拟环境并同步依赖。
+该命令会创建虚拟环境并同步依赖（含开发依赖 `pytest`）。
 
 ## 3. openLCA IPC
 

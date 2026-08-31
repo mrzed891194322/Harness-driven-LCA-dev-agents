@@ -14,7 +14,7 @@ description: 通过初始化检查、前景清单提取、背景数据集映射�
 
 ## Codex 运行时补充
 
-- LCA 知识与 openLCA 规则在 Codex 中均不全局加载；按 workflow 条件读取 `harness/rules/lca-knowledge/README.md` 与 `harness/rules/openlca-operation/README.md`。
+- 规则由角色按 `harness/roles/` 自读 `harness/rules/injection.md` 加载；本 skill 与 workflow 不列出规则路径。
 - `major-orchestrator` 仅可生成 `sub-executor` 和 `eval-reviewer`，等待其返回并按 workflow 持久化证据。
 - 如果返回 `failed`，保留已记录状态并报告 `status_reason` 与确切问题。终止只有 `completed` 和 `failed`。
 - 运行启动即授权在当前预检范围完全一致时执行导入；预检通过后立即继续导入与报告，不得请求额外确认。

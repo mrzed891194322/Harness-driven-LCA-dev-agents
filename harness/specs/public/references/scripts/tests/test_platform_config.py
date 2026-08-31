@@ -58,15 +58,28 @@ class OpenCodeConfigurationTests(unittest.TestCase):
             self.assertNotIn("model", agent_config, name)
             self.assertNotIn("temperature", agent_config, name)
 
-    def test_rules_are_directory_packages_and_only_knowledge_is_global(self) -> None:
+    def test_opencode_global_instructions_are_project_rules(self) -> None:
         config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
-        knowledge_rule = "harness/rules/lca-knowledge/README.md"
-        openlca_rule = "harness/rules/openlca-operation/README.md"
+        project_rules = (
+            "harness/rules/project/write-boundary.md",
+            "harness/rules/project/runtime.md",
+            "harness/rules/project/paths.md",
+        )
+        openlca_rule = "harness/rules/tools/control_openlca.md"
         instructions = set(config["instructions"])
-        self.assertIn(knowledge_rule, instructions)
+        self.assertEqual(set(project_rules), instructions)
         self.assertNotIn(openlca_rule, instructions)
-        self.assertTrue((PROJECT_ROOT / knowledge_rule).is_file())
-        self.assertTrue((PROJECT_ROOT / openlca_rule).is_file())
+        self.assertNotIn("harness/rules/coding-specification/README.md", instructions)
+        self.assertNotIn("harness/rules/lca-knowledge/README.md", instructions)
+        for relative in (*project_rules, openlca_rule):
+            self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
+        for removed in (
+            "lca-knowledge",
+            "openlca-operation",
+            "coding-specification",
+            "directory-structure",
+        ):
+            self.assertFalse((PROJECT_ROOT / "harness" / "rules" / removed).exists())
         self.assertFalse(
             (PROJECT_ROOT / "harness" / "rules" / "lca-knowledge.md").exists()
         )
@@ -351,13 +364,12 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         for path, content in role_contents.items():
             self.assertNotIn("harness/specs/", content, path)
             self.assertNotIn("knowledge-retrieval/README.md", content, path)
+            self.assertIn("harness/rules/injection.md", content, path)
+            self.assertNotIn("harness/rules/tools/control_openlca.md", content, path)
+            self.assertNotIn("harness/rules/openlca-operation/README.md", content, path)
 
-        openlca_rule = "harness/rules/openlca-operation/README.md"
-        self.assertNotIn(openlca_rule, role_contents["harness/roles/major-orchestrator.md"])
-        for name in ("sub-executor", "eval-reviewer"):
-            role_content = role_contents[f"harness/roles/{name}.md"]
-            self.assertIn("需要调用 openLCA MCP 工具时", role_content)
-            self.assertIn(openlca_rule, role_content)
+        major = role_contents["harness/roles/major-orchestrator.md"]
+        self.assertIn("不要把规则路径抄进 prompt", major)
 
     def test_workflow_files_route_resources_at_each_stage(self) -> None:
         for relative_path in (
@@ -378,14 +390,8 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
                         content,
                     )
             self.assertRegex(content, r"(?:不得|不)预读")
-            self.assertIn(
-                "harness/rules/openlca-operation/README.md", content, relative_path
-            )
-            self.assertIn(
-                "harness/rules/lca-knowledge/README.md",
-                content,
-                relative_path,
-            )
+            self.assertNotIn("harness/rules/", content, relative_path)
+            self.assertIn("不要在委派 prompt 中抄规则路径", content, relative_path)
 
     def test_codex_workflow_skills_delegate_to_workflows(self) -> None:
         workflow_main = (
@@ -424,7 +430,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
     def test_workflow_uses_refactored_fixed_paths(self) -> None:
         paths = (
             "harness/specs/public/references/workflow-runtime-spec.md",
-            "harness/rules/directory-structure/references/workspace-structure.md",
+            "harness/rules/project/paths.md",
             "harness/specs/04-openlca-reporting/references/04-openlca-reporting-spec.md",
             "harness/workflows/LCA-main.md",
             ".codex/skills/whole-lca/SKILL.md",
@@ -481,7 +487,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         self.assertNotIn("`linkingMode: explicit`", stage03)
 
         openlca_rule = (
-            PROJECT_ROOT / "harness" / "rules" / "openlca-operation" / "README.md"
+            PROJECT_ROOT / "harness" / "rules" / "tools" / "control_openlca.md"
         ).read_text(encoding="utf-8")
         self.assertIn("背景匹配与无人值守决定", openlca_rule)
         self.assertRegex(openlca_rule, r"(?:3 次重连|重连 3 次)")
@@ -504,7 +510,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             "harness/roles/major-orchestrator.md",
             "harness/roles/sub-executor.md",
             ".codex/skills/whole-lca/SKILL.md",
-            "harness/rules/openlca-operation/README.md",
+            "harness/rules/tools/control_openlca.md",
             "harness/tools/control_openlca/main.py",
             "harness/tools/control_openlca/utils/workflow.py",
         )
@@ -552,12 +558,7 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
     def test_one_line_cli_is_documented_for_each_platform(self) -> None:
         operator_docs = (
             PROJECT_ROOT / "README.md",
-            PROJECT_ROOT
-            / "harness"
-            / "rules"
-            / "directory-structure"
-            / "references"
-            / "platform-adapter.md",
+            PROJECT_ROOT / "docs" / "lang_CN" / "platform-adapter.md",
         )
         content = "\n".join(path.read_text(encoding="utf-8") for path in operator_docs)
         self.assertIn("opencode run --command whole-lca", content)
@@ -821,12 +822,7 @@ class DshConfigurationTests(unittest.TestCase):
     def test_one_line_cli_is_documented(self) -> None:
         readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         adapter = (
-            PROJECT_ROOT
-            / "harness"
-            / "rules"
-            / "directory-structure"
-            / "references"
-            / "platform-adapter.md"
+            PROJECT_ROOT / "docs" / "lang_CN" / "platform-adapter.md"
         ).read_text(encoding="utf-8")
         operator = "\n".join((readme, adapter))
         self.assertIn("dsh --profile headless", operator)
@@ -925,6 +921,91 @@ class DshConfigurationTests(unittest.TestCase):
                 any(row.get("id") == tool_id for row in delegation["config"]),
                 tool_id,
             )
+
+
+RULE_PATH_RE = re.compile(r"harness/rules/[A-Za-z0-9_./-]+\.md")
+
+LIVE_SPEC_FILES = (
+    "harness/specs/01-intake-gate/README.md",
+    "harness/specs/01-intake-gate/references/01-intake-gate-spec.md",
+    "harness/specs/02-inventory-extraction/README.md",
+    "harness/specs/02-inventory-extraction/references/02-inventory-extraction-spec.md",
+    "harness/specs/03-dataset-mapping/README.md",
+    "harness/specs/03-dataset-mapping/references/03-dataset-mapping-spec.md",
+    "harness/specs/04-openlca-reporting/README.md",
+    "harness/specs/04-openlca-reporting/references/04-openlca-reporting-spec.md",
+    "harness/specs/08-lca-revise-workflow/README.md",
+    "harness/specs/08-lca-revise-workflow/references/revise-lca-spec.md",
+    "harness/specs/public/README.md",
+    "harness/specs/public/references/workflow-runtime-spec.md",
+)
+
+
+def _injection_table_row(text: str, stage: str) -> str:
+    for line in text.splitlines():
+        if line.startswith("|") and f"`{stage}`" in line:
+            return line
+    raise AssertionError(f"missing injection row for {stage}")
+
+
+class RuleInjectionCatalogTests(unittest.TestCase):
+    def test_injection_lists_existing_files_and_covers_roles_stages(self) -> None:
+        injection_path = PROJECT_ROOT / "harness" / "rules" / "injection.md"
+        text = injection_path.read_text(encoding="utf-8")
+        listed = RULE_PATH_RE.findall(text)
+        self.assertTrue(listed)
+        for relative in listed:
+            self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
+
+        eval_files = (
+            "harness/rules/lca/eval/01-intake.md",
+            "harness/rules/lca/eval/02-inventory.md",
+            "harness/rules/lca/eval/03-mapping.md",
+            "harness/rules/lca/eval/04-reporting.md",
+            "harness/rules/lca/eval/08-revise.md",
+        )
+        exec_files = (
+            "harness/rules/lca/exec/02-inventory.md",
+            "harness/rules/lca/exec/03-mapping.md",
+            "harness/rules/lca/exec/04-reporting.md",
+        )
+        for relative in (*eval_files, *exec_files):
+            self.assertIn(relative, text)
+            self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
+
+        tool_rule = "harness/rules/tools/control_openlca.md"
+        self.assertIn(tool_rule, _injection_table_row(text, "03-dataset-mapping"))
+        self.assertIn(tool_rule, _injection_table_row(text, "04-openlca-reporting"))
+        self.assertNotIn(tool_rule, _injection_table_row(text, "01-intake-gate"))
+        self.assertNotIn(tool_rule, _injection_table_row(text, "02-inventory-extraction"))
+
+        self.assertIn("major-orchestrator", text)
+        self.assertIn("eval-reviewer", text)
+        self.assertIn("sub-executor", text)
+        self.assertIn("08-lca-revise-workflow", text)
+
+    def test_live_specs_do_not_load_rule_files(self) -> None:
+        for relative in LIVE_SPEC_FILES:
+            content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            self.assertNotIn("harness/rules/", content, relative)
+
+    def test_reconnect_count_lives_only_in_tool_rule(self) -> None:
+        tool = (
+            PROJECT_ROOT / "harness" / "rules" / "tools" / "control_openlca.md"
+        ).read_text(encoding="utf-8")
+        self.assertRegex(tool, r"(?:3 次重连|重连 3 次)")
+        elsewhere = "\n".join(
+            (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+            for relative in (
+                "harness/workflows/LCA-main.md",
+                "harness/workflows/LCA-revise.md",
+                "harness/roles/major-orchestrator.md",
+                "harness/roles/sub-executor.md",
+                "harness/roles/eval-reviewer.md",
+                *LIVE_SPEC_FILES,
+            )
+        )
+        self.assertNotRegex(elsewhere, r"(?:3 次重连|重连 3 次|4 次有界探测)")
 
 
 if __name__ == "__main__":

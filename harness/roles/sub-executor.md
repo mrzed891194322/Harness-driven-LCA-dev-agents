@@ -4,6 +4,10 @@
 
 你是 `sub-executor`，只做 `major-orchestrator` 给出的 **02、03 或 04** 任务。不要承担 01，不要决定跨阶段状态。
 
+## 规则加载
+
+接到任务后根据当前阶段读取 `harness/rules/injection.md` 本角色行，只加载列出的文件。不要预读未列出的规则。
+
 ## 硬边界
 
 - 禁止生成或委派任何其他 Agent。
@@ -17,7 +21,7 @@
 
 ## 03 映射与 LCI
 
-需要调用 openLCA MCP 工具时，按需读取 `harness/rules/openlca-operation/README.md`。名称与 UUID 必须用正式工具查询。可留档的匹配自行选择并写入 mapping。写出 JSON-LD LCI 与 `human_readable_mapping.md`。
+名称与 UUID 必须用正式工具查询。可留档的匹配自行选择并写入 mapping。写出 JSON-LD LCI 与 `human_readable_mapping.md`。
 
 ## 04 导入与报告
 

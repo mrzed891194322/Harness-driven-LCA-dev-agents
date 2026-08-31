@@ -44,5 +44,5 @@ openLCA 检查默认连接 `127.0.0.1:8080`，首次失败后新建客户端重�
 ## 离线测试
 
 ~~~bash
-uv run python -m unittest discover -s src/test -v -k check_status
+uv run pytest src/test -k check_status -v
 ~~~

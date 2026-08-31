@@ -2,7 +2,7 @@
 
 ## 谁做
 
-主编排先委派 `sub-executor` 调 MCP 并写报告，再委派 `eval-reviewer`。最多 3 轮（工具写库失败按操作规则停止，不要无界重试 `import_lci`）。调用前读取 `harness/rules/openlca-operation/README.md`。
+主编排先委派 `sub-executor` 调 MCP 并写报告，再委派 `eval-reviewer`。最多 3 轮（工具写库失败则停止，不要无界重试 `import_lci`）。
 
 ## 执行顺序
 
