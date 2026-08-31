@@ -1,12 +1,53 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
 import gradio as gr
 
-from functions.plan_editor import parse_markdown_document_text
-from ui.components.render_mdfile import (
-    MarkdownDocumentView,
-    cleared_document_outputs,
-    document_output_components,
-    loaded_document_outputs,
-)
+
+def read_work_details_json(path: Path) -> tuple[object | None, str | None]:
+    """Load a work-details JSON file.
+
+    Returns ``(payload, None)`` on success, or ``(None, warning_markdown)``
+    when the file is missing or not valid JSON.
+    """
+    import config
+
+    try:
+        relative = path.relative_to(config.PROJECT_ROOT).as_posix()
+    except ValueError:
+        relative = path.as_posix()
+
+    if not path.is_file():
+        return None, f"### ⚠️ 缺少文件\n\n未找到 `{relative}`。"
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return (
+            None,
+            (
+                f"### ⚠️ 无法解析 JSON\n\n`{relative}` 不是有效 JSON"
+                f"（{exc}）。"
+            ),
+        )
+    return payload, None
+
+
+def _json_section_outputs(path: Path) -> tuple:
+    payload, warning = read_work_details_json(path)
+    if warning is not None:
+        return (
+            gr.update(value=None, visible=False),
+            gr.update(visible=True, value=warning),
+            gr.update(interactive=False, value=None),
+        )
+    return (
+        gr.update(value=payload, visible=True),
+        gr.update(visible=False),
+        gr.update(interactive=True, value=str(path)),
+    )
 
 
 def bind_tab_lci_events(
@@ -14,52 +55,32 @@ def bind_tab_lci_events(
     show_lci_btn: gr.Button,
     close_lci_mapping_btn: gr.Button,
     right_tabs: gr.Tabs,
-    lci_mapping_view: MarkdownDocumentView,
-    lci_mapping_warning_row: gr.Row,
-    download_lci_mapping_btn: gr.DownloadButton,
+    bom_json: gr.JSON,
+    bom_warning: gr.Markdown,
+    download_bom_btn: gr.DownloadButton,
+    mapping_json: gr.JSON,
+    mapping_warning: gr.Markdown,
+    download_mapping_btn: gr.DownloadButton,
 ) -> None:
-    def check_and_update_lci_mapping_tab():
+    def open_work_details():
         import config
 
-        mapping_path = config.LCI_MAPPING_FILE_PATH
-        try:
-            content = mapping_path.read_text(encoding="utf-8-sig")
-            document = parse_markdown_document_text(
-                content,
-                source=mapping_path,
-            )
-        except (OSError, UnicodeError, ValueError):
-            return (
-                *cleared_document_outputs(lci_mapping_view),
-                gr.update(visible=False),
-                gr.update(visible=True),
-                gr.update(interactive=False, value=None),
-            )
-
         return (
-            *loaded_document_outputs(
-                lci_mapping_view,
-                document,
-            ),
-            gr.update(visible=True),
-            gr.update(visible=False),
-            gr.update(interactive=True, value=str(mapping_path)),
-        )
-
-    def open_lci_mapping():
-        return (
-            *check_and_update_lci_mapping_tab(),
+            *_json_section_outputs(config.EXTRACTED_BOM_FILE_PATH),
+            *_json_section_outputs(config.PROCESS_MAPPING_FILE_PATH),
             gr.update(selected="lci_mapping_tab"),
         )
 
     show_lci_btn.click(
-        fn=open_lci_mapping,
+        fn=open_work_details,
         inputs=None,
         outputs=[
-            *document_output_components(lci_mapping_view),
-            lci_mapping_view.content_row,
-            lci_mapping_warning_row,
-            download_lci_mapping_btn,
+            bom_json,
+            bom_warning,
+            download_bom_btn,
+            mapping_json,
+            mapping_warning,
+            download_mapping_btn,
             right_tabs,
         ],
         js="window.guiOpenLciReportMode",

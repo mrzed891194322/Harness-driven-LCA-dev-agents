@@ -1,24 +1,23 @@
 import gradio as gr
 
-from ui.components.render_mdfile import (
-    MarkdownDocumentView,
-    build_markdown_document_view,
-)
-
 
 def build_tab_lci() -> tuple[
     gr.Tab,
     gr.Button,
-    MarkdownDocumentView,
-    gr.Row,
+    gr.JSON,
+    gr.Markdown,
+    gr.DownloadButton,
+    gr.JSON,
+    gr.Markdown,
     gr.DownloadButton,
     gr.Button,
 ]:
-    """Build the mounted, on-demand LCI inventory Markdown tab."""
+    """Build the mounted work-details tab with two stacked JSON trees."""
     import config
 
-    mapping_relative_path = config.LCI_MAPPING_RELATIVE_PATH.as_posix()
-    with gr.Tab("LCI清单", id="lci_mapping_tab") as lci_mapping_tab:
+    bom_relative = config.EXTRACTED_BOM_RELATIVE_PATH.as_posix()
+    mapping_relative = config.PROCESS_MAPPING_RELATIVE_PATH.as_posix()
+    with gr.Tab("工作细节", id="lci_mapping_tab") as lci_mapping_tab:
         with gr.Column(
             elem_id="lci-mapping-workspace",
             elem_classes=["right-tab-workspace", "right-workspace-panel"],
@@ -27,28 +26,51 @@ def build_tab_lci() -> tuple[
                 elem_id="lci-mapping-panel",
                 elem_classes=["inner-panel-grid"],
             ):
-                lci_mapping_view = build_markdown_document_view(
-                    component_prefix="lci-mapping",
-                    document_label="LCI 清单",
-                    template_label="LCI 清单",
-                    heading_levels=(1, 2, 3),
-                    toc_title="清单目录导航",
-                    status_heading=(
-                        "### 🗺️ LCI 清单 (Human-readable Mapping)\n\n"
-                        f"这里渲染 `{mapping_relative_path}`，用于人工检查 "
-                        "LCI 数据构建逻辑、来源追溯与过程拓扑。"
-                    ),
-                    show_load_status=False,
-                    content_visible=False,
-                )
-
-                with gr.Row(
-                    elem_id="lci-mapping-warning-row",
-                    visible=True,
-                ) as lci_mapping_warning_row:
+                gr.Markdown("### 工作细节")
+                with gr.Column(
+                    elem_id="work-details-scroll",
+                    elem_classes=["panel-scroll-container"],
+                ):
                     gr.Markdown(
-                        "### ⚠️ 缺少必要文件",
-                        elem_id="missing-lci-mapping-file-warning",
+                        f"#### 物料清单\n\n`{bom_relative}`",
+                        elem_id="work-details-bom-heading",
+                    )
+                    bom_json = gr.JSON(
+                        value=None,
+                        show_label=False,
+                        open=True,
+                        visible=False,
+                        max_height=400,
+                        elem_id="work-details-bom-json",
+                    )
+                    bom_warning = gr.Markdown(
+                        (
+                            "### ⚠️ 缺少物料清单\n\n"
+                            f"未找到有效的 `{bom_relative}`。"
+                        ),
+                        visible=True,
+                        elem_id="work-details-bom-warning",
+                    )
+
+                    gr.Markdown(
+                        f"#### 工艺映射\n\n`{mapping_relative}`",
+                        elem_id="work-details-mapping-heading",
+                    )
+                    mapping_json = gr.JSON(
+                        value=None,
+                        show_label=False,
+                        open=True,
+                        visible=False,
+                        max_height=400,
+                        elem_id="work-details-mapping-json",
+                    )
+                    mapping_warning = gr.Markdown(
+                        (
+                            "### ⚠️ 缺少工艺映射\n\n"
+                            f"未找到有效的 `{mapping_relative}`。"
+                        ),
+                        visible=True,
+                        elem_id="work-details-mapping-warning",
                     )
 
                 with gr.Row(
@@ -60,13 +82,20 @@ def build_tab_lci() -> tuple[
                         variant="secondary",
                         elem_id="close-lci-mapping-btn",
                     )
-                    download_lci_mapping_btn = gr.DownloadButton(
-                        "📥 下载LCI清单",
+                    download_bom_btn = gr.DownloadButton(
+                        "下载物料清单",
                         variant="secondary",
                         interactive=False,
+                        elem_id="download-extracted-bom-btn",
+                    )
+                    download_mapping_btn = gr.DownloadButton(
+                        "下载工艺映射",
+                        variant="secondary",
+                        interactive=False,
+                        elem_id="download-process-mapping-btn",
                     )
                     modify_lci_btn = gr.Button(
-                        "修改LCI清单",
+                        "修改工作细节",
                         variant="primary",
                         interactive=False,
                         elem_id="modify-lci-inventory-btn",
@@ -75,8 +104,11 @@ def build_tab_lci() -> tuple[
     return (
         lci_mapping_tab,
         close_mapping_btn,
-        lci_mapping_view,
-        lci_mapping_warning_row,
-        download_lci_mapping_btn,
+        bom_json,
+        bom_warning,
+        download_bom_btn,
+        mapping_json,
+        mapping_warning,
+        download_mapping_btn,
         modify_lci_btn,
     )

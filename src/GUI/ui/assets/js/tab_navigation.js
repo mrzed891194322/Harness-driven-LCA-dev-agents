@@ -35,7 +35,7 @@ function visibleRightTabLabels(mode) {
         plan: ['终端显示', '计划制定'],
         running: ['终端显示'],
         result: ['终端显示', 'LCA评估结果'],
-        lciReport: ['终端显示', 'LCA评估结果', 'LCI清单'],
+        lciReport: ['终端显示', 'LCA评估结果', '工作细节'],
         improvement: ['终端显示', 'LCA评估结果', 'LCA评估修改面板(功能开发中)'],
     };
     return visibleByMode[mode] || visibleByMode.project;
@@ -114,7 +114,7 @@ window.selectRightTabByText = selectRightTabByText;
 window.selectProjectInitTab = () => selectRightTabByText('设置&初始化');
 window.selectPlanEditorTab = () => selectRightTabByText('计划制定');
 window.selectImprovementTab = () => selectRightTabByText('LCA评估修改面板(功能开发中)');
-window.selectLciMappingTab = () => selectRightTabByText('LCI清单');
+window.selectLciMappingTab = () => selectRightTabByText('工作细节');
 window.selectTerminalTab = () => selectRightTabByText('终端显示');
 
 window.guiOpenProjectMode = (...args) => {
@@ -143,7 +143,7 @@ window.guiOpenResultMode = (...args) => {
 
 window.guiOpenLciReportMode = (...args) => {
     setRightTabMode('lciReport');
-    selectRightTabByText('LCI清单');
+    selectRightTabByText('工作细节');
     return args;
 };
 

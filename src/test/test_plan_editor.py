@@ -59,7 +59,7 @@ class PlanEditorTests(unittest.TestCase):
 
     def test_default_templates_have_no_metadata_and_expected_regions(self) -> None:
         expectations = (
-            (config.PLAN_INPUT_TEMPLATE_PATH, "# LCA 项目初始化需求与目标说明", 13),
+            (config.PLAN_INPUT_TEMPLATE_PATH, "# LCA 执行计划", 9),
             (config.REVISE_TEMPLATE_PATH, "# LCA评估修改", 1),
         )
         for path, heading, count in expectations:
@@ -230,7 +230,7 @@ class PlanEditorTests(unittest.TestCase):
         template = plan_editor.parse_execution_plan_template(
             config.PLAN_INPUT_TEMPLATE_PATH
         )
-        self.assertEqual(len(plan_editor.render_plan_segments(template)), 14)
+        self.assertEqual(len(plan_editor.render_plan_segments(template)), 10)
 
         serialized = plan_editor.serialize_execution_plan(
             template,
@@ -238,8 +238,10 @@ class PlanEditorTests(unittest.TestCase):
         )
 
         self.assertFalse(serialized.startswith("---\n"))
-        self.assertIn("## 模块 1：项目背景与评估目标", serialized)
-        self.assertEqual(serialized.count("<!-- PLAN_TEXTBOX -->"), 13)
+        self.assertIn("## 1. 研究对象", serialized)
+        self.assertIn("## 8. 资料重点", serialized)
+        self.assertIn("## 9. 特殊需求", serialized)
+        self.assertEqual(serialized.count("<!-- PLAN_TEXTBOX -->"), 9)
         self.assertEqual(
             plan_editor.parse_execution_plan_text(serialized).values[:2],
             ("填写值 0", "填写值 1"),

@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "item_id": "BOM-001",
+      "name": "再生低密度聚乙烯颗粒",
+      "quantity": 1.2,
+      "unit": "kg",
+      "process": "注塑",
+      "transport": {"mode": "公路", "distance_km": 80},
+      "geography": "华东",
+      "source_locations": ["harness/knowledge/contract.pdf#p3"],
+      "extraction_status": "extracted",
+      "gap": null
+    }
+  ]
+}

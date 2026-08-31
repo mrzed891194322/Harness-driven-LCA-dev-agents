@@ -17,4 +17,4 @@
 * **[global-structure.md](references/global-structure.md)**：用于查询全局根目录结构（如根目录下的通用约定、Python 虚拟环境与 `uv` 依赖管理规范）。
 * **[harness-structure.md](references/harness-structure.md)**：用于查询 `harness/` 目录（包括 `knowledge/`、`tools/`、`rules/`、`specs/`）与 `src/GUI/`、`src/scripts/` 的目录结构以及各模块的职责定义。
 * **[workspace-structure.md](references/workspace-structure.md)**：用于查询 `workspace/` 内部子目录（如 `LCI/`、`data/`、`plan/`、`tmp/` 等）的详细划分与文件管理规则。
-* **[platform-adapter.md](references/platform-adapter.md)**：各平台一行 CLI、MCP 接线与 agent/command 分层核对清单。
+* **[platform-adapter.md](references/platform-adapter.md)**：四平台在 AI 工具中输入的指令、GUI 内部一行 CLI、MCP 接线与 agent/command 分层核对清单。

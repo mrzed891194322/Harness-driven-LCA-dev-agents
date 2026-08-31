@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "item_id": "BOM-001",
+      "flow_name": "polyethylene, low density, granulate",
+      "flow_id": "00000000-0000-0000-0000-000000000001",
+      "process_name": "market for polyethylene, low density, granulate",
+      "process_id": "00000000-0000-0000-0000-000000000002",
+      "provider_name": "market for polyethylene, low density, granulate | RoW",
+      "provider_id": "00000000-0000-0000-0000-000000000003",
+      "geography_requested": "华东",
+      "geography_selected": "RoW",
+      "selection_reason": "活动库无华东市场；同功能 RoW 市场可用。",
+      "candidates": ["RoW market", "GLO production"]
+    }
+  ]
+}

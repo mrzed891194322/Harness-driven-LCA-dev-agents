@@ -70,18 +70,11 @@ def _iter_source_files(workspace: Path) -> list[tuple[Path, Path]]:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError(f"原工作流 manifest 不是有效 JSON：{manifest_path}") from exc
-    supported_manifests = {
-        "whole-lca/workflow-manifest": "2.0",
-        "revise-lca/workflow-manifest": "1.0",
-    }
     if (
         not isinstance(manifest, dict)
-        or supported_manifests.get(str(manifest.get("schema"))) != str(
-            manifest.get("version")
-        )
         or manifest.get("status") != "completed"
     ):
-        raise ValueError("原工作流 manifest 必须是受支持且已 completed 的运行。")
+        raise ValueError("原工作流 manifest 必须是有效 JSON 且已 completed。")
     lci_dir = outputs / "LCI"
     if not lci_dir.is_dir() or lci_dir.is_symlink():
         raise ValueError(f"原 LCI 目录不存在：{lci_dir}")

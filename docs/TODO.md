@@ -4,13 +4,11 @@
 
 - [ ] .env + 设置：语言 （决定agent思考、回复、编写使用语言）
 
-- [ ] clean up 脚本新增 openlca，新增多参数（仓库级清理，项目级清理），不再使用agent清理openlca
-
-- [ ] GUI 文件交换区 不再区分文档与数据
+- [ ] agent - roles - rule 映射
 
 - [ ] memory 改名为 state
 
-- [ ] 初始化（Bootstrap），在agent中以提示词形式：uv、openLCA、检查CLI、自动模式
+- [x] 初始化（Bootstrap），在agent中以提示词形式：uv、openLCA、检查CLI、自动模式
 
 - [x] 加入DSHagent
 

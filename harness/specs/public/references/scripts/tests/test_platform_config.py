@@ -17,13 +17,10 @@ PROJECT_ROOT = next(
 )
 
 STAGE_PACKAGES = (
-    "01-plan-quality-gate",
-    "02-evidence-retrieval",
-    "03-lci-construction",
-    "04-lci-quality-evaluation",
-    "05-openlca-preflight-confirmation",
-    "06-openlca-import-readback",
-    "07-lcia-calculation-reporting",
+    "01-intake-gate",
+    "02-inventory-extraction",
+    "03-dataset-mapping",
+    "04-openlca-reporting",
 )
 
 
@@ -278,6 +275,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         spec_root = PROJECT_ROOT / "harness" / "specs"
         legacy_package = spec_root / ("workflow" + "-run")
         self.assertFalse(legacy_package.exists())
+        self.assertFalse((spec_root / "03-lci-construction").exists())
         self.assertTrue((spec_root / "public" / "README.md").is_file())
         self.assertTrue(
             (spec_root / "public" / "references" / "workflow-runtime-spec.md").is_file()
@@ -368,7 +366,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         ):
             content = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
             if relative_path.endswith("LCA-main.md"):
-                positions = [content.index(f"### {index:02d}") for index in range(1, 8)]
+                positions = [content.index(f"### {index:02d}") for index in range(1, 5)]
                 self.assertEqual(positions, sorted(positions), relative_path)
                 self.assertGreaterEqual(
                     content.count("委派任务必须明确要求"), 7, relative_path
@@ -427,8 +425,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         paths = (
             "harness/specs/public/references/workflow-runtime-spec.md",
             "harness/rules/directory-structure/references/workspace-structure.md",
-            "harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md",
-            "harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md",
+            "harness/specs/04-openlca-reporting/references/04-openlca-reporting-spec.md",
             "harness/workflows/LCA-main.md",
             ".codex/skills/whole-lca/SKILL.md",
         )
@@ -437,6 +434,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         )
         self.assertIn("workspace/inputs/plan.md", content)
         self.assertIn("workspace/memory/", content)
+        self.assertIn("workspace/outputs/inventory/", content)
         self.assertIn("workspace/outputs/LCI/", content)
         self.assertIn("workspace/outputs/reports/", content)
         self.assertNotIn("workspace/plan/execution_plan.md", content)
@@ -458,9 +456,9 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             PROJECT_ROOT
             / "harness"
             / "specs"
-            / "03-lci-construction"
+            / "03-dataset-mapping"
             / "references"
-            / "03-lci-construction-spec.md"
+            / "03-dataset-mapping-spec.md"
         ).read_text(encoding="utf-8")
         adapters = "\n".join(
             (PROJECT_ROOT / path).read_text(encoding="utf-8")
@@ -473,7 +471,6 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         )
 
         self.assertIn("health_check", runtime)
-        self.assertRegex(runtime, r"(?:3 次重连|重连 3 次)")
         self.assertIn("failed", runtime)
         self.assertNotRegex(adapters, r"(?:3 次重连|重连 3 次|4 次有界探测)")
         self.assertIn("`isInput`", stage03)
@@ -487,6 +484,7 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             PROJECT_ROOT / "harness" / "rules" / "openlca-operation" / "README.md"
         ).read_text(encoding="utf-8")
         self.assertIn("背景匹配与无人值守决定", openlca_rule)
+        self.assertRegex(openlca_rule, r"(?:3 次重连|重连 3 次)")
         self.assertIn("status_reason", openlca_rule)
         self.assertIn("任何建模选择", openlca_rule)
         self.assertIn("自行选择代理", openlca_rule)
@@ -515,27 +513,19 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         )
         self.assertNotIn("user_confirmed", content)
 
-        for schema_name in ("workflow-manifest.schema.json", "stage.schema.json"):
-            schema = json.loads(
-                (
-                    PROJECT_ROOT
-                    / "harness"
-                    / "specs"
-                    / "public"
-                    / "references"
-                    / "schemas"
-                    / schema_name
-                ).read_text(encoding="utf-8")
-            )
-            self.assertNotIn(
-                "awaiting_confirmation",
-                schema["properties"]["status"]["enum"],
-            )
+    def test_inventory_examples_are_valid_json(self) -> None:
+        for relative in (
+            "harness/specs/02-inventory-extraction/references/examples/extracted-bom.json",
+            "harness/specs/03-dataset-mapping/references/examples/process-mapping.json",
+            "harness/specs/public/references/examples/manifest.json",
+        ):
+            payload = json.loads((PROJECT_ROOT / relative).read_text(encoding="utf-8"))
+            self.assertIsInstance(payload, dict, relative)
 
 
 class MultiPlatformCliAndMcpTests(unittest.TestCase):
     def test_mcp_commands_point_at_harness_tools(self) -> None:
-        query_rag = "harness/tools/query_rag/main.py"
+        query_rag = PROJECT_ROOT / "harness" / "tools" / "query_rag"
         control_openlca = "harness/tools/control_openlca/main.py"
         opencode = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
         self.assertNotIn("query_rag", opencode["mcp"])
@@ -557,7 +547,7 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
                 config["mcpServers"]["control_openlca"]["args"][-1],
                 control_openlca,
             )
-        self.assertTrue((PROJECT_ROOT / query_rag).is_file())
+        self.assertFalse(query_rag.exists())
 
     def test_one_line_cli_is_documented_for_each_platform(self) -> None:
         operator_docs = (
@@ -578,7 +568,9 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         self.assertIn("$revise-lca", content)
         self.assertIn("claude", content)
         self.assertIn("whole-lca", content)
-        self.assertIn("不要把 IDE 对话当成", content)
+        self.assertIn("Cursor 不当操作员", content)
+        self.assertIn("四平台", content)
+        self.assertIn("Desktop", content)
 
         cursor_dev = (
             PROJECT_ROOT / ".cursor" / "rules" / "cursor-dev.mdc"
@@ -718,10 +710,11 @@ class BootstrapEnvAdapterTests(unittest.TestCase):
         self.assertIn("openLCA", readme)
         self.assertIn("IPC Server", readme)
         self.assertIn("每次开始项目前", readme)
-        self.assertIn("opencode run --command bootstrap-env", readme)
-        self.assertIn("codex exec", readme)
+        self.assertIn("读取并执行 src/scripts/proj_init/PROMPT.md", readme)
         self.assertIn("$bootstrap-env", readme)
         self.assertIn("/bootstrap-env", readme)
+        self.assertIn("在 AI Agent 中直接运行", readme)
+        self.assertNotIn("命令行直接运行（无 GUI）", readme)
         self.assertNotIn("_setup_env.bat", readme)
         self.assertNotIn("_launch_gui.bat", readme)
         self.assertTrue((PROJECT_ROOT / "src/scripts/proj_init/PROMPT.md").is_file())

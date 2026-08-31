@@ -7,16 +7,16 @@
 
 | 模块 | 职责 |
 | :--- | :--- |
-| `agents_check/` | 检查 codex / claude / opencode 是否在 PATH 且可调用 |
+| `agents_check/` | 检查 codex / claude / opencode / dsh 是否在 PATH 且可调用 |
 | `openlca_check/` | 检查 openLCA IPC Server 连接（与 MCP 共用有界重试） |
 | `main.py` | CLI 编排：可选 pre-clean、agents、openlca 健康检查 |
 
-Agent 路径直接读取 `harness/knowledge/` 用户资料。openLCA 前景清理由 GUI/CLI 在启动 agent 前通过 `src/scripts/clean_dir/main.py -t openlca` 或 `--preset` 执行。
+Agent 路径直接读取 `harness/knowledge/` 用户资料。bootstrap-env（`src/scripts/proj_init/PROMPT.md`）会调用 `--only openlca` 做 IPC 探测。openLCA 前景清理由 GUI 或用户在启动 agent 前通过 `src/scripts/clean_dir/main.py -t openlca` 或 `--preset` 执行。
 
 ## 环境变量
 
 ~~~text
-HARNESS_AGENT="opencode"  # 可选：codex / claude / opencode
+HARNESS_AGENT="opencode"  # 可选：codex / claude / opencode / dsh
 OPENLCA_IPC_PORT=8080     # 可选；GUI 与 CLI 共用
 ~~~
 

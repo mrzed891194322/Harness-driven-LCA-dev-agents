@@ -147,6 +147,18 @@
     margin-bottom: 20px !important;
 }
 
+#work-details-scroll {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+}
+
+#work-details-scroll .json-container,
+#work-details-bom-json,
+#work-details-mapping-json {
+    font-family: var(--gui-monospace-font) !important;
+}
+
 .panel-close-btn {
     height: 42px !important;
     display: flex !important;

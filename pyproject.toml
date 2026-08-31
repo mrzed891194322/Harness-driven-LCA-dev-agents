@@ -5,15 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-  "chromadb>=1.5.9",
   "gradio>=6.19.0",
   "ipykernel>=7.3.0",
-  "langchain-text-splitters>=1.1.2",
-  "markitdown[all]>=0.1.6",
   "matplotlib>=3.11.0",
   "mcp>=2.0.0b1",
   "olca-ipc>=2.0.0",
-  "openai>=2.41.1",
   "openpyxl>=3.1.5",
   "pandas>=3.0.3",
   "python-dotenv>=1.2.2",

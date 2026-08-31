@@ -25,16 +25,16 @@ uv run python src/scripts/clean_dir/main.py -y --preset revise-lca
 
 `--target` 与 `--preset` 互斥。preset 任一步失败会中止后续步骤。
 
-## CLI 无 GUI 工作流
+## Agent 直跑前置步骤
 
 whole-lca：
 
 1. `clean_dir -y --preset whole-lca`
 2. 复制资料到 `harness/knowledge/`，编写 `workspace/inputs/plan.md`
-3. 启动 agent（如 `opencode run --command whole-lca --dangerously-skip-permissions`）
+3. 在所用 AI 工具中输入 `/whole-lca`、`$whole-lca`，或 DSH「读取并执行 `.dsh/skills/whole-lca/SKILL.md`」
 
 revise-lca：
 
 1. `clean_dir -y --preset revise-lca`（不清理 workspace）
 2. 更新 `harness/knowledge/` 与 `workspace/inputs/revise.md`
-3. 启动 `revise-lca` agent 命令
+3. 在所用 AI 工具中输入 `/revise-lca`、`$revise-lca`，或对应 DSH 技能

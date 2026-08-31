@@ -1,68 +1,46 @@
 # LCA 主工作流
 
-本工作流说明由平台入口加载。共享状态机和产物契约只存在于 `harness/specs/public/`，阶段规则只存在于 `harness/specs/01-*` 至 `07-*`；不要在本文件中重定义 schema。
+平台入口加载本文件。阶段细节在 `harness/specs/` 编号包；不要在这里加 schema。
 
-## 运行前清理（由 GUI/CLI 完成）
+## 运行前清理（由 GUI 或用户完成）
 
-`harness/knowledge/`、`workspace` 生成物（`memory/`、`outputs/`、`tmp/`）与 openLCA 前景实体须在启动本工作流**之前**由 GUI 或 CLI 调用 `src/scripts/clean_dir/` 清理（whole-lca 使用 `--preset whole-lca`）。须保留 `workspace/inputs/plan.md`。用户资料由 GUI `file_sync` 或手工复制写入 `harness/knowledge/`。openLCA 前景清理已由 `clean_dir` 前置完成，本工作流不在 agent 内重复清理。
+启动前已用 `src/scripts/clean_dir/`（`--preset whole-lca`）清理 `harness/knowledge/`、`workspace` 生成物与 openLCA 前景。保留 `workspace/inputs/plan.md`。用户资料在 `harness/knowledge/`。不要在 agent 内再调 `clean_dir` 或 MCP `cleanup_output`。
 
-## 渐进式资源加载
+## 渐进加载
 
-1. 确认当前 Agent 是 `major-orchestrator`，并只使用 `workspace/inputs/plan.md` 作为计划输入。用户参考资料只从 `harness/knowledge/` 读取，不得把 `workspace` 其他目录当作知识库。
-2. 启动时只读取 `harness/specs/public/README.md` 和 `harness/specs/public/references/workflow-runtime-spec.md`。不得在此时读取任何编号阶段规范。
-3. 创建 manifest 前读取 `harness/specs/public/references/schemas/workflow-manifest.schema.json`。以后只在即将写某类对象前读取对应 schema：stage 读取 `harness/specs/public/references/schemas/stage.schema.json`，handoff 读取 `harness/specs/public/references/schemas/handoff.schema.json`，review 读取 `harness/specs/public/references/schemas/review.schema.json`。
-4. 每次委派必须明确列出当前阶段、此时允许读取的文件、输入产物路径、允许的输出、关联 issue ID 或 `import_scope`。子 Agent 不得自行扫描其他阶段。
-5. 进入一个阶段时，主 Agent 才读取该阶段的 README 及其路由的 spec；当前任务需要同一规范的子 Agent，在该次委派中再被明确要求读取。完成阶段并持久化证据后，不预读下一阶段。
+1. 当前 Agent 是 `major-orchestrator`。计划只来自 `workspace/inputs/plan.md`；资料只来自 `harness/knowledge/`。
+2. 启动只读 `harness/specs/public/README.md` 和 `harness/specs/public/references/workflow-runtime-spec.md`。不得预读编号阶段 spec。
+3. 写 `workspace/memory/manifest.json`（`status`、`current_stage`、`status_reason`）。可选复制 `harness/specs/public/references/templates/checklist.md`。
+4. 每次委派必须明确要求子 Agent 读取本阶段 README/spec 与本次输入路径。子 Agent 不得再委派、不得扫描其他阶段。
+5. 进入阶段时才读该阶段 README 及其 spec；完成后不预读下一阶段。
 
-LCA 知识规则 `harness/rules/lca-knowledge/README.md` 由平台入口按配置加载；执行时不要重复加载。`harness/rules/openlca-operation/README.md` 不属于全局指令，只能在某次任务确实要调用 openLCA MCP 时按需读取。
+LCA 知识规则由平台按配置加载，需要时读 `harness/rules/lca-knowledge/README.md`。真正调用 openLCA MCP 时再读 `harness/rules/openlca-operation/README.md`。
 
-## 七阶段执行
+## 启动门禁 + 三步 LCA
 
-### 01 计划质量门禁
+### 01 初始化检查
 
-- 主 Agent 此时完整读取 `harness/specs/01-plan-quality-gate/README.md` 和 `harness/specs/01-plan-quality-gate/references/01-plan-quality-gate-spec.md`，并在写 handoff/review/stage 前读取对应 schema。
-- 调用 `eval-reviewer` 时，委派任务必须明确要求它在审查前完整读取上述两个第 01 阶段文件和 `harness/specs/public/references/schemas/review.schema.json`；只交付计划及当前阶段输入，阻断时持久化结果并停止。
+- 主 Agent 此时完整读取 `harness/specs/01-intake-gate/README.md` 和 `harness/specs/01-intake-gate/references/01-intake-gate-spec.md`。
+- 委派任务必须明确要求 `eval-reviewer` 读取上述文件、`workspace/inputs/plan.md` 和 `harness/knowledge/`。不派 `sub-executor`。未通过则写入审查笔记，manifest `failed`，停止。
 
-### 02 证据检索
+### 02 前景清单提取
 
-- 计划通过后，主 Agent 才完整读取 `harness/specs/02-evidence-retrieval/README.md` 和 `harness/specs/02-evidence-retrieval/references/02-evidence-retrieval-spec.md`。
-- 从已通过计划的自然语言、审查中的 `retrievable_gaps` 以及默认的资料提取/背景映射任务调用 `sub-executor`；用户计划不要求 `GAP-*` 字面量。委派任务必须明确要求它在检索前完整读取上述两个第 02 阶段文件。用户资料只从 `harness/knowledge/` 直接读取，遵守已加载的 LCA 知识规则。只有任务包含 openLCA 候选查询时，才要求它在调用 MCP 前读取 `harness/rules/openlca-operation/README.md`（可留档的匹配与建模决定自行选择并留档，不得停下来征求用户）。
+- 主 Agent 此时完整读取 `harness/specs/02-inventory-extraction/README.md` 和 `harness/specs/02-inventory-extraction/references/02-inventory-extraction-spec.md`。
+- 委派任务必须明确要求 `sub-executor` 读取上述文件并写出 BOM。
+- 委派任务必须明确要求 `eval-reviewer` 读取上述文件并审查 BOM。attempt 1/2 未通过则只把修改意见交给 `sub-executor`；attempt 3 未通过则 `failed`。
 
-### 03 LCI 制定
+### 03 背景数据集映射
 
-- 第 02 阶段通过后，主 Agent 才完整读取 `harness/specs/03-lci-construction/README.md` 和 `harness/specs/03-lci-construction/references/03-lci-construction-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在制定 LCI 前完整读取上述两个第 03 阶段文件；只交付已通过计划、当前检索 handoff 和允许生成的 LCI 产物范围。返回前必须运行第 03 阶段 `references/scripts/validation.py`；LCI 连接元数据与 Product System 契约只以该阶段 spec 为准。
+- 主 Agent 此时完整读取 `harness/specs/03-dataset-mapping/README.md` 和 `harness/specs/03-dataset-mapping/references/03-dataset-mapping-spec.md`。
+- 委派任务必须明确要求 `sub-executor` 读取上述文件，并在调用 MCP 前读取 `harness/rules/openlca-operation/README.md`，写出 mapping 与 LCI。
+- 委派任务必须明确要求 `eval-reviewer` 审查映射与 LCI。返工规则同 02。通过前不 import。
 
-### 04 LCI 质量评估
+### 04 openLCA 建模与报告
 
-- LCI 形成后，主 Agent 才完整读取 `harness/specs/04-lci-quality-evaluation/README.md` 和 `harness/specs/04-lci-quality-evaluation/references/04-lci-quality-evaluation-spec.md`。
-- 调用 `eval-reviewer` 时，委派任务必须明确要求它在审查前完整读取上述两个第 04 阶段文件和 review schema，并先核对第 03 阶段确定性校验结果；只交付计划目标、第 02/03 阶段证据、当前 LCI 与历史未解决 issue。核对来源时使用已加载的 LCA 知识规则；只有实际调用 openLCA MCP 核验时才读取 openLCA 规则。
-- attempt 1/2 未通过时，调用 `sub-executor` 并明确要求它此时完整读取第 03 阶段和第 04 阶段的 README/spec，只交付关联 issue ID 与受影响产物进行定向修正；attempt 3 未通过时置为 `failed`，不得继续。
+- 主 Agent 此时完整读取 `harness/specs/04-openlca-reporting/README.md` 和 `harness/specs/04-openlca-reporting/references/04-openlca-reporting-spec.md`。
+- 委派任务必须明确要求 `sub-executor` 读取上述文件和 openLCA 规则，按预检→导入→读回→计算→报告执行，模板为 `harness/specs/04-openlca-reporting/references/templates/lca_report.md`。
+- 委派任务必须明确要求 `eval-reviewer` 审查 `lca_report.md`。通过则 `completed`；工具失败或三次审查失败则 `failed`。均须非空 `status_reason`。
 
-### 05 openLCA 写入预检
+## 停止
 
-- LCI 审查通过后，主 Agent 才完整读取 `harness/specs/05-openlca-preflight-confirmation/README.md` 和 `harness/specs/05-openlca-preflight-confirmation/references/05-openlca-preflight-confirmation-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在预检前完整读取上述两个第 05 阶段文件和 `harness/rules/openlca-operation/README.md`，使用明确 `database_name` 调用 `preflight_import_lci`。保存活动数据库、目标分类、LCI 目录、Provider 检查和完整范围到 `import_scope` 与 checklist，不得执行导入或等待确认。
-
-### 06 openLCA 导入与读回
-
-- 预检通过后，主 Agent 才完整读取 `harness/specs/06-openlca-import-readback/README.md` 和 `harness/specs/06-openlca-import-readback/references/06-openlca-import-readback-spec.md`，并立即发起下一次委派。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在导入前完整读取上述两个第 06 阶段文件和 openLCA 规则；在生成对应结果前读取 `harness/specs/06-openlca-import-readback/references/schemas/import-report.schema.json`、`harness/specs/06-openlca-import-readback/references/schemas/import-operation-status.schema.json` 和 `harness/specs/06-openlca-import-readback/references/schemas/model-graph.schema.json`。只把当前成功预检的 `import_scope`（库名、分类、LCI 目录）交给它调用 `import_lci`，并把各 Product System 的 `expectedProcessIds` 传给 `get_model_graph`。
-- `import_lci` 超时后只调用 `get_import_operation`；状态为 `running`/`indeterminate` 时停止并保存证据，不得重试或使用 CLI。Stage 05/manifest/import report 的范围或时间线不一致时 Stage 06 失败。
-- 保存导入报告和所有模型图后必须运行第 06 阶段 `references/scripts/validation.py`；只有 `ok=true` 才能写入 passed 的 Stage 06 记录。
-- `import_lci` 重新预检后若库名、分类或 LCI 目录变化，不得写入；保存结构化失败证据并将运行置为 `failed`。
-
-### 07 LCIA 计算与报告
-
-- 第 06 阶段通过后，主 Agent 才完整读取 `harness/specs/07-lcia-calculation-reporting/README.md` 和 `harness/specs/07-lcia-calculation-reporting/references/07-lcia-calculation-reporting-spec.md`。
-- 调用 `sub-executor` 时，委派任务必须明确要求它在计算前完整读取上述两个第 07 阶段文件和 openLCA 规则；在保存原始计算结果、计算清单和最终报告前，依次读取 `harness/specs/07-lcia-calculation-reporting/references/schemas/raw-lcia-results.schema.json`、`harness/specs/07-lcia-calculation-reporting/references/schemas/calculation-manifest.schema.json` 和 `harness/specs/07-lcia-calculation-reporting/references/templates/lca_report.md`，不得提前加载。
-- 使用 calculation manifest v3 `calculations` 数组记录全部情景，并为每对情景生成 `comparison_checks`。图不同但 LCIA 相同时必须写入非空 `explained`。保存 raw、清单和报告后运行第 07 阶段 `references/scripts/validation.py`；只有 passed 才能完成，否则置为 `failed`。
-
-## 证据与停止
-
-- 每次委派前后在 `workspace/memory/` 写 handoff，每个阶段写新 stage 文件；同一次运行内不得覆盖历史记录。
-- Reviewer 只读；由主 Agent 持久化其返回的 review。
-- 不调用任何既有 Agent。子 Agent 只读取本次交接列出的相关记忆，只有主 Agent 持久化运行状态与历史记录。
-- 运行启动即授权在当前预检范围完全一致时导入；运行中不得设置 `awaiting_confirmation`、不得向用户征求任何建模决定。可留档的选择由执行 Agent 按 openLCA 操作规则自行决定并写入证据。终止状态只有 `completed` 和 `failed`，都必须写入非空 `status_reason`：`failed` 写明停止阶段、具体原因和 issue ID 或工具错误；`completed` 写明第 07 阶段完成依据。
-- 每次阶段结束时更新 `workspace/memory/checklist.md`（状态、依据、资料/工具、产物路径），不要记录哈希。
-- 无部分失败、无断链、非空结果且全部契约通过前，不得标记 `completed`。
+运行中不得征求用户建模决定，不得设 `awaiting_confirmation`。可留档的选择由执行方写入产物。终止只有 `completed` 和 `failed`。

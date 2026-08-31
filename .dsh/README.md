@@ -27,21 +27,28 @@ prompt 中写明角色。
     └── lca/                  # 项目 agent preset（复制自发行版 standard 并定制 persona）
 ```
 
-## 一行 CLI（正式入口）
+## 在 DSH 中输入指令
 
-在仓库根目录执行（`--patch` 等 launcher 标志必须在任务文本之前）：
+在 DSH（CLI 或后续启用的 Desktop）中打开本仓库后：
+
+- 环境引导：读取并执行 `.dsh/skills/bootstrap-env/SKILL.md`（技能会转去执行 `src/scripts/proj_init/PROMPT.md`）
+- whole-lca / revise-lca：先手动 `clean_dir` 并复制资料，再读取并执行对应 skill
+
+「加载并执行 whole-lca 技能」是等价的任务文本写法。任务文本直接读文件是主形式，
+不依赖模型额外选择技能工具。
+
+## GUI 启动用的一行 CLI
+
+GUI 按 `.env` 的 `HARNESS_AGENT=dsh` 调用下列命令（`--patch` 等 launcher 标志必须在任务文本之前）：
 
 ```bash
-# 环境引导
+# 环境引导（GUI 不跑；仅供对照）
 DSH_PERMISSION_MODE=danger-full-access dsh --profile headless --patch .dsh/cordis.patch.yml "读取并执行 .dsh/skills/bootstrap-env/SKILL.md"
 
 # whole-lca / revise-lca
 DSH_PERMISSION_MODE=danger-full-access dsh --profile headless --patch .dsh/cordis.patch.yml "读取并执行 .dsh/skills/whole-lca/SKILL.md"
 DSH_PERMISSION_MODE=danger-full-access dsh --profile headless --patch .dsh/cordis.patch.yml "读取并执行 .dsh/skills/revise-lca/SKILL.md"
 ```
-
-「加载并执行 whole-lca 技能」是等价的任务文本写法。任务文本直接读文件是主形式，
-不依赖模型额外选择技能工具。
 
 `DSH_PERMISSION_MODE=danger-full-access` 是无人值守必需：DSH 默认
 `workspace-write` 沙箱把 `~/.cache` 只读挂载，`uv run` 初始化缓存即失败，且默认

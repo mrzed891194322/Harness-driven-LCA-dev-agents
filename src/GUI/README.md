@@ -27,7 +27,7 @@ uv run python src/GUI/main.py
 一样由左侧按钮打开，启动时不显示。页内为左侧配置目录与右侧可滚动详情，
 点击目录进入对应配置项：初始化检查、AI Agent 工具、开发者选项。
 可选择 AI Agent（codex / claude / opencode / dsh）并检查 CLI 是否可用。
-「开始初始化检查」会依次探测所选 Agent CLI（`--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导见 `AGENTS.md` 终端一行 CLI 或 `src/scripts/proj_init/main.py`）。
+「开始初始化检查」会依次探测所选 Agent CLI（`--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导：在所用 AI 工具中读取并执行 `src/scripts/proj_init/PROMPT.md`）。
 侧栏「用户资料上传」仅暂存于 GUI；点击「执行LCA计划」或「执行改进」时，先 `clean_dir --preset`，再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 写入仓库根目录 `.env` 的 `HARNESS_AGENT`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
@@ -35,12 +35,12 @@ uv run python src/GUI/main.py
 报告缺失或不可读时面板会显示原因，不会保留上一次加载的正文。
 关闭计划面板会回到“终端显示”。
 
-“计划制定”“LCA评估修改面板(功能开发中)”“LCA评估结果”和“LCI清单”四个文档型
+“计划制定”“LCA评估修改面板(功能开发中)”“LCA评估结果”三个文档型
 Tab 共用同一个 Markdown 文档视图：左侧为 Markdown 标题目录，右侧为滚动正文，
 每个 Tab 使用独立组件前缀、标题锚点和暂存 State。视图会隐藏可选 YAML
 front matter；若文档包含完整的 `PLAN_TEXTBOX` 区域，则在原位置显示 Textbox，
-否则仅显示 Markdown。四个 Tab 均预创建 21 个 Markdown 片段和 20 个 Textbox，
-因此文件加载后无需动态挂载 Gradio 组件。
+否则仅显示 Markdown。三个 Tab 均预创建 21 个 Markdown 片段和 20 个 Textbox，
+因此文件加载后无需动态挂载 Gradio 组件。「工作细节」是独立 JSON 面板，不用该组件池。
 
 侧栏的“开始LCA工作”始终可用，用于打开“计划制定”Tab。该面板按
 `ui/assets/template/plan.md` 动态渲染结构化表单，完全忽略已有的
@@ -65,10 +65,11 @@ Agent 消息转成可读行；DSH 以 `dsh --profile headless --patch .dsh/cordi
 GUI 会注入 `DSH_PERMISSION_MODE=danger-full-access`，并尾随 `~/.dsh/sessions/` 下本项目 session 日志，
 在终端实时显示工具调用与助手摘要（headless stdout 仅含最终一行）。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
 “LCA评估结果”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
-用户可下载报告或按需打开
-`workspace/outputs/LCI/human_readable_mapping.md`。LCI Tab 始终保持挂载，但其导航入口
-仅在打开映射时显示；底部“关闭面板”只返回 LCA 结果并隐藏导航入口，不再卸载 Tab。
-结果和 LCI 文档若包含 `PLAN_TEXTBOX` 也会显示原位输入框，但当前不会把这些
+用户可下载报告或按需打开「工作细节」，上下渲染
+`workspace/outputs/inventory/extracted-bom.json` 与
+`process-mapping.json`（Gradio JSON 树）。该 Tab 始终保持挂载，但其导航入口
+仅在打开工作细节时显示；底部“关闭面板”只返回 LCA 结果并隐藏导航入口，不再卸载 Tab。
+结果文档若包含 `PLAN_TEXTBOX` 也会显示原位输入框，但当前不会把这些
 临时输入写回报告文件。
 “修改LCA评估”打开独立、常驻挂载的“LCA评估修改面板(功能开发中)”Tab。该面板每次打开都
 重新加载 `ui/assets/template/revise.md`，可在内存中暂存最多 20 个
@@ -76,7 +77,7 @@ GUI 会注入 `DSH_PERMISSION_MODE=danger-full-access`，并尾随 `~/.dsh/sessi
 且现有 plan、manifest、LCI 和最终报告齐备时启用“执行改进”；点击后原子保存到
 `workspace/inputs/revise.md` 并按所选 Agent 调用 `revise-lca`。成功后结果 Tab
 重新加载被覆盖的 `lca_report.md`，失败时读取 revise manifest 展示原因。
-“关闭面板”返回 LCA 结果。“修改LCI清单”当前仅
+“关闭面板”返回 LCA 结果。“修改工作细节”当前仅
 作为禁用的功能占位按钮显示。
 
 GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界面，不依赖在线字体；

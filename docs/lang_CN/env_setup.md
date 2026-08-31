@@ -2,9 +2,17 @@
 
 本文档介绍运行 **Harness-driven LCA Agents** 所需的环境与配置。
 
-推荐先用命令行让 agent 做环境引导（`opencode run --command bootstrap-env`、`codex exec -s workspace-write '$bootstrap-env'`、`claude -p "/bootstrap-env"`，或 `DSH_PERMISSION_MODE=danger-full-access dsh --profile headless --patch .dsh/cordis.patch.yml "读取并执行 .dsh/skills/bootstrap-env/SKILL.md"`）。步骤正文在 `src/scripts/proj_init/PROMPT.md`。没有 uv 时 agent 会判定不通过，需要你按下面说明手动安装。
+首次运行前，在所用 AI 工具（Codex / Claude Code / OpenCode / DSH 的 CLI、IDE 插件或 Desktop）中打开本仓库，输入：
 
-Agent CLI（`codex` / `claude` / `opencode` / `dsh`）的安装与登录以各工具自己的文档为准；GUI 里只需在「设置 AI Agent 工具」中选择已安装的那一个。GUI「初始化检查」只探测 CLI `--version`，不运行 bootstrap-env。
+```text
+读取并执行 src/scripts/proj_init/PROMPT.md
+```
+
+或使用 `/bootstrap-env`、`$bootstrap-env`。步骤正文在 `src/scripts/proj_init/PROMPT.md`。没有 uv 时 agent 会判定不通过，需要你按下面说明手动安装。
+
+Agent CLI（`codex` / `claude` / `opencode` / `dsh`）的安装与登录以各工具自己的文档为准。走 GUI 时，在「设置 AI Agent 工具」中选择 PATH 上已安装的那一个。GUI「初始化检查」只探测所选 CLI `--version` 与 openLCA，不运行 bootstrap-env。
+
+引导结束时，agent 会列出哪些 CLI 可用，并建议将它们分别设为 auto-review（自动批准工具调用）。只按建议自行调整，不要让 agent 改你的全局配置。
 
 ## 1. 安装 uv
 
@@ -28,7 +36,7 @@ Agent CLI（`codex` / `claude` / `opencode` / `dsh`）的安装与登录以各�
 
 ## 2. Python 依赖
 
-项目由 `.python-version` 和 `pyproject.toml` 固定使用 Python `3.12`。在项目根目录
+项目由 `.python-version` 和 `pyproject.toml` 固定使用 Python `3.14`。在项目根目录
 执行：
 
 ```bash
@@ -52,11 +60,11 @@ uv sync
 ![openLCA IPC Service](../assets/images/project_prep/openlca-ipc.png)
 
 连接检查首次失败后会重新创建客户端并重试三次；全部失败时命令返回非零，GUI 的执行
-按钮保持禁用。
+按钮保持禁用。bootstrap-env 也会跑同一条检查，失败时记为「需你动手」。
 
-## 4. 命令行运行 LCA 前的清理
+## 4. 在 AI Agent 中运行 LCA 前的清理
 
-无 GUI 时，在启动 whole-lca / revise-lca agent 之前执行：
+不使用 GUI 时，在所用 AI 工具中输入 whole-lca / revise-lca 之前执行：
 
 ```bash
 uv run python src/scripts/clean_dir/main.py -y --preset whole-lca

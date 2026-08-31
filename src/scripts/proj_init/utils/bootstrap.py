@@ -16,10 +16,6 @@ from .constants import (
     CONTROL_OPENLCA_MAIN,
     CONTROL_OPENLCA_TOOLS,
     HARNESS_CLIS,
-    PLACEHOLDER_VALUES,
-    QUERY_RAG_MAIN,
-    QUERY_RAG_TOOLS,
-    REQUIRED_ENV_KEYS,
     REQUIRED_PYTHON,
     UV_MISSING_REMINDER,
 )
@@ -96,64 +92,43 @@ def check_python_version() -> dict[str, Any]:
     return {"ok": ok, "version": version}
 
 
-def parse_env_file(path: Path) -> dict[str, str]:
-    """Parse KEY=VALUE lines without printing values."""
-    parsed: dict[str, str] = {}
-    if not path.is_file():
-        return parsed
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        parsed[key.strip()] = value.strip().strip('"').strip("'")
-    return parsed
-
-
 def ensure_env_file(project_root: Path) -> dict[str, Any]:
-    """Create .env from .env.example when missing. Never print secret values."""
+    """Create .env from .env.example when missing. Do not inspect values."""
     env_path = project_root / ".env"
     example_path = project_root / ".env.example"
-    created = False
     if not env_path.is_file():
         if not example_path.is_file():
             print("[ERROR] .env and .env.example are both missing.")
-            return {
-                "exists": False,
-                "created": False,
-                "keys_present": False,
-                "placeholders": True,
-            }
+            return {"exists": False, "created": False}
         shutil.copy2(example_path, env_path)
-        created = True
         print("[WARN] .env was missing; copied from .env.example.")
-    else:
-        print("[OK] .env exists.")
+        return {"exists": True, "created": True}
 
-    values = parse_env_file(env_path)
-    keys_present = all(key in values and values[key] for key in REQUIRED_ENV_KEYS)
-    placeholders = (not keys_present) or any(
-        values.get(key, "") in PLACEHOLDER_VALUES for key in REQUIRED_ENV_KEYS
-    )
-    return {
-        "exists": True,
-        "created": created,
-        "keys_present": keys_present,
-        "placeholders": placeholders,
-    }
+    print("[OK] .env exists.")
+    return {"exists": True, "created": False}
 
 
 def detect_harness_clis(which: WhichFn = shutil.which) -> dict[str, Any]:
     """Report which supported harness CLIs are on PATH. Missing CLIs are warnings."""
-    found = [name for name in HARNESS_CLIS if which(name)]
+    clis: dict[str, dict[str, bool]] = {}
+    found: list[str] = []
+    for name in HARNESS_CLIS:
+        available = which(name) is not None
+        clis[name] = {"available": available}
+        if available:
+            found.append(name)
+            print(f"[OK] {name} is on PATH")
+        else:
+            print(f"[WARN] {name} was not found on PATH")
+
     if found:
         print(f"[OK] harness CLI: {', '.join(found)}")
     else:
         print(
-            "[WARN] PATH 中未找到 opencode / claude / codex。"
-            "当前对话中的 agent 仍可继续；一行 CLI 启动 whole-lca 需要其中之一。"
+            "[WARN] PATH 中未找到 opencode / claude / codex / dsh。"
+            "当前对话中的 agent 仍可继续；GUI 启动 whole-lca 需要其中之一。"
         )
-    return {"found": found, "ok": bool(found)}
+    return {"found": found, "clis": clis, "ok": bool(found)}
 
 
 def _load_module(path: Path, name: str) -> Any:
@@ -171,32 +146,25 @@ def _tool_names(module: Any) -> list[str]:
 
 
 def probe_mcp_modules(project_root: Path) -> dict[str, Any]:
-    """Import MCP servers and list registered tool names without calling them."""
-    query_path = project_root / QUERY_RAG_MAIN
+    """Import control_openlca and list registered tool names without calling them."""
     control_path = project_root / CONTROL_OPENLCA_MAIN
     try:
-        query_module = _load_module(query_path, "bootstrap_query_rag")
-        query_tools = _tool_names(query_module)
         control_module = _load_module(control_path, "bootstrap_control_openlca")
         control_tools = _tool_names(control_module)
     except Exception as exc:
         print(f"[ERROR] MCP import failed: {type(exc).__name__}")
         return {
             "ok": False,
-            "query_rag_tools": [],
             "control_openlca_tools": [],
         }
 
-    query_ok = QUERY_RAG_TOOLS.issubset(query_tools)
-    control_ok = CONTROL_OPENLCA_TOOLS.issubset(control_tools)
-    ok = query_ok and control_ok
+    ok = CONTROL_OPENLCA_TOOLS.issubset(control_tools)
     if ok:
-        print("[OK] MCP modules imported; expected tools are registered.")
+        print("[OK] MCP module imported; expected tools are registered.")
     else:
-        print("[ERROR] MCP modules imported but expected tools are missing.")
+        print("[ERROR] MCP module imported but expected tools are missing.")
     return {
         "ok": ok,
-        "query_rag_tools": query_tools,
         "control_openlca_tools": control_tools,
     }
 
@@ -211,11 +179,9 @@ def empty_report() -> dict[str, Any]:
         "env_file": {
             "exists": False,
             "created": False,
-            "keys_present": False,
-            "placeholders": True,
         },
-        "harness_clis": {"found": [], "ok": False},
-        "mcp": {"ok": False, "query_rag_tools": [], "control_openlca_tools": []},
+        "harness_clis": {"found": [], "clis": {}, "ok": False},
+        "mcp": {"ok": False, "control_openlca_tools": []},
     }
 
 
@@ -231,7 +197,7 @@ def run_bootstrap(
     Run bootstrap checks.
 
     Exit code 1 if uv is missing, sync fails, Python version is wrong, or MCP
-    import fails.
+    import fails. Missing harness CLIs do not fail the run.
     """
     root = project_root or find_project_root()
     report = empty_report()

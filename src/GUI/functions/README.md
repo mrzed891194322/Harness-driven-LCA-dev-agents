@@ -19,7 +19,7 @@
 - **[process_manager.py](utils/process_manager.py)**：负责跟踪当前活动命令执行子进程，并提供强制杀死底层任务进程树的统一实现。
 - **[log_exporter.py](utils/log_exporter.py)**：管理命令输出日志存放目录、路径规则以及将 stdout 实时追加写入本地日志文件。
   - **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `pyproject.toml`、`.opencode` 或 `.git` 的父目录）。
-- **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 按所选 harness CLI 运行 whole-lca / revise-lca（四平台：codex、claude、opencode、dsh）。`executor/main.py` 非 GUI 入口；bootstrap-env 仅 CLI。
+- **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 按所选 harness CLI 运行 whole-lca / revise-lca（四平台：codex、claude、opencode、dsh）。`executor/main.py` 非 GUI 入口；bootstrap-env 在所用 AI 工具中执行 `src/scripts/proj_init/PROMPT.md`，不经 GUI。
   - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数（非 GUI 使用）。
   - **私有辅助包 (`private_utils/`)**：
     - `executor_utils.py`：流式捕获进程输出；`run_pre_workflow_console` 编排 clean_dir preset 与 file_sync。
@@ -32,7 +32,7 @@
     - `value_handler.py`：读取已有的 markdown 计划文件回填到表单，或将表单内容保存合成到模板中。
 
 ### 3. 文件同步 (`functions/file_sync/`)
-执行 LCA / 改进前将 GUI 暂存内容落盘（CLI 用户手工复制，不调用此模块）：
+执行 LCA / 改进前将 GUI 暂存内容落盘（不使用 GUI 时由用户手工复制，不调用此模块）：
 - **[main.py](file_sync/main.py)**：`sync_files(target)` 支持 `knowledge`、`plan`、`revise`。
 
 ### 4. 设置模块 (`functions/settings/`)

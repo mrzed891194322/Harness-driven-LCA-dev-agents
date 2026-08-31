@@ -2,7 +2,7 @@
 就绪状态检查脚本
 
 功能：
-    1. 检查所选 harness CLI（codex / claude / opencode）是否可用
+    1. 检查所选 harness CLI（codex / claude / opencode / dsh）是否可用
     2. 检查 openLCA IPC Server 是否已启动并可连接
 
 参考来源：

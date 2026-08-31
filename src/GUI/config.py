@@ -44,10 +44,11 @@ WORKSPACE_OUTPUTS = PROJECT_ROOT / "workspace" / "outputs"
 REPORTS_DIR = WORKSPACE_OUTPUTS / "reports"
 
 # -----------------------------------------------------------------------------
-# Markdown 文档
+# 计划、报告与工作细节产物
 # 相对路径用于界面来源/错误提示并构造绝对路径；绝对路径用于实际读取和下载。
 # CURRENT_PLAN_PATH 是唯一执行计划；CURRENT_REVISION_PATH 是 revise-lca
 # 固定意见输入。两者都只在对应执行按钮被点击后写入。
+# 工作细节面板渲染 EXTRACTED_BOM_* 与 PROCESS_MAPPING_*（JSON）。
 # -----------------------------------------------------------------------------
 PLAN_INPUT_TEMPLATE_RELATIVE_PATH = (
     Path("src") / "GUI" / "ui" / "assets" / "template" / "plan.md"
@@ -62,10 +63,14 @@ REVISE_TEMPLATE_PATH = PROJECT_ROOT / REVISE_TEMPLATE_RELATIVE_PATH
 CURRENT_PLAN_PATH = WORKSPACE_INPUTS / "plan.md"
 CURRENT_REVISION_PATH = WORKSPACE_INPUTS / "revise.md"
 
-LCI_MAPPING_RELATIVE_PATH = (
-    Path("workspace") / "outputs" / "LCI" / "human_readable_mapping.md"
+EXTRACTED_BOM_RELATIVE_PATH = (
+    Path("workspace") / "outputs" / "inventory" / "extracted-bom.json"
 )
-LCI_MAPPING_FILE_PATH = PROJECT_ROOT / LCI_MAPPING_RELATIVE_PATH
+EXTRACTED_BOM_FILE_PATH = PROJECT_ROOT / EXTRACTED_BOM_RELATIVE_PATH
+PROCESS_MAPPING_RELATIVE_PATH = (
+    Path("workspace") / "outputs" / "inventory" / "process-mapping.json"
+)
+PROCESS_MAPPING_FILE_PATH = PROJECT_ROOT / PROCESS_MAPPING_RELATIVE_PATH
 
 LCA_REPORT_RELATIVE_PATH = (
     Path("workspace") / "outputs" / "reports" / "lca_report.md"
@@ -73,17 +78,11 @@ LCA_REPORT_RELATIVE_PATH = (
 LCA_REPORT_PATH = PROJECT_ROOT / LCA_REPORT_RELATIVE_PATH
 
 # -----------------------------------------------------------------------------
-# Whole-LCA 结构化运行产物
-# 总 manifest 判断运行终态；阶段和审查目录汇总失败原因；报告区文件用于确认
-# openLCA 导入、模型图、LCIA 原始结果及计算是否完整。
+# Whole-LCA 运行产物
+# 成功与否只看 manifest 的 status / status_reason。
 # -----------------------------------------------------------------------------
 WORKFLOW_MANIFEST_PATH = WORKSPACE_MEMORY / "manifest.json"
-WORKFLOW_STAGES_DIR = WORKSPACE_MEMORY / "stages"
 WORKFLOW_REVIEWS_DIR = WORKSPACE_MEMORY / "reviews"
-IMPORT_REPORT_PATH = REPORTS_DIR / "import_report.json"
-MODEL_GRAPH_DIR = REPORTS_DIR / "model_graph"
-RAW_RESULTS_DIR = REPORTS_DIR / "raw"
-CALCULATION_MANIFEST_PATH = REPORTS_DIR / "calculation_manifest.json"
 
 # -----------------------------------------------------------------------------
 # 用户上传目录

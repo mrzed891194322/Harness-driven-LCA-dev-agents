@@ -14,7 +14,7 @@
 - MCP 导入目录必须解析为规范的 `workspace/outputs/LCI`，或连续改进运行在 `workspace/tmp/` 下建立的具体兼容 LCI 子目录。禁止使用 `workspace/tmp` 根目录、inputs、项目外目录或路径逃逸。
 - Flow、Process、Provider、Product System、Impact Method 的名称和 UUID 必须通过正式工具查询，禁止臆造。
 - Provider 候选优先用 `get_flow_providers` 从确切 Flow 反查。Provider UUID 存在且输出 exchange 引用的 Flow 是写入前硬门禁；`expectedProviderGeography` 只是计划地域与数据库地域代码/名称的诊断记录，别名不一致不得单独阻断。
-- 所有需要访问 openLCA 的委派在首次相关工具调用前必须调用 `health_check`。失败后按公共运行契约保存 attempts 证据并将 manifest 置为 `failed`。
+- 所有需要访问 openLCA 的委派在首次相关工具调用前必须调用 `health_check`。该工具在首次失败后重连 3 次，共最多 4 次有界探测；仍失败则将运行置为 `failed` 并写明原因。
 - whole-lca / revise-lca 启动前的 `harness/knowledge/`、workspace（仅 whole-lca）与 openLCA 前景清理由 GUI 或 CLI 通过 `src/scripts/clean_dir/` 完成；agent 不得在启动时调用 MCP `cleanup_output`。交互式 `cleanup-lci` 命令仍可使用 MCP `cleanup_output`。
 - 启动 whole-LCA 即授权在当前预检范围完全一致时调用 `import_lci`。库名、目标分类或 LCI 目录变化时必须拒绝写入并以 `failed` 结束，不得请求额外确认。
 - MCP 超时后先调用 `get_import_operation`；`running` 或 `indeterminate` 不得盲目重试。Whole-LCA 禁止调用 `legacy_import_lci` 或 `import_from_json` 绕过范围门禁。

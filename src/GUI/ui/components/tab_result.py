@@ -59,9 +59,9 @@ def build_tab_result() -> tuple[
                         elem_id="download-lca-report-btn",
                     )
                     show_lci_btn = gr.Button(
-                        "显示LCI清单",
+                        "显示工作细节",
                         variant="secondary",
-                        elem_id="show-lci-list-btn",
+                        elem_id="show-work-details-btn",
                     )
                     modify_rerun_btn = gr.Button(
                         "修改LCA评估",
