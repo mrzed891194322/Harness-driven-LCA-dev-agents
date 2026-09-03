@@ -1,6 +1,6 @@
 ---
 description: 删除 openLCA 活动数据库中当前项目分类下的所有前景 LCI 实体（ProductSystem、Process、Flow），并清理 workspace 生成文件
-agent: major-orchestrator
+agent: build
 ---
 
 **任务执行**：

@@ -40,7 +40,7 @@ class SettingsTabTests(unittest.TestCase):
         )
 
         self.assertEqual(PENDING_INIT_STATUS, "状态：待检查")
-        self.assertEqual(AGENT_CHOICES, ["codex", "claude", "opencode", "dsh"])
+        self.assertEqual(AGENT_CHOICES, ["codex", "claude", "opencode", "dsh", "antigravity"])
         update = init_check_status_update(None)
         self.assertEqual(update["value"], "状态：待检查")
         self.assertIn("init-check-status-pending", update["elem_classes"])

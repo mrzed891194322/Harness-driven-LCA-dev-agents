@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Mapping
 
 
-HARNESS_AGENTS = ("codex", "claude", "opencode", "dsh")
+HARNESS_AGENTS = ("codex", "claude", "opencode", "dsh", "antigravity")
 DEFAULT_HARNESS_AGENT = "opencode"
 HARNESS_AGENT_KEY = "HARNESS_AGENT"
 GUI_PORT_KEY = "GUI_PORT"

@@ -10,7 +10,7 @@
 
 或使用 `/bootstrap-env`、`$bootstrap-env`。步骤正文在 `src/scripts/proj_init/PROMPT.md`。没有 uv 时 agent 会判定不通过，需要你按下面说明手动安装。
 
-Agent CLI（`codex` / `claude` / `opencode` / `dsh`）的安装与登录以各工具自己的文档为准。走 GUI 时，在「设置 AI Agent 工具」中选择 PATH 上已安装的那一个。GUI「初始化检查」只探测所选 CLI `--version` 与 openLCA，不运行 bootstrap-env。
+Agent CLI（`codex` / `claude` / `opencode` / `dsh`）的安装与登录以各工具自己的文档为准。Antigravity 走 Python SDK（`google-antigravity`），需要 `GEMINI_API_KEY` 或 Vertex 凭据，不要求 PATH 上有同名 CLI。走 GUI 时，在「设置 AI Agent 工具」中选择可用的 worker。GUI「初始化检查」探测所选 worker 与 openLCA，不运行 bootstrap-env。
 
 引导结束时，agent 会列出哪些 CLI 可用，并建议将它们分别设为 auto-review（自动批准工具调用）。只按建议自行调整，不要让 agent 改你的全局配置。
 

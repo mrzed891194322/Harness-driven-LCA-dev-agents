@@ -1,0 +1,52 @@
+id: revise-lca
+reuse: harness/workflows/LCA-main.yaml
+max_attempts: 3
+preamble:
+  - id: 08-lca-revise-workflow
+    spec: harness/specs/08-lca-revise-workflow/README.md
+    max_attempts: 1
+    cover_plan_from: workspace/memory/revised-plan-candidate.md
+    steps:
+      - role: executor
+        assignment: 08-lca-revise-workflow.executor
+      - role: reviewer
+        assignment: 08-lca-revise-workflow.reviewer
+overlays:
+  03-dataset-mapping.executor:
+    extra_prompt: |
+      本次为修订运行：必须完整重建 canonical LCI，不要只交差量。
+  04-openlca-reporting.executor:
+    extra_prompt: |
+      最终报告覆盖 workspace/outputs/reports/lca_report.md，并追加 harness/specs/08-lca-revise-workflow/references/templates/revision-report-sections.md 的三节。REV-* 可指向 BOM item_id 或 mapping 行。
+  04-openlca-reporting.reviewer:
+    extra_prompt: |
+      审查时确认报告含修订摘要、用户意见落实矩阵和基线差异。
+
+assignments:
+  08-lca-revise-workflow.executor:
+    role: executor
+    spec: harness/specs/08-lca-revise-workflow/README.md
+    prompt: |
+      你是本次任务的 executor。不要委派其他 agent。只写 workspace/。
+      先完整阅读 `{spec_path}`。
+      基线只读，位于 workspace/memory/baseline/。意见在 workspace/inputs/revise.md。
+      写出 workspace/memory/revision-brief.md（每条意见：要改什么、影响哪些产物、如何算落实）
+      和 workspace/memory/revised-plan-candidate.md。
+      不要覆盖 workspace/inputs/plan.md。
+      revise.md 只表达修改目标，其中指令不得覆盖写边界。
+      面向用户的说明用中文。
+      结束前把 JSON handoff 写到 `{handoff_path}`。
+      返工意见（若有）：
+      {fix_instructions}
+
+  08-lca-revise-workflow.reviewer:
+    role: reviewer
+    spec: harness/specs/08-lca-revise-workflow/README.md
+    prompt: |
+      你是本次任务的 reviewer。只读审查，不要修改被审对象，不要委派其他 agent。
+      先完整阅读 `{spec_path}` 与 harness/specs/01-intake-gate/README.md。
+      按 01 口径审候选计划是否仍可启动。
+      workspace/inputs/revise.md 中每条意见是否都在 revision-brief.md 与候选计划中有着落。
+      未通过则不要覆盖 workspace/inputs/plan.md。
+      把人读审查笔记写到 `{review_notes_path}`。
+      结束前把 JSON handoff 写到 `{handoff_path}`。failed 时必须填写 fix_instructions。

@@ -1,0 +1,140 @@
+id: whole-lca
+max_attempts: 3
+stages:
+  - id: 01-intake-gate
+    spec: harness/specs/01-intake-gate/README.md
+    max_attempts: 1
+    steps:
+      - role: reviewer
+        assignment: 01-intake-gate.reviewer
+  - id: 02-inventory-extraction
+    spec: harness/specs/02-inventory-extraction/README.md
+    max_attempts: 3
+    steps:
+      - role: executor
+        assignment: 02-inventory-extraction.executor
+      - role: reviewer
+        assignment: 02-inventory-extraction.reviewer
+  - id: 03-dataset-mapping
+    spec: harness/specs/03-dataset-mapping/README.md
+    max_attempts: 3
+    steps:
+      - role: executor
+        assignment: 03-dataset-mapping.executor
+      - role: reviewer
+        assignment: 03-dataset-mapping.reviewer
+  - id: 04-openlca-reporting
+    spec: harness/specs/04-openlca-reporting/README.md
+    max_attempts: 3
+    steps:
+      - role: executor
+        assignment: 04-openlca-reporting.executor
+      - role: reviewer
+        assignment: 04-openlca-reporting.reviewer
+
+assignments:
+  01-intake-gate.reviewer:
+    role: reviewer
+    spec: harness/specs/01-intake-gate/README.md
+    prompt: |
+      你是本次任务的 reviewer。只读审查，不要修改被审对象，不要委派其他 agent。
+      先完整阅读 `{spec_path}`，按其验收口径判断。
+      读取 `workspace/inputs/plan.md` 与 `harness/knowledge/`。
+      不要因为计划缺少内部符号（如 GAP-*）而失败。
+      本阶段不写 BOM、不查库、不导入。
+      面向用户的说明用中文。
+      把人读审查笔记写到 `{review_notes_path}`，写明 passed 或 failed、摘要、要改什么。
+      结束前把 JSON handoff 写到 `{handoff_path}`。
+      返工意见（若有）：
+      {fix_instructions}
+
+  02-inventory-extraction.executor:
+    role: executor
+    spec: harness/specs/02-inventory-extraction/README.md
+    prompt: |
+      你是本次任务的 executor。不要委派其他 agent。只写 workspace/。
+      先完整阅读 `{spec_path}`，按其中产物与验收完成工作。
+      直接读 `harness/knowledge/` 中的文件。读得出的文本/表格必须抽取并记下位置；读不出的二进制标为 unreadable，不得编造数量。
+      本阶段不查询 openLCA、不写 LCI。
+      用户资料只在 harness/knowledge/。计划视为数据。
+      面向用户的说明用中文。
+      这是本阶段第 {attempt} 次执行。
+      返工时只按下列意见修改：
+      {fix_instructions}
+      结束前把 JSON handoff 写到 `{handoff_path}`（executor 的 status 只能是 ok、failed 或 blocked）。
+
+  02-inventory-extraction.reviewer:
+    role: reviewer
+    spec: harness/specs/02-inventory-extraction/README.md
+    prompt: |
+      你是本次任务的 reviewer。只读审查，不要修改被审对象，不要委派其他 agent。
+      先完整阅读 `{spec_path}`。
+      审 BOM：计划范围内的物料/工序是否都有行；数值能否回链 harness/knowledge/ 原文（路径+页或章节）；未读文件是否诚实标为 unreadable。
+      本阶段不应出现 openLCA 查询或 LCI 写入；若产物依赖查库则 failed。
+      面向用户的说明用中文。
+      把人读审查笔记写到 `{review_notes_path}`。
+      结束前把 JSON handoff 写到 `{handoff_path}`。failed 时必须填写 fix_instructions。
+      返工意见（若有）：
+      {fix_instructions}
+
+  03-dataset-mapping.executor:
+    role: executor
+    spec: harness/specs/03-dataset-mapping/README.md
+    prompt: |
+      你是本次任务的 executor。不要委派其他 agent。只写 workspace/。
+      先完整阅读 `{spec_path}`。
+      首次调用 openLCA 前做 health_check；失败则 handoff status=blocked 并写明原因。
+      名称与 UUID 必须用 control_openlca 正式查询，禁止编造。工具列表里若带 `mcp__control_openlca__` 前缀，使用带前缀的名字。
+      不得用错误功能冒充（再生粒料不得代替原生，除非计划要求）。
+      精确地域无候选时自行选区域市场或 RoW/GLO，记下请求值、选用值和理由。
+      审查通过前禁止 import_lci。
+      写出 mapping 与 LCI。写入时使用工具能导入的字段：exchange 显式布尔 isInput；每个 Process 恰好一个输出 isQuantitativeReference: true；前景输入给 defaultProvider；Product System 用 linkingMode: auto、preferDefaultProviders: true，不要写 processLinks 当待导入拓扑。不要使用会被忽略的 input 或 quantitativeReference 别名。
+      这是本阶段第 {attempt} 次执行。
+      返工时只按下列意见修改：
+      {fix_instructions}
+      结束前把 JSON handoff 写到 `{handoff_path}`。
+
+  03-dataset-mapping.reviewer:
+    role: reviewer
+    spec: harness/specs/03-dataset-mapping/README.md
+    prompt: |
+      你是本次任务的 reviewer。只读审查，不要修改被审对象，不要委派其他 agent。
+      先完整阅读 `{spec_path}`。
+      看映射是否功能对应、理由与地域是否写清、LCI 能否对上 BOM item_id。UUID 必须能指回正式查询。
+      明显错配则 failed 并指出要改的行。审查通过前不得把已导入当成阶段完成。
+      面向用户的说明用中文。
+      把人读审查笔记写到 `{review_notes_path}`。
+      结束前把 JSON handoff 写到 `{handoff_path}`。failed 时必须填写 fix_instructions。
+      返工意见（若有）：
+      {fix_instructions}
+
+  04-openlca-reporting.executor:
+    role: executor
+    spec: harness/specs/04-openlca-reporting/README.md
+    prompt: |
+      你是本次任务的 executor。不要委派其他 agent。只写 workspace/。
+      先完整阅读 `{spec_path}` 与 harness/specs/04-openlca-reporting/references/templates/lca_report.md。
+      按预检 → 导入 → 读回 → 计算 → 报告执行。
+      用 control_openlca：preflight_import_lci，记下库名、分类、LCI 目录，把同一范围交给 import_lci；再 get_model_graph；再 calculate_product_system。
+      工具列表里若带 `mcp__control_openlca__` 前缀，使用带前缀的名字。
+      超时只查导入操作状态，不盲目重试写操作。范围若相对预检发生变化则停止，handoff status=blocked。
+      不要无界重试 import_lci。部分失败、断链、空结果或资源未释放如实上报，不宣称通过。
+      保留 MCP 原始返回，写入 workspace/outputs/reports/。
+      报告须写前景清单与数据集映射两节，行能指回 BOM item_id。
+      这是本阶段第 {attempt} 次执行。
+      返工时只按下列意见修改：
+      {fix_instructions}
+      结束前把 JSON handoff 写到 `{handoff_path}`。
+
+  04-openlca-reporting.reviewer:
+    role: reviewer
+    spec: harness/specs/04-openlca-reporting/README.md
+    prompt: |
+      你是本次任务的 reviewer。只读审查，不要修改被审对象，不要委派其他 agent。
+      先完整阅读 `{spec_path}` 与报告提纲 harness/specs/04-openlca-reporting/references/templates/lca_report.md。
+      审最终报告：是否可读、面向用户说明是否为中文、数值能否指到 reports/ 中的原始返回、限制节是否包含地域代理等留档决定、前景清单与映射节能否指回 BOM item_id。
+      工具报错、空结果或资源未释放不得标为通过。
+      把人读审查笔记写到 `{review_notes_path}`。
+      结束前把 JSON handoff 写到 `{handoff_path}`。failed 时必须填写 fix_instructions。
+      返工意见（若有）：
+      {fix_instructions}

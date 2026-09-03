@@ -5,6 +5,6 @@ UV_MISSING_REMINDER = (
 )
 
 REQUIRED_PYTHON = (3, 12)
-HARNESS_CLIS = ("opencode", "claude", "codex", "dsh")
+HARNESS_CLIS = ("opencode", "claude", "codex", "dsh", "antigravity")
 CONTROL_OPENLCA_TOOLS = frozenset({"health_check"})
 CONTROL_OPENLCA_MAIN = "harness/tools/control_openlca/main.py"

@@ -1,6 +1,6 @@
 # 项目总则
 
-所有角色、所有阶段都加载本目录三份文件（亦见 [`../injection.md`](../injection.md)）。OpenCode 可将它们挂到全局 `instructions`。
+OpenCode 可将本目录三份文件挂到全局 `instructions`。Python 主编排的通用信封也要求只写 `workspace/`。
 
 | 文件 | 用途 |
 | --- | --- |

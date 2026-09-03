@@ -1,5 +1,5 @@
 """
-Harness CLI agent checks for project readiness checks.
+Harness worker backend checks for project readiness checks.
 """
 
 from __future__ import annotations
@@ -15,12 +15,13 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-SUPPORTED_HARNESS_CLIS = ("codex", "claude", "opencode", "dsh")
+SUPPORTED_HARNESS_CLIS = ("codex", "claude", "opencode", "dsh", "antigravity")
+CLI_BACKENDS = ("codex", "claude", "opencode", "dsh")
 
 
 def check_harness_cli(name: str, timeout: int = 10) -> tuple[bool, str]:
     """
-    Check whether a supported harness CLI exists and can be invoked.
+    Check whether a supported worker backend exists.
 
     Returns:
         (ok, message) where message is suitable for GUI status display.
@@ -30,6 +31,9 @@ def check_harness_cli(name: str, timeout: int = 10) -> tuple[bool, str]:
         message = f"不支持的 Agent：{name}"
         print(f"[Error] {message}")
         return False, message
+
+    if cli_name == "antigravity":
+        return _check_antigravity()
 
     executable = shutil.which(cli_name)
     if executable is None:
@@ -69,6 +73,23 @@ def check_harness_cli(name: str, timeout: int = 10) -> tuple[bool, str]:
     return True, "可用"
 
 
+def _check_antigravity() -> tuple[bool, str]:
+    try:
+        import google.antigravity  # noqa: F401
+    except ImportError:
+        print("[Error] google-antigravity is not installed.")
+        return False, "未安装"
+    if (
+        os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    ):
+        print("Antigravity SDK importable and credentials present.")
+        return True, "可用"
+    print("[Error] Antigravity SDK is importable but GEMINI_API_KEY / Vertex credentials are missing.")
+    return False, "无凭据"
+
+
 def check_opencode_cli(timeout: int = 10) -> bool:
     """Compatibility wrapper for the OpenCode CLI probe."""
     return check_harness_cli("opencode", timeout=timeout)[0]
@@ -96,10 +117,10 @@ def _selected_harness_agent(project_root: Path) -> str | None:
 
 def check_project_environment(project_root: Path | None = None) -> tuple[bool, str]:
     """
-    Check harness CLI prerequisites.
+    Check harness worker prerequisites.
 
-    If `.env` sets `HARNESS_AGENT`, that CLI must be available. Otherwise any
-    of Codex / Claude / OpenCode on PATH is enough.
+    If `.env` sets `HARNESS_AGENT`, that backend must be available. Otherwise any
+    supported backend is enough.
     """
     if project_root is None:
         project_root = next(
@@ -114,8 +135,15 @@ def check_project_environment(project_root: Path | None = None) -> tuple[bool, s
         if not ok:
             return False, f"{selected} {message}"
     else:
-        found = [name for name in SUPPORTED_HARNESS_CLIS if shutil.which(name)]
+        found = [
+            name
+            for name in CLI_BACKENDS
+            if shutil.which(name)
+        ]
+        antigravity_ok, _ = _check_antigravity()
+        if antigravity_ok:
+            found.append("antigravity")
         if not found:
-            return False, "未找到 codex / claude / opencode / dsh"
+            return False, "未找到 codex / claude / opencode / dsh / antigravity"
 
     return True, "可用"

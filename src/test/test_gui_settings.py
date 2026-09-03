@@ -60,6 +60,7 @@ class GuiSettingsTests(unittest.TestCase):
         self.assertEqual(normalize_harness_agent("codex"), "codex")
         self.assertEqual(normalize_harness_agent("CLAUDE"), "claude")
         self.assertEqual(normalize_harness_agent("dsh"), "dsh")
+        self.assertEqual(normalize_harness_agent("antigravity"), "antigravity")
         self.assertEqual(normalize_harness_agent("unknown"), DEFAULT_HARNESS_AGENT)
         self.assertEqual(normalize_harness_agent(None), DEFAULT_HARNESS_AGENT)
 
@@ -148,76 +149,42 @@ class GuiSettingsTests(unittest.TestCase):
 
 
 class WorkflowCommandTests(unittest.TestCase):
-    def test_workflow_command_args_match_platform_clis(self) -> None:
-        self.assertEqual(
-            workflow_command_args("whole-lca", "opencode"),
-            [
-                "opencode",
-                "run",
-                "--command",
-                "whole-lca",
-                "--dangerously-skip-permissions",
-            ],
-        )
+    def test_workflow_command_args_match_python_orchestrator(self) -> None:
+        expected = [
+            "uv",
+            "run",
+            "python",
+            "src/scripts/lca_orchestrator/main.py",
+            "--task",
+            "whole-lca",
+            "--worker",
+            "opencode",
+        ]
+        self.assertEqual(workflow_command_args("whole-lca", "opencode"), expected)
         self.assertEqual(
             workflow_command_args("revise-lca", "claude"),
             [
+                "uv",
+                "run",
+                "python",
+                "src/scripts/lca_orchestrator/main.py",
+                "--task",
+                "revise-lca",
+                "--worker",
                 "claude",
-                "--agent",
-                "major-orchestrator",
-                "-p",
-                "/revise-lca",
-                "--permission-mode",
-                "dontAsk",
             ],
         )
         self.assertEqual(
-            workflow_command_args("whole-lca", "codex"),
-            [
-                "codex",
-                "exec",
-                "--json",
-                "--color",
-                "never",
-                "-s",
-                "workspace-write",
-                "$whole-lca",
-            ],
+            workflow_command_args("whole-lca", "codex")[-2:],
+            ["--worker", "codex"],
         )
         self.assertEqual(
-            workflow_command_args("revise-lca", "codex"),
-            [
-                "codex",
-                "exec",
-                "--json",
-                "--color",
-                "never",
-                "-s",
-                "workspace-write",
-                "$revise-lca",
-            ],
+            workflow_command_args("revise-lca", "dsh")[-2:],
+            ["--worker", "dsh"],
         )
         self.assertEqual(
-            workflow_command_args("whole-lca", "dsh"),
-            [
-                "dsh",
-                "--profile",
-                "headless",
-                "--patch",
-                ".dsh/cordis.patch.yml",
-                "读取并执行 .dsh/skills/whole-lca/SKILL.md",
-            ],
-        )
-        self.assertEqual(
-            workflow_command_args("revise-lca", "dsh"),
-            [
-                "dsh",
-                "--profile",
-                "headless",
-                "--patch",
-                ".dsh/cordis.patch.yml",
-                "读取并执行 .dsh/skills/revise-lca/SKILL.md",
-            ],
+            workflow_command_args("whole-lca", "antigravity")[-2:],
+            ["--worker", "antigravity"],
         )
 
     def test_workflow_command_args_reject_unknown_values(self) -> None:
@@ -274,6 +241,9 @@ class HarnessCliCheckTests(unittest.TestCase):
             with patch(
                 "scripts.check_status.agents_check.main.shutil.which",
                 side_effect=fake_which,
+            ), patch(
+                "scripts.check_status.agents_check.main._check_antigravity",
+                return_value=(False, "未安装"),
             ):
                 ok, message = check_project_environment(project_root=root)
         self.assertTrue(ok)

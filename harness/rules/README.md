@@ -1,48 +1,35 @@
 # Agent 规则
 
-本目录是 LCA 运行 Agent 的行为约束。**只由 agent 读取**。workflow 只编排 agent 并指向 spec，不得引用本目录任何路径。
-
-角色在接到任务后，根据当前阶段读取 [`injection.md`](injection.md) 本角色行，只加载列出的文件。
+本目录是人读的行为说明，**不是运行时注入表**。执行/审查口径写在 `harness/workflows/*.yaml` 的委派提示词里。workflow 不要引用本目录路径。
 
 ## 三类
 
-| 目录 | 回答的问题 | 谁加载 |
+| 目录 | 回答的问题 | 谁读 |
 | --- | --- | --- |
-| [`project/`](project/) | 写边界、固定路径、只用 `uv` | 所有角色、所有阶段（OpenCode 也可全局挂这三份） |
-| [`lca/`](lca/) | LCA 方法、用户资料口径、某角色在某阶段怎么做/怎么审 | 按 `injection.md` 的角色 × 阶段 |
-| [`tools/`](tools/) | 某个 MCP 怎么调 | 按 `injection.md`；新增工具时加文件并改清单 |
+| [`project/`](project/) | 写边界、固定路径、只用 `uv` | OpenCode 全局 `instructions`；提示词信封也写「只写 workspace」 |
+| [`lca/`](lca/) | LCA 方法与资料口径（人读参考） | 写 YAML 提示词时可参考，agent 不按阶段自加载 |
+| [`tools/`](tools/) | 某个 MCP 怎么调（人读） | 需要的句子应并进 YAML；本文件可留作对照 |
 
-角色职责在 `harness/roles/`。阶段产物、循环、停止条件在 `harness/specs/`。
+阶段产物与验收在 `harness/specs/`。阶段循环在 `harness/workflows/` YAML。主编排是 `src/scripts/lca_orchestrator/`。
 
 ## spec vs rule
 
-是否绑定 Whole-LCA 某一阶段的进入、通过或停止（谁做、产物路径、字段、循环次数）？
+是否绑定 Whole-LCA 某一阶段的进入、通过或停止（产物路径、验收）？
 
-- 是 → `harness/specs/`
-- 否，但是约束 Agent 行为（写边界、方法口径、工具调用纪律）→ 本目录
-- 实现细节（MCP 签名、参数默认值）→ `harness/tools/` README，规则里只链过去
-
-规则写行为并链到对应 spec，不要复制产物字段表。
+- 是 → `harness/specs/` 编号包 README
+- 否，但是约束 Agent 行为 → 把句子写进 YAML 提示词；本目录仅人读
+- 实现细节 → `harness/tools/` README
 
 ## 如何加模块
 
 **新 MCP**
 
 1. 实现放 `harness/tools/<name>/`
-2. 新增 `harness/rules/tools/<name>.md`
-3. 只改 [`injection.md`](injection.md)，给需要它的角色 × 阶段加路径
+2. 可选新增 `harness/rules/tools/<name>.md`（人读）
+3. 把调用纪律写进需要它的 YAML assignment 提示词
 4. 在平台 config 注册 MCP
-
-不要改 workflow。
 
 **新阶段**
 
-1. 加 spec 包；workflow 只加「派谁、读哪份 spec」
-2. 加 `lca/eval/0N-*.md`（及需要时 `lca/exec/0N-*.md`）
-3. [`injection.md`](injection.md) 加一行
-
-角色文件不用改。
-
-**新审查口径**
-
-只改对应 `lca/eval/*.md`。
+1. 加薄 spec README（输入/产物/验收）
+2. 在 workflow YAML 加循环步骤与提示词

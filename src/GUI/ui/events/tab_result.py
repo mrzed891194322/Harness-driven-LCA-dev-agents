@@ -4,8 +4,9 @@ import gradio as gr
 
 from functions.lca_run import build_precheck_failure, manifest_fingerprint, parse_lca_result
 from functions.plan_editor import (
-    is_plan_ready,
     parse_execution_plan_text,
+    split_execution_inputs,
+    validate_execution_inputs,
 )
 from functions.settings.check_status import execution_ready
 from functions.utils.executor.private_utils.executor_utils import (
@@ -43,19 +44,15 @@ def bind_tab_result_events(
     report_warning: gr.Markdown,
     download_report_btn: gr.DownloadButton,
 ) -> None:
-    def _validate_plan(*arguments):
-        *plan_values, source_text = arguments
-        if not source_text or not source_text.strip():
-            raise gr.Error("当前没有可执行的计划模板或上传计划。")
-        template = parse_execution_plan_text(source_text)
-        active_values = plan_values[: len(template.fields)]
-        if template.fields:
-            if not is_plan_ready(active_values):
-                raise gr.Error("计划至少需要填写一个字段。")
-        return True
-
     def prepare_lca_flow(*arguments):
-        _validate_plan(*arguments)
+        try:
+            validate_execution_inputs(
+                arguments,
+                empty_message="当前没有可执行的计划模板或上传计划。",
+                fields_required_message="计划至少需要填写一个字段。",
+            )
+        except ValueError as exc:
+            raise gr.Error(str(exc)) from exc
         return (
             "[System] 计划校验通过，开始执行前置清理与文件同步...\n",
             "Running",
@@ -67,7 +64,7 @@ def bind_tab_result_events(
         from functions.utils.process_manager import reset_stop
 
         reset_stop()
-        *plan_values, source_text, ref_upload = arguments
+        plan_values, source_text, ref_upload = split_execution_inputs(arguments)
         previous = manifest_fingerprint()
         latest_console = ""
         latest_status = "Running"

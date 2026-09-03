@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -109,10 +110,11 @@ def ensure_env_file(project_root: Path) -> dict[str, Any]:
 
 
 def detect_harness_clis(which: WhichFn = shutil.which) -> dict[str, Any]:
-    """Report which supported harness CLIs are on PATH. Missing CLIs are warnings."""
+    """Report which supported worker backends are available. Missing ones are warnings."""
     clis: dict[str, dict[str, bool]] = {}
     found: list[str] = []
-    for name in HARNESS_CLIS:
+    path_backends = tuple(name for name in HARNESS_CLIS if name != "antigravity")
+    for name in path_backends:
         available = which(name) is not None
         clis[name] = {"available": available}
         if available:
@@ -121,14 +123,34 @@ def detect_harness_clis(which: WhichFn = shutil.which) -> dict[str, Any]:
         else:
             print(f"[WARN] {name} was not found on PATH")
 
+    antigravity_ok = _antigravity_available()
+    clis["antigravity"] = {"available": antigravity_ok}
+    if antigravity_ok:
+        found.append("antigravity")
+        print("[OK] antigravity SDK is importable and credentials are present")
+    else:
+        print("[WARN] antigravity SDK is missing or has no GEMINI_API_KEY / Vertex credentials")
+
     if found:
-        print(f"[OK] harness CLI: {', '.join(found)}")
+        print(f"[OK] harness worker: {', '.join(found)}")
     else:
         print(
-            "[WARN] PATH 中未找到 opencode / claude / codex / dsh。"
+            "[WARN] 未找到 opencode / claude / codex / dsh / antigravity。"
             "当前对话中的 agent 仍可继续；GUI 启动 whole-lca 需要其中之一。"
         )
     return {"found": found, "clis": clis, "ok": bool(found)}
+
+
+def _antigravity_available() -> bool:
+    try:
+        import google.antigravity  # noqa: F401
+    except ImportError:
+        return False
+    return bool(
+        os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    )
 
 
 def _load_module(path: Path, name: str) -> Any:

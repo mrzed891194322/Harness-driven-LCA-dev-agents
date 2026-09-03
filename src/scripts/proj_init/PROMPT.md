@@ -1,6 +1,6 @@
 # 仓库环境引导
 
-你是当前会话的根 agent。只执行本文件。不要委派 `major-orchestrator` / `sub-executor`，不要启动 whole-lca / revise-lca。
+你是当前会话的根 agent。只执行本文件。不要启动 whole-lca / revise-lca，也不要把当前会话当成 LCA 主编排。
 
 ## 禁止
 
@@ -36,18 +36,19 @@ uv run python src/scripts/proj_init/main.py
 
 - 退出码 `1`：必要项失败（无 uv、sync 失败、Python 版本不对、`control_openlca` MCP import 失败）。按脚本输出汇报，不要自行安装软件。
 - 退出码 `0`：必要项通过。脚本若因缺少 `.env` 而从 `.env.example` 复制，只报告「已从模板创建」，不要打开 `.env` 把内容贴进对话。
-- JSON 中的 `harness_clis` 列出 `opencode` / `claude` / `codex` / `dsh` 各自是否在 PATH。缺某一个不失败；四个都没有也不把本次引导打成退出码 1。
+- JSON 中的 `harness_clis` 列出 `opencode` / `claude` / `codex` / `dsh` 是否在 PATH，以及 `antigravity` SDK 是否可导入且有凭据。缺某一个不失败；全部没有也不把本次引导打成退出码 1。
 
 ## Phase 2：Agent CLI 与 auto-review
 
 根据 Phase 1 JSON 的 `harness_clis.clis`，逐项汇报每个 CLI「可用」或「未安装」。
 
-- 四个都没有：标明 **GUI 路径不可用**（GUI 必须在 PATH 上有所选 CLI）。当前会话仍可完成引导。
+- 四个 PATH CLI 都没有且 antigravity 不可用：标明 **GUI 路径不可用**（GUI 必须有所选 worker）。当前会话仍可完成引导。
 - 对每个 **可用** 的 CLI，建议用户将其调整为 auto-review / 自动批准（只建议，不要改用户全局配置）：
-  - **OpenCode**：在 OpenCode（TUI / Desktop / 插件）中开启自动批准或 skip permissions。GUI 启动已带 `--dangerously-skip-permissions`。
-  - **Claude Code**：本仓库 `.claude/settings.json` 已是 `bypassPermissions`。插件 / Desktop 请确认跳过权限与 Auto-accept；CLI 可用 `--permission-mode dontAsk`。
-  - **Codex**：将审批设为 Auto，不要逐条 Ask。CLI 使用 `workspace-write`。不要擅自改仓库里 MCP 的 `default_tools_approval_mode`。
+  - **OpenCode**：在 OpenCode（TUI / Desktop / 插件）中开启自动批准或 skip permissions。
+  - **Claude Code**：本仓库 `.claude/settings.json` 已是 `bypassPermissions`。插件 / Desktop 请确认跳过权限与 Auto-accept。
+  - **Codex**：将审批设为 Auto。不要擅自改仓库里 MCP 的 `default_tools_approval_mode`。
   - **DSH**：会话或环境使用 `DSH_PERMISSION_MODE=danger-full-access`。不要写 `~/.dsh/` 仓库配置。
+  - **Antigravity**：确认 `GEMINI_API_KEY` 或 Vertex ADC 已配置。
 
 当前正在使用的 AI 工具（CLI / 插件 / Desktop）若也要无人值守跑 LCA，同样请打开该工具的自动批准。
 
@@ -71,7 +72,7 @@ uv run python src/scripts/check_status/main.py --only openlca
 2. 项目依赖（`uv sync` / Python）
 3. `.env`（已存在，或已从模板创建）
 4. MCP 接线（`control_openlca`）
-5. Agent CLI：分别列出 opencode / claude / codex / dsh，并对每个可用项附上 auto-review 建议
+5. Agent worker：分别列出 opencode / claude / codex / dsh / antigravity，并对每个可用项附上 auto-review 建议
 6. openLCA IPC
 
-最后一句：下一步可启动 GUI（见 `README.md`），或在所用的 Codex / Claude Code / OpenCode / DSH（CLI、IDE 插件或 Desktop）中，于完成 `clean_dir` 并放入资料后输入 whole-lca / revise-lca 指令。不要在本次引导里启动 whole-lca。
+最后一句：下一步可启动 GUI（见 `README.md`），或运行 `uv run python src/scripts/lca_orchestrator/main.py --task whole-lca`。不要在本次引导里启动 whole-lca。

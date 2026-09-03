@@ -1,6 +1,6 @@
 # control_openlca MCP 使用规则
 
-本规则适用于查询、预检、导入、读回或计算 openLCA 数据的 Agent。按 [`../injection.md`](../injection.md) 在 03/04 等需要调用本工具的角色 × 阶段加载。
+本规则适用于查询、预检、导入、读回或计算 openLCA 数据的 Agent。03/04 的 YAML 提示词会要求使用本工具；本文件是人读对照，不是运行时注入表。
 
 MCP 服务连接由服务进程的 `OPENLCA_IPC_HOST` 和 `OPENLCA_IPC_PORT` 配置，调用方不得传入任意 endpoint。
 

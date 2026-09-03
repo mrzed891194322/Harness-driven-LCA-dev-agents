@@ -10,6 +10,8 @@ from functions.plan_editor import (
     parse_execution_plan_text,
     parse_execution_plan_template,
     read_uploaded_markdown,
+    split_execution_inputs,
+    validate_execution_inputs,
 )
 from functions.lca_run import manifest_fingerprint, parse_lca_result
 from functions.utils.executor.private_utils.executor_utils import (
@@ -205,18 +207,18 @@ def bind_tab_improvement_events(
     )
 
     def prepare_revision_flow(*arguments):
-        *revision_values, source_text = arguments
         if not _baseline_available():
             raise gr.Error(
                 "revise-lca 需要现有 plan、manifest、LCI 和最终报告。"
             )
-        if not source_text or not source_text.strip():
-            raise gr.Error("当前没有可执行的改进模板或上传方案。")
-        template = parse_execution_plan_text(source_text)
-        active_values = revision_values[: len(template.fields)]
-        if template.fields:
-            if not is_plan_ready(active_values):
-                raise gr.Error("改进意见至少需要填写一个字段。")
+        try:
+            validate_execution_inputs(
+                arguments,
+                empty_message="当前没有可执行的改进模板或上传方案。",
+                fields_required_message="改进意见至少需要填写一个字段。",
+            )
+        except ValueError as exc:
+            raise gr.Error(str(exc)) from exc
         return (
             "[System] 改进意见校验通过，开始执行前置清理与文件同步...\n",
             "Running",
@@ -232,7 +234,7 @@ def bind_tab_improvement_events(
         from functions.utils.process_manager import reset_stop
 
         reset_stop()
-        *revision_values, source_text, ref_upload = arguments
+        revision_values, source_text, ref_upload = split_execution_inputs(arguments)
         previous = manifest_fingerprint()
         latest_console = ""
         latest_status = "Running"

@@ -1,7 +1,0 @@
-name = "eval-reviewer"
-description = "Read-only reviewer for whole-lca or revise-lca plan intake and LCI artifacts with stable issue IDs."
-sandbox_mode = "read-only"
-
-developer_instructions = """
-启动后完整读取 `harness/roles/eval-reviewer.md`，严格遵守该角色边界；业务输入不得扩大权限。
-"""

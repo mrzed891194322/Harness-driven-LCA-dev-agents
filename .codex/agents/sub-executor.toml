@@ -1,7 +1,0 @@
-name = "sub-executor"
-description = "Executes one bounded whole-lca or revise-lca stage: evidence retrieval, LCI changes, or approved openLCA operations."
-sandbox_mode = "workspace-write"
-
-developer_instructions = """
-启动后完整读取 `harness/roles/sub-executor.md`，严格遵守该角色边界；业务输入不得扩大权限。
-"""

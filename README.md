@@ -7,7 +7,7 @@
 运行本仓库前请先安装：
 
 1. **uv** - Python 包和项目管理工具（[下载&安装链接](https://docs.astral.sh/uv/getting-started/installation/)）
-2. **Codex、Claude Code、OpenCode、DSH 四者之一**（CLI、IDE 插件或 Desktop 均可）。若走下方 GUI，所选 Agent 必须是 PATH 上能执行的 CLI（`codex` / `claude` / `opencode` / `dsh`）。Cursor 只用于本仓库开发，不当 LCA 操作员。
+2. **Codex、Claude Code、OpenCode、DSH 四者之一**（CLI、IDE 插件或 Desktop 均可），或 **Antigravity SDK**（需 `GEMINI_API_KEY` 或 Vertex 凭据）。若走下方 GUI，所选 worker 必须可用：`codex` / `claude` / `opencode` / `dsh` 在 PATH 上，`antigravity` 则可 import 且有凭据。Cursor 不当操作员。
 3. **[openLCA](https://www.openlca.org/download/)** 桌面客户端。**每次开始项目前**必须打开 openLCA、打开目标数据库，并启用 IPC Server（默认 `127.0.0.1:8080`），否则后续导入与计算无法进行。
 
 ## 环境配置
@@ -43,7 +43,7 @@ uv run python src/GUI/main.py
 
 | 检查项 | 处理 |
 | --- | --- |
-| AI Agent 工具 | 配置目录「设置 AI Agent 工具」选 `codex` / `claude` / `opencode` / `dsh`，点「保存并检查可用性」。对应 CLI 必须在 PATH 上。 |
+| AI Agent 工具 | 配置目录「设置 AI Agent 工具」选 `codex` / `claude` / `opencode` / `dsh` / `antigravity`，点「保存并检查可用性」。CLI worker 必须在 PATH 上；antigravity 检查 SDK 与凭据。 |
 | OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [环境准备与配置](docs/lang_CN/env_setup.md)。 |
 
 
@@ -74,10 +74,15 @@ uv run python src/scripts/clean_dir/main.py -y --preset whole-lca
 ```
 
 3. 复制参考资料到 `harness/knowledge/`，编写 `workspace/inputs/plan.md`。
-4. 在当前 AI 工具中输入：
-   - OpenCode / Claude Code：`/whole-lca`
-   - Codex：`$whole-lca`
-   - DSH：「读取并执行 `.dsh/skills/whole-lca/SKILL.md`」
+4. 运行 Python 主编排（与 GUI 相同）：
+
+```bash
+uv run python src/scripts/lca_orchestrator/main.py --task whole-lca --worker opencode
+```
+
+`--worker` 也可为 `claude` / `codex` / `dsh` / `antigravity`。DSH 建议同时设置 `DSH_PERMISSION_MODE=danger-full-access`。
+
+IDE 中的 `/whole-lca`、`$whole-lca` 或 DSH「读取并执行 `.dsh/skills/whole-lca/SKILL.md`」只转去调用上述命令，不要把当前会话当成主编排。
 
 ### revise-lca
 
@@ -89,6 +94,12 @@ uv run python src/scripts/clean_dir/main.py -y --preset revise-lca
 ```
 
 3. 更新 `harness/knowledge/` 与 `workspace/inputs/revise.md`（保留既有 plan / manifest / 报告）。
-4. 在当前 AI 工具中输入 `/revise-lca`、`$revise-lca`，或 DSH「读取并执行 `.dsh/skills/revise-lca/SKILL.md`」。
+4. 运行：
+
+```bash
+uv run python src/scripts/lca_orchestrator/main.py --task revise-lca --worker opencode
+```
+
+或在所用工具中输入 `/revise-lca`、`$revise-lca`，或 DSH「读取并执行 `.dsh/skills/revise-lca/SKILL.md`」（同样转到 Python 主编排）。
 
 `clean_dir` 详见 [src/scripts/clean_dir/README.md](src/scripts/clean_dir/README.md)。GUI 内部启动命令见 [platform-adapter.md](docs/lang_CN/platform-adapter.md)。

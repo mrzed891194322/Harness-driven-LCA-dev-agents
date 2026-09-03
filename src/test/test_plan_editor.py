@@ -357,6 +357,67 @@ class PlanEditorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "不再支持 `PLAN_INPUT`"):
             plan_editor.parse_execution_plan_text(old_plan_input)
 
+    def test_split_execution_inputs_separates_source_from_ref_upload(self) -> None:
+        source_text = self.VALID_PLAN
+        field_values = [""] * plan_editor.MAX_PLAN_INPUTS
+        ref_path = "/tmp/gradio/materials.pdf"
+
+        values, parsed_source, ref_upload = plan_editor.split_execution_inputs(
+            [*field_values, source_text, ref_path]
+        )
+
+        self.assertEqual(values, field_values)
+        self.assertEqual(parsed_source, source_text)
+        self.assertEqual(ref_upload, ref_path)
+
+    def test_validate_execution_inputs_allows_missing_ref_upload(self) -> None:
+        plain_plan = "# 只读执行计划\n\n## 范围\n这里的内容由模板直接提供。\n"
+        field_values = [""] * plan_editor.MAX_PLAN_INPUTS
+
+        values, parsed_source, ref_upload = plan_editor.validate_execution_inputs(
+            [*field_values, plain_plan, None],
+            empty_message="当前没有可执行的计划模板或上传计划。",
+            fields_required_message="计划至少需要填写一个字段。",
+        )
+
+        self.assertEqual(values, field_values)
+        self.assertEqual(parsed_source, plain_plan)
+        self.assertIsNone(ref_upload)
+
+    def test_validate_execution_inputs_requires_filled_fields(self) -> None:
+        template = plan_editor.parse_execution_plan_text(self.FORM_TEMPLATE)
+        field_values = [""] * plan_editor.MAX_PLAN_INPUTS
+
+        with self.assertRaisesRegex(ValueError, "计划至少需要填写一个字段"):
+            plan_editor.validate_execution_inputs(
+                [*field_values, template.source, None],
+                empty_message="当前没有可执行的计划模板或上传计划。",
+                fields_required_message="计划至少需要填写一个字段。",
+            )
+
+        field_values[0] = "PET 水瓶"
+        values, parsed_source, ref_upload = plan_editor.validate_execution_inputs(
+            [*field_values, template.source, None],
+            empty_message="当前没有可执行的计划模板或上传计划。",
+            fields_required_message="计划至少需要填写一个字段。",
+        )
+        self.assertEqual(values[0], "PET 水瓶")
+        self.assertEqual(parsed_source, template.source)
+        self.assertIsNone(ref_upload)
+
+    def test_validate_execution_inputs_rejects_empty_source_text(self) -> None:
+        field_values = [""] * plan_editor.MAX_PLAN_INPUTS
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "当前没有可执行的计划模板或上传计划",
+        ):
+            plan_editor.validate_execution_inputs(
+                [*field_values, "", None],
+                empty_message="当前没有可执行的计划模板或上传计划。",
+                fields_required_message="计划至少需要填写一个字段。",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

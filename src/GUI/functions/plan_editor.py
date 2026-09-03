@@ -479,6 +479,34 @@ def is_plan_ready(values: str | Mapping[str, Any] | Sequence[Any] | None) -> boo
     return any(value is not None and str(value).strip() for value in values)
 
 
+def split_execution_inputs(
+    arguments: Sequence[object],
+) -> tuple[list[object], str, object]:
+    """Split GUI run inputs into field values, staged source text, and ref upload."""
+    if len(arguments) < 2:
+        raise ValueError("执行输入参数不足。")
+    *field_values, source_text, ref_upload = arguments
+    normalized_source = "" if source_text is None else str(source_text)
+    return list(field_values), normalized_source, ref_upload
+
+
+def validate_execution_inputs(
+    arguments: Sequence[object],
+    *,
+    empty_message: str,
+    fields_required_message: str,
+) -> tuple[list[object], str, object]:
+    """Validate staged document inputs from a GUI execution click."""
+    field_values, source_text, ref_upload = split_execution_inputs(arguments)
+    if not source_text.strip():
+        raise ValueError(empty_message)
+    template = parse_execution_plan_text(source_text)
+    active_values = field_values[: len(template.fields)]
+    if template.fields and not is_plan_ready(active_values):
+        raise ValueError(fields_required_message)
+    return field_values, source_text, ref_upload
+
+
 def read_uploaded_markdown(
     file_obj: Any,
     *,

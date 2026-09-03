@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 from typing import Generator
 
-from functions.utils.executor.private_utils.codex_jsonl import CodexJsonlFormatter
 from functions.utils.executor.private_utils.dsh_session_stream import DshSessionLogTailer
 from functions.utils.path_utils import find_project_root
 
@@ -101,7 +100,12 @@ def execute_command_stream(
     if env_overrides:
         env.update(env_overrides)
 
-    from functions.utils.process_manager import set_active_process, clear_active_process, should_stop
+    from functions.utils.process_manager import (
+        set_active_process,
+        clear_active_process,
+        should_stop,
+        kill_process_group,
+    )
 
     try:
         process = subprocess.Popen(
@@ -114,7 +118,8 @@ def execute_command_stream(
             text=True,
             encoding='utf-8',
             errors='replace',
-            env=env
+            env=env,
+            start_new_session=(os.name != "nt"),
         )
         set_active_process(process)
     except Exception as e:
@@ -137,7 +142,11 @@ def execute_command_stream(
                     
                     yield line
 
-        return_code = process.wait()
+        try:
+            return_code = process.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            kill_process_group(process)
+            return_code = process.wait(timeout=3)
         completed = True
         if should_stop():
             msg = "\n[System] Process terminated by user.\n"
@@ -148,15 +157,7 @@ def execute_command_stream(
     finally:
         if not completed and process.poll() is None:
             try:
-                if os.name == 'nt':
-                    subprocess.run(
-                        ['taskkill', '/F', '/T', '/PID', str(process.pid)],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                else:
-                    process.terminate()
-                    process.wait(timeout=2)
+                kill_process_group(process)
             except Exception as e:
                 safe_console_print(f"[Process Manager] Error cleaning up command process: {e}")
         clear_active_process()
@@ -268,93 +269,29 @@ def execute_dsh_command_stream(
         clear_active_process()
 
 WORKFLOW_COMMANDS = {
-    "opencode": {
-        "whole-lca": [
-            "opencode",
-            "run",
-            "--command",
-            "whole-lca",
-            "--dangerously-skip-permissions",
-        ],
-        "revise-lca": [
-            "opencode",
-            "run",
-            "--command",
-            "revise-lca",
-            "--dangerously-skip-permissions",
-        ],
-    },
-    "claude": {
-        "whole-lca": [
-            "claude",
-            "--agent",
-            "major-orchestrator",
-            "-p",
-            "/whole-lca",
-            "--permission-mode",
-            "dontAsk",
-        ],
-        "revise-lca": [
-            "claude",
-            "--agent",
-            "major-orchestrator",
-            "-p",
-            "/revise-lca",
-            "--permission-mode",
-            "dontAsk",
-        ],
-    },
-    "codex": {
-        "whole-lca": [
-            "codex",
-            "exec",
-            "--json",
-            "--color",
-            "never",
-            "-s",
-            "workspace-write",
-            "$whole-lca",
-        ],
-        "revise-lca": [
-            "codex",
-            "exec",
-            "--json",
-            "--color",
-            "never",
-            "-s",
-            "workspace-write",
-            "$revise-lca",
-        ],
-    },
-    "dsh": {
-        "whole-lca": [
-            "dsh",
-            "--profile",
-            "headless",
-            "--patch",
-            ".dsh/cordis.patch.yml",
-            "读取并执行 .dsh/skills/whole-lca/SKILL.md",
-        ],
-        "revise-lca": [
-            "dsh",
-            "--profile",
-            "headless",
-            "--patch",
-            ".dsh/cordis.patch.yml",
-            "读取并执行 .dsh/skills/revise-lca/SKILL.md",
-        ],
-    },
+    "opencode": {},
+    "claude": {},
+    "codex": {},
+    "dsh": {},
+    "antigravity": {},
 }
+
+ORCHESTRATOR_ENTRY = [
+    "uv",
+    "run",
+    "python",
+    "src/scripts/lca_orchestrator/main.py",
+]
 
 
 def workflow_command_args(task: str, agent: str) -> list[str]:
-    """Return the one-line CLI used to launch a GUI workflow task."""
+    """Return the Python orchestrator CLI for a GUI workflow task."""
     agent_key = (agent or "opencode").strip().lower()
     if agent_key not in WORKFLOW_COMMANDS:
         raise ValueError(f"Unsupported harness agent: {agent}")
-    if task not in WORKFLOW_COMMANDS[agent_key]:
+    if task not in {"whole-lca", "revise-lca"}:
         raise ValueError(f"Unsupported workflow task: {task}")
-    return list(WORKFLOW_COMMANDS[agent_key][task])
+    return list(ORCHESTRATOR_ENTRY) + ["--task", task, "--worker", agent_key]
 
 
 CLEAN_DIR_SCRIPT = [
@@ -494,14 +431,13 @@ def run_workflow_command_console(
     task: str,
 ) -> Generator[tuple[str, str], None, None]:
     """
-    Run whole-lca or revise-lca with the persisted harness CLI.
+    Run whole-lca or revise-lca via the Python orchestrator.
     """
     from functions.settings.settings import load_harness_agent
 
     agent = load_harness_agent()
     command = workflow_command_args(task, agent)
     accumulated_output = ""
-    formatter = CodexJsonlFormatter() if agent == "codex" else None
     env_overrides = (
         {"DSH_PERMISSION_MODE": "danger-full-access"} if agent == "dsh" else None
     )
@@ -510,19 +446,9 @@ def run_workflow_command_console(
 
     from functions.utils.process_manager import should_stop
 
-    stream = (
-        execute_dsh_command_stream(command, env_overrides=env_overrides)
-        if agent == "dsh"
-        else execute_command_stream(command, env_overrides=env_overrides)
-    )
-
-    for chunk in stream:
+    for chunk in execute_command_stream(command, env_overrides=env_overrides):
         if should_stop():
             break
-        if formatter is not None:
-            chunk = formatter.consume(chunk)
-            if not chunk:
-                continue
         accumulated_output += chunk
         yield render_terminal_text(accumulated_output), "Running"
 
@@ -530,6 +456,8 @@ def run_workflow_command_console(
         if not accumulated_output.endswith("已停止\n") and not accumulated_output.endswith("已停止"):
             accumulated_output += "\n[System] 已停止\n"
         yield render_terminal_text(accumulated_output), "Stopped"
+    elif "Process finished with exit code 0." not in accumulated_output:
+        yield render_terminal_text(accumulated_output), "Failed"
     else:
         yield render_terminal_text(accumulated_output), "Finished"
 
