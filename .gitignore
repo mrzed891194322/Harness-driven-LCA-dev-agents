@@ -26,29 +26,9 @@ uv.lock
 .cursor/*
 !.cursor/skills/
 .cursor/skills/*
-!.cursor/skills/bootstrap-env/
-!.cursor/skills/bootstrap-env/**
 
 # dev: AI agents
 .codex/*
 !.codex/config.toml
-!.codex/agents/
-.codex/agents/*
-!.codex/agents/opencode_lca_user.toml
-!.codex/agents/major-orchestrator.toml
-!.codex/agents/sub-executor.toml
-!.codex/agents/eval-reviewer.toml
-!.codex/skills/
-.codex/skills/*
-!.codex/skills/bootstrap-env/
-!.codex/skills/bootstrap-env/**
-!.codex/skills/whole-lca/
-!.codex/skills/whole-lca/**
-!.codex/skills/revise-lca/
-!.codex/skills/revise-lca/**
 
 .agents/
-
-# Generated caches inside tracked Codex packages
-.codex/skills/**/__pycache__/
-.codex/skills/**/*.py[oc]

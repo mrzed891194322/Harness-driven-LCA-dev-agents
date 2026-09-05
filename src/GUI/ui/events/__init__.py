@@ -24,7 +24,7 @@ def bind_ui_events(
     stop_btn: gr.Button,
     init_check_btn: gr.Button,
     init_check_status_values: list[gr.Markdown],
-    agent_dropdown: gr.Dropdown,
+    agent_config: dict,
     init_openlca_port: gr.Number,
     dev_gui_port: gr.Number,
     dev_ports_save_btn: gr.Button,
@@ -60,7 +60,8 @@ def bind_ui_events(
     bind_left_sidebar_events(
         open_init_btn=open_init_btn,
         right_tabs=right_tabs,
-        agent_dropdown=agent_dropdown,
+        agent_open_btn=agent_config["open_btn"],
+        agent_config_panel=agent_config["panel"],
         init_openlca_port=init_openlca_port,
         dev_gui_port=dev_gui_port,
     )
@@ -77,7 +78,7 @@ def bind_ui_events(
         init_check_status_values=init_check_status_values,
         dev_ports_save_btn=dev_ports_save_btn,
         ref_upload_file=ref_upload_file,
-        agent_dropdown=agent_dropdown,
+        agent_config=agent_config,
         init_openlca_port=init_openlca_port,
         dev_gui_port=dev_gui_port,
         execute_lca_btn=execute_lca_btn,

@@ -1,12 +1,12 @@
 # LCA 工作事项
 
-按角色与阶段组合加载，见 [`../injection.md`](../injection.md)。
+人读参考，不再按角色 × 阶段注入。需要的句子应写进 `harness/workflows/*.yaml`。
 
 | 文件 | 用途 |
 | --- | --- |
-| [`method.md`](method.md) | ISO 方法口径（各 LCA 阶段共用） |
+| [`method.md`](method.md) | ISO 方法口径 |
 | [`knowledge-files.md`](knowledge-files.md) | 只从 `harness/knowledge/` 读事实 |
-| [`eval/`](eval/) | `eval-reviewer` 在各阶段的审查口径 |
-| [`exec/`](exec/) | `sub-executor` 在 02–04 的执行口径 |
+| [`eval/`](eval/) | 审查口径草稿，供 YAML reviewer 提示词参考 |
+| [`exec/`](exec/) | 执行口径草稿，供 YAML executor 提示词参考 |
 
-产物字段、路径和循环次数以对应 `harness/specs/` 编号包为准，本目录不复制字段表。
+产物字段、路径和循环次数以对应 `harness/specs/` 编号包与 workflow YAML 为准。

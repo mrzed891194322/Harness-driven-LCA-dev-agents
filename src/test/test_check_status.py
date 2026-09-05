@@ -50,6 +50,29 @@ class CheckStatusTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "opencode未安装"):
                 check_status_main.main()
 
+    def test_check_status_passes_agent_argument(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_check(*, project_root=None, agent=None):
+            captured["agent"] = agent
+            captured["project_root"] = project_root
+            return True, "可用"
+
+        with (
+            patch.object(
+                check_status_main,
+                "check_project_environment",
+                side_effect=fake_check,
+            ),
+            patch.object(
+                sys,
+                "argv",
+                ["check_status", "--only", "agents", "--agent", "claude"],
+            ),
+        ):
+            check_status_main.main()
+        self.assertEqual(captured["agent"], "claude")
+
 
 if __name__ == "__main__":
     unittest.main()

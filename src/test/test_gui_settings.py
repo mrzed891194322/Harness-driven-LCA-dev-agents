@@ -12,16 +12,23 @@ from support import PROJECT_ROOT  # noqa: F401,E402
 from GUI.functions.settings.check_status import (  # noqa: E402
     check_agent_result,
     execution_ready,
+    persist_agent_tab_and_check,
     run_initialization_checks,
 )
 from GUI.functions.settings.settings import (  # noqa: E402
+    DEFAULT_DSH_PERMISSION_MODE,
     DEFAULT_GUI_PORT,
     DEFAULT_HARNESS_AGENT,
     DEFAULT_OPENLCA_IPC_PORT,
+    agent_env_keys,
+    exclusive_agent_checked,
+    load_agent_env_settings,
     load_gui_settings,
     load_port_settings,
     normalize_harness_agent,
     parse_port,
+    resolve_selected_agent,
+    save_agent_env_settings,
     save_gui_settings,
     save_port_settings,
     upsert_env_keys,
@@ -36,12 +43,14 @@ from scripts.check_status.agents_check import (  # noqa: E402
     check_harness_cli,
     check_project_environment,
 )
+from scripts.check_status.agents_check import main as agents_check_main  # noqa: E402
 
 
 ENV_KEYS = (
     "HARNESS_AGENT",
     "GUI_PORT",
     "OPENLCA_IPC_PORT",
+    *agent_env_keys(),
 )
 
 
@@ -60,6 +69,7 @@ class GuiSettingsTests(unittest.TestCase):
         self.assertEqual(normalize_harness_agent("codex"), "codex")
         self.assertEqual(normalize_harness_agent("CLAUDE"), "claude")
         self.assertEqual(normalize_harness_agent("dsh"), "dsh")
+        self.assertEqual(normalize_harness_agent("antigravity"), "antigravity")
         self.assertEqual(normalize_harness_agent("unknown"), DEFAULT_HARNESS_AGENT)
         self.assertEqual(normalize_harness_agent(None), DEFAULT_HARNESS_AGENT)
 
@@ -141,6 +151,73 @@ class GuiSettingsTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 save_port_settings(gui_port="abc", openlca_ipc_port=8080, project_root=root)
 
+    def test_save_and_load_agent_env_settings(self) -> None:
+        with self._temporary_root() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".env").write_text('HARNESS_AGENT="opencode"\n', encoding="utf-8")
+            saved = save_agent_env_settings(
+                values={
+                    "ANTHROPIC_API_KEY": "sk-test",
+                    "ANTHROPIC_BASE_URL": "https://example.invalid",
+                    "OPENCODE_PROVIDER": "yinli_claude",
+                    "OPENCODE_MODEL": "claude-sonnet-4-6",
+                    "DEEPSEEK_API_KEY": "",
+                },
+                agent="claude",
+                project_root=root,
+            )
+            self.assertEqual(saved["agent"], "claude")
+            self.assertEqual(saved["ANTHROPIC_API_KEY"], "sk-test")
+            self.assertEqual(saved["OPENCODE_PROVIDER"], "yinli_claude")
+            text = (root / ".env").read_text(encoding="utf-8")
+            self.assertIn('HARNESS_AGENT="claude"', text)
+            self.assertIn('ANTHROPIC_API_KEY="sk-test"', text)
+            loaded = load_agent_env_settings(root)
+            self.assertEqual(loaded["agent"], "claude")
+            self.assertEqual(loaded["ANTHROPIC_BASE_URL"], "https://example.invalid")
+
+    def test_save_agent_tab_does_not_change_selected_agent(self) -> None:
+        with self._temporary_root() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".env").write_text('HARNESS_AGENT="codex"\n', encoding="utf-8")
+            save_agent_env_settings(
+                values={"DEEPSEEK_API_KEY": "ds-test"},
+                only_keys=("DEEPSEEK_API_KEY",),
+                project_root=root,
+            )
+            loaded = load_agent_env_settings(root)
+            self.assertEqual(loaded["agent"], "codex")
+            self.assertEqual(loaded["DEEPSEEK_API_KEY"], "ds-test")
+
+    def test_exclusive_agent_checked_keeps_one_selected(self) -> None:
+        after_check = exclusive_agent_checked(
+            "claude",
+            {"codex": True, "claude": True, "opencode": False, "dsh": False, "antigravity": False},
+        )
+        self.assertEqual(after_check["claude"], True)
+        self.assertFalse(after_check["codex"])
+        after_uncheck = exclusive_agent_checked(
+            "claude",
+            {name: False for name in ("codex", "claude", "opencode", "dsh", "antigravity")},
+        )
+        self.assertTrue(after_uncheck["claude"])
+        self.assertEqual(sum(after_uncheck.values()), 1)
+
+    def test_resolve_selected_agent_reads_first_checked(self) -> None:
+        self.assertEqual(
+            resolve_selected_agent({"codex": False, "claude": True}, fallback="opencode"),
+            "claude",
+        )
+        self.assertEqual(resolve_selected_agent({}, fallback="dsh"), "dsh")
+
+    def test_dsh_permission_default_when_unset(self) -> None:
+        os.environ.pop("DSH_PERMISSION_MODE", None)
+        with self._temporary_root() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".env").write_text('HARNESS_AGENT="dsh"\n', encoding="utf-8")
+            loaded = load_agent_env_settings(root)
+            self.assertEqual(loaded["DSH_PERMISSION_MODE"], DEFAULT_DSH_PERMISSION_MODE)
+
     def _temporary_root(self):
         import tempfile
 
@@ -148,76 +225,42 @@ class GuiSettingsTests(unittest.TestCase):
 
 
 class WorkflowCommandTests(unittest.TestCase):
-    def test_workflow_command_args_match_platform_clis(self) -> None:
-        self.assertEqual(
-            workflow_command_args("whole-lca", "opencode"),
-            [
-                "opencode",
-                "run",
-                "--command",
-                "whole-lca",
-                "--dangerously-skip-permissions",
-            ],
-        )
+    def test_workflow_command_args_match_python_orchestrator(self) -> None:
+        expected = [
+            "uv",
+            "run",
+            "python",
+            "src/scripts/lca_orchestrator/main.py",
+            "--task",
+            "whole-lca",
+            "--worker",
+            "opencode",
+        ]
+        self.assertEqual(workflow_command_args("whole-lca", "opencode"), expected)
         self.assertEqual(
             workflow_command_args("revise-lca", "claude"),
             [
+                "uv",
+                "run",
+                "python",
+                "src/scripts/lca_orchestrator/main.py",
+                "--task",
+                "revise-lca",
+                "--worker",
                 "claude",
-                "--agent",
-                "major-orchestrator",
-                "-p",
-                "/revise-lca",
-                "--permission-mode",
-                "dontAsk",
             ],
         )
         self.assertEqual(
-            workflow_command_args("whole-lca", "codex"),
-            [
-                "codex",
-                "exec",
-                "--json",
-                "--color",
-                "never",
-                "-s",
-                "workspace-write",
-                "$whole-lca",
-            ],
+            workflow_command_args("whole-lca", "codex")[-2:],
+            ["--worker", "codex"],
         )
         self.assertEqual(
-            workflow_command_args("revise-lca", "codex"),
-            [
-                "codex",
-                "exec",
-                "--json",
-                "--color",
-                "never",
-                "-s",
-                "workspace-write",
-                "$revise-lca",
-            ],
+            workflow_command_args("revise-lca", "dsh")[-2:],
+            ["--worker", "dsh"],
         )
         self.assertEqual(
-            workflow_command_args("whole-lca", "dsh"),
-            [
-                "dsh",
-                "--profile",
-                "headless",
-                "--patch",
-                ".dsh/cordis.patch.yml",
-                "读取并执行 .dsh/skills/whole-lca/SKILL.md",
-            ],
-        )
-        self.assertEqual(
-            workflow_command_args("revise-lca", "dsh"),
-            [
-                "dsh",
-                "--profile",
-                "headless",
-                "--patch",
-                ".dsh/cordis.patch.yml",
-                "读取并执行 .dsh/skills/revise-lca/SKILL.md",
-            ],
+            workflow_command_args("whole-lca", "antigravity")[-2:],
+            ["--worker", "antigravity"],
         )
 
     def test_workflow_command_args_reject_unknown_values(self) -> None:
@@ -228,11 +271,23 @@ class WorkflowCommandTests(unittest.TestCase):
 
 
 class HarnessCliCheckTests(unittest.TestCase):
-    def test_check_harness_cli_reports_missing_binary(self) -> None:
-        with patch("scripts.check_status.agents_check.main.shutil.which", return_value=None):
+    def test_check_harness_cli_reports_missing_sdk(self) -> None:
+        with patch(
+            "scripts.check_status.agents_check.main.check",
+            return_value=(False, "未安装"),
+        ):
             ok, message = check_harness_cli("claude")
         self.assertFalse(ok)
         self.assertEqual(message, "未安装")
+
+    def test_check_harness_cli_ok_when_live_check_passes(self) -> None:
+        with patch(
+            "scripts.check_status.agents_check.main.check",
+            return_value=(True, "可用"),
+        ):
+            ok, message = check_harness_cli("claude")
+        self.assertTrue(ok)
+        self.assertEqual(message, "可用")
 
     def test_check_harness_cli_rejects_unknown_name(self) -> None:
         ok, message = check_harness_cli("cursor")
@@ -246,38 +301,59 @@ class HarnessCliCheckTests(unittest.TestCase):
             root = Path(temp_dir)
             (root / ".env").write_text('HARNESS_AGENT="claude"\n', encoding="utf-8")
 
-            def fake_which(name: str) -> str | None:
-                if name == "opencode":
-                    return "/usr/bin/opencode"
-                return None
-
             with patch(
-                "scripts.check_status.agents_check.main.shutil.which",
-                side_effect=fake_which,
+                "scripts.check_status.agents_check.main.check_harness_cli",
+                return_value=(False, "未安装"),
             ):
                 ok, message = check_project_environment(project_root=root)
         self.assertFalse(ok)
         self.assertEqual(message, "claude 未安装")
 
-    def test_project_environment_accepts_any_cli_when_agent_unset(self) -> None:
+    def test_project_environment_prefers_agent_argument(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".env").write_text('HARNESS_AGENT="claude"\n', encoding="utf-8")
+
+            with patch(
+                "scripts.check_status.agents_check.main.check_harness_cli",
+                return_value=(True, "可用"),
+            ) as mocked:
+                ok, message = check_project_environment(
+                    project_root=root,
+                    agent="codex",
+                )
+        self.assertTrue(ok)
+        self.assertEqual(message, "可用")
+        mocked.assert_called_once()
+        self.assertEqual(mocked.call_args.args[0], "codex")
+
+    def test_project_environment_accepts_any_when_agent_unset(self) -> None:
         import tempfile
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / ".env").write_text("\n", encoding="utf-8")
 
-            def fake_which(name: str) -> str | None:
-                if name == "codex":
-                    return "/usr/bin/codex"
-                return None
-
             with patch(
-                "scripts.check_status.agents_check.main.shutil.which",
-                side_effect=fake_which,
+                "scripts.check_status.agents_check.main.inspect",
+                side_effect=lambda name: (
+                    (True, "可用") if name == "codex" else (False, "未安装")
+                ),
             ):
                 ok, message = check_project_environment(project_root=root)
         self.assertTrue(ok)
         self.assertEqual(message, "可用")
+
+    def test_agents_check_cli_forwards_agent(self) -> None:
+        with patch(
+            "scripts.check_status.agents_check.main.check_project_environment",
+            return_value=(True, "可用"),
+        ) as mocked:
+            code = agents_check_main.main(["--agent", "dsh"])
+        self.assertEqual(code, 0)
+        self.assertEqual(mocked.call_args.kwargs["agent"], "dsh")
 
 
 class ExecutionGateTests(unittest.TestCase):
@@ -312,6 +388,32 @@ class InitCheckStatusMessageTests(unittest.TestCase):
             ok, message = check_agent_result("codex")
         self.assertTrue(ok)
         self.assertEqual(message, "codex · 可用")
+
+    def test_persist_agent_tab_and_check_writes_then_pings(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".env").write_text('HARNESS_AGENT="opencode"\n', encoding="utf-8")
+            with patch(
+                "scripts.check_status.agents_check.check_harness_cli",
+                return_value=(True, "可用"),
+            ) as mocked:
+                ok, message = persist_agent_tab_and_check(
+                    "claude",
+                    {
+                        "ANTHROPIC_API_KEY": "sk-test",
+                        "ANTHROPIC_BASE_URL": "",
+                    },
+                    project_root=root,
+                )
+            text = (root / ".env").read_text(encoding="utf-8")
+        self.assertTrue(ok)
+        self.assertEqual(message, "claude · 可用")
+        self.assertIn('HARNESS_AGENT="opencode"', text)
+        self.assertIn('ANTHROPIC_API_KEY="sk-test"', text)
+        mocked.assert_called_once()
+        self.assertEqual(mocked.call_args.args[0], "claude")
 
 
 class CodexJsonlFormatterTests(unittest.TestCase):

@@ -13,7 +13,7 @@
 > - 按 Process UUID 回读地域和定量参考时，MCP 客户端必须使用 `get_process_details`。
 > - 按 Flow UUID 查询可用 Provider 时，MCP 客户端必须使用 `get_flow_providers`。
 > - 读取产品系统模型图时，必须使用 `get_model_graph/main.py`。
-> - whole-lca / revise-lca 启动前清理由 `src/scripts/clean_dir/`（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可用 MCP `cleanup_output`（如 `cleanup-lci` 命令）。
+> - whole-lca / revise-lca 启动前清理由 `src/scripts/clean_dir/`（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可直接调用 MCP `cleanup_output`。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
 
 ---

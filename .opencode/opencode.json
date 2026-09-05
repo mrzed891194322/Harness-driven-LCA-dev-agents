@@ -1,6 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "major-orchestrator",
   "instructions": [
     "harness/rules/project/write-boundary.md",
     "harness/rules/project/runtime.md",
@@ -21,9 +20,6 @@
   "agent": {
     "plan": {
       "disable": true
-    },
-    "major-orchestrator": {},
-    "sub-executor": {},
-    "eval-reviewer": {}
+    }
   }
 }

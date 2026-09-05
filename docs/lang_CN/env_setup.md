@@ -2,17 +2,15 @@
 
 本文档介绍运行 **Harness-driven LCA Agents** 所需的环境与配置。
 
-首次运行前，在所用 AI 工具（Codex / Claude Code / OpenCode / DSH 的 CLI、IDE 插件或 Desktop）中打开本仓库，输入：
+开箱后，在项目根目录执行 `uv sync` 即可安装依赖。各 worker 的安装与登录以各自文档为准。
 
-```text
-读取并执行 src/scripts/proj_init/PROMPT.md
+主编排与 GUI 初始化检查走 `src/scripts/agent_sdk/providers/<name>/`：`openai-codex` / `claude-agent-sdk` / `opencode-ai` / `deepseek-harness-sdk` / `google-antigravity`。GUI「初始化检查」会对所选 worker 发一条短 ping。opencode 还需 PATH 上的 `opencode` 或已设 `OPENCODE_BASE_URL`，以及 `OPENCODE_PROVIDER` / `OPENCODE_MODEL`；antigravity 需要 `GEMINI_API_KEY` 或 Vertex 凭据。走 GUI 时，在「设置 AI Agent 工具」中选择可用的 worker。
+
+可选环境诊断：
+
+```bash
+uv run python src/scripts/check_status/main.py
 ```
-
-或使用 `/bootstrap-env`、`$bootstrap-env`。步骤正文在 `src/scripts/proj_init/PROMPT.md`。没有 uv 时 agent 会判定不通过，需要你按下面说明手动安装。
-
-Agent CLI（`codex` / `claude` / `opencode` / `dsh`）的安装与登录以各工具自己的文档为准。走 GUI 时，在「设置 AI Agent 工具」中选择 PATH 上已安装的那一个。GUI「初始化检查」只探测所选 CLI `--version` 与 openLCA，不运行 bootstrap-env。
-
-引导结束时，agent 会列出哪些 CLI 可用，并建议将它们分别设为 auto-review（自动批准工具调用）。只按建议自行调整，不要让 agent 改你的全局配置。
 
 ## 1. 安装 uv
 
@@ -60,11 +58,11 @@ uv sync
 ![openLCA IPC Service](../assets/images/project_prep/openlca-ipc.png)
 
 连接检查首次失败后会重新创建客户端并重试三次；全部失败时命令返回非零，GUI 的执行
-按钮保持禁用。bootstrap-env 也会跑同一条检查，失败时记为「需你动手」。
+按钮保持禁用。
 
-## 4. 在 AI Agent 中运行 LCA 前的清理
+## 4. 无 GUI 运行 LCA 前的清理
 
-不使用 GUI 时，在所用 AI 工具中输入 whole-lca / revise-lca 之前执行：
+不使用 GUI 时，在运行 Python 主编排之前执行：
 
 ```bash
 uv run python src/scripts/clean_dir/main.py -y --preset whole-lca

@@ -1,9 +1,7 @@
 # 项目级 DSH 覆盖层（仿照 .codex/config.toml 配置）。
 #
-# 挂载方式：dsh --profile <p> --patch .dsh/cordis.patch.yml（当前唯一激活路径，
-# headless 一行 CLI 即如此）。web profile 同步到
-# ~/.dsh/profiles/web/cordis.patch.yml 为「二选一」的本机替代（见 .dsh/README.md），
-# 二者勿同时使用：同时挂载会让 insert 的行重复进组合树。
+# 挂载方式：交互会话 `dsh --patch .dsh/cordis.patch.yml`；SDK worker 用
+# `patches=('.dsh/cordis.patch.yml',)`。不要把本文件同步进 `~/.dsh`。
 #
 # 行语义：顶层 YAML 数组，即 @deepseek-ai/cordis-plugin-include 的 PatchOptions；
 # 非 insert 行按 id 整体替换目标行 config（不会深度合并），insert 行追加新行。

@@ -211,10 +211,10 @@
 .init-check-control-slot,
 .init-check-control-slot > .styler,
 .init-check-control-slot > .wrap {
-    flex: 0 0 var(--init-check-control-width, 268px) !important;
-    width: var(--init-check-control-width, 268px) !important;
-    min-width: var(--init-check-control-width, 268px) !important;
-    max-width: var(--init-check-control-width, 268px) !important;
+    flex: 0 0 var(--init-check-control-width, 300px) !important;
+    width: var(--init-check-control-width, 300px) !important;
+    min-width: var(--init-check-control-width, 300px) !important;
+    max-width: var(--init-check-control-width, 300px) !important;
     margin: 0 !important;
     padding: 0 !important;
     background: transparent !important;
@@ -238,12 +238,12 @@
 .init-check-control-slot.init-check-inline-control > .wrap {
     display: grid !important;
     grid-template-columns:
-        var(--init-check-inline-label-width, 72px)
+        var(--init-check-inline-label-width, 104px)
         var(--init-check-input-width, 188px) !important;
     column-gap: 8px !important;
-    width: var(--init-check-control-width, 268px) !important;
-    min-width: var(--init-check-control-width, 268px) !important;
-    max-width: var(--init-check-control-width, 268px) !important;
+    width: var(--init-check-control-width, 300px) !important;
+    min-width: var(--init-check-control-width, 300px) !important;
+    max-width: var(--init-check-control-width, 300px) !important;
     align-items: center !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -319,8 +319,8 @@
 .init-check-status-list .project-init-status-card > .styler > .column:nth-child(2) {
     grid-column: 2 !important;
     justify-self: center !important;
-    width: var(--init-check-control-width, 268px) !important;
-    max-width: var(--init-check-control-width, 268px) !important;
+    width: var(--init-check-control-width, 300px) !important;
+    max-width: var(--init-check-control-width, 300px) !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
 }
@@ -572,10 +572,10 @@
 .init-check-inline-label,
 .init-check-inline-label > .styler,
 .init-check-inline-label .prose {
-    flex: 0 0 var(--init-check-inline-label-width, 72px) !important;
-    width: var(--init-check-inline-label-width, 72px) !important;
-    min-width: var(--init-check-inline-label-width, 72px) !important;
-    max-width: var(--init-check-inline-label-width, 72px) !important;
+    flex: 0 0 var(--init-check-inline-label-width, 104px) !important;
+    width: var(--init-check-inline-label-width, 104px) !important;
+    min-width: var(--init-check-inline-label-width, 104px) !important;
+    max-width: var(--init-check-inline-label-width, 104px) !important;
     margin: 0 !important;
     padding: 0 !important;
     background: transparent !important;
@@ -592,14 +592,11 @@
     white-space: nowrap !important;
 }
 
-#settings-agent-dropdown,
 #settings-init-openlca-port,
-#settings-agent-dropdown > .wrap,
 #settings-init-openlca-port > .wrap,
-.init-check-control-slot.init-check-inline-control .init-check-status-control,
+.init-check-control-slot.init-check-inline-control .init-check-status-control:not(button),
 .init-check-control-slot.init-check-inline-control .init-check-status-control > .wrap,
-.init-check-control-slot:not(.init-check-inline-control) .init-check-status-control,
-.init-check-control-slot:not(.init-check-inline-control) #settings-agent-dropdown {
+.init-check-control-slot:not(.init-check-inline-control) .init-check-status-control:not(button) {
     width: 100% !important;
     min-width: 0 !important;
     max-width: var(--init-check-input-width, 188px) !important;
@@ -676,9 +673,9 @@
     align-items: stretch !important;
     align-self: stretch !important;
     --init-check-label-width: 148px;
-    --init-check-inline-label-width: 72px;
+    --init-check-inline-label-width: 104px;
     --init-check-input-width: 188px;
-    --init-check-control-width: 268px;
+    --init-check-control-width: 300px;
 }
 
 .init-check-status-list > .wrap,
@@ -805,4 +802,260 @@
 
 .init-check-status-fail p {
     color: #b91c1c !important;
+}
+
+#project-init-workspace {
+    position: relative !important;
+}
+
+#settings-init-openlca-port input,
+#settings-agent-open-btn,
+button#settings-agent-open-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: var(--init-check-input-width, 188px) !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    box-sizing: border-box !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    padding: 0 12px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    line-height: 1.35 !important;
+    color: var(--body-text-color, #1f2937) !important;
+    background: var(--input-background-fill, #ffffff) !important;
+    border: 1px solid var(--input-border-color, var(--border-color-primary, #d1d5db)) !important;
+    border-radius: var(--input-radius, 6px) !important;
+    box-shadow: none !important;
+}
+
+#settings-agent-open-btn,
+button#settings-agent-open-btn {
+    cursor: pointer !important;
+}
+
+#settings-agent-open-btn:hover,
+button#settings-agent-open-btn:hover,
+#settings-init-openlca-port input:hover {
+    border-color: var(--input-border-color-hover, var(--border-color-accent, #94a3b8)) !important;
+}
+
+#settings-agent-open-btn:focus,
+button#settings-agent-open-btn:focus,
+#settings-init-openlca-port input:focus {
+    border-color: var(--input-border-color-focus, #14b8a6) !important;
+    outline: none !important;
+}
+
+#settings-agent-config-panel {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: min(72%, 100%) !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    z-index: 30 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    margin: 0 !important;
+    padding: 16px 18px 20px !important;
+    box-sizing: border-box !important;
+    border: 1px solid #dbe4ef !important;
+    border-radius: 12px 12px 0 0 !important;
+    background: rgba(248, 250, 252, 0.98) !important;
+    box-shadow: 0 -12px 28px rgba(15, 23, 42, 0.12) !important;
+}
+
+#settings-agent-config-panel > .styler,
+#settings-agent-config-panel > .wrap:not(.hide) {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+#settings-agent-config-panel.hide,
+#settings-agent-config-panel.hide > .styler,
+#settings-agent-config-panel.hide > .wrap,
+#settings-agent-config-panel > .wrap.hide,
+#settings-agent-config-panel.agent-config-drawer-hidden,
+#settings-agent-config-panel.agent-config-drawer-hidden > .styler,
+#settings-agent-config-panel.agent-config-drawer-hidden > .wrap {
+    display: none !important;
+}
+
+#settings-agent-config-tabs,
+#settings-agent-config-tabs.agent-config-tab-bar,
+#settings-agent-config-tabs > .styler,
+#settings-agent-config-tabs > .wrap,
+.agent-config-tab-bar,
+.agent-config-tab-bar > .wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 4px !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    overflow: visible !important;
+    border-bottom: 1px solid #dbe4ef !important;
+    padding-bottom: 6px !important;
+    margin: 0 !important;
+}
+
+#settings-agent-config-tabs .agent-config-tab-btn,
+#settings-agent-config-tabs .agent-config-tab-btn > .wrap,
+.agent-config-tab-btn,
+.agent-config-tab-btn > .wrap {
+    width: auto !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+}
+
+#settings-agent-config-tabs .agent-config-tab-btn button,
+button.agent-config-tab-btn {
+    min-height: 32px !important;
+    padding: 0 12px !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
+}
+
+#settings-agent-config-tabs .agent-config-tab-btn-active button,
+button.agent-config-tab-btn-active {
+    border-bottom-color: #14b8a6 !important;
+    font-weight: 700 !important;
+    color: #0f766e !important;
+}
+
+#settings-agent-config-panel .agent-config-tab-body,
+#settings-agent-config-panel .agent-config-tab-body > .styler,
+#settings-agent-config-panel .agent-config-tab-body > .wrap {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    overflow: visible !important;
+}
+
+#settings-agent-config-panel .form,
+#settings-agent-config-panel .agent-config-field,
+#settings-agent-config-panel .agent-config-use-check,
+#settings-agent-config-panel .agent-config-hint {
+    flex-shrink: 0 !important;
+    min-height: min-content !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+.agent-config-tab-body,
+.agent-config-tab-body > .styler,
+.agent-config-tab-body > .wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+}
+
+.agent-config-tab-body.agent-config-tab-hidden,
+.agent-config-tab-body.agent-config-tab-hidden > .styler,
+.agent-config-tab-body.agent-config-tab-hidden > .wrap {
+    display: none !important;
+}
+
+.agent-config-header-row,
+.agent-config-header-row > .wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+.agent-config-title p {
+    margin: 0 !important;
+    color: #334155 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+}
+
+.agent-config-header-actions,
+.agent-config-header-actions > .wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    width: auto !important;
+    flex: 0 0 auto !important;
+}
+
+#settings-agent-close-btn,
+#settings-agent-close-btn > .wrap,
+.agent-config-close-btn,
+#settings-agent-save-btn,
+#settings-agent-save-btn > .wrap,
+.agent-config-save-btn {
+    width: auto !important;
+    min-width: 88px !important;
+    flex: 0 0 auto !important;
+}
+
+.agent-config-hint p {
+    margin: 0 0 8px !important;
+    color: #64748b !important;
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+}
+
+.agent-config-test-row,
+.agent-config-test-row > .wrap {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+    flex: 0 0 auto !important;
+}
+
+.agent-config-test-status p {
+    margin: 0 !important;
+    color: #64748b !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
 }

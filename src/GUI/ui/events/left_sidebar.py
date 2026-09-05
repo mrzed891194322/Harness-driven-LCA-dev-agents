@@ -1,11 +1,13 @@
 import gradio as gr
 from functions.settings.settings import load_gui_settings
+from ui.components.tab_initial import agent_drawer_update
 
 
 def bind_left_sidebar_events(
     open_init_btn: gr.Button,
     right_tabs: gr.Tabs,
-    agent_dropdown: gr.Dropdown,
+    agent_open_btn: gr.Button,
+    agent_config_panel: gr.Column,
     init_openlca_port: gr.Number,
     dev_gui_port: gr.Number,
 ):
@@ -13,7 +15,8 @@ def bind_left_sidebar_events(
         settings = load_gui_settings()
         return (
             gr.update(selected="settings_init_tab"),
-            settings["agent"],
+            gr.update(value=settings["agent"]),
+            agent_drawer_update(hidden=True),
             settings["openlca_ipc_port"],
             settings["gui_port"],
         )
@@ -23,7 +26,8 @@ def bind_left_sidebar_events(
         inputs=None,
         outputs=[
             right_tabs,
-            agent_dropdown,
+            agent_open_btn,
+            agent_config_panel,
             init_openlca_port,
             dev_gui_port,
         ],

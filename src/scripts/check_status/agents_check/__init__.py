@@ -3,6 +3,7 @@ from .main import (
     check_harness_cli,
     check_opencode_cli,
     check_project_environment,
+    probe_harness_agent,
 )
 
 __all__ = [
@@ -10,4 +11,5 @@ __all__ = [
     "check_harness_cli",
     "check_opencode_cli",
     "check_project_environment",
+    "probe_harness_agent",
 ]

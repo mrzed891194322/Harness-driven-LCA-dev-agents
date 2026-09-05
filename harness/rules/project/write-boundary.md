@@ -6,7 +6,7 @@
 
 用户参考资料由 GUI 或用户写入 **`harness/knowledge/`**（扁平目录，唯一落点）。Agent 不得向 `harness/knowledge/` 写入。
 
-严禁在上述目录以外（包括项目外部，如系统临时文件夹）进行任何写操作。Agent 不得修改 `harness/rules/`、`harness/specs/`、`harness/tools/`、`harness/workflows/`、`harness/roles/`。
+严禁在上述目录以外（包括项目外部，如系统临时文件夹）进行任何写操作。Agent 不得修改 `harness/rules/`、`harness/specs/`、`harness/tools/`、`harness/workflows/`。
 
 ## 读
 

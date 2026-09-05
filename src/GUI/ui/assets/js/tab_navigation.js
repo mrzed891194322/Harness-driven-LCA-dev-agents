@@ -1,7 +1,11 @@
 function rightTabButtons() {
     const tabs = document.querySelector('#right-tabs');
     if (!tabs) return [];
-    return Array.from(tabs.querySelectorAll('[role="tab"]'));
+    const topList = tabs.querySelector('[role="tablist"]');
+    if (!topList) return [];
+    return Array.from(topList.querySelectorAll('[role="tab"]')).filter(
+        (button) => button.closest('[role="tablist"]') === topList
+    );
 }
 
 let activeRightTabMode = 'project';
@@ -120,6 +124,7 @@ window.selectTerminalTab = () => selectRightTabByText('终端显示');
 window.guiOpenProjectMode = (...args) => {
     setRightTabMode('project');
     selectRightTabByText('设置&初始化');
+    setAgentConfigDrawerHidden(true);
     return args;
 };
 
@@ -176,5 +181,34 @@ window.guiSelectTerminal = (...args) => {
     selectRightTabByText('终端显示');
     return args;
 };
+
+function setAgentConfigDrawerHidden(hidden) {
+    const panel = document.querySelector('#settings-agent-config-panel');
+    if (!panel) return;
+    panel.classList.toggle('agent-config-drawer-hidden', hidden);
+    panel.classList.toggle('hide', hidden);
+}
+
+window.guiShowAgentConfigDrawer = (...args) => {
+    setAgentConfigDrawerHidden(false);
+    return args;
+};
+
+window.guiHideAgentConfigDrawer = (...args) => {
+    setAgentConfigDrawerHidden(true);
+    return args;
+};
+
+document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest('#settings-agent-open-btn')) {
+        setAgentConfigDrawerHidden(false);
+        return;
+    }
+    if (target.closest('#settings-agent-close-btn')) {
+        setAgentConfigDrawerHidden(true);
+    }
+}, true);
 
 initializeRightTabs();

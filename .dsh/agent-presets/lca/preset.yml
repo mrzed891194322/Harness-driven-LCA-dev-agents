@@ -1,3 +1,3 @@
 name: LCA 编排
-description: 基于 standard 的功能完整编码 Agent，面向本 Harness-driven LCA 仓库：保留全部标准工具（文件编辑、Shell、检索、Skills、计划、目标、子代理、工作流），persona 内置 LCA 项目入口、major-orchestrator 角色边界与 whole-lca/revise-lca 技能路由。
+description: 基于 standard 的编码 Agent，面向本仓库。whole-lca / revise-lca 由 Python 主编排驱动；本会话只做 worker。
 order: 5

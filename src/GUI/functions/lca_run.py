@@ -63,7 +63,11 @@ def parse_lca_result(
             "success": False,
             "tab_label": "LCA执行结果（LCA提前中止）",
             "status": "missing",
-            "failure_markdown": "### 失败原因\n\n- 本次执行未生成 `workspace/memory/manifest.json`。",
+            "failure_markdown": (
+                "### 失败原因\n\n"
+                "- 本次执行未生成 `workspace/memory/manifest.json`。\n"
+                "- 请查看终端输出中的 `[System ERROR]` 或 Python traceback。"
+            ),
         }
     if previous_fingerprint is not None and current_fingerprint == previous_fingerprint:
         return {

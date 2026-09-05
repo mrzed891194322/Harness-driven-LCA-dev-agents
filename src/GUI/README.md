@@ -26,8 +26,8 @@ uv run python src/GUI/main.py
 “终端显示”Tab 始终位于最左侧并作为启动后的默认页。“设置&初始化”与“计划制定”
 一样由左侧按钮打开，启动时不显示。页内为左侧配置目录与右侧可滚动详情，
 点击目录进入对应配置项：初始化检查、AI Agent 工具、开发者选项。
-可选择 AI Agent（codex / claude / opencode / dsh）并检查 CLI 是否可用。
-「开始初始化检查」会依次探测所选 Agent CLI（`--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导：在所用 AI 工具中读取并执行 `src/scripts/proj_init/PROMPT.md`）。
+可选择 AI Agent（codex / claude / opencode / dsh / antigravity）：点 Agent 名称按钮从设置页下方打开配置抽屉，编辑 `.env` 参数后点「保存配置」或「关闭」收起。「测试此配置」会对该页做 live ping，不解锁执行。
+「开始初始化检查」会依次对所选 worker 做 live ping（`agent_sdk.check`）并探测 openLCA，两项全部通过后才解锁「执行LCA计划」。
 侧栏「用户资料上传」仅暂存于 GUI；点击「执行LCA计划」或「执行改进」时，先 `clean_dir --preset`，再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 写入仓库根目录 `.env` 的 `HARNESS_AGENT`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
@@ -58,12 +58,8 @@ metadata，GUI 会原样保留而不校验类型或版本。
 面板内执行按钮需要「初始化检查」两项全部通过；带输入区域的计划还需任一字段有内容，
 openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败时保持执行按钮禁用，
 无输入标记的 Markdown 计划可直接执行。不可用时
-悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 调用
-对应平台的 `whole-lca` 一行命令，并根据 `workspace/memory/manifest.json` 展示完成或提前
-中止结果。Codex 在 GUI 中以 `codex exec --json` 运行，终端会把命令、MCP 调用和
-Agent 消息转成可读行；DSH 以 `dsh --profile headless --patch .dsh/cordis.patch.yml` 运行，
-GUI 会注入 `DSH_PERMISSION_MODE=danger-full-access`，并尾随 `~/.dsh/sessions/` 下本项目 session 日志，
-在终端实时显示工具调用与助手摘要（headless stdout 仅含最终一行）。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
+悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 启动 Python 主编排（`src/scripts/lca_orchestrator/main.py`），终端只消费编排器 stdout，并根据 `workspace/memory/manifest.json` 展示完成或提前
+中止结果。停止时杀掉编排器进程组。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
 “LCA评估结果”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
 用户可下载报告或按需打开「工作细节」，上下渲染
 `workspace/outputs/inventory/extracted-bom.json` 与
