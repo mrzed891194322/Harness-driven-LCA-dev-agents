@@ -10,6 +10,8 @@ import sys
 import threading
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 SCRIPTS_ROOT = Path(__file__).resolve().parent.parent
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
@@ -41,6 +43,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     root = args.project_root.resolve() if args.project_root else project_root_from(Path.cwd())
+    load_dotenv(root / ".env", override=True)
     stop_event = threading.Event()
 
     def _stop(_signum, _frame) -> None:

@@ -30,6 +30,59 @@ class GuiBuildTests(unittest.TestCase):
         self.assertEqual(type(demo).__name__, "Blocks")
         self.assertGreater(len(demo.blocks), 0)
 
+    def test_build_ui_js_uses_work_details_tab_title(self) -> None:
+        _demo, _theme, _css, js_code = build_ui()
+        self.assertIn("工作细节", js_code)
+        self.assertNotIn("'LCI清单'", js_code)
+
+    def test_tab_navigation_only_toggles_top_level_right_tabs(self) -> None:
+        js_path = PROJECT_ROOT / "src" / "GUI" / "ui" / "assets" / "js" / "tab_navigation.js"
+        js_code = js_path.read_text(encoding="utf-8")
+        self.assertIn("tabs.querySelector('[role=\"tablist\"]')", js_code)
+        self.assertIn("button.closest('[role=\"tablist\"]') === topList", js_code)
+        self.assertIn("guiShowAgentConfigDrawer", js_code)
+        self.assertIn("agent-config-drawer-hidden", js_code)
+
+    def test_agent_config_panel_sizes_to_visible_body(self) -> None:
+        from ui.components.tab_initial import (
+            agent_drawer_classes,
+            agent_tab_body_updates,
+            agent_tab_button_update,
+        )
+
+        _demo, _theme, css, _js_code = build_ui()
+        self.assertIn(".agent-config-tab-body", css)
+        self.assertIn("agent-config-tab-hidden", css)
+        self.assertIn("agent-config-drawer-hidden", css)
+        self.assertIn("position: absolute !important", css)
+        self.assertIn("bottom: 0 !important", css)
+        self.assertIn("#settings-agent-config-panel", css)
+        self.assertNotIn("width: min(460px, 100%)", css)
+        source = (PROJECT_ROOT / "src/GUI/ui/components/tab_initial.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("请点击选择", source)
+        self.assertNotIn("gr.Tabs(", source.split("def build_tab_initial")[-1])
+        panel_at = source.find('elem_id="settings-agent-config-panel"')
+        list_at = source.find('elem_id="init-check-status-list"')
+        self.assertGreater(panel_at, 0)
+        self.assertGreater(list_at, 0)
+        self.assertGreater(panel_at, list_at)
+        list_block_end = source.find('elem_id="settings-dev-list"')
+        self.assertGreater(panel_at, list_block_end)
+        panel_block = source[panel_at - 180 : panel_at + 160]
+        self.assertNotIn("visible=False", panel_block)
+        self.assertIn("agent_drawer_classes(hidden=True)", panel_block)
+        self.assertIn("agent-config-drawer-hidden", agent_drawer_classes(hidden=True))
+        self.assertNotIn("agent-config-drawer-hidden", agent_drawer_classes(hidden=False))
+        bodies = agent_tab_body_updates("dsh")
+        self.assertEqual(
+            ["agent-config-tab-hidden" in item["elem_classes"] for item in bodies],
+            [True, True, True, False, True],
+        )
+        active = agent_tab_button_update("dsh", "dsh")
+        self.assertIn("agent-config-tab-btn-active", active["elem_classes"])
+
 
 class SettingsTabTests(unittest.TestCase):
     def test_init_check_status_update_pending_prefix(self) -> None:
@@ -117,11 +170,6 @@ class WorkDetailsJsonTests(unittest.TestCase):
         self.assertIsInstance(mapping_payload, dict)
         self.assertIn("items", bom_payload)
         self.assertIn("items", mapping_payload)
-
-    def test_build_ui_js_uses_work_details_tab_title(self) -> None:
-        _demo, _theme, _css, js_code = build_ui()
-        self.assertIn("工作细节", js_code)
-        self.assertNotIn("'LCI清单'", js_code)
 
 
 if __name__ == "__main__":

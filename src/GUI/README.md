@@ -26,8 +26,8 @@ uv run python src/GUI/main.py
 “终端显示”Tab 始终位于最左侧并作为启动后的默认页。“设置&初始化”与“计划制定”
 一样由左侧按钮打开，启动时不显示。页内为左侧配置目录与右侧可滚动详情，
 点击目录进入对应配置项：初始化检查、AI Agent 工具、开发者选项。
-可选择 AI Agent（codex / claude / opencode / dsh / antigravity）并检查是否可用。
-「开始初始化检查」会依次探测所选 Agent CLI（`--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导：在所用 AI 工具中读取并执行 `src/scripts/proj_init/PROMPT.md`）。
+可选择 AI Agent（codex / claude / opencode / dsh / antigravity）：点 Agent 名称按钮从设置页下方打开配置抽屉，编辑 `.env` 参数后点「保存配置」或「关闭」收起。「测试此配置」会对该页做 live ping，不解锁执行。
+「开始初始化检查」会依次对所选 worker 做 live ping（`agent_sdk.check`）并探测 openLCA，两项全部通过后才解锁「执行LCA计划」。
 侧栏「用户资料上传」仅暂存于 GUI；点击「执行LCA计划」或「执行改进」时，先 `clean_dir --preset`，再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 写入仓库根目录 `.env` 的 `HARNESS_AGENT`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的

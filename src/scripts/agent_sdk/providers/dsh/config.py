@@ -1,0 +1,3 @@
+NAME = "dsh"
+SDK_MODULE = "deepseek_harness"
+ENV_KEYS = ("DEEPSEEK_API_KEY", "DSH_PERMISSION_MODE", "DSH_HOME")

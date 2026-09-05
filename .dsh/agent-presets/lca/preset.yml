@@ -1,3 +1,3 @@
 name: LCA 编排
-description: 基于 standard 的编码 Agent，面向本仓库。whole-lca / revise-lca 由 Python 主编排驱动；本会话只做 worker 或环境引导。
+description: 基于 standard 的编码 Agent，面向本仓库。whole-lca / revise-lca 由 Python 主编排驱动；本会话只做 worker。
 order: 5

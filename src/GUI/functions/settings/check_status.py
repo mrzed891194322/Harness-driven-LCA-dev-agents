@@ -34,7 +34,7 @@ def _load_openlca_endpoint() -> tuple[str, int]:
 
 def check_agent_result(agent: str | None = None) -> tuple[bool, str]:
     """
-    检测当前选中的 harness CLI 是否可用。
+    检测当前选中的 harness worker SDK 是否可用。
 
     Returns:
         带 CLI 名的状态文案。
@@ -62,12 +62,25 @@ def check_agent_result(agent: str | None = None) -> tuple[bool, str]:
 
 
 def check_env_result() -> tuple[bool, str]:
-    """Compatibility alias for the Agent CLI check."""
+    """Compatibility alias for the Agent worker check."""
     return check_agent_result()
 
 
 def check_env_status() -> str:
     return check_agent_result()[1]
+
+
+def persist_agent_tab_and_check(
+    name: str,
+    values: dict[str, object],
+    project_root=None,
+) -> tuple[bool, str]:
+    """Write one worker's env fields, then live-check that worker. Does not change HARNESS_AGENT."""
+    from functions.settings.settings import AGENT_ENV_FIELDS, save_agent_env_settings
+
+    keys = tuple(field.key for field in AGENT_ENV_FIELDS[name])
+    save_agent_env_settings(values=values, only_keys=keys, project_root=project_root)
+    return check_agent_result(name)
 
 
 def check_openlca_result(

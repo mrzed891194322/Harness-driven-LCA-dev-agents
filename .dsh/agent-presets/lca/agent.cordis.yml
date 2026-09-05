@@ -32,8 +32,7 @@
       This is the Harness-driven LCA agents project. Whole-lca and revise-lca are driven by
       the Python orchestrator at src/scripts/lca_orchestrator/main.py. Do not treat this
       session as the LCA orchestrator. If you are given a worker prompt, follow that prompt
-      and only write under workspace/. Platform skills live in
-      .dsh/skills/{whole-lca,revise-lca,bootstrap-env}.
+      and only write under workspace/.
 
 - id: agent-instructions
   name: '@deepseek-ai/dsh-agent-instructions'

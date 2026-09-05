@@ -88,13 +88,14 @@ class OpenCodeConfigurationTests(unittest.TestCase):
             self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
         self.assertFalse((PROJECT_ROOT / "harness" / "rules" / "injection.md").exists())
 
-    def test_command_points_at_python_orchestrator(self) -> None:
-        command_path = PROJECT_ROOT / ".opencode" / "commands" / "whole-lca.md"
-        command = load_frontmatter(command_path)
-        self.assertNotEqual(command.get("agent"), "major-orchestrator")
-        command_content = command_path.read_text(encoding="utf-8")
-        self.assertIn(ORCHESTRATOR_ENTRY, command_content)
-        self.assertIn("--task whole-lca", command_content)
+    def test_workflow_commands_are_removed(self) -> None:
+        for relative in (
+            ".opencode/commands/whole-lca.md",
+            ".opencode/commands/revise-lca.md",
+            ".opencode/commands/cleanup-lci.md",
+        ):
+            self.assertFalse((PROJECT_ROOT / relative).exists(), relative)
+        self.assertFalse((PROJECT_ROOT / ".opencode" / "commands").exists())
         self.assertTrue((PROJECT_ROOT / "harness" / "workflows" / "LCA-main.yaml").is_file())
 
 
@@ -106,7 +107,7 @@ class CodexConfigurationTests(unittest.TestCase):
         instructions = config["developer_instructions"]
         self.assertIn("Python 主编排", instructions)
         self.assertIn("项目开发由 Cursor", instructions)
-        self.assertIn("$bootstrap-env", instructions)
+        self.assertIn("uv sync", instructions)
         self.assertNotIn("$workflow-main", instructions)
         self.assertNotIn("$evaluate-lca-quality", instructions)
         self.assertNotIn("model_instructions_file", config)
@@ -173,9 +174,8 @@ class CodexConfigurationTests(unittest.TestCase):
         )
         self.assertFalse((PROJECT_ROOT / ".codex" / "prompts" / "improve-whole-lca.md").exists())
         root_ignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
-        self.assertIn("!.codex/skills/bootstrap-env/", root_ignore)
-        self.assertIn("!.codex/skills/whole-lca/", root_ignore)
-        self.assertIn("!.cursor/skills/bootstrap-env/", root_ignore)
+        self.assertNotIn("!.codex/skills/whole-lca/", root_ignore)
+        self.assertIn("!.codex/config.toml", root_ignore)
         project_readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertNotIn("$improve-whole-lca-workflow", project_readme)
 
@@ -263,24 +263,22 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
             self.assertNotIn("harness/rules/", content, relative_path)
             self.assertNotIn("不要再 spawn 另一个 `major-orchestrator`", content)
 
-    def test_skills_point_at_python_orchestrator(self) -> None:
+    def test_operator_skills_are_removed(self) -> None:
         for relative in (
             ".codex/skills/whole-lca/SKILL.md",
             ".codex/skills/revise-lca/SKILL.md",
             ".dsh/skills/whole-lca/SKILL.md",
             ".dsh/skills/revise-lca/SKILL.md",
         ):
-            text = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn(ORCHESTRATOR_ENTRY, text, relative)
-            self.assertNotIn("cleanup_output/main.py", text)
-            self.assertNotIn("src/scripts/revise_lca", text)
+            self.assertFalse((PROJECT_ROOT / relative).exists(), relative)
+        self.assertFalse((PROJECT_ROOT / ".codex" / "skills").exists())
+        self.assertFalse((PROJECT_ROOT / ".dsh" / "skills").exists())
 
     def test_workflow_uses_refactored_fixed_paths(self) -> None:
         paths = (
             "harness/specs/public/references/workflow-runtime-spec.md",
             "harness/rules/project/paths.md",
             "harness/workflows/LCA-main.yaml",
-            ".codex/skills/whole-lca/SKILL.md",
         )
         content = "\n".join(
             (PROJECT_ROOT / path).read_text(encoding="utf-8") for path in paths
@@ -329,7 +327,6 @@ class WorkflowSpecificationRoutingTests(unittest.TestCase):
         paths = (
             "harness/workflows/LCA-main.yaml",
             "harness/workflows/LCA-revise.yaml",
-            ".codex/skills/whole-lca/SKILL.md",
             "harness/rules/tools/control_openlca.md",
             "harness/tools/control_openlca/main.py",
             "harness/tools/control_openlca/utils/workflow.py",
@@ -397,15 +394,17 @@ class MultiPlatformCliAndMcpTests(unittest.TestCase):
         for relative in (
             ".opencode/commands/whole-lca.md",
             ".opencode/commands/revise-lca.md",
+            ".opencode/commands/cleanup-lci.md",
             ".claude/commands/whole-lca.md",
             ".claude/commands/revise-lca.md",
             ".codex/skills/whole-lca/SKILL.md",
             ".codex/skills/revise-lca/SKILL.md",
+            ".dsh/skills/whole-lca/SKILL.md",
+            ".dsh/skills/revise-lca/SKILL.md",
         ):
-            self.assertTrue((PROJECT_ROOT / relative).is_file(), relative)
-            text = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn(ORCHESTRATOR_ENTRY, text, relative)
-            self.assertNotIn("cleanup_output/main.py", text, relative)
+            self.assertFalse((PROJECT_ROOT / relative).exists(), relative)
+        self.assertFalse((PROJECT_ROOT / ".opencode" / "commands").exists())
+        self.assertFalse((PROJECT_ROOT / ".claude" / "commands").exists())
 
     def test_named_agent_files_are_gone(self) -> None:
         for relative in NAMED_AGENT_PATHS:
@@ -428,47 +427,24 @@ class RoleDocumentationTests(unittest.TestCase):
             self.assertNotIn(pattern, combined, pattern)
 
 
-class BootstrapEnvAdapterTests(unittest.TestCase):
-    PROMPT_PATH = "src/scripts/proj_init/PROMPT.md"
-    ADAPTERS = (
-        ".opencode/commands/bootstrap-env.md",
-        ".claude/commands/bootstrap-env.md",
-        ".codex/skills/bootstrap-env/SKILL.md",
-        ".cursor/skills/bootstrap-env/SKILL.md",
-        ".dsh/skills/bootstrap-env/SKILL.md",
-    )
-    COPIED_STEPS = (
-        "uv sync",
-        "环境检测不通过",
-    )
-
-    def test_adapters_exist_and_only_reference_shared_prompt(self) -> None:
-        prompt = PROJECT_ROOT / self.PROMPT_PATH
-        self.assertTrue(prompt.is_file())
-        for relative in self.ADAPTERS:
-            path = PROJECT_ROOT / relative
-            self.assertTrue(path.is_file(), relative)
-            text = path.read_text(encoding="utf-8")
-            self.assertIn(self.PROMPT_PATH, text)
-            for fragment in self.COPIED_STEPS:
-                self.assertNotIn(fragment, text, relative)
-
-    def test_opencode_command_uses_build_agent(self) -> None:
-        command = load_frontmatter(
-            PROJECT_ROOT / ".opencode" / "commands" / "bootstrap-env.md"
+class UnboxingInitTests(unittest.TestCase):
+    def test_bootstrap_env_adapters_are_removed(self) -> None:
+        removed = (
+            "src/scripts/proj_init/PROMPT.md",
+            ".opencode/commands/bootstrap-env.md",
+            ".claude/commands/bootstrap-env.md",
+            ".codex/skills/bootstrap-env/SKILL.md",
+            ".cursor/skills/bootstrap-env/SKILL.md",
+            ".dsh/skills/bootstrap-env/SKILL.md",
         )
-        self.assertEqual(command["agent"], "build")
-        self.assertFalse(
-            (PROJECT_ROOT / ".opencode" / "agents" / "env-bootstrap.md").exists()
-        )
-        config = load_jsonc(PROJECT_ROOT / ".opencode" / "opencode.json")
-        self.assertNotIn("env-bootstrap", config["agent"])
-        self.assertNotIn("disable", config["agent"].get("build", {}))
+        for relative in removed:
+            self.assertFalse((PROJECT_ROOT / relative).exists(), relative)
 
-    def test_readme_documents_prerequisites_and_bootstrap_cli(self) -> None:
+    def test_readme_documents_uv_sync_unboxing(self) -> None:
         readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("uv", readme)
         self.assertIn("https://docs.astral.sh/uv/getting-started/installation/", readme)
+        self.assertIn("uv sync", readme)
         self.assertIn("Codex", readme)
         self.assertIn("Claude Code", readme)
         self.assertIn("OpenCode", readme)
@@ -476,14 +452,14 @@ class BootstrapEnvAdapterTests(unittest.TestCase):
         self.assertIn("openLCA", readme)
         self.assertIn("IPC Server", readme)
         self.assertIn("每次开始项目前", readme)
-        self.assertIn("读取并执行 src/scripts/proj_init/PROMPT.md", readme)
-        self.assertIn("$bootstrap-env", readme)
-        self.assertIn("/bootstrap-env", readme)
         self.assertIn("在 AI Agent 中直接运行", readme)
+        self.assertNotIn("读取并执行 src/scripts/proj_init/PROMPT.md", readme)
+        self.assertNotIn("$bootstrap-env", readme)
+        self.assertNotIn("/bootstrap-env", readme)
         self.assertNotIn("命令行直接运行（无 GUI）", readme)
         self.assertNotIn("_setup_env.bat", readme)
         self.assertNotIn("_launch_gui.bat", readme)
-        self.assertTrue((PROJECT_ROOT / "src/scripts/proj_init/PROMPT.md").is_file())
+        self.assertFalse((PROJECT_ROOT / "src/scripts/proj_init/main.py").exists())
         self.assertFalse((PROJECT_ROOT / "src/scripts/_setup_env.bat").exists())
         self.assertFalse((PROJECT_ROOT / "src/scripts/_launch_gui.bat").exists())
         self.assertFalse(
@@ -522,11 +498,7 @@ class KnowledgeGitignoreTests(unittest.TestCase):
 
 class DshConfigurationTests(unittest.TestCase):
     CONTROL_OPENLCA = "harness/tools/control_openlca/main.py"
-    SKILL_NAMES = ("whole-lca", "revise-lca", "bootstrap-env")
     MODEL_SCAN_PATHS = (
-        ".dsh/skills/whole-lca/SKILL.md",
-        ".dsh/skills/revise-lca/SKILL.md",
-        ".dsh/skills/bootstrap-env/SKILL.md",
         ".dsh/agent-presets/lca/preset.yml",
         ".dsh/README.md",
     )
@@ -594,34 +566,15 @@ class DshConfigurationTests(unittest.TestCase):
         self.assertIn("DSH_PERMISSION_MODE=danger-full-access", operator)
 
         agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        for name in self.SKILL_NAMES:
-            self.assertIn(f".dsh/skills/{name}/SKILL.md", agents)
+        self.assertNotIn(".dsh/skills/", agents)
         self.assertIn("workspace/inputs/plan.md", agents)
         self.assertIn("workspace/outputs/reports/", agents)
 
-    def test_workflow_skills_delegate_to_python_orchestrator(self) -> None:
-        for name, workflow in (("whole-lca", "LCA-main.yaml"), ("revise-lca", "LCA-revise.yaml")):
+    def test_workflow_skills_are_removed(self) -> None:
+        self.assertFalse((PROJECT_ROOT / ".dsh" / "skills").exists())
+        for name in ("whole-lca", "revise-lca"):
             path = PROJECT_ROOT / ".dsh" / "skills" / name / "SKILL.md"
-            self.assertTrue(path.is_file(), str(path))
-            text = path.read_text(encoding="utf-8")
-            self.assertIn(f"harness/workflows/{workflow}", text)
-            self.assertIn(ORCHESTRATOR_ENTRY, text)
-            self.assertNotIn("harness/roles/", text)
-            self.assertNotIn("mcp__control_openlca__", text)
-            for fragment in (
-                "cleanup_output/main.py",
-                "src/scripts/revise_lca",
-                "awaiting_confirmation",
-            ):
-                self.assertNotIn(fragment, text, str(path))
-
-    def test_bootstrap_skill_only_references_shared_prompt(self) -> None:
-        path = PROJECT_ROOT / ".dsh" / "skills" / "bootstrap-env" / "SKILL.md"
-        text = path.read_text(encoding="utf-8")
-        self.assertIn("src/scripts/proj_init/PROMPT.md", text)
-        self.assertIn("不要启动 whole-lca", text)
-        for fragment in ("uv sync", "环境检测不通过"):
-            self.assertNotIn(fragment, text)
+            self.assertFalse(path.exists(), str(path))
 
     def test_no_hardcoded_models_in_dsh_adapter_docs(self) -> None:
         combined = "\n".join(

@@ -2,7 +2,7 @@ developer_instructions = """
 Codex 在本仓库可作为 LCA worker，由 Python 主编排委派任务。
 - 项目开发由 Cursor 负责。不要修改、审查、调试或重构 harness、GUI、脚本或其他 tracked 源码，除非当前任务明确要求。
 - 业务编排入口是 `uv run python src/scripts/lca_orchestrator/main.py`，不要把当前会话当成主编排。
-- `$bootstrap-env` 只看其文本。
+- 开箱后在仓库根目录执行 `uv sync`。
 """
 
 [mcp_servers.control_openlca]

@@ -2,7 +2,7 @@
 就绪状态检查脚本
 
 功能：
-    1. 检查所选 harness CLI（codex / claude / opencode / dsh）是否可用
+    1. 检查所选 harness worker SDK（codex / claude / opencode / dsh / antigravity）
     2. 检查 openLCA IPC Server 是否已启动并可连接
 
 参考来源：
@@ -12,8 +12,12 @@
     # 默认：先清理目录，再执行 Agent 检查与 openLCA 检查
     uv run python src/scripts/check_status/main.py
 
-    # 仅检查 Agent CLI
+    # 仅检查 Agent（读 .env 的 HARNESS_AGENT；未设置则任一可用即可）
     uv run python src/scripts/check_status/main.py --only agents
+
+    # 检查指定 worker
+    uv run python src/scripts/check_status/main.py --only agents --agent claude
+    uv run python src/scripts/check_status/agents_check/main.py --agent claude
 
     # 仅检查 openLCA 连接
     uv run python src/scripts/check_status/main.py --only openlca
@@ -47,7 +51,7 @@ from GUI.functions.settings.settings import (  # noqa: E402
     load_port_settings,
 )
 
-from agents_check import check_project_environment
+from agents_check import SUPPORTED_HARNESS_CLIS, check_project_environment
 from openlca_check.main import check_openlca
 from utils.encoding import setup_io_encoding
 
@@ -56,13 +60,19 @@ def main():
     setup_io_encoding()
 
     parser = argparse.ArgumentParser(
-        description="就绪检查：Agent CLI + openLCA IPC 连接"
+        description="就绪检查：Agent SDK + openLCA IPC 连接"
     )
     parser.add_argument(
         "--only",
         choices=["clean", "agents", "openlca"],
         default=None,
         help="仅执行指定任务（clean、agents 或 openlca）；省略则依次执行全部任务",
+    )
+    parser.add_argument(
+        "--agent",
+        choices=SUPPORTED_HARNESS_CLIS,
+        default=None,
+        help="检查指定 worker；省略则读 .env 的 HARNESS_AGENT，未设置则任一可用即可",
     )
     parser.add_argument(
         "--host",
@@ -107,9 +117,12 @@ def main():
 
     if run_agents:
         print("=" * 60)
-        print("Check Harness CLI")
+        print("Check Harness Worker")
         print("=" * 60)
-        agents_ok, agents_message = check_project_environment(project_root=PROJECT_ROOT)
+        agents_ok, agents_message = check_project_environment(
+            project_root=PROJECT_ROOT,
+            agent=args.agent,
+        )
         if not agents_ok:
             raise RuntimeError(f"Agent check failed: {agents_message}")
 

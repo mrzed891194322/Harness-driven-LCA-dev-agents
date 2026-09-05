@@ -1,30 +1,20 @@
 # 项目级 DSH 配置
 
-本目录存放本项目在 DeepSeek Harness（DSH，CLI：`dsh`）中的项目级配置：MCP 接线、技能入口与可选 preset。whole-lca / revise-lca 由 Python 主编排驱动，DSH 只作为 worker。
+本目录存放本项目在 DeepSeek Harness（DSH，CLI：`dsh`）中的项目级配置：MCP 接线与可选 preset。whole-lca / revise-lca 由 Python 主编排驱动，DSH 只作为 worker。
 
 | 其他平台 | DSH |
 |---|---|
 | `.codex/config.toml`（`[mcp_servers.control_openlca]`） | `.dsh/cordis.patch.yml`（`mcp-control_openlca` 行） |
 | 无 named agent | `.dsh/agent-presets/lca/`（顶层会话 persona，不是主编排） |
-| `.codex/skills/` | `.dsh/skills/`（whole-lca / revise-lca 指向 Python 编排器；bootstrap-env 保留） |
 
 ## 目录结构
 
 ```
 .dsh/
 ├── cordis.patch.yml
-├── skills/
-│   ├── whole-lca/SKILL.md
-│   ├── revise-lca/SKILL.md
-│   └── bootstrap-env/SKILL.md
 └── agent-presets/
     └── lca/
 ```
-
-## 在 DSH 中输入指令
-
-- 环境引导：读取并执行 `.dsh/skills/bootstrap-env/SKILL.md`
-- whole-lca / revise-lca：先手动 `clean_dir` 并复制资料，再读取并执行对应 skill（会调用 `src/scripts/lca_orchestrator/main.py`）
 
 ## GUI / 主编排
 
@@ -51,10 +41,6 @@ DSH_PERMISSION_MODE=danger-full-access uv run python src/scripts/lca_orchestrato
 ### Agent preset
 
 `agent-presets` 行的 `roots` 追加 `.dsh/agent-presets`。persona 只说明本仓库由 Python 主编排驱动，不要把当前会话当成主编排。
-
-### 技能
-
-`.dsh/skills/` 自动发现。whole-lca / revise-lca 只指向 Python 编排器；bootstrap-env 指向 `src/scripts/proj_init/PROMPT.md`。
 
 ## 前置条件
 

@@ -19,7 +19,7 @@
 - **[process_manager.py](utils/process_manager.py)**：负责跟踪当前活动命令执行子进程，并提供强制杀死底层任务进程树的统一实现。
 - **[log_exporter.py](utils/log_exporter.py)**：管理命令输出日志存放目录、路径规则以及将 stdout 实时追加写入本地日志文件。
   - **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `pyproject.toml`、`.opencode` 或 `.git` 的父目录）。
-- **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 启动 Python 主编排（`src/scripts/lca_orchestrator/main.py`），`HARNESS_AGENT` 只选 worker（codex、claude、opencode、dsh、antigravity）。`executor/main.py` 非 GUI 入口；bootstrap-env 在所用 AI 工具中执行 `src/scripts/proj_init/PROMPT.md`，不经 GUI。
+- **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 启动 Python 主编排（`src/scripts/lca_orchestrator/main.py`），`HARNESS_AGENT` 只选 worker（codex、claude、opencode、dsh、antigravity）。`executor/main.py` 非 GUI 入口；开箱初始化在仓库根目录执行 `uv sync`。
   - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数（非 GUI 使用）。
   - **私有辅助包 (`private_utils/`)**：
     - `executor_utils.py`：流式捕获进程输出；`run_pre_workflow_console` 编排 clean_dir preset 与 file_sync。
@@ -37,15 +37,15 @@
 
 ### 4. 设置模块 (`functions/settings/`)
 提供设置页门禁探测与参考资料写入：
-- **[check_status.py](settings/check_status.py)**：依次探测 AI Agent CLI 与 openLCA，供「开始初始化检查」使用。
-- **[settings.py](settings/settings.py)**：读写 `.env` 中的 `HARNESS_AGENT` 与端口配置。
+- **[check_status.py](settings/check_status.py)**：依次探测 AI Agent SDK 与 openLCA，供「开始初始化检查」使用。
+- **[settings.py](settings/settings.py)**：读写 `.env` 中的 `HARNESS_AGENT`、各 worker 的细粒度字段与端口配置。
 - **私有辅助包 (`private_utils/`)**：
   - `file_handler.py`：已废弃；请使用 `file_sync`。
 
-环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测 AI Agent CLI
+环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测所选 AI Agent
 与 openLCA；两项全部通过后才解锁“执行LCA计划”。
-Agent 页的单项检查只弹对话框，不解锁执行。选择的 Agent 写入
-`.env` 的 `HARNESS_AGENT`。
+Agent 配置下方抽屉的「测试此配置」只探测该页，不解锁执行。选择的 Agent 与细粒度
+参数写入 `.env`。
 
 ### 5. LCA 工作流结果模块
 
