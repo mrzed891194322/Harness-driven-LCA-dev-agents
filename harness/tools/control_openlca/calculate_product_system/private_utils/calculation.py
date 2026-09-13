@@ -2,7 +2,10 @@ import sys
 
 from utils.workflow import build_calculation_setup, calculate_handle
 
-def run_calculation(client, target, method, amount, allocation_type, regionalized, costs, param_redefs):
+
+def run_calculation(
+    client, target, method, amount, allocation_type, regionalized, costs, param_redefs
+):
     print("正在配置计算设置...")
     # Preserve the CLI's already-resolved allocation and parameter objects while
     # sharing the calculation execution primitive with MCP.

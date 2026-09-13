@@ -45,10 +45,7 @@ def build_tab_result() -> tuple[
                     show_load_status=False,
                 )
                 report_warning = gr.Markdown(
-                    (
-                        "### ⚠️ 缺少 LCA 报告\n\n"
-                        f"未找到 `{report_relative_path}`。"
-                    ),
+                    (f"### ⚠️ 缺少 LCA 报告\n\n未找到 `{report_relative_path}`。"),
                     visible=False,
                 )
                 with gr.Row(elem_classes=["panel-actions-row"]):

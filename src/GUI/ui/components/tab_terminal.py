@@ -1,11 +1,15 @@
 import gradio as gr
 
+
 def build_tab_terminal() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.Button]:
     """
     构建“终端显示” Tab 组件及其内部布局。
     """
     with gr.Tab("终端显示", id="terminal_tab") as tab:
-        with gr.Group(elem_id="terminal-console-panel", elem_classes=["right-tab-workspace", "right-workspace-panel"]):
+        with gr.Group(
+            elem_id="terminal-console-panel",
+            elem_classes=["right-tab-workspace", "right-workspace-panel"],
+        ):
             output_console = gr.Textbox(
                 label="终端输出 (Terminal Output)",
                 value="",
@@ -36,5 +40,5 @@ def build_tab_terminal() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.
                             size="sm",
                             elem_id="stop-btn",
                         )
-                    
+
     return tab, output_console, status, clear_btn, stop_btn

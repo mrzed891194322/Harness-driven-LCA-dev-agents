@@ -7,6 +7,8 @@ from typing import Any
 
 import config
 
+from functions.openlca_failure_hints import maybe_append_openlca_timeout_hint
+
 
 def manifest_fingerprint(path: Path | None = None) -> str | None:
     manifest_path = path or config.WORKFLOW_MANIFEST_PATH
@@ -63,11 +65,7 @@ def parse_lca_result(
             "success": False,
             "tab_label": "LCA执行结果（LCA提前中止）",
             "status": "missing",
-            "failure_markdown": (
-                "### 失败原因\n\n"
-                "- 本次执行未生成 `workspace/memory/manifest.json`。\n"
-                "- 请查看终端输出中的 `[System ERROR]` 或 Python traceback。"
-            ),
+            "failure_markdown": "### 失败原因\n\n- 本次执行未生成 `workspace/memory/manifest.json`。",
         }
     if previous_fingerprint is not None and current_fingerprint == previous_fingerprint:
         return {
@@ -106,9 +104,14 @@ def parse_lca_result(
     if not reason:
         reasons.append("工作流提前结束，但没有提供更具体的失败说明。")
     lines = ["### 失败原因", "", *(f"- {item}" for item in reasons)]
+    failure_markdown = maybe_append_openlca_timeout_hint(
+        config.WORKSPACE_MEMORY.parent,
+        manifest,
+        "\n".join(lines),
+    )
     return {
         "success": False,
         "tab_label": "LCA执行结果（LCA提前中止）",
         "status": status,
-        "failure_markdown": "\n".join(lines),
+        "failure_markdown": failure_markdown,
     }

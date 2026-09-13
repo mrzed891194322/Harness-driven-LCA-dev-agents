@@ -7,18 +7,25 @@
 运行本仓库前请先安装：
 
 1. **uv** - Python 包和项目管理工具（[下载&安装链接](https://docs.astral.sh/uv/getting-started/installation/)）
-2. **Codex、Claude Code、OpenCode、DSH 等 agent 工具**
+2. **Codex、Claude、OpenCode 或 Pi** 的官方 CLI（需在 PATH 上：`codex` / `claude` / `opencode` / `pi`）。走 GUI 时，在「设置&初始化」点「AI Agent 工具」卡片上的「配置」，选择其中一个并填写对应模型 id。认证使用各 CLI 的本机登录。Cursor 只用于本仓库开发，不当 LCA 操作员。
 3. **[openLCA](https://www.openlca.org/download/)** 桌面客户端。**每次开始项目前**必须打开 openLCA、打开目标数据库，并启用 IPC Server（默认 `127.0.0.1:8080`），否则后续导入与计算无法进行。
 
 ## 环境配置
 
-克隆仓库后，在项目根目录执行：
+首次运行前，在所用 AI 工具中打开本仓库，输入：
+
+```text
+读取并执行 src/scripts/proj_init/PROMPT.md
+```
+
+或直接：
 
 ```bash
 uv sync
+uv run python src/scripts/proj_init/main.py
 ```
 
-该命令会安装 Python 依赖并创建虚拟环境。
+Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制）、`control_openlca` MCP，以及哪些 worker CLI 在 PATH 上。没有 uv 时判定不通过，需按 [环境准备与配置](docs/lang_CN/env_setup.md) 手动安装。不要在引导里启动 whole-lca。`.env` 里要填的 Worker 与模型见 `.env.example`。
 
 ---
 
@@ -41,7 +48,7 @@ uv run python src/GUI/main.py
 
 | 检查项 | 处理 |
 | --- | --- |
-| AI Agent 工具 | 点 Agent 名称打开下方配置抽屉，填写该 worker 参数后「保存配置」。再点「开始初始化检查」会对所选 worker 发一条短 ping；失败时看 SDK、凭据或模型配置。 |
+| AI Agent 工具 | 主页下拉选择当前 `codex` / `claude` / `opencode` / `pi`。点「配置」后用横向卡片切换各后端表单（缺省见 `.env.example` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`）。点「测试连接」用诊断指令验证本机登录，不开启对话。点「开始初始化检查」探测所选 CLI 是否在 PATH 上（`--version`）。 |
 | OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [环境准备与配置](docs/lang_CN/env_setup.md)。 |
 
 
@@ -58,13 +65,44 @@ uv run python src/GUI/main.py
 
 ---
 
-## 无 GUI：在 AI Agent 中直接运行主编排
+## 用 Python 主编排器运行
 
-不使用 GUI 时，先 `clean_dir` 并放入计划与资料（见 `src/scripts/clean_dir/README.md`），再在仓库根目录用 CLI 运行 Python 主编排。不要在 IDE 里用 slash/skill 当启动器。Cursor 不当操作员。
+不使用 GUI 时，在项目根目录执行。不要把 IDE 会话当成主编排。
+
+### whole-lca
+
+1. 已完成上方环境引导。
+2. 手动清理：
 
 ```bash
-uv run python src/scripts/lca_orchestrator/main.py --task whole-lca --worker opencode
-uv run python src/scripts/lca_orchestrator/main.py --task revise-lca --worker dsh
+uv run python src/scripts/clean_dir/main.py -y --preset whole-lca
 ```
 
-`--worker` 为 `opencode` / `claude` / `codex` / `dsh` / `antigravity`。DSH worker 需要 `DSH_PERMISSION_MODE=danger-full-access`。
+3. 复制参考资料到 `harness/knowledge/`，编写 `workspace/inputs/plan.md`。
+4. 启动：
+
+```bash
+uv run python harness/workflows/lca_orchestrator/main.py --task whole-lca
+```
+
+可选 `--worker codex`（或 `claude` / `opencode` / `pi`）。模型 id 读 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。恢复已有运行：`--resume <run_id>`（不执行新运行清理）。
+
+### revise-lca
+
+1. 已完成上方环境引导。
+2. 手动清理（不清理 workspace）：
+
+```bash
+uv run python src/scripts/clean_dir/main.py -y --preset revise-lca
+```
+
+3. 更新 `harness/knowledge/` 与 `workspace/inputs/revise.md`（保留既有 plan / manifest / 报告）。
+4. 启动：
+
+```bash
+uv run python harness/workflows/lca_orchestrator/main.py --task revise-lca
+```
+
+revise 走同一套 01–04：01 审查修订门禁，02–04 由 `reviser` 在既有产物上落实 `revise.md`，再由 reviewer 审核（用户意图优先）。
+
+`clean_dir` 详见 [src/scripts/clean_dir/README.md](src/scripts/clean_dir/README.md)。GUI 内部启动命令见 [platform-adapter.md](docs/lang_CN/platform-adapter.md)。

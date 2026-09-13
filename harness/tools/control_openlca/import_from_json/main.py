@@ -1,19 +1,22 @@
-import sys
 import argparse
+import sys
 from pathlib import Path
+from typing import Protocol, cast
+
+
+class _ReconfigurableStream(Protocol):
+    def reconfigure(self, *, encoding: str, errors: str) -> None: ...
+
 
 # 确保在 Windows GBK 环境下能够正常输出 Unicode 字符而不报错
-# --user 环境配置是否可以复用？
-if hasattr(sys.stdout, 'reconfigure'):
-    try:
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    except Exception:
-        pass
-if hasattr(sys.stderr, 'reconfigure'):
-    try:
-        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-    except Exception:
-        pass
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            cast(_ReconfigurableStream, _stream).reconfigure(
+                encoding="utf-8", errors="replace"
+            )
+        except Exception:
+            pass
 
 # 将 scripts 目录加入 sys.path 以使用公共的 utils
 sys.path.append(str(Path(__file__).parent.parent))
@@ -27,14 +30,15 @@ except ImportError:
     sys.exit(1)
 
 # 从共享的 utils 导入
-from utils.connection import connect_ipc
-
 # 从私有的 private_utils 导入
 from private_utils.cli import add_arguments
 from private_utils.importer import import_json_files
+from utils.connection import connect_ipc
+
 
 def main():
     from utils.encoding import setup_io_encoding
+
     setup_io_encoding()
 
     parser = argparse.ArgumentParser(
@@ -48,6 +52,7 @@ def main():
 
     # 2. 导入指定文件夹中的 JSON 文件
     import_json_files(client, Path(args.json_dir))
+
 
 if __name__ == "__main__":
     main()

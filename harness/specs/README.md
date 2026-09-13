@@ -1,16 +1,24 @@
 # LCA Specification Index
 
-路径见 `public/README.md`。阶段验收见各编号包 README。循环见 `harness/workflows/`。
+阶段顺序和路径见 `public/README.md`。进入阶段后再读对应编号包。不要一次加载全部 spec。
 
 ## Whole-LCA
 
-1. `01-intake-gate/README.md`
-2. `02-inventory-extraction/README.md`
+1. `01-intake-gate/README.md`（审查任务：`reviewer.md`）
+2. `02-inventory-extraction/README.md`（`executor.md` / `reviewer.md`；修订另用 `reviser.md`）
 3. `03-dataset-mapping/README.md`
 4. `04-openlca-reporting/README.md`
 
-编排入口：`harness/workflows/LCA-main.yaml`。
+编排入口：`harness/workflows/LCA-main.yaml`。启动命令：
+
+```bash
+uv run python harness/workflows/lca_orchestrator/main.py --task whole-lca
+```
 
 ## Revise-LCA
 
-修订外壳：`08-lca-revise-workflow/README.md`，编排：`harness/workflows/LCA-revise.yaml`。后续仍走上面 01–04。
+同一套 01–04。编排入口：`harness/workflows/LCA-revise.yaml`（`reuse` 主工作流后把 02–04 的写者换成 `reviser.md`）。修订契约在各包 `references/revise.md`；01 仍只派 reviewer。
+
+```bash
+uv run python harness/workflows/lca_orchestrator/main.py --task revise-lca
+```

@@ -24,11 +24,11 @@ uv run python src/GUI/main.py
 ## 当前功能边界
 
 “终端显示”Tab 始终位于最左侧并作为启动后的默认页。“设置&初始化”与“计划制定”
-一样由左侧按钮打开，启动时不显示。页内为左侧配置目录与右侧可滚动详情，
-点击目录进入对应配置项：初始化检查、AI Agent 工具、开发者选项。
-可选择 AI Agent（codex / claude / opencode / dsh / antigravity）：点 Agent 名称按钮从设置页下方打开配置抽屉，编辑 `.env` 参数后点「保存配置」或「关闭」收起。「测试此配置」会对该页做 live ping，不解锁执行。
-「开始初始化检查」会依次对所选 worker 做 live ping（`agent_sdk.check`）并探测 openLCA，两项全部通过后才解锁「执行LCA计划」。
-侧栏「用户资料上传」仅暂存于 GUI；点击「执行LCA计划」或「执行改进」时，先 `clean_dir --preset`，再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 写入仓库根目录 `.env` 的 `HARNESS_AGENT`。
+一样由左侧按钮打开，启动时不显示。打开后是初始化检查主页：两张状态卡片、「开始初始化检查」，以及同页的开发者选项（GUI 端口与「查看LCA结果」）。
+点「AI Agent 工具」卡片上的「配置」进入模型页：横向 Codex / Claude / OpenCode / Pi 卡片点一张只显示该后端表单，页面用竖直滚动条；点「返回」回到初始化检查。
+当前 Agent CLI 仍由初始化检查页的下拉框选择（codex / claude / opencode / pi）；各后端模型 id 缺省来自 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。OpenCode / Pi 可点「刷新模型列表」拉取本机可用模型后再点选（也可手填）。Pi 填写 `provider/model`（例如 `opencode-go/deepseek-v4.1-flash`），启动时拆成 `--provider` 与 `--model`。认证走各 CLI 本机登录，配置页可点「测试连接」做诊断探测（不开对话）。
+「开始初始化检查」会依次探测所选 Agent CLI（PATH 上的 `--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导：执行 `src/scripts/proj_init/PROMPT.md` 或 `uv run python src/scripts/proj_init/main.py`）。
+侧栏「用户资料上传」仅暂存于 GUI；点击「执行LCA计划」或「执行改进」时，先 `clean_dir --preset`（whole-lca 含 `knowledge` + `inputs` staging，可用 `CLEAN_GUI_STAGING` 跳过），再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 与模型写入仓库根目录 `.env`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
 `workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。
@@ -49,7 +49,7 @@ front matter；若文档包含完整的 `PLAN_TEXTBOX` 区域，则在原位置�
 左侧目录直接使用 `#`、`##` 两级标题的完整文字。最多 20 个输入区域由固定的
 Markdown/Textbox 交替组件池动态更新；无标记的普通 Markdown 作为只读计划显示。
 上传 `.md` 只替换当前页面的暂存内容。点击「执行LCA计划」时先清理（`knowledge`、
-`workspace`、`openLCA`）再同步计划与用户资料，最后启动 agent；同步后才写入
+`inputs`、`workspace`、`openLCA`）再同步计划与用户资料，最后启动 agent；同步后才写入
 `workspace/inputs/plan.md`。
 默认模板不含 YAML front matter；上传计划可省略 front matter，也可携带任意
 metadata，GUI 会原样保留而不校验类型或版本。
@@ -58,8 +58,8 @@ metadata，GUI 会原样保留而不校验类型或版本。
 面板内执行按钮需要「初始化检查」两项全部通过；带输入区域的计划还需任一字段有内容，
 openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败时保持执行按钮禁用，
 无输入标记的 Markdown 计划可直接执行。不可用时
-悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 启动 Python 主编排（`src/scripts/lca_orchestrator/main.py`），终端只消费编排器 stdout，并根据 `workspace/memory/manifest.json` 展示完成或提前
-中止结果。停止时杀掉编排器进程组。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
+悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 启动 Python 主编排器（`--worker`），并根据 `workspace/memory/manifest.json` 展示完成或提前
+中止结果。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
 “LCA评估结果”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
 用户可下载报告或按需打开「工作细节」，上下渲染
 `workspace/outputs/inventory/extracted-bom.json` 与
@@ -87,11 +87,11 @@ GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界
   相对路径集中声明。
 - LCA 状态必须读取结构化 manifest；不得仅凭命令退出码或终端文本宣称完成。
 - 用户上传文件在执行前由 `file_sync` 写入 `harness/knowledge/`；不要在上传时直写磁盘。
-- 修改 GUI 代码后，必须从仓库根目录运行 `src/test` 回归（GUI 为路径与
-  `build_ui()` 冒烟，计划解析与写盘逻辑在同目录其余模块）：
+- 修改 GUI 代码后，必须从仓库根目录运行 `src/tests/gui` 回归（GUI 为路径与
+  `build_ui()` 冒烟，计划解析与写盘逻辑在 `src/tests/gui` 其余模块）：
 
   ```bash
-  uv run pytest src/test -v
+  uv run pytest src/tests/gui -v
   ```
 
 - 提交前同时运行 `git diff --check`。测试不得修改真实 `workspace` 运行产物。

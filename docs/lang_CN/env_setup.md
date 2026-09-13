@@ -2,15 +2,18 @@
 
 本文档介绍运行 **Harness-driven LCA Agents** 所需的环境与配置。
 
-开箱后，在项目根目录执行 `uv sync` 即可安装依赖。各 worker 的安装与登录以各自文档为准。
-
-主编排与 GUI 初始化检查走 `src/scripts/agent_sdk/providers/<name>/`：`openai-codex` / `claude-agent-sdk` / `opencode-ai` / `deepseek-harness-sdk` / `google-antigravity`。GUI「初始化检查」会对所选 worker 发一条短 ping。opencode 还需 PATH 上的 `opencode` 或已设 `OPENCODE_BASE_URL`，以及 `OPENCODE_PROVIDER` / `OPENCODE_MODEL`；antigravity 需要 `GEMINI_API_KEY` 或 Vertex 凭据。走 GUI 时，在「设置 AI Agent 工具」中选择可用的 worker。
-
-可选环境诊断：
+首次运行前，在项目根目录执行：
 
 ```bash
-uv run python src/scripts/check_status/main.py
+uv sync
+uv run python src/scripts/proj_init/main.py
 ```
+
+也可以在所用 AI 工具中输入「读取并执行 `src/scripts/proj_init/PROMPT.md`」。步骤正文在该文件。没有 uv 时脚本会判定不通过，需要你按下面说明手动安装。
+
+Worker 是 PATH 上的官方 CLI：`codex`、`claude`、`opencode`、`pi`。走 GUI 时，在「设置&初始化」点「AI Agent 工具」卡片上的「配置」，选择其中一个并填写该 CLI 的模型 id。认证使用各 CLI 的本机登录。GUI「初始化检查」探测所选 CLI 能否 `--version`，以及 openLCA IPC，不运行 bootstrap-env。主编排经 `src/scripts/agent_sdk` 的会话接口 spawn CLI；日后换 SDK 只换 provider，不改 YAML 与图。
+
+`.env` 要填的全部字段见仓库根目录 `.env.example`（Worker、四个模型 id、端口）。缺失的 `.env` 会从该模板复制。
 
 ## 1. 安装 uv
 
@@ -41,7 +44,16 @@ uv run python src/scripts/check_status/main.py
 uv sync
 ```
 
-该命令会创建虚拟环境并同步依赖（含开发依赖 `pytest`）。
+该命令会创建虚拟环境并同步依赖（含开发依赖 `pytest`、`ruff`、`pyright`）。Worker CLI 需自行安装到 PATH。
+
+开发静态检查与测试：
+
+```bash
+uv run ruff format .
+uv run ruff check .
+uv run pyright
+uv run pytest
+```
 
 ## 3. openLCA IPC
 
@@ -58,11 +70,11 @@ uv sync
 ![openLCA IPC Service](../assets/images/project_prep/openlca-ipc.png)
 
 连接检查首次失败后会重新创建客户端并重试三次；全部失败时命令返回非零，GUI 的执行
-按钮保持禁用。
+按钮保持禁用。bootstrap-env 也会跑同一条检查，失败时记为「需你动手」。
 
-## 4. 无 GUI 运行 LCA 前的清理
+## 4. 在命令行运行 LCA 前的清理
 
-不使用 GUI 时，在运行 Python 主编排之前执行：
+不使用 GUI 时，启动主编排器之前执行：
 
 ```bash
 uv run python src/scripts/clean_dir/main.py -y --preset whole-lca

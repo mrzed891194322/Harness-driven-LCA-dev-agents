@@ -1,12 +1,11 @@
 # LCA 工作事项
 
-人读参考，不再按角色 × 阶段注入。需要的句子应写进 `harness/workflows/*.yaml`。
+本目录只保留可复用的方法与资料来源约束。阶段任务说明在对应 `harness/specs/<阶段>/executor.md`、`reviser.md` 与 `reviewer.md`。
 
 | 文件 | 用途 |
 | --- | --- |
-| [`method.md`](method.md) | ISO 方法口径 |
-| [`knowledge-files.md`](knowledge-files.md) | 只从 `harness/knowledge/` 读事实 |
-| [`eval/`](eval/) | 审查口径草稿，供 YAML reviewer 提示词参考 |
-| [`exec/`](exec/) | 执行口径草稿，供 YAML executor 提示词参考 |
+| [`method.md`](method.md) | ISO 方法口径（各 LCA 阶段共用） |
+| [`knowledge-files.md`](knowledge-files.md) | 默认文件来源与可追溯引用；允许任务已注册的工具来源 |
+| [`user-intent.md`](user-intent.md) | 仅 revise-lca：用户意图优先于单纯正确性 |
 
-产物字段、路径和循环次数以对应 `harness/specs/` 编号包与 workflow YAML 为准。
+产物字段、路径和循环次数以对应 `harness/specs/` 编号包为准。

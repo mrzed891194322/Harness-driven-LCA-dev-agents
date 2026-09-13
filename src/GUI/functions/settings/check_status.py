@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-
 INIT_CHECK_LABELS = (
     "AI Agent 工具",
     "OpenLCA",
@@ -34,7 +33,7 @@ def _load_openlca_endpoint() -> tuple[str, int]:
 
 def check_agent_result(agent: str | None = None) -> tuple[bool, str]:
     """
-    检测当前选中的 harness worker SDK 是否可用。
+    检测当前选中的 harness CLI 是否可用。
 
     Returns:
         带 CLI 名的状态文案。
@@ -46,9 +45,7 @@ def check_agent_result(agent: str | None = None) -> tuple[bool, str]:
         )
         from scripts.check_status.agents_check import check_harness_cli
 
-        selected = (
-            normalize_harness_agent(agent) if agent else load_harness_agent()
-        )
+        selected = normalize_harness_agent(agent) if agent else load_harness_agent()
         ok, message = check_harness_cli(selected)
         if ok:
             return True, _format_agent_message(selected, "可用")
@@ -62,25 +59,12 @@ def check_agent_result(agent: str | None = None) -> tuple[bool, str]:
 
 
 def check_env_result() -> tuple[bool, str]:
-    """Compatibility alias for the Agent worker check."""
+    """Compatibility alias for the Agent CLI check."""
     return check_agent_result()
 
 
 def check_env_status() -> str:
     return check_agent_result()[1]
-
-
-def persist_agent_tab_and_check(
-    name: str,
-    values: dict[str, object],
-    project_root=None,
-) -> tuple[bool, str]:
-    """Write one worker's env fields, then live-check that worker. Does not change HARNESS_AGENT."""
-    from functions.settings.settings import AGENT_ENV_FIELDS, save_agent_env_settings
-
-    keys = tuple(field.key for field in AGENT_ENV_FIELDS[name])
-    save_agent_env_settings(values=values, only_keys=keys, project_root=project_root)
-    return check_agent_result(name)
 
 
 def check_openlca_result(
@@ -100,7 +84,7 @@ def check_openlca_result(
         from scripts.check_status.openlca_check import get_openlca_health
 
         result = get_openlca_health(host=resolved_host, port=resolved_port)
-        if result["ok"]:
+        if result["status"] == "success":
             return True, "可用"
         return False, "不可用"
     except Exception:
@@ -119,7 +103,9 @@ def collect_initialization_statuses(
         (INIT_CHECK_LABELS[0], lambda: check_agent_result(agent)),
         (INIT_CHECK_LABELS[1], check_openlca_result),
     )
-    return [(label, ok, message) for label, probe in probes for ok, message in [probe()]]
+    return [
+        (label, ok, message) for label, probe in probes for ok, message in [probe()]
+    ]
 
 
 def run_initialization_checks(

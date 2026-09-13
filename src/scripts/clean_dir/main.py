@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import argparse
 import sys
 from pathlib import Path
-
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -14,20 +12,26 @@ try:
         CLEAN_PRESETS,
         CLEAN_TARGETS,
         PROJECT_ROOT,
+        STAGING_TARGETS,
     )
     from .utils.clean import clean_ignored_dir, clean_root_files, parse_gitignore
     from .utils.openlca_clean import run_openlca_clean
 except ImportError:
-    if str(SCRIPT_DIR) not in sys.path:
-        sys.path.insert(0, str(SCRIPT_DIR))
-    from config import (
+    if str(SCRIPT_DIR.parent.parent) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR.parent.parent))
+    from scripts.clean_dir.config import (
         ALL_TARGET_NAMES,
         CLEAN_PRESETS,
         CLEAN_TARGETS,
         PROJECT_ROOT,
+        STAGING_TARGETS,
     )
-    from utils.clean import clean_ignored_dir, clean_root_files, parse_gitignore
-    from utils.openlca_clean import run_openlca_clean
+    from scripts.clean_dir.utils.clean import (
+        clean_ignored_dir,
+        clean_root_files,
+        parse_gitignore,
+    )
+    from scripts.clean_dir.utils.openlca_clean import run_openlca_clean
 
 
 def _print_ok(target_name: str) -> None:
@@ -63,7 +67,12 @@ def _clean_filesystem_target(
             keep_patterns,
             dry_run=dry_run,
         )
-        return files + total_files, dirs + total_dirs, kept + total_kept, failed + total_failed
+        return (
+            files + total_files,
+            dirs + total_dirs,
+            kept + total_kept,
+            failed + total_failed,
+        )
 
     exclude_top_level = {
         item.strip("/") for item in target_cfg.get("exclude_top_level", [])
@@ -140,7 +149,9 @@ def _run_single_target(
         dry_run=dry_run,
     )
 
-    print(f"\n  [{target_name}] 删除文件: {total_files}, 空目录: {total_dirs}, 保留: {total_kept}")
+    print(
+        f"\n  [{target_name}] 删除文件: {total_files}, 空目录: {total_dirs}, 保留: {total_kept}"
+    )
     if total_failed > 0:
         _print_fail(target_name, f"{total_failed} deletion(s) failed")
         return 1
@@ -156,11 +167,22 @@ def _resolve_targets(target: str | None, preset: str | None) -> list[str] | None
     return ["workspace"]
 
 
+def _apply_staging_filter(
+    targets: list[str],
+    *,
+    clean_staging: bool,
+) -> list[str]:
+    if clean_staging:
+        return list(targets)
+    return [name for name in targets if name not in STAGING_TARGETS]
+
+
 def run_clean(
     dry_run: bool = False,
     yes: bool = False,
     target: str | None = None,
     preset: str | None = None,
+    clean_staging: bool = True,
 ) -> int:
     """Clean configured targets according to .gitignore rules or openLCA cleanup."""
     if target and preset:
@@ -181,6 +203,9 @@ def run_clean(
     if targets is None:
         targets = ["workspace"]
 
+    skipped_staging = [name for name in targets if name in STAGING_TARGETS]
+    targets = _apply_staging_filter(targets, clean_staging=clean_staging)
+
     for name in targets:
         if name not in ALL_TARGET_NAMES:
             print(f"错误: 未知清理目标 [{name}]", file=sys.stderr)
@@ -192,12 +217,20 @@ def run_clean(
     if dry_run:
         print("模式: [演练模式] (只显示，不实际删除文件)")
     if preset:
-        print(f"preset: [{preset}] -> {', '.join(targets)}")
+        print(f"preset: [{preset}] -> {', '.join(targets) or '(none)'}")
     elif target:
-        print(f"目标: [{target}]")
+        print(f"目标: [{', '.join(targets) or target}]")
     else:
         print("目标: [workspace] (默认)")
+    if not clean_staging and skipped_staging:
+        print(f"skip staging: {', '.join(skipped_staging)}")
     print("=" * 60)
+
+    if not targets:
+        print("\n" + "=" * 60)
+        print("[OK] no remaining targets after skipping staging")
+        print("=" * 60)
+        return 0
 
     if not yes and not dry_run:
         confirm = input(
@@ -225,15 +258,21 @@ def run_clean(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="按目标清理 knowledge、workspace 或 openLCA 前景实体。")
-    parser.add_argument("--dry-run", action="store_true", help="演练模式，仅打印将要删除的文件/目录")
-    parser.add_argument("-y", "--yes", action="store_true", help="跳过二次确认，直接执行删除操作")
+    parser = argparse.ArgumentParser(
+        description="按目标清理 knowledge、inputs、workspace 或 openLCA 前景实体。"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="演练模式，仅打印将要删除的文件/目录"
+    )
+    parser.add_argument(
+        "-y", "--yes", action="store_true", help="跳过二次确认，直接执行删除操作"
+    )
     parser.add_argument(
         "-t",
         "--target",
         type=str,
         default=None,
-        help="单个清理目标: knowledge, workspace, openlca",
+        help="单个清理目标: knowledge, inputs, workspace, openlca",
     )
     parser.add_argument(
         "--preset",
@@ -242,6 +281,11 @@ def main() -> None:
         choices=sorted(CLEAN_PRESETS),
         help="预设清理序列: whole-lca 或 revise-lca",
     )
+    parser.add_argument(
+        "--no-staging",
+        action="store_true",
+        help="跳过 knowledge 与 inputs（GUI staging）清理",
+    )
     args = parser.parse_args()
     raise SystemExit(
         run_clean(
@@ -249,6 +293,7 @@ def main() -> None:
             yes=args.yes,
             target=args.target,
             preset=args.preset,
+            clean_staging=not args.no_staging,
         )
     )
 

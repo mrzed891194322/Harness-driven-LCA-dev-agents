@@ -74,22 +74,20 @@ def build_markdown_document_view(
         template_error = str(exc)
 
     anchor_prefix = f"{component_prefix}-heading"
-    source_state = gr.State(
-        value=document.source if document is not None else None
-    )
-    initial_segments = (
-        render_document_segments(
-            document,
-            anchor_prefix=anchor_prefix,
-            heading_levels=heading_levels,
+    source_state = gr.State(value=document.source if document is not None else None)
+    initial_segments: list[str] = (
+        list(
+            render_document_segments(
+                document,
+                anchor_prefix=anchor_prefix,
+                heading_levels=heading_levels,
+            )
         )
         if document is not None
-        else ()
+        else []
     )
     if template_error:
-        status_detail = (
-            f"⚠️ **{resolved_template_label}不可用**：{template_error}"
-        )
+        status_detail = f"⚠️ **{resolved_template_label}不可用**：{template_error}"
     elif document is not None and show_load_status:
         status_detail = render_document_status(
             document,
@@ -150,15 +148,12 @@ def build_markdown_document_view(
                                 else ""
                             ),
                             visible=index < len(initial_segments),
-                            elem_id=(
-                                f"{component_prefix}-markdown-{index + 1:02d}"
-                            ),
+                            elem_id=(f"{component_prefix}-markdown-{index + 1:02d}"),
                             elem_classes=["markdown-document-segment"],
                         )
                     )
-                    field_is_active = (
-                        document is not None
-                        and index < len(document.fields)
+                    field_is_active = document is not None and index < len(
+                        document.fields
                     )
                     inputs.append(
                         gr.Textbox(
@@ -169,7 +164,7 @@ def build_markdown_document_view(
                             max_lines=12,
                             value=(
                                 document.values[index]
-                                if field_is_active
+                                if document is not None and index < len(document.fields)
                                 else ""
                             ),
                             visible=field_is_active,
@@ -188,8 +183,7 @@ def build_markdown_document_view(
                         ),
                         visible=MAX_PLAN_INPUTS < len(initial_segments),
                         elem_id=(
-                            f"{component_prefix}-markdown-"
-                            f"{MAX_PLAN_INPUTS + 1:02d}"
+                            f"{component_prefix}-markdown-{MAX_PLAN_INPUTS + 1:02d}"
                         ),
                         elem_classes=["markdown-document-segment"],
                     )
@@ -226,8 +220,7 @@ def document_output_components(view: MarkdownDocumentView) -> list:
 def validate_document_view_pool(view: MarkdownDocumentView) -> None:
     if len(view.inputs) != MAX_PLAN_INPUTS:
         raise ValueError(
-            f"{view.document_label}输入框池必须包含 "
-            f"{MAX_PLAN_INPUTS} 个组件。"
+            f"{view.document_label}输入框池必须包含 {MAX_PLAN_INPUTS} 个组件。"
         )
     if len(view.markdowns) != MAX_PLAN_INPUTS + 1:
         raise ValueError(
@@ -278,9 +271,7 @@ def loaded_document_outputs(
     ]
     if view.show_load_status:
         if not source_label:
-            raise ValueError(
-                f"{view.document_label}启用加载状态时必须提供来源标签。"
-            )
+            raise ValueError(f"{view.document_label}启用加载状态时必须提供来源标签。")
         status_detail = render_document_status(
             document,
             source_label,
@@ -308,13 +299,9 @@ def cleared_document_outputs(
 ) -> tuple:
     """Clear a view without changing its wrapper's warning components."""
     markdown_updates = [
-        gr.update(value="", visible=False)
-        for _ in range(MAX_PLAN_INPUTS + 1)
+        gr.update(value="", visible=False) for _ in range(MAX_PLAN_INPUTS + 1)
     ]
-    hidden_fields = [
-        gr.update(value="", visible=False)
-        for _ in range(MAX_PLAN_INPUTS)
-    ]
+    hidden_fields = [gr.update(value="", visible=False) for _ in range(MAX_PLAN_INPUTS)]
     return (
         *markdown_updates,
         f"### {view.toc_title}\n\n*{toc_message}*",

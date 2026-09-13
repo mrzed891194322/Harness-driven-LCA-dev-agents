@@ -1,12 +1,16 @@
 from pathlib import Path
+from typing import Any
+
 import gradio as gr
-from ui.components.tab_terminal import build_tab_terminal
-from ui.components.tab_revise import build_tab_revise
-from ui.components.tab_plan import build_tab_plan
+import gradio.themes as gr_themes
+
 from ui.components.left_sidebar import build_left_sidebar
 from ui.components.tab_initial import build_tab_initial
 from ui.components.tab_lci import build_tab_lci
+from ui.components.tab_plan import build_tab_plan
 from ui.components.tab_result import build_tab_result
+from ui.components.tab_revise import build_tab_revise
+from ui.components.tab_terminal import build_tab_terminal
 from ui.events import bind_ui_events
 
 
@@ -21,13 +25,11 @@ def _font_css() -> str:
     )
 
 
-def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
-    theme = gr.themes.Soft(
-        primary_hue="teal",
-        secondary_hue="indigo",
-        neutral_hue="slate"
+def build_ui() -> tuple[gr.Blocks, Any, str, str]:
+    theme = gr_themes.Soft(
+        primary_hue="teal", secondary_hue="indigo", neutral_hue="slate"
     )
-    
+
     assets_dir = Path(__file__).resolve().parent / "assets"
     css_dir = assets_dir / "css"
     css_files = [
@@ -56,9 +58,7 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
         js_dir / "terminal_scroll.js",
     ]
     js_code = "\n\n".join(
-        js_file.read_text(encoding="utf-8")
-        for js_file in js_files
-        if js_file.exists()
+        js_file.read_text(encoding="utf-8") for js_file in js_files if js_file.exists()
     )
 
     with gr.Blocks(title="LCA Multi-agent UI") as demo:
@@ -68,9 +68,9 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                 # 🌲 生命周期评估多智能体系统 - 控制面板
                 ---
                 """,
-                elem_id="main-title"
+                elem_id="main-title",
             )
-            
+
         with gr.Row(elem_id="main-layout-row"):
             with gr.Column(scale=1, elem_id="left-sidebar"):
                 (
@@ -78,17 +78,34 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                     start_lca_btn,
                     ref_upload_file,
                 ) = build_left_sidebar()
-                
+
             with gr.Column(scale=2, elem_id="right-panel"):
                 with gr.Tabs(elem_id="right-tabs") as right_tabs:
-                    _, output_console, status, clear_btn, stop_btn = build_tab_terminal()
+                    _, output_console, status, clear_btn, stop_btn = (
+                        build_tab_terminal()
+                    )
 
                     (
                         _settings_init_tab,
                         init_check_btn,
                         init_check_status_agent,
                         init_check_status_openlca,
-                        agent_config,
+                        agent_dropdown,
+                        codex_model,
+                        claude_model,
+                        opencode_model,
+                        pi_model,
+                        opencode_refresh_btn,
+                        pi_refresh_btn,
+                        codex_probe_btn,
+                        claude_probe_btn,
+                        opencode_probe_btn,
+                        pi_probe_btn,
+                        codex_probe_status,
+                        claude_probe_status,
+                        opencode_probe_status,
+                        pi_probe_status,
+                        agent_save_btn,
                         init_openlca_port,
                         dev_gui_port,
                         dev_ports_save_btn,
@@ -157,7 +174,22 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
                 init_check_status_agent,
                 init_check_status_openlca,
             ],
-            agent_config=agent_config,
+            agent_dropdown=agent_dropdown,
+            codex_model=codex_model,
+            claude_model=claude_model,
+            opencode_model=opencode_model,
+            pi_model=pi_model,
+            opencode_refresh_btn=opencode_refresh_btn,
+            pi_refresh_btn=pi_refresh_btn,
+            codex_probe_btn=codex_probe_btn,
+            claude_probe_btn=claude_probe_btn,
+            opencode_probe_btn=opencode_probe_btn,
+            pi_probe_btn=pi_probe_btn,
+            codex_probe_status=codex_probe_status,
+            claude_probe_status=claude_probe_status,
+            opencode_probe_status=opencode_probe_status,
+            pi_probe_status=pi_probe_status,
+            agent_save_btn=agent_save_btn,
             init_openlca_port=init_openlca_port,
             dev_gui_port=dev_gui_port,
             dev_ports_save_btn=dev_ports_save_btn,
@@ -189,5 +221,5 @@ def build_ui() -> tuple[gr.Blocks, gr.themes.Soft, str, str]:
             plan_ready_state=plan_ready_state,
             improvement_ready_state=improvement_ready_state,
         )
-        
+
     return demo, theme, css, js_code

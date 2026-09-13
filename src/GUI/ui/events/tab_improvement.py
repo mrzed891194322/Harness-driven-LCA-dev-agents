@@ -2,22 +2,20 @@ from __future__ import annotations
 
 import gradio as gr
 
+from functions.lca_run import manifest_fingerprint, parse_lca_result
 from functions.plan_editor import (
     MAX_PLAN_INPUTS,
     PlanTemplate,
     PlanTemplateError,
     is_plan_ready,
-    parse_execution_plan_text,
     parse_execution_plan_template,
+    parse_execution_plan_text,
     read_uploaded_markdown,
-    split_execution_inputs,
-    validate_execution_inputs,
 )
-from functions.lca_run import manifest_fingerprint, parse_lca_result
+from functions.settings.check_status import execution_ready
 from functions.utils.executor.private_utils.executor_utils import (
     run_workflow_command_console,
 )
-from functions.settings.check_status import execution_ready
 from ui.components.render_mdfile import (
     MarkdownDocumentView,
     document_output_components,
@@ -68,9 +66,7 @@ def bind_tab_improvement_events(
             else bool(template.source.strip())
         )
         ready = feedback_ready and _baseline_available()
-        return ready, gr.update(
-            interactive=execution_ready(init_ok, ready)
-        )
+        return ready, gr.update(interactive=execution_ready(init_ok, ready))
 
     def _loaded_outputs(
         template: PlanTemplate,
@@ -96,9 +92,7 @@ def bind_tab_improvement_events(
         import config
 
         try:
-            template = parse_execution_plan_template(
-                config.REVISE_TEMPLATE_PATH
-            )
+            template = parse_execution_plan_template(config.REVISE_TEMPLATE_PATH)
         except (OSError, UnicodeError, ValueError) as exc:
             updates = (
                 *unavailable_document_outputs(
@@ -171,9 +165,7 @@ def bind_tab_improvement_events(
                 ),
             )
         except (OSError, UnicodeError, ValueError) as exc:
-            raise gr.Error(
-                f"上传改进方案失败，当前页面未改变：{exc}"
-            ) from exc
+            raise gr.Error(f"上传改进方案失败，当前页面未改变：{exc}") from exc
 
         return _loaded_outputs(
             template,
@@ -207,18 +199,16 @@ def bind_tab_improvement_events(
     )
 
     def prepare_revision_flow(*arguments):
+        *revision_values, source_text, _ref_upload = arguments
         if not _baseline_available():
-            raise gr.Error(
-                "revise-lca 需要现有 plan、manifest、LCI 和最终报告。"
-            )
-        try:
-            validate_execution_inputs(
-                arguments,
-                empty_message="当前没有可执行的改进模板或上传方案。",
-                fields_required_message="改进意见至少需要填写一个字段。",
-            )
-        except ValueError as exc:
-            raise gr.Error(str(exc)) from exc
+            raise gr.Error("revise-lca 需要现有 plan、manifest、LCI 和最终报告。")
+        if not source_text or not source_text.strip():
+            raise gr.Error("当前没有可执行的改进模板或上传方案。")
+        template = parse_execution_plan_text(source_text)
+        active_values = revision_values[: len(template.fields)]
+        if template.fields:
+            if not is_plan_ready(active_values):
+                raise gr.Error("改进意见至少需要填写一个字段。")
         return (
             "[System] 改进意见校验通过，开始执行前置清理与文件同步...\n",
             "Running",
@@ -234,7 +224,7 @@ def bind_tab_improvement_events(
         from functions.utils.process_manager import reset_stop
 
         reset_stop()
-        revision_values, source_text, ref_upload = split_execution_inputs(arguments)
+        *revision_values, source_text, ref_upload = arguments
         previous = manifest_fingerprint()
         latest_console = ""
         latest_status = "Running"
@@ -270,9 +260,7 @@ def bind_tab_improvement_events(
             )
             return
 
-        for latest_console, latest_status in run_workflow_command_console(
-            "revise-lca"
-        ):
+        for latest_console, latest_status in run_workflow_command_console("revise-lca"):
             yield (
                 latest_console,
                 latest_status,

@@ -93,9 +93,7 @@ _PLAN_TEXTBOX = re.compile(
 )
 _PLAN_TEXTBOX_MARKER = re.compile(r"<!--\s*PLAN_TEXTBOX\s*-->")
 _UNSUPPORTED_PLAN_INPUT = re.compile(r"<!--\s*/?PLAN_INPUT\b")
-_DOCUMENT_HEADING = re.compile(
-    r"(?m)^(?P<hashes>#{1,6})\s+(?P<title>.+?)\s*$"
-)
+_DOCUMENT_HEADING = re.compile(r"(?m)^(?P<hashes>#{1,6})\s+(?P<title>.+?)\s*$")
 
 
 def _parse_body(
@@ -137,13 +135,11 @@ def _parse_body(
         static_content = body[cursor : match.start()]
         if _PLAN_TEXTBOX_MARKER.search(static_content):
             raise PlanTemplateError(
-                f"模板 `{path}` 包含未连接完整“用户填写内容区”的 "
-                "`PLAN_TEXTBOX` 标记。"
+                f"模板 `{path}` 包含未连接完整“用户填写内容区”的 `PLAN_TEXTBOX` 标记。"
             )
         if _PLAN_TEXTBOX_MARKER.search(match.group("value")):
             raise PlanTemplateError(
-                f"模板 `{path}` 的第 {position} 个 `PLAN_TEXTBOX` "
-                "缺少闭合分隔线。"
+                f"模板 `{path}` 的第 {position} 个 `PLAN_TEXTBOX` 缺少闭合分隔线。"
             )
         parts.append(PlanMarkdownPart(static_content))
 
@@ -164,8 +160,7 @@ def _parse_body(
     trailing_content = body[cursor:]
     if _PLAN_TEXTBOX_MARKER.search(trailing_content):
         raise PlanTemplateError(
-            f"模板 `{path}` 包含未连接完整“用户填写内容区”的 "
-            "`PLAN_TEXTBOX` 标记。"
+            f"模板 `{path}` 包含未连接完整“用户填写内容区”的 `PLAN_TEXTBOX` 标记。"
         )
     parts.append(PlanMarkdownPart(trailing_content))
     return tuple(parts), tuple(fields), tuple(values)
@@ -232,9 +227,7 @@ parse_markdown_document_file = parse_execution_plan_template
 
 
 def _markdown_parts(template: PlanTemplate) -> tuple[PlanMarkdownPart, ...]:
-    return tuple(
-        part for part in template.parts if isinstance(part, PlanMarkdownPart)
-    )
+    return tuple(part for part in template.parts if isinstance(part, PlanMarkdownPart))
 
 
 def render_template_parts(template: PlanTemplate) -> tuple[PlanPart, ...]:
@@ -259,7 +252,7 @@ def render_document_segments(
         heading_index += 1
         return (
             f'<a id="{anchor_prefix}-{heading_index}"></a>\n\n'
-            f'{match.group("hashes")} {match.group("title")}'
+            f"{match.group('hashes')} {match.group('title')}"
         )
 
     return tuple(
@@ -426,8 +419,7 @@ def _value_for_part(part: PlanInputPart, value: Any) -> str:
     indent = indent_match.group("indent") if indent_match else ""
     if text:
         indented = "\n".join(
-            f"{indent}{line}" if line else ""
-            for line in text.splitlines()
+            f"{indent}{line}" if line else "" for line in text.splitlines()
         )
         value_region = f"\n{indented}\n\n"
     else:
@@ -451,9 +443,7 @@ def serialize_execution_plan(
         if isinstance(part, PlanMarkdownPart):
             chunks.append(part.content)
         else:
-            chunks.append(
-                _value_for_part(part, value_map[part.field.field_id])
-            )
+            chunks.append(_value_for_part(part, value_map[part.field.field_id]))
     return f"{parsed.front_matter}{''.join(chunks)}"
 
 
@@ -475,36 +465,10 @@ def is_plan_ready(values: str | Mapping[str, Any] | Sequence[Any] | None) -> boo
     if isinstance(values, str):
         return bool(values.strip())
     if isinstance(values, Mapping):
-        return any(value is not None and str(value).strip() for value in values.values())
+        return any(
+            value is not None and str(value).strip() for value in values.values()
+        )
     return any(value is not None and str(value).strip() for value in values)
-
-
-def split_execution_inputs(
-    arguments: Sequence[object],
-) -> tuple[list[object], str, object]:
-    """Split GUI run inputs into field values, staged source text, and ref upload."""
-    if len(arguments) < 2:
-        raise ValueError("执行输入参数不足。")
-    *field_values, source_text, ref_upload = arguments
-    normalized_source = "" if source_text is None else str(source_text)
-    return list(field_values), normalized_source, ref_upload
-
-
-def validate_execution_inputs(
-    arguments: Sequence[object],
-    *,
-    empty_message: str,
-    fields_required_message: str,
-) -> tuple[list[object], str, object]:
-    """Validate staged document inputs from a GUI execution click."""
-    field_values, source_text, ref_upload = split_execution_inputs(arguments)
-    if not source_text.strip():
-        raise ValueError(empty_message)
-    template = parse_execution_plan_text(source_text)
-    active_values = field_values[: len(template.fields)]
-    if template.fields and not is_plan_ready(active_values):
-        raise ValueError(fields_required_message)
-    return field_values, source_text, ref_upload
 
 
 def read_uploaded_markdown(

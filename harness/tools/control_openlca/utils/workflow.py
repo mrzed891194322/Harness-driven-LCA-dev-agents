@@ -5,11 +5,13 @@ import json
 import os
 import time
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, cast
 
 import olca_schema
+import requests
 
 from .connection import (
     LONG_REQUEST_TIMEOUT,
@@ -19,7 +21,9 @@ from .connection import (
     is_transport_error,
 )
 from .entity import find_entity
+from .protocols import CalculationResult, OlcaDescriptor, OpenLcaClient
 
+PRODUCT_SYSTEM_SLOW_RETRIES = 3
 
 ENTITY_IMPORT_ORDER: tuple[str, ...] = (
     "UnitGroup",
@@ -49,7 +53,7 @@ ALLOCATION_TYPES: dict[str, Any] = {
 
 def utc_now() -> str:
     """Return an RFC 3339 UTC timestamp."""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def sha256_file(path: Path) -> str:
@@ -114,9 +118,7 @@ def load_lci_inventory(json_dir: Path) -> tuple[list[dict[str, Any]], list[str]]
         context = data.get("@context")
         expected_type = LCI_ENTITY_DIRECTORIES[path.parent.name]
         if context != JSON_LD_CONTEXT:
-            errors.append(
-                f"{relative_path}: @context must be {JSON_LD_CONTEXT!r}"
-            )
+            errors.append(f"{relative_path}: @context must be {JSON_LD_CONTEXT!r}")
             continue
         if entity_type != expected_type:
             errors.append(
@@ -164,9 +166,7 @@ def validate_lci_directory(json_dir: Path) -> dict[str, Any]:
     """Return a deterministic, offline Stage 03/04 LCI validation result."""
     inventory, errors = load_lci_inventory(json_dir)
     counts = {
-        entity_type: sum(
-            1 for item in inventory if item["entity_type"] == entity_type
-        )
+        entity_type: sum(1 for item in inventory if item["entity_type"] == entity_type)
         for entity_type in LCI_ENTITY_DIRECTORIES.values()
     }
     required_missing = [
@@ -241,9 +241,8 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                     "'quantitativeReference'; use boolean "
                     "'isQuantitativeReference'"
                 )
-            if (
-                "isQuantitativeReference" in exchange
-                and not isinstance(exchange["isQuantitativeReference"], bool)
+            if "isQuantitativeReference" in exchange and not isinstance(
+                exchange["isQuantitativeReference"], bool
             ):
                 errors.append(
                     f"{item['path']}: exchanges[{index}].isQuantitativeReference "
@@ -288,9 +287,7 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
             flow = exchange.get("flow")
             flow_id = flow.get("@id") if isinstance(flow, dict) else None
             provider = exchange.get("defaultProvider")
-            provider_id = (
-                provider.get("@id") if isinstance(provider, dict) else None
-            )
+            provider_id = provider.get("@id") if isinstance(provider, dict) else None
             if flow_id not in foreground_flow_ids:
                 continue
             if not provider_id:
@@ -299,7 +296,7 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                     f"{flow_id} requires defaultProvider"
                 )
                 continue
-            if provider.get("@type") != "Process":
+            if isinstance(provider, dict) and provider.get("@type") != "Process":
                 errors.append(
                     f"{item['path']}: exchanges[{index}].defaultProvider must "
                     "reference @type Process"
@@ -321,9 +318,7 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                 f"{item['path']}: linkingMode must be explicitly set to 'auto'"
             )
         if data.get("preferDefaultProviders") is not True:
-            errors.append(
-                f"{item['path']}: preferDefaultProviders must be true"
-            )
+            errors.append(f"{item['path']}: preferDefaultProviders must be true")
         ref_process = data.get("refProcess")
         ref_process_id = (
             ref_process.get("@id") if isinstance(ref_process, dict) else None
@@ -356,13 +351,9 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                     f"{item['path']}: expectedProcessIds must include refProcess"
                 )
         if "processes" in data:
-            errors.append(
-                f"{item['path']}: auto linking must not provide processes"
-            )
+            errors.append(f"{item['path']}: auto linking must not provide processes")
         if "processLinks" in data:
-            errors.append(
-                f"{item['path']}: auto linking must not provide processLinks"
-            )
+            errors.append(f"{item['path']}: auto linking must not provide processLinks")
     return errors
 
 
@@ -433,7 +424,7 @@ def _provider_requirements(
 
 
 def _provider_checks(
-    client: object,
+    client: OpenLcaClient,
     inventory: list[dict[str, Any]],
     database_records: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -444,6 +435,7 @@ def _provider_checks(
     }
     checks: list[dict[str, Any]] = []
     errors: list[str] = []
+    provider_cache: dict[str, Any] = {}
     for requirement in _provider_requirements(inventory):
         provider_id = requirement["provider_id"]
         descriptor = descriptor_by_id.get(provider_id)
@@ -463,7 +455,11 @@ def _provider_checks(
             checks.append(check)
             continue
         try:
-            provider = client.get(olca_schema.Process, provider_id)
+            if provider_id not in provider_cache:
+                provider_cache[provider_id] = client.get(
+                    olca_schema.Process, provider_id
+                )
+            provider = provider_cache[provider_id]
         except Exception as exc:
             errors.append(
                 f"{requirement['source_path']}: cannot read background provider "
@@ -480,16 +476,24 @@ def _provider_checks(
             continue
         location = _ref_record(getattr(provider, "location", None))
         check["location"] = location
+        check["provider_content_hash"] = stable_hash(provider.to_dict())
         output_flow_ids = sorted(
-            {
+            flow_id
+            for exchange in list(getattr(provider, "exchanges", None) or [])
+            if getattr(exchange, "is_input", None) is not True
+            for flow_id in [
                 getattr(getattr(exchange, "flow", None), "id", None)
-                for exchange in list(getattr(provider, "exchanges", None) or [])
-                if getattr(exchange, "is_input", None) is not True
-                and getattr(getattr(exchange, "flow", None), "id", None)
-            }
+            ]
+            if flow_id is not None
         )
-        check["output_flow_ids"] = output_flow_ids
+        check["output_flow_count"] = len(output_flow_ids)
         check["output_flow_match"] = requirement["flow_id"] in output_flow_ids
+        check["matched_flow_id"] = (
+            requirement["flow_id"] if check["output_flow_match"] else None
+        )
+        check["diagnostic_flow_ids"] = (
+            [] if check["output_flow_match"] else output_flow_ids[:10]
+        )
         if not check["output_flow_match"]:
             errors.append(
                 f"{requirement['source_path']}: provider {provider_id} does not "
@@ -513,11 +517,11 @@ def _provider_checks(
 
 
 def _database_snapshot(
-    client: object,
+    client: OpenLcaClient,
     target_category: str,
-) -> tuple[list[dict[str, Any]], list[tuple[str, object]]]:
+) -> tuple[list[dict[str, Any]], list[tuple[str, OlcaDescriptor]]]:
     all_records: list[dict[str, Any]] = []
-    target_descriptors: list[tuple[str, object]] = []
+    target_descriptors: list[tuple[str, OlcaDescriptor]] = []
     for entity_type in ENTITY_DELETE_ORDER:
         model_type = ENTITY_TYPES[entity_type]
         descriptors = list(client.get_descriptors(model_type) or [])
@@ -556,8 +560,8 @@ def _inspect_import(
     lci_dir: str | Path,
     target_category: str,
     database_name: str | None = None,
-    client: object | None = None,
-) -> tuple[dict[str, Any], list[dict[str, Any]], list[tuple[str, object]]]:
+    client: OpenLcaClient | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[tuple[str, OlcaDescriptor]]]:
     endpoint = build_endpoint(host, port)
     category = target_category.strip()
     if not category:
@@ -611,7 +615,9 @@ def _inspect_import(
     except Exception as exc:
         if owns_client:
             close_ipc_client(ipc_client)
-        raise RuntimeError(f"Failed to inspect active openLCA database at {endpoint}: {exc}") from exc
+        raise RuntimeError(
+            f"Failed to inspect active openLCA database at {endpoint}: {exc}"
+        ) from exc
 
     planned_entities = [
         {
@@ -628,9 +634,7 @@ def _inspect_import(
         {**_descriptor_record(entity_type, descriptor), "action": "delete"}
         for entity_type, descriptor in target_descriptors
     ]
-    overwrite_scope.sort(
-        key=lambda item: (item["entity_type"], str(item["id"] or ""))
-    )
+    overwrite_scope.sort(key=lambda item: (item["entity_type"], str(item["id"] or "")))
     provider_checks, provider_errors = _provider_checks(
         ipc_client,
         inventory,
@@ -748,7 +752,7 @@ def preflight_import_lci(
     lci_dir: str | Path,
     target_category: str,
     database_name: str | None = None,
-    client: object | None = None,
+    client: OpenLcaClient | None = None,
     operation_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Inspect an LCI import without calling openLCA put or delete operations."""
@@ -780,8 +784,55 @@ def _deserialize_entity(item: dict[str, Any], target_category: str) -> object:
     return entity
 
 
+def _retry_on_read_timeout(callable_fn):
+    last: requests.Timeout | None = None
+    for attempt in range(PRODUCT_SYSTEM_SLOW_RETRIES):
+        try:
+            return callable_fn()
+        except requests.Timeout as exc:
+            last = exc
+            if attempt + 1 >= PRODUCT_SYSTEM_SLOW_RETRIES:
+                raise
+    if last is not None:
+        raise last
+    raise RuntimeError("Product System retry loop exhausted without result")
+
+
+def _load_product_system_with_retries(
+    client: OpenLcaClient, system_id: str
+) -> olca_schema.ProductSystem | None:
+    try:
+        return _retry_on_read_timeout(
+            lambda: client.get(olca_schema.ProductSystem, system_id)
+        )
+    except requests.Timeout:
+        return None
+
+
+def _apply_generated_product_system_fields(
+    entity: olca_schema.ProductSystem,
+    generated: olca_schema.ProductSystem,
+) -> None:
+    for field in ("processes", "process_links"):
+        value = getattr(generated, field, None)
+        if value is not None:
+            setattr(entity, field, value)
+    for field in (
+        "ref_exchange",
+        "ref_process",
+        "target_amount",
+        "target_flow_property",
+        "target_unit",
+    ):
+        if getattr(entity, field, None) is not None:
+            continue
+        value = getattr(generated, field, None)
+        if value is not None:
+            setattr(entity, field, value)
+
+
 def _put_product_system(
-    client: object,
+    client: OpenLcaClient,
     entity: olca_schema.ProductSystem,
     source_data: dict[str, Any],
 ) -> object:
@@ -795,6 +846,10 @@ def _put_product_system(
     if ref_process is None or not getattr(ref_process, "id", None):
         raise ValueError("ProductSystem requires refProcess for automatic linking")
 
+    declared_id = getattr(entity, "id", None)
+    if not isinstance(declared_id, str) or not declared_id.strip():
+        raise ValueError("ProductSystem requires a declared UUID")
+
     prefer_defaults = source_data.get("preferDefaultProviders", True)
     provider_linking = (
         olca_schema.ProviderLinking.PREFER_DEFAULTS
@@ -806,49 +861,60 @@ def _put_product_system(
         provider_linking=provider_linking,
     )
 
-    generated_ref = client.create_product_system(ref_process, config)
-    generated_id = getattr(generated_ref, "id", None)
-    if not generated_id:
-        raise RuntimeError("IPC Server did not create an auto-linked ProductSystem")
+    generated_ref: object | None = None
+    generated_id: str | None = None
+    generated: olca_schema.ProductSystem | None = None
 
     try:
-        generated = client.get(olca_schema.ProductSystem, generated_id)
-        if generated is None:
-            raise RuntimeError(
-                f"IPC Server could not read generated ProductSystem {generated_id}"
+        generated_ref = _retry_on_read_timeout(
+            lambda: client.create_product_system(ref_process, config)
+        )
+        generated_id = getattr(generated_ref, "id", None)
+    except requests.Timeout:
+        generated = _load_product_system_with_retries(client, declared_id)
+        if generated is None or not list(getattr(generated, "processes", None) or []):
+            raise
+        generated_id = declared_id
+    else:
+        if not generated_id:
+            raise RuntimeError("IPC Server did not create an auto-linked ProductSystem")
+        try:
+            generated = _retry_on_read_timeout(
+                lambda: client.get(olca_schema.ProductSystem, generated_id)
             )
+        except requests.Timeout:
+            generated = _load_product_system_with_retries(client, declared_id)
+            if generated is not None:
+                generated_id = declared_id
+        if generated is None:
+            recovered = _load_product_system_with_retries(client, declared_id)
+            if recovered is not None:
+                generated = recovered
+                generated_id = declared_id
+            else:
+                raise RuntimeError(
+                    f"IPC Server could not read generated ProductSystem {generated_id}"
+                )
 
-        for field in ("processes", "process_links"):
-            value = getattr(generated, field, None)
-            if value is not None:
-                setattr(entity, field, value)
-        for field in (
-            "ref_exchange",
-            "ref_process",
-            "target_amount",
-            "target_flow_property",
-            "target_unit",
-        ):
-            if getattr(entity, field, None) is not None:
-                continue
-            value = getattr(generated, field, None)
-            if value is not None:
-                setattr(entity, field, value)
+    assert generated is not None
+    _apply_generated_product_system_fields(entity, generated)
 
-        reference = client.put(entity)
+    try:
+        reference = _retry_on_read_timeout(lambda: client.put(entity))
         if reference is None:
             raise RuntimeError("IPC Server did not return an entity reference")
     except Exception as exc:
-        try:
-            client.delete(generated_ref)
-        except Exception as cleanup_exc:
-            raise RuntimeError(
-                f"{exc}; additionally could not delete temporary ProductSystem "
-                f"{generated_id}: {cleanup_exc}"
-            ) from exc
+        if generated_ref is not None and generated_id != declared_id:
+            try:
+                client.delete(generated_ref)
+            except Exception as cleanup_exc:
+                raise RuntimeError(
+                    f"{exc}; additionally could not delete temporary ProductSystem "
+                    f"{generated_id}: {cleanup_exc}"
+                ) from exc
         raise
 
-    if generated_id != getattr(reference, "id", None):
+    if generated_ref is not None and generated_id != getattr(reference, "id", None):
         try:
             client.delete(generated_ref)
         except Exception as exc:
@@ -856,13 +922,14 @@ def _put_product_system(
                 f"saved ProductSystem but could not delete temporary system "
                 f"{generated_id}: {exc}"
             ) from exc
+
     return reference
 
 
 def _execute_import(
-    client: object,
+    client: OpenLcaClient,
     inventory: list[dict[str, Any]],
-    target_descriptors: list[tuple[str, object]],
+    target_descriptors: list[tuple[str, OlcaDescriptor]],
     target_category: str,
     emit: Callable[[str], None] | None = None,
     on_progress: (
@@ -951,7 +1018,7 @@ def _execute_import(
             )
         except Exception as exc:
             failed += 1
-            transport_failed = is_transport_error(exc)
+            transport_failed = isinstance(exc, requests.ConnectionError)
             message = f"import {item['path']}: {exc}"
             errors.append(message)
             output(f"[错误] {message}")
@@ -1009,8 +1076,7 @@ def get_import_operation(operation_dir: Path) -> dict[str, Any]:
         "version": "1.0",
         "status": (
             status
-            if status
-            in {"running", "success", "partial_failure", "failed", "rejected"}
+            if status in {"running", "success", "partial_failure", "failed", "rejected"}
             else "indeterminate"
         ),
         "report": report,
@@ -1053,7 +1119,7 @@ def import_lci(
     lci_dir: str | Path,
     target_category: str,
     database_name: str | None = None,
-    client: object | None = None,
+    client: OpenLcaClient | None = None,
     operation_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Import LCI after re-preflighting the requested database, category, and LCI path."""
@@ -1088,7 +1154,7 @@ def import_lci(
                     f"last_scope={last_scope}",
                 ],
             )
-            _write_json_atomic(operation_path, report)
+            _write_json_atomic(_current_operation_path(operation_dir), report)
             return report
 
     owns_client = client is None
@@ -1169,9 +1235,7 @@ def import_lci(
             "lci_dir": resolved_lci,
             "started_at": started_at,
             "ended_at": ended_at,
-            "duration_ms": max(
-                0, round((time.monotonic() - started_clock) * 1000)
-            ),
+            "duration_ms": max(0, round((time.monotonic() - started_clock) * 1000)),
             "success_count": imported,
             "failed_count": failed,
             "deleted_count": deleted,
@@ -1213,7 +1277,9 @@ def import_lci(
         target_category=target_category,
         on_progress=persist_progress,
     )
-    status = "success" if failed == 0 and imported == len(inventory) else "partial_failure"
+    status = (
+        "success" if failed == 0 and imported == len(inventory) else "partial_failure"
+    )
     if imported == 0 and failed:
         status = "failed"
     report = report_value(
@@ -1233,7 +1299,7 @@ def import_lci(
 
 
 def legacy_import_lci(
-    client: object,
+    client: OpenLcaClient,
     json_dir: Path,
     target_category: str,
     emit: Callable[[str], None] = print,
@@ -1271,11 +1337,11 @@ def legacy_import_lci(
 
 
 def _legacy_target_descriptors(
-    client: object,
+    client: OpenLcaClient,
     target_category: str,
     emit: Callable[[str], None],
-) -> list[tuple[str, object]]:
-    descriptors_in_scope: list[tuple[str, object]] = []
+) -> list[tuple[str, OlcaDescriptor]]:
+    descriptors_in_scope: list[tuple[str, OlcaDescriptor]] = []
     for entity_type in ENTITY_DELETE_ORDER:
         try:
             descriptors = list(client.get_descriptors(ENTITY_TYPES[entity_type]) or [])
@@ -1293,7 +1359,7 @@ def _legacy_target_descriptors(
 
 
 def legacy_clear_category(
-    client: object,
+    client: OpenLcaClient,
     target_category: str,
     emit: Callable[[str], None] = print,
 ) -> dict[str, Any]:
@@ -1421,45 +1487,40 @@ def get_model_graph(
     host: str,
     port: int,
     product_system: str,
-    client: object | None = None,
+    client: OpenLcaClient | None = None,
     expected_process_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     endpoint = build_endpoint(host, port)
     owns_client = client is None
     ipc_client = client or create_ipc_client(host, port)
-    system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
-    if system is None:
-        result = {
-            "schema": "whole-lca/model-graph",
-            "version": "1.1",
-            "status": "failed",
-            "endpoint": endpoint,
-            "product_system": {"id": None, "name": product_system},
-            "nodes": [],
-            "edges": [],
-            "broken_links": [{"reason": "Product System was not found"}],
-            "disconnected_nodes": [],
-            "expected_process_ids": expected_process_ids or [],
-            "missing_expected_nodes": expected_process_ids or [],
-            "timestamp": utc_now(),
-            "error": f"Product System not found: {product_system}",
-        }
+    try:
+        system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
+        if system is None:
+            result = {
+                "schema": "whole-lca/model-graph",
+                "version": "1.1",
+                "status": "failed",
+                "endpoint": endpoint,
+                "product_system": {"id": None, "name": product_system},
+                "nodes": [],
+                "edges": [],
+                "broken_links": [{"reason": "Product System was not found"}],
+                "disconnected_nodes": [],
+                "expected_process_ids": expected_process_ids or [],
+                "missing_expected_nodes": expected_process_ids or [],
+                "timestamp": utc_now(),
+                "error": f"Product System not found: {product_system}",
+            }
+            return result
+        result = model_graph_from_product_system(
+            system,
+            endpoint,
+            expected_process_ids=expected_process_ids,
+        )
+        return result
+    finally:
         if owns_client:
             close_ipc_client(ipc_client)
-        return result
-    system_id = getattr(system, "id", None)
-    if system_id:
-        loaded = ipc_client.get(olca_schema.ProductSystem, system_id)
-        if loaded is not None:
-            system = loaded
-    result = model_graph_from_product_system(
-        system,
-        endpoint,
-        expected_process_ids=expected_process_ids,
-    )
-    if owns_client:
-        close_ipc_client(ipc_client)
-    return result
 
 
 def build_calculation_setup(
@@ -1489,10 +1550,10 @@ def build_calculation_setup(
         )
 
     setup = olca_schema.CalculationSetup()
-    setup.target = olca_schema.as_ref(target)
+    setup.target = olca_schema.as_ref(cast(Any, target))
     setup.amount = float(amount)
     if method is not None:
-        setup.impact_method = olca_schema.as_ref(method)
+        setup.impact_method = olca_schema.as_ref(cast(Any, method))
     if allocation_key:
         setup.allocation = ALLOCATION_TYPES[allocation_key]
     if regionalized:
@@ -1504,7 +1565,9 @@ def build_calculation_setup(
     return setup
 
 
-def calculate_handle(client: object, setup: olca_schema.CalculationSetup) -> object:
+def calculate_handle(
+    client: OpenLcaClient, setup: olca_schema.CalculationSetup
+) -> CalculationResult:
     """Start a calculation and wait for readiness; callers own disposal."""
     result = client.calculate(setup)
     if hasattr(result, "wait_until_ready"):
@@ -1522,7 +1585,7 @@ def calculate_product_system(
     regionalized: bool = False,
     costs: bool = False,
     parameters: dict[str, float] | None = None,
-    client: object | None = None,
+    client: OpenLcaClient | None = None,
 ) -> dict[str, Any]:
     endpoint = build_endpoint(host, port)
     owns_client = client is None
@@ -1531,8 +1594,13 @@ def calculate_product_system(
         port,
         timeout=LONG_REQUEST_TIMEOUT,
     )
-    system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
-    method = find_entity(ipc_client, olca_schema.ImpactMethod, impact_method)
+    try:
+        system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
+        method = find_entity(ipc_client, olca_schema.ImpactMethod, impact_method)
+    except Exception:
+        if owns_client:
+            close_ipc_client(ipc_client)
+        raise
     started_at = utc_now()
     base = {
         "schema": "whole-lca/raw-lcia-results",
@@ -1604,10 +1672,17 @@ def calculate_product_system(
     finally:
         if result is not None:
             try:
-                result.dispose()
+                from .guard import cleanup_budget
+
+                with cleanup_budget():
+                    result.dispose()
                 released = True
             except Exception as exc:
-                error = f"{error}; dispose failed: {exc}" if error else f"dispose failed: {exc}"
+                error = (
+                    f"{error}; dispose failed: {exc}"
+                    if error
+                    else f"dispose failed: {exc}"
+                )
                 status = "failed"
 
     calculation = {

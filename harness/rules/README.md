@@ -1,35 +1,34 @@
 # Agent 规则
 
-本目录是人读的行为说明，**不是运行时注入表**。执行/审查口径写在 `harness/workflows/*.yaml` 的委派提示词里。workflow 不要引用本目录路径。
+本目录是 LCA 运行 Agent 的行为约束。**由主编排按工作流 YAML 组装进任务输入**。YAML 只引用规则 ID，不内嵌规则正文。
 
 ## 三类
 
-| 目录 | 回答的问题 | 谁读 |
+| 目录 | 回答的问题 | 谁加载 |
 | --- | --- | --- |
-| [`project/`](project/) | 写边界、固定路径、只用 `uv` | OpenCode 全局 `instructions`；提示词信封也写「只写 workspace」 |
-| [`lca/`](lca/) | LCA 方法与资料口径（人读参考） | 写 YAML 提示词时可参考，agent 不按阶段自加载 |
-| [`tools/`](tools/) | 某个 MCP 怎么调（人读） | 需要的句子应并进 YAML；本文件可留作对照 |
+| [`project/`](project/) | 写边界、固定路径、只用 `uv`、审查只读 | 主 YAML `defaults.rules`；审查任务另绑 `reviewer_readonly` |
+| [`lca/`](lca/) | LCA 方法、资料来源策略 | 各 assignment 的 `rules` |
+| [`tools/`](tools/) | 某个 MCP 怎么调 | 工具注册项的 `rules`，随工具绑定到任务 |
 
-阶段产物与验收在 `harness/specs/`。阶段循环在 `harness/workflows/` YAML。主编排是 `src/scripts/lca_orchestrator/`。
+阶段产物、循环、停止条件在 `harness/specs/`。通用职责与 handoff 在 `harness/specs/public/references/workflow-runtime-spec.md`。
 
 ## spec vs rule
 
-是否绑定 Whole-LCA 某一阶段的进入、通过或停止（产物路径、验收）？
+- 改变任务目标、必须提交的内容或验收条件 → `harness/specs/`
+- 约束工作方式（写边界、数据来源、调用纪律）→ 本目录
+- 工具签名与参数 → `harness/tools/` 实现、MCP 发现结果和工具文档
 
-- 是 → `harness/specs/` 编号包 README
-- 否，但是约束 Agent 行为 → 把句子写进 YAML 提示词；本目录仅人读
-- 实现细节 → `harness/tools/` README
+不要在 YAML 中追加自然语言提示词来实现特殊要求。新增规则：写 Markdown、在主 YAML `registry.rules` 登记、绑定到 assignment。
 
 ## 如何加模块
 
 **新 MCP**
 
-1. 实现放 `harness/tools/<name>/`
-2. 可选新增 `harness/rules/tools/<name>.md`（人读）
-3. 把调用纪律写进需要它的 YAML assignment 提示词
-4. 在平台 config 注册 MCP
+1. 实现放 `harness/tools/<name>/`（外部 MCP 不必复制进仓库）
+2. 新增 `harness/rules/tools/<name>.md`（如需）
+3. 在 `LCA-main.yaml` 的 `registry.tools` 登记连接，并绑定到 assignment
 
 **新阶段**
 
-1. 加薄 spec README（输入/产物/验收）
-2. 在 workflow YAML 加循环步骤与提示词
+1. 加 spec 包（README + 角色任务文件）
+2. 在 YAML `stages` / `assignments` 增加引用

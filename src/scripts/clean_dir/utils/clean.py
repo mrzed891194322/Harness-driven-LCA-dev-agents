@@ -12,7 +12,7 @@ def parse_gitignore(gitignore_path: Path) -> tuple[list[str], list[str]]:
     if not gitignore_path.exists():
         return ignored_dirs, keep_patterns
 
-    with open(gitignore_path, "r", encoding="utf-8") as f:
+    with open(gitignore_path, encoding="utf-8") as f:
         for raw in f:
             line = raw.strip()
             if not line or line.startswith("#"):
@@ -89,7 +89,9 @@ def clean_ignored_dir(
 
         try:
             if dry_run:
-                is_empty = all(child in simulated_deleted for child in root_path.iterdir())
+                is_empty = all(
+                    child in simulated_deleted for child in root_path.iterdir()
+                )
             else:
                 is_empty = not any(root_path.iterdir())
         except Exception:

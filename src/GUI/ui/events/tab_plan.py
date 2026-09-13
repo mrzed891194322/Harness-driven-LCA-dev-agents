@@ -7,8 +7,8 @@ from functions.plan_editor import (
     PlanTemplate,
     PlanTemplateError,
     is_plan_ready,
-    parse_execution_plan_text,
     parse_execution_plan_template,
+    parse_execution_plan_text,
     read_uploaded_plan,
 )
 from functions.settings.check_status import execution_ready
@@ -47,9 +47,7 @@ def bind_tab_plan_events(
             if template.fields
             else bool(template.source.strip())
         )
-        return ready, gr.update(
-            interactive=execution_ready(init_ok, ready)
-        )
+        return ready, gr.update(interactive=execution_ready(init_ok, ready))
 
     def _loaded_document_outputs(
         template: PlanTemplate,
@@ -82,9 +80,7 @@ def bind_tab_plan_events(
         import config
 
         try:
-            template = parse_execution_plan_template(
-                config.PLAN_INPUT_TEMPLATE_PATH
-            )
+            template = parse_execution_plan_template(config.PLAN_INPUT_TEMPLATE_PATH)
         except (OSError, UnicodeError, ValueError) as exc:
             document_outputs = _default_error_outputs(str(exc))
         else:

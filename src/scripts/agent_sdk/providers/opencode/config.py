@@ -1,3 +1,0 @@
-NAME = "opencode"
-SDK_MODULE = "opencode_ai"
-ENV_KEYS = ("OPENCODE_BASE_URL", "OPENCODE_PROVIDER", "OPENCODE_MODEL")

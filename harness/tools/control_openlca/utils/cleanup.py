@@ -9,8 +9,15 @@ import olca_schema
 from harness.tools.control_openlca.utils.connection import (
     LONG_REQUEST_TIMEOUT,
     close_ipc_client,
-    connect_ipc,
+    create_ipc_client,
+    is_transport_error,
 )
+from harness.tools.control_openlca.utils.protocols import OlcaDescriptor, OpenLcaClient
+
+
+def connect_ipc(host, port, model_type=None, *, timeout=LONG_REQUEST_TIMEOUT):
+    """Service-safe connection: errors propagate instead of exiting the MCP process."""
+    return create_ipc_client(host, port, timeout=timeout)
 
 
 def is_in_project_category(category: str | None, project_name: str) -> bool:
@@ -20,11 +27,11 @@ def is_in_project_category(category: str | None, project_name: str) -> bool:
 
 
 def collect_entities(
-    client,
+    client: OpenLcaClient,
     project_name: str,
     model_types: list[type],
-) -> list[tuple[type, object]]:
-    entities: list[tuple[type, object]] = []
+) -> list[tuple[type, OlcaDescriptor]]:
+    entities: list[tuple[type, OlcaDescriptor]] = []
     for model_type in model_types:
         try:
             descriptors = client.get_descriptors(model_type)
@@ -44,8 +51,8 @@ def collect_entities(
 
 
 def delete_entities(
-    client,
-    entities: list[tuple[type, object]],
+    client: OpenLcaClient,
+    entities: list[tuple[type, OlcaDescriptor]],
     model_types: list[type],
 ) -> tuple[int, list[str]]:
     deleted_count = 0
@@ -60,6 +67,8 @@ def delete_entities(
                 errors.append(
                     f"Failed to delete {descriptor.name} ({descriptor.id}): {exc}"
                 )
+                if is_transport_error(exc):
+                    return deleted_count, errors
     return deleted_count, errors
 
 
@@ -74,7 +83,9 @@ def _model_types(*, include_supporting: bool) -> list[type]:
     return model_types
 
 
-def _serialize_entities(entities: list[tuple[type, object]]) -> list[dict[str, str]]:
+def _serialize_entities(
+    entities: list[tuple[type, OlcaDescriptor]],
+) -> list[dict[str, str]]:
     return [
         {
             "type": model_type.__name__,

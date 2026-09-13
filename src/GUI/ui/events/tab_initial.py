@@ -1,31 +1,25 @@
 import gradio as gr
+
 from functions.settings.check_status import (
     collect_initialization_statuses,
     execution_ready,
-    persist_agent_tab_and_check,
 )
 from functions.settings.settings import (
-    AGENT_ENV_FIELDS,
-    HARNESS_AGENTS,
-    exclusive_agent_checked,
-    load_agent_env_settings,
-    load_harness_agent,
+    load_gui_settings,
     load_port_settings,
-    resolve_selected_agent,
-    save_agent_env_settings,
+    save_gui_settings,
     save_port_settings,
 )
 from ui.components.tab_initial import (
-    PENDING_AGENT_TEST_STATUS,
-    agent_drawer_update,
-    agent_tab_body_updates,
-    agent_tab_button_update,
     init_check_status_update,
+    model_catalog_choices,
     pending_init_check_status_updates,
 )
 
 
-def _parse_openlca_port(value: object) -> int:
+def _parse_openlca_port(value: str | int | float | None) -> int:
+    if value is None:
+        raise ValueError("IPC 端口只能填写数字")
     try:
         port = int(value)
     except (TypeError, ValueError) as exc:
@@ -35,37 +29,18 @@ def _parse_openlca_port(value: object) -> int:
     return port
 
 
-def _ordered_field_keys(name: str) -> tuple[str, ...]:
-    return tuple(field.key for field in AGENT_ENV_FIELDS[name])
+def refresh_model_catalog(worker: str, current: object):
+    from scripts.agent_sdk.catalog import list_models
 
-
-def _flatten_field_keys() -> tuple[str, ...]:
-    keys: list[str] = []
-    for name in HARNESS_AGENTS:
-        keys.extend(_ordered_field_keys(name))
-    return tuple(keys)
-
-
-def _checked_map(*checked: object) -> dict[str, object]:
-    return {name: value for name, value in zip(HARNESS_AGENTS, checked, strict=True)}
-
-
-def _values_map(*field_values: object) -> dict[str, object]:
-    return {key: value for key, value in zip(_flatten_field_keys(), field_values, strict=True)}
-
-
-def _panel_fill_updates(loaded: dict[str, str]) -> tuple:
-    selected = loaded["agent"]
-    checks = [gr.update(value=(name == selected)) for name in HARNESS_AGENTS]
-    fields = [gr.update(value=loaded.get(key, "")) for key in _flatten_field_keys()]
-    statuses = [gr.update(value=PENDING_AGENT_TEST_STATUS) for _ in HARNESS_AGENTS]
-    return (
-        agent_drawer_update(hidden=False),
-        *[agent_tab_button_update(name, selected) for name in HARNESS_AGENTS],
-        *agent_tab_body_updates(selected),
-        *checks,
-        *fields,
-        *statuses,
+    current_value = str(current or "").strip()
+    ok, message, ids = list_models(worker)
+    if not ok:
+        gr.Warning(message)
+        return gr.update()
+    gr.Info(message)
+    return gr.update(
+        choices=model_catalog_choices(ids, current_value),
+        value=current_value,
     )
 
 
@@ -74,7 +49,22 @@ def bind_tab_initial_events(
     init_check_status_values: list[gr.Markdown],
     dev_ports_save_btn: gr.Button,
     ref_upload_file: gr.File,
-    agent_config: dict,
+    agent_dropdown: gr.Dropdown,
+    codex_model: gr.Textbox,
+    claude_model: gr.Textbox,
+    opencode_model: gr.Dropdown,
+    pi_model: gr.Dropdown,
+    opencode_refresh_btn: gr.Button,
+    pi_refresh_btn: gr.Button,
+    codex_probe_btn: gr.Button,
+    claude_probe_btn: gr.Button,
+    opencode_probe_btn: gr.Button,
+    pi_probe_btn: gr.Button,
+    codex_probe_status: gr.Markdown,
+    claude_probe_status: gr.Markdown,
+    opencode_probe_status: gr.Markdown,
+    pi_probe_status: gr.Markdown,
+    agent_save_btn: gr.Button,
     init_openlca_port: gr.Number,
     dev_gui_port: gr.Number,
     execute_lca_btn: gr.Button,
@@ -83,52 +73,25 @@ def bind_tab_initial_events(
     plan_ready_state: gr.State,
     improvement_ready_state: gr.State,
 ):
-    open_btn = agent_config["open_btn"]
-    panel = agent_config["panel"]
-    tab_btns = [agent_config["tab_btns"][name] for name in HARNESS_AGENTS]
-    bodies = [agent_config["bodies"][name] for name in HARNESS_AGENTS]
-    save_btn = agent_config["save_btn"]
-    close_btn = agent_config["close_btn"]
-    use_checks = [agent_config["use_checks"][name] for name in HARNESS_AGENTS]
-    field_inputs = [
-        agent_config["fields"][name][key]
-        for name in HARNESS_AGENTS
-        for key in _ordered_field_keys(name)
-    ]
-    test_btns = agent_config["test_btns"]
-    test_status = [agent_config["test_status"][name] for name in HARNESS_AGENTS]
-    panel_fill_outputs = [
-        panel,
-        *tab_btns,
-        *bodies,
-        *use_checks,
-        *field_inputs,
-        *test_status,
-    ]
-
     gate_outputs = [
         init_check_ok_state,
         execute_lca_btn,
         execute_improvement_btn,
     ]
     status_outputs = [*init_check_status_values]
-
-    def persist_openlca_port(openlca_port):
-        ports = load_port_settings()
-        save_port_settings(
-            gui_port=ports["gui_port"],
-            openlca_ipc_port=_parse_openlca_port(openlca_port),
-        )
+    agent_field_outputs = [
+        agent_dropdown,
+        codex_model,
+        claude_model,
+        opencode_model,
+        pi_model,
+    ]
 
     def _gate_updates(init_ok, plan_ready, improvement_ready):
         return (
             bool(init_ok),
-            gr.update(
-                interactive=execution_ready(init_ok, plan_ready)
-            ),
-            gr.update(
-                interactive=execution_ready(init_ok, improvement_ready)
-            ),
+            gr.update(interactive=execution_ready(init_ok, plan_ready)),
+            gr.update(interactive=execution_ready(init_ok, improvement_ready)),
         )
 
     def invalidate_init_gate(plan_ready, improvement_ready):
@@ -137,31 +100,96 @@ def bind_tab_initial_events(
             *pending_init_check_status_updates(),
         )
 
-    def persist_port_and_invalidate(
-        openlca_port,
-        plan_ready,
-        improvement_ready,
+    def _agent_field_values(settings):
+        models = dict(settings["models"])
+        return (
+            settings["agent"],
+            models.get("codex") or "",
+            models.get("claude") or "",
+            models.get("opencode") or "",
+            models.get("pi") or "",
+        )
+
+    def persist_selected_agent(agent, openlca_port):
+        save_gui_settings(agent=agent)
+        ports = load_port_settings()
+        save_port_settings(
+            gui_port=ports["gui_port"],
+            openlca_ipc_port=_parse_openlca_port(openlca_port),
+        )
+        return load_gui_settings()
+
+    def persist_agent_config(
+        agent,
+        codex_model_value,
+        claude_model_value,
+        opencode_model_value,
+        pi_model_value,
     ):
+        return save_gui_settings(
+            agent=agent,
+            models={
+                "codex": codex_model_value,
+                "claude": claude_model_value,
+                "opencode": opencode_model_value,
+                "pi": pi_model_value,
+            },
+        )
+
+    def switch_agent(agent, openlca_port, plan_ready, improvement_ready):
         try:
-            persist_openlca_port(openlca_port)
+            settings = persist_selected_agent(agent, openlca_port)
         except ValueError as exc:
             gr.Warning(str(exc))
-        return invalidate_init_gate(plan_ready, improvement_ready)
+            settings = load_gui_settings()
+            return (
+                *invalidate_init_gate(plan_ready, improvement_ready),
+                *_agent_field_values(settings),
+            )
+        return (
+            *invalidate_init_gate(plan_ready, improvement_ready),
+            *_agent_field_values(settings),
+        )
 
-    def run_init_check(
-        openlca_port,
+    def save_agent_config(
+        agent,
+        codex_model_value,
+        claude_model_value,
+        opencode_model_value,
+        pi_model_value,
         plan_ready,
         improvement_ready,
     ):
+        settings = persist_agent_config(
+            agent,
+            codex_model_value,
+            claude_model_value,
+            opencode_model_value,
+            pi_model_value,
+        )
+        gr.Info("模型已保存。")
+        return (
+            *invalidate_init_gate(plan_ready, improvement_ready),
+            *_agent_field_values(settings),
+        )
+
+    def persist_and_invalidate(agent, openlca_port, plan_ready, improvement_ready):
         try:
-            persist_openlca_port(openlca_port)
+            persist_selected_agent(agent, openlca_port)
+        except ValueError as exc:
+            gr.Warning(str(exc))
+            return invalidate_init_gate(plan_ready, improvement_ready)
+        return invalidate_init_gate(plan_ready, improvement_ready)
+
+    def run_init_check(agent, openlca_port, plan_ready, improvement_ready):
+        try:
+            persist_selected_agent(agent, openlca_port)
         except ValueError as exc:
             gr.Warning(str(exc))
             return (
                 *_gate_updates(False, plan_ready, improvement_ready),
                 *pending_init_check_status_updates(),
             )
-        agent = load_harness_agent()
         statuses = collect_initialization_statuses(agent)
         failed = [label for label, ok, _message in statuses if not ok]
         init_ok = not failed
@@ -179,11 +207,7 @@ def bind_tab_initial_events(
             ],
         )
 
-    def save_dev_ports(
-        gui_port,
-        plan_ready,
-        improvement_ready,
-    ):
+    def save_dev_ports(gui_port, plan_ready, improvement_ready):
         ports = load_port_settings()
         try:
             save_port_settings(
@@ -196,40 +220,35 @@ def bind_tab_initial_events(
         gr.Info("端口配置已保存；修改 GUI 端口后需重启界面方可生效。")
         return invalidate_init_gate(plan_ready, improvement_ready)
 
-    def open_agent_config():
-        return _panel_fill_updates(load_agent_env_settings())
+    def probe_worker(worker: str):
+        def _probe(model_value):
+            from scripts.agent_sdk.probe import probe
 
-    def save_agent_config(*args):
-        check_count = len(HARNESS_AGENTS)
-        checked = _checked_map(*args[:check_count])
-        values = _values_map(*args[check_count:-2])
-        plan_ready = args[-2]
-        improvement_ready = args[-1]
-        selected = resolve_selected_agent(checked, fallback=load_harness_agent())
-        save_agent_env_settings(values=values, agent=selected)
-        gr.Info(f"已保存 Agent 配置（{selected}）")
-        return (
-            agent_drawer_update(hidden=True),
-            gr.update(value=selected),
-            *invalidate_init_gate(plan_ready, improvement_ready),
-        )
+            ok, message = probe(worker, str(model_value or "").strip())
+            if ok:
+                gr.Info("连接成功")
+            else:
+                gr.Warning(message)
+            return init_check_status_update(ok, message)
 
-    def toggle_use_agent(clicked_name, *checked_values):
-        current = _checked_map(*checked_values)
-        selected = exclusive_agent_checked(clicked_name, current)
-        if all(bool(current[name]) is selected[name] for name in HARNESS_AGENTS):
-            return [gr.skip() for _ in HARNESS_AGENTS]
-        return [gr.update(value=selected[name]) for name in HARNESS_AGENTS]
+        _probe.__name__ = f"probe_{worker}"
+        return _probe
 
-    def test_agent_tab(name, *field_values):
-        keys = _ordered_field_keys(name)
-        values = {key: value for key, value in zip(keys, field_values, strict=True)}
-        _ok, message = persist_agent_tab_and_check(name, values)
-        return message
+    def refresh_worker(worker: str):
+        def _refresh(current):
+            return refresh_model_catalog(worker, current)
+
+        _refresh.__name__ = f"refresh_{worker}_models"
+        return _refresh
 
     init_check_btn.click(
         fn=run_init_check,
-        inputs=[init_openlca_port, plan_ready_state, improvement_ready_state],
+        inputs=[
+            agent_dropdown,
+            init_openlca_port,
+            plan_ready_state,
+            improvement_ready_state,
+        ],
         outputs=[*gate_outputs, *status_outputs],
     )
 
@@ -243,70 +262,60 @@ def bind_tab_initial_events(
         outputs=[*gate_outputs, *status_outputs],
     )
 
-    init_openlca_port.change(
-        fn=persist_port_and_invalidate,
-        inputs=[init_openlca_port, plan_ready_state, improvement_ready_state],
-        outputs=[*gate_outputs, *status_outputs],
-    )
-
-    open_btn.click(
-        fn=open_agent_config,
-        inputs=None,
-        outputs=panel_fill_outputs,
-        js="window.guiShowAgentConfigDrawer",
-        queue=False,
-    )
-
-    def show_agent_tab(clicked_name: str):
-        return (
-            *[agent_tab_button_update(name, clicked_name) for name in HARNESS_AGENTS],
-            *agent_tab_body_updates(clicked_name),
-        )
-
-    for name in HARNESS_AGENTS:
-        agent_config["tab_btns"][name].click(
-            fn=lambda clicked=name: show_agent_tab(clicked),
-            inputs=None,
-            outputs=[*tab_btns, *bodies],
-            queue=False,
-        )
-
-    save_btn.click(
-        fn=save_agent_config,
+    agent_dropdown.change(
+        fn=switch_agent,
         inputs=[
-            *use_checks,
-            *field_inputs,
+            agent_dropdown,
+            init_openlca_port,
             plan_ready_state,
             improvement_ready_state,
         ],
-        outputs=[panel, open_btn, *gate_outputs, *status_outputs],
-        js="window.guiHideAgentConfigDrawer",
-        queue=False,
+        outputs=[*gate_outputs, *status_outputs, *agent_field_outputs],
+    )
+    agent_save_btn.click(
+        fn=save_agent_config,
+        inputs=[
+            agent_dropdown,
+            codex_model,
+            claude_model,
+            opencode_model,
+            pi_model,
+            plan_ready_state,
+            improvement_ready_state,
+        ],
+        outputs=[*gate_outputs, *status_outputs, *agent_field_outputs],
+    )
+    init_openlca_port.change(
+        fn=persist_and_invalidate,
+        inputs=[
+            agent_dropdown,
+            init_openlca_port,
+            plan_ready_state,
+            improvement_ready_state,
+        ],
+        outputs=[*gate_outputs, *status_outputs],
     )
 
-    close_btn.click(
-        fn=lambda: agent_drawer_update(hidden=True),
-        inputs=None,
-        outputs=[panel],
-        js="window.guiHideAgentConfigDrawer",
-        queue=False,
-    )
-
-    for name, checkbox in zip(HARNESS_AGENTS, use_checks, strict=True):
-        checkbox.change(
-            fn=lambda *values, clicked=name: toggle_use_agent(clicked, *values),
-            inputs=use_checks,
-            outputs=use_checks,
-            queue=False,
+    for worker, button, model_box, status in (
+        ("codex", codex_probe_btn, codex_model, codex_probe_status),
+        ("claude", claude_probe_btn, claude_model, claude_probe_status),
+        ("opencode", opencode_probe_btn, opencode_model, opencode_probe_status),
+        ("pi", pi_probe_btn, pi_model, pi_probe_status),
+    ):
+        button.click(
+            fn=probe_worker(worker),
+            inputs=[model_box],
+            outputs=[status],
         )
 
-    for name in HARNESS_AGENTS:
-        keys = _ordered_field_keys(name)
-        tab_fields = [agent_config["fields"][name][key] for key in keys]
-        test_btns[name].click(
-            fn=lambda *values, agent_name=name: test_agent_tab(agent_name, *values),
-            inputs=tab_fields,
-            outputs=[agent_config["test_status"][name]],
+    for worker, button, model_box in (
+        ("opencode", opencode_refresh_btn, opencode_model),
+        ("pi", pi_refresh_btn, pi_model),
+    ):
+        button.click(
+            fn=refresh_worker(worker),
+            inputs=[model_box],
+            outputs=[model_box],
         )
 
     for event in (ref_upload_file.upload, ref_upload_file.delete):

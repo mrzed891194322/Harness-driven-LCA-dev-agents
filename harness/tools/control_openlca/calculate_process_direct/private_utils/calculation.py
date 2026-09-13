@@ -1,12 +1,16 @@
 import sys
+
 import olca_schema
 
-def run_calculation(client, target, method, amount, allocation_type, regionalized, costs, param_redefs):
+
+def run_calculation(
+    client, target, method, amount, allocation_type, regionalized, costs, param_redefs
+):
     print("正在配置 Direct Calculation 设置...")
     setup = olca_schema.CalculationSetup()
     setup.target = olca_schema.as_ref(target)
     setup.amount = amount
-    
+
     if method:
         setup.impact_method = olca_schema.as_ref(method)
     if allocation_type:
@@ -21,11 +25,11 @@ def run_calculation(client, target, method, amount, allocation_type, regionalize
     print("正在启动 openLCA 过程直接计算，请稍候...")
     try:
         result = client.calculate(setup)
-        
+
         # 确保计算完成
         if hasattr(result, "wait_until_ready"):
             result.wait_until_ready()
-            
+
         print("计算完成。")
         return result
     except Exception as e:

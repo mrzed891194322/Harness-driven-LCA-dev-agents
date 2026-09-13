@@ -32,8 +32,8 @@
   已校验计划、按所选 Agent 运行 `whole-lca`，并统一解析 whole-lca/revise-lca manifest，
   在结果 Tab 展示报告并提供下载。
 
-修改 UI 或事件代码后，必须从仓库根目录运行 `src/test` 回归（GUI 为构建冒烟）：
+修改 UI 或事件代码后，必须从仓库根目录运行 `src/tests/gui` 回归（GUI 为构建冒烟）：
 
 ```bash
-uv run pytest src/test -v
+uv run pytest src/tests/gui -v
 ```

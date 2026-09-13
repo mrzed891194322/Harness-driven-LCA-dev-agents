@@ -1,11 +1,12 @@
 from pathlib import Path
 
-
 PROJECT_ROOT = next(
     parent
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
+
+STAGING_TARGETS = ("knowledge", "inputs")
 
 CLEAN_TARGETS = [
     {
@@ -16,17 +17,23 @@ CLEAN_TARGETS = [
         "keep_patterns": [".gitignore", "README.md"],
     },
     {
+        "name": "inputs",
+        "path": PROJECT_ROOT / "workspace" / "inputs",
+        "clean_root_files": True,
+        "keep_patterns": ["README.md"],
+    },
+    {
         "name": "workspace",
         "path": PROJECT_ROOT / "workspace",
         "gitignore": PROJECT_ROOT / "workspace" / ".gitignore",
-        # inputs/ only holds plan.md and revise.md; keep it across runs.
+        # memory/outputs/tmp only; plan.md/revise.md are the inputs target.
         "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
         "keep_patterns": ["**/README.md"],
     },
 ]
 
 CLEAN_PRESETS: dict[str, list[str]] = {
-    "whole-lca": ["knowledge", "workspace", "openlca"],
+    "whole-lca": ["knowledge", "inputs", "workspace", "openlca"],
     "revise-lca": ["knowledge", "openlca"],
 }
 

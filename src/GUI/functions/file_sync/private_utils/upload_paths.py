@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 
-def collect_upload_paths(file_item: Any) -> List[Path]:
+def collect_upload_paths(file_item: Any) -> list[Path]:
     """Resolve Gradio File upload payloads into local file paths."""
-    paths: List[Path] = []
+    paths: list[Path] = []
     if not file_item:
         return paths
 
@@ -22,10 +22,10 @@ def collect_upload_paths(file_item: Any) -> List[Path]:
             paths.append(Path(file_item["name"]))
         return paths
 
-    if hasattr(file_item, "path") and getattr(file_item, "path"):
+    if hasattr(file_item, "path") and file_item.path:
         paths.append(Path(file_item.path))
         return paths
-    if hasattr(file_item, "name") and getattr(file_item, "name"):
+    if hasattr(file_item, "name") and file_item.name:
         paths.append(Path(file_item.name))
         return paths
 

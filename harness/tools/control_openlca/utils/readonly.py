@@ -17,7 +17,6 @@ from .connection import (
     probe_ipc,
 )
 
-
 ENTITY_TYPES: dict[str, type] = {
     "Process": olca_schema.Process,
     "Flow": olca_schema.Flow,
@@ -56,9 +55,7 @@ def health_check(host: str, port: int) -> dict[str, Any]:
                 {
                     "attempt": attempt,
                     "ok": True,
-                    "duration_ms": max(
-                        0, round((time.monotonic() - started) * 1000)
-                    ),
+                    "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
                     "error_kind": None,
                     "error_type": None,
                     "error": None,
@@ -80,9 +77,7 @@ def health_check(host: str, port: int) -> dict[str, Any]:
                 {
                     "attempt": attempt,
                     "ok": False,
-                    "duration_ms": max(
-                        0, round((time.monotonic() - started) * 1000)
-                    ),
+                    "duration_ms": max(0, round((time.monotonic() - started) * 1000)),
                     "error_kind": connection_error_kind(exc),
                     "error_type": type(exc).__name__,
                     "error": str(exc),
@@ -188,6 +183,88 @@ def get_process_details(
     }
 
 
+def query_descriptors_batch(host, port, entity_type, searches, limit=20, offset=0):
+    if not isinstance(searches, list) or not 1 <= len(searches) <= 50:
+        raise ValueError("searches must contain 1..50 strings")
+    model_type = _validate_query(entity_type, "", limit, offset)
+    if any(not isinstance(s, str) for s in searches):
+        raise ValueError("searches must contain strings")
+    client = create_ipc_client(host, port, timeout=LONG_REQUEST_TIMEOUT)
+    try:
+        descriptors = list(client.get_descriptors(model_type) or [])
+        queries = []
+        for search in searches:
+            matches = [
+                d
+                for d in descriptors
+                if search.strip().casefold()
+                in str(getattr(d, "name", "") or "").casefold()
+            ]
+            page = matches[offset : offset + limit]
+            queries.append(
+                {
+                    "search": search,
+                    "total_matches": len(matches),
+                    "items": [_descriptor_to_dict(entity_type, d) for d in page],
+                    "has_more": offset + len(page) < len(matches),
+                    "next_offset": offset + len(page)
+                    if offset + len(page) < len(matches)
+                    else None,
+                }
+            )
+        return {
+            "ok": True,
+            "queries": queries,
+            "counts": {"descriptor_scans": 1, "queries": len(queries)},
+        }
+    finally:
+        close_ipc_client(client)
+
+
+def validate_providers_batch(host, port, requirements):
+    if not isinstance(requirements, list) or not 1 <= len(requirements) <= 200:
+        raise ValueError("requirements must contain 1..200 process/flow pairs")
+    client = create_ipc_client(host, port, timeout=LONG_REQUEST_TIMEOUT)
+    cache = {}
+    checks, errors = [], []
+    try:
+        for item in requirements:
+            process_id, flow_id = item["process_id"], item["flow_id"]
+            _validate_identifier("process_id", process_id)
+            _validate_identifier("flow_id", flow_id)
+            if process_id not in cache:
+                cache[process_id] = client.get(olca_schema.Process, process_id)
+            process = cache[process_id]
+            location = _reference_to_dict(getattr(process, "location", None))
+            outputs = {
+                getattr(getattr(e, "flow", None), "id", None)
+                for e in (getattr(process, "exchanges", None) or [])
+                if e.is_input is not True
+            }
+            expected = str(item.get("expected_geography") or "").casefold()
+            check = {
+                "process_id": process_id,
+                "flow_id": flow_id,
+                "exists": process is not None,
+                "output_flow_match": flow_id in outputs,
+                "location": location,
+                "geography_match": not expected
+                or expected in {str(v).casefold() for v in (location or {}).values()},
+                "process": _process_to_dict(process) if process is not None else None,
+            }
+            checks.append(check)
+            if not check["exists"] or not check["output_flow_match"]:
+                errors.append(f"provider {process_id} does not supply {flow_id}")
+        return {
+            "ok": not errors,
+            "checks": checks,
+            "errors": errors,
+            "counts": {"process_reads": len(cache), "pairs": len(checks)},
+        }
+    finally:
+        close_ipc_client(client)
+
+
 def get_flow_providers(
     host: str,
     port: int,
@@ -261,7 +338,9 @@ def get_flow_providers(
 def _validate_query(entity_type: str, search: str, limit: int, offset: int) -> type:
     if entity_type not in ENTITY_TYPES:
         available = ", ".join(ENTITY_TYPES)
-        raise ValueError(f"Unsupported entity_type {entity_type!r}; available: {available}")
+        raise ValueError(
+            f"Unsupported entity_type {entity_type!r}; available: {available}"
+        )
     if not isinstance(search, str):
         raise ValueError("search must be a string")
     _validate_pagination(limit, offset)
@@ -274,7 +353,11 @@ def _validate_identifier(name: str, value: str) -> None:
 
 
 def _validate_pagination(limit: int, offset: int) -> None:
-    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_QUERY_LIMIT:
+    if (
+        isinstance(limit, bool)
+        or not isinstance(limit, int)
+        or not 1 <= limit <= MAX_QUERY_LIMIT
+    ):
         raise ValueError(f"limit must be an integer between 1 and {MAX_QUERY_LIMIT}")
     if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
         raise ValueError("offset must be a non-negative integer")

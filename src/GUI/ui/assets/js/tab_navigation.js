@@ -1,11 +1,7 @@
 function rightTabButtons() {
     const tabs = document.querySelector('#right-tabs');
     if (!tabs) return [];
-    const topList = tabs.querySelector('[role="tablist"]');
-    if (!topList) return [];
-    return Array.from(topList.querySelectorAll('[role="tab"]')).filter(
-        (button) => button.closest('[role="tablist"]') === topList
-    );
+    return Array.from(tabs.querySelectorAll('[role="tab"]'));
 }
 
 let activeRightTabMode = 'project';
@@ -121,10 +117,104 @@ window.selectImprovementTab = () => selectRightTabByText('LCA评估修改面板(
 window.selectLciMappingTab = () => selectRightTabByText('工作细节');
 window.selectTerminalTab = () => selectRightTabByText('终端显示');
 
+const SETTINGS_SECTION_IDS = {
+    init_check: 'settings-section-init-check',
+    agent: 'settings-section-agent',
+};
+
+const AGENT_FORM_IDS = {
+    codex: 'settings-agent-form-codex',
+    claude: 'settings-agent-form-claude',
+    opencode: 'settings-agent-form-opencode',
+    pi: 'settings-agent-form-pi',
+};
+
+function applySettingsSection(key) {
+    Object.entries(SETTINGS_SECTION_IDS).forEach(([itemKey, id]) => {
+        const element = document.getElementById(id);
+        if (!element) return;
+        const shouldShow = itemKey === key;
+        const hosts = [element];
+        const classified = element.closest('.settings-section');
+        if (classified && classified !== element) hosts.push(classified);
+        hosts.forEach((host) => {
+            host.classList.toggle('settings-section-hidden', !shouldShow);
+            host.classList.remove('hide', 'hidden');
+            host.style.removeProperty('display');
+            host.removeAttribute('hidden');
+        });
+    });
+    const scroll = document.getElementById('project-init-detail-scroll');
+    if (scroll) scroll.scrollTop = 0;
+}
+
+function applyAgentForm(worker) {
+    const selected = Object.prototype.hasOwnProperty.call(AGENT_FORM_IDS, worker)
+        ? worker
+        : 'codex';
+    Object.entries(AGENT_FORM_IDS).forEach(([itemKey, id]) => {
+        const element = document.getElementById(id);
+        if (!element) return;
+        const shouldShow = itemKey === selected;
+        const hosts = [element];
+        const classified = element.closest('.settings-agent-form');
+        if (classified && classified !== element) hosts.push(classified);
+        hosts.forEach((host) => {
+            host.classList.toggle('settings-section-hidden', !shouldShow);
+            host.classList.remove('hide', 'hidden');
+            host.style.removeProperty('display');
+            host.removeAttribute('hidden');
+        });
+    });
+    Object.keys(AGENT_FORM_IDS).forEach((itemKey) => {
+        const card = document.getElementById(`settings-agent-card-${itemKey}`);
+        if (!card) return;
+        const shouldActivate = itemKey === selected;
+        card.classList.toggle('settings-agent-card-active', shouldActivate);
+        const button = card.matches('button') ? card : card.querySelector('button');
+        if (button) button.classList.toggle('settings-agent-card-active', shouldActivate);
+    });
+}
+
+function currentAgentFromDropdown() {
+    const root = document.getElementById('settings-agent-dropdown');
+    if (!root) return 'codex';
+    const input = root.querySelector('input');
+    const raw = ((input && input.value) || root.textContent || '').trim().toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(AGENT_FORM_IDS, raw)) return raw;
+    return 'codex';
+}
+
+function bindSettingsSectionHandler(key) {
+    return (...args) => {
+        applySettingsSection(key);
+        return args;
+    };
+}
+
+function bindAgentFormHandler(worker) {
+    return (...args) => {
+        applyAgentForm(worker);
+        return args;
+    };
+}
+
+window.guiSelectSettings_init_check = bindSettingsSectionHandler('init_check');
+window.guiSelectSettings_agent = bindSettingsSectionHandler('agent');
+window.guiOpenAgentSettings = (...args) => {
+    applySettingsSection('agent');
+    applyAgentForm(currentAgentFromDropdown());
+    return args;
+};
+window.guiSelectAgentForm_codex = bindAgentFormHandler('codex');
+window.guiSelectAgentForm_claude = bindAgentFormHandler('claude');
+window.guiSelectAgentForm_opencode = bindAgentFormHandler('opencode');
+window.guiSelectAgentForm_pi = bindAgentFormHandler('pi');
+
 window.guiOpenProjectMode = (...args) => {
     setRightTabMode('project');
     selectRightTabByText('设置&初始化');
-    setAgentConfigDrawerHidden(true);
+    applySettingsSection('init_check');
     return args;
 };
 
@@ -181,34 +271,5 @@ window.guiSelectTerminal = (...args) => {
     selectRightTabByText('终端显示');
     return args;
 };
-
-function setAgentConfigDrawerHidden(hidden) {
-    const panel = document.querySelector('#settings-agent-config-panel');
-    if (!panel) return;
-    panel.classList.toggle('agent-config-drawer-hidden', hidden);
-    panel.classList.toggle('hide', hidden);
-}
-
-window.guiShowAgentConfigDrawer = (...args) => {
-    setAgentConfigDrawerHidden(false);
-    return args;
-};
-
-window.guiHideAgentConfigDrawer = (...args) => {
-    setAgentConfigDrawerHidden(true);
-    return args;
-};
-
-document.addEventListener('click', (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target) return;
-    if (target.closest('#settings-agent-open-btn')) {
-        setAgentConfigDrawerHidden(false);
-        return;
-    }
-    if (target.closest('#settings-agent-close-btn')) {
-        setAgentConfigDrawerHidden(true);
-    }
-}, true);
 
 initializeRightTabs();

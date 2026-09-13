@@ -1,5 +1,5 @@
-import sys
 import argparse
+import sys
 from pathlib import Path
 
 # 将 scripts 目录加入 sys.path 以使用公共的 utils
@@ -14,17 +14,18 @@ except ImportError:
     sys.exit(1)
 
 # 从共享的 utils 导入
-from utils.validation import resolve_allocation, resolve_parameters
-from utils.connection import connect_ipc
-from utils.entity import find_entity
-from utils.export import extract_results, print_results_table, export_results
-
 # 从私有的 private_utils 导入
 from private_utils.calculation import run_calculation
 from private_utils.cli import add_arguments
+from utils.connection import connect_ipc
+from utils.entity import find_entity
+from utils.export import export_results, extract_results, print_results_table
+from utils.validation import resolve_allocation, resolve_parameters
+
 
 def main():
     from utils.encoding import setup_io_encoding
+
     setup_io_encoding()
 
     parser = argparse.ArgumentParser(
@@ -32,8 +33,6 @@ def main():
     )
     add_arguments(parser)
     args = parser.parse_args()
-
-
 
     # 1. 验证并准备分配方法与参数 (Fail-Fast)
     allocation_type = resolve_allocation(args.allocation)
@@ -46,7 +45,9 @@ def main():
     print(f"正在查找过程 (Process) '{args.process}'...")
     process_model = find_entity(client, olca_schema.Process, args.process)
     if not process_model:
-        print(f"[错误] 未找到过程 (Process) '{args.process}'。请检查名称或 UUID 是否正确。")
+        print(
+            f"[错误] 未找到过程 (Process) '{args.process}'。请检查名称或 UUID 是否正确。"
+        )
         sys.exit(1)
     print(f"已找到过程 (Process): {process_model.name} (UUID: {process_model.id})")
 
@@ -69,7 +70,7 @@ def main():
         allocation_type=allocation_type,
         regionalized=args.regionalized,
         costs=args.costs,
-        param_redefs=param_redefs
+        param_redefs=param_redefs,
     )
 
     # 6. 提取与处理 LCIA 结果 并关闭计算资源句柄
@@ -81,6 +82,7 @@ def main():
     # 8. 导出数据到外部文件 (可选)
     if args.output:
         export_results(results_data, args.output)
+
 
 if __name__ == "__main__":
     main()

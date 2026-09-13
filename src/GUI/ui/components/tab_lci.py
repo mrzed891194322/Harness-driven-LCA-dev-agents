@@ -44,10 +44,7 @@ def build_tab_lci() -> tuple[
                         elem_id="work-details-bom-json",
                     )
                     bom_warning = gr.Markdown(
-                        (
-                            "### ⚠️ 缺少物料清单\n\n"
-                            f"未找到有效的 `{bom_relative}`。"
-                        ),
+                        (f"### ⚠️ 缺少物料清单\n\n未找到有效的 `{bom_relative}`。"),
                         visible=True,
                         elem_id="work-details-bom-warning",
                     )
@@ -65,10 +62,7 @@ def build_tab_lci() -> tuple[
                         elem_id="work-details-mapping-json",
                     )
                     mapping_warning = gr.Markdown(
-                        (
-                            "### ⚠️ 缺少工艺映射\n\n"
-                            f"未找到有效的 `{mapping_relative}`。"
-                        ),
+                        (f"### ⚠️ 缺少工艺映射\n\n未找到有效的 `{mapping_relative}`。"),
                         visible=True,
                         elem_id="work-details-mapping-warning",
                     )

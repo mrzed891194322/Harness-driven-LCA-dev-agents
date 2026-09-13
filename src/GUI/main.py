@@ -6,16 +6,14 @@ from dotenv import load_dotenv
 # 确保从任意当前工作目录启动时都能找到项目配置和 GUI 模块。
 main_dir = Path(__file__).resolve().parent
 project_root = next(
-    parent
-    for parent in main_dir.parents
-    if (parent / "pyproject.toml").is_file()
+    parent for parent in main_dir.parents if (parent / "pyproject.toml").is_file()
 )
 src_root = project_root / "src"
 for d in [main_dir, src_root, project_root]:
     if str(d) not in sys.path:
         sys.path.insert(0, str(d))
 
-# 加载仓库根目录 .env 中的 API Key 等配置。
+# 加载仓库根目录 .env 中的 Agent / 模型 / 端口配置。
 load_dotenv(project_root / ".env")
 
 from functions.settings.settings import load_port_settings
@@ -37,8 +35,9 @@ def main():
         server_name="127.0.0.1",
         server_port=gui_port,
         share=False,
-        show_error=True
+        show_error=True,
     )
+
 
 if __name__ == "__main__":
     main()

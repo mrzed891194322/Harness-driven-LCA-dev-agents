@@ -2,7 +2,7 @@
 就绪状态检查脚本
 
 功能：
-    1. 检查所选 harness worker SDK（codex / claude / opencode / dsh / antigravity）
+    1. 检查所选 worker（codex / claude / opencode / pi）CLI 是否可用
     2. 检查 openLCA IPC Server 是否已启动并可连接
 
 参考来源：
@@ -12,12 +12,8 @@
     # 默认：先清理目录，再执行 Agent 检查与 openLCA 检查
     uv run python src/scripts/check_status/main.py
 
-    # 仅检查 Agent（读 .env 的 HARNESS_AGENT；未设置则任一可用即可）
+    # 仅检查 Agent CLI
     uv run python src/scripts/check_status/main.py --only agents
-
-    # 检查指定 worker
-    uv run python src/scripts/check_status/main.py --only agents --agent claude
-    uv run python src/scripts/check_status/agents_check/main.py --agent claude
 
     # 仅检查 openLCA 连接
     uv run python src/scripts/check_status/main.py --only openlca
@@ -26,9 +22,9 @@
     uv run python src/scripts/check_status/main.py --only openlca --port 8080
 """
 
-import sys
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -46,33 +42,27 @@ _src_root = PROJECT_ROOT / "src"
 if str(_src_root) not in sys.path:
     sys.path.insert(0, str(_src_root))
 
+from agents_check import check_project_environment
+from openlca_check.main import check_openlca
+from utils.encoding import setup_io_encoding
+
 from GUI.functions.settings.settings import (  # noqa: E402
     DEFAULT_OPENLCA_IPC_PORT,
     load_port_settings,
 )
-
-from agents_check import SUPPORTED_HARNESS_CLIS, check_project_environment
-from openlca_check.main import check_openlca
-from utils.encoding import setup_io_encoding
 
 
 def main():
     setup_io_encoding()
 
     parser = argparse.ArgumentParser(
-        description="就绪检查：Agent SDK + openLCA IPC 连接"
+        description="就绪检查：Agent CLI + openLCA IPC 连接"
     )
     parser.add_argument(
         "--only",
         choices=["clean", "agents", "openlca"],
         default=None,
         help="仅执行指定任务（clean、agents 或 openlca）；省略则依次执行全部任务",
-    )
-    parser.add_argument(
-        "--agent",
-        choices=SUPPORTED_HARNESS_CLIS,
-        default=None,
-        help="检查指定 worker；省略则读 .env 的 HARNESS_AGENT，未设置则任一可用即可",
     )
     parser.add_argument(
         "--host",
@@ -99,7 +89,9 @@ def main():
         print("Running:", " ".join(command))
         result = subprocess.run(command, cwd=str(PROJECT_ROOT), check=False)
         if result.returncode != 0:
-            raise RuntimeError(f"Clean Directories failed with exit code {result.returncode}")
+            raise RuntimeError(
+                f"Clean Directories failed with exit code {result.returncode}"
+            )
         print("=" * 60)
         print("Check status process finished")
         print("=" * 60)
@@ -113,16 +105,15 @@ def main():
         print("Running:", " ".join(command))
         result = subprocess.run(command, cwd=str(PROJECT_ROOT), check=False)
         if result.returncode != 0:
-            raise RuntimeError(f"Pre-step: Clean Directories failed with exit code {result.returncode}")
+            raise RuntimeError(
+                f"Pre-step: Clean Directories failed with exit code {result.returncode}"
+            )
 
     if run_agents:
         print("=" * 60)
-        print("Check Harness Worker")
+        print("Check Harness CLI")
         print("=" * 60)
-        agents_ok, agents_message = check_project_environment(
-            project_root=PROJECT_ROOT,
-            agent=args.agent,
-        )
+        agents_ok, agents_message = check_project_environment(project_root=PROJECT_ROOT)
         if not agents_ok:
             raise RuntimeError(f"Agent check failed: {agents_message}")
 

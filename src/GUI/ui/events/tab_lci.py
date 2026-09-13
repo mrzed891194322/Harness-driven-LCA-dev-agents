@@ -27,10 +27,7 @@ def read_work_details_json(path: Path) -> tuple[object | None, str | None]:
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         return (
             None,
-            (
-                f"### ⚠️ 无法解析 JSON\n\n`{relative}` 不是有效 JSON"
-                f"（{exc}）。"
-            ),
+            (f"### ⚠️ 无法解析 JSON\n\n`{relative}` 不是有效 JSON（{exc}）。"),
         )
     return payload, None
 

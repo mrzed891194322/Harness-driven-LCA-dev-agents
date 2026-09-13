@@ -1,0 +1,154 @@
+"""User-facing openLCA timeout hints for the LCA result panel (not Agent MCP text)."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+_TIMEOUT_MARKERS = (
+    "timeout",
+    "timed out",
+    "read timeout",
+    "deadline exhausted",
+    "ipc call deadline",
+    "超时",
+)
+_IMPORT_FAILURE_MARKERS = (
+    "partial_failure",
+    "requires reconciliation",
+    "successful import evidence missing",
+    "previous import requires reconciliation",
+)
+_IMPORT_CONTEXT_MARKERS = (
+    "import_lci",
+    "import",
+    "openlca",
+    "openlca-reporting",
+    "04-openlca",
+)
+
+
+def _text_has_timeout(text: str) -> bool:
+    lower = text.lower()
+    return any(marker in lower for marker in _TIMEOUT_MARKERS)
+
+
+def _is_import_related(manifest: dict[str, Any], status_reason: str) -> bool:
+    stage = str(manifest.get("current_stage") or "").lower()
+    if "04-openlca" in stage or "openlca-reporting" in stage:
+        return True
+    lower = status_reason.lower()
+    return any(marker in lower for marker in _IMPORT_CONTEXT_MARKERS)
+
+
+def _operation_blob(operation: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for item in operation.get("errors") or []:
+        parts.append(str(item))
+    for entity in operation.get("entities") or []:
+        if isinstance(entity, dict) and entity.get("error"):
+            parts.append(str(entity["error"]))
+    return "\n".join(parts)
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _load_operation(journal_root: Path, operation_id: str) -> dict[str, Any] | None:
+    path = journal_root / "operations" / f"{operation_id}.json"
+    return _read_json(path)
+
+
+def _latest_operation(journal_root: Path) -> dict[str, Any] | None:
+    operations_dir = journal_root / "operations"
+    if not operations_dir.is_dir():
+        return None
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    for path in operations_dir.glob("*.json"):
+        payload = _read_json(path)
+        if payload is not None:
+            candidates.append((str(payload.get("ended_at") or ""), payload))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def _relevant_import_operation(journal_root: Path) -> dict[str, Any] | None:
+    if not journal_root.is_dir():
+        return None
+    current = _read_json(journal_root / "current.json")
+    if current and current.get("operation_id"):
+        loaded = _load_operation(journal_root, str(current["operation_id"]))
+        if loaded is not None:
+            return loaded
+    return _latest_operation(journal_root)
+
+
+def should_show_openlca_timeout_hint(
+    manifest: dict[str, Any],
+    workspace_root: Path,
+) -> bool:
+    status_reason = str(manifest.get("status_reason") or "")
+    if not _is_import_related(manifest, status_reason):
+        return False
+    lower = status_reason.lower()
+    if _text_has_timeout(status_reason):
+        return True
+    if any(marker in lower for marker in _IMPORT_FAILURE_MARKERS):
+        return True
+
+    journal_root = workspace_root / "memory" / "import-operations"
+    operation = _relevant_import_operation(journal_root)
+    if operation is None:
+        return False
+    if operation.get("status") not in {"partial_failure", "indeterminate"}:
+        return False
+    return _text_has_timeout(_operation_blob(operation))
+
+
+def _hint_markdown(manifest: dict[str, Any]) -> str:
+    reason = str(manifest.get("status_reason") or "").lower()
+    needs_reconcile = (
+        "requires reconciliation" in reason
+        or "partial_failure" in reason
+        or "successful import evidence missing" in reason
+    )
+    lines = [
+        "### openLCA 响应较慢或超时",
+        "",
+        "- 这通常表示 openLCA IPC 在自动链接或导入时 **仍在计算或尚未在约定时间内返回**，不一定是数据库损坏。",
+        "- 请确认 openLCA 已启动，且 **Tools → Developer Tools → IPC Server** 与 `.env` 中的 `OPENLCA_IPC_HOST` / `OPENLCA_IPC_PORT` 一致；必要时重启 openLCA 后再试。",
+    ]
+    if needs_reconcile:
+        lines.append(
+            "- **不要**在同一已失败的运行里反复重试导入；请先清理 openLCA 前景并解除导入索引："
+            " `uv run python src/scripts/clean_dir/main.py -y -t openlca`"
+            "（或 GUI 启动 whole-lca 前的 preset 清理），再 **新开一次** LCA 运行。"
+        )
+    else:
+        lines.append(
+            "- 若长时间无进展，可先停止当前运行，确认 openLCA 未卡住后再清理并重试（同上 `clean_dir -t openlca` 后新开运行）。"
+        )
+    lines.extend(
+        [
+            "- 若背景库很大、链接很慢，可在 `.env` 增大 `OPENLCA_IPC_LONG_READ_SEC` 与 `OPENLCA_IPC_SESSION_BUDGET_SEC`（修改后需重启 GUI/worker）。",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def maybe_append_openlca_timeout_hint(
+    workspace_root: Path,
+    manifest: dict[str, Any],
+    failure_markdown: str,
+) -> str:
+    if not should_show_openlca_timeout_hint(manifest, workspace_root):
+        return failure_markdown
+    return f"{failure_markdown.rstrip()}\n\n{_hint_markdown(manifest)}"

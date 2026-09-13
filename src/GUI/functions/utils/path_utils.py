@@ -9,10 +9,10 @@ def find_project_root(start: Path | None = None) -> Path:
     search_from = current if current.is_dir() else current.parent
 
     for path in (search_from, *search_from.parents):
-        if (path / ".opencode").exists() or (path / ".git").exists():
+        if (path / "pyproject.toml").is_file() or (path / ".git").exists():
             return path
 
     raise FileNotFoundError(
         f"Could not locate project root from {current}. "
-        "Expected to find a .opencode or .git directory."
+        "Expected to find a pyproject.toml or .git directory."
     )

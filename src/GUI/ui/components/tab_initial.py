@@ -1,21 +1,16 @@
 from __future__ import annotations
 
+from typing import Any
+
 import gradio as gr
 
 from functions.settings.settings import (
-    AGENT_ENV_FIELDS,
     HARNESS_AGENTS,
-    load_agent_env_settings,
+    default_model_for_worker,
     load_gui_settings,
 )
 
 PENDING_INIT_STATUS = "状态：待检查"
-PENDING_AGENT_TEST_STATUS = "尚未测试"
-CODEX_HINT = (
-    "Codex 使用本机 `codex` 登录态与 `openai-codex` SDK，无需在此填写密钥。"
-)
-CLAUDE_HINT = "无 API Key 时可用 `claude auth login` 的本机登录态。"
-ANTIGRAVITY_VERTEX_HINT = "可选。走 Vertex 时填写；一般只需 Gemini API Key。"
 
 INIT_CHECK_STATUS_ITEMS = (
     ("status-card-env", "AI Agent 工具"),
@@ -23,17 +18,36 @@ INIT_CHECK_STATUS_ITEMS = (
 )
 
 AGENT_CHOICES = list(HARNESS_AGENTS)
-AGENT_TAB_IDS = {name: f"agent-config-tab-{name}" for name in HARNESS_AGENTS}
+AGENT_CARD_LABELS = {
+    "codex": "Codex",
+    "claude": "Claude",
+    "opencode": "OpenCode",
+    "pi": "Pi",
+}
+
+SETTINGS_SECTION_VISIBILITY = {
+    "init_check": (True, False),
+    "agent": (False, True),
+}
+DEFAULT_SETTINGS_NAV = "init_check"
+SETTINGS_SECTION_HIDDEN_CLASS = "settings-section-hidden"
+PROBE_PENDING_STATUS = "状态：未测试"
+LOCAL_DEFAULT_MODEL_LABEL = "（本机默认）"
+CATALOG_MODEL_WORKERS = ("opencode", "pi")
+CATALOG_MODEL_INFO = (
+    "点「刷新模型列表」后选择；留空则使用本机默认。也可手填 provider/model。"
+    " Pi 会把该项拆成 --provider 与 --model。"
+)
 
 
-def pending_init_check_status_updates() -> list[gr.Update]:
+def pending_init_check_status_updates() -> list[dict[str, Any]]:
     return [init_check_status_update(None) for _ in INIT_CHECK_STATUS_ITEMS]
 
 
 def init_check_status_update(
     ok: bool | None,
     message: str = "",
-) -> gr.Update:
+) -> dict[str, Any]:
     """Build a Gradio update for one initialization check status row."""
     if ok is None:
         value = message or PENDING_INIT_STATUS
@@ -52,113 +66,119 @@ def init_check_status_update(
     )
 
 
-AGENT_DRAWER_BASE_CLASSES = [
-    "settings-agent-config-panel",
-    "settings-agent-config-drawer",
-]
+def resolve_settings_nav_key(section_key: str | None) -> str:
+    if section_key in SETTINGS_SECTION_VISIBILITY:
+        return section_key
+    return DEFAULT_SETTINGS_NAV
 
 
-def agent_drawer_classes(*, hidden: bool) -> list[str]:
-    classes = list(AGENT_DRAWER_BASE_CLASSES)
-    if hidden:
-        classes.append("agent-config-drawer-hidden")
+def resolve_agent_form_key(worker: str | None) -> str:
+    if worker in AGENT_CHOICES:
+        return worker
+    return AGENT_CHOICES[0]
+
+
+def settings_section_classes(is_selected: bool) -> list[str]:
+    classes = ["settings-section"]
+    if not is_selected:
+        classes.append(SETTINGS_SECTION_HIDDEN_CLASS)
     return classes
 
 
-def agent_drawer_update(*, hidden: bool) -> gr.Update:
-    return gr.update(elem_classes=agent_drawer_classes(hidden=hidden))
-
-
-def agent_tab_body_classes(name: str, selected: str) -> list[str]:
-    classes = ["agent-config-tab-body"]
-    if name != selected:
-        classes.append("agent-config-tab-hidden")
+def agent_form_classes(is_selected: bool) -> list[str]:
+    classes = ["settings-agent-form"]
+    if not is_selected:
+        classes.append(SETTINGS_SECTION_HIDDEN_CLASS)
     return classes
 
 
-def agent_tab_button_update(name: str, selected: str) -> gr.Update:
-    classes = ["agent-config-tab-btn"]
-    if name == selected:
-        classes.append("agent-config-tab-btn-active")
-    return gr.update(elem_classes=classes)
+def agent_card_classes(item_key: str, selected_key: str) -> list[str]:
+    classes = ["settings-agent-card"]
+    if item_key == selected_key:
+        classes.append("settings-agent-card-active")
+    return classes
 
 
-def agent_tab_body_updates(selected: str) -> list[gr.Update]:
+def model_catalog_choices(
+    ids: list[str] | None = None,
+    current: str = "",
+) -> list[tuple[str, str]]:
+    """Build Dropdown choices, always keeping the empty default and current id."""
+    choices: list[tuple[str, str]] = [(LOCAL_DEFAULT_MODEL_LABEL, "")]
+    seen = {""}
+    for item in ids or []:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        choices.append((text, text))
+        seen.add(text)
+    current_text = str(current or "").strip()
+    if current_text and current_text not in seen:
+        choices.append((current_text, current_text))
+    return choices
+
+
+def apply_settings_nav(section_key: str | None) -> list:
+    visibility = SETTINGS_SECTION_VISIBILITY[resolve_settings_nav_key(section_key)]
     return [
-        gr.update(elem_classes=agent_tab_body_classes(name, selected))
-        for name in HARNESS_AGENTS
+        gr.update(elem_classes=settings_section_classes(visible))
+        for visible in visibility
     ]
 
 
-def _build_agent_tab(
-    name: str,
+def apply_agent_form(worker: str | None) -> list:
+    selected = resolve_agent_form_key(worker)
+    return [
+        *[
+            gr.update(elem_classes=agent_form_classes(item_key == selected))
+            for item_key in AGENT_CHOICES
+        ],
+        *[
+            gr.update(elem_classes=agent_card_classes(item_key, selected))
+            for item_key in AGENT_CHOICES
+        ],
+    ]
+
+
+def _bind_section_button(
+    button: gr.Button,
+    section_key: str,
+    sections: list,
     *,
-    selected: bool,
-    values: dict[str, str],
-) -> dict[str, object]:
-    with gr.Column(
-        elem_id=f"agent-config-body-{name}",
-        elem_classes=agent_tab_body_classes(name, name if selected else ""),
-    ) as body:
-        use_check = gr.Checkbox(
-            label="使用此 Agent",
-            value=selected,
-            elem_id=f"settings-agent-use-{name}",
-            elem_classes=["agent-config-use-check"],
-        )
-        if name == "codex":
-            gr.Markdown(CODEX_HINT, elem_classes=["agent-config-hint"])
-        elif name == "claude":
-            gr.Markdown(CLAUDE_HINT, elem_classes=["agent-config-hint"])
-        fields: dict[str, gr.Textbox] = {}
-        field_list = AGENT_ENV_FIELDS[name]
-        vertex_keys = {
-            "GOOGLE_GENAI_USE_VERTEXAI",
-            "GOOGLE_CLOUD_PROJECT",
-            "GOOGLE_CLOUD_LOCATION",
-        }
-        regular = [field for field in field_list if field.key not in vertex_keys]
-        vertex = [field for field in field_list if field.key in vertex_keys]
-        for field in regular:
-            fields[field.key] = gr.Textbox(
-                label=field.label,
-                value=values.get(field.key, ""),
-                type="password" if field.secret else "text",
-                info=field.hint or None,
-                elem_id=f"settings-agent-field-{field.key}",
-                elem_classes=["agent-config-field"],
-            )
-        if vertex:
-            with gr.Accordion("Vertex AI（高级）", open=False):
-                gr.Markdown(ANTIGRAVITY_VERTEX_HINT, elem_classes=["agent-config-hint"])
-                for field in vertex:
-                    fields[field.key] = gr.Textbox(
-                        label=field.label,
-                        value=values.get(field.key, ""),
-                        type="password" if field.secret else "text",
-                        info=field.hint or None,
-                        elem_id=f"settings-agent-field-{field.key}",
-                        elem_classes=["agent-config-field"],
-                    )
-        with gr.Row(elem_classes=["agent-config-test-row"]):
-            test_btn = gr.Button(
-                "测试此配置",
-                variant="secondary",
-                elem_id=f"settings-agent-test-{name}",
-                elem_classes=["agent-config-test-btn"],
-            )
-            test_status = gr.Markdown(
-                PENDING_AGENT_TEST_STATUS,
-                elem_id=f"settings-agent-test-status-{name}",
-                elem_classes=["agent-config-test-status"],
-            )
-    return {
-        "body": body,
-        "use_check": use_check,
-        "fields": fields,
-        "test_btn": test_btn,
-        "test_status": test_status,
-    }
+    handler_name: str | None = None,
+) -> None:
+    def _open_section():
+        return apply_settings_nav(section_key)
+
+    _open_section.__name__ = handler_name or f"open_settings_{section_key}"
+    button.click(
+        fn=_open_section,
+        inputs=None,
+        outputs=sections,
+        queue=False,
+        show_progress="hidden",
+        js=f"window.guiSelectSettings_{section_key}",
+    )
+
+
+def _bind_agent_form_button(
+    button: gr.Button,
+    worker: str,
+    forms: list,
+    cards: list,
+) -> None:
+    def _open_form():
+        return apply_agent_form(worker)
+
+    _open_form.__name__ = f"open_agent_form_{worker}"
+    button.click(
+        fn=_open_form,
+        inputs=None,
+        outputs=[*forms, *cards],
+        queue=False,
+        show_progress="hidden",
+        js=f"window.guiSelectAgentForm_{worker}",
+    )
 
 
 def build_tab_initial() -> tuple:
@@ -166,235 +186,387 @@ def build_tab_initial() -> tuple:
     构建右侧“设置&初始化”Tab。
     """
     settings = load_gui_settings()
-    agent_env = load_agent_env_settings()
+    models: dict[str, str] = dict(settings["models"])
+    default_visibility = SETTINGS_SECTION_VISIBILITY[DEFAULT_SETTINGS_NAV]
+    default_form = resolve_agent_form_key(str(settings["agent"]))
     with gr.Tab("设置&初始化", id="settings_init_tab") as settings_init_tab:
         with gr.Column(
             elem_id="project-init-workspace",
             elem_classes=["right-tab-workspace", "right-workspace-panel"],
         ):
-            with gr.Column(elem_id="project-init-panel", elem_classes=["inner-panel-grid"]):
+            with gr.Column(
+                elem_id="project-init-panel", elem_classes=["inner-panel-grid"]
+            ):
                 with gr.Column(
                     elem_id="project-init-detail-scroll",
                     elem_classes=["panel-scroll-container", "settings-detail-scroll"],
                 ):
-                    with gr.Column(elem_classes=["settings-init-section"]):
+                    with gr.Column(
+                        elem_id="settings-section-init-check",
+                        elem_classes=settings_section_classes(default_visibility[0]),
+                    ) as init_check_section:
+                        with gr.Column(elem_classes=["settings-init-section"]):
+                            with gr.Row(elem_classes=["init-check-header-row"]):
+                                with gr.Column(
+                                    elem_classes=["init-check-header-copy"],
+                                    scale=1,
+                                ):
+                                    gr.Markdown(
+                                        "初始化检查",
+                                        elem_classes=["project-init-section-label"],
+                                    )
+                                    gr.Markdown(
+                                        "通过后才可执行正式LCA计划。",
+                                        elem_classes=["init-check-subtitle"],
+                                    )
+                                init_check_btn = gr.Button(
+                                    "开始初始化检查",
+                                    variant="primary",
+                                    elem_id="settings-init-check-btn",
+                                    elem_classes=["init-check-top-btn"],
+                                    scale=0,
+                                )
+                            with gr.Column(
+                                elem_id="init-check-status-list",
+                                elem_classes=["init-check-status-list"],
+                            ):
+                                with gr.Row(
+                                    elem_classes=[
+                                        "project-init-status-card",
+                                        "init-check-status-row",
+                                        INIT_CHECK_STATUS_ITEMS[0][0],
+                                    ],
+                                ):
+                                    gr.Markdown(
+                                        INIT_CHECK_STATUS_ITEMS[0][1],
+                                        elem_classes=[
+                                            "init-check-status-label",
+                                            "init-check-label-col",
+                                        ],
+                                    )
+                                    with gr.Row(
+                                        elem_classes=[
+                                            "init-check-control-slot",
+                                            "init-check-inline-control",
+                                        ],
+                                    ):
+                                        gr.Markdown(
+                                            "请选择",
+                                            elem_classes=["init-check-inline-label"],
+                                        )
+                                        agent_dropdown = gr.Dropdown(
+                                            choices=AGENT_CHOICES,
+                                            value=settings["agent"],
+                                            show_label=False,
+                                            container=False,
+                                            elem_id="settings-agent-dropdown",
+                                            elem_classes=["init-check-status-control"],
+                                        )
+                                    open_agent_btn = gr.Button(
+                                        "配置",
+                                        variant="secondary",
+                                        elem_id="settings-open-agent-btn",
+                                        elem_classes=["init-check-card-action-btn"],
+                                    )
+                                    init_check_status_agent = gr.Markdown(
+                                        PENDING_INIT_STATUS,
+                                        elem_classes=[
+                                            "project-init-status-value",
+                                            "init-check-status-pending",
+                                        ],
+                                    )
+
+                                with gr.Row(
+                                    elem_classes=[
+                                        "project-init-status-card",
+                                        "init-check-status-row",
+                                        INIT_CHECK_STATUS_ITEMS[1][0],
+                                    ],
+                                ):
+                                    gr.Markdown(
+                                        INIT_CHECK_STATUS_ITEMS[1][1],
+                                        elem_classes=[
+                                            "init-check-status-label",
+                                            "init-check-label-col",
+                                        ],
+                                    )
+                                    with gr.Row(
+                                        elem_classes=[
+                                            "init-check-control-slot",
+                                            "init-check-inline-control",
+                                        ],
+                                    ):
+                                        gr.Markdown(
+                                            "IPC 端口",
+                                            elem_classes=["init-check-inline-label"],
+                                        )
+                                        init_openlca_port = gr.Number(
+                                            value=settings["openlca_ipc_port"],
+                                            precision=0,
+                                            show_label=False,
+                                            container=False,
+                                            elem_id="settings-init-openlca-port",
+                                            elem_classes=["init-check-status-control"],
+                                        )
+                                    init_check_status_openlca = gr.Markdown(
+                                        PENDING_INIT_STATUS,
+                                        elem_classes=[
+                                            "project-init-status-value",
+                                            "init-check-status-pending",
+                                        ],
+                                    )
+
+                        with gr.Column(elem_classes=["settings-dev-section"]):
+                            gr.Markdown(
+                                "开发者选项",
+                                elem_classes=["project-init-section-label"],
+                            )
+                            with gr.Column(
+                                elem_id="settings-dev-list",
+                                elem_classes=[
+                                    "init-check-status-list",
+                                    "settings-dev-list",
+                                ],
+                            ):
+                                with gr.Row(
+                                    elem_classes=[
+                                        "project-init-status-card",
+                                        "init-check-status-row",
+                                        "init-check-dev-card",
+                                    ],
+                                ):
+                                    gr.Markdown(
+                                        "GUI 端口",
+                                        elem_classes=[
+                                            "init-check-status-label",
+                                            "init-check-label-col",
+                                        ],
+                                    )
+                                    with gr.Row(
+                                        elem_classes=["init-check-control-slot"]
+                                    ):
+                                        dev_gui_port = gr.Number(
+                                            value=settings["gui_port"],
+                                            precision=0,
+                                            show_label=False,
+                                            container=False,
+                                            elem_id="settings-dev-gui-port",
+                                            elem_classes=["init-check-status-control"],
+                                        )
+                                    dev_ports_save_btn = gr.Button(
+                                        "保存端口配置",
+                                        variant="secondary",
+                                        elem_id="settings-dev-ports-save-btn",
+                                        elem_classes=["init-check-card-action-btn"],
+                                    )
+                                gr.Markdown(
+                                    "修改 GUI 端口后需重启界面方可生效。",
+                                    elem_id="settings-dev-hint",
+                                    elem_classes=["settings-dev-hint"],
+                                )
+                        view_lca_result_btn = gr.Button(
+                            "查看LCA结果(仅开发过程使用)",
+                            variant="secondary",
+                            elem_id="settings-view-lca-result-btn",
+                        )
+
+                    with gr.Column(
+                        elem_id="settings-section-agent",
+                        elem_classes=settings_section_classes(default_visibility[1]),
+                    ) as agent_section:
                         with gr.Row(elem_classes=["init-check-header-row"]):
-                            with gr.Column(elem_classes=["init-check-header-copy"], scale=1):
-                                gr.Markdown(
-                                    "初始化检查",
-                                    elem_classes=["project-init-section-label"],
-                                )
-                                gr.Markdown(
-                                    "通过后才可执行正式LCA计划。",
-                                    elem_classes=["init-check-subtitle"],
-                                )
-                            init_check_btn = gr.Button(
-                                "开始初始化检查",
-                                variant="primary",
-                                elem_id="settings-init-check-btn",
-                                elem_classes=["init-check-top-btn"],
+                            gr.Markdown(
+                                "AI Agent 工具",
+                                elem_classes=["project-init-section-label"],
+                            )
+                            back_from_agent_btn = gr.Button(
+                                "返回",
+                                variant="secondary",
+                                elem_id="settings-back-from-agent-btn",
+                                elem_classes=["settings-back-btn"],
                                 scale=0,
                             )
-                        with gr.Column(
-                            elem_id="init-check-status-list",
-                            elem_classes=["init-check-status-list"],
-                        ):
-                            with gr.Row(
-                                elem_classes=[
-                                    "project-init-status-card",
-                                    "init-check-status-row",
-                                    INIT_CHECK_STATUS_ITEMS[0][0],
-                                ],
-                            ):
-                                gr.Markdown(
-                                    INIT_CHECK_STATUS_ITEMS[0][1],
-                                    elem_classes=[
-                                        "init-check-status-label",
-                                        "init-check-label-col",
-                                    ],
-                                )
-                                with gr.Row(
-                                    elem_classes=[
-                                        "init-check-control-slot",
-                                        "init-check-inline-control",
-                                    ],
-                                ):
-                                    gr.Markdown(
-                                        "请点击选择",
-                                        elem_classes=["init-check-inline-label"],
-                                    )
-                                    agent_open_btn = gr.Button(
-                                        settings["agent"],
-                                        variant="secondary",
-                                        elem_id="settings-agent-open-btn",
-                                        elem_classes=["init-check-status-control"],
-                                    )
-                                init_check_status_agent = gr.Markdown(
-                                    PENDING_INIT_STATUS,
-                                    elem_classes=[
-                                        "project-init-status-value",
-                                        "init-check-status-pending",
-                                    ],
-                                )
-
-                            with gr.Row(
-                                elem_classes=[
-                                    "project-init-status-card",
-                                    "init-check-status-row",
-                                    INIT_CHECK_STATUS_ITEMS[1][0],
-                                ],
-                            ):
-                                gr.Markdown(
-                                    INIT_CHECK_STATUS_ITEMS[1][1],
-                                    elem_classes=[
-                                        "init-check-status-label",
-                                        "init-check-label-col",
-                                    ],
-                                )
-                                with gr.Row(
-                                    elem_classes=[
-                                        "init-check-control-slot",
-                                        "init-check-inline-control",
-                                    ],
-                                ):
-                                    gr.Markdown(
-                                        "IPC 端口",
-                                        elem_classes=["init-check-inline-label"],
-                                    )
-                                    init_openlca_port = gr.Number(
-                                        value=settings["openlca_ipc_port"],
-                                        precision=0,
-                                        show_label=False,
-                                        container=False,
-                                        elem_id="settings-init-openlca-port",
-                                        elem_classes=["init-check-status-control"],
-                                    )
-                                init_check_status_openlca = gr.Markdown(
-                                    PENDING_INIT_STATUS,
-                                    elem_classes=[
-                                        "project-init-status-value",
-                                        "init-check-status-pending",
-                                    ],
-                                )
-
-                    with gr.Column(elem_classes=["settings-dev-section"]):
                         gr.Markdown(
-                            "开发者选项",
-                            elem_classes=["project-init-section-label"],
+                            "点击卡片填写对应后端的模型 id。当前使用的 Agent 仍由初始化检查页的下拉框决定。认证使用各 CLI 的本机登录。",
+                            elem_classes=["init-check-subtitle"],
                         )
-                        with gr.Column(
-                            elem_id="settings-dev-list",
-                            elem_classes=["init-check-status-list", "settings-dev-list"],
+                        with gr.Row(
+                            elem_id="settings-agent-card-row",
+                            elem_classes=["settings-agent-card-row"],
                         ):
-                            with gr.Row(
-                                elem_classes=[
-                                    "project-init-status-card",
-                                    "init-check-status-row",
-                                    "init-check-dev-card",
-                                ],
-                            ):
-                                gr.Markdown(
-                                    "GUI 端口",
-                                    elem_classes=[
-                                        "init-check-status-label",
-                                        "init-check-label-col",
-                                    ],
-                                )
-                                with gr.Row(elem_classes=["init-check-control-slot"]):
-                                    dev_gui_port = gr.Number(
-                                        value=settings["gui_port"],
-                                        precision=0,
-                                        show_label=False,
-                                        container=False,
-                                        elem_id="settings-dev-gui-port",
-                                        elem_classes=["init-check-status-control"],
+                            agent_cards: list[gr.Button] = []
+                            for worker in AGENT_CHOICES:
+                                agent_cards.append(
+                                    gr.Button(
+                                        AGENT_CARD_LABELS[worker],
+                                        variant="secondary",
+                                        elem_id=f"settings-agent-card-{worker}",
+                                        elem_classes=agent_card_classes(
+                                            worker,
+                                            default_form,
+                                        ),
                                     )
-                                dev_ports_save_btn = gr.Button(
-                                    "保存端口配置",
-                                    variant="secondary",
-                                    elem_id="settings-dev-ports-save-btn",
-                                    elem_classes=["init-check-card-action-btn"],
                                 )
-                            gr.Markdown(
-                                "修改 GUI 端口后需重启界面方可生效。",
-                                elem_id="settings-dev-hint",
-                                elem_classes=["settings-dev-hint"],
-                            )
-                    view_lca_result_btn = gr.Button(
-                        "查看LCA结果(仅开发过程使用)",
-                        variant="secondary",
-                        elem_id="settings-view-lca-result-btn",
-                    )
 
-            with gr.Column(
-                elem_id="settings-agent-config-panel",
-                elem_classes=agent_drawer_classes(hidden=True),
-            ) as agent_config_panel:
-                with gr.Row(elem_classes=["agent-config-header-row"]):
-                    gr.Markdown(
-                        "Agent 配置",
-                        elem_classes=["agent-config-title"],
-                    )
-                    with gr.Row(elem_classes=["agent-config-header-actions"]):
-                        agent_close_btn = gr.Button(
-                            "关闭",
-                            variant="secondary",
-                            elem_id="settings-agent-close-btn",
-                            elem_classes=["agent-config-close-btn"],
-                            scale=0,
-                        )
+                        with gr.Column(
+                            elem_id="settings-agent-form-codex",
+                            elem_classes=agent_form_classes(default_form == "codex"),
+                        ) as codex_form:
+                            gr.Markdown("Codex")
+                            codex_model = gr.Textbox(
+                                label="模型",
+                                value=str(
+                                    models.get("codex")
+                                    or default_model_for_worker("codex")
+                                ),
+                                placeholder=default_model_for_worker("codex"),
+                                elem_id="settings-codex-model",
+                            )
+                            codex_probe_btn, codex_probe_status = _build_probe_row(
+                                "codex"
+                            )
+
+                        with gr.Column(
+                            elem_id="settings-agent-form-claude",
+                            elem_classes=agent_form_classes(default_form == "claude"),
+                        ) as claude_form:
+                            gr.Markdown("Claude")
+                            claude_model = gr.Textbox(
+                                label="模型",
+                                value=str(
+                                    models.get("claude")
+                                    or default_model_for_worker("claude")
+                                ),
+                                placeholder=default_model_for_worker("claude"),
+                                elem_id="settings-claude-model",
+                            )
+                            claude_probe_btn, claude_probe_status = _build_probe_row(
+                                "claude"
+                            )
+
+                        with gr.Column(
+                            elem_id="settings-agent-form-opencode",
+                            elem_classes=agent_form_classes(default_form == "opencode"),
+                        ) as opencode_form:
+                            gr.Markdown("OpenCode")
+                            opencode_model, opencode_refresh_btn = (
+                                _build_catalog_model_field(
+                                    "opencode",
+                                    str(models.get("opencode") or ""),
+                                )
+                            )
+                            opencode_probe_btn, opencode_probe_status = (
+                                _build_probe_row("opencode")
+                            )
+
+                        with gr.Column(
+                            elem_id="settings-agent-form-pi",
+                            elem_classes=agent_form_classes(default_form == "pi"),
+                        ) as pi_form:
+                            gr.Markdown("Pi")
+                            pi_model, pi_refresh_btn = _build_catalog_model_field(
+                                "pi",
+                                str(models.get("pi") or ""),
+                            )
+                            pi_probe_btn, pi_probe_status = _build_probe_row("pi")
+
                         agent_save_btn = gr.Button(
                             "保存配置",
-                            variant="primary",
-                            elem_id="settings-agent-save-btn",
-                            elem_classes=["agent-config-save-btn"],
-                            scale=0,
-                        )
-                with gr.Row(
-                    elem_id="settings-agent-config-tabs",
-                    elem_classes=["agent-config-tab-bar"],
-                ):
-                    agent_tab_btns: dict[str, gr.Button] = {}
-                    for name in HARNESS_AGENTS:
-                        classes = ["agent-config-tab-btn"]
-                        if name == settings["agent"]:
-                            classes.append("agent-config-tab-btn-active")
-                        agent_tab_btns[name] = gr.Button(
-                            name,
                             variant="secondary",
-                            elem_id=AGENT_TAB_IDS[name],
-                            elem_classes=classes,
-                            scale=0,
+                            elem_id="settings-agent-save-btn",
                         )
-                agent_tabs: dict[str, dict[str, object]] = {}
-                for name in HARNESS_AGENTS:
-                    agent_tabs[name] = _build_agent_tab(
-                        name,
-                        selected=(name == settings["agent"]),
-                        values=agent_env,
-                    )
 
-    agent_config = {
-        "open_btn": agent_open_btn,
-        "panel": agent_config_panel,
-        "tab_btns": agent_tab_btns,
-        "bodies": {name: agent_tabs[name]["body"] for name in HARNESS_AGENTS},
-        "close_btn": agent_close_btn,
-        "save_btn": agent_save_btn,
-        "use_checks": {name: agent_tabs[name]["use_check"] for name in HARNESS_AGENTS},
-        "fields": {name: agent_tabs[name]["fields"] for name in HARNESS_AGENTS},
-        "test_btns": {name: agent_tabs[name]["test_btn"] for name in HARNESS_AGENTS},
-        "test_status": {name: agent_tabs[name]["test_status"] for name in HARNESS_AGENTS},
-    }
+        sections = [init_check_section, agent_section]
+        forms = [codex_form, claude_form, opencode_form, pi_form]
+
+        def _open_agent_settings(agent):
+            return [*apply_settings_nav("agent"), *apply_agent_form(agent)]
+
+        open_agent_btn.click(
+            fn=_open_agent_settings,
+            inputs=[agent_dropdown],
+            outputs=[*sections, *forms, *agent_cards],
+            queue=False,
+            show_progress="hidden",
+            js="window.guiOpenAgentSettings",
+        )
+        _bind_section_button(
+            back_from_agent_btn,
+            "init_check",
+            sections,
+            handler_name="open_settings_init_check_from_agent",
+        )
+        for worker, card in zip(AGENT_CHOICES, agent_cards, strict=True):
+            _bind_agent_form_button(card, worker, forms, agent_cards)
 
     return (
         settings_init_tab,
         init_check_btn,
         init_check_status_agent,
         init_check_status_openlca,
-        agent_config,
+        agent_dropdown,
+        codex_model,
+        claude_model,
+        opencode_model,
+        pi_model,
+        opencode_refresh_btn,
+        pi_refresh_btn,
+        codex_probe_btn,
+        claude_probe_btn,
+        opencode_probe_btn,
+        pi_probe_btn,
+        codex_probe_status,
+        claude_probe_status,
+        opencode_probe_status,
+        pi_probe_status,
+        agent_save_btn,
         init_openlca_port,
         dev_gui_port,
         dev_ports_save_btn,
         view_lca_result_btn,
     )
+
+
+def _build_catalog_model_field(
+    worker: str,
+    value: str,
+) -> tuple[gr.Dropdown, gr.Button]:
+    current = str(value or "").strip()
+    with gr.Row(elem_classes=["settings-agent-model-row"]):
+        dropdown = gr.Dropdown(
+            label="模型",
+            choices=model_catalog_choices([], current),
+            value=current,
+            allow_custom_value=True,
+            filterable=True,
+            info=CATALOG_MODEL_INFO,
+            elem_id=f"settings-{worker}-model",
+        )
+        button = gr.Button(
+            "刷新模型列表",
+            variant="secondary",
+            elem_id=f"settings-{worker}-refresh-btn",
+            elem_classes=["settings-agent-refresh-btn"],
+            scale=0,
+        )
+    return dropdown, button
+
+
+def _build_probe_row(worker: str) -> tuple[gr.Button, gr.Markdown]:
+    with gr.Row(elem_classes=["settings-agent-probe-row"]):
+        button = gr.Button(
+            "测试连接",
+            variant="secondary",
+            elem_id=f"settings-{worker}-probe-btn",
+            elem_classes=["settings-agent-probe-btn"],
+        )
+        status = gr.Markdown(
+            PROBE_PENDING_STATUS,
+            elem_id=f"settings-{worker}-probe-status",
+            elem_classes=[
+                "project-init-status-value",
+                "init-check-status-pending",
+                "settings-agent-probe-status",
+            ],
+        )
+    return button, status

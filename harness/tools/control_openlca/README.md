@@ -1,3 +1,21 @@
+# control_openlca MCP v2
+
+正式工作流使用 main.py 的 v2 MCP；内部历史 CLI 辅助函数不属于新的公开响应契约。
+
+- 响应为 schema_version=2、status、summary、counts、errors、warnings、artifacts、duration_ms；完整结果由工具写入 `reports/runs/<run>/<stage>/<attempt>/<call>/raw.json`，路径相对 workspace，并附 SHA-256 与字节数。响应最大 32 KiB；省略明细在附件。
+- `query_descriptors_batch(entity_type, searches, limit=20, offset=0)` 每批扫描一次描述符（最多 50 关键词）；`validate_providers_batch(requirements)` 最多 200 对 process_id/flow_id，可附 expected_geography；同 Process 只回读一次。无跨批缓存。
+- `preflight_import_lci` 返回 preflight_id 和声明库身份来源，不声称 IPC 已证明数据库名称/版本。Provider 证据含目标 Flow、输出数量、内容哈希和少量失败诊断。
+- `import_lci(request_id, preflight_id, lci_dir=..., target_category=..., database_name=...)` 要求显式请求身份。先查同请求的范围和内容，再复用日志；新请求须新预检。预检依据变化拒绝写入。
+- `get_import_operation(request_id=None, operation_id=None)` 两个 ID 二选一，可省略读取当前索引；不访问 IPC、不占用 endpoint 锁。running/indeterminate/部分失败不允许盲目重试。
+- 同 endpoint 的 MCP、初始化及清理入口跨进程互斥；锁等待上限 5 秒。客户端超时/进程中断保留不确定标记，后续先有界健康探测；不自动重扫或重写。
+- 操作日志按 operations/<operation_id>.json 保存，requests/<run_id>/<request_id>.json 与 current.json 仅作索引。成功执行显式 cleanup 后归档当前索引；旧请求的失败记录不改成成功。
+- 03 审核通过快照由编排器记录；04 导入/计算只接受未变化的已审模型。计算请求须与 calculation-plan.json 一致。
+- 工具身份由编排器注入 LCA_RUN_ID/STAGE/ATTEMPT/ROLE/WORKSPACE，SDK 恢复会话时刷新。直接初始化采用独立 standalone run；其产物不进入正式运行复用。
+
+离线回归：`uv run pytest src/tests/harness/tools/control_openlca -q`。行为规则见 `harness/rules/tools/control_openlca.md`，证据契约见 `harness/specs/public/references/evidence-contract.md`。
+
+---
+
 # openLCA 控制脚本说明及公共工具规范 (README.md)
 
 本目录为 `control-openlca` 技能的脚本目录。Agent 在调用 openLCA MCP 时的行为约束见 [`harness/rules/tools/control_openlca.md`](../../rules/tools/control_openlca.md)。
@@ -13,7 +31,7 @@
 > - 按 Process UUID 回读地域和定量参考时，MCP 客户端必须使用 `get_process_details`。
 > - 按 Flow UUID 查询可用 Provider 时，MCP 客户端必须使用 `get_flow_providers`。
 > - 读取产品系统模型图时，必须使用 `get_model_graph/main.py`。
-> - whole-lca / revise-lca 启动前清理由 `src/scripts/clean_dir/`（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可直接调用 MCP `cleanup_output`。
+> - whole-lca / revise-lca 启动前清理由 `src/scripts/clean_dir/`（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可用 MCP `cleanup_output`（如 `cleanup-lci` 命令）。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
 
 ---
@@ -75,7 +93,7 @@ control_openlca/
 - `query_descriptors`：按名称片段查询实体名称和 UUID，并返回分类、地域、参考单位及分页信息。
 - `get_process_details`：按一个确切 Process UUID 返回紧凑元数据、地域和定量参考 exchange。
 - `get_flow_providers`：按一个确切 Flow UUID 返回可用 Process Provider 的 UUID、名称、分类、地域和 Flow 引用；支持地域过滤与分页。
-- `preflight_import_lci`：只读解析一文件一实体 JSON-LD，验证明确数据库身份、目标分类和背景 Provider，返回库名、分类、LCI 目录、计划实体和 Provider 检查。
+- `preflight_import_lci`：只读解析一文件一实体 JSON-LD，验证声明库名、目标分类和背景 Provider，返回库名、分类、LCI 目录、计划实体和 Provider 检查。
 - `import_lci`：唯一的 Whole-LCA 数据库写入工具。写入前工具内部再预检；库名、分类或 LCI 目录与上次成功预检不一致则拒绝。执行中持续写 `workspace/memory/import-operations/current.json`。
 - `get_import_operation`：只读查询当前导入 journal，供 MCP 超时后判断是否已经成功、失败或仍不可确定。
 - `get_model_graph`：读回 Product System 节点、边、断链、孤立节点和缺失预期节点。
@@ -94,10 +112,7 @@ MCP endpoint 固定由服务进程环境配置，工具调用方不能传入任�
 - `OPENLCA_IPC_HOST`：默认 `127.0.0.1`。
 - `OPENLCA_IPC_PORT`：默认 `8080`。
 
-项目已在 `.codex/config.toml`、`.opencode/opencode.json`、`.claude/settings.json` 与
-`.mcp.json`、`.dsh/cordis.patch.yml` 中注册此服务（DSH 模型侧工具名为
-`mcp__control_openlca__<原名>`，经 `dsh --profile headless --patch .dsh/cordis.patch.yml` 挂载）。
-也可以从项目根目录手动启动 stdio server：
+项目 MCP 的唯一配置来源是主工作流 YAML 注册表，由 worker 会话在任务中注入。也可以从项目根目录手动启动 stdio server：
 
 ```bash
 uv run python harness/tools/control_openlca/main.py
@@ -106,7 +121,7 @@ uv run python harness/tools/control_openlca/main.py
 离线测试不要求启动 openLCA：
 
 ```bash
-uv run pytest harness/tools/control_openlca/tests -v
+uv run pytest src/tests/harness/tools/control_openlca -v
 ```
 
 ---
@@ -118,7 +133,7 @@ uv run pytest harness/tools/control_openlca/tests -v
 ### 1. IPC 连接模块 (`utils/connection.py`)
 *   **核心函数**：`create_ipc_client(...)`、`probe_ipc(...)`、`close_ipc_client(...)` 和兼容 CLI 的 `connect_ipc(...)`。
 *   **用途**：统一构造带 HTTP timeout 的 `BoundedIPCClient`；探测使用较小的 Currency descriptor 请求，并显式识别 JSON-RPC 错误。
-*   **规范**：普通只读请求使用 30 秒读取 timeout，Provider 全索引反查、清理范围扫描、预检、导入和计算使用 285 秒，健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。
+*   **规范**：普通只读请求默认 **30 秒**读取 timeout（`OPENLCA_IPC_READ_SEC`）；预检、导入、计算与清理默认 **600 秒**单次读 timeout（`OPENLCA_IPC_LONG_READ_SEC`），且在同一把 endpoint 锁内共享 **7200 秒**会话总预算（`OPENLCA_IPC_SESSION_BUDGET_SEC`）。短查询仍用 270 秒会话预算。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 的 tool 超时与上述会话预算对齐（约 budget+120 秒）。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。
 
 ### 2. 实体检索模块 (`utils/entity.py`)
 *   **核心函数**：`find_entity(client, model_type, name_or_uuid)`
@@ -142,7 +157,7 @@ uv run pytest harness/tools/control_openlca/tests -v
 
 ### 5. Whole-LCA 共用服务 (`utils/workflow.py`)
 
-* `preflight_import_lci(...)`：只读加载 LCI、检查数据库身份、目标分类和相关 Provider。
+* `preflight_import_lci(...)`：只读加载 LCI、检查声明库名、目标分类和相关 Provider。
 * `import_lci(...)`：在重新预检并核对 import_scope 后，使用 exchange `defaultProvider` 和 openLCA
   auto-link 创建 Product System，返回结构化 operation report；不接受待导入的 explicit
   `processLinks`。

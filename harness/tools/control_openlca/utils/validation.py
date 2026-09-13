@@ -1,5 +1,7 @@
 import sys
+
 import olca_schema
+
 
 def resolve_allocation(allocation_str):
     if not allocation_str:
@@ -19,6 +21,7 @@ def resolve_allocation(allocation_str):
         print(f"[错误] 不支持的分配方法: '{allocation_str}'。")
         print("可用选项: physical, economic, causal, none, default")
         sys.exit(1)
+
 
 def resolve_parameters(parameter_list):
     param_redefs = []

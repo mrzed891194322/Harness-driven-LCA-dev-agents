@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "control_openlca": {
-      "command": "uv",
-      "args": ["run", "python", "harness/tools/control_openlca/main.py"]
-    }
-  }
-}

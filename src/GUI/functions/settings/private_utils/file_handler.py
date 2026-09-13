@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator, Union
+from typing import Any
 
 from functions.file_sync.main import sync_files
 
 
 def copy_uploaded_files(
-    ref_materials: Union[list[Any], Any, None],
-    ref_data: Union[list[Any], Any, None],
+    ref_materials: list[Any] | Any | None,
+    ref_data: list[Any] | Any | None,
     project_root: Path,
 ) -> Generator[str, None, None]:
     del project_root

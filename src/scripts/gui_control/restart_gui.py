@@ -6,13 +6,12 @@
 
 from __future__ import annotations
 
-import sys
 import time
 
+from start_gui import start_gui
+from stop_gui import stop_gui
 from utils.config import PID_FILE
 from utils.process import is_gui_running, port_listeners
-from stop_gui import stop_gui
-from start_gui import start_gui
 
 
 def main() -> None:

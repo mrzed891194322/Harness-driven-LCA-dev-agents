@@ -6,8 +6,8 @@ from ui.events.tab_improvement import bind_tab_improvement_events
 from ui.events.tab_initial import bind_tab_initial_events
 from ui.events.tab_lci import bind_tab_lci_events
 from ui.events.tab_plan import bind_tab_plan_events
-from ui.events.tab_terminal import bind_tab_terminal_events
 from ui.events.tab_result import bind_tab_result_events
+from ui.events.tab_terminal import bind_tab_terminal_events
 
 
 def bind_ui_events(
@@ -24,7 +24,22 @@ def bind_ui_events(
     stop_btn: gr.Button,
     init_check_btn: gr.Button,
     init_check_status_values: list[gr.Markdown],
-    agent_config: dict,
+    agent_dropdown: gr.Dropdown,
+    codex_model: gr.Textbox,
+    claude_model: gr.Textbox,
+    opencode_model: gr.Dropdown,
+    pi_model: gr.Dropdown,
+    opencode_refresh_btn: gr.Button,
+    pi_refresh_btn: gr.Button,
+    codex_probe_btn: gr.Button,
+    claude_probe_btn: gr.Button,
+    opencode_probe_btn: gr.Button,
+    pi_probe_btn: gr.Button,
+    codex_probe_status: gr.Markdown,
+    claude_probe_status: gr.Markdown,
+    opencode_probe_status: gr.Markdown,
+    pi_probe_status: gr.Markdown,
+    agent_save_btn: gr.Button,
     init_openlca_port: gr.Number,
     dev_gui_port: gr.Number,
     dev_ports_save_btn: gr.Button,
@@ -60,8 +75,11 @@ def bind_ui_events(
     bind_left_sidebar_events(
         open_init_btn=open_init_btn,
         right_tabs=right_tabs,
-        agent_open_btn=agent_config["open_btn"],
-        agent_config_panel=agent_config["panel"],
+        agent_dropdown=agent_dropdown,
+        codex_model=codex_model,
+        claude_model=claude_model,
+        opencode_model=opencode_model,
+        pi_model=pi_model,
         init_openlca_port=init_openlca_port,
         dev_gui_port=dev_gui_port,
     )
@@ -78,7 +96,22 @@ def bind_ui_events(
         init_check_status_values=init_check_status_values,
         dev_ports_save_btn=dev_ports_save_btn,
         ref_upload_file=ref_upload_file,
-        agent_config=agent_config,
+        agent_dropdown=agent_dropdown,
+        codex_model=codex_model,
+        claude_model=claude_model,
+        opencode_model=opencode_model,
+        pi_model=pi_model,
+        opencode_refresh_btn=opencode_refresh_btn,
+        pi_refresh_btn=pi_refresh_btn,
+        codex_probe_btn=codex_probe_btn,
+        claude_probe_btn=claude_probe_btn,
+        opencode_probe_btn=opencode_probe_btn,
+        pi_probe_btn=pi_probe_btn,
+        codex_probe_status=codex_probe_status,
+        claude_probe_status=claude_probe_status,
+        opencode_probe_status=opencode_probe_status,
+        pi_probe_status=pi_probe_status,
+        agent_save_btn=agent_save_btn,
         init_openlca_port=init_openlca_port,
         dev_gui_port=dev_gui_port,
         execute_lca_btn=execute_lca_btn,

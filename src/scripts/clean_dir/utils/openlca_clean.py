@@ -19,8 +19,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from harness.tools.control_openlca.utils.cleanup import run_cleanup_output
-from harness.tools.control_openlca.utils.readonly import health_check
+from harness.tools.control_openlca.utils.service import cleanup as run_cleanup_output
+from harness.tools.control_openlca.utils.service import health as health_check
 
 
 def _endpoint_config() -> tuple[str, int]:
@@ -43,8 +43,8 @@ def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]
     category = _target_category()
 
     health = health_check(host, port)
-    if not health.get("ok"):
-        message = str(health.get("message") or "openLCA health_check failed")
+    if health["status"] != "success":
+        message = str(health["errors"] or health["summary"])
         return False, message, {"health": health}
 
     preview = run_cleanup_output(
@@ -53,21 +53,31 @@ def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]
         category,
         confirm=False,
     )
-    entity_count = int(preview.get("entity_count") or 0)
+    if preview["status"] != "success":
+        return False, str(preview["errors"]), {"health": health, "preview": preview}
+    entity_count = int(preview["counts"].get("entity_count", 0))
     print(f"  openLCA 预览: target_category={category}, entity_count={entity_count}")
 
     if dry_run:
-        return True, f"dry-run: would delete {entity_count} openLCA entity(ies)", {
-            "health": health,
-            "preview": preview,
-        }
+        return (
+            True,
+            f"dry-run: would delete {entity_count} openLCA entity(ies)",
+            {
+                "health": health,
+                "preview": preview,
+            },
+        )
 
     if entity_count == 0:
-        return True, "no openLCA entities to delete", {
-            "health": health,
-            "preview": preview,
-            "deleted_count": 0,
-        }
+        return (
+            True,
+            "no openLCA entities to delete",
+            {
+                "health": health,
+                "preview": preview,
+                "deleted_count": 0,
+            },
+        )
 
     result = run_cleanup_output(
         host,
@@ -76,17 +86,27 @@ def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]
         confirm=True,
     )
     errors = list(result.get("errors") or [])
-    deleted_count = int(result.get("deleted_count") or 0)
-    if errors or not result.get("ok"):
-        detail = "; ".join(errors) if errors else "cleanup_output failed"
-        return False, detail, {
+    deleted_count = int(result["counts"].get("deleted_count", 0))
+    if errors or result["status"] != "success":
+        detail = (
+            "; ".join(str(e) for e in errors) if errors else "cleanup_output failed"
+        )
+        return (
+            False,
+            detail,
+            {
+                "health": health,
+                "preview": preview,
+                "result": result,
+            },
+        )
+    return (
+        True,
+        f"deleted {deleted_count} openLCA entity(ies)",
+        {
             "health": health,
             "preview": preview,
             "result": result,
-        }
-    return True, f"deleted {deleted_count} openLCA entity(ies)", {
-        "health": health,
-        "preview": preview,
-        "result": result,
-        "deleted_count": deleted_count,
-    }
+            "deleted_count": deleted_count,
+        },
+    )

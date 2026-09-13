@@ -18,11 +18,11 @@
 包含可被所有特征模块全局调用的公共工具：
 - **[process_manager.py](utils/process_manager.py)**：负责跟踪当前活动命令执行子进程，并提供强制杀死底层任务进程树的统一实现。
 - **[log_exporter.py](utils/log_exporter.py)**：管理命令输出日志存放目录、路径规则以及将 stdout 实时追加写入本地日志文件。
-  - **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `pyproject.toml`、`.opencode` 或 `.git` 的父目录）。
-- **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 启动 Python 主编排（`src/scripts/lca_orchestrator/main.py`），`HARNESS_AGENT` 只选 worker（codex、claude、opencode、dsh、antigravity）。`executor/main.py` 非 GUI 入口；开箱初始化在仓库根目录执行 `uv sync`。
+  - **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `pyproject.toml` 或 `.git` 的父目录）。
+- **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 启动 Python 主编排器跑 whole-lca / revise-lca（worker：codex、claude、opencode、pi）。`executor/main.py` 非 GUI 入口；bootstrap-env 执行 `src/scripts/proj_init/PROMPT.md`，不经 GUI。
   - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数（非 GUI 使用）。
   - **私有辅助包 (`private_utils/`)**：
-    - `executor_utils.py`：流式捕获进程输出；`run_pre_workflow_console` 编排 clean_dir preset 与 file_sync。
+    - `executor_utils.py`：流式捕获进程输出；`CLEAN_GUI_STAGING` 控制是否清 knowledge+inputs；`run_pre_workflow_console` 编排 clean_dir preset 与 file_sync。
 - **文件处理子包 (`functions/utils/file_loader/`)**：承担不同类型的文件读取、保存以及 LCA 计划模板解析与填写值加载的工作。
   - **功能入口**：[main.py](utils/file_loader/main.py) 中的 `main` 函数。
   - **私有辅助包 (`private_utils/`)**：
@@ -37,20 +37,20 @@
 
 ### 4. 设置模块 (`functions/settings/`)
 提供设置页门禁探测与参考资料写入：
-- **[check_status.py](settings/check_status.py)**：依次探测 AI Agent SDK 与 openLCA，供「开始初始化检查」使用。
-- **[settings.py](settings/settings.py)**：读写 `.env` 中的 `HARNESS_AGENT`、各 worker 的细粒度字段与端口配置。
+- **[check_status.py](settings/check_status.py)**：依次探测 AI Agent CLI 与 openLCA，供「开始初始化检查」使用。
+- **[settings.py](settings/settings.py)**：读写 `.env` 中的 `HARNESS_AGENT`、各 worker 模型 id 与端口配置。
 - **私有辅助包 (`private_utils/`)**：
   - `file_handler.py`：已废弃；请使用 `file_sync`。
 
-环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测所选 AI Agent
+环境和 openLCA 不再捆绑为单一门禁。「开始初始化检查」依次探测 AI Agent CLI
 与 openLCA；两项全部通过后才解锁“执行LCA计划”。
-Agent 配置下方抽屉的「测试此配置」只探测该页，不解锁执行。选择的 Agent 与细粒度
-参数写入 `.env`。
+选择的 Agent 写入 `.env` 的 `HARNESS_AGENT`，模型写入对应的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。OpenCode / Pi 配置页可刷新本机模型列表后点选。Pi 的 `provider/model` 在启动时拆成 `--provider` 与 `--model`。
 
 ### 5. LCA 工作流结果模块
 
 - `lca_run.py`：识别本次 whole-lca v2 或 revise-lca v1 manifest，区分完成与
-  提前中止，并从阶段、审查及工具报告中聚合失败原因。
+  提前中止，并从阶段、审查及工具报告中聚合失败原因；04 导入/IPC 超时类失败会在
+  结果面板追加中文操作说明（见 `openlca_failure_hints.py`，不写入 Agent MCP 返回）。
 - `plan_editor.py`：仅用 `PLAN_TEXTBOX` 注释识别其后的“用户填写内容区”，
   并把正文拆成原位交替的 Markdown/Textbox；无 front matter、任意 front matter
   和纯 Markdown 均可解析，已有 front matter 原样保留且不校验类型或版本。

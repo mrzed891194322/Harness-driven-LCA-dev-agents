@@ -96,7 +96,15 @@ def _windows_cmdline(pid: int) -> str:
     flags = _creation_flags()
     try:
         res = subprocess.run(
-            ["wmic", "process", "where", f"ProcessId={pid}", "get", "CommandLine", "/value"],
+            [
+                "wmic",
+                "process",
+                "where",
+                f"ProcessId={pid}",
+                "get",
+                "CommandLine",
+                "/value",
+            ],
             capture_output=True,
             text=True,
             creationflags=flags,
@@ -141,7 +149,11 @@ def _comm(pid: int) -> str:
             return ""
         return ""
     try:
-        return Path(f"/proc/{pid}/comm").read_text(encoding="utf-8", errors="replace").strip()
+        return (
+            Path(f"/proc/{pid}/comm")
+            .read_text(encoding="utf-8", errors="replace")
+            .strip()
+        )
     except OSError:
         return ""
 
@@ -200,7 +212,15 @@ def _windows_starttime(pid: int) -> str | None:
     flags = _creation_flags()
     try:
         res = subprocess.run(
-            ["wmic", "process", "where", f"ProcessId={pid}", "get", "CreationDate", "/value"],
+            [
+                "wmic",
+                "process",
+                "where",
+                f"ProcessId={pid}",
+                "get",
+                "CreationDate",
+                "/value",
+            ],
             capture_output=True,
             text=True,
             creationflags=flags,
@@ -276,7 +296,9 @@ def write_gui_record(path: Path, root_pid: int) -> Record | None:
         "targets": _dedupe_targets(targets),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     return record
 
 
@@ -291,7 +313,9 @@ def refresh_gui_record(path: Path, record: Record) -> Record:
         if snap is not None:
             targets.append(snap)
     record["targets"] = _dedupe_targets(targets)
-    path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     return record
 
 
@@ -415,7 +439,11 @@ def _children_of(pid: int) -> list[int]:
     try:
         for task in task_dir.iterdir():
             try:
-                text = (task / "children").read_text(encoding="ascii", errors="replace").strip()
+                text = (
+                    (task / "children")
+                    .read_text(encoding="ascii", errors="replace")
+                    .strip()
+                )
             except OSError:
                 continue
             if text:
@@ -462,7 +490,9 @@ def _collect_tree(root: int) -> list[int]:
 def _terminate_pids(pids: list[int]) -> None:
     my_pid = os.getpid()
     ancestors = _ancestor_pids()
-    targets = [pid for pid in pids if pid > 1 and pid != my_pid and pid not in ancestors]
+    targets = [
+        pid for pid in pids if pid > 1 and pid != my_pid and pid not in ancestors
+    ]
     for pid in targets:
         try:
             os.kill(pid, signal.SIGTERM)

@@ -7,16 +7,13 @@ GUI 源码位于 ``src/GUI``，运行时 workspace 位于仓库根目录。这�
 
 from pathlib import Path
 
-
 # -----------------------------------------------------------------------------
 # 基础目录
 # GUI_ROOT 定位 GUI 源码；PROJECT_ROOT 定位仓库并作为其他绝对路径的起点。
 # -----------------------------------------------------------------------------
 GUI_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = next(
-    parent
-    for parent in GUI_ROOT.parents
-    if (parent / "pyproject.toml").is_file()
+    parent for parent in GUI_ROOT.parents if (parent / "pyproject.toml").is_file()
 )
 
 # -----------------------------------------------------------------------------
@@ -30,8 +27,7 @@ GUI_FONT_FAMILY = (
     '"Songti SC", STSong, SimSun, serif'
 )
 GUI_MONO_FONT_FAMILY = (
-    '"JetBrains Mono", "Cascadia Mono", Consolas, Monaco, '
-    '"Courier New", monospace'
+    '"JetBrains Mono", "Cascadia Mono", Consolas, Monaco, "Courier New", monospace'
 )
 
 # -----------------------------------------------------------------------------
@@ -72,9 +68,7 @@ PROCESS_MAPPING_RELATIVE_PATH = (
 )
 PROCESS_MAPPING_FILE_PATH = PROJECT_ROOT / PROCESS_MAPPING_RELATIVE_PATH
 
-LCA_REPORT_RELATIVE_PATH = (
-    Path("workspace") / "outputs" / "reports" / "lca_report.md"
-)
+LCA_REPORT_RELATIVE_PATH = Path("workspace") / "outputs" / "reports" / "lca_report.md"
 LCA_REPORT_PATH = PROJECT_ROOT / LCA_REPORT_RELATIVE_PATH
 
 # -----------------------------------------------------------------------------

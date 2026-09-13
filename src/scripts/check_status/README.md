@@ -1,24 +1,24 @@
 # 就绪状态检查脚本
 
-`src/scripts/check_status` 负责 harness worker SDK 与 openLCA IPC 连接检查。GUI
+`src/scripts/check_status` 负责 worker CLI 与 openLCA IPC 连接检查。GUI
 直接 import `agents_check` 与 `openlca_check`；本目录的 `main.py` 仅供命令行手动检查。
 
 ## 模块
 
 | 模块 | 职责 |
 | :--- | :--- |
-| `agents_check/` | 接线层。已选 worker 走 `agent_sdk.check()`（inspect + ping）；未选时扫五者只走 `inspect()`。语义在 `src/scripts/agent_sdk/providers/<name>/` |
+| `agents_check/` | 经 `agent_sdk.inspect` / `check` 探测 worker |
 | `openlca_check/` | 检查 openLCA IPC Server 连接（与 MCP 共用有界重试） |
 | `main.py` | CLI 编排：可选 pre-clean、agents、openlca 健康检查 |
 
-Agent 路径直接读取 `harness/knowledge/` 用户资料。openLCA 前景清理由 GUI 或用户在启动 agent 前通过 `src/scripts/clean_dir/main.py -t openlca` 或 `--preset` 执行。
+Agent 路径直接读取 `harness/knowledge/` 用户资料。bootstrap-env（`src/scripts/proj_init/PROMPT.md`）会调用 `--only openlca` 做 IPC 探测。openLCA 前景清理由 GUI 或用户在启动 agent 前通过 `src/scripts/clean_dir/main.py -t openlca` 或 `--preset` 执行。
 
 ## 环境变量
 
 ~~~text
-HARNESS_AGENT="opencode"  # 可选：codex / claude / opencode / dsh / antigravity
+HARNESS_AGENT="codex"     # 可选：codex / claude / opencode / pi
+CODEX_MODEL="gpt-5.4"     # 与 GUI「AI Agent 工具」配置面板对应；另见 CLAUDE_MODEL / OPENCODE_MODEL / PI_MODEL
 OPENLCA_IPC_PORT=8080     # 可选；GUI 与 CLI 共用
-OPENCODE_BASE_URL=        # 可选；opencode 无 PATH CLI 时指向已有 serve
 ~~~
 
 ## 使用方式
@@ -29,13 +29,8 @@ OPENCODE_BASE_URL=        # 可选；opencode 无 PATH CLI 时指向已有 serve
 # 完整检查（清理 + Agent 检查 + openLCA）
 uv run python src/scripts/check_status/main.py
 
-# 仅执行 Agent 检查（读 .env 的 HARNESS_AGENT，live ping；未设置则任一 inspect 通过即可）
+# 仅执行 Agent CLI 检查
 uv run python src/scripts/check_status/main.py --only agents
-
-# 检查指定 worker（live ping）
-uv run python src/scripts/check_status/main.py --only agents --agent claude
-uv run python src/scripts/check_status/agents_check/main.py --agent claude
-uv run python src/scripts/check_status/agents_check/main.py --agent claude --inspect
 
 # 仅检查 openLCA
 uv run python src/scripts/check_status/main.py --only openlca --port 8080
@@ -50,5 +45,5 @@ openLCA 检查默认连接 `127.0.0.1:8080`，首次失败后新建客户端重�
 ## 离线测试
 
 ~~~bash
-uv run pytest src/test -k check_status -v
+uv run pytest src/tests/gui/test_settings.py -v
 ~~~

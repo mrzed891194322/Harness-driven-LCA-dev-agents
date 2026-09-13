@@ -1,22 +1,114 @@
 from __future__ import annotations
 
+import os
 import sys
 import time
-from typing import TypeAlias
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import olca_ipc
 import olca_schema
 import requests
 from requests.adapters import HTTPAdapter
 
+type TimeoutValue = float | tuple[float, float]
 
-TimeoutValue: TypeAlias = float | tuple[float, float]
+DEFAULT_SHORT_SESSION_BUDGET_SEC = 270.0
+DEFAULT_LONG_SESSION_BUDGET_SEC = 7200.0
+DEFAULT_READ_SEC = 30.0
+DEFAULT_LONG_READ_SEC = 600.0
+MCP_TIMEOUT_BUFFER_SEC = 120.0
+IPC_TOOL_TIMEOUT_MIN_SEC = 300.0
+IPC_TOOL_TIMEOUT_MAX_SEC = 7200.0
+
+_ipc_budget_override: ContextVar[float | None] = ContextVar(
+    "ipc_budget_override", default=None
+)
 
 HEALTH_REQUEST_TIMEOUT: TimeoutValue = (1.0, 3.0)
-READ_REQUEST_TIMEOUT: TimeoutValue = (2.0, 30.0)
-LONG_REQUEST_TIMEOUT: TimeoutValue = (2.0, 285.0)
 HEALTH_RECONNECTS = 3
 HEALTH_BACKOFF_SECONDS = (0.25, 0.5, 1.0)
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def read_sec() -> float:
+    return _env_float("OPENLCA_IPC_READ_SEC", DEFAULT_READ_SEC)
+
+
+def long_read_sec() -> float:
+    return _env_float("OPENLCA_IPC_LONG_READ_SEC", DEFAULT_LONG_READ_SEC)
+
+
+def session_budget_sec(*, long_running: bool = False) -> float:
+    override = _ipc_budget_override.get()
+    if long_running and override is not None:
+        return max(override, long_read_sec() + 1.0)
+    if long_running:
+        budget = _env_float(
+            "OPENLCA_IPC_SESSION_BUDGET_SEC", DEFAULT_LONG_SESSION_BUDGET_SEC
+        )
+        return max(budget, long_read_sec() + 1.0)
+    return DEFAULT_SHORT_SESSION_BUDGET_SEC
+
+
+def ipc_tool_timeout_max_sec() -> float:
+    env_cap = _env_float(
+        "OPENLCA_IPC_SESSION_BUDGET_SEC", DEFAULT_LONG_SESSION_BUDGET_SEC
+    )
+    return min(env_cap, IPC_TOOL_TIMEOUT_MAX_SEC)
+
+
+def resolve_ipc_tool_timeout_sec(requested: int | None) -> float:
+    """MCP optional timeout_sec → IPC session budget for one tool call."""
+    if requested is None:
+        return session_budget_sec(long_running=True)
+    clamped = max(
+        IPC_TOOL_TIMEOUT_MIN_SEC,
+        min(float(requested), ipc_tool_timeout_max_sec()),
+    )
+    return max(clamped, long_read_sec() + 1.0)
+
+
+@contextmanager
+def ipc_budget_scope(budget_sec: float):
+    token = _ipc_budget_override.set(budget_sec)
+    try:
+        yield
+    finally:
+        _ipc_budget_override.reset(token)
+
+
+def mcp_tool_timeout_sec() -> int:
+    return int(session_budget_sec(long_running=True) + MCP_TIMEOUT_BUFFER_SEC)
+
+
+def read_request_timeout() -> TimeoutValue:
+    return (2.0, read_sec())
+
+
+def long_request_timeout() -> TimeoutValue:
+    return (2.0, long_read_sec())
+
+
+def reload_ipc_timeout_settings() -> None:
+    """Re-read OPENLCA_IPC_* env vars into module-level timeout tuples."""
+    global READ_REQUEST_TIMEOUT, LONG_REQUEST_TIMEOUT
+    READ_REQUEST_TIMEOUT = read_request_timeout()
+    LONG_REQUEST_TIMEOUT = long_request_timeout()
+
+
+READ_REQUEST_TIMEOUT: TimeoutValue = read_request_timeout()
+LONG_REQUEST_TIMEOUT: TimeoutValue = long_request_timeout()
 
 
 class OpenLCARequestError(RuntimeError):
@@ -33,6 +125,19 @@ class _TimeoutHTTPAdapter(HTTPAdapter):
     def send(self, request, **kwargs):
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self.timeout
+        from .guard import remaining_budget
+
+        remaining = remaining_budget()
+        if remaining is not None:
+            value = kwargs["timeout"]
+            if isinstance(value, tuple):
+                connect = min(value[0], max(0.001, remaining / 2))
+                kwargs["timeout"] = (
+                    connect,
+                    min(value[1], max(0.001, remaining - connect)),
+                )
+            else:
+                kwargs["timeout"] = min(value, remaining)
         return super().send(request, **kwargs)
 
 
@@ -49,6 +154,13 @@ class BoundedIPCClient(olca_ipc.Client):
         adapter = _TimeoutHTTPAdapter(timeout)
         self._s.mount("http://", adapter)
         self._s.mount("https://", adapter)
+
+    def rpc_call(self, method, params=None):
+        result, error = super().rpc_call(method, params)
+        if error:
+            # olca-ipc otherwise turns several RPC failures into empty lists/None.
+            raise OpenLCARequestError(f"openLCA {method} failed at {self.url}: {error}")
+        return result, None
 
     def create_product_system(
         self,
@@ -120,19 +232,20 @@ def create_ipc_client(
     return BoundedIPCClient(build_endpoint(host, port), timeout=timeout)
 
 
-def resolve_model_type(test_model_type):
+def resolve_model_type(test_model_type: type | str) -> type:
     """Resolve an olca-schema class passed directly or by class name."""
     if isinstance(test_model_type, str):
         mapped_type = getattr(olca_schema, test_model_type, None)
-        if mapped_type is not None:
+        if isinstance(mapped_type, type):
             return mapped_type
+        raise ValueError(f"Unknown olca model type: {test_model_type}")
     return test_model_type
 
 
 def probe_ipc(
     host: str,
     port: int,
-    test_model_type=olca_schema.Currency,
+    test_model_type: type | str = olca_schema.Currency,
     *,
     timeout: TimeoutValue = HEALTH_REQUEST_TIMEOUT,
 ):
@@ -182,7 +295,7 @@ def connect_ipc(
     test_model_type,
     *,
     timeout: TimeoutValue = READ_REQUEST_TIMEOUT,
-):
+) -> BoundedIPCClient:
     endpoint = build_endpoint(host, port)
     print(f"Connecting to openLCA IPC Server ({endpoint})...")
 
@@ -191,7 +304,9 @@ def connect_ipc(
         if not isinstance(model_type, type):
             raise TypeError("test_model_type must resolve to an olca_schema class")
     except (AttributeError, TypeError) as e:
-        print(f"\n[CODE ERROR] Invalid test_model_type. It must be an olca_schema class, such as olca_schema.ProductSystem: {e}")
+        print(
+            f"\n[CODE ERROR] Invalid test_model_type. It must be an olca_schema class, such as olca_schema.ProductSystem: {e}"
+        )
         raise e
 
     total_attempts = HEALTH_RECONNECTS + 1
@@ -216,5 +331,8 @@ def connect_ipc(
             )
             print("Please check:")
             print("  1. The openLCA desktop application is running.")
-            print(f"  2. Tools -> Developer Tools -> IPC Server is enabled on port {port}.")
+            print(
+                f"  2. Tools -> Developer Tools -> IPC Server is enabled on port {port}."
+            )
             sys.exit(1)
+    raise RuntimeError("failed to connect to openLCA IPC server")

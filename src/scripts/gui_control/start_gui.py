@@ -29,20 +29,24 @@ def start_gui() -> None:
         sys.exit(1)
 
     if port_listeners():
-        print(f"端口 {PORT} 已被占用，请先执行 stop_gui.py 关闭现有实例。", file=sys.stderr)
+        print(
+            f"端口 {PORT} 已被占用，请先执行 stop_gui.py 关闭现有实例。",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     print("正在后台启动 Gradio GUI...")
 
     pyw = resolve_pythonw(PROJECT_ROOT)
     if pyw and pyw.endswith("pythonw.exe"):
-        pyw = pyw[:-11] + "python.exe"  # 使用 python.exe 配合 CREATE_NO_WINDOW 避免 uvicorn 流缺失崩溃
+        pyw = (
+            pyw[:-11] + "python.exe"
+        )  # 使用 python.exe 配合 CREATE_NO_WINDOW 避免 uvicorn 流缺失崩溃
 
     if sys.platform == "win32" and pyw:
         cmd = [pyw, "-u", str(GUI_SCRIPT)]
-        creationflags = (
-            getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
+            subprocess, "CREATE_NEW_PROCESS_GROUP", 0
         )
     else:
         cmd = ["uv", "run", "python", "-u", str(GUI_SCRIPT)]

@@ -7,10 +7,10 @@ from typing import Any, Literal
 
 from functions.file_sync.private_utils.upload_paths import collect_upload_paths
 from functions.plan_editor import (
+    is_plan_ready,
     parse_execution_plan_text,
     save_execution_plan,
     save_structured_plan,
-    is_plan_ready,
 )
 
 SyncTarget = Literal["knowledge", "plan", "revise"]

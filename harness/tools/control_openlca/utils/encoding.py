@@ -1,6 +1,7 @@
 import locale
 import sys
 
+
 def setup_io_encoding():
     """
     动态检测并配置标准输入输出流的编码方式，解决 Windows 下的控制台乱码问题，
@@ -8,13 +9,16 @@ def setup_io_encoding():
     """
     if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
         try:
-            import ctypes
             import codecs
+            import ctypes
+
             # 获取 Windows 当前控制台的活动输出代码页 (e.g., 936 为 GBK, 65001 为 UTF-8)。
             # 在 IDE 或被父进程捕获输出时 stdout 可能不是 TTY，但输出仍常按控制台代码页解码。
             codepage = ctypes.windll.kernel32.GetConsoleOutputCP()
-            encoding = f"cp{codepage}" if codepage else locale.getpreferredencoding(False)
-            
+            encoding = (
+                f"cp{codepage}" if codepage else locale.getpreferredencoding(False)
+            )
+
             # 验证 Python 是否支持该编码，支持则进行重配置
             try:
                 codecs.lookup(encoding)

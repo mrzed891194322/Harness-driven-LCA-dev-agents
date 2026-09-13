@@ -1,59 +1,42 @@
-# 平台适配核对清单
+# 运行入口
 
-同一套 Whole-LCA 契约只在 `harness/`。各平台只保留 MCP 接线；主编排是 Python 状态机。MCP **实现**只能在 `harness/tools/`。
+同一套 Whole-LCA 契约只在 `harness/`。Python 主编排器是唯一运行入口。项目 MCP 由 `harness/workflows/LCA-main.yaml` 注册，经 `src/scripts/agent_sdk` 会话接口注入任务会话。当前实现 spawn PATH 上的 CLI；会话 DTO（spec / rule / 工具）与 CLI/SDK 无关。不再使用仓库内 `.codex/` / `.claude/` / `.dsh/` / `.opencode/` 平台 skill。
 
 ## 用户入口
 
-Cursor 不当操作员。开箱后在仓库根目录执行 `uv sync`（见根目录 `README.md`）。
-
-whole-lca / revise-lca 前，用户须先手动 `clean_dir` 并复制资料（见根目录 `README.md`）。然后直接跑 Python 主编排：
-
 ```bash
-uv run python src/scripts/lca_orchestrator/main.py --task whole-lca --worker opencode
-uv run python src/scripts/lca_orchestrator/main.py --task revise-lca --worker dsh
+uv run python src/GUI/main.py
+uv run python harness/workflows/lca_orchestrator/main.py --task whole-lca
+uv run python harness/workflows/lca_orchestrator/main.py --task revise-lca
 ```
 
-`--worker` 为 `opencode` / `claude` / `codex` / `dsh` / `antigravity`。DSH worker 需要 `DSH_PERMISSION_MODE=danger-full-access`。不要在 IDE 里用 slash/skill 启动编排。
+环境引导：读取并执行 `src/scripts/proj_init/PROMPT.md`，或 `uv run python src/scripts/proj_init/main.py`。
+
+whole-lca / revise-lca 前，用户须先手动 `clean_dir` 并复制资料（见根目录 `README.md`），或走 GUI 的执行按钮（GUI 会做前置清理与同步）。
 
 ## GUI 启动用的一行 CLI
 
-GUI 按 `.env` 的 `HARNESS_AGENT` 调用同一 Python 入口。这是 **GUI 内部启动方式**。
+GUI 按 `.env` 的 `HARNESS_AGENT` 调用 Python 编排器并传入 `--worker`。模型 id 来自同文件的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。
 
 ```bash
-uv run python src/scripts/lca_orchestrator/main.py --task whole-lca --worker "$HARNESS_AGENT"
-uv run python src/scripts/lca_orchestrator/main.py --task revise-lca --worker "$HARNESS_AGENT"
+uv run python harness/workflows/lca_orchestrator/main.py --task whole-lca --worker <agent>
+uv run python harness/workflows/lca_orchestrator/main.py --task revise-lca --worker <agent>
 ```
 
-## MCP 接线（实现不复制）
+`agent` 为 `codex` / `claude` / `opencode` / `pi`。
 
-各平台 config 当前只注册：
+## MCP 接线
 
-- `harness/tools/control_openlca/main.py`
+项目 `control_openlca` 的唯一配置来源是主工作流 YAML 注册表，由 worker 会话在任务中注入。不要在仓库根目录再放一份 MCP 声明。
 
-推荐启动方式：`uv run python harness/tools/control_openlca/main.py`。
+实现仍在 `harness/tools/control_openlca/main.py`。
 
-| 平台 | 配置位置 |
+## Agent 分层
+
+| 层 | 位置 |
 | --- | --- |
-| OpenCode | `.opencode/opencode.json` → `mcp.*.command` |
-| Codex | `.codex/config.toml` → `mcp_servers.*.command` / `args` |
-| Claude Code | `.claude/settings.json` 与 `.mcp.json` → `mcpServers` |
-| DSH | `.dsh/cordis.patch.yml` → `insert` 行 `@deepseek-ai/dsh-mcp-client`（`serverName: control_openlca`） |
-
-禁止：
-
-- 在 `.opencode/`、`.codex/`、`.claude/`、`.dsh/` 再实现一套 control_openlca
-- 新增 `harness/tools/mcp.json` 当平台只能翻译的总目录
-- 把 `harness/workflows/` 阶段循环复制进 agent
-- 注册 named agent（`major-orchestrator` / `sub-executor` / `eval-reviewer`）
-- 在 adapter 里放 whole-lca / revise-lca slash、skill 或 command（worker 会自动发现，可能嵌套编排）
-- 在 `~/.dsh/` 写仓库配置（DSH 项目配置只在 `.dsh/`，经 `--patch` 挂载）
-
-## Adapter 分层
-
-| 层 | OpenCode | Codex | Claude Code | DSH |
-| --- | --- | --- | --- | --- |
-| MCP | `.opencode/opencode.json` | `.codex/config.toml` | `.claude/settings.json` | `.dsh/cordis.patch.yml` |
-| 主编排 | `src/scripts/lca_orchestrator/` | 同左 | 同左 | 同左 |
-| 阶段循环与提示词 | `harness/workflows/LCA-*.yaml` | 同左 | 同左 | 同左 |
-
-不要在 Codex 或 DSH 配置中硬编码模型名称。不要在 Codex 或 DSH 里放代码维护 skill。DSH worker 用 `DSH_PERMISSION_MODE=danger-full-access`。
+| 主编排 | `harness/workflows/lca_orchestrator/` |
+| 阶段与任务绑定 | `harness/workflows/LCA-*.yaml` |
+| 契约与角色任务 | `harness/specs/` |
+| Worker 会话 | `src/scripts/agent_sdk/`（当前 CLI provider；接口可换 SDK） |
+| 环境引导 | `src/scripts/proj_init/PROMPT.md` |

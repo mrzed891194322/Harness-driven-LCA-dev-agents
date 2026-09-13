@@ -16,7 +16,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.encoding import setup_io_encoding
-from harness.tools.control_openlca.utils.readonly import health_check
+
+from harness.tools.control_openlca.utils.service import health
 
 
 def get_openlca_health(
@@ -24,7 +25,7 @@ def get_openlca_health(
     port: int = 8080,
 ) -> dict:
     """Return the shared structured IPC health result."""
-    return health_check(host, port)
+    return health(host, port)
 
 
 def check_openlca(host: str = "127.0.0.1", port: int = 8080) -> bool:
@@ -41,16 +42,16 @@ def check_openlca(host: str = "127.0.0.1", port: int = 8080) -> bool:
     endpoint = f"http://{host}:{port}"
     print(f"Attempting to connect to openLCA IPC Server ({endpoint})...")
     result = get_openlca_health(host=host, port=port)
-    if result["ok"]:
+    if result["status"] == "success":
         print(
             "Successfully established IPC connection after "
-            f"{result['attempt_count']} attempt(s). openLCA is ready."
+            f"{result['counts'].get('attempt_count', 0)} attempt(s). openLCA is ready."
         )
         return True
 
     print(
         "\n[Error] Cannot connect to openLCA IPC Server after "
-        f"{result['attempt_count']} attempts: {result.get('error')}"
+        f"{result['counts'].get('attempt_count', 0)} attempts: {result['errors']}"
     )
     _print_diagnosis(port)
     return False
@@ -59,7 +60,9 @@ def check_openlca(host: str = "127.0.0.1", port: int = 8080) -> bool:
 def _print_diagnosis(port: int):
     print("Please check:")
     print("  1. Whether openLCA desktop application is running")
-    print(f"  2. Whether Tools -> Developer Tools -> IPC Server is started (Port: {port})")
+    print(
+        f"  2. Whether Tools -> Developer Tools -> IPC Server is started (Port: {port})"
+    )
     print("  3. Whether the firewall allows access to this port")
 
 
