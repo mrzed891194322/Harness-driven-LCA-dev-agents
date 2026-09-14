@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ...archive import resolve_mcp_render_dir
 from ...openlca_mcp_timeout import mcp_tool_timeout_sec
 from ...permissions import CLAUDE_PERMISSION_MODE, claude_allowed_tools_flag
 from ...progress import LineFormatter
@@ -35,12 +36,13 @@ class ClaudeSessionProvider(CliSessionProvider):
         session_id: str,
     ) -> dict[str, str]:
         del session_id
-        mcp_path = storage_dir / "mcp.json"
+        mcp_path = resolve_mcp_render_dir(config, storage_dir) / "mcp.json"
         write_claude_mcp(mcp_path, config.mcp_servers)
         return {"mcp_path": str(mcp_path) if config.mcp_servers else ""}
 
     def _prepare_turn(self, ref: SessionRef, config: SessionConfig) -> None:
-        mcp_path = Path(ref.storage["dir"]) / "mcp.json"
+        render_dir = resolve_mcp_render_dir(config, Path(ref.storage["dir"]))
+        mcp_path = render_dir / "mcp.json"
         write_claude_mcp(mcp_path, config.mcp_servers)
         ref.storage["mcp_path"] = str(mcp_path) if config.mcp_servers else ""
 

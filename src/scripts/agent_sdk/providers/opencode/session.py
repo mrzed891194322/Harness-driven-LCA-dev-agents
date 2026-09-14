@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ...archive import resolve_mcp_render_dir
 from ...openlca_mcp_timeout import mcp_tool_timeout_sec
 from ...permissions import opencode_permission_config
 from ...progress import LineFormatter
@@ -40,15 +41,14 @@ class OpenCodeSessionProvider(CliSessionProvider):
         session_id: str,
     ) -> dict[str, str]:
         del session_id
-        config_path = write_opencode_config(storage_dir / "opencode.json", config)
+        render_dir = resolve_mcp_render_dir(config, storage_dir)
+        config_path = write_opencode_config(render_dir / "opencode.json", config)
         self._config_path = config_path
         return {"config_path": config_path}
 
     def _prepare_turn(self, ref: SessionRef, config: SessionConfig) -> None:
-        config_path = write_opencode_config(
-            Path(ref.storage["dir"]) / "opencode.json",
-            config,
-        )
+        render_dir = resolve_mcp_render_dir(config, Path(ref.storage["dir"]))
+        config_path = write_opencode_config(render_dir / "opencode.json", config)
         ref.storage["config_path"] = config_path
         self._config_path = config_path
 

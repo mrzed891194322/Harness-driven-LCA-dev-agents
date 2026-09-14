@@ -7,7 +7,6 @@ without touching per-provider JSONL parsers.
 from __future__ import annotations
 
 import json
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol, TextIO
@@ -98,14 +97,18 @@ def format_tagged(
 
 
 def set_progress_log(path: Path | str | None, *, append: bool = False) -> None:
-    """Mirror tagged terminal lines to a UTF-8 file. None disables the log."""
+    """Mirror tagged terminal lines to a UTF-8 file. None disables the log.
+
+    ``path`` must be a file path. If a directory is passed, write
+    ``progress.txt`` inside it instead of deleting the directory.
+    """
     global _progress_log
     if path is None:
         _progress_log = None
         return
     target = Path(path)
     if target.exists() and target.is_dir():
-        shutil.rmtree(target)
+        target = target / "progress.txt"
     target.parent.mkdir(parents=True, exist_ok=True)
     if append:
         target.touch(exist_ok=True)

@@ -6,9 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from harness.tools.control_openlca.utils.workflow import _write_json_atomic
+from scripts.agent_sdk.archive import mcp_render_dir, turn_archive_dir
 from scripts.agent_sdk.mcp import mcp_servers_for_tools
 from scripts.agent_sdk.models import load_worker_model
 from scripts.agent_sdk.session import SessionConfig
+from scripts.agent_sdk.uv_env import ensure_uv_cache_dir
 
 from .assemble import assignment_spec_paths
 from .loader import assignment_rule_ids
@@ -72,6 +74,7 @@ def build_session_config(
     attempt: int,
 ) -> SessionConfig:
     """Fill SessionConfig from YAML. Providers must not parse the workflow."""
+    uv_cache = ensure_uv_cache_dir(project_root)
     tool_ids = list(assignment.tools)
     mcp_servers = mcp_servers_for_tools(
         tool_ids,
@@ -83,6 +86,7 @@ def build_session_config(
         "LCA_ATTEMPT": str(attempt),
         "LCA_ROLE": assignment.role,
         "LCA_WORKSPACE": str(workspace_root),
+        "UV_CACHE_DIR": str(uv_cache),
     }
     context_path = None
     if any(tool_id in LCA_ENV_TOOLS for tool_id in tool_ids):
@@ -94,15 +98,27 @@ def build_session_config(
             attempt=attempt,
         )
     for tool_id in tool_ids:
-        if tool_id not in LCA_ENV_TOOLS:
-            continue
         server = mcp_servers[tool_id]
-        merged: dict[str, Any] = {**server.get("env", {}), **extra_env}
+        merged: dict[str, Any] = {
+            **server.get("env", {}),
+            "UV_CACHE_DIR": str(uv_cache),
+        }
+        if tool_id in LCA_ENV_TOOLS:
+            merged.update(extra_env)
+            if context_path is not None:
+                server["args"] = _with_context_file(
+                    list(server.get("args") or []), context_path
+                )
         server["env"] = merged
-        if context_path is not None:
-            server["args"] = _with_context_file(
-                list(server.get("args") or []), context_path
-            )
+    render_dir = mcp_render_dir(workspace_root, run_id, stage.stage_id, assignment.role)
+    render_dir.mkdir(parents=True, exist_ok=True)
+    archive = turn_archive_dir(
+        workspace_root,
+        run_id,
+        stage.stage_id,
+        assignment.role,
+        attempt,
+    )
     return SessionConfig(
         worker=worker,
         cwd=project_root,
@@ -115,4 +131,7 @@ def build_session_config(
         stage_id=stage.stage_id,
         role=assignment.role,
         attempt=attempt,
+        run_id=run_id,
+        mcp_render_dir=render_dir,
+        archive_dir=archive,
     )

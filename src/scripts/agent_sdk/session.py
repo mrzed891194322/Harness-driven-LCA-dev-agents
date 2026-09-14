@@ -57,6 +57,9 @@ class SessionConfig:
     stage_id: str = ""
     role: str = ""
     attempt: int = 0
+    run_id: str = ""
+    mcp_render_dir: Path | None = None
+    archive_dir: Path | None = None
 
 
 @dataclass

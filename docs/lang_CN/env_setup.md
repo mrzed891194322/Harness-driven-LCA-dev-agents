@@ -46,6 +46,8 @@ uv sync
 
 该命令会创建虚拟环境并同步依赖（含开发依赖 `pytest`、`ruff`、`pyright`）。Worker CLI 需自行安装到 PATH。
 
+uv 包缓存默认写到仓库根 `.uv-cache/`（见 `.env.example` 的 `UV_CACHE_DIR`）。不要放到 `workspace/tmp/`。
+
 开发静态检查与测试：
 
 ```bash

@@ -33,12 +33,14 @@ from lca_orchestrator.graph import (  # noqa: E402
 )
 from lca_orchestrator.loader import load_workflow  # noqa: E402
 from lca_orchestrator.manifest import write_manifest  # noqa: E402
+from scripts.agent_sdk.archive import progress_log_path  # noqa: E402
 from scripts.agent_sdk.inspect import WORKERS  # noqa: E402
 from scripts.agent_sdk.progress import (  # noqa: E402
     print_orchestrator,
     set_progress_log,
 )
 from scripts.agent_sdk.session import default_client  # noqa: E402
+from scripts.agent_sdk.uv_env import ensure_uv_cache_dir  # noqa: E402
 
 TASK_NAMES = ("whole-lca", "revise-lca")
 
@@ -66,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
 
     project_root = args.project_root.resolve()
     workspace_root = (args.workspace or (project_root / "workspace")).resolve()
+    ensure_uv_cache_dir(project_root)
     worker = (args.worker or _load_worker(project_root)).strip().lower()
     if worker not in WORKERS:
         print_orchestrator(f"unsupported worker: {worker}", file=sys.stderr)
@@ -88,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.run_id:
             return _resume(compiled, conn, runtime, args.run_id, workspace_root)
         run_id = uuid.uuid4().hex
-        _bind_progress_log(workspace_root, append=False)
+        _bind_progress_log(workspace_root, run_id, append=False)
         print_orchestrator(f"start run_id={run_id} task={args.task} worker={worker}")
         write_manifest(
             workspace_root,
@@ -120,7 +123,7 @@ def _resume(
     workspace_root: Path,
 ) -> int:
     del conn
-    _bind_progress_log(workspace_root, append=True)
+    _bind_progress_log(workspace_root, run_id, append=True)
     config = {"configurable": {"thread_id": run_id}}
     snapshot = compiled.get_state(config)
     if snapshot is None or not snapshot.values:
@@ -170,8 +173,8 @@ def _exit_code(result: dict | None) -> int:
     return 0 if status == "completed" else 1
 
 
-def _bind_progress_log(workspace_root: Path, *, append: bool) -> None:
-    set_progress_log(workspace_root / "outputs" / "logs", append=append)
+def _bind_progress_log(workspace_root: Path, run_id: str, *, append: bool) -> None:
+    set_progress_log(progress_log_path(workspace_root, run_id), append=append)
 
 
 def _load_worker(project_root: Path) -> str:

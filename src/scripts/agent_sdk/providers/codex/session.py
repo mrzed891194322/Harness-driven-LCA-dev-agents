@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ...archive import resolve_mcp_render_dir
 from ...openlca_mcp_timeout import mcp_tool_timeout_sec
 from ...permissions import CODEX_SANDBOX
 from ...progress import LineFormatter
@@ -27,6 +28,16 @@ class CodexSessionProvider(CliSessionProvider):
         del config
         if not Path(ref.storage.get("dir", "")).is_dir():
             raise SessionResumeError("Codex 会话存储目录不存在")
+
+    def _prepare_turn(self, ref: SessionRef, config: SessionConfig) -> None:
+        render_dir = resolve_mcp_render_dir(config, Path(ref.storage["dir"]))
+        rows = list(mcp_overrides(config.mcp_servers))
+        path = render_dir / "mcp-overrides.json"
+        path.write_text(
+            json.dumps({"overrides": rows}, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        ref.storage["mcp_overrides_path"] = str(path)
 
     def build_command(
         self,

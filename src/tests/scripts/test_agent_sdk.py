@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -171,6 +172,8 @@ class AgentSdkSessionTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temp_dir:
             tmp = Path(temp_dir)
+            render = tmp / "tmp" / "mcp-render" / "run-1" / "stage" / "executor"
+            archive = tmp / "memory" / "logs" / "run-1" / "stage" / "executor#1"
             config = SessionConfig(
                 worker="codex",
                 cwd=tmp,
@@ -180,9 +183,21 @@ class AgentSdkSessionTests(unittest.TestCase):
                 spec_paths=["harness/specs/public/README.md"],
                 rule_ids=["openlca_usage"],
                 tool_ids=["control_openlca"],
+                stage_id="stage",
+                role="executor",
+                attempt=1,
+                run_id="run-1",
+                mcp_render_dir=render,
+                archive_dir=archive,
             )
             ref = provider.create(config)
             result = provider.run_turn(ref, "hello", config)
+            self.assertTrue((render / "mcp-overrides.json").is_file())
+            self.assertTrue((archive / "prompt.md").is_file())
+            self.assertTrue((archive / "argv.json").is_file())
+            self.assertTrue((archive / "stdout.jsonl").is_file())
+            self.assertTrue((archive / "session-ref.json").is_file())
+            self.assertTrue((archive / "rendered" / "mcp-overrides.json").is_file())
         self.assertEqual(result.text, "ok")
         self.assertEqual(ref.storage["thread_id"], "thread-1")
         argv = runner.calls[0]["argv"]
@@ -192,14 +207,18 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertEqual(argv[argv.index("-s") + 1], CODEX_SANDBOX)
         self.assertEqual(argv[-1], "hello")
         rows = mcp_overrides(config.mcp_servers)
-        self.assertTrue(any("control_openlca.command=uv" in row for row in rows))
+        self.assertTrue(
+            any(f"control_openlca.command={sys.executable}" in row for row in rows)
+        )
         from harness.tools.control_openlca.utils.connection import mcp_tool_timeout_sec
 
         expected_timeout = (
             f"mcp_servers.control_openlca.tool_timeout_sec={mcp_tool_timeout_sec()}"
         )
         self.assertIn(expected_timeout, rows)
-        self.assertTrue(any(row in argv for row in rows if "command=uv" in row))
+        self.assertTrue(
+            any(row in argv for row in rows if f"command={sys.executable}" in row)
+        )
 
     def test_codex_mcp_overrides_forward_context_file_arg(self) -> None:
         rows = mcp_overrides(
@@ -309,7 +328,7 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertEqual(payload["permission"]["control_openlca_*"], "allow")
         self.assertEqual(
             payload["mcp"]["control_openlca"]["command"],
-            ["uv", "run", "python", "harness/tools/control_openlca/main.py"],
+            [sys.executable, "harness/tools/control_openlca/main.py"],
         )
 
     def test_opencode_omits_model_and_mcp_permission_when_empty(self) -> None:
@@ -547,7 +566,13 @@ class AgentSdkSessionTests(unittest.TestCase):
             }
         }
         servers = mcp_servers_for_tools(["control_openlca"], registry)
-        self.assertEqual(servers["control_openlca"]["command"], "uv")
+        self.assertEqual(servers["control_openlca"]["command"], sys.executable)
+        self.assertEqual(
+            servers["control_openlca"]["args"],
+            ["harness/tools/control_openlca/main.py"],
+        )
+        raw = mcp_servers_for_tools(["control_openlca"], registry, rewrite_uv=False)
+        self.assertEqual(raw["control_openlca"]["command"], "uv")
         payload = json.dumps(servers)
         self.assertIn("control_openlca", payload)
 
@@ -935,12 +960,14 @@ class AgentSdkProgressTests(unittest.TestCase):
         from scripts.agent_sdk.progress import print_orchestrator, set_progress_log
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            log_path = Path(temp_dir) / "outputs" / "logs"
+            log_path = Path(temp_dir) / "memory" / "logs" / "run-abc" / "progress.txt"
             leftover = Path(temp_dir) / "leftover"
             leftover.mkdir()
             (leftover / "old").write_text("stale", encoding="utf-8")
             set_progress_log(leftover, append=False)
-            self.assertTrue(leftover.is_file())
+            self.assertTrue(leftover.is_dir())
+            self.assertTrue((leftover / "progress.txt").is_file())
+            self.assertTrue((leftover / "old").is_file())
             set_progress_log(log_path, append=False)
             try:
                 with patch("scripts.agent_sdk.progress.clock", return_value="22:01:25"):

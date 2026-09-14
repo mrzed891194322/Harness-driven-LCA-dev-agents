@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -226,6 +227,30 @@ class WorkflowYamlTests(unittest.TestCase):
             )
             artifact_args = config.mcp_servers["lca_artifacts"]["args"]
             self.assertIn("--context-file", artifact_args)
+            self.assertEqual(
+                config.mcp_servers["control_openlca"]["command"], sys.executable
+            )
+            self.assertEqual(
+                config.mcp_servers["control_openlca"]["args"][0],
+                "harness/tools/control_openlca/main.py",
+            )
+            self.assertIn("UV_CACHE_DIR", config.mcp_servers["control_openlca"]["env"])
+            self.assertIsNotNone(config.mcp_render_dir)
+            assert config.mcp_render_dir is not None
+            self.assertTrue(config.mcp_render_dir.is_dir())
+            self.assertEqual(
+                config.mcp_render_dir,
+                workspace
+                / "tmp"
+                / "mcp-render"
+                / "run-1"
+                / stage.stage_id
+                / "executor",
+            )
+            self.assertEqual(
+                config.archive_dir,
+                workspace / "memory" / "logs" / "run-1" / stage.stage_id / "executor#2",
+            )
         self.assertEqual(config.tool_ids, list(executor.tools))
         self.assertIn("control_openlca", config.tool_ids)
         self.assertIn("openlca_usage", config.rule_ids)
@@ -244,6 +269,7 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertEqual(config.stage_id, stage.stage_id)
         self.assertEqual(config.role, "executor")
         self.assertEqual(config.attempt, 2)
+        self.assertEqual(config.run_id, "run-1")
 
     def test_session_config_rewrites_context_attempt(self) -> None:
         workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
@@ -329,11 +355,13 @@ class PlatformAdapterTests(unittest.TestCase):
             "GUI_PORT",
             "OPENLCA_IPC_HOST",
             "OPENLCA_IPC_PORT",
+            "UV_CACHE_DIR",
         ):
             self.assertIn(key, text, key)
         self.assertIn('HARNESS_AGENT="codex"', text)
-        self.assertIn("gpt-5.4", text)
-        self.assertIn("claude-sonnet-4-5", text)
+        self.assertIn("CODEX_MODEL=", text)
+        self.assertIn("CLAUDE_MODEL=", text)
+        self.assertIn(".uv-cache", text)
         self.assertNotIn("ANTHROPIC_API_KEY", text)
         self.assertNotIn("DEEPSEEK_API_KEY", text)
         self.assertNotIn("HARNESS_DSH_MODEL", text)

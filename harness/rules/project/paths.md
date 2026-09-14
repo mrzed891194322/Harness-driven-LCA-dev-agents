@@ -3,13 +3,15 @@
 ```text
 workspace/
 ├── inputs/                 # plan.md、可选 revise.md
-├── memory/                 # manifest.json、handoffs/、reviews/、检查点
+├── memory/                 # manifest.json、handoffs/、reviews/、logs/、检查点
 ├── outputs/
 │   ├── inventory/          # extracted-bom.json/.md、process-mapping.json
 │   ├── LCI/                # Flows/Processes/Product Systems 与 mapping 报告
 │   └── reports/            # MCP 原始返回与 lca_report.md
-└── tmp/                    # 运行时临时缓存与任务 MCP 临时配置；严禁在此存放一次性脚本
+└── tmp/                    # mcp-context、mcp-render、sdk-sessions；严禁在此存放一次性脚本
 ```
+
+仓库根另有 `.uv-cache/`（`UV_CACHE_DIR` 默认值，不进 workspace，不被 clean_dir 清理）。
 
 ## 约束
 
@@ -17,6 +19,7 @@ workspace/
 - **`harness/knowledge/`**：用户参考资料的默认落点，扁平目录。
 - **`workspace/outputs/inventory/`**：BOM 与工艺映射。GUI「工作细节」渲染 `extracted-bom.json` 与 `process-mapping.json`。不要把这些 JSON 放进 `outputs/LCI/`（导入工具只认 JSON-LD 实体目录）。
 - **`workspace/outputs/LCI/`**：仅在 `flows/`、`processes/`、`product_systems/` 中保存一文件一实体的 openLCA JSON-LD，并在根目录保存 `human_readable_mapping.md`。
-- **`workspace/memory/`**：`manifest.json`、handoff、审查笔记，可选 `checklist.md`。编排器检查点（SQLite）也在此目录。不要在记忆中记录 SHA-256。revise-lca 直接读取并覆盖上一轮 `workspace/outputs/`，不另建 `baseline/` 快照。
+- **`workspace/memory/`**：`manifest.json`、handoff、审查笔记，可选 `checklist.md`。编排器检查点（SQLite）也在此目录。`memory/logs/<run_id>/` 保存进度镜像与 worker turn 排障快照。不要在记忆中记录 SHA-256。revise-lca 直接读取并覆盖上一轮 `workspace/outputs/`，不另建 `baseline/` 快照。
+- **`workspace/tmp/`**：`mcp-context/`、`mcp-render/`（各 CLI 实际读取的 MCP 中间格式）、`sdk-sessions/`。可被 clean_dir 清空。
 - **`workspace/outputs/reports/`**：MCP 原始返回和最终报告，不再创建运行 ID 子目录。
 - 旧运行产物由外部流程在开始前清理；工作流自身不负责删除。恢复已有 run 时不要做新运行清理。

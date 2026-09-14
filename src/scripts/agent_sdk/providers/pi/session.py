@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ...openlca_mcp_timeout import mcp_tool_timeout_sec
+from ...archive import resolve_mcp_render_dir
 from ...catalog import split_pi_model_ref
+from ...openlca_mcp_timeout import mcp_tool_timeout_sec
 from ...permissions import pi_tools_flag
 from ...progress import LineFormatter
 from ...session import SessionConfig, SessionRef, SessionResumeError
@@ -36,7 +37,7 @@ class PiSessionProvider(CliSessionProvider):
         session_id: str,
     ) -> dict[str, str]:
         del session_id
-        mcp_path = storage_dir / "mcp.json"
+        mcp_path = resolve_mcp_render_dir(config, storage_dir) / "mcp.json"
         write_pi_mcp(mcp_path, config.mcp_servers)
         return {
             "mcp_path": str(mcp_path) if config.mcp_servers else "",
@@ -44,7 +45,8 @@ class PiSessionProvider(CliSessionProvider):
         }
 
     def _prepare_turn(self, ref: SessionRef, config: SessionConfig) -> None:
-        mcp_path = Path(ref.storage["dir"]) / "mcp.json"
+        render_dir = resolve_mcp_render_dir(config, Path(ref.storage["dir"]))
+        mcp_path = render_dir / "mcp.json"
         write_pi_mcp(mcp_path, config.mcp_servers)
         ref.storage["mcp_path"] = str(mcp_path) if config.mcp_servers else ""
         ref.storage["session_dir"] = str(Path(ref.storage["dir"]))

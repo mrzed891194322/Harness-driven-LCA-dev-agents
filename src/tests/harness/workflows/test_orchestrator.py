@@ -380,7 +380,11 @@ class OrchestratorGraphTests(unittest.TestCase):
             conn.close()
         self.assertEqual(code, 1)
         self.assertEqual(client.turns, [])
-        self.assertTrue((self.workspace / "outputs" / "logs").is_file())
+        self.assertTrue(
+            (
+                self.workspace / "memory" / "logs" / "run-inflight" / "progress.txt"
+            ).is_file()
+        )
         manifest = json.loads(
             (self.workspace / "memory" / "manifest.json").read_text(encoding="utf-8")
         )
