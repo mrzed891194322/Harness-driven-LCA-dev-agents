@@ -23,6 +23,7 @@ from scripts.agent_sdk.permissions import (  # noqa: E402
 )
 from scripts.agent_sdk.providers.claude.session import (
     ClaudeSessionProvider,  # noqa: E402
+    write_claude_mcp,
 )
 from scripts.agent_sdk.providers.cli_base import CliRunResult  # noqa: E402
 from scripts.agent_sdk.providers.codex.session import (  # noqa: E402
@@ -199,6 +200,48 @@ class AgentSdkSessionTests(unittest.TestCase):
         )
         self.assertIn(expected_timeout, rows)
         self.assertTrue(any(row in argv for row in rows if "command=uv" in row))
+
+    def test_codex_mcp_overrides_forward_context_file_arg(self) -> None:
+        rows = mcp_overrides(
+            {
+                "lca_artifacts": {
+                    "command": "uv",
+                    "args": [
+                        "run",
+                        "python",
+                        "harness/tools/lca_artifacts/main.py",
+                        "--context-file",
+                        "/tmp/ctx.json",
+                    ],
+                }
+            }
+        )
+        self.assertTrue(
+            any("--context-file" in row and "ctx.json" in row for row in rows)
+        )
+
+    def test_claude_mcp_config_includes_context_file_arg(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "mcp.json"
+            write_claude_mcp(
+                path,
+                {
+                    "lca_artifacts": {
+                        "command": "uv",
+                        "args": [
+                            "run",
+                            "python",
+                            "harness/tools/lca_artifacts/main.py",
+                            "--context-file",
+                            "/tmp/ctx.json",
+                        ],
+                    }
+                },
+            )
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        args = payload["mcpServers"]["lca_artifacts"]["args"]
+        self.assertIn("--context-file", args)
+        self.assertIn("/tmp/ctx.json", args)
 
     def test_codex_refreshes_mcp_bindings_and_attempt_environment(self) -> None:
         runner = _FakeRunner(stdout='{"thread_id":"thread-1"}\n')

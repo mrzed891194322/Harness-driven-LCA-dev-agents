@@ -10,7 +10,7 @@
 - 同 endpoint 的 MCP、初始化及清理入口跨进程互斥；锁等待上限 5 秒。客户端超时/进程中断保留不确定标记，后续先有界健康探测；不自动重扫或重写。
 - 操作日志按 operations/<operation_id>.json 保存，requests/<run_id>/<request_id>.json 与 current.json 仅作索引。成功执行显式 cleanup 后归档当前索引；旧请求的失败记录不改成成功。
 - 03 审核通过快照由编排器记录；04 导入/计算只接受未变化的已审模型。计算请求须与 calculation-plan.json 一致。
-- 工具身份由编排器注入 LCA_RUN_ID/STAGE/ATTEMPT/ROLE/WORKSPACE，SDK 恢复会话时刷新。直接初始化采用独立 standalone run；其产物不进入正式运行复用。
+- 工具身份由编排器写入 `--context-file`（每轮覆盖 attempt/role）；MCP 每次调用重读。`LCA_*` 环境变量仅为冗余。无该参数时（GUI/探测）才用独立 standalone run，其产物不进入正式运行复用。
 
 离线回归：`uv run pytest src/tests/harness/tools/control_openlca -q`。行为规则见 `harness/rules/tools/control_openlca.md`，证据契约见 `harness/specs/public/references/evidence-contract.md`。
 
@@ -133,7 +133,7 @@ uv run pytest src/tests/harness/tools/control_openlca -v
 ### 1. IPC 连接模块 (`utils/connection.py`)
 *   **核心函数**：`create_ipc_client(...)`、`probe_ipc(...)`、`close_ipc_client(...)` 和兼容 CLI 的 `connect_ipc(...)`。
 *   **用途**：统一构造带 HTTP timeout 的 `BoundedIPCClient`；探测使用较小的 Currency descriptor 请求，并显式识别 JSON-RPC 错误。
-*   **规范**：普通只读请求默认 **30 秒**读取 timeout（`OPENLCA_IPC_READ_SEC`）；预检、导入、计算与清理默认 **600 秒**单次读 timeout（`OPENLCA_IPC_LONG_READ_SEC`），且在同一把 endpoint 锁内共享 **7200 秒**会话总预算（`OPENLCA_IPC_SESSION_BUDGET_SEC`）。短查询仍用 270 秒会话预算。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 的 tool 超时与上述会话预算对齐（约 budget+120 秒）。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。
+*   **规范**：每个 MCP 工具在 `IPC_TOOL_PROFILES` 中有唯一档位（`none` / `health` / `short` / `long`）。档位决定 endpoint 锁的会话预算；**省略 timeout 的 `create_ipc_client` 使用当前会话剩余预算作为 HTTP 读超时**。长作业默认会话 **7200 秒**（`OPENLCA_IPC_SESSION_BUDGET_SEC` 或工具 `timeout_sec`）。无会话（CLI 直调）时保底 **600 秒**（`OPENLCA_IPC_LONG_READ_SEC`）。`OPENLCA_IPC_READ_SEC`（30 秒）不再是 MCP 工具的实际上限。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 的 tool 超时与长作业会话预算对齐（约 budget+120 秒）。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。新增 MCP 工具必须登记档位，否则测试失败。
 
 ### 2. 实体检索模块 (`utils/entity.py`)
 *   **核心函数**：`find_entity(client, model_type, name_or_uuid)`

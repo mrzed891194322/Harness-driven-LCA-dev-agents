@@ -28,7 +28,7 @@ uv run python src/GUI/main.py
 点「AI Agent 工具」卡片上的「配置」进入模型页：横向 Codex / Claude / OpenCode / Pi 卡片点一张只显示该后端表单，页面用竖直滚动条；点「返回」回到初始化检查。
 当前 Agent CLI 仍由初始化检查页的下拉框选择（codex / claude / opencode / pi）；各后端模型 id 缺省来自 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。OpenCode / Pi 可点「刷新模型列表」拉取本机可用模型后再点选（也可手填）。Pi 填写 `provider/model`（例如 `opencode-go/deepseek-v4.1-flash`），启动时拆成 `--provider` 与 `--model`。认证走各 CLI 本机登录，配置页可点「测试连接」做诊断探测（不开对话）。
 「开始初始化检查」会依次探测所选 Agent CLI（PATH 上的 `--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导：执行 `src/scripts/proj_init/PROMPT.md` 或 `uv run python src/scripts/proj_init/main.py`）。
-侧栏「用户资料上传」仅暂存于 GUI；点击「执行LCA计划」或「执行改进」时，先 `clean_dir --preset`（whole-lca 含 `knowledge` + `inputs` staging，可用 `CLEAN_GUI_STAGING` 跳过），再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 与模型写入仓库根目录 `.env`。
+侧栏「用户资料上传」仅暂存于 GUI，不重置初始化检查门禁；点击「执行LCA计划」或「执行改进」时，先 `clean_dir --preset`（whole-lca 含 `knowledge` + `inputs` staging，可用 `CLEAN_GUI_STAGING` 跳过），再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 与模型写入仓库根目录 `.env`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
 `workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。

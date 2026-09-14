@@ -1,5 +1,6 @@
 import fnmatch
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -128,7 +129,7 @@ def clean_root_files(
     keep_patterns: list[str],
     dry_run: bool = False,
 ) -> tuple[int, int, int, int]:
-    """Delete direct files under a flat directory while preserving keep patterns."""
+    """Delete root-level files and subdirectories, preserving keep patterns."""
     deleted_files = 0
     deleted_dirs = 0
     kept_files = 0
@@ -138,8 +139,6 @@ def clean_root_files(
         return deleted_files, deleted_dirs, kept_files, failed
 
     for child in sorted(root_dir.iterdir()):
-        if not child.is_file():
-            continue
         if match_keep(child, root_dir, keep_patterns):
             kept_files += 1
             continue
@@ -148,17 +147,29 @@ def clean_root_files(
         except ValueError:
             display_path = child
 
+        is_dir = child.is_dir() and not child.is_symlink()
+
         if dry_run:
-            print(f"  [待删除] 文件: {display_path}")
-            deleted_files += 1
+            if is_dir:
+                print(f"  [待删除] 目录: {display_path}")
+                deleted_dirs += 1
+            else:
+                print(f"  [待删除] 文件: {display_path}")
+                deleted_files += 1
             continue
 
         try:
-            child.unlink()
-            deleted_files += 1
-            print(f"  已删除文件: {display_path}")
+            if is_dir:
+                shutil.rmtree(child)
+                deleted_dirs += 1
+                print(f"  已删除目录: {display_path}")
+            else:
+                child.unlink()
+                deleted_files += 1
+                print(f"  已删除文件: {display_path}")
         except Exception as exc:
             failed += 1
-            print(f"  删除文件失败: {child}，错误: {exc}", file=sys.stderr)
+            kind = "目录" if is_dir else "文件"
+            print(f"  删除{kind}失败: {child}，错误: {exc}", file=sys.stderr)
 
     return deleted_files, deleted_dirs, kept_files, failed

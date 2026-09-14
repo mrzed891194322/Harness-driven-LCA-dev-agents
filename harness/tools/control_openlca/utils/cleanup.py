@@ -7,7 +7,6 @@ from typing import Any
 import olca_schema
 
 from harness.tools.control_openlca.utils.connection import (
-    LONG_REQUEST_TIMEOUT,
     close_ipc_client,
     create_ipc_client,
     is_transport_error,
@@ -15,9 +14,9 @@ from harness.tools.control_openlca.utils.connection import (
 from harness.tools.control_openlca.utils.protocols import OlcaDescriptor, OpenLcaClient
 
 
-def connect_ipc(host, port, model_type=None, *, timeout=LONG_REQUEST_TIMEOUT):
+def connect_ipc(host, port, model_type=None):
     """Service-safe connection: errors propagate instead of exiting the MCP process."""
-    return create_ipc_client(host, port, timeout=timeout)
+    return create_ipc_client(host, port)
 
 
 def is_in_project_category(category: str | None, project_name: str) -> bool:
@@ -123,7 +122,6 @@ def run_cleanup_output(
         host,
         port,
         olca_schema.ProductSystem,
-        timeout=LONG_REQUEST_TIMEOUT,
     )
     try:
         entities = collect_entities(client, project_name, model_types)

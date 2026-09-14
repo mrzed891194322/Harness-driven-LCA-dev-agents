@@ -31,6 +31,8 @@ uv run python src/scripts/clean_dir/main.py -y --preset whole-lca --no-staging
 
 `whole-lca` 会清 `knowledge`、`inputs`（`plan.md` / `revise.md`）、`workspace` 生成物与 openLCA 前景。`revise-lca` 清 `knowledge` 与 openLCA，保留 `workspace/inputs/plan.md`。`--no-staging` 从任一序列中去掉 `knowledge` 与 `inputs`。初始化检查默认的 `clean_dir -y` 仍只清 workspace 生成物。
 
+`knowledge` 与 `inputs` 会删除根级用户文件**以及子目录**（例如手工拷进去的资料夹），只保留 `README.md`（`knowledge` 另留 `.gitignore`）。
+
 ## Agent 直跑前置步骤
 
 whole-lca：

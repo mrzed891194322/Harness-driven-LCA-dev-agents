@@ -4,6 +4,7 @@ import functools
 import inspect
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
 
@@ -22,19 +23,12 @@ from harness.tools.control_openlca.utils import operations, readonly
 from harness.tools.control_openlca.utils.cleanup import run_cleanup_output
 from harness.tools.control_openlca.utils.connection import (
     ipc_budget_scope,
+    ipc_tool_is_long_running,
+    ipc_tool_profile,
     resolve_ipc_tool_timeout_sec,
 )
 from harness.tools.control_openlca.utils.guard import serialized_ipc
 
-_LONG_RUNNING_MCP_TOOLS = frozenset(
-    {
-        "preflight_import_lci",
-        "import_lci",
-        "get_model_graph",
-        "calculate_product_system",
-        "cleanup_output",
-    }
-)
 LCA_CONTROL_OPENLCA_MCP = "LCA_CONTROL_OPENLCA_MCP"
 from harness.tools.control_openlca.utils.readonly import (
     get_flow_providers as run_get_flow_providers,
@@ -54,7 +48,7 @@ from harness.tools.control_openlca.utils.workflow import (
 from harness.tools.control_openlca.utils.workflow import (
     get_model_graph as run_get_model_graph,
 )
-from harness.tools.lca_artifacts.store import Context, invoke
+from harness.tools.lca_artifacts.store import Context, bind_context_argv, invoke
 
 
 def _require_mcp_stdio_channel() -> None:
@@ -82,20 +76,21 @@ def v2_tool(name):
                 bound.apply_defaults()
                 params = dict(bound.arguments)
                 timeout_raw = params.pop("timeout_sec", None)
+                profile = ipc_tool_profile(name)
                 applied_budget = None
-                if name in _LONG_RUNNING_MCP_TOOLS:
+                if profile == "long":
                     applied_budget = resolve_ipc_tool_timeout_sec(
                         None if timeout_raw is None else int(timeout_raw)
                     )
 
                 def run_call():
-                    if name == "get_import_operation":
+                    if profile == "none":
                         result = function(**params)
                     else:
                         host, port = _endpoint_config()
-                        runner = serialized_ipc(
+                        runner: Callable[..., Any] = serialized_ipc(
                             lambda host, port: function(**params),
-                            long_running=name in _LONG_RUNNING_MCP_TOOLS,
+                            long_running=ipc_tool_is_long_running(name),
                         )
                         result = runner(host, port)
                     if applied_budget is not None and isinstance(result, dict):
@@ -127,7 +122,7 @@ mcp = MCPServer(
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci and cleanup_output "
         "are destructive; import_lci requires a matching current import scope. "
         "Long-running tools accept optional timeout_sec (300-7200) for IPC session "
-        "budget; do not wrap tools in shell timeout."
+        "budget and per-request HTTP reads; do not wrap tools in shell timeout."
     ),
 )
 
@@ -203,7 +198,11 @@ def health_check() -> dict[str, Any]:
 
 
 @mcp.tool(
-    description="Search descriptors in the active openLCA database and return names, UUIDs, categories, and pagination metadata.",
+    description=(
+        "Search descriptors in the active openLCA database and return names, UUIDs, "
+        "categories, and pagination metadata. Optional timeout_sec (300-7200) sets "
+        "the IPC session budget for large databases."
+    ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
@@ -226,6 +225,7 @@ def query_descriptors(
     search: str = "",
     limit: int = 50,
     offset: int = 0,
+    timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Query entity descriptors by a case-insensitive name substring."""
     host, port = _endpoint_config()
@@ -242,13 +242,17 @@ def query_descriptors(
 @mcp.tool(
     description=(
         "Read one exact openLCA Process UUID and return compact process metadata, "
-        "location, and quantitative-reference exchanges."
+        "location, and quantitative-reference exchanges. Optional timeout_sec "
+        "(300-7200) sets the IPC session budget."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
 @v2_tool("get_process_details")
-def get_process_details(process_id: str) -> dict[str, Any]:
+def get_process_details(
+    process_id: str,
+    timeout_sec: int | None = None,
+) -> dict[str, Any]:
     """Read compact details for one exact Process UUID."""
     host, port = _endpoint_config()
     return run_get_process_details(host, port, process_id)
@@ -257,7 +261,8 @@ def get_process_details(process_id: str) -> dict[str, Any]:
 @mcp.tool(
     description=(
         "List the exact openLCA Process providers for one Flow UUID, with compact "
-        "provider UUID, name, category, location, flow reference, and pagination."
+        "provider UUID, name, category, location, flow reference, and pagination. "
+        "Optional timeout_sec (300-7200) sets the IPC session budget."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -268,6 +273,7 @@ def get_flow_providers(
     location: str = "",
     limit: int = 50,
     offset: int = 0,
+    timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Query provider candidates for one exact Flow UUID."""
     host, port = _endpoint_config()
@@ -381,7 +387,7 @@ def get_import_operation(
     description=(
         "Read a Product System model graph from the active database and report "
         "nodes, edges, broken links, and disconnected nodes. Optional timeout_sec "
-        "(300-7200) sets the IPC session budget."
+        "(300-7200) sets the IPC session budget and the Product System HTTP read."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -494,13 +500,20 @@ def cleanup_output(
 
 
 @mcp.tool(
-    description="Search up to 50 keywords in one descriptor scan; serial and paginated per keyword.",
+    description=(
+        "Search up to 50 keywords in one descriptor scan; serial and paginated per "
+        "keyword. Optional timeout_sec (300-7200) sets the IPC session budget."
+    ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
 @v2_tool("query_descriptors_batch")
 def query_descriptors_batch(
-    entity_type: str, searches: list[str], limit: int = 20, offset: int = 0
+    entity_type: str,
+    searches: list[str],
+    limit: int = 20,
+    offset: int = 0,
+    timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     host, port = _endpoint_config()
     return readonly.query_descriptors_batch(
@@ -509,16 +522,24 @@ def query_descriptors_batch(
 
 
 @mcp.tool(
-    description="Validate up to 200 exact process_id/flow_id pairs; repeated processes are read once. Geography is diagnostic.",
+    description=(
+        "Validate up to 200 exact process_id/flow_id pairs; repeated processes are "
+        "read once. Geography is diagnostic. Optional timeout_sec (300-7200) sets "
+        "the IPC session budget."
+    ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
 @v2_tool("validate_providers_batch")
-def validate_providers_batch(requirements: list[dict[str, str]]) -> dict[str, Any]:
+def validate_providers_batch(
+    requirements: list[dict[str, str]],
+    timeout_sec: int | None = None,
+) -> dict[str, Any]:
     host, port = _endpoint_config()
     return readonly.validate_providers_batch(host, port, requirements)
 
 
 if __name__ == "__main__":
     os.environ[LCA_CONTROL_OPENLCA_MCP] = "1"
+    bind_context_argv()
     mcp.run()

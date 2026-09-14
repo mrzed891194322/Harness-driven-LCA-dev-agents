@@ -137,6 +137,7 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
             else session_budget_sec(long_running=False)
         )
         _local.deadline = time.monotonic() + deadline_sec
+        _local.long_running = bool(getattr(_local, "long_running", False))
         try:
             yield
         except BaseException as exc:
@@ -150,6 +151,7 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
             _local.held = held
             _local.uncertain = False
             _local.deadline = None
+            _local.long_running = False
 
 
 def mark_uncertain():
@@ -162,6 +164,7 @@ def serialized_ipc(function=None, *, long_running: bool = False):
         def wrapped(host, port, *args, **kwargs):
             budget = session_budget_sec(long_running=long_running)
             with endpoint_guard(host, port, budget_sec=budget):
+                _local.long_running = long_running
                 result = fn(host, port, *args, **kwargs)
                 if isinstance(result, dict):
                     result["lock_wait_ms"] = getattr(_local, "lock_wait_ms", 0)

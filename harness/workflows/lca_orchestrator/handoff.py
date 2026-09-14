@@ -12,6 +12,16 @@ WRITER_STATUSES = {"ok", "failed", "blocked"}
 REVIEWER_STATUSES = {"passed", "failed"}
 
 
+def _path_ref(value: Any, *, field: str, path: Path) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        ref_path = value.get("path")
+        if isinstance(ref_path, str) and ref_path.strip():
+            return ref_path
+    raise ValueError(f"{path}: {field} 必须是路径字符串")
+
+
 def handoff_path(workspace_root: Path, stage_id: str, role: str, attempt: int) -> Path:
     return workspace_root / "memory" / "handoffs" / f"{stage_id}-{role}-{attempt}.json"
 
@@ -55,8 +65,8 @@ def read_handoff(
     if not isinstance(payload["fix_instructions"], str):
         raise ValueError(f"{path}: fix_instructions 必须是字符串")
     for field in ("checks_ref", "evidence_manifest_ref"):
-        if field in payload and not isinstance(payload[field], str):
-            raise ValueError(f"{path}: {field} 必须是路径字符串")
+        if field in payload:
+            payload[field] = _path_ref(payload[field], field=field, path=path)
     if payload.get("rework_scope", "none") not in {
         "none",
         "report_only",

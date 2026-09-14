@@ -236,7 +236,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         create.assert_called_once_with(
             "127.0.0.1",
             8080,
-            timeout=connection.READ_REQUEST_TIMEOUT,
+            timeout=None,
         )
         self.assertEqual(sleep.call_count, 3)
 
@@ -407,11 +407,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         self.assertEqual(result["next_offset"], 1)
         self.assertEqual(result["items"][0]["provider_id"], "provider-1")
         self.assertEqual(result["items"][0]["flow_ref_unit"], "kWh")
-        client_factory.assert_called_once_with(
-            "localhost",
-            8080,
-            timeout=connection.LONG_REQUEST_TIMEOUT,
-        )
+        client_factory.assert_called_once_with("localhost", 8080)
 
     def test_process_details_return_location_and_quantitative_reference(self) -> None:
         process_id = "process-1"
@@ -504,21 +500,19 @@ class MCPServerTests(unittest.TestCase):
 
         self.assertEqual(
             set(tools),
-            {
-                "health_check",
-                "query_descriptors",
-                "query_descriptors_batch",
-                "validate_providers_batch",
-                "get_process_details",
-                "get_flow_providers",
-                "preflight_import_lci",
-                "import_lci",
-                "get_import_operation",
-                "get_model_graph",
-                "calculate_product_system",
-                "cleanup_output",
-            },
+            set(connection.IPC_TOOL_PROFILES),
         )
+        self.assertTrue(
+            set(connection.IPC_TOOL_PROFILES.values())
+            <= {"none", "health", "short", "long"}
+        )
+        self.assertEqual(connection.ipc_tool_profile("get_import_operation"), "none")
+        self.assertEqual(connection.ipc_tool_profile("health_check"), "health")
+        self.assertTrue(connection.ipc_tool_is_long_running("get_model_graph"))
+        self.assertTrue(connection.ipc_tool_is_long_running("query_descriptors"))
+        self.assertFalse(connection.ipc_tool_is_long_running("health_check"))
+        with self.assertRaisesRegex(ValueError, "unregistered"):
+            connection.ipc_tool_profile("not_a_tool")
         self.assertTrue(_tool_annotations(tools["health_check"]).read_only_hint)
         self.assertFalse(_tool_annotations(tools["health_check"]).destructive_hint)
         self.assertTrue(_tool_annotations(tools["get_process_details"]).read_only_hint)
@@ -535,9 +529,7 @@ class MCPServerTests(unittest.TestCase):
         )
         self.assertFalse(_tool_annotations(tools["import_lci"]).read_only_hint)
         self.assertTrue(_tool_annotations(tools["import_lci"]).destructive_hint)
-        self.assertTrue(
-            _tool_annotations(tools["get_import_operation"]).read_only_hint
-        )
+        self.assertTrue(_tool_annotations(tools["get_import_operation"]).read_only_hint)
         self.assertFalse(_tool_annotations(tools["import_lci"]).idempotent_hint)
         self.assertFalse(_tool_annotations(tools["cleanup_output"]).read_only_hint)
         self.assertTrue(_tool_annotations(tools["cleanup_output"]).destructive_hint)
@@ -566,6 +558,14 @@ class MCPServerTests(unittest.TestCase):
         self.assertEqual(
             tools["import_lci"].input_schema["properties"]["lci_dir"]["default"],
             "workspace/outputs/LCI",
+        )
+        self.assertIn(
+            "timeout_sec",
+            tools["get_model_graph"].input_schema["properties"],
+        )
+        self.assertIn(
+            "timeout_sec",
+            tools["query_descriptors"].input_schema["properties"],
         )
 
     def test_workflow_lci_dir_accepts_canonical_and_tmp_subdirectory(self) -> None:

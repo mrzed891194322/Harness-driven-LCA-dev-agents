@@ -2,7 +2,7 @@
 
 离线 MCP 入口：`uv run python harness/tools/lca_artifacts/main.py`。
 
-工具由工作流 YAML 绑定到 02–04，运行上下文通过 LCA_RUN_ID、LCA_STAGE、LCA_ATTEMPT、LCA_ROLE、LCA_WORKSPACE 注入。01 仅接收编排器提供的文件清单，不绑定本工具。
+工具由工作流 YAML 绑定到 02–04。主编排每轮写入 `workspace/tmp/mcp-context/<run_id>/<stage>/<role>.json`，并以 `--context-file` 传给 MCP；进程每次调用重读该文件。`LCA_*` 环境变量仅为冗余。无 `--context-file` 时（GUI/探测）才回退环境变量或 standalone。01 仅接收编排器提供的文件清单，不绑定本工具。主编排在写者合法提交后运行确定性检查。
 
 | 工具 | 行为 |
 | --- | --- |

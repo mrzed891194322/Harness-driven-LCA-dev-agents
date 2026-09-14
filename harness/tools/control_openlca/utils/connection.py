@@ -5,6 +5,7 @@ import sys
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
+from typing import Literal
 
 import olca_ipc
 import olca_schema
@@ -12,6 +13,7 @@ import requests
 from requests.adapters import HTTPAdapter
 
 type TimeoutValue = float | tuple[float, float]
+type IpcToolProfile = Literal["none", "health", "short", "long"]
 
 DEFAULT_SHORT_SESSION_BUDGET_SEC = 270.0
 DEFAULT_LONG_SESSION_BUDGET_SEC = 7200.0
@@ -20,6 +22,21 @@ DEFAULT_LONG_READ_SEC = 600.0
 MCP_TIMEOUT_BUFFER_SEC = 120.0
 IPC_TOOL_TIMEOUT_MIN_SEC = 300.0
 IPC_TOOL_TIMEOUT_MAX_SEC = 7200.0
+
+IPC_TOOL_PROFILES: dict[str, IpcToolProfile] = {
+    "get_import_operation": "none",
+    "health_check": "health",
+    "query_descriptors": "long",
+    "query_descriptors_batch": "long",
+    "get_process_details": "long",
+    "get_flow_providers": "long",
+    "validate_providers_batch": "long",
+    "preflight_import_lci": "long",
+    "import_lci": "long",
+    "get_model_graph": "long",
+    "calculate_product_system": "long",
+    "cleanup_output": "long",
+}
 
 _ipc_budget_override: ContextVar[float | None] = ContextVar(
     "ipc_budget_override", default=None
@@ -90,6 +107,27 @@ def ipc_budget_scope(budget_sec: float):
 
 def mcp_tool_timeout_sec() -> int:
     return int(session_budget_sec(long_running=True) + MCP_TIMEOUT_BUFFER_SEC)
+
+
+def ipc_tool_profile(name: str) -> IpcToolProfile:
+    try:
+        return IPC_TOOL_PROFILES[name]
+    except KeyError as exc:
+        raise ValueError(f"unregistered control_openlca tool profile: {name}") from exc
+
+
+def ipc_tool_is_long_running(name: str) -> bool:
+    return ipc_tool_profile(name) == "long"
+
+
+def session_request_timeout() -> TimeoutValue:
+    """HTTP timeout for a new IPC client: remaining session budget, else LONG."""
+    from .guard import remaining_budget
+
+    remaining = remaining_budget()
+    if remaining is None:
+        return LONG_REQUEST_TIMEOUT
+    return (2.0, remaining)
 
 
 def read_request_timeout() -> TimeoutValue:
@@ -226,10 +264,15 @@ def create_ipc_client(
     host: str,
     port: int,
     *,
-    timeout: TimeoutValue = READ_REQUEST_TIMEOUT,
+    timeout: TimeoutValue | None = None,
 ) -> BoundedIPCClient:
-    """Create a bounded IPC client without performing a database request."""
-    return BoundedIPCClient(build_endpoint(host, port), timeout=timeout)
+    """Create a bounded IPC client without performing a database request.
+
+    Omit ``timeout`` to follow the current IPC session remaining budget. Health
+    probes must pass ``HEALTH_REQUEST_TIMEOUT`` explicitly.
+    """
+    resolved = session_request_timeout() if timeout is None else timeout
+    return BoundedIPCClient(build_endpoint(host, port), timeout=resolved)
 
 
 def resolve_model_type(test_model_type: type | str) -> type:
@@ -294,7 +337,7 @@ def connect_ipc(
     port,
     test_model_type,
     *,
-    timeout: TimeoutValue = READ_REQUEST_TIMEOUT,
+    timeout: TimeoutValue | None = None,
 ) -> BoundedIPCClient:
     endpoint = build_endpoint(host, port)
     print(f"Connecting to openLCA IPC Server ({endpoint})...")

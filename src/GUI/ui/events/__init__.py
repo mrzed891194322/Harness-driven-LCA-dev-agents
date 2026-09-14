@@ -95,7 +95,6 @@ def bind_ui_events(
         init_check_btn=init_check_btn,
         init_check_status_values=init_check_status_values,
         dev_ports_save_btn=dev_ports_save_btn,
-        ref_upload_file=ref_upload_file,
         agent_dropdown=agent_dropdown,
         codex_model=codex_model,
         claude_model=claude_model,

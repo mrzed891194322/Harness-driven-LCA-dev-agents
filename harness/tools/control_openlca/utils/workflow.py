@@ -14,7 +14,6 @@ import olca_schema
 import requests
 
 from .connection import (
-    LONG_REQUEST_TIMEOUT,
     build_endpoint,
     close_ipc_client,
     create_ipc_client,
@@ -481,9 +480,7 @@ def _provider_checks(
             flow_id
             for exchange in list(getattr(provider, "exchanges", None) or [])
             if getattr(exchange, "is_input", None) is not True
-            for flow_id in [
-                getattr(getattr(exchange, "flow", None), "id", None)
-            ]
+            for flow_id in [getattr(getattr(exchange, "flow", None), "id", None)]
             if flow_id is not None
         )
         check["output_flow_count"] = len(output_flow_ids)
@@ -605,11 +602,7 @@ def _inspect_import(
         )
 
     owns_client = client is None
-    ipc_client = client or create_ipc_client(
-        host,
-        port,
-        timeout=LONG_REQUEST_TIMEOUT,
-    )
+    ipc_client = client or create_ipc_client(host, port)
     try:
         database_records, target_descriptors = _database_snapshot(ipc_client, category)
     except Exception as exc:
@@ -1158,11 +1151,7 @@ def import_lci(
             return report
 
     owns_client = client is None
-    ipc_client = client or create_ipc_client(
-        host,
-        port,
-        timeout=LONG_REQUEST_TIMEOUT,
-    )
+    ipc_client = client or create_ipc_client(host, port)
     current, inventory, target_descriptors = _inspect_import(
         host=host,
         port=port,
@@ -1589,11 +1578,7 @@ def calculate_product_system(
 ) -> dict[str, Any]:
     endpoint = build_endpoint(host, port)
     owns_client = client is None
-    ipc_client = client or create_ipc_client(
-        host,
-        port,
-        timeout=LONG_REQUEST_TIMEOUT,
-    )
+    ipc_client = client or create_ipc_client(host, port)
     try:
         system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
         method = find_entity(ipc_client, olca_schema.ImpactMethod, impact_method)

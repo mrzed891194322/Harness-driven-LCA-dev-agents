@@ -14,7 +14,7 @@ from mcp.server import MCPServer
 from mcp_types import ToolAnnotations
 
 from harness.tools.lca_artifacts import checks, report
-from harness.tools.lca_artifacts.store import Context, invoke
+from harness.tools.lca_artifacts.store import Context, bind_context_argv, invoke
 
 mcp = MCPServer(
     "lca-artifacts",
@@ -139,4 +139,5 @@ def read_artifact(
 
 
 if __name__ == "__main__":
+    bind_context_argv()
     mcp.run()

@@ -18,7 +18,7 @@
 ## 事件绑定
 
 - `events/left_sidebar.py`：绑定侧栏“设置&初始化”，按需显示并切换到设置 Tab，同时回填 `.env`。
-- `events/tab_initial.py`：绑定设置保存、初始化检查、单项 Agent 探测，以及把上传文件写入 `harness/knowledge/`。
+- `events/tab_initial.py`：绑定设置保存、初始化检查、单项 Agent 探测；改 Agent/模型/端口会重置执行门禁，侧栏上传资料不会。
 - `events/tab_terminal.py`：绑定日志清空和任务停止。
 - `events/tab_plan.py`：每次打开时重载默认模板，上传成功后只替换暂存文档及当前
   Markdown 片段/目录/字段状态，上传失败不改变页面，并维护执行门禁。

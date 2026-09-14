@@ -631,3 +631,67 @@ def test_long_tool_reports_applied_timeout_sec(context, monkeypatch):
         result = main.get_model_graph("product-system-id", timeout_sec=3600)
     assert result["status"] == "success"
     assert result["applied_timeout_sec"] == 3600
+
+
+def test_session_request_timeout_follows_remaining_budget(tmp_path, monkeypatch):
+    monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
+    from harness.tools.control_openlca.utils.connection import (
+        LONG_REQUEST_TIMEOUT,
+        session_request_timeout,
+    )
+
+    assert session_request_timeout() == LONG_REQUEST_TIMEOUT
+    with guard.endpoint_guard("localhost", 8080, budget_sec=3600):
+        timeout = session_request_timeout()
+    assert timeout[0] == 2.0
+    assert 3500 < timeout[1] <= 3600
+
+
+def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
+    from harness.tools.control_openlca.utils.connection import (
+        LONG_REQUEST_TIMEOUT,
+        create_ipc_client,
+    )
+
+    dummy = FakeClient()
+    with patch(
+        "harness.tools.control_openlca.utils.connection.BoundedIPCClient",
+        return_value=dummy,
+    ) as factory:
+        create_ipc_client("localhost", 8080)
+    factory.assert_called_once_with(
+        "http://localhost:8080",
+        timeout=LONG_REQUEST_TIMEOUT,
+    )
+
+    with guard.endpoint_guard("localhost", 8080, budget_sec=3600):
+        with patch(
+            "harness.tools.control_openlca.utils.connection.BoundedIPCClient",
+            return_value=dummy,
+        ) as factory:
+            create_ipc_client("localhost", 8080)
+        timeout = factory.call_args.kwargs["timeout"]
+    assert timeout[0] == 2.0
+    assert 3500 < timeout[1] <= 3600
+
+
+def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):
+    from harness.tools.control_openlca import main
+    from harness.tools.control_openlca.utils import guard
+
+    monkeypatch.setenv("LCA_RUN_ID", context.run_id)
+    monkeypatch.setenv("LCA_WORKSPACE", str(context.workspace))
+    monkeypatch.setenv("LCA_STAGE", context.stage)
+    monkeypatch.setenv("LCA_ATTEMPT", str(context.attempt))
+    with (
+        patch.object(
+            guard,
+            "serialized_ipc",
+            side_effect=lambda fn, **kwargs: fn("127.0.0.1", 8080),
+        ),
+        patch.object(main, "run_query_descriptors", return_value={"ok": True}),
+    ):
+        result = main.query_descriptors("Process", timeout_sec=3600)
+    assert result["status"] == "success"
+    assert result["applied_timeout_sec"] == 3600

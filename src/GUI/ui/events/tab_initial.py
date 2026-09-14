@@ -48,7 +48,6 @@ def bind_tab_initial_events(
     init_check_btn: gr.Button,
     init_check_status_values: list[gr.Markdown],
     dev_ports_save_btn: gr.Button,
-    ref_upload_file: gr.File,
     agent_dropdown: gr.Dropdown,
     codex_model: gr.Textbox,
     claude_model: gr.Textbox,
@@ -316,11 +315,4 @@ def bind_tab_initial_events(
             fn=refresh_worker(worker),
             inputs=[model_box],
             outputs=[model_box],
-        )
-
-    for event in (ref_upload_file.upload, ref_upload_file.delete):
-        event(
-            fn=invalidate_init_gate,
-            inputs=[plan_ready_state, improvement_ready_state],
-            outputs=[*gate_outputs, *status_outputs],
         )

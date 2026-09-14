@@ -66,8 +66,11 @@ def assemble_prompt(
             "完成本轮后写入 handoff JSON：",
             str(run_context.get("handoff_path") or ""),
             "字段：schema_version=1, role, stage, attempt, status, status_reason, fix_instructions, artifacts。",
-            "可选路径引用：checks_ref、evidence_manifest_ref；rework_scope: none/report_only/calculation_changed/model_changed。校验状态由工具生成。",
+            "写者 ok 的充分条件是本轮产物已落盘且 status_reason 非空；不必自己先跑 validate_artifacts，主编排会在 handoff 后做确定性检查。",
+            "checks_ref、evidence_manifest_ref 若写入则必须是路径字符串，取工具返回的 .path，不要把 {path, sha256, size_bytes} 整段写入。",
+            "rework_scope: none/report_only/calculation_changed/model_changed。校验状态由工具生成。",
             "executor / reviser status: ok / failed / blocked；reviewer status: passed / failed。",
+            "若运行上下文的 fix_instructions 是 handoff 契约错误：只改写当前 handoff JSON，不要当成审查意见去改 BOM 或其他产物。",
             "不要推进阶段、不要维护会话映射、不要改检查点或 manifest。",
         ]
     )

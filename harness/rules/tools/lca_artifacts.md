@@ -2,7 +2,8 @@
 
 本工具不连接 openLCA。只加载本阶段 spec 指定的检查 profile，不扫描无关 spec。
 
-- validate_artifacts 生成独立审计文件；get_validation_state 重新比较依赖并标记 stale。校验状态不等同于阶段通过。
+- 运行上下文由主编排写入 `--context-file`（每轮覆盖 attempt/role）；MCP 每次调用重读该文件。无该参数时才回退环境变量或 standalone。
+- validate_artifacts 生成独立审计文件；get_validation_state 重新比较依赖并标记 stale。主编排在写者提交后运行对应检查。校验状态不等同于阶段通过。
 - 引用返回的 checks_ref.path 和 evidence_manifest_ref；路径相对 workspace，完整 raw 通过路径与 SHA-256 对应。
 - read_artifact 按 offset/limit 读取局部内容，避免全量展开证据。输入资料优先从运行 source_manifest 定位。
 - 04 返工先 get_rework_status；eligible=true 且 report_only 才可复用全部原始结果。calculation_changed 需重新核对计算计划和缺失证据；model_changed 需上游审查。

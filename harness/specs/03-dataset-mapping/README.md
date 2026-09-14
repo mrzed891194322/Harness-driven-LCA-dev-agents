@@ -53,6 +53,6 @@ JSON-LD 必需字段：exchange 显式布尔 `isInput`；每个 Process 恰好�
 
 ## 机器证据
 
-写者提交前调用 `validate_artifacts(profile="mapping")`，handoff 引用返回的 checks_ref.path 和运行 evidence_manifest_ref。reviewer 独立核对证据并决定通过，不把工具成功当作阶段通过。检查定义见公共 `references/evidence-contract.md`；旧检查输入变化即 stale。
+写者提交前不必调用 `validate_artifacts`。主编排在合法 `ok` 且产物齐全后运行 `profile="mapping"` 检查；失败则返工写者。handoff 可引用 checks_ref.path 和 evidence_manifest_ref。reviewer 独立核对证据并决定通过，不把工具成功当作阶段通过。检查定义见公共 `references/evidence-contract.md`；旧检查输入变化即 stale。
 
-选择理由 selection_reason 使用中文，正式数据集名称/UUID/地域代码保持原文。完成 BOM/mapping/LCI 后再运行正式 Provider 验证及 validate_artifacts，避免后续改动使证据过期。机器验收只证明已有结构可核查的条件，功能匹配和换算仍由 reviewer 判断。
+选择理由 selection_reason 使用中文，正式数据集名称/UUID/地域代码保持原文。完成 BOM/mapping/LCI 后再运行正式 Provider 验证，避免后续改动使证据过期。机器验收只证明已有结构可核查的条件，功能匹配和换算仍由 reviewer 判断。

@@ -87,6 +87,44 @@ class CleanDirectoryTests(unittest.TestCase):
             self.assertTrue(gitignore.exists())
             self.assertFalse(user_file.exists())
 
+    def test_clean_knowledge_removes_nested_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            knowledge = root / "harness" / "knowledge"
+            nested = knowledge / "水瓶案例学习"
+            nested.mkdir(parents=True)
+            readme = knowledge / "README.md"
+            readme.write_text("keep", encoding="utf-8")
+            gitignore = knowledge / ".gitignore"
+            gitignore.write_text("*", encoding="utf-8")
+            nested_file = nested / "水瓶案例学习.md"
+            nested_file.write_text("case", encoding="utf-8")
+            root_copy = knowledge / "水瓶案例学习.md"
+            root_copy.write_text("case", encoding="utf-8")
+
+            targets = [
+                {
+                    "name": "knowledge",
+                    "path": knowledge,
+                    "gitignore": gitignore,
+                    "clean_root_files": True,
+                    "keep_patterns": [".gitignore", "README.md"],
+                }
+            ]
+            with (
+                patch.object(clean_main, "CLEAN_TARGETS", targets),
+                patch.object(clean_main, "PROJECT_ROOT", root),
+            ):
+                self.assertEqual(
+                    clean_main.run_clean(yes=True, target="knowledge"),
+                    0,
+                )
+
+            self.assertTrue(readme.exists())
+            self.assertTrue(gitignore.exists())
+            self.assertFalse(nested.exists())
+            self.assertFalse(root_copy.exists())
+
     def test_clean_inputs_root_files_keeps_readme(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -306,6 +344,51 @@ class RunPreWorkflowConsoleTests(unittest.TestCase):
             )
 
         self.assertEqual(preset_calls, ["whole-lca"])
+        self.assertEqual(sync_calls, ["knowledge", "plan"])
+        self.assertEqual(outputs[-1][1], "Finished")
+
+    def test_pre_workflow_whole_lca_clean_command_includes_staging(self) -> None:
+        captured: list[list[str]] = []
+        sync_calls: list[str] = []
+
+        def fake_stream(command_args):
+            captured.append(list(command_args))
+            yield "[System] Process finished with exit code 0.\n"
+
+        class FakeResult:
+            def __init__(self, target: str):
+                self.target = target
+                self.ok = True
+                self.message = "ok"
+                self.details = []
+
+        def fake_sync(target, **kwargs):
+            del kwargs
+            sync_calls.append(target)
+            return FakeResult(target)
+
+        with (
+            patch.object(executor_utils, "execute_command_stream", fake_stream),
+            patch("functions.file_sync.main.sync_files", fake_sync),
+        ):
+            outputs = list(
+                executor_utils.run_pre_workflow_console(
+                    "whole-lca",
+                    document_values=[],
+                    source_text="# plan\n",
+                    ref_upload_file=None,
+                )
+            )
+
+        self.assertEqual(len(captured), 1)
+        command = captured[0]
+        self.assertEqual(
+            command,
+            executor_utils.clean_dir_command(preset="whole-lca", clean_staging=True),
+        )
+        self.assertIn("--preset", command)
+        self.assertIn("whole-lca", command)
+        self.assertNotIn("--no-staging", command)
         self.assertEqual(sync_calls, ["knowledge", "plan"])
         self.assertEqual(outputs[-1][1], "Finished")
 

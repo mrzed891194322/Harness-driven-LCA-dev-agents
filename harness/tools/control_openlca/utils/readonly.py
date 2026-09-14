@@ -9,7 +9,6 @@ from .connection import (
     HEALTH_BACKOFF_SECONDS,
     HEALTH_RECONNECTS,
     HEALTH_REQUEST_TIMEOUT,
-    LONG_REQUEST_TIMEOUT,
     build_endpoint,
     close_ipc_client,
     connection_error_kind,
@@ -189,7 +188,7 @@ def query_descriptors_batch(host, port, entity_type, searches, limit=20, offset=
     model_type = _validate_query(entity_type, "", limit, offset)
     if any(not isinstance(s, str) for s in searches):
         raise ValueError("searches must contain strings")
-    client = create_ipc_client(host, port, timeout=LONG_REQUEST_TIMEOUT)
+    client = create_ipc_client(host, port)
     try:
         descriptors = list(client.get_descriptors(model_type) or [])
         queries = []
@@ -224,7 +223,7 @@ def query_descriptors_batch(host, port, entity_type, searches, limit=20, offset=
 def validate_providers_batch(host, port, requirements):
     if not isinstance(requirements, list) or not 1 <= len(requirements) <= 200:
         raise ValueError("requirements must contain 1..200 process/flow pairs")
-    client = create_ipc_client(host, port, timeout=LONG_REQUEST_TIMEOUT)
+    client = create_ipc_client(host, port)
     cache = {}
     checks, errors = [], []
     try:
@@ -282,11 +281,7 @@ def get_flow_providers(
     endpoint = build_endpoint(host, port)
     client = None
     try:
-        client = create_ipc_client(
-            host,
-            port,
-            timeout=LONG_REQUEST_TIMEOUT,
-        )
+        client = create_ipc_client(host, port)
         flow = client.get(olca_schema.Flow, flow_id)
         tech_flows = list(client.get_providers(flow) or []) if flow is not None else []
     except Exception as exc:

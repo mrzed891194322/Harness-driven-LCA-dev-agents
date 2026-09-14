@@ -18,4 +18,4 @@
 
 handoff：`role=reviser`，`status` 为 `ok` / `failed` / `blocked`，`artifacts` 列出 mapping 与 LCI 路径。
 
-使用本阶段绑定的 lca_artifacts：`get_validation_state("mapping")` 查看状态，`validate_artifacts("mapping")` 核对最新证据。只引用工具生成的检查，不自报权威校验计数。
+确定性检查由主编排在本轮 handoff 后执行。可选用 `get_validation_state("mapping")` / `validate_artifacts("mapping")` 做提前反馈，不是提交 `ok` 的前提。只引用工具生成的检查，不自报权威校验计数。

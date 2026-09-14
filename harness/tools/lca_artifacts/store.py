@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -23,7 +24,69 @@ from harness.tools.control_openlca.utils.workflow import (
 
 MAX_RESPONSE_BYTES = 32768
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+CONTEXT_FILE_FLAG = "--context-file"
 _STANDALONE_RUN = "standalone-" + uuid.uuid4().hex
+_BOUND_CONTEXT_FILE: Path | None = None
+_CONTEXT_FILE_BOUND = False
+
+
+class HostContextError(ValueError):
+    """Host bound a context file that is missing, unreadable, or standalone."""
+
+
+def context_file_from_argv(argv: list[str] | None = None) -> Path | None:
+    args = list(sys.argv if argv is None else argv)
+    index = 0
+    while index < len(args):
+        item = args[index]
+        if item == CONTEXT_FILE_FLAG:
+            if index + 1 >= len(args) or str(args[index + 1]).startswith("-"):
+                raise HostContextError(
+                    "host_context_missing: --context-file requires a path"
+                )
+            return Path(args[index + 1])
+        if item.startswith(CONTEXT_FILE_FLAG + "="):
+            value = item.partition("=")[2]
+            if not value:
+                raise HostContextError(
+                    "host_context_missing: --context-file requires a path"
+                )
+            return Path(value)
+        index += 1
+    return None
+
+
+def bind_context_argv(argv: list[str] | None = None) -> Path | None:
+    """Remember --context-file for later Context.load calls and strip it from argv."""
+    global _BOUND_CONTEXT_FILE, _CONTEXT_FILE_BOUND
+    args = sys.argv if argv is None else argv
+    path = context_file_from_argv(list(args))
+    if path is not None:
+        _CONTEXT_FILE_BOUND = True
+        _BOUND_CONTEXT_FILE = path
+    kept: list[str] = []
+    skip_next = False
+    for item in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if item == CONTEXT_FILE_FLAG:
+            skip_next = True
+            continue
+        if item.startswith(CONTEXT_FILE_FLAG + "="):
+            continue
+        kept.append(item)
+    if argv is None:
+        sys.argv[:] = kept
+    else:
+        args[:] = kept
+    return path
+
+
+def reset_bound_context() -> None:
+    global _BOUND_CONTEXT_FILE, _CONTEXT_FILE_BOUND
+    _BOUND_CONTEXT_FILE = None
+    _CONTEXT_FILE_BOUND = False
 
 
 @dataclass(frozen=True)
@@ -46,12 +109,58 @@ class Context:
         self.safe(self.workspace / "outputs")
 
     @classmethod
-    def environment(cls):
+    def from_file(cls, path: Path):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise HostContextError(
+                f"host_context_missing: context file not found: {path}"
+            ) from exc
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise HostContextError(
+                f"host_context_missing: context file unreadable: {exc}"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise HostContextError(
+                "host_context_missing: context file must be a JSON object"
+            )
+        run_id = str(payload.get("run_id") or "")
+        stage = str(payload.get("stage") or "")
+        if stage == "standalone" or run_id.startswith("standalone-"):
+            raise HostContextError(
+                "host_context_missing: context file must not use standalone identity"
+            )
+        workspace = Path(
+            str(payload.get("workspace") or os.getenv("LCA_WORKSPACE") or "")
+        )
+        if not str(workspace):
+            raise HostContextError(
+                "host_context_missing: context file missing workspace"
+            )
+        try:
+            attempt = int(payload.get("attempt") or 0)
+        except (TypeError, ValueError) as exc:
+            raise HostContextError(
+                "host_context_missing: context file attempt must be a positive integer"
+            ) from exc
+        try:
+            return cls(
+                PROJECT_ROOT.resolve(),
+                workspace.resolve(),
+                run_id,
+                stage,
+                attempt,
+                str(payload.get("role") or "executor"),
+            )
+        except ValueError as exc:
+            raise HostContextError(f"host_context_missing: {exc}") from exc
+
+    @classmethod
+    def from_env(cls):
         project = PROJECT_ROOT.resolve()
         workspace = Path(
             os.getenv("LCA_WORKSPACE", str(project / "workspace"))
         ).resolve()
-        # Configured workspace is supplied by the host, never by a tool argument.
         return cls(
             project,
             workspace,
@@ -60,6 +169,26 @@ class Context:
             int(os.getenv("LCA_ATTEMPT", "1")),
             os.getenv("LCA_ROLE", "executor"),
         )
+
+    @classmethod
+    def environment(cls, argv: list[str] | None = None):
+        if argv is not None:
+            path = context_file_from_argv(argv)
+            if path is not None:
+                return cls.from_file(path)
+            return cls.from_env()
+        if _CONTEXT_FILE_BOUND:
+            if _BOUND_CONTEXT_FILE is None:
+                raise HostContextError(
+                    "host_context_missing: --context-file requires a path"
+                )
+            return cls.from_file(_BOUND_CONTEXT_FILE)
+        path = context_file_from_argv(sys.argv)
+        if path is not None:
+            return cls.from_file(path)
+        return cls.from_env()
+
+    load = environment
 
     def safe(self, path: Path):
         resolved = path.resolve()
@@ -175,6 +304,8 @@ def result_status(raw):
 
 
 def error_kind(exc):
+    if isinstance(exc, HostContextError):
+        return "host_context_missing"
     if isinstance(exc, EndpointBusy):
         return "busy"
     if _transport_failure(exc):

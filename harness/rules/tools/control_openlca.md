@@ -18,7 +18,7 @@ MCP 服务连接由服务进程的 `OPENLCA_IPC_HOST` 和 `OPENLCA_IPC_PORT` 配
 - 除 `import_lci` 与 `cleanup_output` 外的 MCP 工具均为只读；不得把 tool success、exit 0 或非空响应直接等同于阶段通过。
 - 禁止创建一次性 Python 脚本进行连接检测、描述符遍历、UUID 查询、导入、模型图读取或计算。现有能力不足时报告缺口并停止相关阶段。
 - **禁止**用 `bash`、`uv run python` 或 `timeout` 包裹命令直接调用 `harness.tools.control_openlca.main` 或等价 import；**必须**通过 Worker 注册的 MCP 工具名（如 `health_check`、`import_lci`）访问 openLCA。
-- 长作业（`preflight_import_lci`、`import_lci`、`get_model_graph`、`calculate_product_system`、`cleanup_output`）可传 MCP 参数 **`timeout_sec`**（300–7200 秒，默认与 `OPENLCA_IPC_SESSION_BUDGET_SEC` 一致）调整单次 IPC 会话预算；**不得**用外层 shell `timeout` 代替。MCP 客户端超时后只查 `get_import_operation`，不得 bash 加长超时重跑 import。
+- 长作业（`preflight_import_lci`、`import_lci`、`get_model_graph`、`calculate_product_system`、`cleanup_output`，以及描述符/Process/Provider 查询）可传 MCP 参数 **`timeout_sec`**（300–7200 秒，默认与 `OPENLCA_IPC_SESSION_BUDGET_SEC` 一致）。该值同时是本次工具的 IPC 会话预算和单次 HTTP 读上限；**不得**用外层 shell `timeout` 代替。MCP 客户端超时后只查 `get_import_operation`，不得 bash 加长超时重跑 import。`OPENLCA_IPC_LONG_READ_SEC` 只用于无会话的 CLI 保底，不是 MCP 图读的旋钮。
 - 保留工具生成的 raw 引用，不手工复制或重新查询来留档；部分导入失败、断链、空 LCIA 结果或 `resource_released != true` 必须如实上报。
 - 工具不可用时明确上报失败，不静默丢弃连接配置或切换资料来源。
 

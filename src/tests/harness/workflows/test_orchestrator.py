@@ -3,13 +3,21 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
+from unittest.mock import patch
 
 from langchain_core.runnables.config import RunnableConfig
 
 from lca_orchestrator.checkpoint import open_checkpointer
-from lca_orchestrator.graph import OrchestratorRuntime, build_graph, initial_state
+from lca_orchestrator.graph import (
+    PROTOCOL_REPAIR_LIMIT,
+    OrchestratorRuntime,
+    build_graph,
+    initial_state,
+)
+from lca_orchestrator.handoff import read_handoff
 from lca_orchestrator.loader import load_workflow
 from lca_orchestrator.main import _resume
 from scripts.agent_sdk.session import (
@@ -20,17 +28,43 @@ from scripts.agent_sdk.session import (
 )
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
+HandoffScript = dict[tuple[str, str, int], Any]
+
+
+def _passing_validate(ctx: Any, profile: str) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "checks": [
+            {
+                "check_id": profile,
+                "status": "passed",
+                "summary": f"{profile}: 0 issue(s)",
+            }
+        ],
+        "errors": [],
+        "warnings": [],
+        "checks_ref": {
+            "path": f"memory/evidence/{ctx.run_id}/checks/{profile}.json",
+            "sha256": "0",
+            "size_bytes": 1,
+        },
+    }
+
 
 class ScriptedSessionClient:
     def __init__(
-        self, workspace: Path, script: dict[tuple[str, str, int], dict]
+        self,
+        workspace: Path,
+        script: Mapping[tuple[str, str, int], Any],
     ) -> None:
         self.workspace = workspace
         self.script = script
         self.created: dict[str, str] = {}
         self.turns: list[tuple[str, str]] = []
+        self.prompts: list[str] = []
         self.resume_count = 0
         self.configs: list[SessionConfig] = []
+        self._call_counts: dict[tuple[str, str, int], int] = {}
 
     def create(self, config: SessionConfig) -> SessionRef:
         key = f"{config.worker}-{len(self.created)}"
@@ -53,11 +87,19 @@ class ScriptedSessionClient:
         self, ref: SessionRef, prompt: str, config: SessionConfig
     ) -> TurnResult:
         self.configs.append(config)
+        self.prompts.append(prompt)
         context = _context_from_prompt(prompt)
         stage = context["stage"]
         role = context["role"]
         attempt = int(context["attempt"])
-        payload = dict(self.script[(stage, role, attempt)])
+        key = (stage, role, attempt)
+        raw = self.script[key]
+        if isinstance(raw, list):
+            index = self._call_counts.get(key, 0)
+            self._call_counts[key] = index + 1
+            payload = dict(raw[index])
+        else:
+            payload = dict(raw)
         self.turns.append((ref.session_id, f"{stage}:{role}:{attempt}"))
         self._write_outputs(payload)
         handoff_rel = context["handoff_path"]
@@ -68,16 +110,24 @@ class ScriptedSessionClient:
             else:
                 handoff_path = PROJECT_ROOT / handoff_rel
         handoff_path.parent.mkdir(parents=True, exist_ok=True)
-        body = {
-            "schema_version": 1,
-            "role": role,
-            "stage": stage,
-            "attempt": attempt,
-            "status": payload["status"],
-            "status_reason": payload.get("status_reason") or "ok",
-            "fix_instructions": payload.get("fix_instructions") or "",
-            "artifacts": payload.get("artifacts") or [],
-        }
+        if payload.get("handoff") is not None:
+            body = dict(payload["handoff"])
+        else:
+            body = {
+                "schema_version": 1,
+                "role": role,
+                "stage": stage,
+                "attempt": attempt,
+                "status": payload["status"],
+                "status_reason": payload["status_reason"]
+                if "status_reason" in payload
+                else "ok",
+                "fix_instructions": payload.get("fix_instructions") or "",
+                "artifacts": payload.get("artifacts") or [],
+            }
+            for extra in ("checks_ref", "evidence_manifest_ref", "rework_scope"):
+                if extra in payload:
+                    body[extra] = payload[extra]
         handoff_path.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
         return TurnResult(status="completed", session_ref=ref, text="ok")
 
@@ -102,7 +152,7 @@ def _context_from_prompt(prompt: str) -> dict:
     return json_lib.loads(prompt[start:end].strip())
 
 
-def _happy_script() -> dict[tuple[str, str, int], dict]:
+def _happy_script() -> HandoffScript:
     return {
         ("01-intake-gate", "reviewer", 1): {
             "status": "passed",
@@ -132,7 +182,7 @@ def _happy_script() -> dict[tuple[str, str, int], dict]:
     }
 
 
-def _revise_happy_script() -> dict[tuple[str, str, int], dict]:
+def _revise_happy_script() -> HandoffScript:
     return {
         ("01-intake-gate", "reviewer", 1): {
             "status": "passed",
@@ -177,7 +227,12 @@ class OrchestratorGraphTests(unittest.TestCase):
         set_progress_log(None)
         self._tmp.cleanup()
 
-    def _run(self, script: dict) -> tuple[dict, ScriptedSessionClient]:
+    def _run(
+        self,
+        script: Mapping[tuple[str, str, int], Any],
+        *,
+        validate: Callable[..., dict[str, Any]] | None = None,
+    ) -> tuple[dict, ScriptedSessionClient]:
         client = ScriptedSessionClient(self.workspace, script)
         runtime = OrchestratorRuntime(
             self.workflow,
@@ -190,15 +245,19 @@ class OrchestratorGraphTests(unittest.TestCase):
         try:
             compiled = build_graph(runtime).compile(checkpointer=saver)
             run_id = "run-test"
-            result = compiled.invoke(
-                initial_state(
-                    run_id=run_id,
-                    task="whole-lca",
-                    worker="codex",
-                    workflow=self.workflow,
-                ),
-                {"configurable": {"thread_id": run_id}, "recursion_limit": 80},
-            )
+            with patch(
+                "harness.tools.lca_artifacts.checks.validate",
+                side_effect=validate or _passing_validate,
+            ):
+                result = compiled.invoke(
+                    initial_state(
+                        run_id=run_id,
+                        task="whole-lca",
+                        worker="codex",
+                        workflow=self.workflow,
+                    ),
+                    {"configurable": {"thread_id": run_id}, "recursion_limit": 80},
+                )
         finally:
             conn.close()
         return result, client
@@ -230,6 +289,7 @@ class OrchestratorGraphTests(unittest.TestCase):
                 self.assertEqual(server["env"]["LCA_STAGE"], stage)
                 self.assertEqual(server["env"]["LCA_ROLE"], role)
                 self.assertEqual(server["env"]["LCA_ATTEMPT"], attempt)
+                self.assertIn("--context-file", server.get("args") or [])
 
     def test_intake_failure_stops(self) -> None:
         script = {
@@ -327,6 +387,231 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(manifest["status"], "failed")
         self.assertIn("in_flight", manifest["status_reason"])
 
+    def test_invalid_handoff_rewrites_same_reviewer_then_business_retry(self) -> None:
+        script = _happy_script()
+        script[("02-inventory-extraction", "reviewer", 1)] = [
+            {
+                "status": "failed",
+                "status_reason": "",
+                "fix_instructions": "补 item",
+            },
+            {
+                "status": "failed",
+                "status_reason": "缺一行",
+                "fix_instructions": "补 item",
+            },
+        ]
+        script[("02-inventory-extraction", "executor", 2)] = {
+            "status": "ok",
+            "write": [
+                "workspace/outputs/inventory/extracted-bom.json",
+                "workspace/outputs/inventory/extracted-bom.md",
+            ],
+        }
+        script[("02-inventory-extraction", "reviewer", 2)] = {"status": "passed"}
+        result, client = self._run(script)
+        self.assertEqual(result["status"], "completed")
+        review_labels = [
+            label
+            for _sid, label in client.turns
+            if label.startswith("02-inventory-extraction:reviewer")
+        ]
+        self.assertEqual(
+            review_labels,
+            [
+                "02-inventory-extraction:reviewer:1",
+                "02-inventory-extraction:reviewer:1",
+                "02-inventory-extraction:reviewer:2",
+            ],
+        )
+        review_ids = [
+            sid
+            for sid, label in client.turns
+            if label.startswith("02-inventory-extraction:reviewer")
+        ]
+        self.assertEqual(review_ids[0], review_ids[1])
+        self.assertEqual(review_ids[0], review_ids[2])
+        second_repair_prompt = [
+            prompt
+            for prompt, (_sid, label) in zip(client.prompts, client.turns, strict=True)
+            if label == "02-inventory-extraction:reviewer:1"
+        ][1]
+        self.assertIn("契约", second_repair_prompt)
+        note = (
+            self.workspace / "memory" / "reviews" / "02-inventory-extraction-1.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("缺一行", note)
+        self.assertNotIn("不能为空", note)
+
+    def test_protocol_rework_exhausted_fails(self) -> None:
+        invalid = {
+            "status": "failed",
+            "status_reason": "",
+            "fix_instructions": "x",
+        }
+        script = {
+            ("01-intake-gate", "reviewer", 1): {
+                "status": "passed",
+                "status_reason": "计划可启动",
+            },
+            ("02-inventory-extraction", "executor", 1): {
+                "status": "ok",
+                "write": [
+                    "workspace/outputs/inventory/extracted-bom.json",
+                    "workspace/outputs/inventory/extracted-bom.md",
+                ],
+            },
+            ("02-inventory-extraction", "reviewer", 1): [invalid]
+            * (PROTOCOL_REPAIR_LIMIT + 1),
+        }
+        result, client = self._run(script)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("handoff 无效", result["status_reason"])
+        review_labels = [
+            label
+            for _sid, label in client.turns
+            if label.startswith("02-inventory-extraction:reviewer")
+        ]
+        self.assertEqual(len(review_labels), PROTOCOL_REPAIR_LIMIT + 1)
+        self.assertTrue(all(label.endswith(":1") for label in review_labels))
+        manifest = json.loads(
+            (self.workspace / "memory" / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["status"], "failed")
+        self.assertIn("handoff 无效", manifest["status_reason"])
+        self.assertFalse(
+            (
+                self.workspace / "memory" / "reviews" / "02-inventory-extraction-1.md"
+            ).is_file()
+        )
+
+    def test_host_check_failure_retries_writer_not_reviewer(self) -> None:
+        mapping_calls = {"count": 0}
+
+        def validate(ctx: Any, profile: str) -> dict[str, Any]:
+            if profile == "mapping":
+                mapping_calls["count"] += 1
+                if mapping_calls["count"] == 1:
+                    return {
+                        "ok": False,
+                        "errors": ["item_id gap"],
+                        "warnings": [],
+                        "checks": [],
+                        "checks_ref": {},
+                    }
+            return _passing_validate(ctx, profile)
+
+        script = _happy_script()
+        script[("03-dataset-mapping", "executor", 2)] = {
+            "status": "ok",
+            "write": [
+                "workspace/outputs/inventory/process-mapping.json",
+                "workspace/outputs/LCI/",
+            ],
+        }
+        script[("03-dataset-mapping", "reviewer", 2)] = {"status": "passed"}
+        result, client = self._run(script, validate=validate)
+        self.assertEqual(result["status"], "completed")
+        mapping = [
+            label
+            for _sid, label in client.turns
+            if label.startswith("03-dataset-mapping")
+        ]
+        self.assertEqual(
+            mapping,
+            [
+                "03-dataset-mapping:executor:1",
+                "03-dataset-mapping:executor:2",
+                "03-dataset-mapping:reviewer:2",
+            ],
+        )
+        retry_prompt = [
+            prompt
+            for prompt, (_sid, label) in zip(client.prompts, client.turns, strict=True)
+            if label == "03-dataset-mapping:executor:2"
+        ][0]
+        self.assertIn("item_id gap", retry_prompt)
+
+    def test_host_check_pass_sends_writer_to_reviewer(self) -> None:
+        result, client = self._run(_happy_script())
+        self.assertEqual(result["status"], "completed")
+        mapping = [
+            label
+            for _sid, label in client.turns
+            if label.startswith("03-dataset-mapping")
+        ]
+        self.assertEqual(
+            mapping,
+            [
+                "03-dataset-mapping:executor:1",
+                "03-dataset-mapping:reviewer:1",
+            ],
+        )
+
+
+class ReadHandoffTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write(self, payload: dict) -> Path:
+        path = self.dir / "handoff.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    def _base(self, **kwargs: Any) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "schema_version": 1,
+            "role": "reviewer",
+            "stage": "02-inventory-extraction",
+            "attempt": 1,
+            "status": "passed",
+            "status_reason": "ok",
+            "fix_instructions": "",
+            "artifacts": [],
+        }
+        body.update(kwargs)
+        return body
+
+    def test_string_checks_ref(self) -> None:
+        path = self._write(self._base(checks_ref="memory/checks.json"))
+        payload = read_handoff(
+            path, role="reviewer", stage="02-inventory-extraction", attempt=1
+        )
+        self.assertEqual(payload["checks_ref"], "memory/checks.json")
+
+    def test_object_checks_ref_coerced_to_path(self) -> None:
+        path = self._write(
+            self._base(
+                checks_ref={
+                    "path": "memory/checks.json",
+                    "sha256": "ab",
+                    "size_bytes": 1,
+                }
+            )
+        )
+        payload = read_handoff(
+            path, role="reviewer", stage="02-inventory-extraction", attempt=1
+        )
+        self.assertEqual(payload["checks_ref"], "memory/checks.json")
+
+    def test_object_without_path_rejected(self) -> None:
+        path = self._write(self._base(checks_ref={"sha256": "ab"}))
+        with self.assertRaisesRegex(ValueError, "必须是路径字符串"):
+            read_handoff(
+                path, role="reviewer", stage="02-inventory-extraction", attempt=1
+            )
+
+    def test_numeric_checks_ref_rejected(self) -> None:
+        path = self._write(self._base(checks_ref=1))
+        with self.assertRaisesRegex(ValueError, "必须是路径字符串"):
+            read_handoff(
+                path, role="reviewer", stage="02-inventory-extraction", attempt=1
+            )
+
 
 class ReviseOrchestratorGraphTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -340,7 +625,12 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def _run(self, script: dict) -> tuple[dict, ScriptedSessionClient]:
+    def _run(
+        self,
+        script: Mapping[tuple[str, str, int], Any],
+        *,
+        validate: Callable[..., dict[str, Any]] | None = None,
+    ) -> tuple[dict, ScriptedSessionClient]:
         client = ScriptedSessionClient(self.workspace, script)
         runtime = OrchestratorRuntime(
             self.workflow,
@@ -353,15 +643,19 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
         try:
             compiled = build_graph(runtime).compile(checkpointer=saver)
             run_id = "run-revise"
-            result = compiled.invoke(
-                initial_state(
-                    run_id=run_id,
-                    task="revise-lca",
-                    worker="codex",
-                    workflow=self.workflow,
-                ),
-                {"configurable": {"thread_id": run_id}, "recursion_limit": 80},
-            )
+            with patch(
+                "harness.tools.lca_artifacts.checks.validate",
+                side_effect=validate or _passing_validate,
+            ):
+                result = compiled.invoke(
+                    initial_state(
+                        run_id=run_id,
+                        task="revise-lca",
+                        worker="codex",
+                        workflow=self.workflow,
+                    ),
+                    {"configurable": {"thread_id": run_id}, "recursion_limit": 80},
+                )
         finally:
             conn.close()
         return result, client

@@ -11,12 +11,11 @@ from pathlib import Path
 
 from . import workflow as w
 from .connection import (
-    LONG_REQUEST_TIMEOUT,
     close_ipc_client,
     create_ipc_client,
     is_transport_error,
 )
-from .guard import mark_uncertain, serialized_ipc
+from .guard import mark_uncertain
 
 
 def identifier(value: str) -> str:
@@ -57,7 +56,6 @@ def request_identity(host, port, run_id, database_name, category, lci_dir):
     }
 
 
-@serialized_ipc(long_running=True)
 def preflight(
     host,
     port,
@@ -168,7 +166,6 @@ def reconcile_cleanup(operation_dir, host, port, category):
     current_path.unlink()
 
 
-@serialized_ipc(long_running=True)
 def import_request(
     host,
     port,
@@ -246,7 +243,7 @@ def import_request(
     }
     if run_scope.exists() and read(run_scope) != scope:
         return {"status": "rejected", "errors": ["run_scope_changed"]}
-    ipc = client or create_ipc_client(host, port, timeout=LONG_REQUEST_TIMEOUT)
+    ipc = client or create_ipc_client(host, port)
     report = None
     started = time.monotonic()
     try:

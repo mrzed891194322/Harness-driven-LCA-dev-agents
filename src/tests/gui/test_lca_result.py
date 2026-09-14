@@ -75,8 +75,25 @@ class LcaResultTests(unittest.TestCase):
         result = lca_run.parse_lca_result()
         self.assertIn("openLCA 响应较慢或超时", result["failure_markdown"])
         self.assertIn("clean_dir", result["failure_markdown"])
+        self.assertIn("OPENLCA_IPC_SESSION_BUDGET_SEC", result["failure_markdown"])
+        self.assertIn("timeout_sec", result["failure_markdown"])
 
-    def test_journal_partial_failure_appends_hint_without_timeout_in_reason(self) -> None:
+    def test_failed_04_graph_timeout_uses_model_graph_hint(self) -> None:
+        self._write_manifest(
+            "failed",
+            current_stage="04-openlca-reporting",
+            status_reason="get_model_graph 模型图读取客户端超时。",
+        )
+        result = lca_run.parse_lca_result()
+        self.assertIn("读取 Product System 模型图", result["failure_markdown"])
+        self.assertIn("OPENLCA_IPC_SESSION_BUDGET_SEC", result["failure_markdown"])
+        self.assertIn(
+            "不必靠加大 `OPENLCA_IPC_LONG_READ_SEC`", result["failure_markdown"]
+        )
+
+    def test_journal_partial_failure_appends_hint_without_timeout_in_reason(
+        self,
+    ) -> None:
         journal = self.memory / "import-operations"
         (journal / "operations").mkdir(parents=True)
         operation_id = "29c33989-fab1-49e7-acc8-555fe48e28ef"

@@ -24,7 +24,7 @@
 
 ## 运行上下文
 
-主编排在每轮任务输入中提供结构化运行数据，不为此使用模板语言：
+主编排在每轮任务输入中提供结构化运行数据，不为此使用模板语言。确定性检查（inventory / mapping / report）由主编排在写者合法 `ok` 且产物齐全后于进程内执行，不凭检查 `passed` 推进阶段。
 
 | 字段 | 含义 |
 | --- | --- |
@@ -42,9 +42,11 @@
 
 01：只派审查。`passed` 进入 02；`failed` 停止。revise 的 01 另核 `revise.md` 与上一轮已完成产物。
 
-02–04：每阶段先写者后审查。未通过且未满该阶段 `max_attempts` 则在原写者会话返工，再在原评估会话复审；达到上限仍失败则 `failed`。04 通过后 `completed`。
+02–04：每阶段先写者后审查。写者合法 `ok` 且产物齐全后，主编排运行本阶段确定性检查；检查失败则在原写者会话返工（计 attempt）。检查通过后再派审查。审查未通过且未满该阶段 `max_attempts` 则在原写者会话返工，再在原评估会话复审；达到上限仍失败则 `failed`。04 通过后 `completed`。
 
-审查笔记写 `workspace/memory/reviews/<stage>-<n>.md`，写明 `passed` 或 `failed`、摘要、要改什么。由主编排根据 handoff 落盘。
+handoff 协议不接受（缺失、字段类型错误等）时，主编排不把运行标为 `failed`。同一角色、同一 `attempt`、同一会话原地改写该 handoff，最多 3 次；不增加阶段轮次，不跳去写者，不写审查笔记。协议改写耗尽后终止，原因是无法提交合法 handoff。只有合法 handoff 里的 `status` 才推进阶段或走业务返工。
+
+审查笔记写 `workspace/memory/reviews/<stage>-<n>.md`，写明 `passed` 或 `failed`、摘要、要改什么。由主编排根据**合法** handoff 落盘。
 
 ## handoff
 
@@ -55,8 +57,9 @@ Agent 完成本轮后写入 `workspace/memory/handoffs/<stage>-<role>-<attempt>.
 - `status_reason`：非空说明
 - `fix_instructions`：审查失败时必须给出，定位到产物、条目或证据；revise 时先写用户意图缺口
 - `artifacts`：本轮提交或核过的路径列表
+- 可选 `checks_ref`、`evidence_manifest_ref`：路径字符串（取工具返回的 `.path`，不要写入 `{path, sha256, size_bytes}` 对象）
 
-检查点和 manifest 由主编排维护。agent 不维护 SDK 会话映射，不决定阶段推进。
+检查点和 manifest 由主编排维护。agent 不维护 SDK 会话映射，不决定阶段推进。写者 `ok` 的充分条件是本轮产物已落盘且 `status_reason` 非空；不必自己先跑 `validate_artifacts`。协议校验失败时按循环一节原地改写 handoff，不要把协议错误当成审查意见去改产物。
 
 失败时必须提供：失败对象、已核对证据、建议修正或为何不可恢复。缺少产物、`blocked` 或审查失败不得被当成完成。
 

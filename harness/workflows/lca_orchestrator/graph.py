@@ -22,6 +22,8 @@ from .handoff import (
 from .manifest import write_manifest
 from .models import Assignment, Stage, Workflow
 
+PROTOCOL_REPAIR_LIMIT = 3
+
 
 class WorkflowState(TypedDict, total=False):
     runtime_version: int
@@ -31,6 +33,7 @@ class WorkflowState(TypedDict, total=False):
     stage_index: int
     step_index: int
     attempt: int
+    protocol_repairs: int
     in_flight: bool
     status: str
     status_reason: str
@@ -251,16 +254,7 @@ class OrchestratorRuntime:
                 path, role=assignment.role, stage=stage.stage_id, attempt=attempt
             )
         except Exception as exc:
-            reason = f"handoff 无效：{exc}"
-            print_orchestrator(reason)
-            write_manifest(
-                self.workspace_root,
-                status="failed",
-                current_stage=stage.stage_id,
-                status_reason=reason,
-                run_id=_state_str(state, "run_id"),
-            )
-            return {"status": "failed", "status_reason": reason, "in_flight": False}
+            return self._rework_invalid_handoff(state, stage, assignment, path, exc)
 
         if assignment.role == "reviewer":
             write_review_note(
@@ -268,8 +262,11 @@ class OrchestratorRuntime:
             )
 
         if assignment.role in WRITER_ROLES:
-            return self._advance_after_writer(state, stage, assignment, handoff)
-        return self._advance_after_reviewer(state, stage, assignment, handoff)
+            update = self._advance_after_writer(state, stage, assignment, handoff)
+        else:
+            update = self._advance_after_reviewer(state, stage, assignment, handoff)
+        update["protocol_repairs"] = 0
+        return update
 
     def route_after_advance(self, state: WorkflowState) -> Literal["prepare", "end"]:
         if state.get("status") in {"failed", "completed"}:
@@ -298,6 +295,9 @@ class OrchestratorRuntime:
             return self._retry_or_fail(
                 state, stage, assignment, reason.strip() or "执行未完成"
             )
+        check_retry = self._host_checks(state, stage, assignment, handoff)
+        if check_retry is not None:
+            return check_retry
         next_index = _state_int(state, "step_index") + 1
         if next_index >= len(stage.steps):
             return self._complete_or_next_stage(state, stage)
@@ -308,6 +308,52 @@ class OrchestratorRuntime:
             "in_flight": False,
             "status": "running",
         }
+
+    def _host_checks(
+        self,
+        state: WorkflowState,
+        stage: Stage,
+        assignment: Assignment,
+        _handoff: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        from harness.tools.lca_artifacts.checks import PROFILES, validate
+        from harness.tools.lca_artifacts.store import Context
+
+        profile = next(
+            (key for key, value in PROFILES.items() if value == stage.stage_id),
+            None,
+        )
+        if profile is None:
+            return None
+        ctx = Context(
+            self.project_root,
+            self.workspace_root,
+            _state_str(state, "run_id"),
+            stage.stage_id,
+            _attempt(state),
+            assignment.role,
+        )
+        try:
+            result = validate(ctx, profile)
+        except Exception as exc:
+            reason = f"{profile} 检查未能执行：{exc}"
+            print_orchestrator(
+                f"host check failed {assignment.assignment_id}: {reason}"
+            )
+            return self._retry_or_fail(
+                state, stage, assignment, reason, fix_instructions=reason
+            )
+        if result.get("ok"):
+            return None
+        errors = result.get("errors") or []
+        detail = "; ".join(str(item) for item in errors[:20]) or (
+            str(result.get("summary") or "").strip() or "确定性检查未通过"
+        )
+        reason = f"{profile} 检查未通过：{detail}"
+        print_orchestrator(f"host check failed {assignment.assignment_id}: {reason}")
+        return self._retry_or_fail(
+            state, stage, assignment, reason, fix_instructions=reason
+        )
 
     def _advance_after_reviewer(
         self,
@@ -343,6 +389,40 @@ class OrchestratorRuntime:
             reason,
             fix_instructions=str(handoff.get("fix_instructions") or reason),
         )
+
+    def _rework_invalid_handoff(
+        self,
+        state: WorkflowState,
+        stage: Stage,
+        assignment: Assignment,
+        path: Path,
+        exc: Exception,
+    ) -> dict[str, Any]:
+        reason = f"handoff 无效：{exc}"
+        repairs = _state_int(state, "protocol_repairs", 0)
+        if repairs >= PROTOCOL_REPAIR_LIMIT:
+            print_orchestrator(reason)
+            write_manifest(
+                self.workspace_root,
+                status="failed",
+                current_stage=stage.stage_id,
+                status_reason=reason,
+                run_id=_state_str(state, "run_id"),
+            )
+            return {"status": "failed", "status_reason": reason, "in_flight": False}
+        print_orchestrator(
+            f"protocol rework {assignment.assignment_id} repair={repairs + 1}: {reason}"
+        )
+        return {
+            "protocol_repairs": repairs + 1,
+            "fix_instructions": (
+                f"handoff 契约不接受，请原地改写 {path}：{exc}。"
+                "只修正当前 handoff JSON，不要改检查点或 manifest，不要推进阶段，"
+                "也不要当成审查意见去改 BOM 或其他产物。"
+            ),
+            "status": "running",
+            "in_flight": False,
+        }
 
     def _retry_or_fail(
         self,
@@ -497,6 +577,7 @@ def initial_state(
         "current_role": assignment.role,
         "prompt": "",
         "fix_instructions": "",
+        "protocol_repairs": 0,
         "sessions": {},
         "last_handoff": {},
     }

@@ -134,6 +134,18 @@ class SettingsTabTests(unittest.TestCase):
         self.assertNotIn("choices", payload)
         self.assertNotIn("value", payload)
 
+    def test_bind_tab_initial_events_does_not_invalidate_on_upload(self) -> None:
+        import inspect
+
+        from ui.events.tab_initial import bind_tab_initial_events
+
+        source = inspect.getsource(bind_tab_initial_events)
+        self.assertNotIn("ref_upload_file.upload", source)
+        self.assertNotIn("ref_upload_file.delete", source)
+        self.assertNotIn(
+            "ref_upload_file", inspect.signature(bind_tab_initial_events).parameters
+        )
+
 
 class WorkDetailsJsonTests(unittest.TestCase):
     def test_read_work_details_json_missing_invalid_and_valid(self) -> None:

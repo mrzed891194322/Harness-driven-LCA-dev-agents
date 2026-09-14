@@ -21,4 +21,4 @@
 
 handoff：`status` 为 `passed` 或 `failed`，`status_reason` 非空。
 
-使用本阶段绑定的 lca_artifacts：`get_validation_state("inventory")` 查看状态，`validate_artifacts("inventory")` 核对最新证据。只引用工具生成的检查，不自报权威校验计数。
+主编排已运行本阶段确定性检查。可用 `get_validation_state("inventory")` 查看状态，不必把工具成功当作审查通过。只引用工具生成的检查，不自报权威校验计数。

@@ -120,12 +120,31 @@ def _hint_markdown(manifest: dict[str, Any]) -> str:
         or "partial_failure" in reason
         or "successful import evidence missing" in reason
     )
+    graph_read = any(
+        marker in reason
+        for marker in (
+            "get_model_graph",
+            "model graph",
+            "model-graph",
+            "模型图",
+        )
+    )
     lines = [
         "### openLCA 响应较慢或超时",
         "",
-        "- 这通常表示 openLCA IPC 在自动链接或导入时 **仍在计算或尚未在约定时间内返回**，不一定是数据库损坏。",
-        "- 请确认 openLCA 已启动，且 **Tools → Developer Tools → IPC Server** 与 `.env` 中的 `OPENLCA_IPC_HOST` / `OPENLCA_IPC_PORT` 一致；必要时重启 openLCA 后再试。",
     ]
+    if graph_read:
+        lines.append(
+            "- 这通常表示 openLCA 在 **读取 Product System 模型图**（`data/get`）时尚未返回，"
+            "不一定是数据库损坏。"
+        )
+    else:
+        lines.append(
+            "- 这通常表示 openLCA IPC 在自动链接或导入时 **仍在计算或尚未在约定时间内返回**，不一定是数据库损坏。"
+        )
+    lines.append(
+        "- 请确认 openLCA 已启动，且 **Tools → Developer Tools → IPC Server** 与 `.env` 中的 `OPENLCA_IPC_HOST` / `OPENLCA_IPC_PORT` 一致；必要时重启 openLCA 后再试。"
+    )
     if needs_reconcile:
         lines.append(
             "- **不要**在同一已失败的运行里反复重试导入；请先清理 openLCA 前景并解除导入索引："
@@ -136,10 +155,10 @@ def _hint_markdown(manifest: dict[str, Any]) -> str:
         lines.append(
             "- 若长时间无进展，可先停止当前运行，确认 openLCA 未卡住后再清理并重试（同上 `clean_dir -t openlca` 后新开运行）。"
         )
-    lines.extend(
-        [
-            "- 若背景库很大、链接很慢，可在 `.env` 增大 `OPENLCA_IPC_LONG_READ_SEC` 与 `OPENLCA_IPC_SESSION_BUDGET_SEC`（修改后需重启 GUI/worker）。",
-        ]
+    lines.append(
+        "- 若背景库很大，可在 `.env` 增大 `OPENLCA_IPC_SESSION_BUDGET_SEC`，"
+        "或在 MCP 长工具上传入更大的 `timeout_sec`（修改后需重启 GUI/worker）。"
+        "MCP 单次 HTTP 读超时跟随该次会话剩余预算，不必靠加大 `OPENLCA_IPC_LONG_READ_SEC` 来放宽图读。"
     )
     return "\n".join(lines)
 

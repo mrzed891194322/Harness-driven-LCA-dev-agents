@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
 from lca_orchestrator.assemble import assemble_prompt
 from lca_orchestrator.loader import assignment_rule_ids, load_workflow
-from lca_orchestrator.session_bind import build_session_config
+from lca_orchestrator.session_bind import build_session_config, mcp_context_path
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 STAGE_PACKAGES = (
@@ -208,6 +210,22 @@ class WorkflowYamlTests(unittest.TestCase):
                 run_id="run-1",
                 attempt=2,
             )
+            context_path = mcp_context_path(
+                workspace, "run-1", stage.stage_id, "executor"
+            )
+            self.assertTrue(context_path.is_file())
+            payload = json.loads(context_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["run_id"], "run-1")
+            self.assertEqual(payload["stage"], stage.stage_id)
+            self.assertEqual(payload["attempt"], 2)
+            self.assertEqual(payload["role"], "executor")
+            args = config.mcp_servers["control_openlca"]["args"]
+            self.assertIn("--context-file", args)
+            self.assertEqual(
+                args[args.index("--context-file") + 1], str(context_path.resolve())
+            )
+            artifact_args = config.mcp_servers["lca_artifacts"]["args"]
+            self.assertIn("--context-file", artifact_args)
         self.assertEqual(config.tool_ids, list(executor.tools))
         self.assertIn("control_openlca", config.tool_ids)
         self.assertIn("openlca_usage", config.rule_ids)
@@ -226,6 +244,42 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertEqual(config.stage_id, stage.stage_id)
         self.assertEqual(config.role, "executor")
         self.assertEqual(config.attempt, 2)
+
+    def test_session_config_rewrites_context_attempt(self) -> None:
+        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        stage = workflow.stage_by_id("03-dataset-mapping")
+        executor = workflow.assignments["03-dataset-mapping.executor"]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "workspace"
+            workspace.mkdir()
+            first = build_session_config(
+                workflow,
+                project_root=PROJECT_ROOT,
+                workspace_root=workspace,
+                worker="codex",
+                stage=stage,
+                assignment=executor,
+                run_id="run-1",
+                attempt=1,
+            )
+            second = build_session_config(
+                workflow,
+                project_root=PROJECT_ROOT,
+                workspace_root=workspace,
+                worker="codex",
+                stage=stage,
+                assignment=executor,
+                run_id="run-1",
+                attempt=2,
+            )
+            path = mcp_context_path(workspace, "run-1", stage.stage_id, "executor")
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["attempt"], 2)
+            first_args = first.mcp_servers["control_openlca"]["args"]
+            second_args = second.mcp_servers["control_openlca"]["args"]
+            self.assertEqual(
+                first_args[first_args.index("--context-file") + 1],
+                second_args[second_args.index("--context-file") + 1],
+            )
 
     def test_live_specs_do_not_point_at_deleted_rule_tasks(self) -> None:
         for relative in (

@@ -281,11 +281,7 @@ class ImportWorkflowTests(unittest.TestCase):
                 )
 
         self.assertTrue(result["ok"], result["errors"])
-        client_factory.assert_called_once_with(
-            "localhost",
-            8080,
-            timeout=workflow.LONG_REQUEST_TIMEOUT,
-        )
+        client_factory.assert_called_once_with("localhost", 8080)
         self.assertEqual(client.close_calls, 1)
 
     def test_preflight_owned_client_closes_after_snapshot_error(self) -> None:
@@ -310,11 +306,7 @@ class ImportWorkflowTests(unittest.TestCase):
                     "isolated-db",
                 )
 
-        client_factory.assert_called_once_with(
-            "localhost",
-            8080,
-            timeout=workflow.LONG_REQUEST_TIMEOUT,
-        )
+        client_factory.assert_called_once_with("localhost", 8080)
         self.assertEqual(client.close_calls, 1)
 
     def test_unrelated_database_changes_do_not_change_import_scope(self) -> None:
@@ -873,6 +865,37 @@ class GraphWorkflowTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "broken")
         self.assertEqual(len(result["disconnected_nodes"]), 2)
+
+    def test_graph_owned_client_uses_session_timeout_and_closes(self) -> None:
+        system = olca_schema.ProductSystem(id="ps-id", name="PS1 Owned")
+        system.processes = [
+            olca_schema.Ref(id="p1", name="P1"),
+            olca_schema.Ref(id="p2", name="P2"),
+        ]
+        system.process_links = [
+            olca_schema.ProcessLink(
+                provider=olca_schema.Ref(id="p1", name="P1"),
+                process=olca_schema.Ref(id="p2", name="P2"),
+                flow=olca_schema.Ref(id="f1", name="F1"),
+            )
+        ]
+        client = GraphClient(system)
+        client.close_calls = 0
+
+        def close() -> None:
+            client.close_calls += 1
+
+        client.close = close
+        with patch.object(
+            workflow,
+            "create_ipc_client",
+            return_value=client,
+        ) as client_factory:
+            result = workflow.get_model_graph("localhost", 8080, "ps-id")
+
+        self.assertEqual(result["status"], "success")
+        client_factory.assert_called_once_with("localhost", 8080)
+        self.assertEqual(client.close_calls, 1)
 
 
 class FakeResult:

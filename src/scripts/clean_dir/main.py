@@ -58,7 +58,7 @@ def _clean_filesystem_target(
     total_files = total_dirs = total_kept = total_failed = 0
 
     if target_cfg.get("clean_root_files"):
-        print(f"\n开始清理 [{name}] 根级文件...")
+        print(f"\n开始清理 [{name}] 根级文件与子目录...")
         if keep_patterns:
             print(f"  例外保留: {', '.join(keep_patterns)}")
         files, dirs, kept, failed = clean_root_files(
