@@ -359,6 +359,15 @@ class OrchestratorRuntime:
         handoff: dict[str, Any],
     ) -> dict[str, Any]:
         if handoff["status"] == "passed":
+            guard = self._guard_reviewer_passed(state, stage, assignment)
+            if guard is not None:
+                return self._retry_or_fail(
+                    state,
+                    stage,
+                    assignment,
+                    guard,
+                    fix_instructions=guard,
+                )
             bundle = self.bundles[assignment.assignment_id]
             run_ctx = self._run_context(state, stage, assignment)
             for hook_id in bundle.reviewer_passed_hooks:
@@ -376,6 +385,40 @@ class OrchestratorRuntime:
             reason,
             fix_instructions=str(handoff.get("fix_instructions") or reason),
         )
+
+    def _guard_reviewer_passed(
+        self,
+        state: WorkflowState,
+        stage: Stage,
+        assignment: Assignment,
+    ) -> str | None:
+        """Re-validate outputs and checks before hooks/advance. None = ok."""
+        bundle = self.bundles[assignment.assignment_id]
+        if not stage.outputs and not bundle.checks:
+            return None
+        missing = missing_expected_outputs(self.workspace_root, stage.outputs)
+        if missing:
+            return "审查期间产物或确定性检查状态已变化：缺少产物：" + ", ".join(missing)
+        if not bundle.checks:
+            return None
+        run_ctx = self._run_context(state, stage, assignment)
+        for check in bundle.checks:
+            try:
+                record = self.capabilities.checkers.validation_state(
+                    run_ctx, check.checker_id
+                )
+            except Exception as exc:
+                return (
+                    "审查期间产物或确定性检查状态已变化："
+                    f"{check.checker_id} 检查未能读取：{exc}"
+                )
+            status = str(record.get("status") or "not_run")
+            if status != "passed":
+                return (
+                    "审查期间产物或确定性检查状态已变化："
+                    f"{check.checker_id} 状态为 {status}"
+                )
+        return None
 
     def _rework_invalid_handoff(
         self,
@@ -553,7 +596,7 @@ def initial_state(
     first = workflow.stages[0]
     assignment = workflow.assignment_for(first, 0)
     return {
-        "runtime_version": 2,
+        "runtime_version": 3,
         "run_id": run_id,
         "task": task,
         "worker": worker,

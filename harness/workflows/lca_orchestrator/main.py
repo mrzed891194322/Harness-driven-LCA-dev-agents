@@ -26,10 +26,14 @@ if str(WORKFLOWS_ROOT) not in sys.path:
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from harness.domains.lca.bootstrap import lca_capabilities  # noqa: E402
+from harness.domains.lca.bootstrap import register_lca  # noqa: E402
 from harness.runtime.capabilities import (  # noqa: E402
     HarnessCapabilities,
-    empty_capabilities,
+    base_capabilities,
+)
+from harness.runtime.identifiers import (  # noqa: E402
+    require_identifier,
+    resolve_project_path,
 )
 from lca_orchestrator.checkpoint import open_checkpointer  # noqa: E402
 from lca_orchestrator.config_fingerprint import (  # noqa: E402
@@ -53,8 +57,8 @@ from scripts.agent_sdk.session import default_client  # noqa: E402
 from scripts.agent_sdk.uv_env import ensure_uv_cache_dir  # noqa: E402
 
 TASK_NAMES = ("whole-lca", "revise-lca")
-CAPABILITY_SETS = {
-    "lca": lca_capabilities,
+DOMAIN_CAPABILITY_SETS = {
+    "lca": register_lca,
 }
 
 
@@ -160,8 +164,7 @@ def main(argv: list[str] | None = None) -> int:
 def _capabilities_for(
     args: argparse.Namespace, project_root: Path, workflow_path: Path
 ) -> HarnessCapabilities:
-    if args.task in TASK_NAMES:
-        return lca_capabilities()
+    del args  # --task only selects the workflow path; YAML capabilities are authority.
     ids = peek_capability_ids(workflow_path, project_root=project_root)
     return compose_capabilities(ids)
 
@@ -174,7 +177,9 @@ def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
         return [str(item) for item in raw.get("capabilities") or []]
     reuse = raw.get("reuse")
     if reuse:
-        base_path = project_root / str(reuse)
+        base_path = resolve_project_path(
+            project_root, str(reuse), label="workflow reuse"
+        )
         base = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
         if isinstance(base, dict):
             return [str(item) for item in base.get("capabilities") or []]
@@ -182,14 +187,13 @@ def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
 
 
 def compose_capabilities(ids: list[str]) -> HarnessCapabilities:
-    if not ids:
-        return empty_capabilities()
-    unknown = [item for item in ids if item not in CAPABILITY_SETS]
+    caps = base_capabilities()
+    unknown = [item for item in ids if item not in DOMAIN_CAPABILITY_SETS]
     if unknown:
         raise ValueError(f"unknown capability set(s): {unknown}")
-    if set(ids) == {"lca"}:
-        return lca_capabilities()
-    raise ValueError(f"unsupported capability composition {ids}; use [] or [lca]")
+    for item in ids:
+        DOMAIN_CAPABILITY_SETS[item](caps.checkers, caps.knowledge, caps.hooks)
+    return caps
 
 
 def _resume(
@@ -202,6 +206,11 @@ def _resume(
     project_root: Path,
 ) -> int:
     del conn
+    try:
+        run_id = require_identifier(run_id, label="run id")
+    except ValueError as exc:
+        print_orchestrator(str(exc), file=sys.stderr)
+        return 2
     _bind_progress_log(workspace_root, run_id, append=True)
     try:
         assert_runtime_config_matches(
@@ -233,11 +242,9 @@ def _resume(
         )
         return 1
     values = dict(snapshot.values)
-    if values.get("runtime_version") != 2:
-        print_orchestrator(
-            "v2 requires a new run; legacy checkpoints cannot be resumed",
-            file=sys.stderr,
-        )
+    if values.get("runtime_version") != 3:
+        reason = "v2/legacy checkpoint cannot be resumed by v3; start a new run"
+        print_orchestrator(reason, file=sys.stderr)
         return 1
     if values.get("in_flight"):
         reason = (

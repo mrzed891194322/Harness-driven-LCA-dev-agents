@@ -75,7 +75,7 @@ Agent 完成本轮后写入 `workspace/memory/handoffs/<stage>-<role>-<attempt>.
 
 不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定。可留档的匹配由写者自行选择并写入 BOM/映射/报告。
 
-恢复运行时以检查点为准，不以 manifest 单独作为恢复依据。worker 调用期间中断且检查点仍标 `in_flight` 时，主编排记为 `failed`，不自动重发任务。
+恢复运行时以检查点为准，不以 manifest 单独作为恢复依据。worker 调用期间中断且检查点仍标 `in_flight` 时，主编排记为 `failed`，不自动重发任务。当前可恢复协议为 `runtime_version = 3`，每次新 run 会写入 `workspace/memory/evidence/<run_id>/runtime-config.json`；缺少该文件或 fingerprint 不匹配时不可 resume，需新开 run。v2/legacy checkpoint 不能由 v3 恢复。
 
 每个角色首次访问 openLCA 前调用 `health_check`；仅离线报告返工或审查不访问 IPC 时无需探测。失败则如实上报。
 

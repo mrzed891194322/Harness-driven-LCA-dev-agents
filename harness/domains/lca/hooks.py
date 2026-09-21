@@ -30,6 +30,4 @@ def _record_acceptance(ctx: RunContext) -> None:
         ctx.assignment_id,
         metadata,
     )
-    lca_checks.record_acceptance(
-        lca_ctx, acceptance_key=lca_checks.ACCEPTANCE_MODEL
-    )
+    lca_checks.record_acceptance(lca_ctx, acceptance_key=lca_checks.ACCEPTANCE_MODEL)

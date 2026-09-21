@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, Protocol
 
 from harness.runtime.context import RunContext
+from harness.runtime.hashing import sha256_file
 from harness.runtime.knowledge import KnowledgeProviderRegistry
 from harness.runtime.tool_runtime import write_json_atomic
-from harness.tools.control_openlca.utils.workflow import sha256_file
-from harness.workflows.lca_orchestrator.bundle import TaskBundle
 
 PROVIDER_ID = "local_files"
+
+
+class KnowledgeTask(Protocol):
+    assignment_id: str
+    knowledge_sources: list[Any]
 
 
 def register_local_files(registry: KnowledgeProviderRegistry) -> None:
@@ -44,7 +49,7 @@ def discover_files_at(project_root: Path, relative_dir: str) -> dict:
     return {"files": entries, "count": len(entries)}
 
 
-def enrich_local_files(ctx: RunContext, bundle: TaskBundle) -> dict[str, object]:
+def enrich_local_files(ctx: RunContext, bundle: KnowledgeTask) -> dict[str, object]:
     source_path = (
         ctx.workspace_root
         / "memory"

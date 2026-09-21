@@ -251,23 +251,6 @@ class AcceptancePhaseTests(unittest.TestCase):
             workspace.mkdir()
             (workspace / "inputs").mkdir()
             (workspace / "inputs" / "plan.md").write_text("# plan\n", encoding="utf-8")
-            inv = Context(
-                root,
-                workspace,
-                "run-a",
-                "inv-phase",
-                1,
-                "reviewer",
-                "inv-phase.reviewer",
-                {"lca": {"phase": "inventory"}},
-            )
-            inv.manifest.parent.mkdir(parents=True, exist_ok=True)
-            inv.manifest.write_text(
-                json.dumps({"accepted": {}, "run_id": "run-a"}), encoding="utf-8"
-            )
-            lca_checks.record_acceptance(inv)
-            self.assertIn(lca_checks.ACCEPTANCE_MODEL, inv.load_manifest()["accepted"])
-
             map_ctx = Context(
                 root,
                 workspace,
@@ -278,9 +261,33 @@ class AcceptancePhaseTests(unittest.TestCase):
                 "map-phase.reviewer",
                 {"lca": {"phase": "mapping"}},
             )
+            map_ctx.manifest.parent.mkdir(parents=True, exist_ok=True)
+            map_ctx.manifest.write_text(
+                json.dumps({"accepted": {}, "run_id": "run-a", "calls": []}),
+                encoding="utf-8",
+            )
+            inputs = lca_checks.dependencies(map_ctx, "mapping")
+            check_path = lca_checks.check_path(map_ctx, "mapping")
+            check_path.parent.mkdir(parents=True, exist_ok=True)
+            check_path.write_text(
+                json.dumps(
+                    {
+                        "check_id": "mapping",
+                        "checker_version": lca_checks.CHECKER_VERSION,
+                        "status": "passed",
+                        "inputs": inputs,
+                        "executed_at": "2020-01-01T00:00:00Z",
+                        "summary": "ok",
+                        "errors": [],
+                        "warnings": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
             lca_checks.record_acceptance(map_ctx)
             accepted = map_ctx.load_manifest()["accepted"][lca_checks.ACCEPTANCE_MODEL]
             self.assertEqual(accepted["stage"], "map-phase")
+            self.assertEqual(accepted["inputs"]["files"], inputs["files"])
 
             report = Context(
                 root,

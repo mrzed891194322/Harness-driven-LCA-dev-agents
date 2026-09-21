@@ -12,6 +12,7 @@ from langchain_core.runnables.config import RunnableConfig
 
 from harness.domains.lca.bootstrap import lca_capabilities
 from harness.runtime.checkers import CheckerRegistry
+from harness.tools.lca_artifacts.checks import CHECKER_VERSION
 from lca_orchestrator.checkpoint import open_checkpointer
 from lca_orchestrator.config_fingerprint import write_runtime_config
 from lca_orchestrator.graph import (
@@ -33,8 +34,39 @@ from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 HandoffScript = dict[tuple[str, str, int], Any]
 
+_CHECKER_PROFILES = {
+    "lca.inventory": "inventory",
+    "lca.mapping": "mapping",
+    "lca.report": "report",
+}
+
 
 def _passing_validate(ctx: Any, checker_id: str) -> dict[str, Any]:
+    profile = _CHECKER_PROFILES.get(checker_id, checker_id.rsplit(".", 1)[-1])
+    path = (
+        Path(ctx.workspace_root)
+        / "memory"
+        / "evidence"
+        / ctx.run_id
+        / "checks"
+        / f"{profile}.json"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "check_id": profile,
+                "checker_version": CHECKER_VERSION,
+                "status": "passed",
+                "inputs": {"files": {}},
+                "executed_at": "2020-01-01T00:00:00Z",
+                "summary": f"{checker_id}: 0 issue(s)",
+                "errors": [],
+                "warnings": [],
+            }
+        ),
+        encoding="utf-8",
+    )
     return {
         "ok": True,
         "checks": [
@@ -47,7 +79,7 @@ def _passing_validate(ctx: Any, checker_id: str) -> dict[str, Any]:
         "errors": [],
         "warnings": [],
         "checks_ref": {
-            "path": f"memory/evidence/{ctx.run_id}/checks/{checker_id}.json",
+            "path": f"memory/evidence/{ctx.run_id}/checks/{profile}.json",
             "sha256": "0",
             "size_bytes": 1,
         },
@@ -221,7 +253,9 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.workspace = Path(self._tmp.name) / "workspace"
         self.workspace.mkdir()
         self.workflow = load_workflow(
-            WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT, capabilities=lca_capabilities()
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
         )
 
     def tearDown(self) -> None:
@@ -642,7 +676,9 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
         self.workspace = Path(self._tmp.name) / "workspace"
         self.workspace.mkdir()
         self.workflow = load_workflow(
-            WORKFLOWS / "LCA-revise.yaml", project_root=PROJECT_ROOT, capabilities=lca_capabilities()
+            WORKFLOWS / "LCA-revise.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
         )
 
     def tearDown(self) -> None:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from harness.runtime.capabilities import HarnessCapabilities, empty_capabilities
+from harness.runtime.capabilities import HarnessCapabilities, base_capabilities
 from harness.runtime.checkers import CheckerRegistry
 from harness.runtime.hooks import HookRegistry
 from harness.runtime.knowledge import KnowledgeProviderRegistry
@@ -23,7 +23,7 @@ def register_lca(
 
 
 def lca_capabilities() -> HarnessCapabilities:
-    """Composition helper used by the LCA orchestrator entrypoint and tests."""
-    caps = empty_capabilities()
+    """Composition helper: base (local_files) + LCA domain capabilities."""
+    caps = base_capabilities()
     register_lca(caps.checkers, caps.knowledge, caps.hooks)
     return caps

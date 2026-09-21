@@ -47,9 +47,7 @@ def register_lca_checkers(registry: CheckerRegistry) -> None:
         )
 
 
-def _validation_state(
-    ctx: RunContext, profile: str, checker_id: str
-) -> dict[str, Any]:
+def _validation_state(ctx: RunContext, profile: str, checker_id: str) -> dict[str, Any]:
     record = lca_checks.validation_state_for_run(_to_lca_context(ctx, profile), profile)
     if record.get("check_id") == profile:
         record = {**record, "check_id": checker_id}

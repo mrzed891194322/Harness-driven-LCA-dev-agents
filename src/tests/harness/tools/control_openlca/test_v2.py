@@ -211,6 +211,24 @@ def write_json(path, value):
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
+def seed_passed_mapping_check(ctx):
+    inputs = checks.dependencies(ctx, "mapping")
+    path = checks.check_path(ctx, "mapping")
+    write_json(
+        path,
+        {
+            "check_id": "mapping",
+            "checker_version": checks.CHECKER_VERSION,
+            "status": "passed",
+            "inputs": inputs,
+            "executed_at": "2020-01-01T00:00:00Z",
+            "summary": "mapping: 0 issue(s)",
+            "errors": [],
+            "warnings": [],
+        },
+    )
+
+
 def seed_report(ctx):
     out = ctx.workspace / "outputs"
     write_json(
@@ -240,17 +258,23 @@ def seed_report(ctx):
             ]
         },
     )
-    checks.record_acceptance(
-        Context(
-            ctx.project,
-            ctx.workspace,
-            ctx.run_id,
-            "03-dataset-mapping",
-            1,
-            "reviewer",
-            metadata={"lca": {"phase": "mapping"}},
-        )
+    mapping_ctx = Context(
+        ctx.project,
+        ctx.workspace,
+        ctx.run_id,
+        "03-dataset-mapping",
+        1,
+        "reviewer",
+        metadata={"lca": {"phase": "mapping"}},
     )
+    mapping_ctx.manifest.parent.mkdir(parents=True, exist_ok=True)
+    if not mapping_ctx.manifest.is_file():
+        mapping_ctx.manifest.write_text(
+            json.dumps({"accepted": {}, "run_id": ctx.run_id, "calls": []}),
+            encoding="utf-8",
+        )
+    seed_passed_mapping_check(mapping_ctx)
+    checks.record_acceptance(mapping_ctx)
     ctx.save_result(
         "import_lci",
         {

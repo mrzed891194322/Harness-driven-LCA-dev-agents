@@ -64,7 +64,6 @@ def upstream_files(ctx):
     return paths
 
 
-
 def fingerprints(paths):
     return {
         str(p.resolve()): sha256_file(p) if p.is_file() else "missing" for p in paths
@@ -99,11 +98,41 @@ def model_inputs_snapshot(ctx) -> dict:
     }
 
 
+def accepted_model_fingerprint(ctx) -> str | None:
+    accepted = ctx.load_manifest().get("accepted", {}).get(ACCEPTANCE_MODEL)
+    if not isinstance(accepted, dict):
+        return None
+    value = accepted.get("model_fingerprint")
+    return str(value) if value else None
+
+
+def evidence_model_fingerprint(ctx) -> str:
+    """Fingerprint stamped on / compared against raw evidence calls.
+
+    Report phase uses the accepted mapping model fingerprint so report-only
+    knowledge changes do not invalidate import/calc evidence.
+    """
+    phase = None
+    if hasattr(ctx, "lca_phase"):
+        getter = ctx.lca_phase
+        phase = getter() if callable(getter) else getter
+    if phase is None:
+        phase = getattr(ctx, "stage", None)
+    if phase == "report":
+        accepted = accepted_model_fingerprint(ctx)
+        if accepted:
+            return accepted
+    return model_fingerprint(ctx)
+
+
 def resolve_snapshot_path(ctx, key: str) -> Path:
     workspace_candidate = (ctx.workspace / key).resolve()
-    if workspace_candidate.exists() or key.startswith("inputs/") or key.startswith(
-        "outputs/"
-    ) or key.startswith("memory/"):
+    if (
+        workspace_candidate.exists()
+        or key.startswith("inputs/")
+        or key.startswith("outputs/")
+        or key.startswith("memory/")
+    ):
         return workspace_candidate
     return (ctx.project / key).resolve()
 
@@ -133,13 +162,25 @@ def calculation_fingerprint(ctx):
 
 
 def record_acceptance(ctx, *, acceptance_key: str = ACCEPTANCE_MODEL):
-    """Persist the reviewer's decision; does not judge or advance the workflow."""
-    inputs = model_inputs_snapshot(ctx)
+    """Persist acceptance from the frozen mapping check inputs (not live snapshot)."""
+    record = validation_state(ctx, "mapping")
+    if record.get("status") != "passed":
+        raise ValueError(
+            "mapping check must be passed before recording acceptance; "
+            f"status={record.get('status')!r}"
+        )
+    inputs = record.get("inputs")
+    if not isinstance(inputs, dict) or not isinstance(inputs.get("files"), dict):
+        raise ValueError("mapping check record missing frozen inputs")
+    files = dict(sorted(inputs["files"].items()))
+    frozen = {"files": files}
+    if "evidence_refs" in inputs:
+        frozen["evidence_refs"] = inputs["evidence_refs"]
     with file_lock(ctx.safe(ctx.memory / "manifest.lock")):
         value = ctx.load_manifest()
         value["accepted"][acceptance_key] = {
-            "model_fingerprint": stable_hash(inputs["files"]),
-            "inputs": inputs,
+            "model_fingerprint": stable_hash(files),
+            "inputs": frozen,
             "at": utc_now(),
             "attempt": ctx.attempt,
             "stage": ctx.stage,
@@ -165,7 +206,9 @@ def require_approved_model(ctx, *, allow_reviewer=False):
     snapshot = accepted.get("inputs")
     if isinstance(snapshot, dict) and snapshot.get("files") is not None:
         if not snapshot_unchanged(ctx, snapshot):
-            raise ValueError("approved model missing or stale; upstream review required")
+            raise ValueError(
+                "approved model missing or stale; upstream review required"
+            )
         return
     # Legacy records: compare opaque fingerprint against current assignment inputs.
     if accepted.get("model_fingerprint") != model_fingerprint(ctx):
@@ -237,10 +280,17 @@ def evidence(ctx):
     calls = selected_calls(
         ctx, {"import_lci", "get_model_graph", "calculate_product_system"}
     )
+    accepted = ctx.load_manifest().get("accepted", {}).get(ACCEPTANCE_MODEL)
+    if isinstance(accepted, dict):
+        snapshot = accepted.get("inputs")
+        if isinstance(snapshot, dict) and snapshot.get("files") is not None:
+            if not snapshot_unchanged(ctx, snapshot):
+                raise ValueError("raw evidence is stale relative to approved inputs")
+    expected = evidence_model_fingerprint(ctx)
     result = []
     for call in calls:
         raw = load(ctx.resolve_ref(call["artifact"]))
-        if call.get("model_fingerprint") != model_fingerprint(ctx):
+        if call.get("model_fingerprint") != expected:
             raise ValueError("raw evidence is stale relative to approved inputs")
         if call["tool"] == "calculate_product_system":
             plans = load(calculation_path(ctx)).get("calculations", [])

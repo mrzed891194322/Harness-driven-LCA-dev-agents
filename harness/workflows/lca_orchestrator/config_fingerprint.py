@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from harness.runtime.hashing import sha256_file, stable_hash
 from harness.runtime.tool_runtime import write_json_atomic
-from harness.tools.control_openlca.utils.workflow import sha256_file, stable_hash
 
 from .models import Workflow
 
@@ -121,7 +121,9 @@ def assert_runtime_config_matches(
 ) -> None:
     path = runtime_config_path(workspace_root, run_id)
     if not path.is_file():
-        raise ValueError("workflow configuration changed; start a new run")
+        raise ValueError(
+            "v2/legacy checkpoint cannot be resumed by v3; start a new run"
+        )
     stored = json.loads(path.read_text(encoding="utf-8"))
     current = build_runtime_config(workflow, project_root=project_root)
     if stored.get("fingerprint") != current["fingerprint"]:

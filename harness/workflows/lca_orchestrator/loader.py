@@ -9,11 +9,20 @@ from typing import Any
 import yaml
 
 from harness.runtime.capabilities import HarnessCapabilities
-from harness.runtime.identifiers import require_identifier, require_relative_path
+from harness.runtime.identifiers import (
+    require_identifier,
+    require_relative_path,
+    require_workspace_output,
+    resolve_project_path,
+)
 from harness.runtime.tool_runtime import ToolRuntimeSpec
 
 from .bundle import CheckRef
-from .lists import merge_list_declarations, parse_optional_list_field
+from .lists import (
+    merge_list_declarations,
+    parse_optional_list_field,
+    reject_user_seq_declaration,
+)
 from .models import Assignment, KnowledgeSource, Stage, ToolSpec, Workflow
 from .resolve import attach_bundles
 
@@ -95,11 +104,15 @@ def load_workflow(
 ) -> Workflow:
     raw = _read_yaml(path)
     _reject_prompt_fields(raw, path)
+    _reject_user_seq_fields(raw, path)
     reject_unknown_keys(raw, TOP_LEVEL_KEYS | frozenset({"reuse"}), str(path))
     if raw.get("reuse"):
-        base_path = _resolve(project_root, str(raw["reuse"]))
+        base_path = resolve_project_path(
+            project_root, str(raw["reuse"]), label=f"{path}: reuse"
+        )
         base_raw = _read_yaml(base_path)
         _reject_prompt_fields(base_raw, base_path)
+        _reject_user_seq_fields(base_raw, base_path)
         reject_unknown_keys(base_raw, TOP_LEVEL_KEYS, str(base_path))
         if base_raw.get("reuse"):
             raise ValueError(f"{path}: nested reuse is not supported")
@@ -130,6 +143,47 @@ def _reject_prompt_fields(raw: dict[str, Any], path: Path) -> None:
                 stack.append(value)
         elif isinstance(current, list):
             stack.extend(current)
+
+
+def _reject_user_seq_fields(raw: dict[str, Any], path: Path) -> None:
+    """User YAML may not author ``seq``; merge may introduce it afterward."""
+    defaults = raw.get("defaults") or {}
+    if isinstance(defaults, dict):
+        for key in ("rules", "knowledge", "tools"):
+            if key in defaults:
+                reject_user_seq_declaration(
+                    defaults.get(key), label=f"{path}: defaults.{key}"
+                )
+    hooks = raw.get("hooks") or {}
+    if isinstance(hooks, dict) and "on_reviewer_passed" in hooks:
+        reject_user_seq_declaration(
+            hooks.get("on_reviewer_passed"),
+            label=f"{path}: hooks.on_reviewer_passed",
+        )
+    for stage in raw.get("stages") or []:
+        if not isinstance(stage, dict):
+            continue
+        stage_id = stage.get("id") or "?"
+        for key in ("rules", "knowledge", "tools"):
+            if key in stage:
+                reject_user_seq_declaration(
+                    stage.get(key), label=f"{path}: stage {stage_id} {key}"
+                )
+        stage_hooks = stage.get("hooks") or {}
+        if isinstance(stage_hooks, dict) and "on_reviewer_passed" in stage_hooks:
+            reject_user_seq_declaration(
+                stage_hooks.get("on_reviewer_passed"),
+                label=f"{path}: stage {stage_id} hooks.on_reviewer_passed",
+            )
+    for assignment_id, assignment in (raw.get("assignments") or {}).items():
+        if not isinstance(assignment, dict):
+            continue
+        for key in ("rules", "knowledge", "tools"):
+            if key in assignment:
+                reject_user_seq_declaration(
+                    assignment.get(key),
+                    label=f"{path}: assignment {assignment_id} {key}",
+                )
 
 
 def _merge_workflow(
@@ -418,7 +472,10 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                     require_relative_path(str(item), label=f"{stage_id} spec_addition")
                     for item in spec.get("spec_additions") or []
                 ],
-                outputs=[str(item) for item in spec.get("outputs") or []],
+                outputs=[
+                    require_workspace_output(str(item), label=f"{stage_id} output")
+                    for item in spec.get("outputs") or []
+                ],
                 checks=_parse_checks(spec.get("checks"), source_path=source_path),
                 knowledge_decl=stage_knowledge,
                 rules_decl=stage_rules,

@@ -221,6 +221,24 @@ class AcceptanceSnapshotTests(unittest.TestCase):
                 json.dumps({"accepted": {}, "run_id": "run-1", "calls": []}),
                 encoding="utf-8",
             )
+            inputs = lca_checks.dependencies(mapping, "mapping")
+            check_path = lca_checks.check_path(mapping, "mapping")
+            check_path.parent.mkdir(parents=True, exist_ok=True)
+            check_path.write_text(
+                json.dumps(
+                    {
+                        "check_id": "mapping",
+                        "checker_version": lca_checks.CHECKER_VERSION,
+                        "status": "passed",
+                        "inputs": inputs,
+                        "executed_at": "2020-01-01T00:00:00Z",
+                        "summary": "ok",
+                        "errors": [],
+                        "warnings": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
             lca_checks.record_acceptance(mapping)
 
             report = Context(
@@ -431,6 +449,7 @@ class TopologyAndIdTests(unittest.TestCase):
 class CapabilitiesAndResumeTests(unittest.TestCase):
     def test_empty_capabilities_compose(self) -> None:
         caps = compose_capabilities([])
+        self.assertIn("local_files", caps.knowledge.known_ids())
         self.assertEqual(set(caps.checkers.known_ids()), set())
 
     def test_unknown_capability_fail(self) -> None:
