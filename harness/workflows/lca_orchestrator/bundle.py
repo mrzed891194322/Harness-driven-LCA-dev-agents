@@ -8,14 +8,14 @@ from typing import Any
 
 @dataclass(frozen=True)
 class CheckRef:
-    profile: str
+    checker_id: str
 
     def to_dict(self) -> dict[str, str]:
-        return {"profile": self.profile}
+        return {"id": self.checker_id}
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> CheckRef:
-        return cls(profile=str(payload["profile"]))
+        return cls(checker_id=str(payload["id"]))
 
 
 @dataclass(frozen=True)
@@ -23,12 +23,14 @@ class KnowledgeBinding:
     knowledge_id: str
     kind: str
     path: str
+    provider: str
 
     def to_dict(self) -> dict[str, str]:
         return {
             "knowledge_id": self.knowledge_id,
             "kind": self.kind,
             "path": self.path,
+            "provider": self.provider,
         }
 
     @classmethod
@@ -37,6 +39,7 @@ class KnowledgeBinding:
             knowledge_id=str(payload["knowledge_id"]),
             kind=str(payload["kind"]),
             path=str(payload["path"]),
+            provider=str(payload.get("provider") or "local_files"),
         )
 
 
@@ -55,6 +58,7 @@ class TaskBundle:
     knowledge_sources: list[KnowledgeBinding] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)
     checks: list[CheckRef] = field(default_factory=list)
+    reviewer_passed_hooks: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -85,4 +89,7 @@ class TaskBundle:
                 str(item) for item in payload.get("expected_outputs") or []
             ],
             checks=[CheckRef.from_dict(item) for item in payload.get("checks") or []],
+            reviewer_passed_hooks=[
+                str(item) for item in payload.get("reviewer_passed_hooks") or []
+            ],
         )

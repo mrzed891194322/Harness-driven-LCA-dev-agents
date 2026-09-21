@@ -25,6 +25,7 @@ if str(WORKFLOWS_ROOT) not in sys.path:
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from harness.runtime import default_capabilities  # noqa: E402
 from lca_orchestrator.checkpoint import open_checkpointer  # noqa: E402
 from lca_orchestrator.graph import (  # noqa: E402
     OrchestratorRuntime,
@@ -74,8 +75,11 @@ def main(argv: list[str] | None = None) -> int:
         print_orchestrator(f"unsupported worker: {worker}", file=sys.stderr)
         return 2
 
+    capabilities = default_capabilities()
     workflow = load_workflow(
-        _task_file(project_root, args.task), project_root=project_root
+        _task_file(project_root, args.task),
+        project_root=project_root,
+        capabilities=capabilities,
     )
     session_client = default_client()
     runtime = OrchestratorRuntime(
@@ -84,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         workspace_root=workspace_root,
         session_client=session_client,
         worker=worker,
+        capabilities=capabilities,
     )
     conn, checkpointer = open_checkpointer(workspace_root)
     try:

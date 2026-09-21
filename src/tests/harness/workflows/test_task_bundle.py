@@ -43,9 +43,9 @@ class TaskBundleResolveTests(unittest.TestCase):
                 "workspace/outputs/inventory/extracted-bom.md",
             ],
         )
-        self.assertEqual(writer.checks[0].profile, "inventory")
+        self.assertEqual(writer.checks[0].checker_id, "lca.inventory")
         self.assertEqual(reviewer.expected_outputs, [])
-        self.assertEqual(reviewer.checks[0].profile, "inventory")
+        self.assertEqual(reviewer.checks[0].checker_id, "lca.inventory")
 
     def test_revise_overlay_bundles(self) -> None:
         revise = load_workflow(WORKFLOWS / "LCA-revise.yaml", project_root=PROJECT_ROOT)
@@ -78,6 +78,7 @@ class TaskBundleResolveTests(unittest.TestCase):
                 "knowledge",
                 "outputs",
                 "checks",
+                "reviewer_passed_hooks",
             },
         )
 
@@ -110,7 +111,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_workflow(workflow_path, project_root=root)
 
-    def test_fail_fast_invalid_check_profile(self) -> None:
+    def test_fail_fast_invalid_checker_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             knowledge_dir = root / "harness" / "knowledge"
@@ -119,7 +120,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             _write_minimal_workflow(root)
             workflow_path = root / "harness" / "workflows" / "patch-test.yaml"
             text = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-            text["stages"][0]["checks"] = [{"profile": "not-a-profile"}]
+            text["stages"][0]["checks"] = [{"id": "not-a-checker"}]
             workflow_path.write_text(
                 yaml.safe_dump(text, allow_unicode=True), encoding="utf-8"
             )

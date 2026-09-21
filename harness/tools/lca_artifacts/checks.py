@@ -461,7 +461,7 @@ def dependencies(ctx, profile):
         call["artifact"]
         for call in ctx.load_manifest()["calls"]
         if call.get("evidence_tool", call["tool"]) in tools
-        and call["stage"] == PROFILES[profile]
+        and call["stage"] == ctx.stage
     ]
     paths += [ctx.safe(ctx.workspace / ref["path"]) for ref in refs]
     return {"files": fingerprints(paths), "evidence_refs": refs}
@@ -471,6 +471,10 @@ def check_path(ctx, profile):
     if profile not in PROFILES:
         raise ValueError("unknown check profile")
     return ctx.safe(ctx.memory / "checks" / f"{profile}.json")
+
+
+def validation_state_for_run(ctx, profile):
+    return validation_state(ctx, profile)
 
 
 def validation_state(ctx, profile):
@@ -493,6 +497,12 @@ def validation_state(ctx, profile):
 def validate(ctx, profile):
     if profile not in PROFILES or ctx.stage != PROFILES[profile]:
         raise ValueError("check profile does not belong to current stage")
+    return validate_for_run(ctx, profile)
+
+
+def validate_for_run(ctx, profile):
+    if profile not in PROFILES:
+        raise ValueError("unknown check profile")
     errors, warnings = [], []
     try:
         if profile == "inventory":

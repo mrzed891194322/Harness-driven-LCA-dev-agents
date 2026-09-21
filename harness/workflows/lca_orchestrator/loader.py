@@ -8,6 +8,9 @@ from typing import Any
 
 import yaml
 
+from harness.runtime.capabilities import HarnessCapabilities
+from harness.runtime.tool_runtime import ToolRuntimeSpec
+
 from .bundle import CheckRef
 from .lists import parse_optional_list_field, resolve_list
 from .models import Assignment, KnowledgeSource, Stage, ToolSpec, Workflow
@@ -16,7 +19,12 @@ from .resolve import attach_bundles
 FORBIDDEN_PROMPT_KEYS = frozenset({"prompt", "extra_prompt"})
 
 
-def load_workflow(path: Path, *, project_root: Path) -> Workflow:
+def load_workflow(
+    path: Path,
+    *,
+    project_root: Path,
+    capabilities: HarnessCapabilities | None = None,
+) -> Workflow:
     raw = _read_yaml(path)
     _reject_prompt_fields(raw, path)
     if raw.get("reuse"):
@@ -28,7 +36,7 @@ def load_workflow(path: Path, *, project_root: Path) -> Workflow:
         raw = _merge_workflow(base_raw, raw)
     workflow = _parse_workflow(raw, source_path=path)
     _validate_files(workflow, project_root)
-    attach_bundles(workflow, project_root)
+    attach_bundles(workflow, project_root, capabilities)
     return workflow
 
 
@@ -77,6 +85,13 @@ def _merge_workflow(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, 
         if "knowledge" in overlay_registry:
             result["registry"].setdefault("knowledge", {}).update(
                 overlay_registry["knowledge"] or {}
+            )
+    if "hooks" in extra:
+        result.setdefault("hooks", {})
+        hooks_extra = extra["hooks"] or {}
+        if "on_reviewer_passed" in hooks_extra:
+            result["hooks"]["on_reviewer_passed"] = list(
+                hooks_extra["on_reviewer_passed"] or []
             )
     if "defaults" in extra:
         result.setdefault("defaults", {})
@@ -138,10 +153,12 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             raise ValueError(
                 f"{source_path}: knowledge {knowledge_id} must be a mapping"
             )
+        kind = str(spec.get("kind") or "local_dir")
         knowledge[str(knowledge_id)] = KnowledgeSource(
             knowledge_id=str(knowledge_id),
-            kind=str(spec.get("kind") or "local_dir"),
+            kind=kind,
             path=str(spec.get("path") or ""),
+            provider=str(spec.get("provider") or "local_files"),
         )
     tools: dict[str, ToolSpec] = {}
     for tool_id, spec in dict(registry.get("tools") or {}).items():
@@ -158,8 +175,13 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 str(k): str(v) for k, v in dict(spec.get("headers") or {}).items()
             },
             rules=[str(item) for item in spec.get("rules") or []],
+            runtime=_parse_tool_runtime(spec),
         )
     defaults = raw.get("defaults") or {}
+    hooks_raw = raw.get("hooks") or {}
+    reviewer_passed_hooks = [
+        str(item) for item in hooks_raw.get("on_reviewer_passed") or []
+    ]
     assignments: dict[str, Assignment] = {}
     for assignment_id, spec in dict(raw.get("assignments") or {}).items():
         if not isinstance(spec, dict):
@@ -206,6 +228,12 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         stage_knowledge = None
         if "knowledge" in spec:
             stage_knowledge = parse_optional_list_field(spec.get("knowledge"))
+        stage_hooks_decl = None
+        stage_hooks = spec.get("hooks")
+        if isinstance(stage_hooks, dict) and "on_reviewer_passed" in stage_hooks:
+            stage_hooks_decl = parse_optional_list_field(
+                stage_hooks.get("on_reviewer_passed")
+            )
         stages.append(
             Stage(
                 stage_id=str(spec.get("id") or ""),
@@ -216,6 +244,7 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 outputs=[str(item) for item in spec.get("outputs") or []],
                 checks=_parse_checks(spec.get("checks"), source_path=source_path),
                 knowledge_decl=stage_knowledge,
+                reviewer_passed_hooks_decl=stage_hooks_decl,
             )
         )
     return Workflow(
@@ -227,9 +256,22 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         knowledge=knowledge,
         default_rules=[str(item) for item in defaults.get("rules") or []],
         default_knowledge=[str(item) for item in defaults.get("knowledge") or []],
+        reviewer_passed_hooks=reviewer_passed_hooks,
         stages=stages,
         assignments=assignments,
         source_path=source_path,
+    )
+
+
+def _parse_tool_runtime(spec: dict[str, Any]) -> ToolRuntimeSpec | None:
+    raw = spec.get("runtime")
+    if not raw or not isinstance(raw, dict):
+        return None
+    return ToolRuntimeSpec(
+        run_context_env=bool(raw.get("run_context_env")),
+        context_file=bool(raw.get("context_file")),
+        context_file_flag=str(raw.get("context_file_flag") or "--context-file"),
+        env_prefix=str(raw.get("env_prefix") or "LCA"),
     )
 
 
@@ -240,9 +282,9 @@ def _parse_checks(raw: Any, *, source_path: Path) -> list[CheckRef]:
         raise ValueError(f"{source_path}: checks must be a list")
     checks: list[CheckRef] = []
     for item in raw:
-        if not isinstance(item, dict) or "profile" not in item:
-            raise ValueError(f"{source_path}: each check must declare profile")
-        checks.append(CheckRef(profile=str(item["profile"])))
+        if not isinstance(item, dict) or "id" not in item:
+            raise ValueError(f"{source_path}: each check must declare id")
+        checks.append(CheckRef(checker_id=str(item["id"])))
     return checks
 
 

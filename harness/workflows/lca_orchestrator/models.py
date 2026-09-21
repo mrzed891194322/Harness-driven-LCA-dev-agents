@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from harness.runtime.tool_runtime import ToolRuntimeSpec
+
 from .bundle import CheckRef
 
 if TYPE_CHECKING:
@@ -22,6 +24,7 @@ class ToolSpec:
     env: dict[str, str] = field(default_factory=dict)
     headers: dict[str, str] = field(default_factory=dict)
     rules: list[str] = field(default_factory=list)
+    runtime: ToolRuntimeSpec | None = None
 
     def to_mcp_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"transport": self.transport}
@@ -43,6 +46,7 @@ class KnowledgeSource:
     knowledge_id: str
     kind: str
     path: str
+    provider: str = "local_files"
 
 
 @dataclass
@@ -65,6 +69,7 @@ class Stage:
     outputs: list[str] = field(default_factory=list)
     checks: list[CheckRef] = field(default_factory=list)
     knowledge_decl: Any | None = None
+    reviewer_passed_hooks_decl: Any | None = None
 
 
 @dataclass
@@ -80,6 +85,7 @@ class Workflow:
     stages: list[Stage]
     assignments: dict[str, Assignment]
     source_path: Path
+    reviewer_passed_hooks: list[str] = field(default_factory=list)
     bundles: dict[str, TaskBundle] = field(default_factory=dict)
 
     def stage_by_id(self, stage_id: str) -> Stage:

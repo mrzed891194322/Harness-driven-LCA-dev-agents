@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from langchain_core.runnables.config import RunnableConfig
 
+from harness.runtime.checkers import CheckerRegistry
 from lca_orchestrator.checkpoint import open_checkpointer
 from lca_orchestrator.graph import (
     PROTOCOL_REPAIR_LIMIT,
@@ -31,20 +32,20 @@ from tests.conftest import PROJECT_ROOT, WORKFLOWS
 HandoffScript = dict[tuple[str, str, int], Any]
 
 
-def _passing_validate(ctx: Any, profile: str) -> dict[str, Any]:
+def _passing_validate(ctx: Any, checker_id: str) -> dict[str, Any]:
     return {
         "ok": True,
         "checks": [
             {
-                "check_id": profile,
+                "check_id": checker_id,
                 "status": "passed",
-                "summary": f"{profile}: 0 issue(s)",
+                "summary": f"{checker_id}: 0 issue(s)",
             }
         ],
         "errors": [],
         "warnings": [],
         "checks_ref": {
-            "path": f"memory/evidence/{ctx.run_id}/checks/{profile}.json",
+            "path": f"memory/evidence/{ctx.run_id}/checks/{checker_id}.json",
             "sha256": "0",
             "size_bytes": 1,
         },
@@ -245,8 +246,9 @@ class OrchestratorGraphTests(unittest.TestCase):
         try:
             compiled = build_graph(runtime).compile(checkpointer=saver)
             run_id = "run-test"
-            with patch(
-                "harness.tools.lca_artifacts.checks.validate",
+            with patch.object(
+                CheckerRegistry,
+                "run_validate",
                 side_effect=validate or _passing_validate,
             ):
                 result = compiled.invoke(
@@ -492,8 +494,8 @@ class OrchestratorGraphTests(unittest.TestCase):
     def test_host_check_failure_retries_writer_not_reviewer(self) -> None:
         mapping_calls = {"count": 0}
 
-        def validate(ctx: Any, profile: str) -> dict[str, Any]:
-            if profile == "mapping":
+        def validate(ctx: Any, checker_id: str) -> dict[str, Any]:
+            if checker_id == "lca.mapping":
                 mapping_calls["count"] += 1
                 if mapping_calls["count"] == 1:
                     return {
@@ -503,7 +505,7 @@ class OrchestratorGraphTests(unittest.TestCase):
                         "checks": [],
                         "checks_ref": {},
                     }
-            return _passing_validate(ctx, profile)
+            return _passing_validate(ctx, checker_id)
 
         script = _happy_script()
         script[("03-dataset-mapping", "executor", 2)] = {
@@ -647,8 +649,9 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
         try:
             compiled = build_graph(runtime).compile(checkpointer=saver)
             run_id = "run-revise"
-            with patch(
-                "harness.tools.lca_artifacts.checks.validate",
+            with patch.object(
+                CheckerRegistry,
+                "run_validate",
                 side_effect=validate or _passing_validate,
             ):
                 result = compiled.invoke(

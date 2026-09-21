@@ -7,6 +7,8 @@ from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from harness.runtime.capabilities import HarnessCapabilities, default_capabilities
+from harness.runtime.context import RunContext
 from scripts.agent_sdk.progress import print_orchestrator
 
 from .assemble import assemble_prompt
@@ -91,9 +93,11 @@ class OrchestratorRuntime:
         workspace_root: Path,
         session_client: Any,
         worker: str,
+        capabilities: HarnessCapabilities | None = None,
     ) -> None:
         self.workflow = workflow
         self.bundles = workflow.bundles
+        self.capabilities = capabilities or default_capabilities()
         self.project_root = project_root
         self.workspace_root = workspace_root
         self.session_client = session_client
@@ -123,38 +127,36 @@ class OrchestratorRuntime:
             context["handoff_path"] = str(handoff.relative_to(self.project_root))
         except ValueError:
             context["handoff_path"] = str(handoff)
-        from harness.tools.control_openlca.utils.workflow import _write_json_atomic
-        from harness.tools.lca_artifacts.checks import validation_state
-        from harness.tools.lca_artifacts.store import Context, discover_sources
-
-        evidence_context = Context(
-            self.project_root,
-            self.workspace_root,
-            _state_str(state, "run_id"),
-            stage.stage_id,
-            _attempt(state),
-            assignment.role,
-        )
-        source_path = evidence_context.safe(evidence_context.memory / "sources.json")
-        if not source_path.exists():
-            _write_json_atomic(source_path, discover_sources(self.project_root))
-        context["source_manifest"] = evidence_context.ref(source_path)
-        context["evidence_manifest_ref"] = str(evidence_context.manifest)
-        profile = bundle.checks[0].profile if bundle.checks else None
-        if profile:
+        run_ctx = self._run_context(state, stage, assignment)
+        provider_ids = {binding.provider for binding in bundle.knowledge_sources}
+        for provider_id in sorted(provider_ids):
+            context.update(
+                self.capabilities.knowledge.enrich(run_ctx, bundle, provider_id)
+            )
+        check_summaries: list[dict[str, object]] = []
+        for check in bundle.checks:
+            checker_id = check.checker_id
             try:
-                check = validation_state(evidence_context, profile)
-                context["checks"] = [
+                record = self.capabilities.checkers.validation_state(
+                    run_ctx, checker_id
+                )
+                check_summaries.append(
                     {
                         k: v
-                        for k, v in check.items()
+                        for k, v in record.items()
                         if k in {"check_id", "status", "summary", "checker_version"}
                     }
-                ]
+                )
             except (OSError, ValueError, KeyError) as exc:
-                context["checks"] = [
-                    {"check_id": profile, "status": "stale", "summary": str(exc)[:500]}
-                ]
+                check_summaries.append(
+                    {
+                        "check_id": checker_id,
+                        "status": "stale",
+                        "summary": str(exc)[:500],
+                    }
+                )
+        if check_summaries:
+            context["checks"] = check_summaries
         prompt = assemble_prompt(
             self.workflow,
             project_root=self.project_root,
@@ -315,26 +317,16 @@ class OrchestratorRuntime:
         assignment: Assignment,
         _handoff: dict[str, Any],
     ) -> dict[str, Any] | None:
-        from harness.tools.lca_artifacts.checks import validate
-        from harness.tools.lca_artifacts.store import Context
-
         bundle = self.bundles[assignment.assignment_id]
         if not bundle.checks:
             return None
-        ctx = Context(
-            self.project_root,
-            self.workspace_root,
-            _state_str(state, "run_id"),
-            stage.stage_id,
-            _attempt(state),
-            assignment.role,
-        )
+        run_ctx = self._run_context(state, stage, assignment)
         for check in bundle.checks:
-            profile = check.profile
+            checker_id = check.checker_id
             try:
-                result = validate(ctx, profile)
+                result = self.capabilities.checkers.run_validate(run_ctx, checker_id)
             except Exception as exc:
-                reason = f"{profile} 检查未能执行：{exc}"
+                reason = f"{checker_id} 检查未能执行：{exc}"
                 print_orchestrator(
                     f"host check failed {assignment.assignment_id}: {reason}"
                 )
@@ -346,7 +338,7 @@ class OrchestratorRuntime:
                 detail = "; ".join(str(item) for item in errors[:20]) or (
                     str(result.get("summary") or "").strip() or "确定性检查未通过"
                 )
-                reason = f"{profile} 检查未通过：{detail}"
+                reason = f"{checker_id} 检查未通过：{detail}"
                 print_orchestrator(
                     f"host check failed {assignment.assignment_id}: {reason}"
                 )
@@ -363,19 +355,10 @@ class OrchestratorRuntime:
         handoff: dict[str, Any],
     ) -> dict[str, Any]:
         if handoff["status"] == "passed":
-            from harness.tools.lca_artifacts.checks import record_acceptance
-            from harness.tools.lca_artifacts.store import Context
-
-            record_acceptance(
-                Context(
-                    self.project_root,
-                    self.workspace_root,
-                    _state_str(state, "run_id"),
-                    stage.stage_id,
-                    _attempt(state),
-                    assignment.role,
-                )
-            )
+            bundle = self.bundles[assignment.assignment_id]
+            run_ctx = self._run_context(state, stage, assignment)
+            for hook_id in bundle.reviewer_passed_hooks:
+                self.capabilities.hooks.run(hook_id, run_ctx)
             return self._complete_or_next_stage(state, stage)
         reason = str(
             handoff.get("fix_instructions")
@@ -513,6 +496,19 @@ class OrchestratorRuntime:
             stage, _state_int(state, "step_index")
         )
         return stage, assignment
+
+    def _run_context(
+        self, state: WorkflowState, stage: Stage, assignment: Assignment
+    ) -> RunContext:
+        return RunContext(
+            project_root=self.project_root,
+            workspace_root=self.workspace_root,
+            run_id=_state_str(state, "run_id"),
+            stage_id=stage.stage_id,
+            assignment_id=assignment.assignment_id,
+            attempt=_attempt(state),
+            role=assignment.role,
+        )
 
 
 def _first_writer_index(workflow: Workflow, stage: Stage) -> int:

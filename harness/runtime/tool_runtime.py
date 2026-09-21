@@ -1,0 +1,86 @@
+"""Declarative MCP tool run-context binding."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from harness.tools.control_openlca.utils.workflow import _write_json_atomic
+
+from .context import RunContext
+
+CONTEXT_FILE_FLAG_DEFAULT = "--context-file"
+
+
+@dataclass(frozen=True)
+class ToolRuntimeSpec:
+    run_context_env: bool = False
+    context_file: bool = False
+    context_file_flag: str = CONTEXT_FILE_FLAG_DEFAULT
+    env_prefix: str = "LCA"
+
+
+def mcp_context_path(
+    workspace_root: Path, run_id: str, stage_id: str, role: str
+) -> Path:
+    return workspace_root / "tmp" / "mcp-context" / run_id / stage_id / f"{role}.json"
+
+
+def write_context_file(ctx: RunContext) -> Path:
+    path = mcp_context_path(ctx.workspace_root, ctx.run_id, ctx.stage_id, ctx.role)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json_atomic(
+        path,
+        {
+            "run_id": ctx.run_id,
+            "stage": ctx.stage_id,
+            "attempt": ctx.attempt,
+            "role": ctx.role,
+            "workspace": str(ctx.workspace_root),
+        },
+    )
+    return path.resolve()
+
+
+def run_context_env(ctx: RunContext, spec: ToolRuntimeSpec) -> dict[str, str]:
+    prefix = spec.env_prefix
+    return {
+        f"{prefix}_RUN_ID": ctx.run_id,
+        f"{prefix}_STAGE": ctx.stage_id,
+        f"{prefix}_ATTEMPT": str(ctx.attempt),
+        f"{prefix}_ROLE": ctx.role,
+        f"{prefix}_WORKSPACE": str(ctx.workspace_root),
+    }
+
+
+def with_context_file(args: list[str], path: Path, flag: str) -> list[str]:
+    rendered = list(args)
+    if flag in rendered:
+        index = rendered.index(flag)
+        if index + 1 < len(rendered) and not str(rendered[index + 1]).startswith("-"):
+            rendered[index + 1] = str(path)
+            return rendered
+        rendered.insert(index + 1, str(path))
+        return rendered
+    return rendered + [flag, str(path)]
+
+
+def apply_tool_runtime(
+    server: dict[str, Any],
+    runtime: ToolRuntimeSpec | None,
+    ctx: RunContext,
+    *,
+    uv_cache_dir: str,
+    context_path: Path | None,
+) -> None:
+    merged: dict[str, Any] = {**server.get("env", {}), "UV_CACHE_DIR": uv_cache_dir}
+    if runtime and runtime.run_context_env:
+        merged.update(run_context_env(ctx, runtime))
+    if runtime and runtime.context_file and context_path is not None:
+        server["args"] = with_context_file(
+            list(server.get("args") or []),
+            context_path,
+            runtime.context_file_flag,
+        )
+    server["env"] = merged

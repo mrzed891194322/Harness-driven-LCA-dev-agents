@@ -2,6 +2,10 @@ id: whole-lca
 runtime_spec: harness/specs/public/references/workflow-runtime-spec.md
 max_attempts: 3
 
+hooks:
+  on_reviewer_passed:
+    - lca.record_acceptance
+
 registry:
   rules:
     workspace_boundary: harness/rules/project/write-boundary.md
@@ -18,15 +22,22 @@ registry:
       command: uv
       args: [run, python, harness/tools/lca_artifacts/main.py]
       rules: [artifact_usage]
+      runtime:
+        run_context_env: true
+        context_file: true
     control_openlca:
       transport: stdio
       command: uv
       args: [run, python, harness/tools/control_openlca/main.py]
       rules: [openlca_usage]
+      runtime:
+        run_context_env: true
+        context_file: true
   knowledge:
     workspace_knowledge:
       kind: local_dir
       path: harness/knowledge/
+      provider: local_files
 
 defaults:
   rules: [workspace_boundary, runtime, paths]
@@ -47,7 +58,7 @@ stages:
       - workspace/outputs/inventory/extracted-bom.json
       - workspace/outputs/inventory/extracted-bom.md
     checks:
-      - profile: inventory
+      - id: lca.inventory
     steps:
       - assignment: 02-inventory-extraction.executor
       - assignment: 02-inventory-extraction.reviewer
@@ -58,7 +69,7 @@ stages:
       - workspace/outputs/inventory/process-mapping.json
       - workspace/outputs/LCI/
     checks:
-      - profile: mapping
+      - id: lca.mapping
     steps:
       - assignment: 03-dataset-mapping.executor
       - assignment: 03-dataset-mapping.reviewer
@@ -68,7 +79,7 @@ stages:
     outputs:
       - workspace/outputs/reports/lca_report.md
     checks:
-      - profile: report
+      - id: lca.report
     steps:
       - assignment: 04-openlca-reporting.executor
       - assignment: 04-openlca-reporting.reviewer
