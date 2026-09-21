@@ -16,7 +16,7 @@ inputs:
 ## 输入说明
 
 - `workspace/outputs/inventory/extracted-bom.json`
-- 计划与本任务已注册的资料来源（默认 `harness/knowledge/`）
+- 计划与本任务已注册的资料来源（见运行上下文 `knowledge_sources` / `source_manifest`）
 - openLCA 活动库（经 `control_openlca`）
 
 首次调用 openLCA 前做 `health_check`。UUID 必须来自正式查询；禁止编造。不得用错误功能冒充（再生粒料不得代替原生，除非计划要求）。地域无精确候选时自行选区域市场或 `RoW`/`GLO`，并记下请求值、选用值和理由。

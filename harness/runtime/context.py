@@ -15,3 +15,4 @@ class RunContext:
     assignment_id: str
     attempt: int
     role: str
+    lca_phase: str | None = None

@@ -97,6 +97,8 @@ class Context:
     stage: str
     attempt: int
     role: str = "executor"
+    assignment: str = ""
+    lca_phase: str | None = None
 
     def __post_init__(self):
         identifier(self.run_id)
@@ -107,6 +109,11 @@ class Context:
             raise ValueError("invalid role")
         self.safe(self.workspace / "memory")
         self.safe(self.workspace / "outputs")
+
+    def sources_manifest_path(self) -> Path:
+        key = self.assignment or f"{self.stage}-{self.role}"
+        return self.safe(self.memory / "sources" / f"{key}.json")
+
 
     @classmethod
     def from_file(cls, path: Path):
@@ -151,6 +158,8 @@ class Context:
                 stage,
                 attempt,
                 str(payload.get("role") or "executor"),
+                str(payload.get("assignment") or ""),
+                str(payload["lca_phase"]) if payload.get("lca_phase") else None,
             )
         except ValueError as exc:
             raise HostContextError(f"host_context_missing: {exc}") from exc
@@ -168,6 +177,8 @@ class Context:
             os.getenv("LCA_STAGE", "standalone"),
             int(os.getenv("LCA_ATTEMPT", "1")),
             os.getenv("LCA_ROLE", "executor"),
+            os.getenv("LCA_ASSIGNMENT", ""),
+            os.getenv("LCA_PHASE") or None,
         )
 
     @classmethod

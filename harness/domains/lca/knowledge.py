@@ -6,13 +6,16 @@ from pathlib import Path
 
 from harness.runtime.context import RunContext
 from harness.runtime.knowledge import KnowledgeProviderRegistry
-from harness.tools.control_openlca.utils.workflow import _write_json_atomic, sha256_file
+from harness.runtime.tool_runtime import write_json_atomic
+from harness.tools.control_openlca.utils.workflow import sha256_file
 from harness.tools.lca_artifacts.store import Context
 from harness.workflows.lca_orchestrator.bundle import TaskBundle
 
+PROVIDER_ID = "local_files"
+
 
 def register_lca_knowledge(registry: KnowledgeProviderRegistry) -> None:
-    registry.register("local_files", enrich_local_files)
+    registry.register(PROVIDER_ID, enrich_local_files)
 
 
 def discover_files_at(project_root: Path, relative_dir: str) -> dict:
@@ -49,17 +52,20 @@ def enrich_local_files(ctx: RunContext, bundle: TaskBundle) -> dict[str, object]
         ctx.stage_id,
         ctx.attempt,
         ctx.role,
+        ctx.assignment_id,
+        None,
     )
-    source_path = evidence.safe(evidence.memory / "sources.json")
-    if not source_path.exists():
-        merged: dict = {"files": [], "count": 0}
-        for binding in bundle.knowledge_sources:
-            if binding.kind != "local_dir":
-                continue
-            payload = discover_files_at(ctx.project_root, binding.path)
-            merged["files"].extend(payload["files"])
-            merged["count"] = len(merged["files"])
-        _write_json_atomic(source_path, merged)
+    source_path = evidence.sources_manifest_path()
+    merged: dict = {"files": [], "count": 0, "assignment": bundle.assignment_id}
+    for binding in bundle.knowledge_sources:
+        if binding.provider != PROVIDER_ID:
+            continue
+        if binding.kind != "local_dir":
+            continue
+        payload = discover_files_at(ctx.project_root, binding.path)
+        merged["files"].extend(payload["files"])
+        merged["count"] = len(merged["files"])
+    write_json_atomic(source_path, merged)
     return {
         "source_manifest": evidence.ref(source_path),
         "evidence_manifest_ref": str(evidence.manifest),

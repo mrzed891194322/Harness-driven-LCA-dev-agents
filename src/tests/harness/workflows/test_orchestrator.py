@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from langchain_core.runnables.config import RunnableConfig
 
+from harness.domains.lca.bootstrap import lca_capabilities
 from harness.runtime.checkers import CheckerRegistry
 from lca_orchestrator.checkpoint import open_checkpointer
 from lca_orchestrator.graph import (
@@ -219,7 +220,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.workspace = Path(self._tmp.name) / "workspace"
         self.workspace.mkdir()
         self.workflow = load_workflow(
-            WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT
+            WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT, capabilities=lca_capabilities()
         )
 
     def tearDown(self) -> None:
@@ -241,6 +242,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             workspace_root=self.workspace,
             session_client=client,
             worker="codex",
+            capabilities=lca_capabilities(),
         )
         conn, saver = open_checkpointer(self.workspace)
         try:
@@ -359,6 +361,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             workspace_root=self.workspace,
             session_client=client,
             worker="codex",
+            capabilities=lca_capabilities(),
         )
         conn, saver = open_checkpointer(self.workspace)
         try:
@@ -625,7 +628,7 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
         self.workspace = Path(self._tmp.name) / "workspace"
         self.workspace.mkdir()
         self.workflow = load_workflow(
-            WORKFLOWS / "LCA-revise.yaml", project_root=PROJECT_ROOT
+            WORKFLOWS / "LCA-revise.yaml", project_root=PROJECT_ROOT, capabilities=lca_capabilities()
         )
 
     def tearDown(self) -> None:
@@ -644,6 +647,7 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
             workspace_root=self.workspace,
             session_client=client,
             worker="codex",
+            capabilities=lca_capabilities(),
         )
         conn, saver = open_checkpointer(self.workspace)
         try:

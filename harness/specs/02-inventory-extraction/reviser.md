@@ -4,7 +4,7 @@
 
 ## 需要解决的问题
 
-- 同时读取上一轮 `extracted-bom.json` / `.md`、`workspace/inputs/plan.md`、`workspace/inputs/revise.md` 与本任务资料来源（默认 `harness/knowledge/`）。
+- 同时读取上一轮 `extracted-bom.json` / `.md`、`workspace/inputs/plan.md`、`workspace/inputs/revise.md` 与本任务资料来源（`knowledge_sources` / `source_manifest`）。
 - `revise.md` 与原计划冲突时以 `revise.md` 为准。
 - 用户未点名的 BOM 行默认保留；点名的增删改必须写入完整新 BOM，并在 `source_locations` 或缺口说明中回链意见原文。
 - 读得出的资料必须抽取；读不出的二进制标为 `unreadable`，不得编造数量。

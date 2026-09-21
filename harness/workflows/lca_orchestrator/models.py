@@ -54,8 +54,8 @@ class Assignment:
     assignment_id: str
     role: str
     task_spec: str
-    tools: list[str] = field(default_factory=list)
-    rules: list[str] = field(default_factory=list)
+    tools_decl: Any | None = None
+    rules_decl: Any | None = None
     knowledge_decl: Any | None = None
 
 
@@ -69,6 +69,8 @@ class Stage:
     outputs: list[str] = field(default_factory=list)
     checks: list[CheckRef] = field(default_factory=list)
     knowledge_decl: Any | None = None
+    rules_decl: Any | None = None
+    tools_decl: Any | None = None
     reviewer_passed_hooks_decl: Any | None = None
 
 

@@ -16,11 +16,10 @@ class HarnessCapabilities:
     hooks: HookRegistry
 
 
-def default_capabilities() -> HarnessCapabilities:
-    from harness.domains.lca.bootstrap import register_lca
-
-    checkers = CheckerRegistry()
-    knowledge = KnowledgeProviderRegistry()
-    hooks = HookRegistry()
-    register_lca(checkers, knowledge, hooks)
-    return HarnessCapabilities(checkers=checkers, knowledge=knowledge, hooks=hooks)
+def empty_capabilities() -> HarnessCapabilities:
+    """Domain-agnostic empty registries. Domains register at the composition root."""
+    return HarnessCapabilities(
+        checkers=CheckerRegistry(),
+        knowledge=KnowledgeProviderRegistry(),
+        hooks=HookRegistry(),
+    )

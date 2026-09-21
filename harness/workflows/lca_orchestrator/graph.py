@@ -7,7 +7,7 @@ from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from harness.runtime.capabilities import HarnessCapabilities, default_capabilities
+from harness.runtime.capabilities import HarnessCapabilities
 from harness.runtime.context import RunContext
 from scripts.agent_sdk.progress import print_orchestrator
 
@@ -46,8 +46,8 @@ class WorkflowState(TypedDict, total=False):
     last_handoff: dict[str, Any]
 
 
-def session_key(stage_id: str, role: str) -> str:
-    return f"{stage_id}:{role}"
+def session_key(assignment_id: str) -> str:
+    return assignment_id
 
 
 def _state_str(state: WorkflowState, key: str) -> str:
@@ -97,7 +97,11 @@ class OrchestratorRuntime:
     ) -> None:
         self.workflow = workflow
         self.bundles = workflow.bundles
-        self.capabilities = capabilities or default_capabilities()
+        if capabilities is None:
+            raise ValueError(
+                "capabilities required; pass from composition root (e.g. lca_capabilities())"
+            )
+        self.capabilities = capabilities
         self.project_root = project_root
         self.workspace_root = workspace_root
         self.session_client = session_client
@@ -189,7 +193,7 @@ class OrchestratorRuntime:
         from .session_bind import build_session_config
 
         stage, assignment = self._current(state)
-        key = session_key(stage.stage_id, assignment.role)
+        key = session_key(assignment.assignment_id)
         sessions = dict(state.get("sessions") or {})
         bundle = self.bundles[assignment.assignment_id]
         config = build_session_config(
@@ -481,7 +485,7 @@ class OrchestratorRuntime:
 
         for assignment_id in stage.steps:
             assignment = self.workflow.assignments[assignment_id]
-            key = session_key(stage.stage_id, assignment.role)
+            key = session_key(assignment.assignment_id)
             payload = sessions.get(key)
             if not payload:
                 continue
@@ -500,6 +504,12 @@ class OrchestratorRuntime:
     def _run_context(
         self, state: WorkflowState, stage: Stage, assignment: Assignment
     ) -> RunContext:
+        bundle = self.bundles[assignment.assignment_id]
+        phase = None
+        if bundle.checks:
+            checker_id = bundle.checks[0].checker_id
+            if checker_id.startswith("lca."):
+                phase = checker_id.removeprefix("lca.")
         return RunContext(
             project_root=self.project_root,
             workspace_root=self.workspace_root,
@@ -508,6 +518,7 @@ class OrchestratorRuntime:
             assignment_id=assignment.assignment_id,
             attempt=_attempt(state),
             role=assignment.role,
+            lca_phase=phase,
         )
 
 

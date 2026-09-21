@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from harness.domains.lca.bootstrap import lca_capabilities
 from lca_orchestrator.loader import load_workflow
 from lca_orchestrator.resolve import diagnose_assignment
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
@@ -20,7 +21,11 @@ STAGE_PACKAGES = (
 
 class TaskBundleResolveTests(unittest.TestCase):
     def test_whole_lca_has_seven_bundles(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         self.assertEqual(len(workflow.bundles), 7)
         executor = workflow.bundles["03-dataset-mapping.executor"]
         self.assertEqual(executor.tool_ids, ["control_openlca", "lca_artifacts"])
@@ -33,7 +38,11 @@ class TaskBundleResolveTests(unittest.TestCase):
         )
 
     def test_writer_outputs_and_checks(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         writer = workflow.bundles["02-inventory-extraction.executor"]
         reviewer = workflow.bundles["02-inventory-extraction.reviewer"]
         self.assertEqual(
@@ -48,7 +57,11 @@ class TaskBundleResolveTests(unittest.TestCase):
         self.assertEqual(reviewer.checks[0].checker_id, "lca.inventory")
 
     def test_revise_overlay_bundles(self) -> None:
-        revise = load_workflow(WORKFLOWS / "LCA-revise.yaml", project_root=PROJECT_ROOT)
+        revise = load_workflow(
+            WORKFLOWS / "LCA-revise.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         reviser = revise.bundles["03-dataset-mapping.reviser"]
         reviewer = revise.bundles["03-dataset-mapping.reviewer"]
         self.assertEqual(reviser.role, "reviser")
@@ -62,7 +75,11 @@ class TaskBundleResolveTests(unittest.TestCase):
         self.assertEqual(intake.steps, ["01-intake-gate.reviewer"])
 
     def test_diagnose_assignment_keys(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         payload = diagnose_assignment(
             workflow, "03-dataset-mapping", "03-dataset-mapping.executor"
         )
@@ -90,10 +107,12 @@ class TaskBundleResolveTests(unittest.TestCase):
             (knowledge_dir / "README.md").write_text("# k\n", encoding="utf-8")
             _write_minimal_workflow(root)
             workflow_path = root / "harness" / "workflows" / "patch-test.yaml"
-            workflow = load_workflow(workflow_path, project_root=root)
+            workflow = load_workflow(
+                workflow_path, project_root=root, capabilities=lca_capabilities()
+            )
             bundle = workflow.bundles["s1.executor"]
             self.assertIn("extra_rule", bundle.rule_ids)
-            self.assertIn("paths", bundle.rule_ids)
+            self.assertNotIn("paths", bundle.rule_ids)
 
     def test_fail_fast_unknown_tool(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -109,7 +128,9 @@ class TaskBundleResolveTests(unittest.TestCase):
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
             with self.assertRaises(ValueError):
-                load_workflow(workflow_path, project_root=root)
+                load_workflow(
+                    workflow_path, project_root=root, capabilities=lca_capabilities()
+                )
 
     def test_fail_fast_invalid_checker_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -125,10 +146,16 @@ class TaskBundleResolveTests(unittest.TestCase):
                 yaml.safe_dump(text, allow_unicode=True), encoding="utf-8"
             )
             with self.assertRaises(ValueError):
-                load_workflow(workflow_path, project_root=root)
+                load_workflow(
+                    workflow_path, project_root=root, capabilities=lca_capabilities()
+                )
 
     def test_bundle_round_trip(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         bundle = workflow.bundles["02-inventory-extraction.executor"]
         from lca_orchestrator.bundle import TaskBundle
 
@@ -175,6 +202,7 @@ def _write_minimal_workflow(root: Path) -> None:
                 "workspace_knowledge": {
                     "kind": "local_dir",
                     "path": "harness/knowledge/",
+                    "provider": "local_files",
                 }
             },
         },

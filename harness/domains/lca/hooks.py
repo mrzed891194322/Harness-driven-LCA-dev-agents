@@ -20,5 +20,9 @@ def _record_acceptance(ctx: RunContext) -> None:
         ctx.stage_id,
         ctx.attempt,
         ctx.role,
+        ctx.assignment_id,
+        "mapping",
     )
-    lca_checks.record_acceptance(lca_ctx)
+    lca_checks.record_acceptance(
+        lca_ctx, acceptance_key=lca_checks.ACCEPTANCE_MODEL
+    )

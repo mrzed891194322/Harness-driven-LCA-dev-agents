@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import yaml
 
-from harness.runtime import default_capabilities
+from harness.domains.lca.bootstrap import lca_capabilities
 from harness.runtime.capabilities import HarnessCapabilities
 from harness.runtime.checkers import CheckerRegistry
 from harness.runtime.context import RunContext
@@ -42,9 +42,7 @@ def _test_capabilities() -> HarnessCapabilities:
         },
     )
     hooks.register("test.noop", lambda _ctx: None)
-    return HarnessCapabilities(
-        checkers=checkers, knowledge=knowledge, hooks=hooks
-    )
+    return HarnessCapabilities(checkers=checkers, knowledge=knowledge, hooks=hooks)
 
 
 class GenericRuntimeTests(unittest.TestCase):
@@ -61,11 +59,11 @@ class GenericRuntimeTests(unittest.TestCase):
     def test_renamed_stage_runs_lca_inventory_checker(self) -> None:
         from harness.tools.lca_artifacts import checks as lca_checks
 
-        caps = default_capabilities()
+        caps = lca_capabilities()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             path = _write_renamed_inventory_workflow(root)
-            workflow = load_workflow(path, project_root=root, capabilities=caps)
+            load_workflow(path, project_root=root, capabilities=caps)
             ctx = RunContext(
                 project_root=root,
                 workspace_root=root / "workspace",
@@ -79,9 +77,7 @@ class GenericRuntimeTests(unittest.TestCase):
             (ctx.workspace_root / "inputs" / "plan.md").write_text(
                 "# plan\n", encoding="utf-8"
             )
-            with patch.object(
-                lca_checks, "inventory_errors", return_value=[]
-            ):
+            with patch.object(lca_checks, "inventory_errors", return_value=[]):
                 result = caps.checkers.run_validate(ctx, "lca.inventory")
             self.assertTrue(result.get("ok"))
 
@@ -106,10 +102,10 @@ class GenericRuntimeTests(unittest.TestCase):
                 attempt=1,
             )
             server = config.mcp_servers["fake_tool"]
-            self.assertIn("LCA_RUN_ID", server["env"])
+            self.assertIn("HARNESS_RUN_ID", server["env"])
             self.assertIn("--context-file", server["args"])
             plain = config.mcp_servers["plain_tool"]
-            self.assertNotIn("LCA_RUN_ID", plain.get("env", {}))
+            self.assertNotIn("HARNESS_RUN_ID", plain.get("env", {}))
 
     def test_unknown_checker_fail_fast(self) -> None:
         caps = _test_capabilities()
@@ -124,10 +120,16 @@ class GenericRuntimeTests(unittest.TestCase):
 
     def test_lca_main_hooks_on_bundle(self) -> None:
         workflow = load_workflow(
-            WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
         )
-        bundle = workflow.bundles["02-inventory-extraction.reviewer"]
-        self.assertIn("lca.record_acceptance", bundle.reviewer_passed_hooks)
+        inventory = workflow.bundles["02-inventory-extraction.reviewer"]
+        mapping = workflow.bundles["03-dataset-mapping.reviewer"]
+        report = workflow.bundles["04-openlca-reporting.reviewer"]
+        self.assertNotIn("lca.record_acceptance", inventory.reviewer_passed_hooks)
+        self.assertIn("lca.record_acceptance", mapping.reviewer_passed_hooks)
+        self.assertNotIn("lca.record_acceptance", report.reviewer_passed_hooks)
 
 
 def _write_fake_workflow(root: Path) -> Path:

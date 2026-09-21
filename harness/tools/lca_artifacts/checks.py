@@ -17,15 +17,36 @@ from harness.tools.control_openlca.utils.workflow import (
 )
 
 CHECKER_VERSION = "2.0"
-PROFILES = {
-    "inventory": "02-inventory-extraction",
-    "mapping": "03-dataset-mapping",
-    "report": "04-openlca-reporting",
-}
+# Internal profile ids for MCP validate_artifacts and checker implementations.
+# Must NOT map to workflow stage ids.
+INTERNAL_PROFILES = frozenset({"inventory", "mapping", "report"})
+ACCEPTANCE_MODEL = "lca.model"
+# Backward-compatible alias for MCP Literal / callers that still import PROFILES.
+PROFILES = {name: name for name in sorted(INTERNAL_PROFILES)}
 
 
 def load(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def knowledge_files_from_manifest(ctx) -> list[Path]:
+    """Files listed in the assignment-scoped source manifest, if present."""
+    path = ctx.sources_manifest_path()
+    if not path.is_file():
+        return []
+    try:
+        payload = load(path)
+    except (OSError, json.JSONDecodeError, TypeError):
+        return []
+    files = []
+    for entry in payload.get("files") or []:
+        if not isinstance(entry, dict):
+            continue
+        relative = entry.get("path")
+        if not relative:
+            continue
+        files.append(ctx.project / str(relative))
+    return files
 
 
 def upstream_files(ctx):
@@ -36,13 +57,12 @@ def upstream_files(ctx):
     ]
     if (ctx.workspace / "inputs" / "revise.md").exists():
         paths.append(ctx.workspace / "inputs" / "revise.md")
-    for root in (
-        ctx.workspace / "outputs" / "LCI",
-        ctx.project / "harness" / "knowledge",
-    ):
-        if root.exists():
-            paths.extend(p for p in sorted(root.rglob("*")) if p.is_file())
+    lci_root = ctx.workspace / "outputs" / "LCI"
+    if lci_root.exists():
+        paths.extend(p for p in sorted(lci_root.rglob("*")) if p.is_file())
+    paths.extend(knowledge_files_from_manifest(ctx))
     return paths
+
 
 
 def fingerprints(paths):
@@ -64,14 +84,15 @@ def calculation_fingerprint(ctx):
     return sha256_file(path) if path.is_file() else "missing"
 
 
-def record_acceptance(ctx):
+def record_acceptance(ctx, *, acceptance_key: str = ACCEPTANCE_MODEL):
     """Persist the reviewer's decision; does not judge or advance the workflow."""
     with file_lock(ctx.safe(ctx.memory / "manifest.lock")):
         value = ctx.load_manifest()
-        value["accepted"][ctx.stage] = {
+        value["accepted"][acceptance_key] = {
             "model_fingerprint": model_fingerprint(ctx),
             "at": utc_now(),
             "attempt": ctx.attempt,
+            "stage": ctx.stage,
         }
         _write_json_atomic(ctx.manifest, value)
 
@@ -79,11 +100,10 @@ def record_acceptance(ctx):
 def require_approved_model(ctx, *, allow_reviewer=False):
     if ctx.stage == "standalone":
         return
-    if ctx.stage != PROFILES["report"] or (
-        ctx.role == "reviewer" and not allow_reviewer
-    ):
-        raise ValueError("only stage 04 writer can import or calculate")
-    accepted = ctx.load_manifest()["accepted"].get(PROFILES["mapping"])
+    phase = getattr(ctx, "lca_phase", None) or ctx.stage
+    if phase != "report" or (ctx.role == "reviewer" and not allow_reviewer):
+        raise ValueError("only report-phase writer can import or calculate")
+    accepted = ctx.load_manifest()["accepted"].get(ACCEPTANCE_MODEL)
     if not accepted or accepted["model_fingerprint"] != model_fingerprint(ctx):
         raise ValueError("approved model missing or stale; upstream review required")
 
@@ -310,7 +330,7 @@ def reuse_status(ctx):
         }
     except (OSError, ValueError, KeyError, TypeError) as exc:
         # Upstream changes are not a license to re-import within stage 04.
-        accepted = ctx.load_manifest()["accepted"].get(PROFILES["mapping"], {})
+        accepted = ctx.load_manifest()["accepted"].get(ACCEPTANCE_MODEL, {})
         unchanged = accepted.get("model_fingerprint") == model_fingerprint(ctx)
         return {
             "eligible": False,
@@ -468,7 +488,7 @@ def dependencies(ctx, profile):
 
 
 def check_path(ctx, profile):
-    if profile not in PROFILES:
+    if profile not in INTERNAL_PROFILES:
         raise ValueError("unknown check profile")
     return ctx.safe(ctx.memory / "checks" / f"{profile}.json")
 
@@ -495,13 +515,14 @@ def validation_state(ctx, profile):
 
 
 def validate(ctx, profile):
-    if profile not in PROFILES or ctx.stage != PROFILES[profile]:
-        raise ValueError("check profile does not belong to current stage")
+    """MCP-facing validate: still checks profile membership; orchestrator uses validate_for_run."""
+    if profile not in INTERNAL_PROFILES:
+        raise ValueError("unknown check profile")
     return validate_for_run(ctx, profile)
 
 
 def validate_for_run(ctx, profile):
-    if profile not in PROFILES:
+    if profile not in INTERNAL_PROFILES:
         raise ValueError("unknown check profile")
     errors, warnings = [], []
     try:

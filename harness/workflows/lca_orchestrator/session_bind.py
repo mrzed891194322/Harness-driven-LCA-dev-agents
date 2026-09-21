@@ -50,6 +50,7 @@ def build_session_config(
         assignment_id=bundle.assignment_id,
         attempt=attempt,
         role=bundle.role,
+        lca_phase=_phase_from_bundle(bundle),
     )
     context_path = None
     if any(
@@ -94,3 +95,12 @@ def build_session_config(
         mcp_render_dir=render_dir,
         archive_dir=archive,
     )
+
+
+def _phase_from_bundle(bundle: TaskBundle) -> str | None:
+    if not bundle.checks:
+        return None
+    checker_id = bundle.checks[0].checker_id
+    if checker_id.startswith("lca."):
+        return checker_id.removeprefix("lca.")
+    return None

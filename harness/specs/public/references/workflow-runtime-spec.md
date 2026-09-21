@@ -16,7 +16,7 @@
 ## 路径
 
 - 输入：`workspace/inputs/plan.md`（revise 另加 `workspace/inputs/revise.md`）
-- 知识：默认 `harness/knowledge/`；任务也可使用 YAML 注册并绑定的工具来源
+- 知识：以工作流 YAML 绑定的 `knowledge_sources` / `source_manifest` 为准；也可使用 YAML 注册并绑定的工具来源
 - 状态：`workspace/memory/manifest.json`、`workspace/memory/reviews/`、`workspace/memory/handoffs/`；编排检查点在 `workspace/memory/` 的 SQLite；可选 `checklist.md`
 - 排障留档：`workspace/memory/logs/<run_id>/progress.txt` 与 `workspace/memory/logs/<run_id>/<stage>/<role>#<attempt>/`（会话注入与 CLI stdout）；运行时 MCP 渲染在 `workspace/tmp/mcp-render/`
 - 前景产物：`workspace/outputs/inventory/extracted-bom.json`、`extracted-bom.md`、`process-mapping.json`。GUI「工作细节」只渲染两份 JSON，不读 `.md`

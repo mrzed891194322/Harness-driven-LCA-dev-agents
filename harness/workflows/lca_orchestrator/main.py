@@ -25,7 +25,8 @@ if str(WORKFLOWS_ROOT) not in sys.path:
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from harness.runtime import default_capabilities  # noqa: E402
+from harness.domains.lca.bootstrap import lca_capabilities  # noqa: E402
+from harness.runtime.capabilities import HarnessCapabilities  # noqa: E402
 from lca_orchestrator.checkpoint import open_checkpointer  # noqa: E402
 from lca_orchestrator.graph import (  # noqa: E402
     OrchestratorRuntime,
@@ -48,7 +49,13 @@ TASK_NAMES = ("whole-lca", "revise-lca")
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="LCA LangGraph orchestrator")
-    parser.add_argument("--task", required=True, choices=TASK_NAMES)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--task", choices=TASK_NAMES)
+    source.add_argument(
+        "--workflow",
+        type=Path,
+        help="path to a workflow YAML (generic harness entry)",
+    )
     parser.add_argument("--worker", default=None, help="worker name")
     parser.add_argument(
         "--resume", dest="run_id", default=None, help="resume an existing run id"
@@ -75,9 +82,15 @@ def main(argv: list[str] | None = None) -> int:
         print_orchestrator(f"unsupported worker: {worker}", file=sys.stderr)
         return 2
 
-    capabilities = default_capabilities()
+    capabilities = _capabilities_for(args)
+    workflow_path = (
+        args.workflow.resolve()
+        if args.workflow is not None
+        else _task_file(project_root, args.task)
+    )
+    task_label = args.task or str(workflow_path)
     workflow = load_workflow(
-        _task_file(project_root, args.task),
+        workflow_path,
         project_root=project_root,
         capabilities=capabilities,
     )
@@ -97,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
             return _resume(compiled, conn, runtime, args.run_id, workspace_root)
         run_id = uuid.uuid4().hex
         _bind_progress_log(workspace_root, run_id, append=False)
-        print_orchestrator(f"start run_id={run_id} task={args.task} worker={worker}")
+        print_orchestrator(f"start run_id={run_id} task={task_label} worker={worker}")
         write_manifest(
             workspace_root,
             status="running",
@@ -111,13 +124,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = compiled.invoke(
             initial_state(
-                run_id=run_id, task=args.task, worker=worker, workflow=workflow
+                run_id=run_id,
+                task=str(task_label),
+                worker=worker,
+                workflow=workflow,
             ),
             graph_config,
         )
         return _exit_code(result)
     finally:
         conn.close()
+
+
+def _capabilities_for(args: argparse.Namespace) -> HarnessCapabilities:
+    # LCA composition root: register domain capabilities explicitly.
+    if args.task in TASK_NAMES or args.workflow is not None:
+        return lca_capabilities()
+    return lca_capabilities()
 
 
 def _resume(

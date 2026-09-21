@@ -26,7 +26,12 @@ from tests.support.openlca_fakes import (
 def context(tmp_path, monkeypatch):
     monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
     ctx = Context(
-        tmp_path, tmp_path / "workspace", "run-one", "04-openlca-reporting", 1
+        tmp_path,
+        tmp_path / "workspace",
+        "run-one",
+        "04-openlca-reporting",
+        1,
+        lca_phase="report",
     )
     return ctx
 
@@ -237,7 +242,13 @@ def seed_report(ctx):
     )
     checks.record_acceptance(
         Context(
-            ctx.project, ctx.workspace, ctx.run_id, "03-dataset-mapping", 1, "reviewer"
+            ctx.project,
+            ctx.workspace,
+            ctx.run_id,
+            "03-dataset-mapping",
+            1,
+            "reviewer",
+            lca_phase="mapping",
         )
     )
     ctx.save_result(
@@ -285,7 +296,12 @@ def test_report_only_reuses_without_ipc_and_checks_tampering(context):
     seed_report(context)
     assert checks.validate(context, "report")["ok"]
     retry = Context(
-        context.project, context.workspace, context.run_id, context.stage, 2
+        context.project,
+        context.workspace,
+        context.run_id,
+        context.stage,
+        2,
+        lca_phase=context.lca_phase,
     )
     path = context.workspace / "outputs" / "reports" / "lca_report.md"
     path.write_text(
@@ -301,7 +317,14 @@ def test_report_only_reuses_without_ipc_and_checks_tampering(context):
         assert checks.validate(retry, "report")["ok"]
     path.write_text(path.read_text().replace("2.5", "999"))
     assert not checks.validate(retry, "report")["ok"]
-    new_run = Context(context.project, context.workspace, "new-run", context.stage, 2)
+    new_run = Context(
+        context.project,
+        context.workspace,
+        "new-run",
+        context.stage,
+        2,
+        lca_phase=context.lca_phase,
+    )
     assert checks.validation_state(new_run, "report")["status"] == "not_run"
     assert not checks.reuse_status(new_run)["eligible"]
 
@@ -316,7 +339,12 @@ def test_upstream_raw_and_checker_invalidation(context, monkeypatch):
     with pytest.raises(ValueError, match="stale"):
         checks.require_approved_model(context)
     retry = Context(
-        context.project, context.workspace, context.run_id, context.stage, 2
+        context.project,
+        context.workspace,
+        context.run_id,
+        context.stage,
+        2,
+        lca_phase=context.lca_phase,
     )
     assert checks.reuse_status(retry)["rework_scope"] == "model_changed"
 
@@ -324,7 +352,13 @@ def test_upstream_raw_and_checker_invalidation(context, monkeypatch):
 def test_reviewer_and_path_guards(context):
     seed_report(context)
     reviewer = Context(
-        context.project, context.workspace, context.run_id, context.stage, 1, "reviewer"
+        context.project,
+        context.workspace,
+        context.run_id,
+        context.stage,
+        1,
+        "reviewer",
+        lca_phase=context.lca_phase,
     )
     assert checks.validate(reviewer, "report")["ok"]
     with pytest.raises(ValueError, match="reviewer"):
@@ -346,7 +380,12 @@ def test_error_after_success_invalidates_reuse(context):
         ctx=context,
     )
     retry = Context(
-        context.project, context.workspace, context.run_id, context.stage, 2
+        context.project,
+        context.workspace,
+        context.run_id,
+        context.stage,
+        2,
+        lca_phase=context.lca_phase,
     )
     assert not checks.reuse_status(retry)["eligible"]
 
@@ -354,7 +393,12 @@ def test_error_after_success_invalidates_reuse(context):
 def test_calculation_change_and_raw_corruption(context):
     seed_report(context)
     retry = Context(
-        context.project, context.workspace, context.run_id, context.stage, 2
+        context.project,
+        context.workspace,
+        context.run_id,
+        context.stage,
+        2,
+        lca_phase=context.lca_phase,
     )
     write_json(
         checks.calculation_path(context),
@@ -389,6 +433,7 @@ def test_calculation_change_and_raw_corruption(context):
 
 
 def test_ignored_source_manifest_and_inventory_dependency_scope(context):
+    from harness.tools.control_openlca.utils.workflow import sha256_file
     from harness.tools.lca_artifacts.store import discover_sources
 
     source = context.project / "harness" / "knowledge" / "ignored.md"
@@ -397,7 +442,29 @@ def test_ignored_source_manifest_and_inventory_dependency_scope(context):
     (context.project / ".gitignore").write_text("harness/knowledge/*\nworkspace/*\n")
     assert discover_sources(context.project)["count"] == 1
     inventory = Context(
-        context.project, context.workspace, context.run_id, "02-inventory-extraction", 1
+        context.project,
+        context.workspace,
+        context.run_id,
+        "02-inventory-extraction",
+        1,
+        assignment="02-inventory-extraction.executor",
+        lca_phase="inventory",
+    )
+    manifest_path = inventory.sources_manifest_path()
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(
+        manifest_path,
+        {
+            "assignment": inventory.assignment,
+            "count": 1,
+            "files": [
+                {
+                    "path": "harness/knowledge/ignored.md",
+                    "sha256": sha256_file(source),
+                    "readable": True,
+                }
+            ],
+        },
     )
     bom = context.workspace / "outputs" / "inventory" / "extracted-bom.json"
     row = {
@@ -495,7 +562,12 @@ def test_clean_reconciles_active_pointer_without_rewriting_old_receipt(context):
 
 def test_mapping_checks_coverage_and_lci_semantics(context):
     mapping_ctx = Context(
-        context.project, context.workspace, context.run_id, "03-dataset-mapping", 1
+        context.project,
+        context.workspace,
+        context.run_id,
+        "03-dataset-mapping",
+        1,
+        lca_phase="mapping",
     )
     root = context.workspace / "outputs"
     write_product_system_fixture(root / "LCI")

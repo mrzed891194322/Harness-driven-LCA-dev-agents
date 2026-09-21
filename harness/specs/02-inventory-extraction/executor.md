@@ -4,7 +4,7 @@
 
 ## 需要解决的问题
 
-- 直接读取本任务配置的资料来源（默认 `harness/knowledge/` 中的文件；若已注册外部检索工具，也可按该来源工作）。
+- 直接读取本任务配置的资料来源（运行上下文的 `knowledge_sources` / `source_manifest`；若已注册外部检索工具，也可按该来源工作）。
 - 读得出的文本/表格必须抽取并记下 `source_locations`。
 - 读不出的二进制标为 `unreadable`，不得编造数量。
 - 写出 `extracted-bom.json` 与 `extracted-bom.md`，字段以共有契约为准。

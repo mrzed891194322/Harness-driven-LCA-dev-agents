@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from harness.domains.lca.bootstrap import lca_capabilities
 from lca_orchestrator.assemble import assemble_prompt
 from lca_orchestrator.loader import assignment_rule_ids, load_workflow
 from lca_orchestrator.session_bind import build_session_config, mcp_context_path
@@ -36,7 +37,11 @@ class WorkflowYamlTests(unittest.TestCase):
                 self.assertNotRegex(text, rf"(?m)^{key}\s*:")
 
     def test_main_workflow_loads_and_binds_roles(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         self.assertEqual(workflow.workflow_id, "whole-lca")
         self.assertEqual(
             [stage.stage_id for stage in workflow.stages], list(STAGE_PACKAGES)
@@ -53,8 +58,16 @@ class WorkflowYamlTests(unittest.TestCase):
         )
 
     def test_revise_reuses_the_same_stages(self) -> None:
-        main = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
-        revise = load_workflow(WORKFLOWS / "LCA-revise.yaml", project_root=PROJECT_ROOT)
+        main = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
+        revise = load_workflow(
+            WORKFLOWS / "LCA-revise.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         self.assertEqual(revise.workflow_id, "revise-lca")
         self.assertEqual(
             [stage.stage_id for stage in revise.stages],
@@ -82,13 +95,17 @@ class WorkflowYamlTests(unittest.TestCase):
 
     def test_revise_assembly_includes_reviser_and_user_intent(self) -> None:
         workflow = load_workflow(
-            WORKFLOWS / "LCA-revise.yaml", project_root=PROJECT_ROOT
+            WORKFLOWS / "LCA-revise.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
         )
         stage = workflow.stage_by_id("03-dataset-mapping")
         reviser = workflow.assignments["03-dataset-mapping.reviser"]
         reviewer = workflow.assignments["03-dataset-mapping.reviewer"]
         self.assertEqual(reviser.role, "reviser")
-        self.assertIn("control_openlca", reviser.tools)
+        self.assertIn(
+            "control_openlca", workflow.bundles[reviser.assignment_id].tool_ids
+        )
         self.assertIn("user_intent", assignment_rule_ids(workflow, reviser))
         self.assertIn("user_intent", assignment_rule_ids(workflow, reviewer))
         self.assertIn("reviewer_readonly", assignment_rule_ids(workflow, reviewer))
@@ -126,7 +143,11 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertNotIn("role=reviser", intake_prompt)
 
     def test_whole_lca_assembly_excludes_revise_contract(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         stage = workflow.stage_by_id("03-dataset-mapping")
         executor = workflow.assignments["03-dataset-mapping.executor"]
         prompt = assemble_prompt(
@@ -164,7 +185,11 @@ class WorkflowYamlTests(unittest.TestCase):
             )
 
     def test_assembly_shares_contract_and_binds_tools_rules(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         stage = workflow.stage_by_id("03-dataset-mapping")
         executor = workflow.assignments["03-dataset-mapping.executor"]
         reviewer = workflow.assignments["03-dataset-mapping.reviewer"]
@@ -187,7 +212,9 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertIn(contract.strip()[:80], review_prompt)
         self.assertIn("审查通过前禁止", exec_prompt)
         self.assertIn("独立核对", review_prompt)
-        self.assertIn("control_openlca", executor.tools)
+        self.assertIn(
+            "control_openlca", workflow.bundles[executor.assignment_id].tool_ids
+        )
         self.assertIn("reviewer_readonly", assignment_rule_ids(workflow, reviewer))
         self.assertNotIn("reviewer_readonly", assignment_rule_ids(workflow, executor))
         self.assertIn("openlca_usage", assignment_rule_ids(workflow, executor))
@@ -195,7 +222,11 @@ class WorkflowYamlTests(unittest.TestCase):
     def test_session_config_binds_specs_rules_and_tools(self) -> None:
         import tempfile
 
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         stage = workflow.stage_by_id("03-dataset-mapping")
         executor = workflow.assignments["03-dataset-mapping.executor"]
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -213,7 +244,7 @@ class WorkflowYamlTests(unittest.TestCase):
                 attempt=2,
             )
             context_path = mcp_context_path(
-                workspace, "run-1", stage.stage_id, "executor"
+                workspace, "run-1", stage.stage_id, executor.assignment_id
             )
             self.assertTrue(context_path.is_file())
             payload = json.loads(context_path.read_text(encoding="utf-8"))
@@ -252,7 +283,9 @@ class WorkflowYamlTests(unittest.TestCase):
                 config.archive_dir,
                 workspace / "memory" / "logs" / "run-1" / stage.stage_id / "executor#2",
             )
-        self.assertEqual(config.tool_ids, list(executor.tools))
+        self.assertEqual(
+            config.tool_ids, list(workflow.bundles[executor.assignment_id].tool_ids)
+        )
         self.assertIn("control_openlca", config.tool_ids)
         self.assertIn("openlca_usage", config.rule_ids)
         self.assertEqual(config.spec_paths[0], workflow.runtime_spec)
@@ -273,7 +306,11 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertEqual(config.run_id, "run-1")
 
     def test_session_config_rewrites_context_attempt(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         stage = workflow.stage_by_id("03-dataset-mapping")
         executor = workflow.assignments["03-dataset-mapping.executor"]
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -301,7 +338,9 @@ class WorkflowYamlTests(unittest.TestCase):
                 run_id="run-1",
                 attempt=2,
             )
-            path = mcp_context_path(workspace, "run-1", stage.stage_id, "executor")
+            path = mcp_context_path(
+                workspace, "run-1", stage.stage_id, executor.assignment_id
+            )
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["attempt"], 2)
             first_args = first.mcp_servers["control_openlca"]["args"]
             second_args = second.mcp_servers["control_openlca"]["args"]
@@ -328,6 +367,8 @@ class WorkflowYamlTests(unittest.TestCase):
 
 class PlatformAdapterTests(unittest.TestCase):
     def test_legacy_adapter_directories_are_gone(self) -> None:
+        import subprocess
+
         for relative in (
             ".opencode",
             ".codex",
@@ -335,7 +376,12 @@ class PlatformAdapterTests(unittest.TestCase):
             ".dsh",
             ".mcp.json",
         ):
-            self.assertFalse((PROJECT_ROOT / relative).exists(), relative)
+            tracked = subprocess.check_output(
+                ["git", "ls-files", "--", relative],
+                cwd=PROJECT_ROOT,
+                text=True,
+            ).strip()
+            self.assertFalse(tracked, f"legacy adapter still tracked: {relative}")
 
     def test_docs_point_at_python_orchestrator(self) -> None:
         for relative in (
@@ -370,7 +416,11 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertNotIn("HARNESS_DSH_MODEL", text)
 
     def test_yaml_registry_declares_control_openlca(self) -> None:
-        workflow = load_workflow(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
+        workflow = load_workflow(
+            WORKFLOWS / "LCA-main.yaml",
+            project_root=PROJECT_ROOT,
+            capabilities=lca_capabilities(),
+        )
         tool = workflow.tools["control_openlca"]
         self.assertEqual(tool.command, "uv")
         self.assertEqual(tool.args[-1], "harness/tools/control_openlca/main.py")

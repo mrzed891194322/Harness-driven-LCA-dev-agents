@@ -2,7 +2,6 @@
 id: 02-inventory-extraction
 inputs:
   - workspace/inputs/plan.md
-  - harness/knowledge/
 ---
 
 # 02 前景清单提取
@@ -15,7 +14,7 @@ inputs:
 
 ## 输入说明
 
-已通过的 `workspace/inputs/plan.md`，以及 `harness/knowledge/` 中的文件（图纸、合同、ERP 导出、PDF 等）。直接读文件。读得出的文本/表格必须抽取并记下位置；读不出的二进制标为 `unreadable`，不得编造数量。
+已通过的 `workspace/inputs/plan.md`，以及本任务 `source_manifest` / `knowledge_sources` 声明的文件（图纸、合同、ERP 导出、PDF 等）。直接读声明路径。读得出的文本/表格必须抽取并记下位置；读不出的二进制标为 `unreadable`，不得编造数量。
 
 ## 提交要求
 

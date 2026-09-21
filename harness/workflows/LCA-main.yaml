@@ -2,10 +2,6 @@ id: whole-lca
 runtime_spec: harness/specs/public/references/workflow-runtime-spec.md
 max_attempts: 3
 
-hooks:
-  on_reviewer_passed:
-    - lca.record_acceptance
-
 registry:
   rules:
     workspace_boundary: harness/rules/project/write-boundary.md
@@ -25,6 +21,7 @@ registry:
       runtime:
         run_context_env: true
         context_file: true
+        env_prefix: LCA
     control_openlca:
       transport: stdio
       command: uv
@@ -33,6 +30,7 @@ registry:
       runtime:
         run_context_env: true
         context_file: true
+        env_prefix: LCA
   knowledge:
     workspace_knowledge:
       kind: local_dir
@@ -70,6 +68,9 @@ stages:
       - workspace/outputs/LCI/
     checks:
       - id: lca.mapping
+    hooks:
+      on_reviewer_passed:
+        - lca.record_acceptance
     steps:
       - assignment: 03-dataset-mapping.executor
       - assignment: 03-dataset-mapping.reviewer

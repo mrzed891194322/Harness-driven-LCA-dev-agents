@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from harness.runtime.capabilities import HarnessCapabilities, default_capabilities
+from harness.runtime.capabilities import HarnessCapabilities
 
 from .bundle import KnowledgeBinding, TaskBundle
 from .handoff import WRITER_ROLES
@@ -24,6 +24,8 @@ def resolve_workflow(
         stage_knowledge = resolve_list(
             list(workflow.default_knowledge), stage.knowledge_decl
         )
+        stage_rules = resolve_list(list(workflow.default_rules), stage.rules_decl)
+        stage_tools = resolve_list([], stage.tools_decl)
         stage_hooks = resolve_list(
             list(workflow.reviewer_passed_hooks), stage.reviewer_passed_hooks_decl
         )
@@ -37,6 +39,8 @@ def resolve_workflow(
                 stage,
                 assignment,
                 stage_knowledge,
+                stage_rules,
+                stage_tools,
                 stage_hooks,
                 capabilities,
             )
@@ -44,8 +48,21 @@ def resolve_workflow(
     return bundles
 
 
-def resolve_bundle(workflow: Workflow, stage_id: str, assignment_id: str) -> TaskBundle:
-    bundles = workflow.bundles or resolve_workflow(workflow, default_capabilities())
+def resolve_bundle(
+    workflow: Workflow,
+    stage_id: str,
+    assignment_id: str,
+    *,
+    capabilities: HarnessCapabilities | None = None,
+) -> TaskBundle:
+    if workflow.bundles:
+        bundle = workflow.bundles.get(assignment_id)
+        if bundle is None or bundle.stage_id != stage_id:
+            raise KeyError(f"no bundle for {stage_id}/{assignment_id}")
+        return bundle
+    if capabilities is None:
+        raise ValueError("capabilities required when workflow.bundles is empty")
+    bundles = resolve_workflow(workflow, capabilities)
     bundle = bundles.get(assignment_id)
     if bundle is None or bundle.stage_id != stage_id:
         raise KeyError(f"no bundle for {stage_id}/{assignment_id}")
@@ -77,12 +94,16 @@ def _resolve_assignment(
     stage: Stage,
     assignment: Assignment,
     stage_knowledge: list[str],
+    stage_rules: list[str],
+    stage_tools: list[str],
     stage_hooks: list[str],
     capabilities: HarnessCapabilities,
 ) -> TaskBundle:
     if not assignment.task_spec:
         raise ValueError(f"{assignment.assignment_id}: task_spec is required")
     knowledge_ids = resolve_list(stage_knowledge, assignment.knowledge_decl)
+    tool_ids = resolve_list(stage_tools, assignment.tools_decl)
+    base_rules = resolve_list(stage_rules, assignment.rules_decl)
     for kid in knowledge_ids:
         if kid not in workflow.knowledge:
             raise ValueError(f"{assignment.assignment_id}: unknown knowledge {kid}")
@@ -94,7 +115,10 @@ def _resolve_assignment(
     for check in stage.checks:
         if check.checker_id not in capabilities.checkers.known_ids():
             raise ValueError(f"{stage.stage_id}: unknown checker {check.checker_id!r}")
-    rule_ids = _assignment_rule_ids(workflow, assignment)
+    for tool_id in tool_ids:
+        if tool_id not in workflow.tools:
+            raise ValueError(f"{assignment.assignment_id}: unknown tool {tool_id}")
+    rule_ids = _finalize_rule_ids(workflow, assignment.assignment_id, base_rules, tool_ids)
     spec_paths = [
         workflow.runtime_spec,
         stage.spec,
@@ -120,7 +144,7 @@ def _resolve_assignment(
         runtime_spec=workflow.runtime_spec,
         spec_paths=spec_paths,
         rule_ids=rule_ids,
-        tool_ids=list(assignment.tools),
+        tool_ids=tool_ids,
         knowledge_ids=knowledge_ids,
         knowledge_sources=knowledge_sources,
         expected_outputs=expected_outputs,
@@ -129,19 +153,22 @@ def _resolve_assignment(
     )
 
 
-def _assignment_rule_ids(workflow: Workflow, assignment: Assignment) -> list[str]:
+def _finalize_rule_ids(
+    workflow: Workflow,
+    assignment_id: str,
+    base_rules: list[str],
+    tool_ids: list[str],
+) -> list[str]:
     ordered: list[str] = []
-    for rule_id in [*workflow.default_rules, *assignment.rules]:
+    for rule_id in base_rules:
         if rule_id not in workflow.rules:
-            raise ValueError(f"{assignment.assignment_id}: unknown rule {rule_id}")
+            raise ValueError(f"{assignment_id}: unknown rule {rule_id}")
         if rule_id not in ordered:
             ordered.append(rule_id)
-    for tool_id in assignment.tools:
-        if tool_id not in workflow.tools:
-            raise ValueError(f"{assignment.assignment_id}: unknown tool {tool_id}")
+    for tool_id in tool_ids:
         for rule_id in workflow.tools[tool_id].rules:
             if rule_id not in workflow.rules:
-                raise ValueError(f"{assignment.assignment_id}: unknown rule {rule_id}")
+                raise ValueError(f"{assignment_id}: unknown rule {rule_id}")
             if rule_id not in ordered:
                 ordered.append(rule_id)
     return ordered
@@ -152,8 +179,11 @@ def attach_bundles(
     project_root: Path,
     capabilities: HarnessCapabilities | None = None,
 ) -> None:
-    caps = capabilities or default_capabilities()
-    bundles = resolve_workflow(workflow, caps)
+    if capabilities is None:
+        raise ValueError(
+            "capabilities required; pass HarnessCapabilities from composition root"
+        )
+    bundles = resolve_workflow(workflow, capabilities)
     workflow.bundles = bundles
     _validate_bundle_files(workflow, project_root)
 

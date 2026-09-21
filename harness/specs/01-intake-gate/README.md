@@ -2,7 +2,6 @@
 id: 01-intake-gate
 inputs:
   - workspace/inputs/plan.md
-  - harness/knowledge/
 ---
 
 # 01 初始化检查
@@ -11,12 +10,12 @@ inputs:
 
 ## 阶段目标
 
-确认 `workspace/inputs/plan.md` 足以启动端到端 LCA，且 `harness/knowledge/` 中的资料能对上计划中点名的文件。
+确认 `workspace/inputs/plan.md` 足以启动端到端 LCA，且本任务 `source_manifest` / `knowledge_sources` 中的资料能对上计划中点名的文件。
 
 ## 输入说明
 
 - `workspace/inputs/plan.md`：研究对象与目的、功能单位（数值 + 描述 + 单位）、系统边界、截断或明确不截断、多产出/分配、预期应用或完成判断。缺一项、仍是模板占位或互相矛盾则未通过。
-- `harness/knowledge/`：先读取 source_manifest 并按需列出不受 ignore 影响的目录，再下结论。计划里点名的资料必须对得上文件。目录空且计划声称有资料则未通过。不得编造「文件不存在」。
+- 本任务已绑定的知识来源：先读取运行上下文的 `source_manifest` 并按需打开声明路径，再下结论。计划里点名的资料必须对得上文件。声明来源为空且计划声称有资料则未通过。不得编造「文件不存在」，不得扫描未声明目录。
 
 环境/CLI/openLCA 连通性由 GUI 或 CLI 在启动前探测。本阶段不调 `health_check`。不要因为计划缺少内部符号（如 `GAP-*`）而失败。
 

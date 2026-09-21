@@ -16,7 +16,7 @@ CHECKER_TO_PROFILE = {
 }
 
 
-def _to_lca_context(ctx: RunContext) -> Context:
+def _to_lca_context(ctx: RunContext, profile: str) -> Context:
     return Context(
         ctx.project_root,
         ctx.workspace_root,
@@ -24,6 +24,8 @@ def _to_lca_context(ctx: RunContext) -> Context:
         ctx.stage_id,
         ctx.attempt,
         ctx.role,
+        ctx.assignment_id,
+        profile,
     )
 
 
@@ -38,12 +40,14 @@ def register_lca_checkers(registry: CheckerRegistry) -> None:
         )
 
 
-def _validation_state(ctx: RunContext, profile: str, checker_id: str) -> dict[str, Any]:
-    record = lca_checks.validation_state_for_run(_to_lca_context(ctx), profile)
+def _validation_state(
+    ctx: RunContext, profile: str, checker_id: str
+) -> dict[str, Any]:
+    record = lca_checks.validation_state_for_run(_to_lca_context(ctx, profile), profile)
     if record.get("check_id") == profile:
         record = {**record, "check_id": checker_id}
     return record
 
 
 def _run_validate(ctx: RunContext, profile: str) -> dict[str, Any]:
-    return lca_checks.validate_for_run(_to_lca_context(ctx), profile)
+    return lca_checks.validate_for_run(_to_lca_context(ctx, profile), profile)
