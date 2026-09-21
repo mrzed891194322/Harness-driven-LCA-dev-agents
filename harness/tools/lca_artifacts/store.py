@@ -98,7 +98,7 @@ class Context:
     attempt: int
     role: str = "executor"
     assignment: str = ""
-    lca_phase: str | None = None
+    metadata: dict | None = None
 
     def __post_init__(self):
         identifier(self.run_id)
@@ -107,12 +107,19 @@ class Context:
             raise ValueError("attempt must be positive")
         if self.role not in {"executor", "reviser", "reviewer", "system"}:
             raise ValueError("invalid role")
+        object.__setattr__(self, "metadata", dict(self.metadata or {}))
         self.safe(self.workspace / "memory")
         self.safe(self.workspace / "outputs")
 
     def sources_manifest_path(self) -> Path:
         key = self.assignment or f"{self.stage}-{self.role}"
         return self.safe(self.memory / "sources" / f"{key}.json")
+
+    def lca_phase(self) -> str | None:
+        block = self.metadata.get("lca") if isinstance(self.metadata, dict) else None
+        if isinstance(block, dict) and block.get("phase") is not None:
+            return str(block["phase"])
+        return None
 
 
     @classmethod
@@ -159,7 +166,7 @@ class Context:
                 attempt,
                 str(payload.get("role") or "executor"),
                 str(payload.get("assignment") or ""),
-                str(payload["lca_phase"]) if payload.get("lca_phase") else None,
+                dict(payload.get("metadata") or {}),
             )
         except ValueError as exc:
             raise HostContextError(f"host_context_missing: {exc}") from exc
@@ -170,6 +177,15 @@ class Context:
         workspace = Path(
             os.getenv("LCA_WORKSPACE", str(project / "workspace"))
         ).resolve()
+        metadata: dict = {}
+        raw_meta = os.getenv("LCA_METADATA_JSON")
+        if raw_meta:
+            try:
+                parsed = json.loads(raw_meta)
+                if isinstance(parsed, dict):
+                    metadata = parsed
+            except json.JSONDecodeError:
+                metadata = {}
         return cls(
             project,
             workspace,
@@ -178,7 +194,7 @@ class Context:
             int(os.getenv("LCA_ATTEMPT", "1")),
             os.getenv("LCA_ROLE", "executor"),
             os.getenv("LCA_ASSIGNMENT", ""),
-            os.getenv("LCA_PHASE") or None,
+            metadata,
         )
 
     @classmethod

@@ -1,4 +1,5 @@
 id: whole-lca
+capabilities: [lca]
 runtime_spec: harness/specs/public/references/workflow-runtime-spec.md
 max_attempts: 3
 
@@ -52,6 +53,9 @@ stages:
   - id: 02-inventory-extraction
     spec: harness/specs/02-inventory-extraction/README.md
     max_attempts: 3
+    context:
+      lca:
+        phase: inventory
     outputs:
       - workspace/outputs/inventory/extracted-bom.json
       - workspace/outputs/inventory/extracted-bom.md
@@ -63,6 +67,9 @@ stages:
   - id: 03-dataset-mapping
     spec: harness/specs/03-dataset-mapping/README.md
     max_attempts: 3
+    context:
+      lca:
+        phase: mapping
     outputs:
       - workspace/outputs/inventory/process-mapping.json
       - workspace/outputs/LCI/
@@ -77,6 +84,9 @@ stages:
   - id: 04-openlca-reporting
     spec: harness/specs/04-openlca-reporting/README.md
     max_attempts: 3
+    context:
+      lca:
+        phase: report
     outputs:
       - workspace/outputs/reports/lca_report.md
     checks:

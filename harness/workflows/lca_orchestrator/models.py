@@ -72,6 +72,7 @@ class Stage:
     rules_decl: Any | None = None
     tools_decl: Any | None = None
     reviewer_passed_hooks_decl: Any | None = None
+    context: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -89,6 +90,7 @@ class Workflow:
     source_path: Path
     reviewer_passed_hooks: list[str] = field(default_factory=list)
     bundles: dict[str, TaskBundle] = field(default_factory=dict)
+    capability_ids: list[str] = field(default_factory=list)
 
     def stage_by_id(self, stage_id: str) -> Stage:
         for stage in self.stages:

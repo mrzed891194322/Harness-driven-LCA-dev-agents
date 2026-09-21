@@ -50,7 +50,7 @@ def build_session_config(
         assignment_id=bundle.assignment_id,
         attempt=attempt,
         role=bundle.role,
-        lca_phase=_phase_from_bundle(bundle),
+        metadata=dict(bundle.context),
     )
     context_path = None
     if any(
@@ -70,13 +70,15 @@ def build_session_config(
             uv_cache_dir=str(uv_cache),
             context_path=context_path,
         )
-    render_dir = mcp_render_dir(workspace_root, run_id, bundle.stage_id, bundle.role)
+    render_dir = mcp_render_dir(
+        workspace_root, run_id, bundle.stage_id, bundle.assignment_id
+    )
     render_dir.mkdir(parents=True, exist_ok=True)
     archive = turn_archive_dir(
         workspace_root,
         run_id,
         bundle.stage_id,
-        bundle.role,
+        bundle.assignment_id,
         attempt,
     )
     return SessionConfig(
@@ -95,12 +97,3 @@ def build_session_config(
         mcp_render_dir=render_dir,
         archive_dir=archive,
     )
-
-
-def _phase_from_bundle(bundle: TaskBundle) -> str | None:
-    if not bundle.checks:
-        return None
-    checker_id = bundle.checks[0].checker_id
-    if checker_id.startswith("lca."):
-        return checker_id.removeprefix("lca.")
-    return None

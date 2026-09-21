@@ -22,19 +22,25 @@ def turn_archive_dir(
     workspace_root: Path,
     run_id: str,
     stage_id: str,
-    role: str,
+    assignment_id: str,
     attempt: int,
 ) -> Path:
-    return run_log_dir(workspace_root, run_id) / stage_id / f"{role}#{attempt}"
+    return (
+        run_log_dir(workspace_root, run_id)
+        / stage_id
+        / f"{assignment_id}#{attempt}"
+    )
 
 
 def mcp_render_dir(
     workspace_root: Path,
     run_id: str,
     stage_id: str,
-    role: str,
+    assignment_id: str,
 ) -> Path:
-    return workspace_root / "tmp" / "mcp-render" / run_id / stage_id / role
+    return (
+        workspace_root / "tmp" / "mcp-render" / run_id / stage_id / assignment_id
+    )
 
 
 def resolve_mcp_render_dir(config: SessionConfig, storage_dir: Path) -> Path:

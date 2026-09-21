@@ -505,11 +505,6 @@ class OrchestratorRuntime:
         self, state: WorkflowState, stage: Stage, assignment: Assignment
     ) -> RunContext:
         bundle = self.bundles[assignment.assignment_id]
-        phase = None
-        if bundle.checks:
-            checker_id = bundle.checks[0].checker_id
-            if checker_id.startswith("lca."):
-                phase = checker_id.removeprefix("lca.")
         return RunContext(
             project_root=self.project_root,
             workspace_root=self.workspace_root,
@@ -518,7 +513,7 @@ class OrchestratorRuntime:
             assignment_id=assignment.assignment_id,
             attempt=_attempt(state),
             role=assignment.role,
-            lca_phase=phase,
+            metadata=dict(bundle.context),
         )
 
 

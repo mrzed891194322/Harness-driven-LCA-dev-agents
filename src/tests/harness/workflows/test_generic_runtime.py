@@ -169,7 +169,10 @@ def _write_fake_workflow(root: Path) -> Path:
                 "id": "alpha-step",
                 "spec": "harness/specs/s1/README.md",
                 "checks": [{"id": "test.ping"}],
-                "steps": [{"assignment": "alpha.executor"}],
+                "steps": [
+                    {"assignment": "alpha.executor"},
+                    {"assignment": "alpha.reviewer"},
+                ],
             }
         ],
         "assignments": {
@@ -177,7 +180,12 @@ def _write_fake_workflow(root: Path) -> Path:
                 "role": "executor",
                 "task_spec": "harness/specs/s1/executor.md",
                 "tools": [],
-            }
+            },
+            "alpha.reviewer": {
+                "role": "reviewer",
+                "task_spec": "harness/specs/s1/reviewer.md",
+                "tools": [],
+            },
         },
     }
     path = workflows / "fake.yaml"
@@ -215,7 +223,10 @@ def _write_renamed_inventory_workflow(root: Path) -> Path:
                 "id": "inv-phase",
                 "spec": "harness/specs/s1/README.md",
                 "checks": [{"id": "lca.inventory"}],
-                "steps": [{"assignment": "inv-phase.executor"}],
+                "steps": [
+                    {"assignment": "inv-phase.executor"},
+                    {"assignment": "inv-phase.reviewer"},
+                ],
             }
         ],
         "assignments": {
@@ -223,7 +234,12 @@ def _write_renamed_inventory_workflow(root: Path) -> Path:
                 "role": "executor",
                 "task_spec": "harness/specs/s1/executor.md",
                 "tools": [],
-            }
+            },
+            "inv-phase.reviewer": {
+                "role": "reviewer",
+                "task_spec": "harness/specs/s1/reviewer.md",
+                "tools": [],
+            },
         },
     }
     path = workflows / "renamed.yaml"
@@ -266,7 +282,10 @@ def _write_tool_runtime_workflow(root: Path) -> Path:
             {
                 "id": "s1",
                 "spec": "harness/specs/s1/README.md",
-                "steps": [{"assignment": "s1.executor"}],
+                "steps": [
+                    {"assignment": "s1.executor"},
+                    {"assignment": "s1.reviewer"},
+                ],
             }
         ],
         "assignments": {
@@ -274,7 +293,12 @@ def _write_tool_runtime_workflow(root: Path) -> Path:
                 "role": "executor",
                 "task_spec": "harness/specs/s1/executor.md",
                 "tools": ["fake_tool", "plain_tool"],
-            }
+            },
+            "s1.reviewer": {
+                "role": "reviewer",
+                "task_spec": "harness/specs/s1/reviewer.md",
+                "tools": [],
+            },
         },
     }
     path = workflows / "tools.yaml"
@@ -287,6 +311,7 @@ def _write_minimal_files(root: Path) -> None:
     specs.mkdir(parents=True)
     (specs / "README.md").write_text("# stage\n", encoding="utf-8")
     (specs / "executor.md").write_text("role=executor\n", encoding="utf-8")
+    (specs / "reviewer.md").write_text("role=reviewer\n", encoding="utf-8")
     rules = root / "harness" / "rules" / "project"
     rules.mkdir(parents=True)
     for name in ("write-boundary.md", "runtime.md", "paths.md"):

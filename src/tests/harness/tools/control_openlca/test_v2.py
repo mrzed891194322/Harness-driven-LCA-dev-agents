@@ -31,7 +31,7 @@ def context(tmp_path, monkeypatch):
         "run-one",
         "04-openlca-reporting",
         1,
-        lca_phase="report",
+        metadata={"lca": {"phase": "report"}},
     )
     return ctx
 
@@ -248,7 +248,7 @@ def seed_report(ctx):
             "03-dataset-mapping",
             1,
             "reviewer",
-            lca_phase="mapping",
+            metadata={"lca": {"phase": "mapping"}},
         )
     )
     ctx.save_result(
@@ -301,7 +301,7 @@ def test_report_only_reuses_without_ipc_and_checks_tampering(context):
         context.run_id,
         context.stage,
         2,
-        lca_phase=context.lca_phase,
+        metadata=dict(context.metadata),
     )
     path = context.workspace / "outputs" / "reports" / "lca_report.md"
     path.write_text(
@@ -323,7 +323,7 @@ def test_report_only_reuses_without_ipc_and_checks_tampering(context):
         "new-run",
         context.stage,
         2,
-        lca_phase=context.lca_phase,
+        metadata=dict(context.metadata),
     )
     assert checks.validation_state(new_run, "report")["status"] == "not_run"
     assert not checks.reuse_status(new_run)["eligible"]
@@ -344,7 +344,7 @@ def test_upstream_raw_and_checker_invalidation(context, monkeypatch):
         context.run_id,
         context.stage,
         2,
-        lca_phase=context.lca_phase,
+        metadata=dict(context.metadata),
     )
     assert checks.reuse_status(retry)["rework_scope"] == "model_changed"
 
@@ -358,7 +358,7 @@ def test_reviewer_and_path_guards(context):
         context.stage,
         1,
         "reviewer",
-        lca_phase=context.lca_phase,
+        metadata=dict(context.metadata),
     )
     assert checks.validate(reviewer, "report")["ok"]
     with pytest.raises(ValueError, match="reviewer"):
@@ -385,7 +385,7 @@ def test_error_after_success_invalidates_reuse(context):
         context.run_id,
         context.stage,
         2,
-        lca_phase=context.lca_phase,
+        metadata=dict(context.metadata),
     )
     assert not checks.reuse_status(retry)["eligible"]
 
@@ -398,7 +398,7 @@ def test_calculation_change_and_raw_corruption(context):
         context.run_id,
         context.stage,
         2,
-        lca_phase=context.lca_phase,
+        metadata=dict(context.metadata),
     )
     write_json(
         checks.calculation_path(context),
@@ -448,7 +448,7 @@ def test_ignored_source_manifest_and_inventory_dependency_scope(context):
         "02-inventory-extraction",
         1,
         assignment="02-inventory-extraction.executor",
-        lca_phase="inventory",
+        metadata={"lca": {"phase": "inventory"}},
     )
     manifest_path = inventory.sources_manifest_path()
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -567,7 +567,7 @@ def test_mapping_checks_coverage_and_lci_semantics(context):
         context.run_id,
         "03-dataset-mapping",
         1,
-        lca_phase="mapping",
+        metadata={"lca": {"phase": "mapping"}},
     )
     root = context.workspace / "outputs"
     write_product_system_fixture(root / "LCI")

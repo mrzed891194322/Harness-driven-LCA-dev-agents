@@ -59,6 +59,7 @@ class TaskBundle:
     expected_outputs: list[str] = field(default_factory=list)
     checks: list[CheckRef] = field(default_factory=list)
     reviewer_passed_hooks: list[str] = field(default_factory=list)
+    context: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -92,4 +93,5 @@ class TaskBundle:
             reviewer_passed_hooks=[
                 str(item) for item in payload.get("reviewer_passed_hooks") or []
             ],
+            context=dict(payload.get("context") or {}),
         )

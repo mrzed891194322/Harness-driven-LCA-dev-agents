@@ -68,7 +68,7 @@ def write_context_file(ctx: RunContext) -> Path:
             "role": ctx.role,
             "assignment": ctx.assignment_id,
             "workspace": str(ctx.workspace_root),
-            "lca_phase": ctx.lca_phase,
+            "metadata": dict(ctx.metadata),
         },
     )
     return path.resolve()
@@ -76,17 +76,15 @@ def write_context_file(ctx: RunContext) -> Path:
 
 def run_context_env(ctx: RunContext, spec: ToolRuntimeSpec) -> dict[str, str]:
     prefix = spec.env_prefix or DEFAULT_ENV_PREFIX
-    env = {
+    return {
         f"{prefix}_RUN_ID": ctx.run_id,
         f"{prefix}_STAGE": ctx.stage_id,
         f"{prefix}_ATTEMPT": str(ctx.attempt),
         f"{prefix}_ROLE": ctx.role,
         f"{prefix}_WORKSPACE": str(ctx.workspace_root),
         f"{prefix}_ASSIGNMENT": ctx.assignment_id,
+        f"{prefix}_METADATA_JSON": json.dumps(ctx.metadata, ensure_ascii=False),
     }
-    if ctx.lca_phase:
-        env[f"{prefix}_PHASE"] = str(ctx.lca_phase)
-    return env
 
 
 def with_context_file(args: list[str], path: Path, flag: str) -> list[str]:

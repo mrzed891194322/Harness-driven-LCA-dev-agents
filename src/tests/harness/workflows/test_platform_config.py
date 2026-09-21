@@ -277,11 +277,16 @@ class WorkflowYamlTests(unittest.TestCase):
                 / "mcp-render"
                 / "run-1"
                 / stage.stage_id
-                / "executor",
+                / executor.assignment_id,
             )
             self.assertEqual(
                 config.archive_dir,
-                workspace / "memory" / "logs" / "run-1" / stage.stage_id / "executor#2",
+                workspace
+                / "memory"
+                / "logs"
+                / "run-1"
+                / stage.stage_id
+                / f"{executor.assignment_id}#2",
             )
         self.assertEqual(
             config.tool_ids, list(workflow.bundles[executor.assignment_id].tool_ids)

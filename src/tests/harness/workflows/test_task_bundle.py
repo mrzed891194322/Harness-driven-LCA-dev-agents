@@ -169,6 +169,7 @@ def _write_minimal_workflow(root: Path) -> None:
     specs.mkdir(parents=True)
     (specs / "README.md").write_text("# stage\n", encoding="utf-8")
     (specs / "executor.md").write_text("role=executor\n", encoding="utf-8")
+    (specs / "reviewer.md").write_text("role=reviewer\n", encoding="utf-8")
     rules = root / "harness" / "rules" / "project"
     rules.mkdir(parents=True)
     for name in ("write-boundary.md", "runtime.md", "paths.md", "extra.md"):
@@ -215,7 +216,10 @@ def _write_minimal_workflow(root: Path) -> None:
                 "id": "s1",
                 "spec": "harness/specs/s1/README.md",
                 "outputs": ["workspace/out.txt"],
-                "steps": [{"assignment": "s1.executor"}],
+                "steps": [
+                    {"assignment": "s1.executor"},
+                    {"assignment": "s1.reviewer"},
+                ],
             }
         ],
         "assignments": {
@@ -224,7 +228,12 @@ def _write_minimal_workflow(root: Path) -> None:
                 "task_spec": "harness/specs/s1/executor.md",
                 "tools": ["lca_artifacts"],
                 "rules": {"add": ["extra_rule"], "remove": ["paths"]},
-            }
+            },
+            "s1.reviewer": {
+                "role": "reviewer",
+                "task_spec": "harness/specs/s1/reviewer.md",
+                "tools": [],
+            },
         },
     }
     (workflows / "patch-test.yaml").write_text(

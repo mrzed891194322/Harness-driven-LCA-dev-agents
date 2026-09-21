@@ -29,6 +29,7 @@ def _minimal_tree(root: Path) -> None:
     specs.mkdir(parents=True)
     (specs / "README.md").write_text("# stage\n", encoding="utf-8")
     (specs / "executor.md").write_text("role=executor\n", encoding="utf-8")
+    (specs / "reviewer.md").write_text("role=reviewer\n", encoding="utf-8")
     rules = root / "harness" / "rules" / "project"
     rules.mkdir(parents=True)
     for name in ("write-boundary.md", "runtime.md", "paths.md", "extra.md", "other.md"):
@@ -84,7 +85,10 @@ def _base_payload() -> dict:
             {
                 "id": "s1",
                 "spec": "harness/specs/s1/README.md",
-                "steps": [{"assignment": "s1.executor"}],
+                "steps": [
+                    {"assignment": "s1.executor"},
+                    {"assignment": "s1.reviewer"},
+                ],
             }
         ],
         "assignments": {
@@ -92,7 +96,12 @@ def _base_payload() -> dict:
                 "role": "executor",
                 "task_spec": "harness/specs/s1/executor.md",
                 "tools": ["lca_artifacts"],
-            }
+            },
+            "s1.reviewer": {
+                "role": "reviewer",
+                "task_spec": "harness/specs/s1/reviewer.md",
+                "tools": [],
+            },
         },
     }
 
@@ -250,7 +259,7 @@ class AcceptancePhaseTests(unittest.TestCase):
                 1,
                 "reviewer",
                 "inv-phase.reviewer",
-                "inventory",
+                {"lca": {"phase": "inventory"}},
             )
             inv.manifest.parent.mkdir(parents=True, exist_ok=True)
             inv.manifest.write_text(
@@ -267,7 +276,7 @@ class AcceptancePhaseTests(unittest.TestCase):
                 1,
                 "reviewer",
                 "map-phase.reviewer",
-                "mapping",
+                {"lca": {"phase": "mapping"}},
             )
             lca_checks.record_acceptance(map_ctx)
             accepted = map_ctx.load_manifest()["accepted"][lca_checks.ACCEPTANCE_MODEL]
@@ -281,7 +290,7 @@ class AcceptancePhaseTests(unittest.TestCase):
                 1,
                 "executor",
                 "rpt-phase.executor",
-                "report",
+                {"lca": {"phase": "report"}},
             )
             # Should pass when fingerprint matches and phase is report.
             lca_checks.require_approved_model(report)
@@ -294,7 +303,7 @@ class AcceptancePhaseTests(unittest.TestCase):
                 1,
                 "executor",
                 "map-phase.executor",
-                "mapping",
+                {"lca": {"phase": "mapping"}},
             )
             with self.assertRaises(ValueError):
                 lca_checks.require_approved_model(mapping_writer)
@@ -353,7 +362,7 @@ class KnowledgeFingerprintTests(unittest.TestCase):
                 1,
                 "executor",
                 "s1.executor",
-                None,
+                {},
             )
             fp1 = lca_checks.model_fingerprint(lca_ctx)
             custom.write_text("v2\n", encoding="utf-8")
@@ -433,6 +442,15 @@ class KnowledgeFingerprintTests(unittest.TestCase):
 
 
 class RuntimeBoundaryTests(unittest.TestCase):
+    def test_run_context_has_no_lca_phase_field(self) -> None:
+        from dataclasses import fields
+
+        from harness.runtime.context import RunContext
+
+        names = {f.name for f in fields(RunContext)}
+        self.assertNotIn("lca_phase", names)
+        self.assertIn("metadata", names)
+
     def test_runtime_does_not_import_lca_domain(self) -> None:
         banned = [
             name

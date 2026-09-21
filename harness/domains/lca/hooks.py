@@ -13,6 +13,13 @@ def register_lca_hooks(registry: HookRegistry) -> None:
 
 
 def _record_acceptance(ctx: RunContext) -> None:
+    metadata = dict(ctx.metadata)
+    lca = metadata.get("lca")
+    if not isinstance(lca, dict):
+        lca = {}
+    if not lca.get("phase"):
+        lca = {**lca, "phase": "mapping"}
+    metadata["lca"] = lca
     lca_ctx = Context(
         ctx.project_root,
         ctx.workspace_root,
@@ -21,7 +28,7 @@ def _record_acceptance(ctx: RunContext) -> None:
         ctx.attempt,
         ctx.role,
         ctx.assignment_id,
-        "mapping",
+        metadata,
     )
     lca_checks.record_acceptance(
         lca_ctx, acceptance_key=lca_checks.ACCEPTANCE_MODEL

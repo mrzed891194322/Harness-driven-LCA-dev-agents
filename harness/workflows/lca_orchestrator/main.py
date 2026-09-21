@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import cast
 
+import yaml
 from langchain_core.runnables.config import RunnableConfig
 
 PROJECT_ROOT = next(
@@ -26,8 +27,15 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from harness.domains.lca.bootstrap import lca_capabilities  # noqa: E402
-from harness.runtime.capabilities import HarnessCapabilities  # noqa: E402
+from harness.runtime.capabilities import (  # noqa: E402
+    HarnessCapabilities,
+    empty_capabilities,
+)
 from lca_orchestrator.checkpoint import open_checkpointer  # noqa: E402
+from lca_orchestrator.config_fingerprint import (  # noqa: E402
+    assert_runtime_config_matches,
+    write_runtime_config,
+)
 from lca_orchestrator.graph import (  # noqa: E402
     OrchestratorRuntime,
     build_graph,
@@ -45,6 +53,9 @@ from scripts.agent_sdk.session import default_client  # noqa: E402
 from scripts.agent_sdk.uv_env import ensure_uv_cache_dir  # noqa: E402
 
 TASK_NAMES = ("whole-lca", "revise-lca")
+CAPABILITY_SETS = {
+    "lca": lca_capabilities,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,12 +93,12 @@ def main(argv: list[str] | None = None) -> int:
         print_orchestrator(f"unsupported worker: {worker}", file=sys.stderr)
         return 2
 
-    capabilities = _capabilities_for(args)
     workflow_path = (
         args.workflow.resolve()
         if args.workflow is not None
         else _task_file(project_root, args.task)
     )
+    capabilities = _capabilities_for(args, project_root, workflow_path)
     task_label = args.task or str(workflow_path)
     workflow = load_workflow(
         workflow_path,
@@ -107,10 +118,20 @@ def main(argv: list[str] | None = None) -> int:
     try:
         compiled = build_graph(runtime).compile(checkpointer=checkpointer)
         if args.run_id:
-            return _resume(compiled, conn, runtime, args.run_id, workspace_root)
+            return _resume(
+                compiled,
+                conn,
+                runtime,
+                args.run_id,
+                workspace_root,
+                project_root=project_root,
+            )
         run_id = uuid.uuid4().hex
         _bind_progress_log(workspace_root, run_id, append=False)
         print_orchestrator(f"start run_id={run_id} task={task_label} worker={worker}")
+        write_runtime_config(
+            workspace_root, run_id, workflow, project_root=project_root
+        )
         write_manifest(
             workspace_root,
             status="running",
@@ -136,11 +157,39 @@ def main(argv: list[str] | None = None) -> int:
         conn.close()
 
 
-def _capabilities_for(args: argparse.Namespace) -> HarnessCapabilities:
-    # LCA composition root: register domain capabilities explicitly.
-    if args.task in TASK_NAMES or args.workflow is not None:
+def _capabilities_for(
+    args: argparse.Namespace, project_root: Path, workflow_path: Path
+) -> HarnessCapabilities:
+    if args.task in TASK_NAMES:
         return lca_capabilities()
-    return lca_capabilities()
+    ids = peek_capability_ids(workflow_path, project_root=project_root)
+    return compose_capabilities(ids)
+
+
+def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        return []
+    if "capabilities" in raw:
+        return [str(item) for item in raw.get("capabilities") or []]
+    reuse = raw.get("reuse")
+    if reuse:
+        base_path = project_root / str(reuse)
+        base = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
+        if isinstance(base, dict):
+            return [str(item) for item in base.get("capabilities") or []]
+    return []
+
+
+def compose_capabilities(ids: list[str]) -> HarnessCapabilities:
+    if not ids:
+        return empty_capabilities()
+    unknown = [item for item in ids if item not in CAPABILITY_SETS]
+    if unknown:
+        raise ValueError(f"unknown capability set(s): {unknown}")
+    if set(ids) == {"lca"}:
+        return lca_capabilities()
+    raise ValueError(f"unsupported capability composition {ids}; use [] or [lca]")
 
 
 def _resume(
@@ -149,9 +198,28 @@ def _resume(
     runtime: OrchestratorRuntime,
     run_id: str,
     workspace_root: Path,
+    *,
+    project_root: Path,
 ) -> int:
     del conn
     _bind_progress_log(workspace_root, run_id, append=True)
+    try:
+        assert_runtime_config_matches(
+            workspace_root,
+            run_id,
+            runtime.workflow,
+            project_root=project_root,
+        )
+    except ValueError as exc:
+        print_orchestrator(str(exc), file=sys.stderr)
+        write_manifest(
+            workspace_root,
+            status="failed",
+            current_stage=None,
+            status_reason=str(exc),
+            run_id=run_id,
+        )
+        return 1
     config = {"configurable": {"thread_id": run_id}}
     snapshot = compiled.get_state(config)
     if snapshot is None or not snapshot.values:

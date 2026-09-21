@@ -13,6 +13,7 @@ from langchain_core.runnables.config import RunnableConfig
 from harness.domains.lca.bootstrap import lca_capabilities
 from harness.runtime.checkers import CheckerRegistry
 from lca_orchestrator.checkpoint import open_checkpointer
+from lca_orchestrator.config_fingerprint import write_runtime_config
 from lca_orchestrator.graph import (
     PROTOCOL_REPAIR_LIMIT,
     OrchestratorRuntime,
@@ -380,7 +381,20 @@ class OrchestratorGraphTests(unittest.TestCase):
             state["in_flight"] = True
             state["status"] = "running"
             compiled.update_state(config, state, as_node="prepare")
-            code = _resume(compiled, conn, runtime, run_id, self.workspace)
+            write_runtime_config(
+                self.workspace,
+                run_id,
+                self.workflow,
+                project_root=PROJECT_ROOT,
+            )
+            code = _resume(
+                compiled,
+                conn,
+                runtime,
+                run_id,
+                self.workspace,
+                project_root=PROJECT_ROOT,
+            )
         finally:
             conn.close()
         self.assertEqual(code, 1)

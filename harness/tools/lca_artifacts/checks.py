@@ -71,8 +71,56 @@ def fingerprints(paths):
     }
 
 
+def relative_fingerprints(ctx, paths) -> dict[str, str]:
+    """Stable path keys relative to workspace or project."""
+    result: dict[str, str] = {}
+    workspace = ctx.workspace.resolve()
+    project = ctx.project.resolve()
+    for path in paths:
+        resolved = path.resolve()
+        try:
+            key = str(resolved.relative_to(workspace))
+        except ValueError:
+            try:
+                key = str(resolved.relative_to(project))
+            except ValueError:
+                key = str(resolved)
+        result[key] = sha256_file(resolved) if resolved.is_file() else "missing"
+    return dict(sorted(result.items()))
+
+
 def model_fingerprint(ctx):
-    return stable_hash(fingerprints(upstream_files(ctx)))
+    return stable_hash(relative_fingerprints(ctx, upstream_files(ctx)))
+
+
+def model_inputs_snapshot(ctx) -> dict:
+    return {
+        "files": relative_fingerprints(ctx, upstream_files(ctx)),
+    }
+
+
+def resolve_snapshot_path(ctx, key: str) -> Path:
+    workspace_candidate = (ctx.workspace / key).resolve()
+    if workspace_candidate.exists() or key.startswith("inputs/") or key.startswith(
+        "outputs/"
+    ) or key.startswith("memory/"):
+        return workspace_candidate
+    return (ctx.project / key).resolve()
+
+
+def snapshot_current_hashes(ctx, snapshot: dict) -> dict[str, str]:
+    files = snapshot.get("files") or {}
+    current: dict[str, str] = {}
+    for key in files:
+        path = resolve_snapshot_path(ctx, str(key))
+        current[str(key)] = sha256_file(path) if path.is_file() else "missing"
+    return current
+
+
+def snapshot_unchanged(ctx, snapshot: dict) -> bool:
+    expected = snapshot.get("files") or {}
+    current = snapshot_current_hashes(ctx, snapshot)
+    return dict(sorted(expected.items())) == dict(sorted(current.items()))
 
 
 def calculation_path(ctx):
@@ -86,13 +134,16 @@ def calculation_fingerprint(ctx):
 
 def record_acceptance(ctx, *, acceptance_key: str = ACCEPTANCE_MODEL):
     """Persist the reviewer's decision; does not judge or advance the workflow."""
+    inputs = model_inputs_snapshot(ctx)
     with file_lock(ctx.safe(ctx.memory / "manifest.lock")):
         value = ctx.load_manifest()
         value["accepted"][acceptance_key] = {
-            "model_fingerprint": model_fingerprint(ctx),
+            "model_fingerprint": stable_hash(inputs["files"]),
+            "inputs": inputs,
             "at": utc_now(),
             "attempt": ctx.attempt,
             "stage": ctx.stage,
+            "assignment": ctx.assignment,
         }
         _write_json_atomic(ctx.manifest, value)
 
@@ -100,11 +151,24 @@ def record_acceptance(ctx, *, acceptance_key: str = ACCEPTANCE_MODEL):
 def require_approved_model(ctx, *, allow_reviewer=False):
     if ctx.stage == "standalone":
         return
-    phase = getattr(ctx, "lca_phase", None) or ctx.stage
+    phase = None
+    if hasattr(ctx, "lca_phase"):
+        getter = ctx.lca_phase
+        phase = getter() if callable(getter) else getter
+    if phase is None:
+        phase = getattr(ctx, "stage", None)
     if phase != "report" or (ctx.role == "reviewer" and not allow_reviewer):
         raise ValueError("only report-phase writer can import or calculate")
     accepted = ctx.load_manifest()["accepted"].get(ACCEPTANCE_MODEL)
-    if not accepted or accepted["model_fingerprint"] != model_fingerprint(ctx):
+    if not accepted:
+        raise ValueError("approved model missing or stale; upstream review required")
+    snapshot = accepted.get("inputs")
+    if isinstance(snapshot, dict) and snapshot.get("files") is not None:
+        if not snapshot_unchanged(ctx, snapshot):
+            raise ValueError("approved model missing or stale; upstream review required")
+        return
+    # Legacy records: compare opaque fingerprint against current assignment inputs.
+    if accepted.get("model_fingerprint") != model_fingerprint(ctx):
         raise ValueError("approved model missing or stale; upstream review required")
 
 
@@ -331,7 +395,11 @@ def reuse_status(ctx):
     except (OSError, ValueError, KeyError, TypeError) as exc:
         # Upstream changes are not a license to re-import within stage 04.
         accepted = ctx.load_manifest()["accepted"].get(ACCEPTANCE_MODEL, {})
-        unchanged = accepted.get("model_fingerprint") == model_fingerprint(ctx)
+        snapshot = accepted.get("inputs")
+        if isinstance(snapshot, dict) and snapshot.get("files") is not None:
+            unchanged = snapshot_unchanged(ctx, snapshot)
+        else:
+            unchanged = accepted.get("model_fingerprint") == model_fingerprint(ctx)
         return {
             "eligible": False,
             "rework_scope": repair_scope if unchanged else "model_changed",
@@ -484,7 +552,7 @@ def dependencies(ctx, profile):
         and call["stage"] == ctx.stage
     ]
     paths += [ctx.safe(ctx.workspace / ref["path"]) for ref in refs]
-    return {"files": fingerprints(paths), "evidence_refs": refs}
+    return {"files": relative_fingerprints(ctx, paths), "evidence_refs": refs}
 
 
 def check_path(ctx, profile):
@@ -497,6 +565,17 @@ def validation_state_for_run(ctx, profile):
     return validation_state(ctx, profile)
 
 
+def _stored_inputs_changed(ctx, stored_inputs: dict) -> bool:
+    """Re-hash the frozen path set; do not rebuild dependency membership."""
+    if not isinstance(stored_inputs, dict):
+        return True
+    files = stored_inputs.get("files")
+    if not isinstance(files, dict):
+        return True
+    current = snapshot_current_hashes(ctx, {"files": files})
+    return dict(sorted(files.items())) != dict(sorted(current.items()))
+
+
 def validation_state(ctx, profile):
     path = check_path(ctx, profile)
     if not path.exists():
@@ -506,9 +585,9 @@ def validation_state(ctx, profile):
             "status": "not_run",
         }
     record = load(path)
-    if record.get("checker_version") != CHECKER_VERSION or record.get(
-        "inputs"
-    ) != dependencies(ctx, profile):
+    if record.get("checker_version") != CHECKER_VERSION or _stored_inputs_changed(
+        ctx, record.get("inputs") or {}
+    ):
         record = {**record, "status": "stale"}
         _write_json_atomic(path, record)
     return record

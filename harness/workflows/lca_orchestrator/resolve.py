@@ -21,6 +21,7 @@ def resolve_workflow(
         raise ValueError("duplicate stage id in workflow")
     bundles: dict[str, TaskBundle] = {}
     for stage in workflow.stages:
+        _validate_stage_topology(workflow, stage)
         stage_knowledge = resolve_list(
             list(workflow.default_knowledge), stage.knowledge_decl
         )
@@ -118,7 +119,9 @@ def _resolve_assignment(
     for tool_id in tool_ids:
         if tool_id not in workflow.tools:
             raise ValueError(f"{assignment.assignment_id}: unknown tool {tool_id}")
-    rule_ids = _finalize_rule_ids(workflow, assignment.assignment_id, base_rules, tool_ids)
+    rule_ids = _finalize_rule_ids(
+        workflow, assignment.assignment_id, base_rules, tool_ids
+    )
     spec_paths = [
         workflow.runtime_spec,
         stage.spec,
@@ -150,6 +153,25 @@ def _resolve_assignment(
         expected_outputs=expected_outputs,
         checks=list(stage.checks),
         reviewer_passed_hooks=list(stage_hooks),
+        context=dict(stage.context),
+    )
+
+
+def _validate_stage_topology(workflow: Workflow, stage: Stage) -> None:
+    if not stage.steps:
+        raise ValueError(f"{stage.stage_id}: steps must not be empty")
+    roles = []
+    for assignment_id in stage.steps:
+        if assignment_id not in workflow.assignments:
+            raise ValueError(f"{stage.stage_id}: unknown assignment {assignment_id}")
+        roles.append(workflow.assignments[assignment_id].role)
+    if len(roles) == 1 and roles[0] == "reviewer":
+        return
+    if len(roles) == 2 and roles[0] in WRITER_ROLES and roles[1] == "reviewer":
+        return
+    raise ValueError(
+        f"{stage.stage_id}: unsupported stage topology {roles}; "
+        "expected review-only [reviewer] or reviewed [writer, reviewer]"
     )
 
 

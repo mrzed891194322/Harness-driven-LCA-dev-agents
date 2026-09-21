@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from harness.runtime.capabilities import HarnessCapabilities
+from harness.runtime.identifiers import require_identifier, require_relative_path
 from harness.runtime.tool_runtime import ToolRuntimeSpec
 
 from .bundle import CheckRef
@@ -30,6 +31,7 @@ TOP_LEVEL_KEYS = frozenset(
         "stages",
         "assignments",
         "stage_overrides",
+        "capabilities",
     }
 )
 REGISTRY_KEYS = frozenset({"rules", "tools", "knowledge"})
@@ -55,6 +57,7 @@ STAGE_KEYS = frozenset(
         "rules",
         "tools",
         "hooks",
+        "context",
     }
 )
 STAGE_OVERRIDE_KEYS = frozenset(
@@ -69,11 +72,10 @@ STAGE_OVERRIDE_KEYS = frozenset(
         "rules",
         "tools",
         "hooks",
+        "context",
     }
 )
-ASSIGNMENT_KEYS = frozenset(
-    {"role", "task_spec", "tools", "rules", "knowledge"}
-)
+ASSIGNMENT_KEYS = frozenset({"role", "task_spec", "tools", "rules", "knowledge"})
 CHECK_KEYS = frozenset({"id"})
 
 
@@ -139,6 +141,8 @@ def _merge_workflow(
     reject_unknown_keys(extra, TOP_LEVEL_KEYS, str(overlay_path))
     if "id" in extra:
         result["id"] = extra["id"]
+    if "capabilities" in extra:
+        result["capabilities"] = list(extra["capabilities"] or [])
     for key in ("runtime_spec", "max_attempts"):
         if key in extra:
             result[key] = extra[key]
@@ -257,13 +261,23 @@ def _apply_stage_overrides(
                 )
         if "hooks" in patch:
             stage["hooks"] = copy.deepcopy(patch["hooks"])
+        if "context" in patch:
+            stage["context"] = copy.deepcopy(patch["context"])
 
 
 def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
     reject_unknown_keys(raw, TOP_LEVEL_KEYS, str(source_path))
+    workflow_id = require_identifier(str(raw.get("id") or ""), label="workflow id")
+    capability_ids = [
+        require_identifier(str(item), label="capability id")
+        for item in raw.get("capabilities") or []
+    ]
     registry = raw.get("registry") or {}
     reject_unknown_keys(registry, REGISTRY_KEYS, f"{source_path}: registry")
-    rules = {str(k): str(v) for k, v in dict(registry.get("rules") or {}).items()}
+    rules = {}
+    for rule_id, rule_path in dict(registry.get("rules") or {}).items():
+        rid = require_identifier(str(rule_id), label="rule id")
+        rules[rid] = require_relative_path(str(rule_path), label=f"rule {rid} path")
     knowledge: dict[str, KnowledgeSource] = {}
     for knowledge_id, spec in dict(registry.get("knowledge") or {}).items():
         if not isinstance(spec, dict):
@@ -273,20 +287,27 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         reject_unknown_keys(
             spec, KNOWLEDGE_KEYS, f"{source_path}: knowledge {knowledge_id}"
         )
+        kid = require_identifier(str(knowledge_id), label="knowledge id")
         kind = str(spec.get("kind") or "local_dir")
-        knowledge[str(knowledge_id)] = KnowledgeSource(
-            knowledge_id=str(knowledge_id),
+        provider = require_identifier(
+            str(spec.get("provider") or "local_files"), label="provider id"
+        )
+        knowledge[kid] = KnowledgeSource(
+            knowledge_id=kid,
             kind=kind,
-            path=str(spec.get("path") or ""),
-            provider=str(spec.get("provider") or "local_files"),
+            path=require_relative_path(
+                str(spec.get("path") or ""), label=f"knowledge {kid} path"
+            ),
+            provider=provider,
         )
     tools: dict[str, ToolSpec] = {}
     for tool_id, spec in dict(registry.get("tools") or {}).items():
         if not isinstance(spec, dict):
             raise ValueError(f"{source_path}: tool {tool_id} must be a mapping")
         reject_unknown_keys(spec, TOOL_KEYS, f"{source_path}: tool {tool_id}")
-        tools[str(tool_id)] = ToolSpec(
-            tool_id=str(tool_id),
+        tid = require_identifier(str(tool_id), label="tool id")
+        tools[tid] = ToolSpec(
+            tool_id=tid,
             transport=str(spec.get("transport") or "stdio"),
             command=spec.get("command"),
             args=[str(item) for item in spec.get("args") or []],
@@ -295,15 +316,19 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             headers={
                 str(k): str(v) for k, v in dict(spec.get("headers") or {}).items()
             },
-            rules=[str(item) for item in spec.get("rules") or []],
-            runtime=_parse_tool_runtime(spec, label=f"{source_path}: tool {tool_id}"),
+            rules=[
+                require_identifier(str(item), label="rule id")
+                for item in spec.get("rules") or []
+            ],
+            runtime=_parse_tool_runtime(spec, label=f"{source_path}: tool {tid}"),
         )
     defaults = raw.get("defaults") or {}
     reject_unknown_keys(defaults, DEFAULTS_KEYS, f"{source_path}: defaults")
     hooks_raw = raw.get("hooks") or {}
     reject_unknown_keys(hooks_raw, HOOKS_KEYS, f"{source_path}: hooks")
     reviewer_passed_hooks = [
-        str(item) for item in hooks_raw.get("on_reviewer_passed") or []
+        require_identifier(str(item), label="hook id")
+        for item in hooks_raw.get("on_reviewer_passed") or []
     ]
     assignments: dict[str, Assignment] = {}
     for assignment_id, spec in dict(raw.get("assignments") or {}).items():
@@ -314,10 +339,11 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         reject_unknown_keys(
             spec, ASSIGNMENT_KEYS, f"{source_path}: assignment {assignment_id}"
         )
+        aid = require_identifier(str(assignment_id), label="assignment id")
         role = str(spec.get("role") or "")
         if role not in {"executor", "reviser", "reviewer"}:
             raise ValueError(
-                f"{source_path}: assignment {assignment_id} has invalid role {role!r}"
+                f"{source_path}: assignment {aid} has invalid role {role!r}"
             )
         tools_decl = None
         if "tools" in spec:
@@ -328,10 +354,13 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         knowledge_decl = None
         if "knowledge" in spec:
             knowledge_decl = parse_optional_list_field(spec.get("knowledge"))
-        assignments[str(assignment_id)] = Assignment(
-            assignment_id=str(assignment_id),
+        task_spec = str(spec.get("task_spec") or "")
+        if task_spec:
+            task_spec = require_relative_path(task_spec, label=f"{aid} task_spec")
+        assignments[aid] = Assignment(
+            assignment_id=aid,
             role=role,
-            task_spec=str(spec.get("task_spec") or ""),
+            task_spec=task_spec,
             tools_decl=tools_decl,
             rules_decl=rules_decl,
             knowledge_decl=knowledge_decl,
@@ -343,18 +372,18 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         if not isinstance(spec, dict):
             raise ValueError(f"{source_path}: each stage must be a mapping")
         reject_unknown_keys(spec, STAGE_KEYS, f"{source_path}: stage")
-        stage_id = str(spec.get("id") or "")
-        if not stage_id:
-            raise ValueError(f"{source_path}: stage id is required")
+        stage_id = require_identifier(str(spec.get("id") or ""), label="stage id")
         if stage_id in seen_stage_ids:
             raise ValueError(f"{source_path}: duplicate stage id {stage_id}")
         seen_stage_ids.add(stage_id)
         steps: list[str] = []
         for step in spec.get("steps") or []:
             if isinstance(step, dict) and step.get("assignment"):
-                steps.append(str(step["assignment"]))
+                steps.append(
+                    require_identifier(str(step["assignment"]), label="assignment id")
+                )
             else:
-                steps.append(str(step))
+                steps.append(require_identifier(str(step), label="assignment id"))
         stage_knowledge = None
         if "knowledge" in spec:
             stage_knowledge = parse_optional_list_field(spec.get("knowledge"))
@@ -374,40 +403,85 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 stage_hooks_decl = parse_optional_list_field(
                     stage_hooks.get("on_reviewer_passed")
                 )
+        context = _parse_context(
+            spec.get("context"), label=f"{source_path}: stage {stage_id} context"
+        )
         stages.append(
             Stage(
                 stage_id=stage_id,
-                spec=str(spec.get("spec") or ""),
+                spec=require_relative_path(
+                    str(spec.get("spec") or ""), label=f"{stage_id} spec"
+                ),
                 max_attempts=int(spec.get("max_attempts") or default_attempts),
                 steps=steps,
-                spec_additions=[str(item) for item in spec.get("spec_additions") or []],
+                spec_additions=[
+                    require_relative_path(str(item), label=f"{stage_id} spec_addition")
+                    for item in spec.get("spec_additions") or []
+                ],
                 outputs=[str(item) for item in spec.get("outputs") or []],
                 checks=_parse_checks(spec.get("checks"), source_path=source_path),
                 knowledge_decl=stage_knowledge,
                 rules_decl=stage_rules,
                 tools_decl=stage_tools,
                 reviewer_passed_hooks_decl=stage_hooks_decl,
+                context=context,
             )
         )
     return Workflow(
-        workflow_id=str(raw.get("id") or ""),
-        runtime_spec=str(raw.get("runtime_spec") or ""),
+        workflow_id=workflow_id,
+        runtime_spec=require_relative_path(
+            str(raw.get("runtime_spec") or ""), label="runtime_spec"
+        ),
         max_attempts=default_attempts,
         rules=rules,
         tools=tools,
         knowledge=knowledge,
         default_rules=[str(item) for item in defaults.get("rules") or []],
         default_knowledge=[str(item) for item in defaults.get("knowledge") or []],
-        reviewer_passed_hooks=reviewer_passed_hooks,
         stages=stages,
         assignments=assignments,
         source_path=source_path,
+        reviewer_passed_hooks=reviewer_passed_hooks,
+        capability_ids=capability_ids,
     )
 
 
-def _parse_tool_runtime(
-    spec: dict[str, Any], *, label: str
-) -> ToolRuntimeSpec | None:
+def _parse_context(raw: Any, *, label: str) -> dict[str, object]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"{label} must be a mapping")
+    return _validate_context_tree(raw, label=label)
+
+
+def _validate_context_tree(obj: Any, *, label: str) -> dict[str, object]:
+    if not isinstance(obj, dict):
+        raise ValueError(f"{label} must be a mapping")
+    result: dict[str, object] = {}
+    for key, value in obj.items():
+        require_identifier(str(key), label=f"{label} key")
+        if isinstance(value, dict):
+            result[str(key)] = _validate_context_tree(value, label=f"{label}.{key}")
+        elif isinstance(value, (str, int, float, bool)) or value is None:
+            result[str(key)] = value
+        elif isinstance(value, list):
+            cleaned = []
+            for item in value:
+                if isinstance(item, dict):
+                    cleaned.append(
+                        _validate_context_tree(item, label=f"{label}.{key}[]")
+                    )
+                elif isinstance(item, (str, int, float, bool)) or item is None:
+                    cleaned.append(item)
+                else:
+                    raise ValueError(f"{label}.{key}: unsupported context value")
+            result[str(key)] = cleaned
+        else:
+            raise ValueError(f"{label}.{key}: unsupported context value")
+    return result
+
+
+def _parse_tool_runtime(spec: dict[str, Any], *, label: str) -> ToolRuntimeSpec | None:
     raw = spec.get("runtime")
     if not raw or not isinstance(raw, dict):
         return None
@@ -431,7 +505,9 @@ def _parse_checks(raw: Any, *, source_path: Path) -> list[CheckRef]:
         if not isinstance(item, dict) or "id" not in item:
             raise ValueError(f"{source_path}: each check must declare id")
         reject_unknown_keys(item, CHECK_KEYS, f"{source_path}: check")
-        checks.append(CheckRef(checker_id=str(item["id"])))
+        checks.append(
+            CheckRef(checker_id=require_identifier(str(item["id"]), label="checker id"))
+        )
     return checks
 
 

@@ -17,6 +17,13 @@ CHECKER_TO_PROFILE = {
 
 
 def _to_lca_context(ctx: RunContext, profile: str) -> Context:
+    metadata = dict(ctx.metadata)
+    lca = metadata.get("lca")
+    if not isinstance(lca, dict):
+        lca = {}
+    if not lca.get("phase"):
+        lca = {**lca, "phase": profile}
+    metadata["lca"] = lca
     return Context(
         ctx.project_root,
         ctx.workspace_root,
@@ -25,7 +32,7 @@ def _to_lca_context(ctx: RunContext, profile: str) -> Context:
         ctx.attempt,
         ctx.role,
         ctx.assignment_id,
-        profile,
+        metadata,
     )
 
 
