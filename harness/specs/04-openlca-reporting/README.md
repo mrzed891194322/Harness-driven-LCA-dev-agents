@@ -4,8 +4,6 @@ inputs:
   - workspace/outputs/LCI/
   - workspace/outputs/inventory/extracted-bom.json
   - workspace/outputs/inventory/process-mapping.json
-outputs:
-  - workspace/outputs/reports/lca_report.md
 ---
 
 # 04 openLCA 建模与报告

@@ -3,9 +3,6 @@ id: 02-inventory-extraction
 inputs:
   - workspace/inputs/plan.md
   - harness/knowledge/
-outputs:
-  - workspace/outputs/inventory/extracted-bom.json
-  - workspace/outputs/inventory/extracted-bom.md
 ---
 
 # 02 前景清单提取

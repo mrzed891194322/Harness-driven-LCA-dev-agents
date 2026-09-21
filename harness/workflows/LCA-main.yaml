@@ -23,31 +23,52 @@ registry:
       command: uv
       args: [run, python, harness/tools/control_openlca/main.py]
       rules: [openlca_usage]
+  knowledge:
+    workspace_knowledge:
+      kind: local_dir
+      path: harness/knowledge/
 
 defaults:
   rules: [workspace_boundary, runtime, paths]
+  knowledge: [workspace_knowledge]
 
 stages:
   - id: 01-intake-gate
     spec: harness/specs/01-intake-gate/README.md
     max_attempts: 1
+    outputs:
+      - workspace/memory/reviews/01-intake-gate-1.md
     steps:
       - assignment: 01-intake-gate.reviewer
   - id: 02-inventory-extraction
     spec: harness/specs/02-inventory-extraction/README.md
     max_attempts: 3
+    outputs:
+      - workspace/outputs/inventory/extracted-bom.json
+      - workspace/outputs/inventory/extracted-bom.md
+    checks:
+      - profile: inventory
     steps:
       - assignment: 02-inventory-extraction.executor
       - assignment: 02-inventory-extraction.reviewer
   - id: 03-dataset-mapping
     spec: harness/specs/03-dataset-mapping/README.md
     max_attempts: 3
+    outputs:
+      - workspace/outputs/inventory/process-mapping.json
+      - workspace/outputs/LCI/
+    checks:
+      - profile: mapping
     steps:
       - assignment: 03-dataset-mapping.executor
       - assignment: 03-dataset-mapping.reviewer
   - id: 04-openlca-reporting
     spec: harness/specs/04-openlca-reporting/README.md
     max_attempts: 3
+    outputs:
+      - workspace/outputs/reports/lca_report.md
+    checks:
+      - profile: report
     steps:
       - assignment: 04-openlca-reporting.executor
       - assignment: 04-openlca-reporting.reviewer

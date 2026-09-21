@@ -8,7 +8,10 @@ from typing import Any
 
 import yaml
 
-from .models import Assignment, Stage, ToolSpec, Workflow
+from .bundle import CheckRef
+from .lists import parse_optional_list_field, resolve_list
+from .models import Assignment, KnowledgeSource, Stage, ToolSpec, Workflow
+from .resolve import attach_bundles
 
 FORBIDDEN_PROMPT_KEYS = frozenset({"prompt", "extra_prompt"})
 
@@ -25,6 +28,7 @@ def load_workflow(path: Path, *, project_root: Path) -> Workflow:
         raw = _merge_workflow(base_raw, raw)
     workflow = _parse_workflow(raw, source_path=path)
     _validate_files(workflow, project_root)
+    attach_bundles(workflow, project_root)
     return workflow
 
 
@@ -70,10 +74,17 @@ def _merge_workflow(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, 
             result["registry"].setdefault("tools", {}).update(
                 overlay_registry["tools"] or {}
             )
+        if "knowledge" in overlay_registry:
+            result["registry"].setdefault("knowledge", {}).update(
+                overlay_registry["knowledge"] or {}
+            )
     if "defaults" in extra:
         result.setdefault("defaults", {})
-        if extra["defaults"] and "rules" in extra["defaults"]:
-            result["defaults"]["rules"] = list(extra["defaults"]["rules"] or [])
+        defaults_extra = extra["defaults"] or {}
+        if "rules" in defaults_extra:
+            result["defaults"]["rules"] = list(defaults_extra["rules"] or [])
+        if "knowledge" in defaults_extra:
+            result["defaults"]["knowledge"] = list(defaults_extra["knowledge"] or [])
     if "assignments" in extra:
         result.setdefault("assignments", {})
         for assignment_id, spec in (extra["assignments"] or {}).items():
@@ -110,11 +121,28 @@ def _apply_stage_overrides(result: dict[str, Any], overrides: dict[str, Any]) ->
             stage["spec_additions"] = existing
         if "steps" in patch:
             stage["steps"] = copy.deepcopy(patch["steps"])
+        if "outputs" in patch:
+            stage["outputs"] = copy.deepcopy(patch["outputs"])
+        if "checks" in patch:
+            stage["checks"] = copy.deepcopy(patch["checks"])
+        if "knowledge" in patch:
+            stage["knowledge"] = copy.deepcopy(patch["knowledge"])
 
 
 def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
     registry = raw.get("registry") or {}
     rules = {str(k): str(v) for k, v in dict(registry.get("rules") or {}).items()}
+    knowledge: dict[str, KnowledgeSource] = {}
+    for knowledge_id, spec in dict(registry.get("knowledge") or {}).items():
+        if not isinstance(spec, dict):
+            raise ValueError(
+                f"{source_path}: knowledge {knowledge_id} must be a mapping"
+            )
+        knowledge[str(knowledge_id)] = KnowledgeSource(
+            knowledge_id=str(knowledge_id),
+            kind=str(spec.get("kind") or "local_dir"),
+            path=str(spec.get("path") or ""),
+        )
     tools: dict[str, ToolSpec] = {}
     for tool_id, spec in dict(registry.get("tools") or {}).items():
         if not isinstance(spec, dict):
@@ -143,12 +171,26 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             raise ValueError(
                 f"{source_path}: assignment {assignment_id} has invalid role {role!r}"
             )
+        knowledge_decl = None
+        if "knowledge" in spec:
+            knowledge_decl = parse_optional_list_field(spec.get("knowledge"))
+        assignment_tools: list[str] = []
+        if "tools" in spec:
+            assignment_tools = resolve_list(
+                [], parse_optional_list_field(spec.get("tools"))
+            )
+        assignment_rules: list[str] = []
+        if "rules" in spec:
+            assignment_rules = resolve_list(
+                [], parse_optional_list_field(spec.get("rules"))
+            )
         assignments[str(assignment_id)] = Assignment(
             assignment_id=str(assignment_id),
             role=role,
             task_spec=str(spec.get("task_spec") or ""),
-            tools=[str(item) for item in spec.get("tools") or []],
-            rules=[str(item) for item in spec.get("rules") or []],
+            tools=assignment_tools,
+            rules=assignment_rules,
+            knowledge_decl=knowledge_decl,
         )
     stages: list[Stage] = []
     default_attempts = int(raw.get("max_attempts") or 3)
@@ -161,6 +203,9 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 steps.append(str(step["assignment"]))
             else:
                 steps.append(str(step))
+        stage_knowledge = None
+        if "knowledge" in spec:
+            stage_knowledge = parse_optional_list_field(spec.get("knowledge"))
         stages.append(
             Stage(
                 stage_id=str(spec.get("id") or ""),
@@ -168,6 +213,9 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 max_attempts=int(spec.get("max_attempts") or default_attempts),
                 steps=steps,
                 spec_additions=[str(item) for item in spec.get("spec_additions") or []],
+                outputs=[str(item) for item in spec.get("outputs") or []],
+                checks=_parse_checks(spec.get("checks"), source_path=source_path),
+                knowledge_decl=stage_knowledge,
             )
         )
     return Workflow(
@@ -176,11 +224,26 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         max_attempts=default_attempts,
         rules=rules,
         tools=tools,
+        knowledge=knowledge,
         default_rules=[str(item) for item in defaults.get("rules") or []],
+        default_knowledge=[str(item) for item in defaults.get("knowledge") or []],
         stages=stages,
         assignments=assignments,
         source_path=source_path,
     )
+
+
+def _parse_checks(raw: Any, *, source_path: Path) -> list[CheckRef]:
+    if not raw:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"{source_path}: checks must be a list")
+    checks: list[CheckRef] = []
+    for item in raw:
+        if not isinstance(item, dict) or "profile" not in item:
+            raise ValueError(f"{source_path}: each check must declare profile")
+        checks.append(CheckRef(profile=str(item["profile"])))
+    return checks
 
 
 def _validate_files(workflow: Workflow, project_root: Path) -> None:
@@ -191,6 +254,20 @@ def _validate_files(workflow: Workflow, project_root: Path) -> None:
     _require_file(project_root, workflow.runtime_spec)
     for rule_id, relative in workflow.rules.items():
         _require_file(project_root, relative, label=f"rule {rule_id}")
+    for knowledge_id, source in workflow.knowledge.items():
+        if not source.path:
+            raise ValueError(f"knowledge {knowledge_id} path is empty")
+        path = _resolve(project_root, source.path)
+        if source.kind == "local_dir":
+            if not path.is_dir():
+                raise FileNotFoundError(
+                    f"missing knowledge dir {knowledge_id}: {source.path}"
+                )
+        elif not path.is_file():
+            raise FileNotFoundError(f"missing knowledge {knowledge_id}: {source.path}")
+    for kid in workflow.default_knowledge:
+        if kid not in workflow.knowledge:
+            raise ValueError(f"defaults: unknown knowledge {kid}")
     for assignment in workflow.assignments.values():
         _require_file(
             project_root, assignment.task_spec, label=assignment.assignment_id
@@ -236,6 +313,9 @@ def _resolve(project_root: Path, relative: str) -> Path:
 
 
 def assignment_rule_ids(workflow: Workflow, assignment: Assignment) -> list[str]:
+    bundle = workflow.bundles.get(assignment.assignment_id)
+    if bundle is not None:
+        return list(bundle.rule_ids)
     ordered: list[str] = []
     for rule_id in [*workflow.default_rules, *assignment.rules]:
         if rule_id not in ordered:

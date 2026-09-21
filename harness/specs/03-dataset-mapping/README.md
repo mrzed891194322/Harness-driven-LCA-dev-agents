@@ -3,9 +3,6 @@ id: 03-dataset-mapping
 inputs:
   - workspace/outputs/inventory/extracted-bom.json
   - workspace/inputs/plan.md
-outputs:
-  - workspace/outputs/inventory/process-mapping.json
-  - workspace/outputs/LCI/
 ---
 
 # 03 背景数据集映射

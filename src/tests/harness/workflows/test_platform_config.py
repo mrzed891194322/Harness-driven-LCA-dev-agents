@@ -203,6 +203,7 @@ class WorkflowYamlTests(unittest.TestCase):
             workspace.mkdir()
             config = build_session_config(
                 workflow,
+                workflow.bundles[executor.assignment_id],
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
                 worker="codex",
@@ -280,6 +281,7 @@ class WorkflowYamlTests(unittest.TestCase):
             workspace.mkdir()
             first = build_session_config(
                 workflow,
+                workflow.bundles[executor.assignment_id],
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
                 worker="codex",
@@ -290,6 +292,7 @@ class WorkflowYamlTests(unittest.TestCase):
             )
             second = build_session_config(
                 workflow,
+                workflow.bundles[executor.assignment_id],
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
                 worker="codex",

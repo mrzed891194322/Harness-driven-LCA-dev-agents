@@ -3,8 +3,6 @@ id: 01-intake-gate
 inputs:
   - workspace/inputs/plan.md
   - harness/knowledge/
-outputs:
-  - workspace/memory/reviews/01-intake-gate-1.md
 ---
 
 # 01 初始化检查

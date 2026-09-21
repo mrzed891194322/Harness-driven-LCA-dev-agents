@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from .bundle import CheckRef
+
+if TYPE_CHECKING:
+    from .bundle import TaskBundle
 
 
 @dataclass
@@ -34,12 +39,20 @@ class ToolSpec:
 
 
 @dataclass
+class KnowledgeSource:
+    knowledge_id: str
+    kind: str
+    path: str
+
+
+@dataclass
 class Assignment:
     assignment_id: str
     role: str
     task_spec: str
     tools: list[str] = field(default_factory=list)
     rules: list[str] = field(default_factory=list)
+    knowledge_decl: Any | None = None
 
 
 @dataclass
@@ -49,6 +62,9 @@ class Stage:
     max_attempts: int
     steps: list[str]
     spec_additions: list[str] = field(default_factory=list)
+    outputs: list[str] = field(default_factory=list)
+    checks: list[CheckRef] = field(default_factory=list)
+    knowledge_decl: Any | None = None
 
 
 @dataclass
@@ -58,10 +74,13 @@ class Workflow:
     max_attempts: int
     rules: dict[str, str]
     tools: dict[str, ToolSpec]
+    knowledge: dict[str, KnowledgeSource]
     default_rules: list[str]
+    default_knowledge: list[str]
     stages: list[Stage]
     assignments: dict[str, Assignment]
     source_path: Path
+    bundles: dict[str, TaskBundle] = field(default_factory=dict)
 
     def stage_by_id(self, stage_id: str) -> Stage:
         for stage in self.stages:

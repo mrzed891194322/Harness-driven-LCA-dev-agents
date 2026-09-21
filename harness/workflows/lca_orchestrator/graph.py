@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-import yaml
 from langgraph.graph import END, START, StateGraph
 
 from scripts.agent_sdk.progress import print_orchestrator
@@ -95,6 +93,7 @@ class OrchestratorRuntime:
         worker: str,
     ) -> None:
         self.workflow = workflow
+        self.bundles = workflow.bundles
         self.project_root = project_root
         self.workspace_root = workspace_root
         self.session_client = session_client
@@ -102,6 +101,7 @@ class OrchestratorRuntime:
 
     def prepare(self, state: WorkflowState) -> dict[str, Any]:
         stage, assignment = self._current(state)
+        bundle = self.bundles[assignment.assignment_id]
         handoff = handoff_path(
             self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
         )
@@ -124,7 +124,7 @@ class OrchestratorRuntime:
         except ValueError:
             context["handoff_path"] = str(handoff)
         from harness.tools.control_openlca.utils.workflow import _write_json_atomic
-        from harness.tools.lca_artifacts.checks import PROFILES, validation_state
+        from harness.tools.lca_artifacts.checks import validation_state
         from harness.tools.lca_artifacts.store import Context, discover_sources
 
         evidence_context = Context(
@@ -140,9 +140,7 @@ class OrchestratorRuntime:
             _write_json_atomic(source_path, discover_sources(self.project_root))
         context["source_manifest"] = evidence_context.ref(source_path)
         context["evidence_manifest_ref"] = str(evidence_context.manifest)
-        profile = next(
-            (key for key, value in PROFILES.items() if value == stage.stage_id), None
-        )
+        profile = bundle.checks[0].profile if bundle.checks else None
         if profile:
             try:
                 check = validation_state(evidence_context, profile)
@@ -191,8 +189,10 @@ class OrchestratorRuntime:
         stage, assignment = self._current(state)
         key = session_key(stage.stage_id, assignment.role)
         sessions = dict(state.get("sessions") or {})
+        bundle = self.bundles[assignment.assignment_id]
         config = build_session_config(
             self.workflow,
+            bundle,
             project_root=self.project_root,
             workspace_root=self.workspace_root,
             worker=self.worker,
@@ -280,11 +280,10 @@ class OrchestratorRuntime:
         assignment: Assignment,
         handoff: dict[str, Any],
     ) -> dict[str, Any]:
-        missing = missing_outputs(
-            self.project_root,
+        bundle = self.bundles[assignment.assignment_id]
+        missing = missing_expected_outputs(
             self.workspace_root,
-            stage.spec,
-            role=assignment.role,
+            bundle.expected_outputs,
         )
         status = handoff["status"]
         failed = status in {"failed", "blocked"} or bool(missing)
@@ -316,14 +315,11 @@ class OrchestratorRuntime:
         assignment: Assignment,
         _handoff: dict[str, Any],
     ) -> dict[str, Any] | None:
-        from harness.tools.lca_artifacts.checks import PROFILES, validate
+        from harness.tools.lca_artifacts.checks import validate
         from harness.tools.lca_artifacts.store import Context
 
-        profile = next(
-            (key for key, value in PROFILES.items() if value == stage.stage_id),
-            None,
-        )
-        if profile is None:
+        bundle = self.bundles[assignment.assignment_id]
+        if not bundle.checks:
             return None
         ctx = Context(
             self.project_root,
@@ -333,27 +329,31 @@ class OrchestratorRuntime:
             _attempt(state),
             assignment.role,
         )
-        try:
-            result = validate(ctx, profile)
-        except Exception as exc:
-            reason = f"{profile} 检查未能执行：{exc}"
-            print_orchestrator(
-                f"host check failed {assignment.assignment_id}: {reason}"
-            )
-            return self._retry_or_fail(
-                state, stage, assignment, reason, fix_instructions=reason
-            )
-        if result.get("ok"):
-            return None
-        errors = result.get("errors") or []
-        detail = "; ".join(str(item) for item in errors[:20]) or (
-            str(result.get("summary") or "").strip() or "确定性检查未通过"
-        )
-        reason = f"{profile} 检查未通过：{detail}"
-        print_orchestrator(f"host check failed {assignment.assignment_id}: {reason}")
-        return self._retry_or_fail(
-            state, stage, assignment, reason, fix_instructions=reason
-        )
+        for check in bundle.checks:
+            profile = check.profile
+            try:
+                result = validate(ctx, profile)
+            except Exception as exc:
+                reason = f"{profile} 检查未能执行：{exc}"
+                print_orchestrator(
+                    f"host check failed {assignment.assignment_id}: {reason}"
+                )
+                return self._retry_or_fail(
+                    state, stage, assignment, reason, fix_instructions=reason
+                )
+            if not result.get("ok"):
+                errors = result.get("errors") or []
+                detail = "; ".join(str(item) for item in errors[:20]) or (
+                    str(result.get("summary") or "").strip() or "确定性检查未通过"
+                )
+                reason = f"{profile} 检查未通过：{detail}"
+                print_orchestrator(
+                    f"host check failed {assignment.assignment_id}: {reason}"
+                )
+                return self._retry_or_fail(
+                    state, stage, assignment, reason, fix_instructions=reason
+                )
+        return None
 
     def _advance_after_reviewer(
         self,
@@ -522,23 +522,12 @@ def _first_writer_index(workflow: Workflow, stage: Stage) -> int:
     return 0
 
 
-def missing_outputs(
-    project_root: Path,
+def missing_expected_outputs(
     workspace_root: Path,
-    spec_relative: str,
-    *,
-    role: str,
+    expected_outputs: list[str],
 ) -> list[str]:
-    if role not in WRITER_ROLES:
-        return []
-    text = (project_root / spec_relative).read_text(encoding="utf-8")
-    match = re.match(r"\A---\s*\n(?P<header>.*?)\n---\s*\n", text, re.DOTALL)
-    if not match:
-        return []
-    header = yaml.safe_load(match.group("header")) or {}
     missing: list[str] = []
-    for item in header.get("outputs") or []:
-        relative = str(item)
+    for relative in expected_outputs:
         path = _resolve_workspace_output(workspace_root, relative)
         if relative.endswith("/") or path.suffix == "":
             if not path.is_dir():
