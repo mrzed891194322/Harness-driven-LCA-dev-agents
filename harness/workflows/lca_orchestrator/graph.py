@@ -94,6 +94,7 @@ class OrchestratorRuntime:
         workspace_root: Path,
         session_client: Any,
         worker: str,
+        model: str,
         capabilities: HarnessCapabilities | None = None,
     ) -> None:
         self.workflow = workflow
@@ -107,6 +108,7 @@ class OrchestratorRuntime:
         self.workspace_root = workspace_root
         self.session_client = session_client
         self.worker = worker
+        self.model = model
 
     def prepare(self, state: WorkflowState) -> dict[str, Any]:
         stage, assignment = self._current(state)
@@ -199,6 +201,7 @@ class OrchestratorRuntime:
             project_root=self.project_root,
             workspace_root=self.workspace_root,
             worker=self.worker,
+            model=self.model,
             stage=stage,
             assignment=assignment,
             run_id=_state_str(state, "run_id"),

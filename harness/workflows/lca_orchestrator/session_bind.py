@@ -12,7 +12,6 @@ from harness.runtime.tool_runtime import (
 )
 from scripts.agent_sdk.archive import mcp_render_dir, turn_archive_dir
 from scripts.agent_sdk.mcp import mcp_servers_for_tools
-from scripts.agent_sdk.models import load_worker_model
 from scripts.agent_sdk.session import SessionConfig
 from scripts.agent_sdk.uv_env import ensure_uv_cache_dir
 
@@ -29,6 +28,7 @@ def build_session_config(
     project_root: Path,
     workspace_root: Path,
     worker: str,
+    model: str,
     stage: Stage,
     assignment: Assignment,
     run_id: str,
@@ -86,7 +86,7 @@ def build_session_config(
         cwd=project_root,
         tmp_dir=workspace_root / "tmp",
         mcp_servers=mcp_servers,
-        model=load_worker_model(worker, project_root),
+        model=model,
         spec_paths=list(bundle.spec_paths),
         rule_ids=list(bundle.rule_ids),
         tool_ids=tool_ids,

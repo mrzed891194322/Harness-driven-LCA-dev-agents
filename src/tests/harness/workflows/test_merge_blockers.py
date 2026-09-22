@@ -857,6 +857,7 @@ class SourceManifestTrustTests(unittest.TestCase):
                 workspace_root=workspace,
                 session_client=MagicMock(),
                 worker="codex",
+                model="test-model",
                 capabilities=lca_capabilities(),
             )
             stage = workflow.stages[0]
@@ -1021,10 +1022,28 @@ class InventoryCitationTests(unittest.TestCase):
             self.assertTrue(any("undeclared source reference" in e for e in errors))
             self.assertFalse(any("source missing" in e for e in errors))
 
-    def test_url_source_still_accepted(self) -> None:
+    def test_url_source_rejected_unless_declared(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             ctx = self._setup(root)
+            self._write_bom(ctx, "https://example.com/doc#section")
+            errors = lca_checks.inventory_errors(ctx)
+            self.assertTrue(any("undeclared source reference" in e for e in errors))
+
+    def test_declared_url_source_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            ctx = self._setup(root)
+            sources = ctx.sources_manifest_path()
+            payload = json.loads(sources.read_text(encoding="utf-8"))
+            payload["sources"] = [
+                {
+                    "id": "https://example.com/doc",
+                    "kind": "url",
+                    "available": True,
+                }
+            ]
+            sources.write_text(json.dumps(payload), encoding="utf-8")
             self._write_bom(ctx, "https://example.com/doc#section")
             errors = lca_checks.inventory_errors(ctx)
             self.assertEqual(errors, [])
@@ -1048,7 +1067,7 @@ class MappingLciShortCircuitTests(unittest.TestCase):
                 "process": "制造",
                 "transport": None,
                 "geography": "CN",
-                "source_locations": ["https://example.com/x#1"],
+                "source_locations": ["harness/knowledge/bom.md#L1"],
                 "extraction_status": "extracted",
             }
             inv.joinpath("extracted-bom.json").write_text(
@@ -1131,6 +1150,97 @@ class OutputTrailingSlashTests(unittest.TestCase):
             (workspace / "outputs" / "LCI").write_text("not-dir\n", encoding="utf-8")
             missing = missing_expected_outputs(workspace, ["workspace/outputs/LCI/"])
             self.assertEqual(missing, ["workspace/outputs/LCI/"])
+
+
+class FrozenModelTests(unittest.TestCase):
+    def test_session_config_uses_runtime_model_not_env(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _tree(root)
+            (root / ".env").write_text("CODEX_MODEL=env-model-v1\n", encoding="utf-8")
+            payload = _base_payload()
+            path = root / "harness" / "workflows" / "t.yaml"
+            path.write_text(
+                yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
+            )
+            workflow = load_workflow(
+                path, project_root=root, capabilities=lca_capabilities()
+            )
+            runtime = OrchestratorRuntime(
+                workflow,
+                project_root=root,
+                workspace_root=root / "workspace",
+                session_client=MagicMock(),
+                worker="codex",
+                model="frozen-model",
+                capabilities=lca_capabilities(),
+            )
+            (root / "workspace").mkdir()
+            stage = workflow.stages[0]
+            assignment = workflow.assignments["s1.executor"]
+            bundle = workflow.bundles[assignment.assignment_id]
+            from harness.workflows.lca_orchestrator.session_bind import (
+                build_session_config,
+            )
+
+            (root / ".env").write_text("CODEX_MODEL=env-model-v2\n", encoding="utf-8")
+            config = build_session_config(
+                workflow,
+                bundle,
+                project_root=root,
+                workspace_root=root / "workspace",
+                worker=runtime.worker,
+                model=runtime.model,
+                stage=stage,
+                assignment=assignment,
+                run_id="run-1",
+                attempt=1,
+            )
+            self.assertEqual(config.model, "frozen-model")
+
+
+class ImplementationFingerprintTests(unittest.TestCase):
+    def test_implementation_change_rejects_resume(self) -> None:
+        from harness.workflows.lca_orchestrator.config_fingerprint import (
+            assert_runtime_config_matches,
+            write_runtime_config,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _tree(root)
+            runtime_dir = root / "harness" / "runtime"
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            target = runtime_dir / "probe.py"
+            target.write_text("VALUE = 1\n", encoding="utf-8")
+            payload = _base_payload()
+            path = root / "harness" / "workflows" / "t.yaml"
+            path.write_text(
+                yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
+            )
+            workflow = load_workflow(
+                path, project_root=root, capabilities=lca_capabilities()
+            )
+            workspace = root / "workspace"
+            workspace.mkdir()
+            write_runtime_config(
+                workspace,
+                "run-imp",
+                workflow,
+                project_root=root,
+                worker="codex",
+                model="m",
+            )
+            target.write_text("VALUE = 2\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "configuration changed"):
+                assert_runtime_config_matches(
+                    workspace,
+                    "run-imp",
+                    workflow,
+                    project_root=root,
+                    worker="codex",
+                    model="m",
+                )
 
 
 if __name__ == "__main__":

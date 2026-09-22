@@ -42,8 +42,39 @@ def _load_source_manifest(ctx) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def declared_source_ids(ctx) -> set[str]:
+    """Source ids declared by the host-owned source manifest (files + sources)."""
+    payload = _load_source_manifest(ctx)
+    if payload is None:
+        return set()
+    declared: set[str] = set()
+    for entry in payload.get("files") or []:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("readable") is not True:
+            continue
+        relative = entry.get("path")
+        if not relative:
+            continue
+        try:
+            path = require_relative_path(str(relative), label="source manifest path")
+        except ValueError:
+            continue
+        declared.add(path.replace("\\", "/"))
+    for entry in payload.get("sources") or []:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("available") is not True:
+            continue
+        source_id = entry.get("id")
+        if not source_id:
+            continue
+        declared.add(str(source_id))
+    return declared
+
+
 def declared_local_sources(ctx) -> set[str]:
-    """Readable local paths declared by the host-owned source manifest."""
+    """Backward-compatible alias for readable local file paths in the manifest."""
     payload = _load_source_manifest(ctx)
     if payload is None:
         return set()
@@ -645,7 +676,7 @@ def inventory_errors(ctx):
         "source_locations",
         "extraction_status",
     }
-    declared = declared_local_sources(ctx)
+    declared = declared_source_ids(ctx)
     for row in rows:
         label = row.get("item_id", "unknown")
         if required - row.keys():
@@ -681,12 +712,8 @@ def inventory_errors(ctx):
                 )
                 continue
             source_id = source.split("#", 1)[0]
-            if "://" in source_id:
-                if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://\S+$", source_id):
-                    errors.append(f"{label}: invalid URL source: {source}")
-                continue
-            normalized = source_id.replace("\\", "/")
-            if normalized in declared:
+            candidates = {source_id, source_id.replace("\\", "/")}
+            if candidates & declared:
                 continue
             errors.append(f"{label}: undeclared source reference: {source}")
     return errors

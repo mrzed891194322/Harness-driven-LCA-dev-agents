@@ -206,6 +206,7 @@ class ReviewerPassGuardTests(unittest.TestCase):
             workspace_root=workspace,
             session_client=MagicMock(),
             worker="codex",
+            model="test-model",
             capabilities=caps,
         )
         return runtime, workflow, hooks

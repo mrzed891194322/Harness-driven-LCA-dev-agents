@@ -108,6 +108,7 @@ def enrich_local_files(ctx: RunContext, bundle: KnowledgeTask) -> dict[str, obje
     )
     merged: dict = {
         "files": [],
+        "sources": [],
         "count": 0,
         "assignment": bundle.assignment_id,
     }

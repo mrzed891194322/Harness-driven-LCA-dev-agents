@@ -110,12 +110,14 @@ def main(argv: list[str] | None = None) -> int:
         capabilities=capabilities,
     )
     session_client = default_client()
+    model = load_worker_model(worker, project_root)
     runtime = OrchestratorRuntime(
         workflow,
         project_root=project_root,
         workspace_root=workspace_root,
         session_client=session_client,
         worker=worker,
+        model=model,
         capabilities=capabilities,
     )
     conn, checkpointer = open_checkpointer(workspace_root)
@@ -130,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
                 workspace_root,
                 project_root=project_root,
                 worker=worker,
+                model=model,
             )
         run_id = uuid.uuid4().hex
         _bind_progress_log(workspace_root, run_id, append=False)
@@ -140,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
             workflow,
             project_root=project_root,
             worker=worker,
-            model=load_worker_model(worker, project_root),
+            model=model,
         )
         write_manifest(
             workspace_root,
@@ -213,6 +216,7 @@ def _resume(
     *,
     project_root: Path,
     worker: str,
+    model: str,
 ) -> int:
     del conn
     try:
@@ -228,7 +232,7 @@ def _resume(
             runtime.workflow,
             project_root=project_root,
             worker=worker,
-            model=load_worker_model(worker, project_root),
+            model=model,
         )
     except ValueError as exc:
         print_orchestrator(str(exc), file=sys.stderr)

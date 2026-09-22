@@ -97,6 +97,7 @@ class GenericRuntimeTests(unittest.TestCase):
                 project_root=root,
                 workspace_root=workspace,
                 worker="codex",
+                model="test-model",
                 stage=workflow.stages[0],
                 assignment=workflow.assignments["s1.executor"],
                 run_id="run-1",

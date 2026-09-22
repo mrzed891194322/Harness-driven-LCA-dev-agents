@@ -280,6 +280,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             workspace_root=self.workspace,
             session_client=client,
             worker="codex",
+            model="test-model",
             capabilities=lca_capabilities(),
         )
         conn, saver = open_checkpointer(self.workspace)
@@ -399,6 +400,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             workspace_root=self.workspace,
             session_client=client,
             worker="codex",
+            model="test-model",
             capabilities=lca_capabilities(),
         )
         conn, saver = open_checkpointer(self.workspace)
@@ -437,6 +439,7 @@ class OrchestratorGraphTests(unittest.TestCase):
                 self.workspace,
                 project_root=PROJECT_ROOT,
                 worker="codex",
+                model=model,
             )
         finally:
             conn.close()
@@ -706,6 +709,7 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
             workspace_root=self.workspace,
             session_client=client,
             worker="codex",
+            model="test-model",
             capabilities=lca_capabilities(),
         )
         conn, saver = open_checkpointer(self.workspace)

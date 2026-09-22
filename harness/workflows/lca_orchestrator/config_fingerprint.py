@@ -14,9 +14,38 @@ from .models import Workflow
 
 SCHEMA_VERSION = 1
 
+IMPLEMENTATION_ROOTS = (
+    "harness/runtime",
+    "harness/workflows/lca_orchestrator",
+    "harness/domains",
+    "harness/tools",
+    "src/scripts/agent_sdk",
+)
+
 
 def runtime_config_path(workspace_root: Path, run_id: str) -> Path:
     return workspace_root / "memory" / "evidence" / run_id / "runtime-config.json"
+
+
+def implementation_fingerprint(project_root: Path) -> str:
+    """Aggregate hash of Harness implementation sources used by the orchestrator."""
+    entries: list[dict[str, str]] = []
+    for relative_root in IMPLEMENTATION_ROOTS:
+        root = project_root / relative_root
+        if not root.exists():
+            entries.append({"path": relative_root, "sha256": "missing"})
+            continue
+        for path in sorted(root.rglob("*")):
+            if not path.is_file():
+                continue
+            if path.suffix not in {".py", ".yaml", ".yml", ".md", ".toml"}:
+                continue
+            try:
+                rel = str(path.relative_to(project_root)).replace("\\", "/")
+            except ValueError:
+                continue
+            entries.append({"path": rel, "sha256": sha256_file(path)})
+    return stable_hash(entries)
 
 
 def build_runtime_config(
@@ -30,6 +59,7 @@ def build_runtime_config(
         "schema_version": SCHEMA_VERSION,
         "workflow_id": workflow.workflow_id,
         "capability_ids": list(workflow.capability_ids),
+        "implementation": implementation_fingerprint(project_root),
         "runtime_spec": _file_ref(project_root, workflow.runtime_spec),
         "default_rules": list(workflow.default_rules),
         "default_knowledge": list(workflow.default_knowledge),

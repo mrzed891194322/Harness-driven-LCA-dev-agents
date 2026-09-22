@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 from typing import Any
 
+from harness.runtime.hashing import sha256_file
+
 from .session import SessionConfig, SessionRef
+
+REDACTED = "<redacted>"
 
 
 def run_log_dir(workspace_root: Path, run_id: str) -> Path:
@@ -25,11 +28,7 @@ def turn_archive_dir(
     assignment_id: str,
     attempt: int,
 ) -> Path:
-    return (
-        run_log_dir(workspace_root, run_id)
-        / stage_id
-        / f"{assignment_id}#{attempt}"
-    )
+    return run_log_dir(workspace_root, run_id) / stage_id / f"{assignment_id}#{attempt}"
 
 
 def mcp_render_dir(
@@ -38,9 +37,7 @@ def mcp_render_dir(
     stage_id: str,
     assignment_id: str,
 ) -> Path:
-    return (
-        workspace_root / "tmp" / "mcp-render" / run_id / stage_id / assignment_id
-    )
+    return workspace_root / "tmp" / "mcp-render" / run_id / stage_id / assignment_id
 
 
 def resolve_mcp_render_dir(config: SessionConfig, storage_dir: Path) -> Path:
@@ -50,8 +47,31 @@ def resolve_mcp_render_dir(config: SessionConfig, storage_dir: Path) -> Path:
     return target
 
 
+def _mcp_secret_values(config: SessionConfig) -> list[str]:
+    secrets: list[str] = []
+    for server in config.mcp_servers.values():
+        for value in dict(server.get("env") or {}).values():
+            text = str(value)
+            if text:
+                secrets.append(text)
+        for value in dict(server.get("headers") or {}).values():
+            text = str(value)
+            if text:
+                secrets.append(text)
+    # Longest first so overlapping replacements stay stable.
+    return sorted(set(secrets), key=len, reverse=True)
+
+
+def redact_secrets(text: str, secrets: list[str]) -> str:
+    redacted = text
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, REDACTED)
+    return redacted
+
+
 def session_config_summary(config: SessionConfig) -> dict[str, Any]:
-    """Serialize SessionConfig for archives without dumping process env secrets."""
+    """Serialize SessionConfig for archives without dumping MCP secret values."""
     mcp_summary: dict[str, Any] = {}
     for name, server in config.mcp_servers.items():
         mcp_summary[name] = {
@@ -59,6 +79,9 @@ def session_config_summary(config: SessionConfig) -> dict[str, Any]:
             "args": list(server.get("args") or []),
             "transport": server.get("transport"),
             "env_keys": sorted(str(key) for key in dict(server.get("env") or {})),
+            "header_keys": sorted(
+                str(key) for key in dict(server.get("headers") or {})
+            ),
         }
     return {
         "worker": config.worker,
@@ -99,7 +122,9 @@ def begin_turn_archive(config: SessionConfig, prompt: str) -> Path | None:
 def write_argv_archive(config: SessionConfig, argv: list[str]) -> None:
     if config.archive_dir is None:
         return
-    write_json(config.archive_dir / "argv.json", {"argv": list(argv)})
+    secrets = _mcp_secret_values(config)
+    redacted_argv = [redact_secrets(str(item), secrets) for item in argv]
+    write_json(config.archive_dir / "argv.json", {"argv": redacted_argv})
 
 
 def append_stdout_archive(config: SessionConfig, line: str) -> None:
@@ -111,6 +136,27 @@ def append_stdout_archive(config: SessionConfig, line: str) -> None:
         handle.write(line if line.endswith("\n") else f"{line}\n")
 
 
+def _rendered_manifest(render: Path) -> dict[str, Any]:
+    files: list[dict[str, Any]] = []
+    for path in sorted(render.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = str(path.relative_to(render)).replace("\\", "/")
+        files.append(
+            {
+                "path": rel,
+                "size_bytes": path.stat().st_size,
+                "sha256": sha256_file(path),
+            }
+        )
+    return {
+        "source_dir": str(render),
+        "files": files,
+        "note": "MCP render content retained only under workspace/tmp/mcp-render; "
+        "persistent logs store metadata only",
+    }
+
+
 def finish_turn_archive(config: SessionConfig, ref: SessionRef) -> None:
     archive = config.archive_dir
     if archive is None:
@@ -120,7 +166,5 @@ def finish_turn_archive(config: SessionConfig, ref: SessionRef) -> None:
     render = config.mcp_render_dir
     if render is None or not render.is_dir():
         return
-    dest = archive / "rendered"
-    if dest.exists():
-        shutil.rmtree(dest)
-    shutil.copytree(render, dest)
+    # Do not copy rendered MCP configs (may contain secrets) into persistent logs.
+    write_json(archive / "rendered-manifest.json", _rendered_manifest(render))

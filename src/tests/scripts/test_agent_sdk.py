@@ -197,7 +197,15 @@ class AgentSdkSessionTests(unittest.TestCase):
             self.assertTrue((archive / "argv.json").is_file())
             self.assertTrue((archive / "stdout.jsonl").is_file())
             self.assertTrue((archive / "session-ref.json").is_file())
-            self.assertTrue((archive / "rendered" / "mcp-overrides.json").is_file())
+            self.assertTrue((archive / "rendered-manifest.json").is_file())
+            self.assertFalse((archive / "rendered").exists())
+            summary = json.loads(
+                (archive / "session-config.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("env_keys", summary["mcp_servers"]["control_openlca"])
+            self.assertIn("header_keys", summary["mcp_servers"]["control_openlca"])
+            self.assertNotIn("env", summary["mcp_servers"]["control_openlca"])
+            self.assertNotIn("headers", summary["mcp_servers"]["control_openlca"])
         self.assertEqual(result.text, "ok")
         self.assertEqual(ref.storage["thread_id"], "thread-1")
         argv = runner.calls[0]["argv"]
@@ -212,6 +220,7 @@ class AgentSdkSessionTests(unittest.TestCase):
         )
         from harness.tools.control_openlca.utils.connection import mcp_tool_timeout_sec
 
+        self.assertIn("mcp_servers.control_openlca.startup_timeout_sec=30", rows)
         expected_timeout = (
             f"mcp_servers.control_openlca.tool_timeout_sec={mcp_tool_timeout_sec()}"
         )
@@ -219,6 +228,78 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertTrue(
             any(row in argv for row in rows if f"command={sys.executable}" in row)
         )
+
+    def test_persistent_logs_redact_mcp_secrets(self) -> None:
+        from scripts.agent_sdk.archive import (
+            begin_turn_archive,
+            finish_turn_archive,
+            write_argv_archive,
+        )
+        from scripts.agent_sdk.session import SessionRef
+
+        sentinel = "SUPER_SECRET_TOKEN_42"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tmp = Path(temp_dir)
+            render = tmp / "tmp" / "mcp-render" / "run-s" / "stage" / "executor"
+            archive = tmp / "memory" / "logs" / "run-s" / "stage" / "executor#1"
+            render.mkdir(parents=True)
+            (render / "mcp-overrides.json").write_text(
+                json.dumps({"env": {"API_TOKEN": sentinel}}),
+                encoding="utf-8",
+            )
+            config = SessionConfig(
+                worker="codex",
+                cwd=tmp,
+                tmp_dir=tmp / "tmp",
+                model="gpt-5.4",
+                mcp_servers={
+                    "control_openlca": {
+                        "transport": "stdio",
+                        "command": "uv",
+                        "args": ["run", "python", "tool.py"],
+                        "env": {"API_TOKEN": sentinel},
+                        "headers": {"X-Token": sentinel},
+                    }
+                },
+                stage_id="stage",
+                role="executor",
+                attempt=1,
+                run_id="run-s",
+                mcp_render_dir=render,
+                archive_dir=archive,
+            )
+            begin_turn_archive(config, "prompt")
+            write_argv_archive(
+                config,
+                [
+                    "codex",
+                    "-c",
+                    f'mcp_servers.control_openlca.env.API_TOKEN="{sentinel}"',
+                ],
+            )
+            finish_turn_archive(
+                config,
+                SessionRef(platform="codex", session_id="s1", storage={"dir": "x"}),
+            )
+            log_root = tmp / "memory" / "logs" / "run-s"
+            for path in log_root.rglob("*"):
+                if not path.is_file():
+                    continue
+                text = path.read_text(encoding="utf-8", errors="ignore")
+                self.assertNotIn(
+                    sentinel,
+                    text,
+                    msg=f"secret leaked into {path.relative_to(log_root)}",
+                )
+            # tmp render may still contain the secret.
+            self.assertIn(
+                sentinel,
+                (render / "mcp-overrides.json").read_text(encoding="utf-8"),
+            )
+            argv = json.loads((archive / "argv.json").read_text(encoding="utf-8"))
+            self.assertTrue(any("<redacted>" in item for item in argv["argv"]))
+            self.assertFalse((archive / "rendered").exists())
+            self.assertTrue((archive / "rendered-manifest.json").is_file())
 
     def test_codex_mcp_overrides_forward_context_file_arg(self) -> None:
         rows = mcp_overrides(
