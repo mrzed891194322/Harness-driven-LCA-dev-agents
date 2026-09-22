@@ -330,6 +330,22 @@ class AcceptanceSnapshotTests(unittest.TestCase):
                 json.dumps({"accepted": {}, "run_id": "run-2", "calls": []}),
                 encoding="utf-8",
             )
+            sources = writer.sources_manifest_path()
+            sources.parent.mkdir(parents=True, exist_ok=True)
+            sources.write_text(
+                json.dumps(
+                    {
+                        "files": [
+                            {
+                                "path": "a.md",
+                                "readable": True,
+                                "sha256": "0",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
             result = lca_checks.validate(writer, "inventory")
             self.assertTrue(result["ok"])
             reviewer = Context(

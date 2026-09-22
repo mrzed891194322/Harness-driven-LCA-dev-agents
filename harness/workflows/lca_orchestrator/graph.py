@@ -12,6 +12,7 @@ from harness.runtime.context import RunContext
 from scripts.agent_sdk.progress import print_orchestrator
 
 from .assemble import assemble_prompt
+from .bundle import TaskBundle
 from .handoff import (
     WRITER_ROLES,
     handoff_path,
@@ -132,11 +133,7 @@ class OrchestratorRuntime:
         except ValueError:
             context["handoff_path"] = str(handoff)
         run_ctx = self._run_context(state, stage, assignment)
-        provider_ids = {binding.provider for binding in bundle.knowledge_sources}
-        for provider_id in sorted(provider_ids):
-            context.update(
-                self.capabilities.knowledge.enrich(run_ctx, bundle, provider_id)
-            )
+        context.update(self._enrich_knowledge(run_ctx, bundle))
         check_summaries: list[dict[str, object]] = []
         for check in bundle.checks:
             checker_id = check.checker_id
@@ -309,6 +306,18 @@ class OrchestratorRuntime:
             "status": "running",
         }
 
+    def _enrich_knowledge(
+        self, run_ctx: RunContext, bundle: TaskBundle
+    ) -> dict[str, Any]:
+        """Regenerate host-owned source manifests for the assignment's providers."""
+        enriched: dict[str, Any] = {}
+        provider_ids = {binding.provider for binding in bundle.knowledge_sources}
+        for provider_id in sorted(provider_ids):
+            enriched.update(
+                self.capabilities.knowledge.enrich(run_ctx, bundle, provider_id)
+            )
+        return enriched
+
     def _host_checks(
         self,
         state: WorkflowState,
@@ -320,6 +329,9 @@ class OrchestratorRuntime:
         if not bundle.checks:
             return None
         run_ctx = self._run_context(state, stage, assignment)
+        # Rebuild canonical knowledge/source manifests before deterministic checks so
+        # worker edits to sources/<assignment>.json cannot change dependency membership.
+        self._enrich_knowledge(run_ctx, bundle)
         for check in bundle.checks:
             checker_id = check.checker_id
             try:
@@ -636,10 +648,10 @@ def missing_expected_outputs(
         if resolved != root and root not in resolved.parents:
             missing.append(relative)
             continue
-        if relative.endswith("/") or path.suffix == "":
+        if relative.endswith("/"):
             if not resolved.is_dir():
                 missing.append(relative)
-        elif not resolved.exists():
+        elif not resolved.is_file():
             missing.append(relative)
     return missing
 

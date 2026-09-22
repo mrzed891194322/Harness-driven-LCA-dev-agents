@@ -6,6 +6,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+from unittest.mock import MagicMock
 
 import yaml
 
@@ -18,6 +20,10 @@ from harness.runtime.knowledge_providers.local_files import discover_files_at
 from harness.tools.control_openlca.utils import workflow as openlca_workflow
 from harness.tools.lca_artifacts import checks as lca_checks
 from harness.tools.lca_artifacts.store import Context
+from harness.workflows.lca_orchestrator.graph import (
+    OrchestratorRuntime,
+    missing_expected_outputs,
+)
 from harness.workflows.lca_orchestrator.loader import load_workflow
 from harness.workflows.lca_orchestrator.models import Workflow
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
@@ -763,6 +769,368 @@ class SymlinkContainmentTests(unittest.TestCase):
             result = openlca_workflow.validate_lci_directory(root)
             self.assertFalse(result["ok"])
             self.assertTrue(any("symbolic link" in error for error in result["errors"]))
+
+
+class SourceManifestTrustTests(unittest.TestCase):
+    def _inventory_ctx(self, root: Path, workspace: Path) -> Context:
+        ctx = Context(
+            root,
+            workspace,
+            "run-trust",
+            "02-inventory-extraction",
+            1,
+            "executor",
+            "02-inventory-extraction.executor",
+            {"lca": {"phase": "inventory"}},
+        )
+        ctx.manifest.parent.mkdir(parents=True, exist_ok=True)
+        ctx.manifest.write_text(
+            json.dumps({"accepted": {}, "run_id": "run-trust", "calls": []}),
+            encoding="utf-8",
+        )
+        (workspace / "inputs").mkdir(parents=True, exist_ok=True)
+        (workspace / "inputs" / "plan.md").write_text("# plan\n", encoding="utf-8")
+        return ctx
+
+    def test_unreadable_manifest_entry_excluded_from_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            knowledge = root / "harness" / "knowledge"
+            knowledge.mkdir(parents=True)
+            secret = root / "private" / "secret.txt"
+            secret.parent.mkdir(parents=True)
+            secret.write_text("secret\n", encoding="utf-8")
+            (knowledge / "ok.txt").write_text("ok\n", encoding="utf-8")
+            (knowledge / "link.txt").symlink_to(secret)
+            ctx = self._inventory_ctx(root, workspace)
+            sources = ctx.sources_manifest_path()
+            sources.parent.mkdir(parents=True, exist_ok=True)
+            sources.write_text(
+                json.dumps(
+                    {
+                        "files": [
+                            {
+                                "path": "harness/knowledge/ok.txt",
+                                "readable": True,
+                                "sha256": sha256_file(knowledge / "ok.txt"),
+                            },
+                            {
+                                "path": "harness/knowledge/link.txt",
+                                "readable": False,
+                                "error": "symlink or path escapes knowledge root",
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            paths = lca_checks.knowledge_files_from_manifest(ctx)
+            self.assertEqual(len(paths), 1)
+            self.assertTrue(str(paths[0]).endswith("ok.txt"))
+            deps = lca_checks.dependencies(ctx, "inventory")
+            hashed = {item["path"] for item in deps["files"]}
+            self.assertIn("harness/knowledge/ok.txt", hashed)
+            self.assertNotIn("harness/knowledge/link.txt", hashed)
+            self.assertNotIn("private/secret.txt", hashed)
+
+    def test_host_reenrich_before_checks_overrides_worker_tamper(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _tree(root)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            knowledge = root / "harness" / "knowledge"
+            (knowledge / "doc.txt").write_text("canonical\n", encoding="utf-8")
+            payload = _base_payload()
+            path = root / "harness" / "workflows" / "t.yaml"
+            path.write_text(
+                yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
+            )
+            workflow = load_workflow(
+                path, project_root=root, capabilities=lca_capabilities()
+            )
+            runtime = OrchestratorRuntime(
+                workflow,
+                project_root=root,
+                workspace_root=workspace,
+                session_client=MagicMock(),
+                worker="codex",
+                capabilities=lca_capabilities(),
+            )
+            stage = workflow.stages[0]
+            assignment = workflow.assignments["s1.executor"]
+            state: dict[str, object] = {
+                "run_id": "run-tamper",
+                "task": "t",
+                "worker": "codex",
+                "attempt": 1,
+                "stage_index": 0,
+                "step_index": 0,
+                "current_assignment": assignment.assignment_id,
+                "current_role": "executor",
+            }
+            run_ctx = runtime._run_context(state, stage, assignment)  # type: ignore[arg-type]
+            bundle = workflow.bundles[assignment.assignment_id]
+            runtime._enrich_knowledge(run_ctx, bundle)
+            lca_ctx = Context(
+                root,
+                workspace,
+                "run-tamper",
+                stage.stage_id,
+                1,
+                "executor",
+                assignment.assignment_id,
+                {"lca": {"phase": "mapping"}},
+            )
+            sources = lca_ctx.sources_manifest_path()
+            self.assertTrue(sources.is_file())
+            sources.write_text(
+                json.dumps(
+                    {
+                        "files": [
+                            {
+                                "path": "harness/knowledge/doc.txt",
+                                "readable": True,
+                                "sha256": "forged",
+                            },
+                            {
+                                "path": "private/injected.txt",
+                                "readable": True,
+                                "sha256": "x",
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runtime._enrich_knowledge(run_ctx, bundle)
+            restored = json.loads(sources.read_text(encoding="utf-8"))
+            paths = {f["path"] for f in restored["files"] if f.get("readable")}
+            self.assertIn("harness/knowledge/doc.txt", paths)
+            self.assertNotIn("private/injected.txt", paths)
+
+
+class InventoryCitationTests(unittest.TestCase):
+    def _setup(self, root: Path) -> Context:
+        workspace = root / "workspace"
+        workspace.mkdir()
+        (workspace / "inputs").mkdir()
+        (workspace / "inputs" / "plan.md").write_text("# plan\n", encoding="utf-8")
+        knowledge = root / "harness" / "knowledge"
+        knowledge.mkdir(parents=True)
+        (knowledge / "bom.md").write_text("steel\n", encoding="utf-8")
+        (root / "other.txt").write_text("not declared\n", encoding="utf-8")
+        ctx = Context(
+            root,
+            workspace,
+            "run-cite",
+            "02-inventory-extraction",
+            1,
+            "executor",
+            "inv.executor",
+            {"lca": {"phase": "inventory"}},
+        )
+        ctx.manifest.parent.mkdir(parents=True, exist_ok=True)
+        ctx.manifest.write_text(
+            json.dumps({"accepted": {}, "run_id": "run-cite", "calls": []}),
+            encoding="utf-8",
+        )
+        sources = ctx.sources_manifest_path()
+        sources.parent.mkdir(parents=True, exist_ok=True)
+        sources.write_text(
+            json.dumps(
+                {
+                    "files": [
+                        {
+                            "path": "harness/knowledge/bom.md",
+                            "readable": True,
+                            "sha256": sha256_file(knowledge / "bom.md"),
+                        },
+                        {
+                            "path": "harness/knowledge/bad-link.txt",
+                            "readable": False,
+                            "error": "escapes knowledge root",
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        return ctx
+
+    def _write_bom(self, ctx: Context, source: str) -> None:
+        bom = ctx.workspace / "outputs" / "inventory" / "extracted-bom.json"
+        bom.parent.mkdir(parents=True, exist_ok=True)
+        row = {
+            "item_id": "one",
+            "name": "物料",
+            "quantity": 1,
+            "unit": "kg",
+            "process": "制造",
+            "transport": None,
+            "geography": "CN",
+            "source_locations": [source],
+            "extraction_status": "extracted",
+        }
+        bom.write_text(json.dumps({"items": [row]}), encoding="utf-8")
+
+    def test_declared_knowledge_path_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            ctx = self._setup(root)
+            self._write_bom(ctx, "harness/knowledge/bom.md#L1")
+            errors = lca_checks.inventory_errors(ctx)
+            self.assertEqual(errors, [])
+
+    def test_undeclared_project_file_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            ctx = self._setup(root)
+            self._write_bom(ctx, "other.txt#L1")
+            errors = lca_checks.inventory_errors(ctx)
+            self.assertTrue(any("undeclared source reference" in e for e in errors))
+
+    def test_path_traversal_citation_fails_without_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            ctx = self._setup(root)
+            outside = Path(temp_dir) / "outside-secret.txt"
+            outside.write_text("do-not-read\n", encoding="utf-8")
+            self._write_bom(ctx, "../../outside-secret.txt#L1")
+            errors = lca_checks.inventory_errors(ctx)
+            self.assertTrue(any("undeclared source reference" in e for e in errors))
+            # Citation must not normalize via resolve/is_file into a miss message.
+            self.assertFalse(any("source missing" in e for e in errors))
+
+    def test_unreadable_manifest_entry_citation_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            ctx = self._setup(root)
+            self._write_bom(ctx, "harness/knowledge/bad-link.txt#L1")
+            errors = lca_checks.inventory_errors(ctx)
+            self.assertTrue(any("undeclared source reference" in e for e in errors))
+
+    def test_document_id_is_undeclared_not_local_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            ctx = self._setup(root)
+            self._write_bom(ctx, "DOC-123#chunk-5")
+            errors = lca_checks.inventory_errors(ctx)
+            self.assertTrue(any("undeclared source reference" in e for e in errors))
+            self.assertFalse(any("source missing" in e for e in errors))
+
+    def test_url_source_still_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            ctx = self._setup(root)
+            self._write_bom(ctx, "https://example.com/doc#section")
+            errors = lca_checks.inventory_errors(ctx)
+            self.assertEqual(errors, [])
+
+
+class MappingLciShortCircuitTests(unittest.TestCase):
+    def test_process_symlink_fails_without_reading_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            (workspace / "inputs").mkdir()
+            (workspace / "inputs" / "plan.md").write_text("# plan\n", encoding="utf-8")
+            inv = workspace / "outputs" / "inventory"
+            inv.mkdir(parents=True)
+            bom_row = {
+                "item_id": "one",
+                "name": "物料",
+                "quantity": 1,
+                "unit": "kg",
+                "process": "制造",
+                "transport": None,
+                "geography": "CN",
+                "source_locations": ["https://example.com/x#1"],
+                "extraction_status": "extracted",
+            }
+            inv.joinpath("extracted-bom.json").write_text(
+                json.dumps({"items": [bom_row]}), encoding="utf-8"
+            )
+            inv.joinpath("process-mapping.json").write_text(
+                json.dumps({"items": [{"item_id": "one", "selection_reason": "ok"}]}),
+                encoding="utf-8",
+            )
+            lci = workspace / "outputs" / "LCI"
+            write_product_system_fixture(lci)
+            (lci / "human_readable_mapping.md").write_text(
+                "# Mapping\n", encoding="utf-8"
+            )
+            process = next((lci / "processes").glob("*.json"))
+            outside = root / "outside-process.json"
+            outside.write_text('{"@id":"evil","secret":true}\n', encoding="utf-8")
+            process.unlink()
+            process.symlink_to(outside)
+            ctx = Context(
+                root,
+                workspace,
+                "run-map",
+                "03-dataset-mapping",
+                1,
+                "executor",
+                "map.executor",
+                {"lca": {"phase": "mapping"}},
+            )
+            ctx.manifest.parent.mkdir(parents=True, exist_ok=True)
+            ctx.manifest.write_text(
+                json.dumps({"accepted": {}, "run_id": "run-map", "calls": []}),
+                encoding="utf-8",
+            )
+            read_marker = {"called": False}
+            original_load = lca_checks.load
+
+            def guarded_load(path):
+                path = Path(path)
+                if path.resolve() == outside.resolve():
+                    read_marker["called"] = True
+                return original_load(path)
+
+            with mock.patch.object(lca_checks, "load", side_effect=guarded_load):
+                errors = lca_checks.mapping_errors(ctx)
+            self.assertTrue(any("symbolic link" in e for e in errors))
+            self.assertFalse(read_marker["called"])
+            # Symlink must not appear in upstream fingerprint set.
+            fingerprints = {str(p.resolve()) for p in lca_checks._safe_lci_files(lci)}
+            self.assertNotIn(str(outside.resolve()), fingerprints)
+
+
+class OutputTrailingSlashTests(unittest.TestCase):
+    def test_extensionless_file_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            (workspace / "outputs").mkdir()
+            (workspace / "outputs" / "result").write_text("ok\n", encoding="utf-8")
+            missing = missing_expected_outputs(workspace, ["workspace/outputs/result"])
+            self.assertEqual(missing, [])
+
+    def test_extensionless_directory_fails_for_file_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            (workspace / "outputs" / "result").mkdir(parents=True)
+            missing = missing_expected_outputs(workspace, ["workspace/outputs/result"])
+            self.assertEqual(missing, ["workspace/outputs/result"])
+
+    def test_trailing_slash_directory_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            (workspace / "outputs" / "LCI").mkdir(parents=True)
+            missing = missing_expected_outputs(workspace, ["workspace/outputs/LCI/"])
+            self.assertEqual(missing, [])
+
+    def test_trailing_slash_file_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            (workspace / "outputs").mkdir()
+            (workspace / "outputs" / "LCI").write_text("not-dir\n", encoding="utf-8")
+            missing = missing_expected_outputs(workspace, ["workspace/outputs/LCI/"])
+            self.assertEqual(missing, ["workspace/outputs/LCI/"])
 
 
 if __name__ == "__main__":

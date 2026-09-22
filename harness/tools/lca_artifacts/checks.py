@@ -31,31 +31,90 @@ def load(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def knowledge_files_from_manifest(ctx) -> list[Path]:
-    """Files listed in the assignment-scoped source manifest, if present."""
+def _load_source_manifest(ctx) -> dict | None:
     path = ctx.sources_manifest_path()
     if not path.is_file():
-        return []
+        return None
     try:
         payload = load(path)
     except (OSError, json.JSONDecodeError, TypeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def declared_local_sources(ctx) -> set[str]:
+    """Readable local paths declared by the host-owned source manifest."""
+    payload = _load_source_manifest(ctx)
+    if payload is None:
+        return set()
+    declared: set[str] = set()
+    for entry in payload.get("files") or []:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("readable") is not True:
+            continue
+        relative = entry.get("path")
+        if not relative:
+            continue
+        try:
+            path = require_relative_path(str(relative), label="source manifest path")
+        except ValueError:
+            continue
+        declared.add(path.replace("\\", "/"))
+    return declared
+
+
+def knowledge_files_from_manifest(ctx) -> list[Path]:
+    """Readable files listed in the assignment-scoped source manifest."""
+    payload = _load_source_manifest(ctx)
+    if payload is None:
         return []
     files = []
     project = ctx.project.resolve()
     for entry in payload.get("files") or []:
         if not isinstance(entry, dict):
             continue
+        if entry.get("readable") is not True:
+            continue
         relative = entry.get("path")
         if not relative:
             continue
         try:
-            require_relative_path(str(relative), label="source manifest path")
-            candidate = (ctx.project / str(relative)).resolve()
+            rel = require_relative_path(str(relative), label="source manifest path")
+            candidate = (ctx.project / rel).resolve()
         except (OSError, ValueError):
             continue
         if candidate != project and project not in candidate.parents:
             continue
+        if not candidate.is_file():
+            continue
         files.append(candidate)
+    return files
+
+
+def _safe_lci_files(lci_root: Path) -> list[Path]:
+    """Enumerate LCI files without following escape/symlink targets."""
+    if not lci_root.exists():
+        return []
+    try:
+        root = lci_root.resolve()
+    except OSError:
+        return []
+    if not root.is_dir():
+        return []
+    files: list[Path] = []
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            continue
+        if not path.is_file():
+            continue
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved != root and root not in resolved.parents:
+            continue
+        files.append(path)
     return files
 
 
@@ -68,8 +127,7 @@ def upstream_files(ctx):
     if (ctx.workspace / "inputs" / "revise.md").exists():
         paths.append(ctx.workspace / "inputs" / "revise.md")
     lci_root = ctx.workspace / "outputs" / "LCI"
-    if lci_root.exists():
-        paths.extend(p for p in sorted(lci_root.rglob("*")) if p.is_file())
+    paths.extend(_safe_lci_files(lci_root))
     paths.extend(knowledge_files_from_manifest(ctx))
     return paths
 
@@ -587,6 +645,7 @@ def inventory_errors(ctx):
         "source_locations",
         "extraction_status",
     }
+    declared = declared_local_sources(ctx)
     for row in rows:
         label = row.get("item_id", "unknown")
         if required - row.keys():
@@ -620,10 +679,16 @@ def inventory_errors(ctx):
                 errors.append(
                     f"{label}: source requires path/document ID plus #locator"
                 )
-            elif "://" not in source:
-                path = (ctx.project / source.split("#", 1)[0]).resolve()
-                if not path.is_file():
-                    errors.append(f"{label}: source missing: {source}")
+                continue
+            source_id = source.split("#", 1)[0]
+            if "://" in source_id:
+                if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://\S+$", source_id):
+                    errors.append(f"{label}: invalid URL source: {source}")
+                continue
+            normalized = source_id.replace("\\", "/")
+            if normalized in declared:
+                continue
+            errors.append(f"{label}: undeclared source reference: {source}")
     return errors
 
 
@@ -638,6 +703,8 @@ def mapping_errors(ctx):
         errors.append("BOM/mapping item_id coverage mismatch or duplicate")
     validation = validate_lci_directory(ctx.workspace / "outputs" / "LCI")
     errors.extend(validation["errors"])
+    if validation["errors"]:
+        return errors
     # Preflight and exact-pair batch checks are accepted formal provider evidence.
     found = set()
     for call in ctx.load_manifest()["calls"]:
@@ -662,7 +729,9 @@ def mapping_errors(ctx):
                 found.add(pair)
     # Check actual external exchanges, rather than assuming every BOM row is a background flow.
     root = ctx.workspace / "outputs" / "LCI"
-    processes = [load(p) for p in (root / "processes").glob("*.json")]
+    processes = [
+        load(p) for p in (root / "processes").glob("*.json") if not p.is_symlink()
+    ]
     foreground = {p["@id"] for p in processes}
     for process in processes:
         for exchange in process.get("exchanges", []):
@@ -675,6 +744,16 @@ def mapping_errors(ctx):
             ):
                 errors.append(f"formal provider evidence missing: {provider}/{flow}")
     return errors
+
+
+def _source_manifest_ref(ctx) -> dict[str, str] | None:
+    path = ctx.sources_manifest_path()
+    if not path.is_file():
+        return None
+    return {
+        "path": str(path.relative_to(ctx.workspace)).replace("\\", "/"),
+        "sha256": sha256_file(path),
+    }
 
 
 def dependencies(ctx, profile):
@@ -693,7 +772,14 @@ def dependencies(ctx, profile):
         ]
     refs = current_evidence_refs(ctx, profile, ctx.stage)
     paths += [ctx.safe(ctx.workspace / ref["path"]) for ref in refs]
-    return {"files": scoped_fingerprints(ctx, paths), "evidence_refs": refs}
+    payload: dict = {
+        "files": scoped_fingerprints(ctx, paths),
+        "evidence_refs": refs,
+    }
+    manifest_ref = _source_manifest_ref(ctx)
+    if manifest_ref is not None:
+        payload["source_manifest"] = manifest_ref
+    return payload
 
 
 PROFILE_EVIDENCE_TOOLS = {
@@ -772,6 +858,23 @@ def _evidence_membership_changed(ctx, profile: str, record: dict) -> bool:
     return expected != current
 
 
+def _source_manifest_changed(ctx, stored_ref: object) -> bool:
+    if not isinstance(stored_ref, dict):
+        return True
+    path = str(stored_ref.get("path") or "")
+    digest = str(stored_ref.get("sha256") or "")
+    if not path or not digest:
+        return True
+    try:
+        path = require_relative_path(path, label="source manifest path")
+        current = ctx.safe(ctx.workspace / path)
+    except (OSError, ValueError):
+        return True
+    if not current.is_file():
+        return True
+    return sha256_file(current) != digest
+
+
 def _stored_inputs_changed(ctx, stored_inputs: dict) -> bool:
     """Re-hash frozen files and verify frozen evidence refs; do not rebuild files."""
     if not isinstance(stored_inputs, dict):
@@ -787,6 +890,9 @@ def _stored_inputs_changed(ctx, stored_inputs: dict) -> bool:
         return True
     if "evidence_refs" in stored_inputs:
         if _evidence_refs_changed(ctx, stored_inputs.get("evidence_refs")):
+            return True
+    if "source_manifest" in stored_inputs:
+        if _source_manifest_changed(ctx, stored_inputs.get("source_manifest")):
             return True
     return False
 
