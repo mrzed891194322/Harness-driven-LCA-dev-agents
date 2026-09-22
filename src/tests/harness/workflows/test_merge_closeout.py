@@ -908,10 +908,20 @@ class RuntimeVersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
             write_runtime_config(
-                workspace, "run-v3", workflow, project_root=PROJECT_ROOT
+                workspace,
+                "run-v3",
+                workflow,
+                project_root=PROJECT_ROOT,
+                worker="codex",
+                model="test-model",
             )
             assert_runtime_config_matches(
-                workspace, "run-v3", workflow, project_root=PROJECT_ROOT
+                workspace,
+                "run-v3",
+                workflow,
+                project_root=PROJECT_ROOT,
+                worker="codex",
+                model="test-model",
             )
 
     def test_missing_runtime_config_is_version_incompatible(self) -> None:
@@ -924,7 +934,12 @@ class RuntimeVersionTests(unittest.TestCase):
             workspace = Path(temp_dir)
             with self.assertRaisesRegex(ValueError, "cannot be resumed by v3"):
                 assert_runtime_config_matches(
-                    workspace, "missing", workflow, project_root=PROJECT_ROOT
+                    workspace,
+                    "missing",
+                    workflow,
+                    project_root=PROJECT_ROOT,
+                    worker="codex",
+                    model="test-model",
                 )
 
     def test_fingerprint_change_still_rejects(self) -> None:
@@ -936,7 +951,12 @@ class RuntimeVersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
             write_runtime_config(
-                workspace, "run-v3b", workflow, project_root=PROJECT_ROOT
+                workspace,
+                "run-v3b",
+                workflow,
+                project_root=PROJECT_ROOT,
+                worker="codex",
+                model="test-model",
             )
             path = workspace / "memory" / "evidence" / "run-v3b" / "runtime-config.json"
             stored = json.loads(path.read_text(encoding="utf-8"))
@@ -944,7 +964,12 @@ class RuntimeVersionTests(unittest.TestCase):
             path.write_text(json.dumps(stored), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "configuration changed"):
                 assert_runtime_config_matches(
-                    workspace, "run-v3b", workflow, project_root=PROJECT_ROOT
+                    workspace,
+                    "run-v3b",
+                    workflow,
+                    project_root=PROJECT_ROOT,
+                    worker="codex",
+                    model="test-model",
                 )
 
 

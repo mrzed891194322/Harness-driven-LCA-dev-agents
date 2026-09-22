@@ -262,11 +262,6 @@ class OrchestratorRuntime:
         except Exception as exc:
             return self._rework_invalid_handoff(state, stage, assignment, path, exc)
 
-        if assignment.role == "reviewer":
-            write_review_note(
-                review_note_path(self.workspace_root, stage.stage_id, attempt), handoff
-            )
-
         if assignment.role in WRITER_ROLES:
             update = self._advance_after_writer(state, stage, assignment, handoff)
         else:
@@ -358,9 +353,18 @@ class OrchestratorRuntime:
         assignment: Assignment,
         handoff: dict[str, Any],
     ) -> dict[str, Any]:
+        note_path = review_note_path(
+            self.workspace_root, stage.stage_id, _attempt(state)
+        )
         if handoff["status"] == "passed":
             guard = self._guard_reviewer_passed(state, stage, assignment)
             if guard is not None:
+                write_review_note(
+                    note_path,
+                    handoff,
+                    system_status="invalidated",
+                    system_reason=guard,
+                )
                 return self._retry_or_fail(
                     state,
                     stage,
@@ -371,12 +375,53 @@ class OrchestratorRuntime:
             bundle = self.bundles[assignment.assignment_id]
             run_ctx = self._run_context(state, stage, assignment)
             for hook_id in bundle.reviewer_passed_hooks:
-                self.capabilities.hooks.run(hook_id, run_ctx)
+                try:
+                    self.capabilities.hooks.run(hook_id, run_ctx)
+                except Exception as exc:
+                    reason = (
+                        f"reviewer passed，但 post-review hook {hook_id} "
+                        f"执行失败：{exc}"
+                    )
+                    write_review_note(
+                        note_path,
+                        handoff,
+                        system_status="hook_failed",
+                        system_reason=reason,
+                    )
+                    print_orchestrator(reason)
+                    write_manifest(
+                        self.workspace_root,
+                        status="failed",
+                        current_stage=stage.stage_id,
+                        status_reason=reason,
+                        run_id=_state_str(state, "run_id"),
+                    )
+                    return {
+                        "status": "failed",
+                        "status_reason": reason,
+                        "in_flight": False,
+                        "last_handoff": {
+                            "status": "failed",
+                            "status_reason": reason,
+                        },
+                    }
+            write_review_note(
+                note_path,
+                handoff,
+                system_status="accepted",
+                system_reason="",
+            )
             return self._complete_or_next_stage(state, stage)
         reason = str(
             handoff.get("fix_instructions")
             or handoff.get("status_reason")
             or "审查未通过"
+        )
+        write_review_note(
+            note_path,
+            handoff,
+            system_status="failed",
+            system_reason=reason,
         )
         return self._retry_or_fail(
             state,
@@ -396,7 +441,15 @@ class OrchestratorRuntime:
         bundle = self.bundles[assignment.assignment_id]
         if not stage.outputs and not bundle.checks:
             return None
-        missing = missing_expected_outputs(self.workspace_root, stage.outputs)
+        # Review notes are written by the host after this gate; do not require them yet.
+        note_rel = (
+            Path("workspace")
+            / "memory"
+            / "reviews"
+            / f"{stage.stage_id}-{_attempt(state)}.md"
+        ).as_posix()
+        outputs = [item for item in stage.outputs if item != note_rel]
+        missing = missing_expected_outputs(self.workspace_root, outputs)
         if missing:
             return "审查期间产物或确定性检查状态已变化：缺少产物：" + ", ".join(missing)
         if not bundle.checks:
@@ -572,12 +625,21 @@ def missing_expected_outputs(
     expected_outputs: list[str],
 ) -> list[str]:
     missing: list[str] = []
+    root = workspace_root.resolve()
     for relative in expected_outputs:
         path = _resolve_workspace_output(workspace_root, relative)
+        try:
+            resolved = path.resolve()
+        except OSError:
+            missing.append(relative)
+            continue
+        if resolved != root and root not in resolved.parents:
+            missing.append(relative)
+            continue
         if relative.endswith("/") or path.suffix == "":
-            if not path.is_dir():
+            if not resolved.is_dir():
                 missing.append(relative)
-        elif not path.exists():
+        elif not resolved.exists():
             missing.append(relative)
     return missing
 

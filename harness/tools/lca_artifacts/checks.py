@@ -7,6 +7,7 @@ import math
 import re
 from pathlib import Path
 
+from harness.runtime.identifiers import require_relative_path
 from harness.tools.control_openlca.utils.guard import file_lock
 from harness.tools.control_openlca.utils.workflow import (
     _write_json_atomic,
@@ -16,13 +17,14 @@ from harness.tools.control_openlca.utils.workflow import (
     validate_lci_directory,
 )
 
-CHECKER_VERSION = "2.0"
+CHECKER_VERSION = "3.0"
 # Internal profile ids for MCP validate_artifacts and checker implementations.
 # Must NOT map to workflow stage ids.
 INTERNAL_PROFILES = frozenset({"inventory", "mapping", "report"})
 ACCEPTANCE_MODEL = "lca.model"
 # Backward-compatible alias for MCP Literal / callers that still import PROFILES.
 PROFILES = {name: name for name in sorted(INTERNAL_PROFILES)}
+SNAPSHOT_SCOPES = frozenset({"workspace", "project"})
 
 
 def load(path):
@@ -39,13 +41,21 @@ def knowledge_files_from_manifest(ctx) -> list[Path]:
     except (OSError, json.JSONDecodeError, TypeError):
         return []
     files = []
+    project = ctx.project.resolve()
     for entry in payload.get("files") or []:
         if not isinstance(entry, dict):
             continue
         relative = entry.get("path")
         if not relative:
             continue
-        files.append(ctx.project / str(relative))
+        try:
+            require_relative_path(str(relative), label="source manifest path")
+            candidate = (ctx.project / str(relative)).resolve()
+        except (OSError, ValueError):
+            continue
+        if candidate != project and project not in candidate.parents:
+            continue
+        files.append(candidate)
     return files
 
 
@@ -70,31 +80,53 @@ def fingerprints(paths):
     }
 
 
-def relative_fingerprints(ctx, paths) -> dict[str, str]:
-    """Stable path keys relative to workspace or project."""
-    result: dict[str, str] = {}
+def scoped_fingerprints(ctx, paths) -> list[dict[str, str]]:
+    """Stable scoped file entries for check/acceptance snapshots."""
+    entries: list[dict[str, str]] = []
     workspace = ctx.workspace.resolve()
     project = ctx.project.resolve()
     for path in paths:
-        resolved = path.resolve()
         try:
-            key = str(resolved.relative_to(workspace))
+            resolved = path.resolve()
+        except OSError:
+            continue
+        scope = None
+        rel = None
+        try:
+            rel = str(resolved.relative_to(workspace)).replace("\\", "/")
+            scope = "workspace"
         except ValueError:
             try:
-                key = str(resolved.relative_to(project))
+                rel = str(resolved.relative_to(project)).replace("\\", "/")
+                scope = "project"
             except ValueError:
-                key = str(resolved)
-        result[key] = sha256_file(resolved) if resolved.is_file() else "missing"
-    return dict(sorted(result.items()))
+                continue
+        try:
+            require_relative_path(rel, label="snapshot path")
+        except ValueError:
+            continue
+        entries.append(
+            {
+                "scope": scope,
+                "path": rel,
+                "sha256": sha256_file(resolved) if resolved.is_file() else "missing",
+            }
+        )
+    return sorted(entries, key=lambda item: (item["scope"], item["path"]))
+
+
+def relative_fingerprints(ctx, paths) -> list[dict[str, str]]:
+    """Alias kept for callers; returns scoped fingerprint entries."""
+    return scoped_fingerprints(ctx, paths)
 
 
 def model_fingerprint(ctx):
-    return stable_hash(relative_fingerprints(ctx, upstream_files(ctx)))
+    return stable_hash(scoped_fingerprints(ctx, upstream_files(ctx)))
 
 
 def model_inputs_snapshot(ctx) -> dict:
     return {
-        "files": relative_fingerprints(ctx, upstream_files(ctx)),
+        "files": scoped_fingerprints(ctx, upstream_files(ctx)),
     }
 
 
@@ -125,31 +157,72 @@ def evidence_model_fingerprint(ctx) -> str:
     return model_fingerprint(ctx)
 
 
-def resolve_snapshot_path(ctx, key: str) -> Path:
-    workspace_candidate = (ctx.workspace / key).resolve()
-    if (
-        workspace_candidate.exists()
-        or key.startswith("inputs/")
-        or key.startswith("outputs/")
-        or key.startswith("memory/")
-    ):
-        return workspace_candidate
-    return (ctx.project / key).resolve()
+def resolve_snapshot_path(ctx, entry: dict | str) -> Path:
+    """Resolve a scoped snapshot entry (or legacy string key) to an absolute path."""
+    if isinstance(entry, str):
+        # Legacy flat keys are no longer authoritative; treat as project-relative
+        # only when they do not look like workspace layout, else workspace.
+        key = require_relative_path(entry, label="legacy snapshot path")
+        return (ctx.project / key).resolve()
+    if not isinstance(entry, dict):
+        raise ValueError("snapshot entry must be a mapping")
+    scope = str(entry.get("scope") or "")
+    if scope not in SNAPSHOT_SCOPES:
+        raise ValueError(f"unknown snapshot scope: {scope!r}")
+    rel = require_relative_path(str(entry.get("path") or ""), label="snapshot path")
+    root = ctx.workspace if scope == "workspace" else ctx.project
+    return (root / rel).resolve()
 
 
-def snapshot_current_hashes(ctx, snapshot: dict) -> dict[str, str]:
-    files = snapshot.get("files") or {}
-    current: dict[str, str] = {}
-    for key in files:
-        path = resolve_snapshot_path(ctx, str(key))
-        current[str(key)] = sha256_file(path) if path.is_file() else "missing"
-    return current
+def _normalize_file_entries(files: object) -> list[dict[str, str]]:
+    if isinstance(files, list):
+        entries: list[dict[str, str]] = []
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            scope = str(item.get("scope") or "")
+            path = str(item.get("path") or "")
+            digest = str(item.get("sha256") or "missing")
+            if scope not in SNAPSHOT_SCOPES:
+                continue
+            try:
+                path = require_relative_path(path, label="snapshot path")
+            except ValueError:
+                continue
+            entries.append({"scope": scope, "path": path, "sha256": digest})
+        return sorted(entries, key=lambda item: (item["scope"], item["path"]))
+    if isinstance(files, dict):
+        # Legacy flat map → treat keys as project-relative for migration only.
+        entries = []
+        for key, digest in files.items():
+            try:
+                path = require_relative_path(str(key), label="legacy snapshot path")
+            except ValueError:
+                continue
+            entries.append({"scope": "project", "path": path, "sha256": str(digest)})
+        return sorted(entries, key=lambda item: (item["scope"], item["path"]))
+    return []
+
+
+def snapshot_current_hashes(ctx, snapshot: dict) -> list[dict[str, str]]:
+    files = snapshot.get("files") or []
+    current: list[dict[str, str]] = []
+    for entry in _normalize_file_entries(files):
+        path = resolve_snapshot_path(ctx, entry)
+        current.append(
+            {
+                "scope": entry["scope"],
+                "path": entry["path"],
+                "sha256": sha256_file(path) if path.is_file() else "missing",
+            }
+        )
+    return sorted(current, key=lambda item: (item["scope"], item["path"]))
 
 
 def snapshot_unchanged(ctx, snapshot: dict) -> bool:
-    expected = snapshot.get("files") or {}
-    current = snapshot_current_hashes(ctx, snapshot)
-    return dict(sorted(expected.items())) == dict(sorted(current.items()))
+    expected = _normalize_file_entries(snapshot.get("files") or [])
+    current = snapshot_current_hashes(ctx, {"files": expected})
+    return expected == current
 
 
 def calculation_path(ctx):
@@ -170,9 +243,9 @@ def record_acceptance(ctx, *, acceptance_key: str = ACCEPTANCE_MODEL):
             f"status={record.get('status')!r}"
         )
     inputs = record.get("inputs")
-    if not isinstance(inputs, dict) or not isinstance(inputs.get("files"), dict):
+    if not isinstance(inputs, dict) or "files" not in inputs:
         raise ValueError("mapping check record missing frozen inputs")
-    files = dict(sorted(inputs["files"].items()))
+    files = _normalize_file_entries(inputs.get("files"))
     frozen = {"files": files}
     if "evidence_refs" in inputs:
         frozen["evidence_refs"] = inputs["evidence_refs"]
@@ -602,7 +675,7 @@ def dependencies(ctx, profile):
         and call["stage"] == ctx.stage
     ]
     paths += [ctx.safe(ctx.workspace / ref["path"]) for ref in refs]
-    return {"files": relative_fingerprints(ctx, paths), "evidence_refs": refs}
+    return {"files": scoped_fingerprints(ctx, paths), "evidence_refs": refs}
 
 
 def check_path(ctx, profile):
@@ -620,10 +693,13 @@ def _stored_inputs_changed(ctx, stored_inputs: dict) -> bool:
     if not isinstance(stored_inputs, dict):
         return True
     files = stored_inputs.get("files")
-    if not isinstance(files, dict):
+    if files is None:
         return True
-    current = snapshot_current_hashes(ctx, {"files": files})
-    return dict(sorted(files.items())) != dict(sorted(current.items()))
+    expected = _normalize_file_entries(files)
+    if isinstance(files, dict) and files and not expected:
+        return True
+    current = snapshot_current_hashes(ctx, {"files": expected})
+    return expected != current
 
 
 def validation_state(ctx, profile):

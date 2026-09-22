@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.runtime.hashing import sha256_file, stable_hash
+from harness.runtime.identifiers import resolve_project_path
 from harness.runtime.tool_runtime import write_json_atomic
 
 from .models import Workflow
@@ -18,7 +19,13 @@ def runtime_config_path(workspace_root: Path, run_id: str) -> Path:
     return workspace_root / "memory" / "evidence" / run_id / "runtime-config.json"
 
 
-def build_runtime_config(workflow: Workflow, *, project_root: Path) -> dict[str, Any]:
+def build_runtime_config(
+    workflow: Workflow,
+    *,
+    project_root: Path,
+    worker: str = "",
+    model: str = "",
+) -> dict[str, Any]:
     payload = {
         "schema_version": SCHEMA_VERSION,
         "workflow_id": workflow.workflow_id,
@@ -46,9 +53,13 @@ def build_runtime_config(workflow: Workflow, *, project_root: Path) -> dict[str,
                     "context_file_flag": spec.runtime.context_file_flag,
                     "env_prefix": spec.runtime.env_prefix,
                 },
-                # Intentionally omit env/headers secret values.
-                "env_keys": sorted(spec.env),
-                "header_keys": sorted(spec.headers),
+                "env": {
+                    key: stable_hash(value) for key, value in sorted(spec.env.items())
+                },
+                "headers": {
+                    key: stable_hash(value)
+                    for key, value in sorted(spec.headers.items())
+                },
             }
             for tool_id, spec in sorted(workflow.tools.items())
         },
@@ -100,15 +111,33 @@ def build_runtime_config(workflow: Workflow, *, project_root: Path) -> dict[str,
         "schema_version": SCHEMA_VERSION,
         "workflow_id": workflow.workflow_id,
         "fingerprint": fingerprint,
+        "execution": {
+            "worker": str(worker),
+            "model": str(model),
+        },
         "config": payload,
     }
 
 
 def write_runtime_config(
-    workspace_root: Path, run_id: str, workflow: Workflow, *, project_root: Path
+    workspace_root: Path,
+    run_id: str,
+    workflow: Workflow,
+    *,
+    project_root: Path,
+    worker: str,
+    model: str,
 ) -> Path:
     path = runtime_config_path(workspace_root, run_id)
-    write_json_atomic(path, build_runtime_config(workflow, project_root=project_root))
+    write_json_atomic(
+        path,
+        build_runtime_config(
+            workflow,
+            project_root=project_root,
+            worker=worker,
+            model=model,
+        ),
+    )
     return path
 
 
@@ -118,6 +147,8 @@ def assert_runtime_config_matches(
     workflow: Workflow,
     *,
     project_root: Path,
+    worker: str,
+    model: str,
 ) -> None:
     path = runtime_config_path(workspace_root, run_id)
     if not path.is_file():
@@ -125,13 +156,25 @@ def assert_runtime_config_matches(
             "v2/legacy checkpoint cannot be resumed by v3; start a new run"
         )
     stored = json.loads(path.read_text(encoding="utf-8"))
-    current = build_runtime_config(workflow, project_root=project_root)
+    current = build_runtime_config(
+        workflow,
+        project_root=project_root,
+        worker=worker,
+        model=model,
+    )
     if stored.get("fingerprint") != current["fingerprint"]:
         raise ValueError("workflow configuration changed; start a new run")
+    stored_exec = stored.get("execution") or {}
+    current_exec = current["execution"]
+    if (
+        stored_exec.get("worker") != current_exec["worker"]
+        or stored_exec.get("model") != current_exec["model"]
+    ):
+        raise ValueError("runtime execution configuration changed; start a new run")
 
 
 def _file_ref(project_root: Path, relative: str) -> dict[str, str]:
-    path = project_root / relative
+    path = resolve_project_path(project_root, relative, label="runtime-config file")
     return {
         "path": relative,
         "sha256": sha256_file(path) if path.is_file() else "missing",

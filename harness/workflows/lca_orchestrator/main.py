@@ -9,7 +9,6 @@ import uuid
 from pathlib import Path
 from typing import cast
 
-import yaml
 from langchain_core.runnables.config import RunnableConfig
 
 PROJECT_ROOT = next(
@@ -49,6 +48,7 @@ from lca_orchestrator.loader import load_workflow  # noqa: E402
 from lca_orchestrator.manifest import write_manifest  # noqa: E402
 from scripts.agent_sdk.archive import progress_log_path  # noqa: E402
 from scripts.agent_sdk.inspect import WORKERS  # noqa: E402
+from scripts.agent_sdk.models import load_worker_model  # noqa: E402
 from scripts.agent_sdk.progress import (  # noqa: E402
     print_orchestrator,
     set_progress_log,
@@ -129,12 +129,18 @@ def main(argv: list[str] | None = None) -> int:
                 args.run_id,
                 workspace_root,
                 project_root=project_root,
+                worker=worker,
             )
         run_id = uuid.uuid4().hex
         _bind_progress_log(workspace_root, run_id, append=False)
         print_orchestrator(f"start run_id={run_id} task={task_label} worker={worker}")
         write_runtime_config(
-            workspace_root, run_id, workflow, project_root=project_root
+            workspace_root,
+            run_id,
+            workflow,
+            project_root=project_root,
+            worker=worker,
+            model=load_worker_model(worker, project_root),
         )
         write_manifest(
             workspace_root,
@@ -170,7 +176,9 @@ def _capabilities_for(
 
 
 def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    from lca_orchestrator.yaml_strict import load_yaml_strict
+
+    raw = load_yaml_strict(path) or {}
     if not isinstance(raw, dict):
         return []
     if "capabilities" in raw:
@@ -180,7 +188,7 @@ def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
         base_path = resolve_project_path(
             project_root, str(reuse), label="workflow reuse"
         )
-        base = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
+        base = load_yaml_strict(base_path) or {}
         if isinstance(base, dict):
             return [str(item) for item in base.get("capabilities") or []]
     return []
@@ -204,6 +212,7 @@ def _resume(
     workspace_root: Path,
     *,
     project_root: Path,
+    worker: str,
 ) -> int:
     del conn
     try:
@@ -218,6 +227,8 @@ def _resume(
             run_id,
             runtime.workflow,
             project_root=project_root,
+            worker=worker,
+            model=load_worker_model(worker, project_root),
         )
     except ValueError as exc:
         print_orchestrator(str(exc), file=sys.stderr)

@@ -47,7 +47,7 @@
 
 handoff 协议不接受（缺失、字段类型错误等）时，主编排不把运行标为 `failed`。同一角色、同一 `attempt`、同一会话原地改写该 handoff，最多 3 次；不增加阶段轮次，不跳去写者，不写审查笔记。协议改写耗尽后终止，原因是无法提交合法 handoff。只有合法 handoff 里的 `status` 才推进阶段或走业务返工。
 
-审查笔记写 `workspace/memory/reviews/<stage>-<n>.md`，写明 `passed` 或 `failed`、摘要、要改什么。由主编排根据**合法** handoff 落盘。
+审查笔记写 `workspace/memory/reviews/<stage>-<n>.md`，写明 Reviewer 结论与系统验收（accepted / invalidated / hook_failed / failed）、摘要、要改什么。由主编排在 hard gate 与 hooks 结束后按**最终可审计结果**落盘；协议无效的 handoff 不写审查笔记。
 
 ## handoff
 
@@ -75,7 +75,9 @@ Agent 完成本轮后写入 `workspace/memory/handoffs/<stage>-<role>-<attempt>.
 
 不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定。可留档的匹配由写者自行选择并写入 BOM/映射/报告。
 
-恢复运行时以检查点为准，不以 manifest 单独作为恢复依据。worker 调用期间中断且检查点仍标 `in_flight` 时，主编排记为 `failed`，不自动重发任务。当前可恢复协议为 `runtime_version = 3`，每次新 run 会写入 `workspace/memory/evidence/<run_id>/runtime-config.json`；缺少该文件或 fingerprint 不匹配时不可 resume，需新开 run。v2/legacy checkpoint 不能由 v3 恢复。
+恢复运行时以检查点为准，不以 manifest 单独作为恢复依据。worker 调用期间中断且检查点仍标 `in_flight` 时，主编排记为 `failed`，不自动重发任务。当前可恢复协议为 `runtime_version = 3`，每次新 run 会写入 `workspace/memory/evidence/<run_id>/runtime-config.json`（含 workflow fingerprint 与 execution.worker/model）；缺少该文件或 fingerprint / execution 不匹配时不可 resume，需新开 run。v2/legacy checkpoint 不能由 v3 恢复。
+
+审查 `passed` 后执行的 lifecycle hooks（如 `lca.record_acceptance`）应尽量幂等；运行器在 hook 异常时 fail-closed，不会自动重放 hook，也不会回写者重做业务产物。
 
 每个角色首次访问 openLCA 前调用 `health_check`；仅离线报告返工或审查不访问 IPC 时无需探测。失败则如实上报。
 

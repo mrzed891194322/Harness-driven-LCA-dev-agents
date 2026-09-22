@@ -6,8 +6,6 @@ import copy
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from harness.runtime.capabilities import HarnessCapabilities
 from harness.runtime.identifiers import (
     require_identifier,
@@ -22,9 +20,11 @@ from .lists import (
     merge_list_declarations,
     parse_optional_list_field,
     reject_user_seq_declaration,
+    resolve_list,
 )
 from .models import Assignment, KnowledgeSource, Stage, ToolSpec, Workflow
 from .resolve import attach_bundles
+from .yaml_strict import load_yaml_strict
 
 FORBIDDEN_PROMPT_KEYS = frozenset({"prompt", "extra_prompt"})
 
@@ -96,6 +96,29 @@ def reject_unknown_keys(
         raise ValueError(f"{label}: unknown key(s) {sorted(unknown)}")
 
 
+def _require_bool(value: Any, *, label: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{label} must be a boolean, got {value!r}")
+    return value
+
+
+def _require_positive_int(value: Any, *, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"{label} must be a positive integer, got {value!r}")
+    return value
+
+
+def _require_str_list(value: Any, *, label: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(f"{label} must be a list")
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"{label} items must be strings, got {item!r}")
+        result.append(item)
+    return result
+
+
 def load_workflow(
     path: Path,
     *,
@@ -124,7 +147,7 @@ def load_workflow(
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    payload = load_yaml_strict(path)
     if not isinstance(payload, dict):
         raise ValueError(f"{path}: workflow YAML must be a mapping")
     return payload
@@ -184,6 +207,21 @@ def _reject_user_seq_fields(raw: dict[str, Any], path: Path) -> None:
                     assignment.get(key),
                     label=f"{path}: assignment {assignment_id} {key}",
                 )
+    for stage_id, patch in (raw.get("stage_overrides") or {}).items():
+        if not isinstance(patch, dict):
+            continue
+        for key in ("rules", "knowledge", "tools"):
+            if key in patch:
+                reject_user_seq_declaration(
+                    patch.get(key),
+                    label=f"{path}: stage_overrides.{stage_id} {key}",
+                )
+        stage_hooks = patch.get("hooks") or {}
+        if isinstance(stage_hooks, dict) and "on_reviewer_passed" in stage_hooks:
+            reject_user_seq_declaration(
+                stage_hooks.get("on_reviewer_passed"),
+                label=f"{path}: stage_overrides.{stage_id} hooks.on_reviewer_passed",
+            )
 
 
 def _merge_workflow(
@@ -223,8 +261,9 @@ def _merge_workflow(
         hooks_extra = extra["hooks"] or {}
         reject_unknown_keys(hooks_extra, HOOKS_KEYS, f"{overlay_path}: hooks")
         if "on_reviewer_passed" in hooks_extra:
-            result["hooks"]["on_reviewer_passed"] = list(
-                hooks_extra["on_reviewer_passed"] or []
+            result["hooks"]["on_reviewer_passed"] = merge_list_declarations(
+                result["hooks"].get("on_reviewer_passed"),
+                hooks_extra.get("on_reviewer_passed"),
             )
     if "defaults" in extra:
         result.setdefault("defaults", {})
@@ -314,7 +353,26 @@ def _apply_stage_overrides(
                     stage.get(list_key), patch[list_key]
                 )
         if "hooks" in patch:
-            stage["hooks"] = copy.deepcopy(patch["hooks"])
+            hooks_patch = patch["hooks"] or {}
+            if not isinstance(hooks_patch, dict):
+                raise ValueError(
+                    f"{overlay_path}: stage_overrides.{stage_id} hooks must be a mapping"
+                )
+            reject_unknown_keys(
+                hooks_patch,
+                HOOKS_KEYS,
+                f"{overlay_path}: stage_overrides.{stage_id} hooks",
+            )
+            if "on_reviewer_passed" in hooks_patch:
+                existing_hooks = stage.get("hooks") or {}
+                if not isinstance(existing_hooks, dict):
+                    existing_hooks = {}
+                existing_hooks = dict(existing_hooks)
+                existing_hooks["on_reviewer_passed"] = merge_list_declarations(
+                    existing_hooks.get("on_reviewer_passed"),
+                    hooks_patch.get("on_reviewer_passed"),
+                )
+                stage["hooks"] = existing_hooks
         if "context" in patch:
             stage["context"] = copy.deepcopy(patch["context"])
 
@@ -322,10 +380,17 @@ def _apply_stage_overrides(
 def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
     reject_unknown_keys(raw, TOP_LEVEL_KEYS, str(source_path))
     workflow_id = require_identifier(str(raw.get("id") or ""), label="workflow id")
+    raw_caps = raw.get("capabilities") or []
+    if not isinstance(raw_caps, list):
+        raise ValueError(f"{source_path}: capabilities must be a list")
     capability_ids = [
-        require_identifier(str(item), label="capability id")
-        for item in raw.get("capabilities") or []
+        require_identifier(str(item), label="capability id") for item in raw_caps
     ]
+    for item in raw_caps:
+        if not isinstance(item, str):
+            raise ValueError(
+                f"{source_path}: capabilities items must be strings, got {item!r}"
+            )
     registry = raw.get("registry") or {}
     reject_unknown_keys(registry, REGISTRY_KEYS, f"{source_path}: registry")
     rules = {}
@@ -380,9 +445,12 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
     reject_unknown_keys(defaults, DEFAULTS_KEYS, f"{source_path}: defaults")
     hooks_raw = raw.get("hooks") or {}
     reject_unknown_keys(hooks_raw, HOOKS_KEYS, f"{source_path}: hooks")
+    if "on_reviewer_passed" in hooks_raw:
+        _ = parse_optional_list_field(hooks_raw.get("on_reviewer_passed"))
+
     reviewer_passed_hooks = [
         require_identifier(str(item), label="hook id")
-        for item in hooks_raw.get("on_reviewer_passed") or []
+        for item in resolve_list([], hooks_raw.get("on_reviewer_passed"))
     ]
     assignments: dict[str, Assignment] = {}
     for assignment_id, spec in dict(raw.get("assignments") or {}).items():
@@ -420,7 +488,12 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             knowledge_decl=knowledge_decl,
         )
     stages: list[Stage] = []
-    default_attempts = int(raw.get("max_attempts") or 3)
+    if "max_attempts" in raw:
+        default_attempts = _require_positive_int(
+            raw.get("max_attempts"), label=f"{source_path}: max_attempts"
+        )
+    else:
+        default_attempts = 3
     seen_stage_ids: set[str] = set()
     for spec in raw.get("stages") or []:
         if not isinstance(spec, dict):
@@ -460,21 +533,34 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         context = _parse_context(
             spec.get("context"), label=f"{source_path}: stage {stage_id} context"
         )
+        if "max_attempts" in spec:
+            stage_attempts = _require_positive_int(
+                spec.get("max_attempts"),
+                label=f"{source_path}: stage {stage_id} max_attempts",
+            )
+        else:
+            stage_attempts = default_attempts
+        outputs_raw = spec.get("outputs") or []
+        additions_raw = spec.get("spec_additions") or []
         stages.append(
             Stage(
                 stage_id=stage_id,
                 spec=require_relative_path(
                     str(spec.get("spec") or ""), label=f"{stage_id} spec"
                 ),
-                max_attempts=int(spec.get("max_attempts") or default_attempts),
+                max_attempts=stage_attempts,
                 steps=steps,
                 spec_additions=[
                     require_relative_path(str(item), label=f"{stage_id} spec_addition")
-                    for item in spec.get("spec_additions") or []
+                    for item in _require_str_list(
+                        additions_raw, label=f"{stage_id} spec_additions"
+                    )
                 ],
                 outputs=[
                     require_workspace_output(str(item), label=f"{stage_id} output")
-                    for item in spec.get("outputs") or []
+                    for item in _require_str_list(
+                        outputs_raw, label=f"{stage_id} outputs"
+                    )
                 ],
                 checks=_parse_checks(spec.get("checks"), source_path=source_path),
                 knowledge_decl=stage_knowledge,
@@ -545,8 +631,18 @@ def _parse_tool_runtime(spec: dict[str, Any], *, label: str) -> ToolRuntimeSpec 
     reject_unknown_keys(raw, TOOL_RUNTIME_KEYS, f"{label}.runtime")
     prefix = raw.get("env_prefix")
     return ToolRuntimeSpec(
-        run_context_env=bool(raw.get("run_context_env")),
-        context_file=bool(raw.get("context_file")),
+        run_context_env=_require_bool(
+            raw.get("run_context_env", False),
+            label=f"{label}.runtime.run_context_env",
+        )
+        if "run_context_env" in raw
+        else False,
+        context_file=_require_bool(
+            raw.get("context_file", False),
+            label=f"{label}.runtime.context_file",
+        )
+        if "context_file" in raw
+        else False,
         context_file_flag=str(raw.get("context_file_flag") or "--context-file"),
         env_prefix=str(prefix) if prefix is not None else None,
     )

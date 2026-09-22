@@ -471,10 +471,20 @@ class CapabilitiesAndResumeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
             write_runtime_config(
-                workspace, "run-x", workflow, project_root=PROJECT_ROOT
+                workspace,
+                "run-x",
+                workflow,
+                project_root=PROJECT_ROOT,
+                worker="codex",
+                model="test-model",
             )
             assert_runtime_config_matches(
-                workspace, "run-x", workflow, project_root=PROJECT_ROOT
+                workspace,
+                "run-x",
+                workflow,
+                project_root=PROJECT_ROOT,
+                worker="codex",
+                model="test-model",
             )
             # Mutate a live rule file hash by writing a different fingerprint file.
             stored = json.loads(
@@ -488,7 +498,12 @@ class CapabilitiesAndResumeTests(unittest.TestCase):
             ).write_text(json.dumps(stored), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "configuration changed"):
                 assert_runtime_config_matches(
-                    workspace, "run-x", workflow, project_root=PROJECT_ROOT
+                    workspace,
+                    "run-x",
+                    workflow,
+                    project_root=PROJECT_ROOT,
+                    worker="codex",
+                    model="test-model",
                 )
 
 

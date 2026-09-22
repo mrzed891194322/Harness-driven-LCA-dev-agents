@@ -58,7 +58,7 @@ def _passing_validate(ctx: Any, checker_id: str) -> dict[str, Any]:
                 "check_id": profile,
                 "checker_version": CHECKER_VERSION,
                 "status": "passed",
-                "inputs": {"files": {}},
+                "inputs": {"files": []},
                 "executed_at": "2020-01-01T00:00:00Z",
                 "summary": f"{checker_id}: 0 issue(s)",
                 "errors": [],
@@ -415,11 +415,16 @@ class OrchestratorGraphTests(unittest.TestCase):
             state["in_flight"] = True
             state["status"] = "running"
             compiled.update_state(config, state, as_node="prepare")
+            from scripts.agent_sdk.models import load_worker_model
+
+            model = load_worker_model("codex", PROJECT_ROOT)
             write_runtime_config(
                 self.workspace,
                 run_id,
                 self.workflow,
                 project_root=PROJECT_ROOT,
+                worker="codex",
+                model=model,
             )
             code = _resume(
                 compiled,
@@ -428,6 +433,7 @@ class OrchestratorGraphTests(unittest.TestCase):
                 run_id,
                 self.workspace,
                 project_root=PROJECT_ROOT,
+                worker="codex",
             )
         finally:
             conn.close()

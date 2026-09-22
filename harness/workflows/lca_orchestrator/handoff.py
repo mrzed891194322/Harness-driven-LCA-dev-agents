@@ -81,7 +81,18 @@ def review_note_path(workspace_root: Path, stage_id: str, attempt: int) -> Path:
     return workspace_root / "memory" / "reviews" / f"{stage_id}-{attempt}.md"
 
 
-def write_review_note(path: Path, handoff: dict[str, Any]) -> None:
+def write_review_note(
+    path: Path,
+    handoff: dict[str, Any],
+    *,
+    system_status: str | None = None,
+    system_reason: str = "",
+) -> None:
+    """Write the auditable review outcome for this attempt.
+
+    ``system_status`` records host acceptance after reviewer handoff:
+    accepted | invalidated | hook_failed | failed (or None for plain reviewer failed).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     status = handoff.get("status")
     reason = handoff.get("status_reason") or ""
@@ -89,13 +100,26 @@ def write_review_note(path: Path, handoff: dict[str, Any]) -> None:
     lines = [
         f"# {handoff.get('stage')} 审查 {handoff.get('attempt')}",
         "",
-        f"结论：{status}",
-        "",
-        "## 摘要",
-        "",
-        str(reason),
+        f"Reviewer 结论：{status}",
         "",
     ]
+    if system_status is not None:
+        lines.extend(
+            [
+                f"系统验收：{system_status}",
+                "",
+            ]
+        )
+        if system_reason:
+            lines.extend(["原因：", "", str(system_reason), ""])
+    lines.extend(
+        [
+            "## 摘要",
+            "",
+            str(reason),
+            "",
+        ]
+    )
     if fixes:
         lines.extend(["## 要改什么", "", str(fixes), ""])
     path.write_text("\n".join(lines), encoding="utf-8")
