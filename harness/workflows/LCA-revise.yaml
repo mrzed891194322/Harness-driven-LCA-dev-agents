@@ -27,25 +27,32 @@ stage_overrides:
       - assignment: 04-openlca-reporting.reviewer
 assignments:
   01-intake-gate.reviewer:
-    rules: [lca_method, knowledge_files, reviewer_readonly, user_intent]
+    rules:
+      add: [user_intent]
   02-inventory-extraction.reviser:
     role: reviser
     task_spec: harness/specs/02-inventory-extraction/reviser.md
     tools: [lca_artifacts]
-    rules: [lca_method, knowledge_files, user_intent]
+    rules:
+      add: [lca_method, knowledge_files, user_intent]
   02-inventory-extraction.reviewer:
-    rules: [lca_method, knowledge_files, reviewer_readonly, user_intent]
+    rules:
+      add: [user_intent]
   03-dataset-mapping.reviser:
     role: reviser
     task_spec: harness/specs/03-dataset-mapping/reviser.md
     tools: [control_openlca, lca_artifacts]
-    rules: [lca_method, knowledge_files, user_intent]
+    rules:
+      add: [lca_method, knowledge_files, user_intent]
   03-dataset-mapping.reviewer:
-    rules: [lca_method, knowledge_files, reviewer_readonly, user_intent]
+    rules:
+      add: [user_intent]
   04-openlca-reporting.reviser:
     role: reviser
     task_spec: harness/specs/04-openlca-reporting/reviser.md
     tools: [control_openlca, lca_artifacts]
-    rules: [lca_method, knowledge_files, user_intent]
+    rules:
+      add: [lca_method, knowledge_files, user_intent]
   04-openlca-reporting.reviewer:
-    rules: [lca_method, knowledge_files, reviewer_readonly, user_intent]
+    rules:
+      add: [user_intent]

@@ -15,10 +15,13 @@ def register_lca_hooks(registry: HookRegistry) -> None:
 def _record_acceptance(ctx: RunContext) -> None:
     metadata = dict(ctx.metadata)
     lca = metadata.get("lca")
-    if not isinstance(lca, dict):
-        lca = {}
-    if not lca.get("phase"):
-        lca = {**lca, "phase": "mapping"}
+    if not isinstance(lca, dict) or not lca.get("phase"):
+        raise ValueError("lca.record_acceptance requires metadata.lca.phase")
+    if lca.get("phase") != "mapping":
+        raise ValueError(
+            "lca.record_acceptance requires metadata.lca.phase == 'mapping'; "
+            f"got {lca.get('phase')!r}"
+        )
     metadata["lca"] = lca
     lca_ctx = Context(
         ctx.project_root,

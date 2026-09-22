@@ -72,6 +72,7 @@ class GenericRuntimeTests(unittest.TestCase):
                 assignment_id="inv-phase.executor",
                 attempt=1,
                 role="executor",
+                metadata={"lca": {"phase": "inventory"}},
             )
             (ctx.workspace_root / "inputs").mkdir(parents=True)
             (ctx.workspace_root / "inputs" / "plan.md").write_text(
@@ -222,6 +223,7 @@ def _write_renamed_inventory_workflow(root: Path) -> Path:
             {
                 "id": "inv-phase",
                 "spec": "harness/specs/s1/README.md",
+                "context": {"lca": {"phase": "inventory"}},
                 "checks": [{"id": "lca.inventory"}],
                 "steps": [
                     {"assignment": "inv-phase.executor"},

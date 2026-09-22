@@ -100,34 +100,41 @@ assignments:
     role: reviewer
     task_spec: harness/specs/01-intake-gate/reviewer.md
     tools: []
-    rules: [lca_method, knowledge_files, reviewer_readonly]
+    rules:
+      add: [lca_method, knowledge_files, reviewer_readonly]
   02-inventory-extraction.executor:
     role: executor
     task_spec: harness/specs/02-inventory-extraction/executor.md
     tools: [lca_artifacts]
-    rules: [lca_method, knowledge_files]
+    rules:
+      add: [lca_method, knowledge_files]
   02-inventory-extraction.reviewer:
     role: reviewer
     task_spec: harness/specs/02-inventory-extraction/reviewer.md
     tools: [lca_artifacts]
-    rules: [lca_method, knowledge_files, reviewer_readonly]
+    rules:
+      add: [lca_method, knowledge_files, reviewer_readonly]
   03-dataset-mapping.executor:
     role: executor
     task_spec: harness/specs/03-dataset-mapping/executor.md
     tools: [control_openlca, lca_artifacts]
-    rules: [lca_method, knowledge_files]
+    rules:
+      add: [lca_method, knowledge_files]
   03-dataset-mapping.reviewer:
     role: reviewer
     task_spec: harness/specs/03-dataset-mapping/reviewer.md
     tools: [control_openlca, lca_artifacts]
-    rules: [lca_method, knowledge_files, reviewer_readonly]
+    rules:
+      add: [lca_method, knowledge_files, reviewer_readonly]
   04-openlca-reporting.executor:
     role: executor
     task_spec: harness/specs/04-openlca-reporting/executor.md
     tools: [control_openlca, lca_artifacts]
-    rules: [lca_method, knowledge_files]
+    rules:
+      add: [lca_method, knowledge_files]
   04-openlca-reporting.reviewer:
     role: reviewer
     task_spec: harness/specs/04-openlca-reporting/reviewer.md
     tools: [control_openlca, lca_artifacts]
-    rules: [lca_method, knowledge_files, reviewer_readonly]
+    rules:
+      add: [lca_method, knowledge_files, reviewer_readonly]

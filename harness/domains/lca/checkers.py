@@ -16,14 +16,22 @@ CHECKER_TO_PROFILE = {
 }
 
 
-def _to_lca_context(ctx: RunContext, profile: str) -> Context:
+def _require_lca_phase(ctx: RunContext, expected: str) -> dict[str, object]:
     metadata = dict(ctx.metadata)
     lca = metadata.get("lca")
     if not isinstance(lca, dict):
-        lca = {}
-    if not lca.get("phase"):
-        lca = {**lca, "phase": profile}
+        raise ValueError("LCA context metadata.lca.phase is required")
+    phase = lca.get("phase")
+    if not phase:
+        raise ValueError("LCA context metadata.lca.phase is required")
+    if phase != expected:
+        raise ValueError(f"LCA phase mismatch: expected {expected!r}, got {phase!r}")
     metadata["lca"] = lca
+    return metadata
+
+
+def _to_lca_context(ctx: RunContext, profile: str) -> Context:
+    metadata = _require_lca_phase(ctx, profile)
     return Context(
         ctx.project_root,
         ctx.workspace_root,

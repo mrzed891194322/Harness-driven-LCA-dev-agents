@@ -24,11 +24,13 @@ def register_local_files(registry: KnowledgeProviderRegistry) -> None:
 
 
 def discover_files_at(project_root: Path, relative_dir: str) -> dict:
-    root = resolve_project_path(project_root, relative_dir, label="knowledge source")
+    allowed_root = resolve_project_path(
+        project_root, relative_dir, label="knowledge source"
+    )
     project = project_root.resolve()
     entries = []
-    if root.exists():
-        for path in sorted(root.rglob("*")):
+    if allowed_root.exists():
+        for path in sorted(allowed_root.rglob("*")):
             if not path.is_file() and not path.is_symlink():
                 continue
             try:
@@ -56,6 +58,19 @@ def discover_files_at(project_root: Path, relative_dir: str) -> dict:
                         "path": rel,
                         "readable": False,
                         "error": "symlink or path escapes project root",
+                    }
+                )
+                continue
+            if resolved != allowed_root and allowed_root not in resolved.parents:
+                try:
+                    rel = str(path.relative_to(project))
+                except ValueError:
+                    rel = str(path)
+                entries.append(
+                    {
+                        "path": rel,
+                        "readable": False,
+                        "error": "symlink or path escapes knowledge root",
                     }
                 )
                 continue

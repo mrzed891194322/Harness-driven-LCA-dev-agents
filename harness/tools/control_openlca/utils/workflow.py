@@ -86,21 +86,45 @@ def load_lci_inventory(json_dir: Path) -> tuple[list[dict[str, Any]], list[str]]
         if directory.is_dir():
             paths.extend(sorted(directory.glob("*.json")))
 
-    allowed_paths = {path.resolve() for path in paths}
+    contained_paths: list[Path] = []
+    for path in paths:
+        relative_path = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            errors.append(f"{relative_path}: LCI entity must not be a symbolic link")
+            continue
+        try:
+            resolved = path.resolve()
+        except OSError as exc:
+            errors.append(f"{relative_path}: cannot resolve path: {exc}")
+            continue
+        if resolved != root and root not in resolved.parents:
+            errors.append(f"{relative_path}: LCI entity path escapes LCI root")
+            continue
+        contained_paths.append(path)
+
+    allowed_paths = {path.resolve() for path in contained_paths}
     for path in sorted(root.rglob("*.json")):
-        if path.resolve() not in allowed_paths:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved not in allowed_paths:
+            try:
+                rel = path.relative_to(root).as_posix()
+            except ValueError:
+                rel = str(path)
             errors.append(
-                f"{path.relative_to(root).as_posix()}: JSON files are only allowed "
+                f"{rel}: JSON files are only allowed "
                 "directly under flows/, processes/, or product_systems/"
             )
 
-    if not paths:
+    if not contained_paths:
         errors.append(f"No entity JSON files found in LCI directory: {root}")
         return [], errors
 
     inventory: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    for path in paths:
+    for path in contained_paths:
         relative_path = path.relative_to(root).as_posix()
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -174,11 +198,22 @@ def validate_lci_directory(json_dir: Path) -> dict[str, Any]:
     for entity_type in required_missing:
         errors.append(f"LCI inventory requires at least one {entity_type} entity")
     errors.extend(_lci_semantic_errors(inventory))
-    mapping_path = json_dir.resolve() / "human_readable_mapping.md"
-    if not mapping_path.is_file():
+    root = json_dir.resolve()
+    mapping_path = root / "human_readable_mapping.md"
+    if mapping_path.is_symlink():
+        errors.append("human_readable_mapping.md must not be a symbolic link")
+    elif not mapping_path.is_file():
         errors.append(
             "LCI inventory requires human_readable_mapping.md at the LCI root"
         )
+    else:
+        try:
+            resolved = mapping_path.resolve()
+        except OSError as exc:
+            errors.append(f"human_readable_mapping.md: cannot resolve path: {exc}")
+        else:
+            if resolved != root and root not in resolved.parents:
+                errors.append("human_readable_mapping.md path escapes LCI root")
     return {
         "schema": "whole-lca/lci-validation",
         "version": "1.0",

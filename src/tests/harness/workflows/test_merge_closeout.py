@@ -150,6 +150,9 @@ def _write_passed_check(ctx: Context, profile: str = "mapping") -> dict:
         "summary": f"{profile}: 0 issue(s)",
         "errors": [],
         "warnings": [],
+        "stage": ctx.stage,
+        "assignment": ctx.assignment,
+        "attempt": ctx.attempt,
     }
     path.write_text(json.dumps(record), encoding="utf-8")
     return record

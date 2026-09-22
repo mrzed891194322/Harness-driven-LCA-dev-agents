@@ -123,7 +123,7 @@ def load_workflow(
     path: Path,
     *,
     project_root: Path,
-    capabilities: HarnessCapabilities | None = None,
+    capabilities: HarnessCapabilities,
 ) -> Workflow:
     raw = _read_yaml(path)
     _reject_prompt_fields(raw, path)
@@ -270,9 +270,15 @@ def _merge_workflow(
         defaults_extra = extra["defaults"] or {}
         reject_unknown_keys(defaults_extra, DEFAULTS_KEYS, f"{overlay_path}: defaults")
         if "rules" in defaults_extra:
-            result["defaults"]["rules"] = list(defaults_extra["rules"] or [])
+            result["defaults"]["rules"] = merge_list_declarations(
+                result["defaults"].get("rules"),
+                defaults_extra.get("rules"),
+            )
         if "knowledge" in defaults_extra:
-            result["defaults"]["knowledge"] = list(defaults_extra["knowledge"] or [])
+            result["defaults"]["knowledge"] = merge_list_declarations(
+                result["defaults"].get("knowledge"),
+                defaults_extra.get("knowledge"),
+            )
     if "assignments" in extra:
         result.setdefault("assignments", {})
         for assignment_id, spec in (extra["assignments"] or {}).items():
@@ -579,8 +585,24 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         rules=rules,
         tools=tools,
         knowledge=knowledge,
-        default_rules=[str(item) for item in defaults.get("rules") or []],
-        default_knowledge=[str(item) for item in defaults.get("knowledge") or []],
+        default_rules=[
+            require_identifier(str(item), label="rule id")
+            for item in resolve_list(
+                [],
+                parse_optional_list_field(defaults["rules"])
+                if "rules" in defaults
+                else None,
+            )
+        ],
+        default_knowledge=[
+            require_identifier(str(item), label="knowledge id")
+            for item in resolve_list(
+                [],
+                parse_optional_list_field(defaults["knowledge"])
+                if "knowledge" in defaults
+                else None,
+            )
+        ],
         stages=stages,
         assignments=assignments,
         source_path=source_path,
@@ -654,13 +676,16 @@ def _parse_checks(raw: Any, *, source_path: Path) -> list[CheckRef]:
     if not isinstance(raw, list):
         raise ValueError(f"{source_path}: checks must be a list")
     checks: list[CheckRef] = []
+    seen: set[str] = set()
     for item in raw:
         if not isinstance(item, dict) or "id" not in item:
             raise ValueError(f"{source_path}: each check must declare id")
         reject_unknown_keys(item, CHECK_KEYS, f"{source_path}: check")
-        checks.append(
-            CheckRef(checker_id=require_identifier(str(item["id"]), label="checker id"))
-        )
+        checker_id = require_identifier(str(item["id"]), label="checker id")
+        if checker_id in seen:
+            raise ValueError(f"{source_path}: duplicate checker id {checker_id}")
+        seen.add(checker_id)
+        checks.append(CheckRef(checker_id=checker_id))
     return checks
 
 
@@ -675,7 +700,9 @@ def _validate_files(workflow: Workflow, project_root: Path) -> None:
     for knowledge_id, source in workflow.knowledge.items():
         if not source.path:
             raise ValueError(f"knowledge {knowledge_id} path is empty")
-        path = _resolve(project_root, source.path)
+        path = resolve_project_path(
+            project_root, source.path, label=f"knowledge {knowledge_id}"
+        )
         if source.kind == "local_dir":
             if not path.is_dir():
                 raise FileNotFoundError(
@@ -712,16 +739,9 @@ def _validate_files(workflow: Workflow, project_root: Path) -> None:
 def _require_file(project_root: Path, relative: str, label: str | None = None) -> None:
     if not relative:
         raise ValueError(f"{label or 'path'} is empty")
-    path = _resolve(project_root, relative)
+    path = resolve_project_path(project_root, relative, label=label or relative)
     if not path.is_file():
         raise FileNotFoundError(f"missing {label or relative}: {relative}")
-
-
-def _resolve(project_root: Path, relative: str) -> Path:
-    path = Path(relative)
-    if path.is_absolute():
-        return path
-    return project_root / path
 
 
 def assignment_rule_ids(workflow: Workflow, assignment: Assignment) -> list[str]:

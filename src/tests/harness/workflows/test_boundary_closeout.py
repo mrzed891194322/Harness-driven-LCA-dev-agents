@@ -235,6 +235,9 @@ class AcceptanceSnapshotTests(unittest.TestCase):
                         "summary": "ok",
                         "errors": [],
                         "warnings": [],
+                        "stage": mapping.stage,
+                        "assignment": mapping.assignment,
+                        "attempt": mapping.attempt,
                     }
                 ),
                 encoding="utf-8",

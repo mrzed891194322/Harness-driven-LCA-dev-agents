@@ -63,6 +63,9 @@ def _passing_validate(ctx: Any, checker_id: str) -> dict[str, Any]:
                 "summary": f"{checker_id}: 0 issue(s)",
                 "errors": [],
                 "warnings": [],
+                "stage": ctx.stage_id,
+                "assignment": ctx.assignment_id,
+                "attempt": ctx.attempt,
             }
         ),
         encoding="utf-8",

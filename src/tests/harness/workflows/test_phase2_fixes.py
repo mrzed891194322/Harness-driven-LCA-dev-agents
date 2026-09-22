@@ -280,6 +280,9 @@ class AcceptancePhaseTests(unittest.TestCase):
                         "summary": "ok",
                         "errors": [],
                         "warnings": [],
+                        "stage": map_ctx.stage,
+                        "assignment": map_ctx.assignment,
+                        "attempt": map_ctx.attempt,
                     }
                 ),
                 encoding="utf-8",

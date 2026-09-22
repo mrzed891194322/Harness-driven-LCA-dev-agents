@@ -39,11 +39,24 @@ def journal_root(path):
 
 def request_identity(host, port, run_id, database_name, category, lci_dir):
     root = Path(lci_dir).resolve()
-    files = {
-        str(p.relative_to(root)): w.sha256_file(p)
-        for p in sorted(root.rglob("*"))
-        if p.is_file()
-    }
+    files = {}
+    for p in sorted(root.rglob("*")):
+        if p.is_symlink():
+            raise ValueError(
+                f"LCI directory must not contain symbolic links: "
+                f"{p.relative_to(root).as_posix()}"
+            )
+        if not p.is_file():
+            continue
+        try:
+            resolved = p.resolve()
+        except OSError as exc:
+            raise ValueError(f"cannot resolve LCI path {p}: {exc}") from exc
+        if resolved != root and root not in resolved.parents:
+            raise ValueError(
+                f"LCI path escapes LCI root: {p.relative_to(root).as_posix()}"
+            )
+        files[str(p.relative_to(root))] = w.sha256_file(p)
     return {
         "run_id": identifier(run_id),
         "endpoint": w.build_endpoint(host, port),

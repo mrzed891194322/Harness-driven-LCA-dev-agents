@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.runtime.capabilities import HarnessCapabilities
+from harness.runtime.identifiers import resolve_project_path
 
 from .bundle import KnowledgeBinding, TaskBundle
 from .handoff import WRITER_ROLES
@@ -22,6 +23,10 @@ def resolve_workflow(
     bundles: dict[str, TaskBundle] = {}
     for stage in workflow.stages:
         _validate_stage_topology(workflow, stage)
+        _reject_duplicate_ids(
+            [check.checker_id for check in stage.checks],
+            label=f"{stage.stage_id}: checks",
+        )
         stage_knowledge = resolve_list(
             list(workflow.default_knowledge), stage.knowledge_decl
         )
@@ -30,6 +35,7 @@ def resolve_workflow(
         stage_hooks = resolve_list(
             list(workflow.reviewer_passed_hooks), stage.reviewer_passed_hooks_decl
         )
+        _reject_duplicate_ids(stage_hooks, label=f"{stage.stage_id}: hooks")
         for hook_id in stage_hooks:
             if hook_id not in capabilities.hooks.known_ids():
                 raise ValueError(f"{stage.stage_id}: unknown hook {hook_id}")
@@ -105,6 +111,8 @@ def _resolve_assignment(
     knowledge_ids = resolve_list(stage_knowledge, assignment.knowledge_decl)
     tool_ids = resolve_list(stage_tools, assignment.tools_decl)
     base_rules = resolve_list(stage_rules, assignment.rules_decl)
+    _reject_duplicate_ids(knowledge_ids, label=f"{assignment.assignment_id}: knowledge")
+    _reject_duplicate_ids(tool_ids, label=f"{assignment.assignment_id}: tools")
     for kid in knowledge_ids:
         if kid not in workflow.knowledge:
             raise ValueError(f"{assignment.assignment_id}: unknown knowledge {kid}")
@@ -166,6 +174,10 @@ def _validate_stage_topology(workflow: Workflow, stage: Stage) -> None:
             raise ValueError(f"{stage.stage_id}: unknown assignment {assignment_id}")
         roles.append(workflow.assignments[assignment_id].role)
     if len(roles) == 1 and roles[0] == "reviewer":
+        if stage.checks:
+            raise ValueError(
+                f"{stage.stage_id}: review-only stage must not declare checks"
+            )
         return
     if len(roles) == 2 and roles[0] in WRITER_ROLES and roles[1] == "reviewer":
         return
@@ -173,6 +185,14 @@ def _validate_stage_topology(workflow: Workflow, stage: Stage) -> None:
         f"{stage.stage_id}: unsupported stage topology {roles}; "
         "expected review-only [reviewer] or reviewed [writer, reviewer]"
     )
+
+
+def _reject_duplicate_ids(values: list[str], *, label: str) -> None:
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            raise ValueError(f"{label}: duplicate id {value}")
+        seen.add(value)
 
 
 def _finalize_rule_ids(
@@ -199,12 +219,8 @@ def _finalize_rule_ids(
 def attach_bundles(
     workflow: Workflow,
     project_root: Path,
-    capabilities: HarnessCapabilities | None = None,
+    capabilities: HarnessCapabilities,
 ) -> None:
-    if capabilities is None:
-        raise ValueError(
-            "capabilities required; pass HarnessCapabilities from composition root"
-        )
     bundles = resolve_workflow(workflow, capabilities)
     workflow.bundles = bundles
     _validate_bundle_files(workflow, project_root)
@@ -225,7 +241,9 @@ def _validate_bundle_files(workflow: Workflow, project_root: Path) -> None:
                     project_root, workflow.rules[rule_id], label=f"rule {rule_id}"
                 )
             for binding in bundle.knowledge_sources:
-                path = _resolve(project_root, binding.path)
+                path = resolve_project_path(
+                    project_root, binding.path, label=binding.knowledge_id
+                )
                 if binding.kind == "local_dir":
                     if not path.is_dir():
                         raise FileNotFoundError(
@@ -240,13 +258,6 @@ def _validate_bundle_files(workflow: Workflow, project_root: Path) -> None:
 def _require_file(project_root: Path, relative: str, label: str | None = None) -> None:
     if not relative:
         raise ValueError(f"{label or 'path'} is empty")
-    path = _resolve(project_root, relative)
+    path = resolve_project_path(project_root, relative, label=label or relative)
     if not path.is_file():
         raise FileNotFoundError(f"missing {label or relative}: {relative}")
-
-
-def _resolve(project_root: Path, relative: str) -> Path:
-    path = Path(relative)
-    if path.is_absolute():
-        return path
-    return project_root / path

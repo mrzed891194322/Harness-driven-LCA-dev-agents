@@ -225,6 +225,9 @@ def seed_passed_mapping_check(ctx):
             "summary": "mapping: 0 issue(s)",
             "errors": [],
             "warnings": [],
+            "stage": ctx.stage,
+            "assignment": ctx.assignment,
+            "attempt": ctx.attempt,
         },
     )
 

@@ -146,6 +146,9 @@ def _write_passed_check(ctx: Context) -> dict:
         "summary": "ok",
         "errors": [],
         "warnings": [],
+        "stage": ctx.stage,
+        "assignment": ctx.assignment,
+        "attempt": ctx.attempt,
     }
     path.write_text(json.dumps(record), encoding="utf-8")
     return record

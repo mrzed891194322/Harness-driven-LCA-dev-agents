@@ -163,7 +163,10 @@ def resolve_snapshot_path(ctx, entry: dict | str) -> Path:
         # Legacy flat keys are no longer authoritative; treat as project-relative
         # only when they do not look like workspace layout, else workspace.
         key = require_relative_path(entry, label="legacy snapshot path")
-        return (ctx.project / key).resolve()
+        root = ctx.project
+        resolved = (root / key).resolve()
+        _assert_scope_containment(root, resolved, scope="project")
+        return resolved
     if not isinstance(entry, dict):
         raise ValueError("snapshot entry must be a mapping")
     scope = str(entry.get("scope") or "")
@@ -171,7 +174,15 @@ def resolve_snapshot_path(ctx, entry: dict | str) -> Path:
         raise ValueError(f"unknown snapshot scope: {scope!r}")
     rel = require_relative_path(str(entry.get("path") or ""), label="snapshot path")
     root = ctx.workspace if scope == "workspace" else ctx.project
-    return (root / rel).resolve()
+    resolved = (root / rel).resolve()
+    _assert_scope_containment(root, resolved, scope=scope)
+    return resolved
+
+
+def _assert_scope_containment(root: Path, resolved: Path, *, scope: str) -> None:
+    root_resolved = root.resolve()
+    if resolved != root_resolved and root_resolved not in resolved.parents:
+        raise ValueError(f"snapshot path escapes {scope} root")
 
 
 def _normalize_file_entries(files: object) -> list[dict[str, str]]:
@@ -208,12 +219,16 @@ def snapshot_current_hashes(ctx, snapshot: dict) -> list[dict[str, str]]:
     files = snapshot.get("files") or []
     current: list[dict[str, str]] = []
     for entry in _normalize_file_entries(files):
-        path = resolve_snapshot_path(ctx, entry)
+        try:
+            path = resolve_snapshot_path(ctx, entry)
+            digest = sha256_file(path) if path.is_file() else "missing"
+        except (OSError, ValueError):
+            digest = "missing"
         current.append(
             {
                 "scope": entry["scope"],
                 "path": entry["path"],
-                "sha256": sha256_file(path) if path.is_file() else "missing",
+                "sha256": digest,
             }
         )
     return sorted(current, key=lambda item: (item["scope"], item["path"]))
@@ -222,7 +237,11 @@ def snapshot_current_hashes(ctx, snapshot: dict) -> list[dict[str, str]]:
 def snapshot_unchanged(ctx, snapshot: dict) -> bool:
     expected = _normalize_file_entries(snapshot.get("files") or [])
     current = snapshot_current_hashes(ctx, {"files": expected})
-    return expected == current
+    if expected != current:
+        return False
+    if "evidence_refs" in snapshot:
+        return not _evidence_refs_changed(ctx, snapshot.get("evidence_refs"))
+    return True
 
 
 def calculation_path(ctx):
@@ -242,13 +261,22 @@ def record_acceptance(ctx, *, acceptance_key: str = ACCEPTANCE_MODEL):
             "mapping check must be passed before recording acceptance; "
             f"status={record.get('status')!r}"
         )
+    producer_stage = record.get("stage")
+    if producer_stage != ctx.stage:
+        raise ValueError(
+            "mapping check producer stage must match current stage; "
+            f"check_stage={producer_stage!r} current={ctx.stage!r}"
+        )
     inputs = record.get("inputs")
     if not isinstance(inputs, dict) or "files" not in inputs:
         raise ValueError("mapping check record missing frozen inputs")
     files = _normalize_file_entries(inputs.get("files"))
     frozen = {"files": files}
     if "evidence_refs" in inputs:
-        frozen["evidence_refs"] = inputs["evidence_refs"]
+        refs = inputs["evidence_refs"]
+        if _evidence_refs_changed(ctx, refs):
+            raise ValueError("mapping check evidence refs are stale")
+        frozen["evidence_refs"] = refs
     with file_lock(ctx.safe(ctx.memory / "manifest.lock")):
         value = ctx.load_manifest()
         value["accepted"][acceptance_key] = {
@@ -663,19 +691,54 @@ def dependencies(ctx, profile):
             calculation_path(ctx),
             ctx.workspace / "outputs" / "reports" / "lca_report.md",
         ]
-    tools = {
-        "inventory": set(),
-        "mapping": {"preflight_import_lci", "validate_providers_batch"},
-        "report": {"import_lci", "get_model_graph", "calculate_product_system"},
-    }[profile]
-    refs = [
-        call["artifact"]
-        for call in ctx.load_manifest()["calls"]
-        if call.get("evidence_tool", call["tool"]) in tools
-        and call["stage"] == ctx.stage
-    ]
+    refs = current_evidence_refs(ctx, profile, ctx.stage)
     paths += [ctx.safe(ctx.workspace / ref["path"]) for ref in refs]
     return {"files": scoped_fingerprints(ctx, paths), "evidence_refs": refs}
+
+
+PROFILE_EVIDENCE_TOOLS = {
+    "inventory": frozenset(),
+    "mapping": frozenset({"preflight_import_lci", "validate_providers_batch"}),
+    "report": frozenset({"import_lci", "get_model_graph", "calculate_product_system"}),
+}
+
+
+def _normalize_evidence_refs(refs: object) -> list[dict[str, str]]:
+    if not isinstance(refs, list):
+        return []
+    normalized: list[dict[str, str]] = []
+    for ref in refs:
+        if not isinstance(ref, dict):
+            continue
+        path = str(ref.get("path") or "")
+        digest = str(ref.get("sha256") or "")
+        if not path or not digest:
+            continue
+        try:
+            path = require_relative_path(path, label="evidence ref path")
+        except ValueError:
+            continue
+        normalized.append({"path": path, "sha256": digest})
+    return sorted(normalized, key=lambda item: (item["path"], item["sha256"]))
+
+
+def current_evidence_refs(ctx, profile: str, producer_stage: str) -> list[dict]:
+    """Stable evidence artifact refs for the profile's relevant MCP calls."""
+    tools = PROFILE_EVIDENCE_TOOLS.get(profile)
+    if tools is None:
+        raise ValueError("unknown check profile")
+    refs = []
+    for call in ctx.load_manifest()["calls"]:
+        tool = call.get("evidence_tool", call.get("tool"))
+        if tool not in tools:
+            continue
+        if call.get("stage") != producer_stage:
+            continue
+        artifact = call.get("artifact")
+        if not isinstance(artifact, dict):
+            continue
+        refs.append(artifact)
+    return _normalize_evidence_refs(refs)
 
 
 def check_path(ctx, profile):
@@ -688,8 +751,29 @@ def validation_state_for_run(ctx, profile):
     return validation_state(ctx, profile)
 
 
+def _evidence_refs_changed(ctx, stored_refs: object) -> bool:
+    expected = _normalize_evidence_refs(stored_refs)
+    for ref in expected:
+        try:
+            ctx.resolve_ref(ref)
+        except (OSError, ValueError, KeyError, TypeError):
+            return True
+    return False
+
+
+def _evidence_membership_changed(ctx, profile: str, record: dict) -> bool:
+    tools = PROFILE_EVIDENCE_TOOLS.get(profile)
+    if not tools:
+        return False
+    stored = (record.get("inputs") or {}).get("evidence_refs")
+    producer_stage = record.get("stage") or ctx.stage
+    expected = _normalize_evidence_refs(stored)
+    current = current_evidence_refs(ctx, profile, producer_stage)
+    return expected != current
+
+
 def _stored_inputs_changed(ctx, stored_inputs: dict) -> bool:
-    """Re-hash the frozen path set; do not rebuild dependency membership."""
+    """Re-hash frozen files and verify frozen evidence refs; do not rebuild files."""
     if not isinstance(stored_inputs, dict):
         return True
     files = stored_inputs.get("files")
@@ -699,7 +783,12 @@ def _stored_inputs_changed(ctx, stored_inputs: dict) -> bool:
     if isinstance(files, dict) and files and not expected:
         return True
     current = snapshot_current_hashes(ctx, {"files": expected})
-    return expected != current
+    if expected != current:
+        return True
+    if "evidence_refs" in stored_inputs:
+        if _evidence_refs_changed(ctx, stored_inputs.get("evidence_refs")):
+            return True
+    return False
 
 
 def validation_state(ctx, profile):
@@ -711,9 +800,14 @@ def validation_state(ctx, profile):
             "status": "not_run",
         }
     record = load(path)
-    if record.get("checker_version") != CHECKER_VERSION or _stored_inputs_changed(
-        ctx, record.get("inputs") or {}
-    ):
+    stale = False
+    if record.get("checker_version") != CHECKER_VERSION:
+        stale = True
+    elif _stored_inputs_changed(ctx, record.get("inputs") or {}):
+        stale = True
+    elif _evidence_membership_changed(ctx, profile, record):
+        stale = True
+    if stale:
         record = {**record, "status": "stale"}
         _write_json_atomic(path, record)
     return record
@@ -760,6 +854,9 @@ def validate_for_run(ctx, profile):
         "summary": f"{profile}: {len(errors)} issue(s)",
         "errors": errors,
         "warnings": warnings,
+        "stage": ctx.stage,
+        "assignment": ctx.assignment,
+        "attempt": ctx.attempt,
     }
     path = check_path(ctx, profile)
     _write_json_atomic(path, record)
