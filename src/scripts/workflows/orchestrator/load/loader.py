@@ -6,14 +6,14 @@ import copy
 from pathlib import Path
 from typing import Any
 
-from harness.runtime.capabilities import HarnessCapabilities
-from harness.runtime.identifiers import (
+from scripts.workflows.runtime.capabilities import HarnessCapabilities
+from scripts.workflows.runtime.identifiers import (
     require_identifier,
     require_relative_path,
     require_workspace_output,
     resolve_project_path,
 )
-from harness.runtime.tool_runtime import ToolRuntimeSpec
+from scripts.workflows.runtime.tool_runtime import ToolRuntimeSpec
 
 from .bundle import CheckRef
 from .lists import (

@@ -6,10 +6,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from harness.domains.lca.bootstrap import lca_capabilities
-from lca_orchestrator.assemble import assemble_prompt
-from lca_orchestrator.loader import assignment_rule_ids, load_workflow
-from lca_orchestrator.session_bind import build_session_config, mcp_context_path
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.orchestrator.load.loader import (
+    assignment_rule_ids,
+    load_workflow,
+)
+from scripts.workflows.orchestrator.loop.assemble import assemble_prompt
+from scripts.workflows.orchestrator.loop.session_bind import (
+    build_session_config,
+    mcp_context_path,
+)
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 STAGE_PACKAGES = (
@@ -18,7 +24,7 @@ STAGE_PACKAGES = (
     "03-dataset-mapping",
     "04-openlca-reporting",
 )
-ORCHESTRATOR_CMD = "uv run python harness/workflows/lca_orchestrator/main.py"
+ORCHESTRATOR_CMD = "uv run python src/scripts/workflows/orchestrator/main.py"
 FORBIDDEN_PROMPT_KEYS = ("prompt", "extra_prompt")
 HARDCODED_MODEL_PATTERNS = ("gpt-5.6", "model_reasoning_effort")
 
@@ -399,7 +405,7 @@ class PlatformAdapterTests(unittest.TestCase):
         ):
             text = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             self.assertIn(ORCHESTRATOR_CMD, text, relative)
-            self.assertNotIn("harness/workflows/LCA-main.md", text, relative)
+            self.assertNotIn("harness/LCA-main.md", text, relative)
 
     def test_env_example_documents_worker_models_and_secrets(self) -> None:
         text = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
@@ -441,8 +447,7 @@ class PlatformAdapterTests(unittest.TestCase):
         elsewhere = "\n".join(
             (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             for relative in (
-                "harness/workflows/LCA-main.yaml",
-                "harness/roles/major-orchestrator.md",
+                "harness/LCA-main.yaml",
                 "harness/specs/public/references/workflow-runtime-spec.md",
             )
         )
@@ -465,7 +470,7 @@ class PlatformAdapterTests(unittest.TestCase):
         combined = "\n".join(
             (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             for relative in (
-                "harness/workflows/LCA-main.yaml",
+                "harness/LCA-main.yaml",
                 "docs/lang_CN/platform-adapter.md",
             )
         )

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from harness.runtime.checkers import CheckerRegistry
-from harness.runtime.context import RunContext
 from harness.tools.lca_artifacts import checks as lca_checks
 from harness.tools.lca_artifacts.store import Context
+from scripts.workflows.runtime.checkers import CheckerRegistry
+from scripts.workflows.runtime.context import RunContext
 
 CHECKER_TO_PROFILE = {
     "lca.inventory": "inventory",

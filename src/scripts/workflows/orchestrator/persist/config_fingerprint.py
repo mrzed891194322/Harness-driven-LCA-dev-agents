@@ -6,18 +6,18 @@ import json
 from pathlib import Path
 from typing import Any
 
-from harness.runtime.hashing import sha256_file, stable_hash
-from harness.runtime.identifiers import resolve_project_path
-from harness.runtime.tool_runtime import write_json_atomic
+from scripts.workflows.runtime.hashing import sha256_file, stable_hash
+from scripts.workflows.runtime.identifiers import resolve_project_path
+from scripts.workflows.runtime.tool_runtime import write_json_atomic
 
-from .models import Workflow
+from ..load.models import Workflow
 
 SCHEMA_VERSION = 1
 
 IMPLEMENTATION_ROOTS = (
-    "harness/runtime",
-    "harness/workflows/lca_orchestrator",
-    "harness/domains",
+    "src/scripts/workflows/runtime",
+    "src/scripts/workflows/orchestrator",
+    "src/scripts/workflows/domains",
     "harness/tools",
     "src/scripts/agent_sdk",
 )

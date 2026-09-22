@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from harness.runtime.hashing import sha256_file
+from scripts.workflows.runtime.hashing import sha256_file
 
 from .session import SessionConfig, SessionRef
 

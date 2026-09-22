@@ -25,7 +25,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["src/tests"]
-pythonpath = ["src", "src/GUI", "harness/workflows", "."]
+pythonpath = ["src", "src/GUI", "."]
 addopts = "-ra"
 
 [tool.ruff]
@@ -48,7 +48,6 @@ known-first-party = [
   "functions",
   "scripts",
   "agent_sdk",
-  "lca_orchestrator",
   "harness",
   "tests",
 ]
@@ -57,5 +56,5 @@ known-first-party = [
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
 include = ["src", "harness"]
-extraPaths = ["src", "src/GUI", "harness/workflows", ".", "src/scripts/proj_init", "src/scripts/gui_control", "src/scripts/clean_dir", "src/scripts/gitee_upload"]
+extraPaths = ["src", "src/GUI", ".", "src/scripts/proj_init", "src/scripts/gui_control", "src/scripts/clean_dir", "src/scripts/gitee_upload"]
 reportMissingTypeStubs = false

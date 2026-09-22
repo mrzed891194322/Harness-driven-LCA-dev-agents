@@ -1,0 +1,137 @@
+---
+description: Cursor 只做本仓库开发（harness 工作流/spec/tools、GUI、脚本），不当 LCA 运行 Agent。含目录结构与修改入口。
+alwaysApply: true
+---
+
+# Cursor 开发约定
+
+本会话是**代码开发**，不是 Whole-LCA / Revise-LCA 操作员。不要执行 `/whole-lca`、`$whole-lca`、`/revise-lca`、`$revise-lca`，不要为了“跑一遍业务”去调 openLCA 写入。不要把 IDE 对话当成业务启动器。
+
+根目录 `AGENTS.md` 是本项目的**功能性说明**（LCA 编排 agent 做什么、读 harness 及其给出的来源、只写 `workspace/`），可用来理解项目。本会话不允许按其实际内容执行：不要跑 whole-lca / revise-lca，不要按其读写边界去限制开发改动。开发约定以本文件为准。
+
+**可改范围**包括：`harness/`（含 `LCA-*.yaml`、`specs/`、`tools/`、`rules/`），以及 `src/GUI/`、`src/scripts/` 和对应测试。改代码不等于跑 LCA；验证用单元测试和 mock，不要真跑编排。
+
+开箱后在仓库根目录执行 `uv sync`。开发约定以本文件为准。GUI 行为细节以 `src/GUI/README.md` 为准。
+
+## 仓库地图
+
+| 路径 | 改什么 | 不要当成 |
+| --- | --- | --- |
+| `harness/specs/` | 薄验收：输入、产物路径 | 平台私有配置；阶段循环 |
+| `harness/LCA-*.yaml` | 阶段循环、任务绑定、tool/rule 注册 | 编排 Python 实现 |
+| `src/scripts/workflows/` | 主编排 `orchestrator/`、通用 `runtime/`、`domains/` | GUI 或平台 skill |
+| `harness/tools/` | `control_openlca` MCP 实现与离线测试 | GUI 里直接打 IPC |
+| `harness/rules/` | 项目总则与工具人读说明 | 运行时角色注入表 |
+| `src/GUI/` | Gradio 面板、事件、GUI 业务函数 | 业务编排正文 |
+| `src/scripts/` | 初始化、workspace 清理、环境探测、`agent_sdk`、workflows 实现 | 用户运行产物 |
+| `src/tests/` | GUI/脚本/harness 回归 | 金标 workspace |
+| `workspace/` | 用户输入与运行结果 | 源码或测试夹具 |
+| `harness/knowledge/` | 用户参考资料落点 | 应提交的修复点 |
+
+固定路径：`workspace/inputs/plan.md`、`workspace/inputs/revise.md`（仅工作流输入）、`harness/knowledge/`（用户参考资料）、`workspace/memory/`（含 `logs/<run_id>/` 排障留档）、`workspace/outputs/inventory/`、`workspace/outputs/LCI/`、`workspace/outputs/reports/`、`workspace/tmp/`（`mcp-context` / `mcp-render` / `sdk-sessions`）、仓库根 `.uv-cache/`（uv 包缓存）。不要恢复旧的 `workspace/plan/`、`workspace/LCI/`、`workspace/results/` 或 `workspace/inputs/references/`。
+
+## 工作流排障优先顺序
+
+开发会话排查 whole-lca / revise-lca 问题时，按此顺序读产物（这些是开发排障输入，不是业务验收）：
+
+1. `workspace/memory/manifest.json` — 是否完成、卡在哪一阶段
+2. `workspace/memory/handoffs/`、`workspace/memory/reviews/` — 角色怎么交卷
+3. `workspace/memory/logs/<run_id>/` — `progress.txt` 与 turn 快照（prompt、argv、stdout、rendered）
+4. `workspace/memory/evidence/`、`workspace/outputs/reports/runs/` — MCP 业务证据
+5. `workspace/tmp/mcp-render/`、`workspace/tmp/sdk-sessions/` — 仅运行中尚未被 clean 时
+
+`clean_dir` 会清 `memory/`（含 logs）与 `tmp/`；跨次保留请先拷走。
+
+## 改哪里（先改语义来源）
+
+| 你要改的 | 先改 | 必须一起看 |
+| --- | --- | --- |
+| 按钮、Tab、表单、门禁、终端 | `src/GUI/`（见下节） | `src/test/`、`src/GUI/README.md` |
+| 设置写入 `.env`、Agent / 模型 | `src/GUI/functions/settings/settings.py` | `agents_check`、`src/scripts/agent_sdk/models.py`、executor 分发 |
+| 启动 whole-lca/revise-lca 的 CLI 拼装 | `src/GUI/functions/utils/executor/private_utils/executor_utils.py` 的 `workflow_command_args` | GUI 内部启动；用户直跑见 `README.md` |
+| 环境/CLI 探测 | `src/scripts/agent_sdk/`（inspect/providers）；GUI 接线仍是 `agents_check` | `src/test/test_agent_sdk.py`、`test_gui_settings.py`、`test_check_status.py` |
+| openLCA 健康检查 / 前景清理 | `src/scripts/check_status/openlca_check/`、`harness/tools/control_openlca/`（MCP `cleanup_output`） | 阶段 03–04 提示词 |
+| workspace 清理 | `src/scripts/clean_dir/` | 固定 workspace 路径 |
+| 阶段产物与验收 | `harness/specs/` 编号包 README、`executor.md` / `reviser.md` / `reviewer.md` | `harness/` YAML |
+| 编排循环 | `harness/LCA-main.yaml` 或 `LCA-revise.yaml` + `src/scripts/workflows/orchestrator/` | 不要把状态机抄进 GUI |
+| openLCA 查询/预检/导入/计算 MCP | `harness/tools/control_openlca/` | `harness/rules/tools/control_openlca.md` |
+
+改前用 `rg` 搜引用。产物路径只定义在 `harness/specs/`；阶段循环在 `harness/` YAML。不要改 `workspace/` 里的用户产物，除非用户点名要改那次运行。
+
+## Harness：怎么改
+
+语义从契约流向编排再流向工具：
+
+1. **specs** 编号包 README 管输入/产物/验收，`executor.md` / `reviser.md` / `reviewer.md` 管角色任务；修订补充契约在各包 `references/revise.md`；`public/` 管 handoff 与 manifest。
+2. **workflows** `LCA-main.yaml` / `LCA-revise.yaml`：阶段顺序、任务绑定、工具与规则注册。YAML 不含任务正文。
+3. **tools** `harness/tools/control_openlca/main.py`：MCP 实现。离线测试在 `tests/`。
+4. **主编排** `src/scripts/workflows/orchestrator/`：LangGraph 状态机；MCP 连接来自 YAML 注册表，经 `src/scripts/agent_sdk` 注入会话。
+
+改 spec 的同一变更里检查对应 workflow YAML。启动走 Python 编排器；worker 经 `agent_sdk` 会话接口调用（当前实现 spawn PATH CLI）。
+
+## GUI：怎么改（关键）
+
+入口：`uv run python src/GUI/main.py` → `127.0.0.1:7860`。路径只从 `src/GUI/config.py` 读，禁止在组件里硬编码仓库路径。
+
+分层（改一处就要顺着接线）：
+
+1. **组件** `ui/components/`：只建 Gradio 控件，返回组件引用。
+2. **组装** `ui/ui_main.py`：Tab **声明顺序**（终端在前，然后「设置&初始化」）、`gr.State`、把引用传给事件。
+3. **事件** `ui/events/`：点击/上传/门禁；`events/__init__.py` 是总接线。
+4. **业务** `functions/`：探测、写 `.env`、上传资料、流式跑 CLI。
+5. **外观/导航** `ui/assets/css/`、`ui/assets/js/tab_navigation.js`。
+
+Tab 文案或可见性一变，必须同步 `tab_navigation.js` 里的 `visibleByMode` 和 `selectRightTabByText(...)`。Gradio `selected=` 用 Tab **id**（`terminal_tab`、`settings_init_tab`），JS 用 **可见中文标题**。启动默认终端；左侧「设置&初始化」才打开设置页。
+
+### 改一个面板时的最小集合
+
+- 设置页：`components/tab_initial.py` + `events/tab_initial.py` + `events/left_sidebar.py` + `functions/settings/{settings,check_status}.py`。执行门禁是 `init_check_ok_state`（「开始初始化检查」两项全过）；改 Agent、模型配置要把该状态清掉，单项检查不得解锁执行。侧栏上传资料只暂存，不重置门禁。模型写入 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。认证走各 CLI 本机登录。
+- 终端：`components/tab_terminal.py` + `events/tab_terminal.py` + `functions/utils/process_manager.py`。
+- 计划/改进/结果：组件 + 对应 `events/tab_*.py`；文档型 Tab 共用 `render_mdfile.py` 的组件池（21 个 Markdown + 20 个 Textbox），不要动态挂载。计划模板 `ui/assets/template/plan.md`，改进模板 `revise.md`；唯一输入标记是 `<!-- PLAN_TEXTBOX -->`。解析/写盘在 `functions/plan_editor.py`。工作细节面板在 `tab_lci.py`，渲染两份 inventory JSON，不用文档组件池。
+- 左侧栏：`components/left_sidebar.py` + `events/left_sidebar.py`。
+
+执行 LCA/改进：`events/tab_result.py` / `tab_improvement.py` 调 `run_workflow_command_console`，启动 Python 主编排；`.env` 的 `HARNESS_AGENT` 只选 worker 后端。完成与否读 `workspace/memory/manifest.json`（`functions/lca_run.py`），不要用退出码或终端原文宣布成功。
+
+`functions/` 包规范：对外一个 `main.py`（若需要），私有逻辑放 `private_utils/`，跨功能放 `functions/utils/`。
+
+写 `.env` 用 `settings.py` 的 upsert；不要把密钥打进终端 yield。
+
+改完 GUI 后重启 `src/GUI/main.py`，已占用的 7860 进程不会自动加载新代码。
+
+## 脚本 / 指令函数
+
+`src/scripts/<name>/main.py` 是 CLI 入口。GUI 直接 import `scripts.check_status` 子模块做探测，不要在事件函数里复制一套清理逻辑。
+
+- `proj_init/`：uv/依赖/`.env`/MCP 探测。列出 worker 只走 `agent_sdk.inspect`（不 ping）。
+- `agent_sdk/`：worker 门面。会话接口在 `session.py`；实现在 `providers/<name>/session.py`。
+- `check_status/`：`--only agents|openlca|clean`。已选 worker 的 GUI/`agents_check` 门禁走 live `check()`（PATH CLI + `--version`）；未设 `HARNESS_AGENT` 时任一 `inspect()` 通过即可。
+- 主编排：`src/scripts/workflows/orchestrator/main.py`；worker 调用走 `agent_sdk` 会话接口。
+- `clean_dir/`：默认与初始化检查只清 workspace 的 `memory/`、`outputs/`、`tmp/`，保留 `inputs/`。whole-lca 执行前另清 staging（`harness/knowledge/` 与 `workspace/inputs/`），再由 GUI `file_sync` 回写；可用 `CLEAN_GUI_STAGING = False` 或 `--no-staging` 跳过。revise-lca 清 knowledge，不清 inputs。
+
+openLCA 前景清理仍可通过 MCP `cleanup_output`。revise-lca 不另建基线快照，直接在上一轮 `workspace/outputs/` 上覆盖。
+
+启动入口是 `src/scripts/workflows/orchestrator/main.py`。要改阶段内容，改 workflow YAML / spec。
+
+## 验证
+
+按改动范围选最小测试，不要用跑一遍 whole-lca 代替回归：
+
+```bash
+# 全部测试（唯一根目录 src/tests/）
+uv run pytest
+
+# 分模块
+uv run pytest src/tests/gui -v
+uv run pytest src/tests/scripts -v
+uv run pytest src/tests/harness/workflows -v
+uv run pytest src/tests/harness/tools/control_openlca -v
+
+# 静态检查
+uv run ruff format --check .
+uv run ruff check .
+uv run pyright
+
+git diff --check
+```
+
+测试只用临时目录或仓库内测试资源，禁止读写真实 `workspace` 运行产物。

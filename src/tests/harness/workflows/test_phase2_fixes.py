@@ -12,15 +12,15 @@ from unittest.mock import patch
 
 import yaml
 
-from harness.domains.lca.bootstrap import lca_capabilities
-from harness.domains.lca.knowledge import enrich_local_files
-from harness.runtime.capabilities import empty_capabilities
-from harness.runtime.context import RunContext
 from harness.tools.lca_artifacts import checks as lca_checks
 from harness.tools.lca_artifacts.store import Context
-from harness.workflows.lca_orchestrator.bundle import KnowledgeBinding, TaskBundle
-from harness.workflows.lca_orchestrator.lists import resolve_list
-from harness.workflows.lca_orchestrator.loader import load_workflow
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.domains.lca.knowledge import enrich_local_files
+from scripts.workflows.orchestrator.load.bundle import KnowledgeBinding, TaskBundle
+from scripts.workflows.orchestrator.load.lists import resolve_list
+from scripts.workflows.orchestrator.load.loader import load_workflow
+from scripts.workflows.runtime.capabilities import empty_capabilities
+from scripts.workflows.runtime.context import RunContext
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -40,7 +40,7 @@ def _minimal_tree(root: Path) -> None:
     tools = root / "harness" / "tools" / "lca_artifacts"
     tools.mkdir(parents=True)
     (tools / "main.py").write_text("print('ok')\n", encoding="utf-8")
-    (root / "harness" / "workflows").mkdir(parents=True)
+    (root / "harness").mkdir(parents=True, exist_ok=True)
     (root / "harness" / "knowledge").mkdir(parents=True)
     (root / "custom_docs").mkdir(parents=True)
 
@@ -116,7 +116,7 @@ class ListInheritTests(unittest.TestCase):
                 "add": ["extra_rule"],
                 "remove": ["paths"],
             }
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -138,7 +138,7 @@ class ListInheritTests(unittest.TestCase):
                 "add": ["other_rule"],
                 "remove": ["runtime"],
             }
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -157,7 +157,7 @@ class ListInheritTests(unittest.TestCase):
             _minimal_tree(root)
             payload = _base_payload()
             payload["assignments"]["s1.executor"]["knowledge"] = []
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -172,7 +172,7 @@ class ListInheritTests(unittest.TestCase):
             _minimal_tree(root)
             payload = _base_payload()
             payload["assignments"]["s1.executor"]["rules"] = ["extra_rule"]
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -186,13 +186,13 @@ class ListInheritTests(unittest.TestCase):
             root = Path(temp_dir)
             _minimal_tree(root)
             base = _base_payload()
-            base_path = root / "harness" / "workflows" / "base.yaml"
+            base_path = root / "harness" / "base.yaml"
             base_path.write_text(
                 yaml.safe_dump(base, allow_unicode=True), encoding="utf-8"
             )
             overlay = {
                 "id": "overlay",
-                "reuse": "harness/workflows/base.yaml",
+                "reuse": "harness/base.yaml",
                 "assignments": {
                     "s1.executor": {
                         "role": "executor",
@@ -206,7 +206,7 @@ class ListInheritTests(unittest.TestCase):
                     }
                 },
             }
-            path = root / "harness" / "workflows" / "overlay.yaml"
+            path = root / "harness" / "overlay.yaml"
             path.write_text(
                 yaml.safe_dump(overlay, allow_unicode=True), encoding="utf-8"
             )
@@ -455,7 +455,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
     def test_run_context_has_no_lca_phase_field(self) -> None:
         from dataclasses import fields
 
-        from harness.runtime.context import RunContext
+        from scripts.workflows.runtime.context import RunContext
 
         names = {f.name for f in fields(RunContext)}
         self.assertNotIn("lca_phase", names)
@@ -465,25 +465,29 @@ class RuntimeBoundaryTests(unittest.TestCase):
         banned = [
             name
             for name in list(sys.modules)
-            if name == "harness.domains.lca" or name.startswith("harness.domains.lca.")
+            if name == "scripts.workflows.domains.lca"
+            or name.startswith("scripts.workflows.domains.lca.")
         ]
         for name in banned:
             sys.modules.pop(name, None)
-        sys.modules.pop("harness.runtime", None)
-        sys.modules.pop("harness.runtime.capabilities", None)
-        runtime = importlib.import_module("harness.runtime")
-        self.assertNotIn("harness.domains.lca", sys.modules)
+        sys.modules.pop("scripts.workflows.runtime", None)
+        sys.modules.pop("scripts.workflows.runtime.capabilities", None)
+        runtime = importlib.import_module("scripts.workflows.runtime")
+        self.assertNotIn("scripts.workflows.domains.lca", sys.modules)
         self.assertFalse(
-            any(name.startswith("harness.domains.lca.") for name in sys.modules)
+            any(
+                name.startswith("scripts.workflows.domains.lca.")
+                for name in sys.modules
+            )
         )
         caps = runtime.empty_capabilities()
         self.assertEqual(set(caps.checkers.known_ids()), set())
 
     def test_fake_workflow_loads_without_lca_registry(self) -> None:
         caps = empty_capabilities()
-        from harness.runtime.checkers import CheckerRegistry
-        from harness.runtime.hooks import HookRegistry
-        from harness.runtime.knowledge import KnowledgeProviderRegistry
+        from scripts.workflows.runtime.checkers import CheckerRegistry
+        from scripts.workflows.runtime.hooks import HookRegistry
+        from scripts.workflows.runtime.knowledge import KnowledgeProviderRegistry
 
         checkers = CheckerRegistry()
         hooks = HookRegistry()
@@ -504,7 +508,7 @@ class RuntimeBoundaryTests(unittest.TestCase):
             payload["registry"]["knowledge"] = {}
             payload["defaults"]["knowledge"] = []
             payload["stages"][0]["checks"] = [{"id": "test.ping"}]
-            path = root / "harness" / "workflows" / "fake.yaml"
+            path = root / "harness" / "fake.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -521,7 +525,7 @@ class FailFastSessionCliTests(unittest.TestCase):
             _minimal_tree(root)
             payload = _base_payload()
             payload["mystery"] = True
-            path = root / "harness" / "workflows" / "bad.yaml"
+            path = root / "harness" / "bad.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -533,16 +537,16 @@ class FailFastSessionCliTests(unittest.TestCase):
             root = Path(temp_dir)
             _minimal_tree(root)
             base = _base_payload()
-            base_path = root / "harness" / "workflows" / "base.yaml"
+            base_path = root / "harness" / "base.yaml"
             base_path.write_text(
                 yaml.safe_dump(base, allow_unicode=True), encoding="utf-8"
             )
             overlay = {
                 "id": "bad-overlay",
-                "reuse": "harness/workflows/base.yaml",
+                "reuse": "harness/base.yaml",
                 "stage_overrides": {"missing-stage": {"max_attempts": 1}},
             }
-            path = root / "harness" / "workflows" / "overlay.yaml"
+            path = root / "harness" / "overlay.yaml"
             path.write_text(
                 yaml.safe_dump(overlay, allow_unicode=True), encoding="utf-8"
             )
@@ -550,14 +554,14 @@ class FailFastSessionCliTests(unittest.TestCase):
                 load_workflow(path, project_root=root, capabilities=lca_capabilities())
 
     def test_session_key_is_assignment_id(self) -> None:
-        from harness.workflows.lca_orchestrator.graph import session_key
+        from scripts.workflows.orchestrator.loop.graph import session_key
 
         self.assertEqual(
             session_key("03-dataset-mapping.executor"), "03-dataset-mapping.executor"
         )
 
     def test_workflow_cli_flag(self) -> None:
-        from harness.workflows.lca_orchestrator import main as orch_main
+        from scripts.workflows.orchestrator import main as orch_main
 
         with (
             patch.object(orch_main, "load_workflow") as load_mock,

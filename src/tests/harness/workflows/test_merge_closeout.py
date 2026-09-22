@@ -13,35 +13,38 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from harness.domains.lca.bootstrap import lca_capabilities
-from harness.runtime.capabilities import base_capabilities
-from harness.runtime.context import RunContext
-from harness.runtime.hashing import stable_hash
-from harness.runtime.identifiers import require_identifier, resolve_project_path
-from harness.runtime.knowledge_providers.local_files import enrich_local_files
 from harness.tools.lca_artifacts import checks as lca_checks
 from harness.tools.lca_artifacts.store import Context
-from harness.workflows.lca_orchestrator.bundle import KnowledgeBinding, TaskBundle
-from harness.workflows.lca_orchestrator.config_fingerprint import (
-    assert_runtime_config_matches,
-    write_runtime_config,
-)
-from harness.workflows.lca_orchestrator.graph import (
-    OrchestratorRuntime,
-    WorkflowState,
-    initial_state,
-)
-from harness.workflows.lca_orchestrator.lists import (
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.orchestrator.load.bundle import KnowledgeBinding, TaskBundle
+from scripts.workflows.orchestrator.load.lists import (
     merge_list_declarations,
     parse_optional_list_field,
     resolve_list,
 )
-from harness.workflows.lca_orchestrator.loader import load_workflow
-from harness.workflows.lca_orchestrator.main import (
+from scripts.workflows.orchestrator.load.loader import load_workflow
+from scripts.workflows.orchestrator.loop.graph import (
+    OrchestratorRuntime,
+    WorkflowState,
+    initial_state,
+)
+from scripts.workflows.orchestrator.main import (
     _capabilities_for,
     compose_capabilities,
     peek_capability_ids,
 )
+from scripts.workflows.orchestrator.persist.config_fingerprint import (
+    assert_runtime_config_matches,
+    write_runtime_config,
+)
+from scripts.workflows.runtime.capabilities import base_capabilities
+from scripts.workflows.runtime.context import RunContext
+from scripts.workflows.runtime.hashing import stable_hash
+from scripts.workflows.runtime.identifiers import (
+    require_identifier,
+    resolve_project_path,
+)
+from scripts.workflows.runtime.knowledge_providers.local_files import enrich_local_files
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -61,7 +64,7 @@ def _tree(root: Path) -> None:
     tools = root / "harness" / "tools" / "lca_artifacts"
     tools.mkdir(parents=True)
     (tools / "main.py").write_text("print('ok')\n", encoding="utf-8")
-    (root / "harness" / "workflows").mkdir(parents=True)
+    (root / "harness").mkdir(parents=True, exist_ok=True)
     (root / "harness" / "knowledge").mkdir(parents=True)
     (root / "custom_docs").mkdir(parents=True)
     (root / "custom_docs" / "a.txt").write_text("v1\n", encoding="utf-8")
@@ -190,7 +193,7 @@ def _seed_mapping_artifacts(workspace: Path) -> None:
 
 class ReviewerPassGuardTests(unittest.TestCase):
     def _runtime(self, root: Path, workspace: Path):
-        path = root / "harness" / "workflows" / "t.yaml"
+        path = root / "harness" / "t.yaml"
         path.write_text(
             yaml.safe_dump(_stage_payload(), allow_unicode=True), encoding="utf-8"
         )
@@ -690,7 +693,7 @@ class EvidenceFingerprintTests(unittest.TestCase):
             )
             # resolve_ref checks sha256 — bypass by patching load path via evidence
             # after fixing artifact hash
-            from harness.runtime.hashing import sha256_file
+            from scripts.workflows.runtime.hashing import sha256_file
 
             call = report.load_manifest()["calls"][0]
             path = workspace / call["artifact"]["path"]
@@ -708,7 +711,7 @@ class EvidenceFingerprintTests(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             report = self._accept_and_stamp(root, workspace, "run-e2")
-            from harness.runtime.hashing import sha256_file
+            from scripts.workflows.runtime.hashing import sha256_file
 
             call = report.load_manifest()["calls"][0]
             path = workspace / call["artifact"]["path"]
@@ -764,7 +767,7 @@ class EvidenceFingerprintTests(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             report = self._accept_and_stamp(root, workspace, "run-e3")
-            from harness.runtime.hashing import sha256_file
+            from scripts.workflows.runtime.hashing import sha256_file
 
             call = report.load_manifest()["calls"][0]
             path = workspace / call["artifact"]["path"]
@@ -783,7 +786,7 @@ class EvidenceFingerprintTests(unittest.TestCase):
 class GenericDependencyTests(unittest.TestCase):
     def test_generic_modules_do_not_import_lca(self) -> None:
         banned = (
-            "harness.domains.lca",
+            "scripts.workflows.domains.lca",
             "harness.tools.control_openlca",
             "harness.tools.lca_artifacts",
         )
@@ -791,9 +794,9 @@ class GenericDependencyTests(unittest.TestCase):
             if any(mod == b or mod.startswith(b + ".") for b in banned):
                 del sys.modules[mod]
         importlib.invalidate_caches()
-        import harness.runtime as runtime_mod
-        import harness.runtime.knowledge_providers.local_files as local_mod
-        import harness.workflows.lca_orchestrator.config_fingerprint as fp_mod
+        import scripts.workflows.orchestrator.persist.config_fingerprint as fp_mod
+        import scripts.workflows.runtime as runtime_mod
+        import scripts.workflows.runtime.knowledge_providers.local_files as local_mod
 
         del runtime_mod, local_mod, fp_mod
         loaded = [
@@ -819,7 +822,7 @@ class PathSafetyTests(unittest.TestCase):
                 )
 
     def _write_escape_yaml(self, root: Path) -> Path:
-        path = root / "harness" / "workflows" / "escape.yaml"
+        path = root / "harness" / "escape.yaml"
         path.write_text("reuse: ../../other.yaml\nid: x\n", encoding="utf-8")
         return path
 
@@ -835,7 +838,7 @@ class PathSafetyTests(unittest.TestCase):
             _tree(root)
             payload = _stage_payload()
             payload["stages"][0]["outputs"] = ["../../etc/passwd"]
-            path = root / "harness" / "workflows" / "bad-out.yaml"
+            path = root / "harness" / "bad-out.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -856,7 +859,7 @@ class CapabilitiesCompositionTests(unittest.TestCase):
             _tree(root)
             payload = _stage_payload(with_check=False)
             payload["capabilities"] = []
-            path = root / "harness" / "workflows" / "generic.yaml"
+            path = root / "harness" / "generic.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -979,7 +982,9 @@ class RuntimeVersionTests(unittest.TestCase):
 
 class ListDeclarationTests(unittest.TestCase):
     def test_user_seq_forbidden(self) -> None:
-        from harness.workflows.lca_orchestrator.lists import reject_user_seq_declaration
+        from scripts.workflows.orchestrator.load.lists import (
+            reject_user_seq_declaration,
+        )
 
         with self.assertRaisesRegex(ValueError, "must not declare seq"):
             reject_user_seq_declaration({"seq": [{"add": ["a"]}]}, label="rules")
@@ -990,7 +995,7 @@ class ListDeclarationTests(unittest.TestCase):
             payload["assignments"]["s1.executor"]["rules"] = {
                 "seq": [{"add": ["paths"]}]
             }
-            path = root / "harness" / "workflows" / "bad-seq.yaml"
+            path = root / "harness" / "bad-seq.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )

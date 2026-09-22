@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .models import Assignment, Stage, Workflow
+from ..load.models import Assignment, Stage, Workflow
 from .prompt_build import build_prompt
 
 

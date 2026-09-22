@@ -6,7 +6,7 @@
 
 用户参考资料由 GUI 或用户写入 **`harness/knowledge/`**（扁平目录，唯一默认落点）。Agent 不得向 `harness/knowledge/` 写入。
 
-严禁在上述目录以外（包括项目外部，如系统临时文件夹）进行任何写操作。Agent 不得修改 `harness/rules/`、`harness/specs/`、`harness/tools/`、`harness/workflows/`、`harness/roles/`。新增临时配置只写入 `workspace/tmp/`。凭据不写入 spec、规则正文或日志。
+严禁在上述目录以外（包括项目外部，如系统临时文件夹）进行任何写操作。Agent 不得修改 `harness/rules/`、`harness/specs/`、`harness/tools/`，以及 `harness/LCA-*.yaml` 等工作流契约。新增临时配置只写入 `workspace/tmp/`。凭据不写入 spec、规则正文或日志。
 
 工具基础设施例外：control_openlca 为跨 MCP 进程协调同一 endpoint，可在系统的用户隔离临时目录维护 OS 锁与不确定状态标记，仅含 endpoint/PID，不存研究资料或运行证据。该位置由工具维护，agent 不得自行编辑；所有业务产物、raw、校验记录仍只在 workspace。
 

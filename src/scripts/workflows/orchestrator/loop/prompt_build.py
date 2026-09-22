@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .bundle import TaskBundle
+from ..load.bundle import TaskBundle
 
 
 def build_prompt(

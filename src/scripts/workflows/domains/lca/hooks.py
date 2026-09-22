@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from harness.runtime.context import RunContext
-from harness.runtime.hooks import HookRegistry
 from harness.tools.lca_artifacts import checks as lca_checks
 from harness.tools.lca_artifacts.store import Context
+from scripts.workflows.runtime.context import RunContext
+from scripts.workflows.runtime.hooks import HookRegistry
 
 
 def register_lca_hooks(registry: HookRegistry) -> None:

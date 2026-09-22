@@ -7,7 +7,6 @@ import math
 import re
 from pathlib import Path
 
-from harness.runtime.identifiers import require_relative_path
 from harness.tools.control_openlca.utils.guard import file_lock
 from harness.tools.control_openlca.utils.workflow import (
     _write_json_atomic,
@@ -16,6 +15,7 @@ from harness.tools.control_openlca.utils.workflow import (
     utc_now,
     validate_lci_directory,
 )
+from scripts.workflows.runtime.identifiers import require_relative_path
 
 CHECKER_VERSION = "3.0"
 # Internal profile ids for MCP validate_artifacts and checker implementations.

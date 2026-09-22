@@ -38,9 +38,6 @@ uv.lock
 !.codex/agents/
 .codex/agents/*
 !.codex/agents/opencode_lca_user.toml
-!.codex/agents/major-orchestrator.toml
-!.codex/agents/sub-executor.toml
-!.codex/agents/eval-reviewer.toml
 !.codex/skills/
 .codex/skills/*
 !.codex/skills/bootstrap-env/

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from harness.runtime.tool_runtime import ToolRuntimeSpec
+from scripts.workflows.runtime.tool_runtime import ToolRuntimeSpec
 
 from .bundle import CheckRef
 

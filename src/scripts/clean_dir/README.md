@@ -39,10 +39,10 @@ whole-lca：
 
 1. `clean_dir -y --preset whole-lca`
 2. 复制资料到 `harness/knowledge/`，编写 `workspace/inputs/plan.md`
-3. `uv run python harness/workflows/lca_orchestrator/main.py --task whole-lca`
+3. `uv run python src/scripts/workflows/orchestrator/main.py --task whole-lca`
 
 revise-lca：
 
 1. `clean_dir -y --preset revise-lca`（不清理 workspace / inputs）
 2. 更新 `harness/knowledge/` 与 `workspace/inputs/revise.md`
-3. `uv run python harness/workflows/lca_orchestrator/main.py --task revise-lca`
+3. `uv run python src/scripts/workflows/orchestrator/main.py --task revise-lca`

@@ -10,28 +10,28 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from harness.domains.lca.bootstrap import lca_capabilities
-from harness.runtime.hashing import stable_hash
-from harness.runtime.knowledge_providers.local_files import discover_files_at
 from harness.tools.lca_artifacts import checks as lca_checks
 from harness.tools.lca_artifacts.store import Context
-from harness.workflows.lca_orchestrator.config_fingerprint import (
-    assert_runtime_config_matches,
-    build_runtime_config,
-    write_runtime_config,
-)
-from harness.workflows.lca_orchestrator.graph import (
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.orchestrator.load.loader import load_workflow
+from scripts.workflows.orchestrator.load.yaml_strict import load_yaml_strict
+from scripts.workflows.orchestrator.loop.graph import (
     OrchestratorRuntime,
     WorkflowState,
     initial_state,
     missing_expected_outputs,
 )
-from harness.workflows.lca_orchestrator.handoff import (
+from scripts.workflows.orchestrator.loop.handoff import (
     review_note_path,
     write_review_note,
 )
-from harness.workflows.lca_orchestrator.loader import load_workflow
-from harness.workflows.lca_orchestrator.yaml_strict import load_yaml_strict
+from scripts.workflows.orchestrator.persist.config_fingerprint import (
+    assert_runtime_config_matches,
+    build_runtime_config,
+    write_runtime_config,
+)
+from scripts.workflows.runtime.hashing import stable_hash
+from scripts.workflows.runtime.knowledge_providers.local_files import discover_files_at
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -51,7 +51,7 @@ def _tree(root: Path) -> None:
     tools = root / "harness" / "tools" / "lca_artifacts"
     tools.mkdir(parents=True)
     (tools / "main.py").write_text("print('ok')\n", encoding="utf-8")
-    (root / "harness" / "workflows").mkdir(parents=True)
+    (root / "harness").mkdir(parents=True, exist_ok=True)
     (root / "harness" / "knowledge").mkdir(parents=True)
 
 
@@ -156,7 +156,7 @@ def _write_passed_check(ctx: Context) -> dict:
 
 class ReviewNoteGateTests(unittest.TestCase):
     def _runtime(self, root: Path, workspace: Path, *, hooks=None):
-        path = root / "harness" / "workflows" / "t.yaml"
+        path = root / "harness" / "t.yaml"
         path.write_text(
             yaml.safe_dump(_payload(), allow_unicode=True), encoding="utf-8"
         )
@@ -363,7 +363,7 @@ class HookFailClosedTests(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             _seed_outputs(workspace)
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(_payload(), allow_unicode=True), encoding="utf-8"
             )
@@ -521,7 +521,7 @@ class EnvHeaderFingerprintTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _tree(root)
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             payload = _payload()
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
@@ -688,16 +688,16 @@ class StageOverrideTests(unittest.TestCase):
             root = Path(temp_dir)
             _tree(root)
             base = _payload()
-            base_path = root / "harness" / "workflows" / "base.yaml"
+            base_path = root / "harness" / "base.yaml"
             base_path.write_text(
                 yaml.safe_dump(base, allow_unicode=True), encoding="utf-8"
             )
             overlay = {
                 "id": "overlay",
-                "reuse": "harness/workflows/base.yaml",
+                "reuse": "harness/base.yaml",
                 "stage_overrides": {"s1": {"rules": {"seq": [{"add": ["paths"]}]}}},
             }
-            path = root / "harness" / "workflows" / "overlay.yaml"
+            path = root / "harness" / "overlay.yaml"
             path.write_text(
                 yaml.safe_dump(overlay, allow_unicode=True), encoding="utf-8"
             )
@@ -712,13 +712,13 @@ class StageOverrideTests(unittest.TestCase):
             base["stages"][0]["hooks"] = {
                 "on_reviewer_passed": ["lca.record_acceptance"]
             }
-            base_path = root / "harness" / "workflows" / "base.yaml"
+            base_path = root / "harness" / "base.yaml"
             base_path.write_text(
                 yaml.safe_dump(base, allow_unicode=True), encoding="utf-8"
             )
             overlay = {
                 "id": "overlay",
-                "reuse": "harness/workflows/base.yaml",
+                "reuse": "harness/base.yaml",
                 "stage_overrides": {
                     "s1": {
                         "hooks": {
@@ -738,7 +738,7 @@ class StageOverrideTests(unittest.TestCase):
             overlay["stage_overrides"]["s1"]["hooks"]["on_reviewer_passed"] = {
                 "remove": ["lca.record_acceptance"]
             }
-            path = root / "harness" / "workflows" / "overlay.yaml"
+            path = root / "harness" / "overlay.yaml"
             path.write_text(
                 yaml.safe_dump(overlay, allow_unicode=True), encoding="utf-8"
             )
@@ -764,7 +764,7 @@ class StrictYamlAndTypeTests(unittest.TestCase):
             payload["registry"]["tools"]["lca_artifacts"]["runtime"] = {
                 "run_context_env": "false"
             }
-            path = root / "harness" / "workflows" / "bad-bool.yaml"
+            path = root / "harness" / "bad-bool.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -777,7 +777,7 @@ class StrictYamlAndTypeTests(unittest.TestCase):
             _tree(root)
             payload = _payload()
             payload["max_attempts"] = True
-            path = root / "harness" / "workflows" / "bad-attempts.yaml"
+            path = root / "harness" / "bad-attempts.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )

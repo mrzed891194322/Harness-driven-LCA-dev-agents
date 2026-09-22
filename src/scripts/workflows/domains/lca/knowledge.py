@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from harness.runtime.knowledge import KnowledgeProviderRegistry
-from harness.runtime.knowledge_providers.local_files import (
+from scripts.workflows.runtime.knowledge import KnowledgeProviderRegistry
+from scripts.workflows.runtime.knowledge_providers.local_files import (
     PROVIDER_ID,
     discover_files_at,
     enrich_local_files,

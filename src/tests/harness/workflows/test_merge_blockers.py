@@ -11,21 +11,21 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from harness.domains.lca import checkers as lca_checkers
-from harness.domains.lca import hooks as lca_hooks
-from harness.domains.lca.bootstrap import lca_capabilities
-from harness.runtime.context import RunContext
-from harness.runtime.hashing import sha256_file
-from harness.runtime.knowledge_providers.local_files import discover_files_at
 from harness.tools.control_openlca.utils import workflow as openlca_workflow
 from harness.tools.lca_artifacts import checks as lca_checks
 from harness.tools.lca_artifacts.store import Context
-from harness.workflows.lca_orchestrator.graph import (
+from scripts.workflows.domains.lca import checkers as lca_checkers
+from scripts.workflows.domains.lca import hooks as lca_hooks
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.orchestrator.load.loader import load_workflow
+from scripts.workflows.orchestrator.load.models import Workflow
+from scripts.workflows.orchestrator.loop.graph import (
     OrchestratorRuntime,
     missing_expected_outputs,
 )
-from harness.workflows.lca_orchestrator.loader import load_workflow
-from harness.workflows.lca_orchestrator.models import Workflow
+from scripts.workflows.runtime.context import RunContext
+from scripts.workflows.runtime.hashing import sha256_file
+from scripts.workflows.runtime.knowledge_providers.local_files import discover_files_at
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.openlca_fakes import write_product_system_fixture
 
@@ -48,7 +48,7 @@ def _tree(root: Path) -> None:
     tools = root / "harness" / "tools" / "lca_artifacts"
     tools.mkdir(parents=True)
     (tools / "main.py").write_text("print('ok')\n", encoding="utf-8")
-    (root / "harness" / "workflows").mkdir(parents=True)
+    (root / "harness").mkdir(parents=True, exist_ok=True)
     (root / "harness" / "knowledge").mkdir(parents=True)
     (root / "harness" / "knowledge2").mkdir(parents=True)
 
@@ -221,14 +221,14 @@ class DefaultsRulesLiveBundlesTests(unittest.TestCase):
 class DefaultsReusePatchTests(unittest.TestCase):
     def _load_overlay(self, root: Path, defaults_overlay: dict) -> Workflow:
         base = _base_payload()
-        base_path = root / "harness" / "workflows" / "base.yaml"
+        base_path = root / "harness" / "base.yaml"
         base_path.write_text(yaml.safe_dump(base, allow_unicode=True), encoding="utf-8")
         overlay = {
             "id": "overlay",
-            "reuse": "harness/workflows/base.yaml",
+            "reuse": "harness/base.yaml",
             "defaults": defaults_overlay,
         }
-        path = root / "harness" / "workflows" / "overlay.yaml"
+        path = root / "harness" / "overlay.yaml"
         path.write_text(yaml.safe_dump(overlay, allow_unicode=True), encoding="utf-8")
         return load_workflow(path, project_root=root, capabilities=lca_capabilities())
 
@@ -285,16 +285,16 @@ class DefaultsReusePatchTests(unittest.TestCase):
             _tree(root)
             base = _base_payload()
             base["defaults"]["rules"] = {"add": ["workspace_boundary", "runtime"]}
-            base_path = root / "harness" / "workflows" / "base.yaml"
+            base_path = root / "harness" / "base.yaml"
             base_path.write_text(
                 yaml.safe_dump(base, allow_unicode=True), encoding="utf-8"
             )
             overlay = {
                 "id": "overlay",
-                "reuse": "harness/workflows/base.yaml",
+                "reuse": "harness/base.yaml",
                 "defaults": {"rules": {"add": ["paths", "company_rule"]}},
             }
-            path = root / "harness" / "workflows" / "overlay.yaml"
+            path = root / "harness" / "overlay.yaml"
             path.write_text(
                 yaml.safe_dump(overlay, allow_unicode=True), encoding="utf-8"
             )
@@ -329,7 +329,7 @@ class ReviewOnlyChecksTests(unittest.TestCase):
                     "tools": [],
                 }
             }
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -356,7 +356,7 @@ class ReviewOnlyChecksTests(unittest.TestCase):
                     "tools": [],
                 }
             }
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -374,7 +374,7 @@ class DuplicateIdsTests(unittest.TestCase):
                 {"id": "lca.mapping"},
                 {"id": "lca.mapping"},
             ]
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -392,7 +392,7 @@ class DuplicateIdsTests(unittest.TestCase):
                     "lca.record_acceptance",
                 ]
             }
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -667,7 +667,7 @@ class SymlinkContainmentTests(unittest.TestCase):
             (root / "harness" / "rules" / "project" / "paths.md").unlink()
             (root / "harness" / "rules" / "project" / "paths.md").symlink_to(outside)
             payload = _base_payload()
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -683,7 +683,7 @@ class SymlinkContainmentTests(unittest.TestCase):
             (root / "harness" / "specs" / "s1" / "executor.md").unlink()
             (root / "harness" / "specs" / "s1" / "executor.md").symlink_to(outside)
             payload = _base_payload()
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -703,7 +703,7 @@ class SymlinkContainmentTests(unittest.TestCase):
             target.rmdir()
             target.symlink_to(outside, target_is_directory=True)
             payload = _base_payload()
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -844,7 +844,7 @@ class SourceManifestTrustTests(unittest.TestCase):
             knowledge = root / "harness" / "knowledge"
             (knowledge / "doc.txt").write_text("canonical\n", encoding="utf-8")
             payload = _base_payload()
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -1159,7 +1159,7 @@ class FrozenModelTests(unittest.TestCase):
             _tree(root)
             (root / ".env").write_text("CODEX_MODEL=env-model-v1\n", encoding="utf-8")
             payload = _base_payload()
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -1179,7 +1179,7 @@ class FrozenModelTests(unittest.TestCase):
             stage = workflow.stages[0]
             assignment = workflow.assignments["s1.executor"]
             bundle = workflow.bundles[assignment.assignment_id]
-            from harness.workflows.lca_orchestrator.session_bind import (
+            from scripts.workflows.orchestrator.loop.session_bind import (
                 build_session_config,
             )
 
@@ -1201,7 +1201,7 @@ class FrozenModelTests(unittest.TestCase):
 
 class ImplementationFingerprintTests(unittest.TestCase):
     def test_implementation_change_rejects_resume(self) -> None:
-        from harness.workflows.lca_orchestrator.config_fingerprint import (
+        from scripts.workflows.orchestrator.persist.config_fingerprint import (
             assert_runtime_config_matches,
             write_runtime_config,
         )
@@ -1209,12 +1209,12 @@ class ImplementationFingerprintTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _tree(root)
-            runtime_dir = root / "harness" / "runtime"
+            runtime_dir = root / "src" / "scripts" / "workflows" / "runtime"
             runtime_dir.mkdir(parents=True, exist_ok=True)
             target = runtime_dir / "probe.py"
             target.write_text("VALUE = 1\n", encoding="utf-8")
             payload = _base_payload()
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )

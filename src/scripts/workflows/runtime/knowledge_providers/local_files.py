@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
-from harness.runtime.context import RunContext
-from harness.runtime.hashing import sha256_file
-from harness.runtime.identifiers import resolve_project_path
-from harness.runtime.knowledge import KnowledgeProviderRegistry
-from harness.runtime.tool_runtime import write_json_atomic
+from scripts.workflows.runtime.context import RunContext
+from scripts.workflows.runtime.hashing import sha256_file
+from scripts.workflows.runtime.identifiers import resolve_project_path
+from scripts.workflows.runtime.knowledge import KnowledgeProviderRegistry
+from scripts.workflows.runtime.tool_runtime import write_json_atomic
 
 PROVIDER_ID = "local_files"
 

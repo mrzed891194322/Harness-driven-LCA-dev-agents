@@ -6,9 +6,9 @@ from pathlib import Path
 
 import yaml
 
-from harness.domains.lca.bootstrap import lca_capabilities
-from lca_orchestrator.loader import load_workflow
-from lca_orchestrator.resolve import diagnose_assignment
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.orchestrator.load.loader import load_workflow
+from scripts.workflows.orchestrator.load.resolve import diagnose_assignment
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 STAGE_PACKAGES = (
@@ -106,7 +106,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             knowledge_dir.mkdir(parents=True)
             (knowledge_dir / "README.md").write_text("# k\n", encoding="utf-8")
             _write_minimal_workflow(root)
-            workflow_path = root / "harness" / "workflows" / "patch-test.yaml"
+            workflow_path = root / "harness" / "patch-test.yaml"
             workflow = load_workflow(
                 workflow_path, project_root=root, capabilities=lca_capabilities()
             )
@@ -121,7 +121,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             knowledge_dir.mkdir(parents=True)
             (knowledge_dir / "README.md").write_text("# k\n", encoding="utf-8")
             _write_minimal_workflow(root)
-            workflow_path = root / "harness" / "workflows" / "patch-test.yaml"
+            workflow_path = root / "harness" / "patch-test.yaml"
             payload = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
             payload["assignments"]["s1.executor"]["tools"] = ["missing_tool"]
             workflow_path.write_text(
@@ -139,7 +139,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             knowledge_dir.mkdir(parents=True)
             (knowledge_dir / "README.md").write_text("# k\n", encoding="utf-8")
             _write_minimal_workflow(root)
-            workflow_path = root / "harness" / "workflows" / "patch-test.yaml"
+            workflow_path = root / "harness" / "patch-test.yaml"
             text = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
             text["stages"][0]["checks"] = [{"id": "not-a-checker"}]
             workflow_path.write_text(
@@ -157,7 +157,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             capabilities=lca_capabilities(),
         )
         bundle = workflow.bundles["02-inventory-extraction.executor"]
-        from lca_orchestrator.bundle import TaskBundle
+        from scripts.workflows.orchestrator.load.bundle import TaskBundle
 
         restored = TaskBundle.from_dict(bundle.to_dict())
         self.assertEqual(restored.assignment_id, bundle.assignment_id)
@@ -180,8 +180,8 @@ def _write_minimal_workflow(root: Path) -> None:
     tools = root / "harness" / "tools" / "lca_artifacts"
     tools.mkdir(parents=True)
     (tools / "main.py").write_text("print('ok')\n", encoding="utf-8")
-    workflows = root / "harness" / "workflows"
-    workflows.mkdir(parents=True)
+    workflows = root / "harness"
+    workflows.mkdir(parents=True, exist_ok=True)
     payload = {
         "id": "patch-test",
         "runtime_spec": "harness/specs/public/references/workflow-runtime-spec.md",

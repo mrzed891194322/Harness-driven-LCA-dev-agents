@@ -7,12 +7,14 @@ from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from harness.runtime.capabilities import HarnessCapabilities
-from harness.runtime.context import RunContext
 from scripts.agent_sdk.progress import print_orchestrator
+from scripts.workflows.runtime.capabilities import HarnessCapabilities
+from scripts.workflows.runtime.context import RunContext
 
+from ..load.bundle import TaskBundle
+from ..load.models import Assignment, Stage, Workflow
+from ..persist.manifest import write_manifest
 from .assemble import assemble_prompt
-from .bundle import TaskBundle
 from .handoff import (
     WRITER_ROLES,
     handoff_path,
@@ -20,8 +22,6 @@ from .handoff import (
     review_note_path,
     write_review_note,
 )
-from .manifest import write_manifest
-from .models import Assignment, Stage, Workflow
 
 PROTOCOL_REPAIR_LIMIT = 3
 

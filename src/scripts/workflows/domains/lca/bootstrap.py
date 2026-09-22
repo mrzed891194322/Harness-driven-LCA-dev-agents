@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from harness.runtime.capabilities import HarnessCapabilities, base_capabilities
-from harness.runtime.checkers import CheckerRegistry
-from harness.runtime.hooks import HookRegistry
-from harness.runtime.knowledge import KnowledgeProviderRegistry
+from scripts.workflows.runtime.capabilities import (
+    HarnessCapabilities,
+    base_capabilities,
+)
+from scripts.workflows.runtime.checkers import CheckerRegistry
+from scripts.workflows.runtime.hooks import HookRegistry
+from scripts.workflows.runtime.knowledge import KnowledgeProviderRegistry
 
 from .checkers import register_lca_checkers
 from .hooks import register_lca_hooks

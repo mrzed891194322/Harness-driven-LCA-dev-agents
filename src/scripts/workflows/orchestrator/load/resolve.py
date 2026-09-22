@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from harness.runtime.capabilities import HarnessCapabilities
-from harness.runtime.identifiers import resolve_project_path
+from scripts.workflows.runtime.capabilities import HarnessCapabilities
+from scripts.workflows.runtime.identifiers import resolve_project_path
 
+from ..loop.handoff import WRITER_ROLES
 from .bundle import KnowledgeBinding, TaskBundle
-from .handoff import WRITER_ROLES
 from .lists import resolve_list
 from .models import Assignment, Stage, Workflow
 

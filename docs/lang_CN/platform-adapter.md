@@ -1,13 +1,13 @@
 # 运行入口
 
-同一套 Whole-LCA 契约只在 `harness/`。Python 主编排器是唯一运行入口。项目 MCP 由 `harness/workflows/LCA-main.yaml` 注册，经 `src/scripts/agent_sdk` 会话接口注入任务会话。当前实现 spawn PATH 上的 CLI；会话 DTO（spec / rule / 工具）与 CLI/SDK 无关。不再使用仓库内 `.codex/` / `.claude/` / `.dsh/` / `.opencode/` 平台 skill。
+同一套 Whole-LCA 契约只在 `harness/`。Python 主编排器是唯一运行入口。项目 MCP 由 `harness/LCA-main.yaml` 注册，经 `src/scripts/agent_sdk` 会话接口注入任务会话。当前实现 spawn PATH 上的 CLI；会话 DTO（spec / rule / 工具）与 CLI/SDK 无关。不再使用仓库内 `.codex/` / `.claude/` / `.dsh/` / `.opencode/` 平台 skill。
 
 ## 用户入口
 
 ```bash
 uv run python src/GUI/main.py
-uv run python harness/workflows/lca_orchestrator/main.py --task whole-lca
-uv run python harness/workflows/lca_orchestrator/main.py --task revise-lca
+uv run python src/scripts/workflows/orchestrator/main.py --task whole-lca
+uv run python src/scripts/workflows/orchestrator/main.py --task revise-lca
 ```
 
 环境引导：读取并执行 `src/scripts/proj_init/PROMPT.md`，或 `uv run python src/scripts/proj_init/main.py`。
@@ -19,8 +19,8 @@ whole-lca / revise-lca 前，用户须先手动 `clean_dir` 并复制资料（�
 GUI 按 `.env` 的 `HARNESS_AGENT` 调用 Python 编排器并传入 `--worker`。模型 id 来自同文件的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。
 
 ```bash
-uv run python harness/workflows/lca_orchestrator/main.py --task whole-lca --worker <agent>
-uv run python harness/workflows/lca_orchestrator/main.py --task revise-lca --worker <agent>
+uv run python src/scripts/workflows/orchestrator/main.py --task whole-lca --worker <agent>
+uv run python src/scripts/workflows/orchestrator/main.py --task revise-lca --worker <agent>
 ```
 
 `agent` 为 `codex` / `claude` / `opencode` / `pi`。
@@ -35,8 +35,8 @@ uv run python harness/workflows/lca_orchestrator/main.py --task revise-lca --wor
 
 | 层 | 位置 |
 | --- | --- |
-| 主编排 | `harness/workflows/lca_orchestrator/` |
-| 阶段与任务绑定 | `harness/workflows/LCA-*.yaml` |
+| 主编排 | `src/scripts/workflows/orchestrator/` |
+| 阶段与任务绑定 | `harness/LCA-*.yaml` |
 | 契约与角色任务 | `harness/specs/` |
 | Worker 会话 | `src/scripts/agent_sdk/`（当前 CLI provider；接口可换 SDK） |
 | 环境引导 | `src/scripts/proj_init/PROMPT.md` |

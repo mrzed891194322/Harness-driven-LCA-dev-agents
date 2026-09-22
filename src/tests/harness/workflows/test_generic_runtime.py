@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 import yaml
 
-from harness.domains.lca.bootstrap import lca_capabilities
-from harness.runtime.capabilities import HarnessCapabilities
-from harness.runtime.checkers import CheckerRegistry
-from harness.runtime.context import RunContext
-from harness.runtime.hooks import HookRegistry
-from harness.runtime.knowledge import KnowledgeProviderRegistry
-from lca_orchestrator.loader import load_workflow
-from lca_orchestrator.session_bind import build_session_config
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.orchestrator.load.loader import load_workflow
+from scripts.workflows.orchestrator.loop.session_bind import build_session_config
+from scripts.workflows.runtime.capabilities import HarnessCapabilities
+from scripts.workflows.runtime.checkers import CheckerRegistry
+from scripts.workflows.runtime.context import RunContext
+from scripts.workflows.runtime.hooks import HookRegistry
+from scripts.workflows.runtime.knowledge import KnowledgeProviderRegistry
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -136,7 +136,7 @@ class GenericRuntimeTests(unittest.TestCase):
 
 def _write_fake_workflow(root: Path) -> Path:
     _write_minimal_files(root)
-    workflows = root / "harness" / "workflows"
+    workflows = root / "harness"
     payload = {
         "id": "fake",
         "runtime_spec": "harness/specs/public/references/workflow-runtime-spec.md",
@@ -197,7 +197,7 @@ def _write_fake_workflow(root: Path) -> Path:
 
 def _write_renamed_inventory_workflow(root: Path) -> Path:
     _write_minimal_files(root)
-    workflows = root / "harness" / "workflows"
+    workflows = root / "harness"
     payload = {
         "id": "renamed-inv",
         "runtime_spec": "harness/specs/public/references/workflow-runtime-spec.md",
@@ -252,7 +252,7 @@ def _write_renamed_inventory_workflow(root: Path) -> Path:
 
 def _write_tool_runtime_workflow(root: Path) -> Path:
     _write_minimal_files(root)
-    workflows = root / "harness" / "workflows"
+    workflows = root / "harness"
     payload = {
         "id": "tools",
         "runtime_spec": "harness/specs/public/references/workflow-runtime-spec.md",
@@ -328,7 +328,7 @@ def _write_minimal_files(root: Path) -> None:
     knowledge = root / "harness" / "knowledge"
     knowledge.mkdir(parents=True)
     (knowledge / "README.md").write_text("# k\n", encoding="utf-8")
-    (root / "harness" / "workflows").mkdir(parents=True, exist_ok=True)
+    (root / "harness").mkdir(parents=True, exist_ok=True)
 
 
 if __name__ == "__main__":

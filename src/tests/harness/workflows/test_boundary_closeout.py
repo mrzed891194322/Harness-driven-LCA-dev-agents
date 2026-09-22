@@ -9,27 +9,29 @@ from pathlib import Path
 
 import yaml
 
-from harness.domains.lca.bootstrap import lca_capabilities
-from harness.domains.lca.knowledge import enrich_local_files
-from harness.runtime.capabilities import empty_capabilities
-from harness.runtime.context import RunContext
-from harness.runtime.identifiers import require_identifier
-from harness.runtime.knowledge_providers.local_files import register_local_files
 from harness.tools.lca_artifacts import checks as lca_checks
 from harness.tools.lca_artifacts.store import Context
-from harness.workflows.lca_orchestrator.bundle import KnowledgeBinding, TaskBundle
-from harness.workflows.lca_orchestrator.config_fingerprint import (
-    assert_runtime_config_matches,
-    write_runtime_config,
-)
-from harness.workflows.lca_orchestrator.lists import (
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.domains.lca.knowledge import enrich_local_files
+from scripts.workflows.orchestrator.load.bundle import KnowledgeBinding, TaskBundle
+from scripts.workflows.orchestrator.load.lists import (
     merge_list_declarations,
     resolve_list,
 )
-from harness.workflows.lca_orchestrator.loader import load_workflow
-from harness.workflows.lca_orchestrator.main import (
+from scripts.workflows.orchestrator.load.loader import load_workflow
+from scripts.workflows.orchestrator.main import (
     compose_capabilities,
     peek_capability_ids,
+)
+from scripts.workflows.orchestrator.persist.config_fingerprint import (
+    assert_runtime_config_matches,
+    write_runtime_config,
+)
+from scripts.workflows.runtime.capabilities import empty_capabilities
+from scripts.workflows.runtime.context import RunContext
+from scripts.workflows.runtime.identifiers import require_identifier
+from scripts.workflows.runtime.knowledge_providers.local_files import (
+    register_local_files,
 )
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
@@ -56,7 +58,7 @@ def _tree(root: Path) -> None:
     tools = root / "harness" / "tools" / "lca_artifacts"
     tools.mkdir(parents=True)
     (tools / "main.py").write_text("print('ok')\n", encoding="utf-8")
-    (root / "harness" / "workflows").mkdir(parents=True)
+    (root / "harness").mkdir(parents=True, exist_ok=True)
     (root / "harness" / "knowledge").mkdir(parents=True)
     (root / "custom_docs").mkdir(parents=True)
 
@@ -134,7 +136,7 @@ class MetadataIsolationTests(unittest.TestCase):
     def test_session_bind_uses_stage_context_not_checker_prefix(self) -> None:
         import inspect
 
-        from harness.workflows.lca_orchestrator import session_bind
+        from scripts.workflows.orchestrator.loop import session_bind
 
         source = inspect.getsource(session_bind)
         self.assertNotIn('startswith("lca.")', source)
@@ -151,7 +153,7 @@ class MetadataIsolationTests(unittest.TestCase):
                 {"id": "lca.mapping"},
             ]
             payload["stages"][0]["context"] = {"lca": {"phase": "mapping"}}
-            path = root / "harness" / "workflows" / "t.yaml"
+            path = root / "harness" / "t.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -385,13 +387,13 @@ class ReuseSeqTests(unittest.TestCase):
             base = _reviewed_payload()
             base["defaults"]["rules"] = ["workspace_boundary", "runtime", "paths"]
             base["assignments"]["s1.executor"]["rules"] = {"add": ["extra_rule"]}
-            base_path = root / "harness" / "workflows" / "base.yaml"
+            base_path = root / "harness" / "base.yaml"
             base_path.write_text(
                 yaml.safe_dump(base, allow_unicode=True), encoding="utf-8"
             )
             overlay = {
                 "id": "overlay",
-                "reuse": "harness/workflows/base.yaml",
+                "reuse": "harness/base.yaml",
                 "assignments": {
                     "s1.executor": {
                         "role": "executor",
@@ -403,7 +405,7 @@ class ReuseSeqTests(unittest.TestCase):
             }
             # After base patch removed nothing yet; overlay removes runtime and re-adds paths.
             # Wait: base already has paths from defaults; remove runtime; add paths (noop).
-            path = root / "harness" / "workflows" / "overlay.yaml"
+            path = root / "harness" / "overlay.yaml"
             path.write_text(
                 yaml.safe_dump(overlay, allow_unicode=True), encoding="utf-8"
             )
@@ -432,7 +434,7 @@ class TopologyAndIdTests(unittest.TestCase):
                 {"assignment": "s1.executor"},
                 {"assignment": "s1.reviser"},
             ]
-            path = root / "harness" / "workflows" / "bad.yaml"
+            path = root / "harness" / "bad.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -448,7 +450,7 @@ class TopologyAndIdTests(unittest.TestCase):
                 {"assignment": "s1.reviewer"},
                 {"assignment": "s1.executor"},
             ]
-            path = root / "harness" / "workflows" / "bad.yaml"
+            path = root / "harness" / "bad.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )

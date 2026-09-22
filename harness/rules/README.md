@@ -26,7 +26,7 @@
 
 1. 实现放 `harness/tools/<name>/`（外部 MCP 不必复制进仓库）
 2. 新增 `harness/rules/tools/<name>.md`（如需）
-3. 在 `LCA-main.yaml` 的 `registry.tools` 登记连接，并绑定到 assignment
+3. 在 `harness/LCA-main.yaml` 的 `registry.tools` 登记连接，并绑定到 assignment
 
 **新阶段**
 

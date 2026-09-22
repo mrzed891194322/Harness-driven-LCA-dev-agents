@@ -16,36 +16,12 @@ PROJECT_ROOT = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
-WORKFLOWS_ROOT = PROJECT_ROOT / "harness" / "workflows"
 SRC_ROOT = PROJECT_ROOT / "src"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-if str(WORKFLOWS_ROOT) not in sys.path:
-    sys.path.insert(0, str(WORKFLOWS_ROOT))
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from harness.domains.lca.bootstrap import register_lca  # noqa: E402
-from harness.runtime.capabilities import (  # noqa: E402
-    HarnessCapabilities,
-    base_capabilities,
-)
-from harness.runtime.identifiers import (  # noqa: E402
-    require_identifier,
-    resolve_project_path,
-)
-from lca_orchestrator.checkpoint import open_checkpointer  # noqa: E402
-from lca_orchestrator.config_fingerprint import (  # noqa: E402
-    assert_runtime_config_matches,
-    write_runtime_config,
-)
-from lca_orchestrator.graph import (  # noqa: E402
-    OrchestratorRuntime,
-    build_graph,
-    initial_state,
-)
-from lca_orchestrator.loader import load_workflow  # noqa: E402
-from lca_orchestrator.manifest import write_manifest  # noqa: E402
 from scripts.agent_sdk.archive import progress_log_path  # noqa: E402
 from scripts.agent_sdk.inspect import WORKERS  # noqa: E402
 from scripts.agent_sdk.models import load_worker_model  # noqa: E402
@@ -55,6 +31,29 @@ from scripts.agent_sdk.progress import (  # noqa: E402
 )
 from scripts.agent_sdk.session import default_client  # noqa: E402
 from scripts.agent_sdk.uv_env import ensure_uv_cache_dir  # noqa: E402
+from scripts.workflows.domains.lca.bootstrap import register_lca  # noqa: E402
+from scripts.workflows.orchestrator.load.loader import load_workflow  # noqa: E402
+from scripts.workflows.orchestrator.loop.graph import (  # noqa: E402
+    OrchestratorRuntime,
+    build_graph,
+    initial_state,
+)
+from scripts.workflows.orchestrator.persist.checkpoint import (
+    open_checkpointer,  # noqa: E402
+)
+from scripts.workflows.orchestrator.persist.config_fingerprint import (  # noqa: E402
+    assert_runtime_config_matches,
+    write_runtime_config,
+)
+from scripts.workflows.orchestrator.persist.manifest import write_manifest  # noqa: E402
+from scripts.workflows.runtime.capabilities import (  # noqa: E402
+    HarnessCapabilities,
+    base_capabilities,
+)
+from scripts.workflows.runtime.identifiers import (  # noqa: E402
+    require_identifier,
+    resolve_project_path,
+)
 
 TASK_NAMES = ("whole-lca", "revise-lca")
 DOMAIN_CAPABILITY_SETS = {
@@ -179,7 +178,7 @@ def _capabilities_for(
 
 
 def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
-    from lca_orchestrator.yaml_strict import load_yaml_strict
+    from scripts.workflows.orchestrator.load.yaml_strict import load_yaml_strict
 
     raw = load_yaml_strict(path) or {}
     if not isinstance(raw, dict):
@@ -310,7 +309,7 @@ def _load_worker(project_root: Path) -> str:
 
 def _task_file(project_root: Path, task: str) -> Path:
     name = "LCA-main.yaml" if task == "whole-lca" else "LCA-revise.yaml"
-    return project_root / "harness" / "workflows" / name
+    return project_root / "harness" / name
 
 
 if __name__ == "__main__":

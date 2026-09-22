@@ -10,26 +10,28 @@ from unittest.mock import patch
 
 from langchain_core.runnables.config import RunnableConfig
 
-from harness.domains.lca.bootstrap import lca_capabilities
-from harness.runtime.checkers import CheckerRegistry
 from harness.tools.lca_artifacts.checks import CHECKER_VERSION
-from lca_orchestrator.checkpoint import open_checkpointer
-from lca_orchestrator.config_fingerprint import write_runtime_config
-from lca_orchestrator.graph import (
-    PROTOCOL_REPAIR_LIMIT,
-    OrchestratorRuntime,
-    build_graph,
-    initial_state,
-)
-from lca_orchestrator.handoff import read_handoff
-from lca_orchestrator.loader import load_workflow
-from lca_orchestrator.main import _resume
 from scripts.agent_sdk.session import (
     SessionConfig,
     SessionRef,
     SessionResumeError,
     TurnResult,
 )
+from scripts.workflows.domains.lca.bootstrap import lca_capabilities
+from scripts.workflows.orchestrator.load.loader import load_workflow
+from scripts.workflows.orchestrator.loop.graph import (
+    PROTOCOL_REPAIR_LIMIT,
+    OrchestratorRuntime,
+    build_graph,
+    initial_state,
+)
+from scripts.workflows.orchestrator.loop.handoff import read_handoff
+from scripts.workflows.orchestrator.main import _resume
+from scripts.workflows.orchestrator.persist.checkpoint import open_checkpointer
+from scripts.workflows.orchestrator.persist.config_fingerprint import (
+    write_runtime_config,
+)
+from scripts.workflows.runtime.checkers import CheckerRegistry
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 HandoffScript = dict[tuple[str, str, int], Any]

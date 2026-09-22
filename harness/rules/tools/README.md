@@ -8,4 +8,4 @@
 
 1. 实现放 `harness/tools/<name>/`（若为本仓库自有工具）
 2. 在本目录新增 `<name>.md`
-3. 在 `harness/workflows/LCA-main.yaml` 登记连接并绑定到 assignment
+3. 在 `harness/LCA-main.yaml` 登记连接并绑定到 assignment

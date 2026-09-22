@@ -1,5 +1,5 @@
 id: revise-lca
-reuse: harness/workflows/LCA-main.yaml
+reuse: harness/LCA-main.yaml
 registry:
   rules:
     user_intent: harness/rules/lca/user-intent.md

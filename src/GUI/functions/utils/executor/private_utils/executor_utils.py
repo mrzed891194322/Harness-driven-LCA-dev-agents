@@ -171,7 +171,7 @@ ORCHESTRATOR_COMMAND = [
     "uv",
     "run",
     "python",
-    "harness/workflows/lca_orchestrator/main.py",
+    "src/scripts/workflows/orchestrator/main.py",
 ]
 WORKFLOW_TASKS = ("whole-lca", "revise-lca")
 
