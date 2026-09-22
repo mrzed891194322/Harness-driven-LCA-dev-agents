@@ -15,15 +15,15 @@ from harness.tools.lca_artifacts.store import Context
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.orchestrator.load.loader import load_workflow
 from scripts.workflows.orchestrator.load.yaml_strict import load_yaml_strict
-from scripts.workflows.orchestrator.loop.graph import (
+from scripts.workflows.orchestrator.loop.handoff import (
+    review_note_path,
+    write_review_note,
+)
+from scripts.workflows.orchestrator.loop.runner import (
     OrchestratorRuntime,
     WorkflowState,
     initial_state,
     missing_expected_outputs,
-)
-from scripts.workflows.orchestrator.loop.handoff import (
-    review_note_path,
-    write_review_note,
 )
 from scripts.workflows.orchestrator.persist.config_fingerprint import (
     assert_runtime_config_matches,
@@ -426,11 +426,9 @@ class HookFailClosedTests(unittest.TestCase):
             self.assertEqual(update["status"], "failed")
             self.assertNotIn("attempt", update)
             self.assertEqual(hooks.run.call_count, 1)
-            manifest = json.loads(
-                (workspace / "memory" / "manifest.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(manifest["status"], "failed")
-            self.assertIn("lca.record_acceptance", manifest["status_reason"])
+            self.assertIn("lca.record_acceptance", update["status_reason"])
+            # Business transitions return state; the runner publishes after commit.
+            self.assertFalse((workspace / "memory" / "manifest.json").exists())
             note = review_note_path(workspace, stage.stage_id, 1).read_text(
                 encoding="utf-8"
             )

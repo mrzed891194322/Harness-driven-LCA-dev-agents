@@ -1,11 +1,9 @@
-"""LangGraph state and assignment loop."""
+"""Serial workflow runner and assignment transitions."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, TypedDict
-
-from langgraph.graph import END, START, StateGraph
+from typing import Any, Literal, TypedDict, cast
 
 from scripts.agent_sdk.progress import print_orchestrator
 from scripts.workflows.runtime.capabilities import HarnessCapabilities
@@ -13,6 +11,7 @@ from scripts.workflows.runtime.context import RunContext
 
 from ..load.bundle import TaskBundle
 from ..load.models import Assignment, Stage, Workflow
+from ..persist.checkpoint import CheckpointStore
 from ..persist.manifest import write_manifest
 from .assemble import assemble_prompt
 from .handoff import (
@@ -23,10 +22,12 @@ from .handoff import (
     write_review_note,
 )
 
+RUNTIME_VERSION = 4
 PROTOCOL_REPAIR_LIMIT = 3
+Action = Literal["prepare", "run_sdk", "advance", "done"]
 
 
-class WorkflowState(TypedDict, total=False):
+class WorkflowState(TypedDict):
     runtime_version: int
     run_id: str
     task: str
@@ -35,16 +36,96 @@ class WorkflowState(TypedDict, total=False):
     step_index: int
     attempt: int
     protocol_repairs: int
+    next_action: Action
     in_flight: bool
     status: str
     status_reason: str
-    current_stage: str
+    current_stage: str | None
     current_assignment: str
     current_role: str
     prompt: str
     fix_instructions: str
     sessions: dict[str, dict[str, Any]]
     last_handoff: dict[str, Any]
+
+
+def publish_state(workspace_root: Path, state: WorkflowState) -> None:
+    """Refresh the GUI summary from committed state, including on resume."""
+    write_manifest(
+        workspace_root,
+        status=state["status"],
+        current_stage=state.get("current_stage"),
+        status_reason=state.get("status_reason") or None,
+        run_id=state["run_id"],
+    )
+
+
+def fail_run(
+    runtime: OrchestratorRuntime,
+    state: WorkflowState,
+    store: CheckpointStore,
+    reason: str,
+) -> WorkflowState:
+    action = state["next_action"]
+    state.update(
+        status="failed", status_reason=reason, in_flight=False, next_action="done"
+    )
+    store.save(state, event="failed", action=action)
+    publish_state(runtime.workspace_root, state)
+    return state
+
+
+def run_workflow(
+    runtime: OrchestratorRuntime, state: WorkflowState, store: CheckpointStore
+) -> WorkflowState:
+    """Run from a saved action boundary. The caller owns the workspace lock."""
+    if state.get("status") in {"completed", "failed"}:
+        publish_state(runtime.workspace_root, state)
+        return state
+    if state.get("in_flight"):
+        return fail_run(
+            runtime,
+            state,
+            store,
+            f"{state['next_action']} 执行期间中断，检查点仍标记 in_flight；"
+            "结果不确定，不自动重发 worker 或重放 hook。",
+        )
+
+    store.save(state, event="ready", action=state["next_action"])
+    publish_state(runtime.workspace_root, state)
+    actions = {
+        "prepare": runtime.prepare,
+        "run_sdk": runtime.run_sdk,
+        "advance": runtime.advance,
+    }
+    following: dict[str, Action] = {
+        "prepare": "run_sdk",
+        "run_sdk": "advance",
+        "advance": "prepare",
+    }
+    while state["status"] not in {"completed", "failed"}:
+        action = state["next_action"]
+        before = state.copy()
+        if action in {"run_sdk", "advance"}:
+            state["in_flight"] = True
+            store.save(state, event="started", action=action)
+        try:
+            update = actions[action](state)
+        except Exception as exc:
+            return fail_run(runtime, state, store, f"{action} 执行失败：{exc}")
+        state.update(cast(WorkflowState, update))
+        terminal = state["status"] in {"completed", "failed"}
+        state["in_flight"] = False
+        state["next_action"] = "done" if terminal else following[action]
+        # Never catch commit failures and retry an action: its effects may already exist.
+        store.save(
+            state,
+            event="failed" if state["status"] == "failed" else "finished",
+            action=action,
+            context=before,
+        )
+        publish_state(runtime.workspace_root, state)
+    return state
 
 
 def session_key(assignment_id: str) -> str:
@@ -67,22 +148,6 @@ def _state_int(state: WorkflowState, key: str, default: int | None = None) -> in
 
 def _attempt(state: WorkflowState) -> int:
     return _state_int(state, "attempt", 1)
-
-
-def build_graph(runtime: OrchestratorRuntime):
-    graph = StateGraph(WorkflowState)
-    graph.add_node("prepare", runtime.prepare)
-    graph.add_node("run_sdk", runtime.run_sdk)
-    graph.add_node("advance", runtime.advance)
-    graph.add_edge(START, "prepare")
-    graph.add_edge("prepare", "run_sdk")
-    graph.add_edge("run_sdk", "advance")
-    graph.add_conditional_edges(
-        "advance",
-        runtime.route_after_advance,
-        {"prepare": "prepare", "end": END},
-    )
-    return graph
 
 
 class OrchestratorRuntime:
@@ -167,18 +232,10 @@ class OrchestratorRuntime:
             assignment=assignment,
             run_context=context,
         )
-        write_manifest(
-            self.workspace_root,
-            status="running",
-            current_stage=stage.stage_id,
-            status_reason=None,
-            run_id=_state_str(state, "run_id"),
-        )
         print_orchestrator(
             f"prepare {assignment.assignment_id} attempt={_attempt(state)}"
         )
         return {
-            "in_flight": True,
             "prompt": prompt,
             "current_stage": stage.stage_id,
             "current_assignment": assignment.assignment_id,
@@ -220,35 +277,25 @@ class OrchestratorRuntime:
         except SessionResumeError as exc:
             print_orchestrator(f"worker resume failed: {exc}")
             return {
-                "in_flight": True,
                 "status": "failed",
                 "status_reason": str(exc),
             }
         except Exception as exc:
             print_orchestrator(f"worker 调用失败：{exc}")
             return {
-                "in_flight": True,
                 "status": "failed",
                 "status_reason": f"worker 调用失败：{exc}",
             }
         sessions[key] = ref.to_dict()
         print_orchestrator(f"worker turn done session={ref.session_id}")
         return {
-            "in_flight": False,
             "sessions": sessions,
             "prompt": "",
         }
 
     def advance(self, state: WorkflowState) -> dict[str, Any]:
         if state.get("status") == "failed" and state.get("status_reason"):
-            write_manifest(
-                self.workspace_root,
-                status="failed",
-                current_stage=state.get("current_stage"),
-                status_reason=state.get("status_reason"),
-                run_id=_state_str(state, "run_id"),
-            )
-            return {"in_flight": False, "status": "failed"}
+            return {"status": "failed"}
 
         stage, assignment = self._current(state)
         attempt = _attempt(state)
@@ -268,11 +315,6 @@ class OrchestratorRuntime:
             update = self._advance_after_reviewer(state, stage, assignment, handoff)
         update["protocol_repairs"] = 0
         return update
-
-    def route_after_advance(self, state: WorkflowState) -> Literal["prepare", "end"]:
-        if state.get("status") in {"failed", "completed"}:
-            return "end"
-        return "prepare"
 
     def _advance_after_writer(
         self,
@@ -305,7 +347,6 @@ class OrchestratorRuntime:
             "step_index": next_index,
             "fix_instructions": "",
             "last_handoff": handoff,
-            "in_flight": False,
             "status": "running",
         }
 
@@ -404,17 +445,9 @@ class OrchestratorRuntime:
                         system_reason=reason,
                     )
                     print_orchestrator(reason)
-                    write_manifest(
-                        self.workspace_root,
-                        status="failed",
-                        current_stage=stage.stage_id,
-                        status_reason=reason,
-                        run_id=_state_str(state, "run_id"),
-                    )
                     return {
                         "status": "failed",
                         "status_reason": reason,
-                        "in_flight": False,
                         "last_handoff": {
                             "status": "failed",
                             "status_reason": reason,
@@ -500,14 +533,7 @@ class OrchestratorRuntime:
         repairs = _state_int(state, "protocol_repairs", 0)
         if repairs >= PROTOCOL_REPAIR_LIMIT:
             print_orchestrator(reason)
-            write_manifest(
-                self.workspace_root,
-                status="failed",
-                current_stage=stage.stage_id,
-                status_reason=reason,
-                run_id=_state_str(state, "run_id"),
-            )
-            return {"status": "failed", "status_reason": reason, "in_flight": False}
+            return {"status": "failed", "status_reason": reason}
         print_orchestrator(
             f"protocol rework {assignment.assignment_id} repair={repairs + 1}: {reason}"
         )
@@ -519,7 +545,6 @@ class OrchestratorRuntime:
                 "也不要当成审查意见去改 BOM 或其他产物。"
             ),
             "status": "running",
-            "in_flight": False,
         }
 
     def _retry_or_fail(
@@ -533,17 +558,9 @@ class OrchestratorRuntime:
         attempt = _attempt(state)
         if attempt >= stage.max_attempts:
             print_orchestrator(f"failed {assignment.assignment_id}: {reason}")
-            write_manifest(
-                self.workspace_root,
-                status="failed",
-                current_stage=stage.stage_id,
-                status_reason=reason,
-                run_id=_state_str(state, "run_id"),
-            )
             return {
                 "status": "failed",
                 "status_reason": reason,
-                "in_flight": False,
                 "last_handoff": {"status": "failed", "status_reason": reason},
             }
         print_orchestrator(
@@ -555,7 +572,6 @@ class OrchestratorRuntime:
             "step_index": writer_index,
             "fix_instructions": fix_instructions or reason,
             "status": "running",
-            "in_flight": False,
             "last_handoff": {"status": "failed", "status_reason": reason},
         }
 
@@ -564,18 +580,10 @@ class OrchestratorRuntime:
     ) -> dict[str, Any]:
         next_stage = _state_int(state, "stage_index") + 1
         if next_stage >= len(self.workflow.stages):
-            write_manifest(
-                self.workspace_root,
-                status="completed",
-                current_stage=None,
-                status_reason="全部阶段已通过",
-                run_id=_state_str(state, "run_id"),
-            )
             self._release_stage_sessions(state, stage)
             return {
                 "status": "completed",
                 "status_reason": "全部阶段已通过",
-                "in_flight": False,
                 "current_stage": None,
             }
         self._release_stage_sessions(state, stage)
@@ -586,7 +594,6 @@ class OrchestratorRuntime:
             "attempt": 1,
             "fix_instructions": "",
             "status": "running",
-            "in_flight": False,
             "current_stage": nxt.stage_id,
         }
 
@@ -673,7 +680,8 @@ def initial_state(
     first = workflow.stages[0]
     assignment = workflow.assignment_for(first, 0)
     return {
-        "runtime_version": 3,
+        "runtime_version": RUNTIME_VERSION,
+        "next_action": "prepare",
         "run_id": run_id,
         "task": task,
         "worker": worker,

@@ -5,10 +5,8 @@ import tempfile
 import unittest
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from unittest.mock import patch
-
-from langchain_core.runnables.config import RunnableConfig
 
 from harness.tools.lca_artifacts.checks import CHECKER_VERSION
 from scripts.agent_sdk.session import (
@@ -19,15 +17,15 @@ from scripts.agent_sdk.session import (
 )
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.orchestrator.load.loader import load_workflow
-from scripts.workflows.orchestrator.loop.graph import (
+from scripts.workflows.orchestrator.loop.handoff import read_handoff
+from scripts.workflows.orchestrator.loop.runner import (
     PROTOCOL_REPAIR_LIMIT,
     OrchestratorRuntime,
-    build_graph,
     initial_state,
+    run_workflow,
 )
-from scripts.workflows.orchestrator.loop.handoff import read_handoff
 from scripts.workflows.orchestrator.main import _resume
-from scripts.workflows.orchestrator.persist.checkpoint import open_checkpointer
+from scripts.workflows.orchestrator.persist.checkpoint import open_store
 from scripts.workflows.orchestrator.persist.config_fingerprint import (
     write_runtime_config,
 )
@@ -285,27 +283,24 @@ class OrchestratorGraphTests(unittest.TestCase):
             model="test-model",
             capabilities=lca_capabilities(),
         )
-        conn, saver = open_checkpointer(self.workspace)
-        try:
-            compiled = build_graph(runtime).compile(checkpointer=saver)
+        with open_store(self.workspace) as store:
             run_id = "run-test"
             with patch.object(
                 CheckerRegistry,
                 "run_validate",
                 side_effect=validate or _passing_validate,
             ):
-                result = compiled.invoke(
+                result = run_workflow(
+                    runtime,
                     initial_state(
                         run_id=run_id,
                         task="whole-lca",
                         worker="codex",
                         workflow=self.workflow,
                     ),
-                    {"configurable": {"thread_id": run_id}, "recursion_limit": 80},
+                    store,
                 )
-        finally:
-            conn.close()
-        return result, client
+        return dict(result), client
 
     def test_happy_path_completes_and_keeps_session_ids(self) -> None:
         result, client = self._run(_happy_script())
@@ -405,14 +400,8 @@ class OrchestratorGraphTests(unittest.TestCase):
             model="test-model",
             capabilities=lca_capabilities(),
         )
-        conn, saver = open_checkpointer(self.workspace)
-        try:
-            compiled = build_graph(runtime).compile(checkpointer=saver)
+        with open_store(self.workspace) as store:
             run_id = "run-inflight"
-            config = cast(
-                RunnableConfig,
-                {"configurable": {"thread_id": run_id}, "recursion_limit": 80},
-            )
             state = initial_state(
                 run_id=run_id,
                 task="whole-lca",
@@ -421,7 +410,8 @@ class OrchestratorGraphTests(unittest.TestCase):
             )
             state["in_flight"] = True
             state["status"] = "running"
-            compiled.update_state(config, state, as_node="prepare")
+            state["next_action"] = "run_sdk"
+            store.save(state, event="started", action="run_sdk")
             from scripts.agent_sdk.models import load_worker_model
 
             model = load_worker_model("codex", PROJECT_ROOT)
@@ -434,8 +424,7 @@ class OrchestratorGraphTests(unittest.TestCase):
                 model=model,
             )
             code = _resume(
-                compiled,
-                conn,
+                store,
                 runtime,
                 run_id,
                 self.workspace,
@@ -443,8 +432,6 @@ class OrchestratorGraphTests(unittest.TestCase):
                 worker="codex",
                 model=model,
             )
-        finally:
-            conn.close()
         self.assertEqual(code, 1)
         self.assertEqual(client.turns, [])
         self.assertTrue(
@@ -714,27 +701,24 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
             model="test-model",
             capabilities=lca_capabilities(),
         )
-        conn, saver = open_checkpointer(self.workspace)
-        try:
-            compiled = build_graph(runtime).compile(checkpointer=saver)
+        with open_store(self.workspace) as store:
             run_id = "run-revise"
             with patch.object(
                 CheckerRegistry,
                 "run_validate",
                 side_effect=validate or _passing_validate,
             ):
-                result = compiled.invoke(
+                result = run_workflow(
+                    runtime,
                     initial_state(
                         run_id=run_id,
                         task="revise-lca",
                         worker="codex",
                         workflow=self.workflow,
                     ),
-                    {"configurable": {"thread_id": run_id}, "recursion_limit": 80},
+                    store,
                 )
-        finally:
-            conn.close()
-        return result, client
+        return dict(result), client
 
     def test_happy_path_uses_reviser_not_executor(self) -> None:
         result, client = self._run(_revise_happy_script())

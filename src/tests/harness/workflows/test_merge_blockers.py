@@ -19,7 +19,7 @@ from scripts.workflows.domains.lca import hooks as lca_hooks
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.orchestrator.load.loader import load_workflow
 from scripts.workflows.orchestrator.load.models import Workflow
-from scripts.workflows.orchestrator.loop.graph import (
+from scripts.workflows.orchestrator.loop.runner import (
     OrchestratorRuntime,
     missing_expected_outputs,
 )

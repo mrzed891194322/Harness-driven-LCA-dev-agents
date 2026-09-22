@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
+
+from scripts.workflows.runtime.tool_runtime import write_json_atomic
 
 
 def manifest_path(workspace_root: Path) -> Path:
@@ -27,6 +28,4 @@ def write_manifest(
         "status_reason": status_reason,
         "run_id": run_id,
     }
-    path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    write_json_atomic(path, payload)

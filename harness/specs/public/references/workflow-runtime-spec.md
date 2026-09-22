@@ -1,6 +1,6 @@
 # Whole-LCA 运行说明
 
-工作流编成四个编号阶段，语义上是 **1 个启动门禁 + 3 个 LCA 业务步**。没有 JSON Schema 业务门禁；离线工具生成校验证据，不代替 reviewer 判断。阶段推进由 Python 主编排器（LangGraph）负责，agent 只完成本轮被委派的任务。
+工作流编成四个编号阶段，语义上是 **1 个启动门禁 + 3 个 LCA 业务步**。没有 JSON Schema 业务门禁；离线工具生成校验证据，不代替 reviewer 判断。阶段推进由纯 Python 主编排器负责，agent 只完成本轮被委派的任务。
 
 ## 阶段
 
@@ -29,7 +29,7 @@
 
 | 字段 | 含义 |
 | --- | --- |
-| run_id | 一次工作流运行。LangGraph `thread_id` 与此相同 |
+| run_id | 一次工作流运行，也是 SQLite 运行记录的标识 |
 | task | `whole-lca` 或 `revise-lca` |
 | stage | 当前阶段 id |
 | role | `executor`、`reviser` 或 `reviewer` |
@@ -75,7 +75,9 @@ Agent 完成本轮后写入 `workspace/memory/handoffs/<stage>-<role>-<attempt>.
 
 不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定。可留档的匹配由写者自行选择并写入 BOM/映射/报告。
 
-恢复运行时以检查点为准，不以 manifest 单独作为恢复依据。worker 调用期间中断且检查点仍标 `in_flight` 时，主编排记为 `failed`，不自动重发任务。当前可恢复协议为 `runtime_version = 3`，每次新 run 会写入 `workspace/memory/evidence/<run_id>/runtime-config.json`（含 workflow fingerprint 与 execution.worker/model）；缺少该文件或 fingerprint / execution 不匹配时不可 resume，需新开 run。v2/legacy checkpoint 不能由 v3 恢复。
+恢复运行时以 SQLite 检查点为准，不以 manifest 单独作为恢复依据。当前协议为 `runtime_version = 4`，检查点保存下一动作 `next_action`（prepare / run_sdk / advance / done）。worker 结果已提交时，从 advance 继续处理 handoff，不重发 worker。worker 或验收动作（含检查器、hooks）执行中断且检查点仍标 `in_flight` 时，主编排持久化 `failed`，不自动重发任务或重放 hook。已完成和失败的运行恢复时直接返回原终态。
+
+每次新 run 写入 `workspace/memory/evidence/<run_id>/runtime-config.json`（含 workflow fingerprint 与 execution.worker/model）；续跑未完成且不处于 `in_flight` 的运行时，缺少该文件或 fingerprint / execution 不匹配则终止，需新开 run。旧 LangGraph / v3 及更早检查点仅保留历史，不迁移、不续跑。工作区由进程锁保护，同一工作区同时只能有一个主编排进程。
 
 审查 `passed` 后执行的 lifecycle hooks（如 `lca.record_acceptance`）应尽量幂等；运行器在 hook 异常时 fail-closed，不会自动重放 hook，也不会回写者重做业务产物。
 

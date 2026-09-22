@@ -554,7 +554,7 @@ class FailFastSessionCliTests(unittest.TestCase):
                 load_workflow(path, project_root=root, capabilities=lca_capabilities())
 
     def test_session_key_is_assignment_id(self) -> None:
-        from scripts.workflows.orchestrator.loop.graph import session_key
+        from scripts.workflows.orchestrator.loop.runner import session_key
 
         self.assertEqual(
             session_key("03-dataset-mapping.executor"), "03-dataset-mapping.executor"
@@ -565,10 +565,10 @@ class FailFastSessionCliTests(unittest.TestCase):
 
         with (
             patch.object(orch_main, "load_workflow") as load_mock,
-            patch.object(orch_main, "build_graph") as build_mock,
-            patch.object(orch_main, "open_checkpointer") as cp_mock,
+            patch.object(
+                orch_main, "run_workflow", return_value={"status": "completed"}
+            ) as run_mock,
             patch.object(orch_main, "default_client"),
-            patch.object(orch_main, "write_manifest"),
             patch.object(orch_main, "ensure_uv_cache_dir"),
             patch.object(orch_main, "set_progress_log"),
             patch.object(orch_main, "print_orchestrator"),
@@ -579,21 +579,6 @@ class FailFastSessionCliTests(unittest.TestCase):
                 capabilities=lca_capabilities(),
             )
 
-            class _Conn:
-                def close(self) -> None:
-                    return None
-
-            cp_mock.return_value = (_Conn(), object())
-
-            class _Compiled:
-                def invoke(self, *_a, **_k):
-                    return {"status": "completed"}
-
-            class _Graph:
-                def compile(self, checkpointer=None):
-                    return _Compiled()
-
-            build_mock.return_value = _Graph()
             with tempfile.TemporaryDirectory() as temp_dir:
                 workspace = Path(temp_dir)
                 code = orch_main.main(
@@ -609,6 +594,7 @@ class FailFastSessionCliTests(unittest.TestCase):
                     ]
                 )
             self.assertEqual(code, 0)
+            run_mock.assert_called_once()
             load_mock.assert_called()
             called_path = load_mock.call_args.args[0]
             self.assertTrue(str(called_path).endswith("LCA-main.yaml"))

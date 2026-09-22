@@ -1,1 +1,1 @@
-"""Python LangGraph orchestrator for whole-lca / revise-lca."""
+"""Python serial orchestrator for whole-lca / revise-lca."""

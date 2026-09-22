@@ -1,4 +1,4 @@
-"""Standalone one-shot worker run (not used by the LangGraph workflow)."""
+"""Standalone one-shot worker run (not used by the orchestrated workflow)."""
 
 from __future__ import annotations
 

@@ -1,15 +1,11 @@
-"""LCA LangGraph orchestrator entry."""
+"""LCA Python orchestrator entry."""
 
 from __future__ import annotations
 
 import argparse
-import sqlite3
 import sys
 import uuid
 from pathlib import Path
-from typing import cast
-
-from langchain_core.runnables.config import RunnableConfig
 
 PROJECT_ROOT = next(
     parent
@@ -33,19 +29,24 @@ from scripts.agent_sdk.session import default_client  # noqa: E402
 from scripts.agent_sdk.uv_env import ensure_uv_cache_dir  # noqa: E402
 from scripts.workflows.domains.lca.bootstrap import register_lca  # noqa: E402
 from scripts.workflows.orchestrator.load.loader import load_workflow  # noqa: E402
-from scripts.workflows.orchestrator.loop.graph import (  # noqa: E402
+from scripts.workflows.orchestrator.loop.runner import (  # noqa: E402
+    RUNTIME_VERSION,
     OrchestratorRuntime,
-    build_graph,
+    WorkflowState,
+    fail_run,
     initial_state,
+    run_workflow,
 )
 from scripts.workflows.orchestrator.persist.checkpoint import (
-    open_checkpointer,  # noqa: E402
+    CheckpointStore,
+    WorkspaceBusy,
+    open_store,
+    workspace_lock,
 )
 from scripts.workflows.orchestrator.persist.config_fingerprint import (  # noqa: E402
     assert_runtime_config_matches,
     write_runtime_config,
 )
-from scripts.workflows.orchestrator.persist.manifest import write_manifest  # noqa: E402
 from scripts.workflows.runtime.capabilities import (  # noqa: E402
     HarnessCapabilities,
     base_capabilities,
@@ -62,7 +63,7 @@ DOMAIN_CAPABILITY_SETS = {
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="LCA LangGraph orchestrator")
+    parser = argparse.ArgumentParser(description="LCA Python orchestrator")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--task", choices=TASK_NAMES)
     source.add_argument(
@@ -119,54 +120,43 @@ def main(argv: list[str] | None = None) -> int:
         model=model,
         capabilities=capabilities,
     )
-    conn, checkpointer = open_checkpointer(workspace_root)
     try:
-        compiled = build_graph(runtime).compile(checkpointer=checkpointer)
-        if args.run_id:
-            return _resume(
-                compiled,
-                conn,
-                runtime,
-                args.run_id,
+        with workspace_lock(workspace_root), open_store(workspace_root) as store:
+            if args.run_id:
+                return _resume(
+                    store,
+                    runtime,
+                    args.run_id,
+                    workspace_root,
+                    project_root=project_root,
+                    worker=worker,
+                    model=model,
+                )
+            run_id = uuid.uuid4().hex
+            _bind_progress_log(workspace_root, run_id, append=False)
+            print_orchestrator(
+                f"start run_id={run_id} task={task_label} worker={worker}"
+            )
+            write_runtime_config(
                 workspace_root,
+                run_id,
+                workflow,
                 project_root=project_root,
                 worker=worker,
                 model=model,
             )
-        run_id = uuid.uuid4().hex
-        _bind_progress_log(workspace_root, run_id, append=False)
-        print_orchestrator(f"start run_id={run_id} task={task_label} worker={worker}")
-        write_runtime_config(
-            workspace_root,
-            run_id,
-            workflow,
-            project_root=project_root,
-            worker=worker,
-            model=model,
-        )
-        write_manifest(
-            workspace_root,
-            status="running",
-            current_stage=workflow.stages[0].stage_id,
-            status_reason=None,
-            run_id=run_id,
-        )
-        graph_config = cast(
-            RunnableConfig,
-            {"configurable": {"thread_id": run_id}, "recursion_limit": 80},
-        )
-        result = compiled.invoke(
-            initial_state(
+            state = initial_state(
                 run_id=run_id,
                 task=str(task_label),
                 worker=worker,
                 workflow=workflow,
-            ),
-            graph_config,
-        )
-        return _exit_code(result)
+            )
+            return _exit_code(run_workflow(runtime, state, store))
+    except WorkspaceBusy as exc:
+        print_orchestrator(str(exc), file=sys.stderr)
+        return 1
     finally:
-        conn.close()
+        set_progress_log(None)
 
 
 def _capabilities_for(
@@ -207,8 +197,7 @@ def compose_capabilities(ids: list[str]) -> HarnessCapabilities:
 
 
 def _resume(
-    compiled,
-    conn: sqlite3.Connection,
+    store: CheckpointStore,
     runtime: OrchestratorRuntime,
     run_id: str,
     workspace_root: Path,
@@ -217,13 +206,29 @@ def _resume(
     worker: str,
     model: str,
 ) -> int:
-    del conn
     try:
         run_id = require_identifier(run_id, label="run id")
     except ValueError as exc:
         print_orchestrator(str(exc), file=sys.stderr)
         return 2
     _bind_progress_log(workspace_root, run_id, append=True)
+    state = store.load(run_id)
+    if state is None:
+        print_orchestrator(
+            f"no Python checkpoint for run_id={run_id}; "
+            "legacy LangGraph checkpoints cannot be resumed; start a new run",
+            file=sys.stderr,
+        )
+        return 1
+    if state.get("runtime_version") != RUNTIME_VERSION:
+        print_orchestrator(
+            f"legacy checkpoint cannot be resumed by v{RUNTIME_VERSION}; start a new run",
+            file=sys.stderr,
+        )
+        return 1
+    # Terminal or uncertain runs need no configuration reload or external actions.
+    if state.get("status") in {"completed", "failed"} or state.get("in_flight"):
+        return _exit_code(run_workflow(runtime, state, store))
     try:
         assert_runtime_config_matches(
             workspace_root,
@@ -235,54 +240,12 @@ def _resume(
         )
     except ValueError as exc:
         print_orchestrator(str(exc), file=sys.stderr)
-        write_manifest(
-            workspace_root,
-            status="failed",
-            current_stage=None,
-            status_reason=str(exc),
-            run_id=run_id,
-        )
-        return 1
-    config = {"configurable": {"thread_id": run_id}}
-    snapshot = compiled.get_state(config)
-    if snapshot is None or not snapshot.values:
-        print_orchestrator(f"no checkpoint for run_id={run_id}", file=sys.stderr)
-        write_manifest(
-            workspace_root,
-            status="failed",
-            current_stage=None,
-            status_reason=f"找不到运行 {run_id} 的检查点",
-            run_id=run_id,
-        )
-        return 1
-    values = dict(snapshot.values)
-    if values.get("runtime_version") != 3:
-        reason = "v2/legacy checkpoint cannot be resumed by v3; start a new run"
-        print_orchestrator(reason, file=sys.stderr)
-        return 1
-    if values.get("in_flight"):
-        reason = (
-            "worker 调用期间中断，检查点仍标记 in_flight；"
-            "不重发可能已产生副作用的任务。"
-        )
-        print_orchestrator(reason, file=sys.stderr)
-        write_manifest(
-            workspace_root,
-            status="failed",
-            current_stage=values.get("current_stage"),
-            status_reason=reason,
-            run_id=run_id,
-        )
-        return 1
-    if values.get("status") in {"completed", "failed"}:
-        print_orchestrator(f"run already {values.get('status')}")
-        return 0 if values.get("status") == "completed" else 1
+        return _exit_code(fail_run(runtime, state, store, str(exc)))
     print_orchestrator(f"resume run_id={run_id}")
-    result = compiled.invoke(None, {**config, "recursion_limit": 80})
-    return _exit_code(result or values)
+    return _exit_code(run_workflow(runtime, state, store))
 
 
-def _exit_code(result: dict | None) -> int:
+def _exit_code(result: WorkflowState | None) -> int:
     if not result:
         return 1
     status = result.get("status")

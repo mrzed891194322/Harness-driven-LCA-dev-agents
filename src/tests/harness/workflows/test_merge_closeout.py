@@ -23,7 +23,7 @@ from scripts.workflows.orchestrator.load.lists import (
     resolve_list,
 )
 from scripts.workflows.orchestrator.load.loader import load_workflow
-from scripts.workflows.orchestrator.loop.graph import (
+from scripts.workflows.orchestrator.loop.runner import (
     OrchestratorRuntime,
     WorkflowState,
     initial_state,
@@ -895,7 +895,7 @@ class CapabilitiesCompositionTests(unittest.TestCase):
 
 
 class RuntimeVersionTests(unittest.TestCase):
-    def test_initial_state_is_v3(self) -> None:
+    def test_initial_state_is_v4(self) -> None:
         workflow = load_workflow(
             WORKFLOWS / "LCA-main.yaml",
             project_root=PROJECT_ROOT,
@@ -904,9 +904,9 @@ class RuntimeVersionTests(unittest.TestCase):
         state = initial_state(
             run_id="abc", task="whole-lca", worker="codex", workflow=workflow
         )
-        self.assertEqual(state.get("runtime_version"), 3)
+        self.assertEqual(state.get("runtime_version"), 4)
 
-    def test_v3_matching_config_resumes(self) -> None:
+    def test_matching_config_resumes(self) -> None:
         workflow = load_workflow(
             WORKFLOWS / "LCA-main.yaml",
             project_root=PROJECT_ROOT,
@@ -939,7 +939,7 @@ class RuntimeVersionTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)
-            with self.assertRaisesRegex(ValueError, "cannot be resumed by v3"):
+            with self.assertRaisesRegex(ValueError, "missing runtime configuration"):
                 assert_runtime_config_matches(
                     workspace,
                     "missing",
