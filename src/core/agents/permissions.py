@@ -2,7 +2,7 @@
 
 Providers map these constants onto native CLI flags. Tool names and sandbox
 primitives differ per CLI; do not assume one argv works for every worker.
-Write confinement to LCA ``workspace/`` remains a prompt rule, not an OS lock.
+Write confinement to the project ``workspace/`` remains a prompt rule, not an OS lock.
 """
 
 from __future__ import annotations

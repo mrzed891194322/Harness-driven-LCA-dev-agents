@@ -27,24 +27,42 @@ from tests.conftest import PROJECT_ROOT
 
 
 def _workflow(tmp_path, server):
-    (tmp_path / "spec.md").write_text("A generic task.\n")
+    specs = tmp_path / "harness" / "specs" / "work"
+    specs.mkdir(parents=True)
+    (specs / "spec.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "id": "work",
+                "inputs": [],
+                "outputs": [],
+                "acceptance": {"checks": []},
+                "lifecycle": {"on_reviewer_passed": []},
+                "handoff": {"checks": []},
+            },
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
+    )
     path = tmp_path / "workflow.yaml"
     path.write_text(
         yaml.safe_dump(
             {
                 "id": "external",
-                "runtime_spec": "spec.md",
                 "registry": {"tools": {"external.echo": server}},
                 "stages": [
-                    {"id": "work", "spec": "spec.md", "steps": ["writer", "reviewer"]}
+                    {
+                        "id": "work",
+                        "spec": "harness/specs/work/spec.yaml",
+                        "steps": ["writer", "reviewer"],
+                    }
                 ],
                 "assignments": {
                     "writer": {
                         "role": "executor",
-                        "task_spec": "spec.md",
                         "tools": ["external.echo"],
                     },
-                    "reviewer": {"role": "reviewer", "task_spec": "spec.md"},
+                    "reviewer": {"role": "reviewer", "tools": []},
                 },
             }
         )

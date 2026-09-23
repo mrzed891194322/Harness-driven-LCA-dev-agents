@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "harness/specs/04-openlca-reporting/calculation-plan.schema.json",
+  "title": "Calculation plan",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["calculations"],
+  "properties": {
+    "calculations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["product_system", "impact_method", "amount"],
+        "properties": {
+          "product_system": {
+            "type": "string",
+            "minLength": 1
+          },
+          "impact_method": {
+            "type": "string",
+            "minLength": 1
+          },
+          "amount": {
+            "type": "number"
+          },
+          "allocation": {
+            "type": ["string", "null"]
+          },
+          "regionalized": {
+            "type": "boolean"
+          },
+          "costs": {
+            "type": "boolean"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}

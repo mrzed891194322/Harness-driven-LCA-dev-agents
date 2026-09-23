@@ -1,0 +1,15 @@
+version: 1
+id: 01-intake-gate
+inputs:
+  - path: workspace/inputs/plan.md
+    required: true
+outputs:
+  - path: workspace/memory/reviews/01-intake-gate-1.md
+    kind: file
+    required: true
+acceptance:
+  checks: []
+lifecycle:
+  on_reviewer_passed: []
+handoff:
+  schema: harness/specs/shared/handoff.schema.json

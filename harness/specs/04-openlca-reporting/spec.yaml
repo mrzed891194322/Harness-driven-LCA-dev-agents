@@ -1,0 +1,30 @@
+version: 1
+id: 04-openlca-reporting
+inputs:
+  - path: workspace/outputs/LCI
+    required: true
+  - path: workspace/outputs/inventory/extracted-bom.json
+    required: true
+  - path: workspace/outputs/inventory/process-mapping.json
+    required: true
+outputs:
+  - path: workspace/outputs/reports/lca_report.md
+    kind: file
+    required: true
+acceptance:
+  checks:
+    - id: report
+      tool: lca_artifacts
+      call: validate_artifacts
+      state_call: get_validation_state
+      arguments:
+        profile: report
+lifecycle:
+  on_reviewer_passed: []
+handoff:
+  schema: harness/specs/shared/handoff.schema.json
+  checks:
+    - id: handoff
+      tool: lca_artifacts
+      call: validate_handoff
+      arguments: {}

@@ -5,7 +5,7 @@
 ## 额外输入
 
 - `workspace/inputs/revise.md`
-- 上一轮 `workspace/outputs/inventory/process-mapping.json` 与 `workspace/outputs/LCI/`
+- 上一轮 process-mapping.json 与 LCI 目录
 
 ## 修订要求
 

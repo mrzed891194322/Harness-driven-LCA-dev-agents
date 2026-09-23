@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING, Any
 from core.agents.mcp import DEFAULT_TOOL_TIMEOUT_SEC
 from core.runtime.tool_runtime import ToolRuntimeSpec
 
-from .bundle import CheckRef
-
 if TYPE_CHECKING:
     from .bundle import TaskBundle
 
@@ -58,7 +56,6 @@ class KnowledgeSource:
 class Assignment:
     assignment_id: str
     role: str
-    task_spec: str
     tools_decl: Any | None = None
     rules_decl: Any | None = None
     knowledge_decl: Any | None = None
@@ -70,20 +67,15 @@ class Stage:
     spec: str
     max_attempts: int
     steps: list[str]
-    spec_additions: list[str] = field(default_factory=list)
-    outputs: list[str] = field(default_factory=list)
-    checks: list[CheckRef] = field(default_factory=list)
     knowledge_decl: Any | None = None
     rules_decl: Any | None = None
     tools_decl: Any | None = None
-    reviewer_passed_hooks_decl: Any | None = None
     context: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
 class Workflow:
     workflow_id: str
-    runtime_spec: str
     max_attempts: int
     rules: dict[str, str]
     tools: dict[str, ToolSpec]
@@ -93,11 +85,7 @@ class Workflow:
     stages: list[Stage]
     assignments: dict[str, Assignment]
     source_path: Path
-    reviewer_passed_hooks: list[str] = field(default_factory=list)
     bundles: dict[str, TaskBundle] = field(default_factory=dict)
-    checker_providers: dict[str, str] = field(default_factory=dict)
-    hook_providers: dict[str, str] = field(default_factory=dict)
-    handoff_validator_providers: dict[str, str] = field(default_factory=dict)
 
     def stage_by_id(self, stage_id: str) -> Stage:
         for stage in self.stages:

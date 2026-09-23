@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "harness/specs/shared/handoff.schema.json",
+  "title": "Stage handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "role",
+    "stage",
+    "attempt",
+    "status",
+    "status_reason",
+    "fix_instructions",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "role": {
+      "type": "string",
+      "enum": ["executor", "reviser", "reviewer"]
+    },
+    "stage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "failed", "blocked", "passed"]
+    },
+    "status_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fix_instructions": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checks_ref": {
+      "type": "string",
+      "description": "Path string to checks artifact (tool return .path)."
+    },
+    "evidence_manifest_ref": {
+      "type": "string",
+      "description": "Path string to evidence manifest."
+    },
+    "rework_scope": {
+      "type": "string",
+      "enum": ["none", "report_only", "calculation_changed", "model_changed"],
+      "default": "none"
+    }
+  }
+}

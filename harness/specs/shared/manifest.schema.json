@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "harness/specs/shared/manifest.schema.json",
+  "title": "Run manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["status", "current_stage", "status_reason"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["running", "failed", "completed"]
+    },
+    "current_stage": {
+      "type": ["string", "null"]
+    },
+    "status_reason": {
+      "type": ["string", "null"]
+    },
+    "run_id": {
+      "type": "string"
+    }
+  }
+}

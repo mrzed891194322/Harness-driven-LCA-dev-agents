@@ -16,11 +16,11 @@ whole-lca 和 revise-lca 共用研究要求规则；修订的阶段差异由 spe
 
 ## 内容归属
 
-- **规则**：如何判断与工作，例如缺口、功能等价、数量换算和证据边界。
-- **阶段 spec**：目标、产物、字段、验收和执行顺序；角色文件只规定各角色职责。
-- **公共协议**：handoff、循环、状态、角色交接，由 `harness/specs/public/references/workflow-runtime-spec.md` 维护。
-- **工具文档/发现结果**：签名、参数范围、重连、缓存、上下文和实现。工具入口以 YAML 注册为准，不假定所有入口都在 harness/tools。
+- **规则**：如何判断与工作，例如缺口、功能等价、数量换算和证据边界；阶段方法见 [stages/](stages/)，角色任务见 [assignments/](assignments/)。
+- **机器 spec**：`harness/specs/<stage>/spec.yaml` 与 JSON Schema 管输入、产物路径与验收检查；自然语言目标与审查留在 rules。
+- **运行环**：项目阶段循环与 LCA 证据约定见 [project/runtime-loop.md](project/runtime-loop.md)；通用 handoff 协议由主编排注入。
+- **工具文档/发现结果**：签名、参数范围、重连、缓存、上下文和实现。报告模板在 `harness/tools/lca_artifacts/templates/`。
 
-新增规则先写 Markdown、注册 ID，再绑定需要它的阶段或角色。新增工具在 YAML 注册连接及可选工具规则；新增阶段使用独立 spec 包。不要将同一段契约同时复制到规则、阶段和角色文件。
+新增规则先写 Markdown、注册 ID，再绑定需要它的阶段或角色。新增工具在 YAML 注册连接及可选工具规则；新增阶段使用独立 `spec.yaml`。不要将同一段契约同时复制到规则、阶段和角色文件。
 
-绑定回归用 `uv run pytest src/tests/harness/workflows -q`；方法审查案例见 [检查契约](../specs/public/references/evidence-contract.md)。
+绑定回归用 `uv run pytest src/tests/harness/workflows -q`；方法审查案例见 [stages/04-openlca-reporting.md](stages/04-openlca-reporting.md)。

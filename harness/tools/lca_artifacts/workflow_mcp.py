@@ -25,7 +25,7 @@ from core.workflow.execution.handoff import (
     write_handoff_file,
 )
 from harness.tools.lca_artifacts import checks, report
-from harness.tools.lca_artifacts.handoff import validate as validate_handoff
+from harness.tools.lca_artifacts.handoff import validate as validate_handoff_payload
 from harness.tools.lca_artifacts.store import (
     Context,
     bind_context_argv,
@@ -58,9 +58,23 @@ WRITE = ToolAnnotations(
 def validate_artifacts(
     profile: Literal["inventory", "mapping", "report"],
 ) -> dict[str, Any]:
+    def execute() -> dict[str, Any]:
+        result = checks.validate(Context.environment(), profile)
+        ok = bool(result.get("ok"))
+        errors = list(result.get("errors") or [])
+        return {
+            **result,
+            "ok": ok,
+            "status": "passed" if ok else "failed",
+            "summary": str(result.get("summary") or "")
+            or ("; ".join(str(e) for e in errors[:5]) if errors else ""),
+            "errors": [str(e) for e in errors],
+            "warnings": list(result.get("warnings") or []),
+        }
+
     return invoke(
         "validate_artifacts",
-        lambda: checks.validate(Context.environment(), profile),
+        execute,
         arguments={"profile": profile},
     )
 
@@ -144,7 +158,7 @@ def submit_handoff(
             stage=ctx.stage,
             attempt=ctx.attempt,
         )
-        validate_handoff(run_ctx, validated)
+        validate_handoff_payload(run_ctx, validated)
         rel = path.relative_to(ctx.workspace)
         return {"ok": True, "path": rel.as_posix()}
 
@@ -157,6 +171,73 @@ def submit_handoff(
             "artifacts": artifacts,
         },
     )
+
+
+@mcp.tool(
+    description="Record mapping acceptance after reviewer passed (host lifecycle action).",
+    annotations=WRITE,
+    structured_output=True,
+)
+def record_acceptance(
+    profile: Literal["inventory", "mapping", "report"] = "mapping",
+) -> dict[str, Any]:
+    def execute() -> dict[str, Any]:
+        if profile != "mapping":
+            raise ValueError(
+                f"record_acceptance requires profile='mapping', got {profile!r}"
+            )
+        ctx = Context.environment()
+        checks.record_acceptance(ctx, acceptance_key=checks.ACCEPTANCE_MODEL)
+        return {
+            "ok": True,
+            "status": "passed",
+            "summary": "acceptance recorded",
+            "errors": [],
+            "warnings": [],
+        }
+
+    return invoke("record_acceptance", execute, arguments={"profile": profile})
+
+
+@mcp.tool(
+    description="Validate optional handoff business fields (e.g. rework_scope).",
+    annotations=AUDIT,
+    structured_output=True,
+)
+def validate_handoff(handoff: dict[str, Any] | None = None) -> dict[str, Any]:
+    def execute() -> dict[str, Any]:
+        ctx = Context.environment()
+        payload = dict(handoff or {})
+        assignment = ctx.assignment or f"{ctx.stage}-{ctx.role}"
+        run_ctx = RunContext(
+            ctx.project,
+            ctx.workspace,
+            ctx.run_id,
+            ctx.stage,
+            assignment,
+            ctx.attempt,
+            ctx.role,
+            dict(ctx.metadata or {}),
+        )
+        try:
+            validate_handoff_payload(run_ctx, payload)
+        except ValueError as exc:
+            return {
+                "ok": False,
+                "status": "failed",
+                "summary": str(exc),
+                "errors": [str(exc)],
+                "warnings": [],
+            }
+        return {
+            "ok": True,
+            "status": "passed",
+            "summary": "handoff ok",
+            "errors": [],
+            "warnings": [],
+        }
+
+    return invoke("validate_handoff", execute, arguments={"handoff": handoff})
 
 
 @mcp.tool(

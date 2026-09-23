@@ -8,6 +8,8 @@ from typing import Any, Literal, TypedDict, cast
 from core.agents.progress import print_orchestrator
 from core.runtime.capabilities import HarnessCapabilities
 from core.runtime.context import RunContext
+from core.runtime.mcp_host import invoke_tool
+from core.workflow.spec.outputs import validate_handoff_schema, validate_outputs
 
 from ..config.bundle import TaskBundle
 from ..config.models import Assignment, Stage, Workflow
@@ -166,7 +168,7 @@ class OrchestratorRuntime:
         self.bundles = workflow.bundles
         if capabilities is None:
             raise ValueError(
-                "capabilities required; pass from composition root (e.g. lca_capabilities())"
+                "capabilities required; pass base_capabilities() from composition root"
             )
         self.capabilities = capabilities
         self.project_root = project_root
@@ -202,23 +204,22 @@ class OrchestratorRuntime:
         run_ctx = self._run_context(state, stage, assignment)
         context.update(self._enrich_knowledge(run_ctx, bundle))
         check_summaries: list[dict[str, object]] = []
-        for check in bundle.checks:
-            checker_id = check.checker_id
+        for check in bundle.acceptance_checks:
+            method = check.state_call or check.call
             try:
-                record = self.capabilities.checkers.validation_state(
-                    run_ctx, checker_id
+                result = invoke_tool(
+                    self.workflow.tools[check.tool],
+                    method,
+                    dict(check.arguments),
+                    run_ctx=run_ctx,
+                    project_root=self.project_root,
                 )
+                summary = result.to_summary(check.id)
+                check_summaries.append(summary)
+            except (OSError, ValueError, KeyError, RuntimeError, TimeoutError) as exc:
                 check_summaries.append(
                     {
-                        k: v
-                        for k, v in record.items()
-                        if k in {"check_id", "status", "summary", "checker_version"}
-                    }
-                )
-            except (OSError, ValueError, KeyError) as exc:
-                check_summaries.append(
-                    {
-                        "check_id": checker_id,
+                        "check_id": check.id,
                         "status": "stale",
                         "summary": str(exc)[:500],
                     }
@@ -314,8 +315,26 @@ class OrchestratorRuntime:
             handoff = read_handoff(
                 path, role=assignment.role, stage=stage.stage_id, attempt=attempt
             )
-            for validate in self.capabilities.handoff_validators:
-                validate(self._run_context(state, stage, assignment), handoff)
+            bundle = self.bundles[assignment.assignment_id]
+            schema_errors = validate_handoff_schema(
+                bundle.stage_spec.handoff_schema,
+                handoff,
+                project_root=self.project_root,
+            )
+            if schema_errors:
+                raise ValueError("; ".join(schema_errors[:5]))
+            run_ctx = self._run_context(state, stage, assignment)
+            for check in bundle.stage_spec.handoff_checks:
+                result = invoke_tool(
+                    self.workflow.tools[check.tool],
+                    check.call,
+                    {**dict(check.arguments), "handoff": handoff},
+                    run_ctx=run_ctx,
+                    project_root=self.project_root,
+                )
+                if not result.ok:
+                    detail = "; ".join(result.errors[:10]) or result.summary
+                    raise ValueError(f"{check.id}: {detail}")
         except Exception as exc:
             return self._rework_invalid_handoff(state, stage, assignment, path, exc)
 
@@ -380,30 +399,45 @@ class OrchestratorRuntime:
         _handoff: dict[str, Any],
     ) -> dict[str, Any] | None:
         bundle = self.bundles[assignment.assignment_id]
-        if not bundle.checks:
-            return None
         run_ctx = self._run_context(state, stage, assignment)
-        # Rebuild canonical knowledge/source manifests before deterministic checks so
-        # worker edits to sources/<assignment>.json cannot change dependency membership.
         self._enrich_knowledge(run_ctx, bundle)
-        for check in bundle.checks:
-            checker_id = check.checker_id
+        output_errors = validate_outputs(
+            bundle.stage_spec,
+            workspace_root=self.workspace_root,
+            project_root=self.project_root,
+        )
+        if output_errors:
+            reason = "产物契约未通过：" + "; ".join(output_errors[:20])
+            print_orchestrator(
+                f"host check failed {assignment.assignment_id}: {reason}"
+            )
+            return self._retry_or_fail(
+                state, stage, assignment, reason, fix_instructions=reason
+            )
+        if not bundle.acceptance_checks:
+            return None
+        for check in bundle.acceptance_checks:
             try:
-                result = self.capabilities.checkers.run_validate(run_ctx, checker_id)
+                result = invoke_tool(
+                    self.workflow.tools[check.tool],
+                    check.call,
+                    dict(check.arguments),
+                    run_ctx=run_ctx,
+                    project_root=self.project_root,
+                )
             except Exception as exc:
-                reason = f"{checker_id} 检查未能执行：{exc}"
+                reason = f"{check.id} 检查未能执行：{exc}"
                 print_orchestrator(
                     f"host check failed {assignment.assignment_id}: {reason}"
                 )
                 return self._retry_or_fail(
                     state, stage, assignment, reason, fix_instructions=reason
                 )
-            if not result.get("ok"):
-                errors = result.get("errors") or []
-                detail = "; ".join(str(item) for item in errors[:20]) or (
-                    str(result.get("summary") or "").strip() or "确定性检查未通过"
+            if not result.ok:
+                detail = "; ".join(result.errors[:20]) or (
+                    result.summary.strip() or "确定性检查未通过"
                 )
-                reason = f"{checker_id} 检查未通过：{detail}"
+                reason = f"{check.id} 检查未通过：{detail}"
                 print_orchestrator(
                     f"host check failed {assignment.assignment_id}: {reason}"
                 )
@@ -440,12 +474,22 @@ class OrchestratorRuntime:
                 )
             bundle = self.bundles[assignment.assignment_id]
             run_ctx = self._run_context(state, stage, assignment)
-            for hook_id in bundle.reviewer_passed_hooks:
+            for action in bundle.on_reviewer_passed:
                 try:
-                    self.capabilities.hooks.run(hook_id, run_ctx)
+                    result = invoke_tool(
+                        self.workflow.tools[action.tool],
+                        action.call,
+                        dict(action.arguments),
+                        run_ctx=run_ctx,
+                        project_root=self.project_root,
+                    )
+                    if not result.ok:
+                        raise RuntimeError(
+                            "; ".join(result.errors[:10]) or result.summary
+                        )
                 except Exception as exc:
                     reason = (
-                        f"reviewer passed，但 post-review hook {hook_id} "
+                        f"reviewer passed，但 lifecycle action {action.id} "
                         f"执行失败：{exc}"
                     )
                     write_review_note(
@@ -495,39 +539,46 @@ class OrchestratorRuntime:
         stage: Stage,
         assignment: Assignment,
     ) -> str | None:
-        """Re-validate outputs and checks before hooks/advance. None = ok."""
+        """Re-validate outputs and checks before lifecycle/advance. None = ok."""
         bundle = self.bundles[assignment.assignment_id]
-        if not stage.outputs and not bundle.checks:
+        if not bundle.stage_spec.outputs and not bundle.acceptance_checks:
             return None
-        # Review notes are written by the host after this gate; do not require them yet.
         note_rel = (
             Path("workspace")
             / "memory"
             / "reviews"
             / f"{stage.stage_id}-{_attempt(state)}.md"
         ).as_posix()
-        outputs = [item for item in stage.outputs if item != note_rel]
+        outputs = [
+            item.path
+            for item in bundle.stage_spec.outputs
+            if item.required and item.path != note_rel
+        ]
         missing = missing_expected_outputs(self.workspace_root, outputs)
         if missing:
             return "审查期间产物或确定性检查状态已变化：缺少产物：" + ", ".join(missing)
-        if not bundle.checks:
+        if not bundle.acceptance_checks:
             return None
         run_ctx = self._run_context(state, stage, assignment)
-        for check in bundle.checks:
+        for check in bundle.acceptance_checks:
+            method = check.state_call or check.call
             try:
-                record = self.capabilities.checkers.validation_state(
-                    run_ctx, check.checker_id
+                result = invoke_tool(
+                    self.workflow.tools[check.tool],
+                    method,
+                    dict(check.arguments),
+                    run_ctx=run_ctx,
+                    project_root=self.project_root,
                 )
             except Exception as exc:
                 return (
                     "审查期间产物或确定性检查状态已变化："
-                    f"{check.checker_id} 检查未能读取：{exc}"
+                    f"{check.id} 检查未能读取：{exc}"
                 )
-            status = str(record.get("status") or "not_run")
-            if status != "passed":
+            if result.status != "passed":
                 return (
                     "审查期间产物或确定性检查状态已变化："
-                    f"{check.checker_id} 状态为 {status}"
+                    f"{check.id} 状态为 {result.status}"
                 )
         return None
 
@@ -559,7 +610,7 @@ class OrchestratorRuntime:
             "fix_instructions": (
                 f"handoff 契约不接受，请原地改写 {path}：{exc}。"
                 "只修正当前 handoff JSON，不要改检查点或 manifest，不要推进阶段，"
-                "也不要当成审查意见去改 BOM 或其他产物。"
+                "也不要当成审查意见去擅自改产物。"
             ),
             "status": "running",
             "status_reason": (
@@ -679,7 +730,7 @@ def missing_expected_outputs(
         if resolved != root and root not in resolved.parents:
             missing.append(relative)
             continue
-        if relative.endswith("/"):
+        if relative.endswith("/") or resolved.is_dir():
             if not resolved.is_dir():
                 missing.append(relative)
         elif not resolved.is_file():

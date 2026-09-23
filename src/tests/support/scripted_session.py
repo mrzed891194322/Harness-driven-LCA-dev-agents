@@ -13,68 +13,63 @@ from core.agents.session import (
     SessionResumeError,
     TurnResult,
 )
-from harness.tools.lca_artifacts.checks import CHECKER_VERSION
+from core.runtime.mcp_host import CheckResult
 from tests.conftest import PROJECT_ROOT
 
 HandoffScript = dict[tuple[str, str, int], Any]
 
-_CHECKER_PROFILES = {
-    "lca.inventory": "inventory",
-    "lca.mapping": "mapping",
-    "lca.report": "report",
+_MINIMAL_BOM = {
+    "items": [
+        {
+            "item_id": "sample",
+            "name": "示例物料",
+            "quantity": 1,
+            "unit": "kg",
+            "process": "p",
+            "transport": {"mode": "truck", "distance_km": 1},
+            "geography": "GLO",
+            "source_locations": ["plan.md#L1"],
+            "extraction_status": "extracted",
+        }
+    ]
+}
+
+_MINIMAL_MAPPING = {
+    "items": [
+        {
+            "item_id": "sample",
+            "flow_name": "f",
+            "flow_id": "fid",
+            "process_name": "p",
+            "process_id": "pid",
+            "provider_name": "ecoinvent",
+            "provider_id": "prov",
+            "geography_requested": "GLO",
+            "geography_selected": "GLO",
+            "selection_reason": "test",
+            "candidates": [],
+        }
+    ]
 }
 
 
-def passing_validate(ctx: Any, checker_id: str) -> dict[str, Any]:
-    profile = _CHECKER_PROFILES.get(checker_id, checker_id.rsplit(".", 1)[-1])
-    path = (
-        Path(ctx.workspace_root)
-        / "memory"
-        / "evidence"
-        / ctx.run_id
-        / "checks"
-        / f"{profile}.json"
-    )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "check_id": profile,
-                "checker_version": CHECKER_VERSION,
-                "status": "passed",
-                "inputs": {"files": []},
-                "executed_at": "2020-01-01T00:00:00Z",
-                "summary": f"{checker_id}: 0 issue(s)",
-                "errors": [],
-                "warnings": [],
-                "stage": ctx.stage_id,
-                "assignment": ctx.assignment_id,
-                "attempt": ctx.attempt,
-            }
-        ),
-        encoding="utf-8",
-    )
+def passing_invoke_tool(*_args: Any, **_kwargs: Any) -> CheckResult:
+    """Host MCP stub: every check / lifecycle / handoff call succeeds."""
+    return CheckResult(ok=True, status="passed", summary="ok", errors=[], warnings=[])
+
+
+# Backward-compatible alias used by older tests that patched CheckerRegistry.
+def passing_validate(_ctx: Any, _checker_id: str) -> dict[str, Any]:
     return {
         "ok": True,
-        "checks": [
-            {
-                "check_id": checker_id,
-                "status": "passed",
-                "summary": f"{checker_id}: 0 issue(s)",
-            }
-        ],
+        "checks": [{"check_id": _checker_id, "status": "passed", "summary": "ok"}],
         "errors": [],
         "warnings": [],
-        "checks_ref": {
-            "path": f"memory/evidence/{ctx.run_id}/checks/{profile}.json",
-            "sha256": "0",
-            "size_bytes": 1,
-        },
     }
 
 
-# Backward-compatible alias used by older tests.
 _passing_validate = passing_validate
+_passing_invoke_tool = passing_invoke_tool
 
 
 class ScriptedSessionClient:
@@ -168,13 +163,27 @@ class ScriptedSessionClient:
             path.parent.mkdir(parents=True, exist_ok=True)
             if relative.endswith("/"):
                 path.mkdir(parents=True, exist_ok=True)
+                continue
+            if relative.endswith("extracted-bom.json"):
+                path.write_text(
+                    json.dumps(_MINIMAL_BOM, ensure_ascii=False), encoding="utf-8"
+                )
+            elif relative.endswith("process-mapping.json"):
+                path.write_text(
+                    json.dumps(_MINIMAL_MAPPING, ensure_ascii=False), encoding="utf-8"
+                )
             else:
-                path.write_text("{}", encoding="utf-8")
+                path.write_text("{}\n", encoding="utf-8")
 
 
 def context_from_prompt(prompt: str) -> dict:
     start = prompt.index("{")
-    end = prompt.index("\n# 公共任务协议")
+    for marker in ("\n# 通用运行协议", "\n# 公共任务协议", "\n# 阶段机器契约"):
+        if marker in prompt:
+            end = prompt.index(marker)
+            break
+    else:
+        end = prompt.index("\n#", start + 1)
     return json.loads(prompt[start:end].strip())
 
 

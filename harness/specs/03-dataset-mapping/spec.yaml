@@ -1,0 +1,38 @@
+version: 1
+id: 03-dataset-mapping
+inputs:
+  - path: workspace/outputs/inventory/extracted-bom.json
+    required: true
+  - path: workspace/inputs/plan.md
+    required: true
+outputs:
+  - path: workspace/outputs/inventory/process-mapping.json
+    kind: file
+    required: true
+    format: json
+    schema: harness/specs/03-dataset-mapping/process-mapping.schema.json
+  - path: workspace/outputs/LCI
+    kind: directory
+    required: true
+acceptance:
+  checks:
+    - id: mapping
+      tool: lca_artifacts
+      call: validate_artifacts
+      state_call: get_validation_state
+      arguments:
+        profile: mapping
+lifecycle:
+  on_reviewer_passed:
+    - id: record_acceptance
+      tool: lca_artifacts
+      call: record_acceptance
+      arguments:
+        profile: mapping
+handoff:
+  schema: harness/specs/shared/handoff.schema.json
+  checks:
+    - id: handoff
+      tool: lca_artifacts
+      call: validate_handoff
+      arguments: {}

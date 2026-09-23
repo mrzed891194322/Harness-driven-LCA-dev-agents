@@ -14,7 +14,7 @@
 - 03 审核通过快照由编排器记录；04 导入/计算只接受未变化的已审模型。计算请求须与 calculation-plan.json 一致。
 - 工具身份由编排器写入 `--context-file`（每轮覆盖 attempt/role）；MCP 每次调用重读。`LCA_*` 环境变量仅为冗余。无该参数时（GUI/探测）才用独立 standalone run，其产物不进入正式运行复用。
 
-离线回归：`uv run pytest src/tests/harness/tools/control_openlca -q`。行为规则见 `harness/rules/tools/control_openlca.md`，证据契约见 `harness/specs/public/references/evidence-contract.md`。
+离线回归：`uv run pytest src/tests/harness/tools/control_openlca -q`。行为规则见 `harness/rules/tools/control_openlca.md`，证据与返工约定见 `harness/rules/project/runtime-loop.md`。
 
 ---
 

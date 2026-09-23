@@ -182,7 +182,6 @@ class WorkDetailsJsonTests(unittest.TestCase):
             / "harness"
             / "specs"
             / "02-inventory-extraction"
-            / "references"
             / "examples"
             / "extracted-bom.json"
         )
@@ -191,7 +190,6 @@ class WorkDetailsJsonTests(unittest.TestCase):
             / "harness"
             / "specs"
             / "03-dataset-mapping"
-            / "references"
             / "examples"
             / "process-mapping.json"
         )

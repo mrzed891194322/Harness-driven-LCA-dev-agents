@@ -89,7 +89,7 @@ def build_session_config(
         tmp_dir=workspace_root / "tmp",
         mcp_servers=mcp_servers,
         model=model,
-        spec_paths=list(bundle.spec_paths),
+        spec_paths=[bundle.stage_spec.source_path],
         rule_ids=list(bundle.rule_ids),
         tool_ids=tool_ids,
         stage_id=bundle.stage_id,

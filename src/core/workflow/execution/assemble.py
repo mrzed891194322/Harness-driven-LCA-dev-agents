@@ -14,9 +14,15 @@ def assignment_spec_paths(
     stage: Stage,
     assignment: Assignment,
 ) -> list[str]:
-    """Return repo-relative spec paths for this assignment, in prompt order."""
+    """Return repo-relative stage-spec path for this assignment."""
+    del stage
     bundle = workflow.bundles[assignment.assignment_id]
-    return list(bundle.spec_paths)
+    return [bundle.stage_spec.source_path]
+
+
+def assignment_rule_ids(workflow: Workflow, assignment: Assignment) -> list[str]:
+    """Return resolved rule ids for an assignment (tests / diagnostics)."""
+    return list(workflow.bundles[assignment.assignment_id].rule_ids)
 
 
 def assemble_prompt(

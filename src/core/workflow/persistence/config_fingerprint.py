@@ -56,18 +56,9 @@ def build_runtime_config(
     payload = {
         "schema_version": SCHEMA_VERSION,
         "workflow_id": workflow.workflow_id,
-        "registry_providers": {
-            "checkers": dict(sorted(workflow.checker_providers.items())),
-            "hooks": dict(sorted(workflow.hook_providers.items())),
-            "handoff_validators": dict(
-                sorted(workflow.handoff_validator_providers.items())
-            ),
-        },
         "implementation": implementation_fingerprint(project_root),
-        "runtime_spec": _file_ref(project_root, workflow.runtime_spec),
         "default_rules": list(workflow.default_rules),
         "default_knowledge": list(workflow.default_knowledge),
-        "reviewer_passed_hooks": list(workflow.reviewer_passed_hooks),
         "rules": {
             rule_id: _file_ref(project_root, relative)
             for rule_id, relative in sorted(workflow.rules.items())
@@ -113,25 +104,16 @@ def build_runtime_config(
                 "spec": _file_ref(project_root, stage.spec),
                 "max_attempts": stage.max_attempts,
                 "steps": list(stage.steps),
-                "spec_additions": [
-                    _file_ref(project_root, item) for item in stage.spec_additions
-                ],
-                "outputs": list(stage.outputs),
-                "checks": [check.to_dict() for check in stage.checks],
                 "context": dict(stage.context),
                 "knowledge_decl": stage.knowledge_decl,
                 "rules_decl": stage.rules_decl,
                 "tools_decl": stage.tools_decl,
-                "hooks_decl": stage.reviewer_passed_hooks_decl,
             }
             for stage in workflow.stages
         ],
         "assignments": {
             aid: {
                 "role": assignment.role,
-                "task_spec": _file_ref(project_root, assignment.task_spec)
-                if assignment.task_spec
-                else "",
                 "tools_decl": assignment.tools_decl,
                 "rules_decl": assignment.rules_decl,
                 "knowledge_decl": assignment.knowledge_decl,

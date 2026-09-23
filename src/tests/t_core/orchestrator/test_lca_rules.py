@@ -6,9 +6,9 @@ import re
 
 import pytest
 
+from core.runtime.capabilities import base_capabilities
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.prompt_build import build_prompt
-from harness.tools.lca_artifacts.bootstrap import lca_capabilities
 from harness.tools.lca_artifacts.offline_report import (
     markers,
     render,
@@ -17,14 +17,15 @@ from harness.tools.lca_artifacts.offline_report import (
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
-@pytest.mark.parametrize("workflow_file", ["LCA-main.yaml", "LCA-revise.yaml"])
-def test_stage_and_role_rules_reach_each_prompt_once(workflow_file):
-    workflow = load_workflow(
-        WORKFLOWS / workflow_file,
-        project_root=PROJECT_ROOT,
-        capabilities=lca_capabilities(),
-    )
-    common = {"workspace_boundary", "runtime", "paths", "lca_method", "knowledge_files"}
+def _expected_rules(workflow_file: str, bundle) -> set[str]:
+    common = {
+        "workspace_boundary",
+        "runtime",
+        "runtime_loop",
+        "paths",
+        "lca_method",
+        "knowledge_files",
+    }
     methods_by_stage = {
         "01-intake-gate": set(),
         "02-inventory-extraction": {"lca_inventory"},
@@ -32,14 +33,31 @@ def test_stage_and_role_rules_reach_each_prompt_once(workflow_file):
         "04-openlca-reporting": {"lca_interpretation"},
     }
     tools = {"lca_artifacts": "artifact_usage", "control_openlca": "openlca_usage"}
+    stage_num = bundle.stage_id.split("-", 1)[0]
+    expected = common | methods_by_stage[bundle.stage_id] | {f"stage_{stage_num}"}
+    if workflow_file == "LCA-revise.yaml":
+        expected |= {f"stage_{stage_num}_revise"}
+    if bundle.role == "reviewer":
+        expected |= {"reviewer_readonly"}
+    expected |= {tools[tool] for tool in bundle.tool_ids}
+    # assignment role rule
+    role = bundle.role
+    expected |= {f"assign_{stage_num}_{role}"}
+    return expected
+
+
+@pytest.mark.parametrize("workflow_file", ["LCA-main.yaml", "LCA-revise.yaml"])
+def test_stage_and_role_rules_reach_each_prompt_once(workflow_file):
+    workflow = load_workflow(
+        WORKFLOWS / workflow_file,
+        project_root=PROJECT_ROOT,
+        capabilities=base_capabilities(),
+    )
     assert "user_intent" not in workflow.rules
     assert len(workflow.bundles) == 7
     for assignment_id, bundle in workflow.bundles.items():
-        expected = common | methods_by_stage[bundle.stage_id]
-        if bundle.role == "reviewer":
-            expected = expected | {"reviewer_readonly"}
-        expected |= {tools[tool] for tool in bundle.tool_ids}
-        assert set(bundle.rule_ids) == expected, assignment_id
+        expected = _expected_rules(workflow_file, bundle)
+        assert set(bundle.rule_ids) == expected, (assignment_id, bundle.rule_ids)
         assert len(bundle.rule_ids) == len(expected), assignment_id
         prompt = build_prompt(
             bundle,
@@ -59,7 +77,7 @@ def test_stage_and_role_rules_reach_each_prompt_once(workflow_file):
 def test_report_templates_preserve_narrative_when_tables_are_rendered(
     tmp_path, revised
 ):
-    templates = PROJECT_ROOT / "harness/specs/04-openlca-reporting/references/templates"
+    templates = PROJECT_ROOT / "harness/tools/lca_artifacts/templates"
     text = (templates / "lca_report.md").read_text()
     assert "### 出处表" in text
     assert "| 主张 | provenance | 依据路径 | 局限 |" in text

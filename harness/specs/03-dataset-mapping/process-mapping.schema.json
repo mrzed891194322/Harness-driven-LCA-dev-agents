@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "harness/specs/03-dataset-mapping/process-mapping.schema.json",
+  "title": "Process mapping",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "item_id",
+          "flow_name",
+          "flow_id",
+          "process_name",
+          "process_id",
+          "provider_name",
+          "provider_id",
+          "geography_requested",
+          "geography_selected",
+          "selection_reason",
+          "candidates"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "flow_name": {
+            "type": ["string", "null"]
+          },
+          "flow_id": {
+            "type": ["string", "null"]
+          },
+          "process_name": {
+            "type": ["string", "null"]
+          },
+          "process_id": {
+            "type": ["string", "null"]
+          },
+          "provider_name": {
+            "type": ["string", "null"]
+          },
+          "provider_id": {
+            "type": ["string", "null"]
+          },
+          "geography_requested": {
+            "type": ["string", "null"]
+          },
+          "geography_selected": {
+            "type": ["string", "null"]
+          },
+          "selection_reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

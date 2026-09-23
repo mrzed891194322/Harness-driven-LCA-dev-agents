@@ -1,11 +1,11 @@
 id: whole-lca
-runtime_spec: harness/specs/public/references/workflow-runtime-spec.md
 max_attempts: 3
 
 registry:
   rules:
     workspace_boundary: harness/rules/project/write-boundary.md
     runtime: harness/rules/project/runtime.md
+    runtime_loop: harness/rules/project/runtime-loop.md
     paths: harness/rules/project/paths.md
     lca_method: harness/rules/lca/method.md
     knowledge_files: harness/rules/lca/knowledge-files.md
@@ -15,6 +15,17 @@ registry:
     artifact_usage: harness/rules/tools/lca_artifacts.md
     openlca_usage: harness/rules/tools/control_openlca.md
     reviewer_readonly: harness/rules/project/reviewer-readonly.md
+    stage_01: harness/rules/stages/01-intake-gate.md
+    stage_02: harness/rules/stages/02-inventory-extraction.md
+    stage_03: harness/rules/stages/03-dataset-mapping.md
+    stage_04: harness/rules/stages/04-openlca-reporting.md
+    assign_01_reviewer: harness/rules/assignments/01-intake-gate/reviewer.md
+    assign_02_executor: harness/rules/assignments/02-inventory-extraction/executor.md
+    assign_02_reviewer: harness/rules/assignments/02-inventory-extraction/reviewer.md
+    assign_03_executor: harness/rules/assignments/03-dataset-mapping/executor.md
+    assign_03_reviewer: harness/rules/assignments/03-dataset-mapping/reviewer.md
+    assign_04_executor: harness/rules/assignments/04-openlca-reporting/executor.md
+    assign_04_reviewer: harness/rules/assignments/04-openlca-reporting/reviewer.md
   tools:
     lca_artifacts:
       transport: stdio
@@ -42,79 +53,49 @@ registry:
       kind: local_dir
       path: harness/knowledge/
       provider: local_files
-  checkers:
-    lca.inventory:
-      provider: harness.tools.lca_artifacts.checkers:inventory
-    lca.mapping:
-      provider: harness.tools.lca_artifacts.checkers:mapping
-    lca.report:
-      provider: harness.tools.lca_artifacts.checkers:report
-  hooks:
-    lca.record_acceptance:
-      provider: harness.tools.lca_artifacts.hooks:record_acceptance
-  handoff_validators:
-    lca_rework:
-      provider: harness.tools.lca_artifacts.handoff:validate
 
 defaults:
-  rules: [workspace_boundary, runtime, paths, lca_method, knowledge_files]
+  rules: [workspace_boundary, runtime, runtime_loop, paths, lca_method, knowledge_files]
   knowledge: [workspace_knowledge]
 
 stages:
   - id: 01-intake-gate
-    spec: harness/specs/01-intake-gate/README.md
+    spec: harness/specs/01-intake-gate/spec.yaml
     max_attempts: 1
-    outputs:
-      - workspace/memory/reviews/01-intake-gate-1.md
+    rules:
+      add: [stage_01]
     steps:
       - assignment: 01-intake-gate.reviewer
   - id: 02-inventory-extraction
-    spec: harness/specs/02-inventory-extraction/README.md
+    spec: harness/specs/02-inventory-extraction/spec.yaml
     max_attempts: 3
     rules:
-      add: [lca_inventory]
+      add: [lca_inventory, stage_02]
     context:
       lca:
         phase: inventory
-    outputs:
-      - workspace/outputs/inventory/extracted-bom.json
-      - workspace/outputs/inventory/extracted-bom.md
-    checks:
-      - id: lca.inventory
     steps:
       - assignment: 02-inventory-extraction.executor
       - assignment: 02-inventory-extraction.reviewer
   - id: 03-dataset-mapping
-    spec: harness/specs/03-dataset-mapping/README.md
+    spec: harness/specs/03-dataset-mapping/spec.yaml
     max_attempts: 3
     rules:
-      add: [lca_inventory, lca_mapping]
+      add: [lca_inventory, lca_mapping, stage_03]
     context:
       lca:
         phase: mapping
-    outputs:
-      - workspace/outputs/inventory/process-mapping.json
-      - workspace/outputs/LCI/
-    checks:
-      - id: lca.mapping
-    hooks:
-      on_reviewer_passed:
-        - lca.record_acceptance
     steps:
       - assignment: 03-dataset-mapping.executor
       - assignment: 03-dataset-mapping.reviewer
   - id: 04-openlca-reporting
-    spec: harness/specs/04-openlca-reporting/README.md
+    spec: harness/specs/04-openlca-reporting/spec.yaml
     max_attempts: 3
     rules:
-      add: [lca_interpretation]
+      add: [lca_interpretation, stage_04]
     context:
       lca:
         phase: report
-    outputs:
-      - workspace/outputs/reports/lca_report.md
-    checks:
-      - id: lca.report
     steps:
       - assignment: 04-openlca-reporting.executor
       - assignment: 04-openlca-reporting.reviewer
@@ -122,37 +103,36 @@ stages:
 assignments:
   01-intake-gate.reviewer:
     role: reviewer
-    task_spec: harness/specs/01-intake-gate/reviewer.md
     tools: []
     rules:
-      add: [reviewer_readonly]
+      add: [reviewer_readonly, assign_01_reviewer]
   02-inventory-extraction.executor:
     role: executor
-    task_spec: harness/specs/02-inventory-extraction/executor.md
     tools: [lca_artifacts]
+    rules:
+      add: [assign_02_executor]
   02-inventory-extraction.reviewer:
     role: reviewer
-    task_spec: harness/specs/02-inventory-extraction/reviewer.md
     tools: [lca_artifacts]
     rules:
-      add: [reviewer_readonly]
+      add: [reviewer_readonly, assign_02_reviewer]
   03-dataset-mapping.executor:
     role: executor
-    task_spec: harness/specs/03-dataset-mapping/executor.md
     tools: [control_openlca, lca_artifacts]
+    rules:
+      add: [assign_03_executor]
   03-dataset-mapping.reviewer:
     role: reviewer
-    task_spec: harness/specs/03-dataset-mapping/reviewer.md
     tools: [control_openlca, lca_artifacts]
     rules:
-      add: [reviewer_readonly]
+      add: [reviewer_readonly, assign_03_reviewer]
   04-openlca-reporting.executor:
     role: executor
-    task_spec: harness/specs/04-openlca-reporting/executor.md
-    tools: [control_openlca, lca_artifacts]
-  04-openlca-reporting.reviewer:
-    role: reviewer
-    task_spec: harness/specs/04-openlca-reporting/reviewer.md
     tools: [control_openlca, lca_artifacts]
     rules:
-      add: [reviewer_readonly]
+      add: [assign_04_executor]
+  04-openlca-reporting.reviewer:
+    role: reviewer
+    tools: [control_openlca, lca_artifacts]
+    rules:
+      add: [reviewer_readonly, assign_04_reviewer]

@@ -31,14 +31,15 @@ uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml --worke
 
 独立工具在 `harness/tools/control_openlca/main.py`；LCA YAML 使用 `harness/tools/control_openlca/workflow_mcp.py` 适配入口承接角色限制、审核批准与证据归档。普通外部 stdio MCP 只需注册 command/args/env 并绑定 assignment，不需要上下文协议；`tool_timeout_sec` 默认 60 秒，openLCA 显式为 7320 秒。其他 transport 当前会明确拒绝。
 
-SDK 不导入具体工具代码；LCA capability 按需加载。
+SDK 不导入具体工具代码。确定性验收与 lifecycle action 由 stage `spec.yaml` 声明，经宿主 stdio MCP 调用；worker 仍通过会话注入同一批 MCP 工具。
 
 ## Agent 分层
 
 | 层 | 位置 |
 | --- | --- |
 | 主编排 | `src/core/workflow/` |
-| 阶段与任务绑定 | `harness/LCA-*.yaml` |
-| 契约与角色任务 | `harness/specs/` |
+| 阶段与任务绑定 | `harness/LCA-*.yaml`（各自完整独立） |
+| 机器契约 | `harness/specs/**/spec.yaml` + JSON Schema |
+| 自然语言规则 | `harness/rules/` |
 | Worker 会话 | `src/core/agents/`（当前 CLI provider；接口可换 SDK） |
 | 环境引导 | `src/scripts/proj_init/PROMPT.md` |

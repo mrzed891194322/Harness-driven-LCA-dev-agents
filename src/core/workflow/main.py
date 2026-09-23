@@ -27,10 +27,7 @@ from core.agents.progress import (  # noqa: E402
 )
 from core.agents.session import default_client  # noqa: E402
 from core.agents.uv_env import ensure_uv_cache_dir  # noqa: E402
-from core.runtime.compose import (  # noqa: E402
-    compose_capabilities_from_providers,
-    provider_maps_from_document,
-)
+from core.runtime.capabilities import base_capabilities  # noqa: E402
 from core.runtime.identifiers import require_identifier  # noqa: E402
 from core.workflow.config.loader import (  # noqa: E402
     load_workflow,
@@ -93,12 +90,7 @@ def main(argv: list[str] | None = None) -> int:
 
     workflow_path = args.workflow.resolve()
     document = read_workflow_document(workflow_path, project_root=project_root)
-    providers = provider_maps_from_document(document)
-    capabilities = compose_capabilities_from_providers(
-        checkers=providers["checkers"],
-        hooks=providers["hooks"],
-        handoff_validators=providers["handoff_validators"],
-    )
+    capabilities = base_capabilities()
     task_label = str(workflow_path)
     workflow = load_workflow(
         workflow_path,
@@ -156,28 +148,12 @@ def main(argv: list[str] | None = None) -> int:
         set_progress_log(None)
 
 
-def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
-    """Return registry extension ids (checkers+hooks+validators) for tests."""
+def peek_tool_ids(path: Path, *, project_root: Path) -> list[str]:
+    """Return registered stdio MCP tool ids (tests / diagnostics)."""
     document = read_workflow_document(path, project_root=project_root)
-    providers = provider_maps_from_document(document)
-    return sorted(
-        {
-            *providers["checkers"],
-            *providers["hooks"],
-            *providers["handoff_validators"],
-        }
-    )
-
-
-def compose_capabilities_from_workflow_document(
-    document: dict,
-) -> object:
-    providers = provider_maps_from_document(document)
-    return compose_capabilities_from_providers(
-        checkers=providers["checkers"],
-        hooks=providers["hooks"],
-        handoff_validators=providers["handoff_validators"],
-    )
+    registry = document.get("registry") or {}
+    tools = registry.get("tools") or {}
+    return sorted(str(key) for key in tools)
 
 
 def _resume(
