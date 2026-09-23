@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import sys
@@ -25,11 +24,6 @@ from core.orchestrator.loop.runner import (
     WorkflowState,
     initial_state,
 )
-from core.orchestrator.main import (
-    _capabilities_for,
-    compose_capabilities,
-    peek_capability_ids,
-)
 from core.orchestrator.persist.config_fingerprint import (
     assert_runtime_config_matches,
     write_runtime_config,
@@ -45,6 +39,11 @@ from core.runtime.knowledge_providers.local_files import enrich_local_files
 from domains.lca.artifacts import checks as lca_checks
 from domains.lca.artifacts.store import Context
 from domains.lca.bootstrap import lca_capabilities
+from services.workflow import (
+    compose_capabilities,
+    peek_capability_ids,
+    task_workflow_path,
+)
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -798,9 +797,11 @@ banned = ("domains.lca", "harness.tools")
 assert not [name for name in sys.modules if any(name == b or name.startswith(b + ".") for b in banned)]
 """
         result = subprocess.run(
-            [sys.executable, "-c", code], cwd=PROJECT_ROOT,
+            [sys.executable, "-c", code],
+            cwd=PROJECT_ROOT,
             env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src")},
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -869,15 +870,14 @@ class CapabilitiesCompositionTests(unittest.TestCase):
 
     def test_task_and_workflow_same_capabilities(self) -> None:
         path = WORKFLOWS / "LCA-main.yaml"
-        via_workflow = _capabilities_for(
-            argparse.Namespace(task=None, workflow=path),
-            PROJECT_ROOT,
-            path,
+        via_workflow = compose_capabilities(
+            peek_capability_ids(path, project_root=PROJECT_ROOT)
         )
-        via_task = _capabilities_for(
-            argparse.Namespace(task="whole-lca", workflow=None),
-            PROJECT_ROOT,
-            path,
+        via_task = compose_capabilities(
+            peek_capability_ids(
+                task_workflow_path(PROJECT_ROOT, "whole-lca"),
+                project_root=PROJECT_ROOT,
+            )
         )
         self.assertEqual(
             via_workflow.checkers.known_ids(), via_task.checkers.known_ids()

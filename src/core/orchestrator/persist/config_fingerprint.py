@@ -185,9 +185,7 @@ def assert_runtime_config_matches(
 ) -> None:
     path = runtime_config_path(workspace_root, run_id)
     if not path.is_file():
-        raise ValueError(
-            "missing runtime configuration; start a new run"
-        )
+        raise ValueError("missing runtime configuration; start a new run")
     stored = json.loads(path.read_text(encoding="utf-8"))
     current = build_runtime_config(
         workflow,

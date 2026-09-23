@@ -194,7 +194,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             state["status"] = "running"
             state["next_action"] = "run_sdk"
             store.save(state, event="started", action="run_sdk")
-            from core.agents.models import load_worker_model
+            from core.agents.config import load_worker_model
 
             model = load_worker_model("codex", PROJECT_ROOT)
             write_runtime_config(

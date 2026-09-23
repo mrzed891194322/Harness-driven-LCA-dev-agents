@@ -74,7 +74,7 @@ class LcaResultTests(unittest.TestCase):
         )
         result = lca_run.parse_lca_result()
         self.assertIn("openLCA 响应较慢或超时", result["failure_markdown"])
-        self.assertIn("clean_dir", result["failure_markdown"])
+        self.assertIn("src/scripts/clean.py", result["failure_markdown"])
         self.assertIn("OPENLCA_IPC_SESSION_BUDGET_SEC", result["failure_markdown"])
         self.assertIn("timeout_sec", result["failure_markdown"])
 

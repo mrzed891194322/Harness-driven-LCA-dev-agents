@@ -879,6 +879,7 @@ class GraphWorkflowTests(unittest.TestCase):
                 flow=olca_schema.Ref(id="f1", name="F1"),
             )
         ]
+
         class ClosingClient(GraphClient):
             close_calls = 0
 

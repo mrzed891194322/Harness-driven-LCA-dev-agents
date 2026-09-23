@@ -348,8 +348,8 @@ def test_more_than_eighty_actions_with_legal_protocol_repairs(run_case):
 def test_cli_busy_workspace_does_not_dispatch_or_write(run_case, resuming, capsys):
     runtime, _, client, store = run_case
     args = [
-        "--task",
-        "whole-lca",
+        "--workflow",
+        str(PROJECT_ROOT / "harness" / "LCA-main.yaml"),
         "--worker",
         "codex",
         "--workspace",
@@ -361,7 +361,9 @@ def test_cli_busy_workspace_does_not_dispatch_or_write(run_case, resuming, capsy
         workspace_lock(runtime.workspace_root),
         patch.object(orch_main, "run_workflow") as run,
     ):
-        assert orch_main.main(args) == 1
+        from services.workflow import DOMAIN_CAPABILITY_SETS
+
+        assert orch_main.main(args, capability_registry=DOMAIN_CAPABILITY_SETS) == 1
     assert "workspace busy" in capsys.readouterr().err
     run.assert_not_called()
     assert store.conn.execute("SELECT count(*) FROM workflow_runs").fetchone()[0] == 0

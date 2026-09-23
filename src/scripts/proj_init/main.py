@@ -15,6 +15,15 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+_ROOT = next(
+    parent
+    for parent in Path(__file__).resolve().parents
+    if (parent / "pyproject.toml").is_file()
+)
+for _p in (_ROOT / "src", _ROOT):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))

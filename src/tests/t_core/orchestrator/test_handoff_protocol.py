@@ -473,9 +473,12 @@ assert not any(name == "domains.lca" or name.startswith("domains.lca.") for name
 assert not runtime.empty_capabilities().checkers.known_ids()
 """
         result = subprocess.run(
-            [sys.executable, "-c", code], cwd=PROJECT_ROOT,
+            [sys.executable, "-c", code],
+            cwd=PROJECT_ROOT,
             env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src")},
-            capture_output=True, text=True, timeout=20,
+            capture_output=True,
+            text=True,
+            timeout=20,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -587,7 +590,10 @@ class FailFastSessionCliTests(unittest.TestCase):
                         str(workspace),
                         "--worker",
                         "codex",
-                    ]
+                    ],
+                    capability_registry={
+                        "lca": "domains.lca.bootstrap:register_lca",
+                    },
                 )
             self.assertEqual(code, 0)
             run_mock.assert_called_once()

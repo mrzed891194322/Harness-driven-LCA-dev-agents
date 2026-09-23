@@ -178,8 +178,17 @@ import importlib.abc
 import sys
 class BlockWorkflow(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname == "scripts" or fullname.startswith("scripts."):
-            raise AssertionError("standalone tool attempted workflow import: " + fullname)
+        blocked = (
+            "core.orchestrator",
+            "domains.lca",
+            "services",
+            "gui",
+            "scripts",
+        )
+        if fullname in blocked or any(fullname.startswith(b + ".") for b in blocked):
+            raise AssertionError(
+                "standalone tool attempted forbidden import: " + fullname
+            )
 sys.meta_path.insert(0, BlockWorkflow())
 import harness.tools.{module}.main
 """

@@ -12,7 +12,7 @@ uv run python src/scripts/workflow.py --task revise-lca
 
 环境引导：读取并执行 `src/scripts/proj_init/PROMPT.md`，或 `uv run python src/scripts/proj_init/main.py`。
 
-whole-lca / revise-lca 前，用户须先手动 `clean_dir` 并复制资料（见根目录 `README.md`），或走 GUI 的执行按钮（GUI 会做前置清理与同步）。
+whole-lca / revise-lca 前，用户须先手动 `src/scripts/clean.py` 并复制资料（见根目录 `README.md`），或走 GUI 的执行按钮（GUI 会做前置清理与同步）。
 
 ## GUI 启动用的一行 CLI
 

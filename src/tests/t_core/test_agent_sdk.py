@@ -7,13 +7,13 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from core.agents.inspect import check, inspect  # noqa: E402
-from core.agents.mcp import mcp_servers_for_tools  # noqa: E402
-from core.agents.models import (  # noqa: E402
+from core.agents.config import (  # noqa: E402
     DEFAULT_MODELS,
     load_worker_model,
     normalize_model,
 )
+from core.agents.inspect import check, inspect  # noqa: E402
+from core.agents.mcp import mcp_servers_for_tools  # noqa: E402
 from core.agents.permissions import (  # noqa: E402
     CLAUDE_PERMISSION_MODE,
     CODEX_SANDBOX,
@@ -226,9 +226,7 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertEqual(argv[argv.index("-s") + 1], CODEX_SANDBOX)
         self.assertEqual(argv[-1], "hello")
         rows = mcp_overrides(config.mcp_servers)
-        self.assertTrue(
-            any('control_openlca.command="uv"' in row for row in rows)
-        )
+        self.assertTrue(any('control_openlca.command="uv"' in row for row in rows))
         from core.agents.mcp import DEFAULT_TOOL_TIMEOUT_SEC
 
         self.assertIn("mcp_servers.control_openlca.startup_timeout_sec=30", rows)
@@ -236,9 +234,7 @@ class AgentSdkSessionTests(unittest.TestCase):
             f"mcp_servers.control_openlca.tool_timeout_sec={DEFAULT_TOOL_TIMEOUT_SEC}"
         )
         self.assertIn(expected_timeout, rows)
-        self.assertTrue(
-            any(row in argv for row in rows if 'command="uv"' in row)
-        )
+        self.assertTrue(any(row in argv for row in rows if 'command="uv"' in row))
 
     def test_persistent_logs_redact_mcp_secrets(self) -> None:
         from core.agents.archive import (

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from core.agents.providers.codex.jsonl import CodexJsonlFormatter
 from gui.functions.settings.check_status import (
     check_agent_result,
     check_openlca_result,
@@ -26,7 +27,6 @@ from gui.functions.settings.settings import (
     save_port_settings,
     upsert_env_keys,
 )
-from gui.functions.utils.executor.private_utils.codex_jsonl import CodexJsonlFormatter
 from gui.functions.utils.executor.private_utils.executor_utils import (
     workflow_command_args,
 )

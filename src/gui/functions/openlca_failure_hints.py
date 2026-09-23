@@ -153,7 +153,7 @@ def _hint_markdown(manifest: dict[str, Any]) -> str:
         )
     else:
         lines.append(
-            "- 若长时间无进展，可先停止当前运行，确认 openLCA 未卡住后再清理并重试（同上 `clean_dir -t openlca` 后新开运行）。"
+            "- 若长时间无进展，可先停止当前运行，确认 openLCA 未卡住后再清理并重试（同上 `src/scripts/clean.py -t openlca` 后新开运行）。"
         )
     lines.append(
         "- 若背景库很大，可在 `.env` 增大 `OPENLCA_IPC_SESSION_BUDGET_SEC`，"

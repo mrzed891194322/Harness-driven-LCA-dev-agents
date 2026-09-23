@@ -167,7 +167,12 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertFalse(stage.spec_additions)
         self.assertIn("role=executor", prompt)
         self.assertNotIn("role=reviser", prompt)
-        self.assertFalse(any(path.endswith("references/revise.md") for path in workflow.bundles[executor.assignment_id].spec_paths))
+        self.assertFalse(
+            any(
+                path.endswith("references/revise.md")
+                for path in workflow.bundles[executor.assignment_id].spec_paths
+            )
+        )
 
     def test_stage_packages_have_role_files_not_old_specs(self) -> None:
         spec_root = PROJECT_ROOT / "harness" / "specs"
@@ -216,8 +221,18 @@ class WorkflowYamlTests(unittest.TestCase):
         contract = (PROJECT_ROOT / stage.spec).read_text(encoding="utf-8")
         self.assertIn(contract.strip()[:80], exec_prompt)
         self.assertIn(contract.strip()[:80], review_prompt)
-        self.assertIn((PROJECT_ROOT / workflow.rules["openlca_usage"]).read_text(encoding="utf-8").strip(), exec_prompt)
-        self.assertIn((PROJECT_ROOT / workflow.rules["reviewer_readonly"]).read_text(encoding="utf-8").strip(), review_prompt)
+        self.assertIn(
+            (PROJECT_ROOT / workflow.rules["openlca_usage"])
+            .read_text(encoding="utf-8")
+            .strip(),
+            exec_prompt,
+        )
+        self.assertIn(
+            (PROJECT_ROOT / workflow.rules["reviewer_readonly"])
+            .read_text(encoding="utf-8")
+            .strip(),
+            review_prompt,
+        )
         self.assertIn(
             "control_openlca", workflow.bundles[executor.assignment_id].tool_ids
         )

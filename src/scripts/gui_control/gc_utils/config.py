@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -11,6 +12,10 @@ PROJECT_ROOT: Path = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
+for _p in (PROJECT_ROOT / "src", PROJECT_ROOT):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
 GUI_SCRIPT: Path = PROJECT_ROOT / "src" / "gui" / "main.py"
 LOG_DIR: Path = PROJECT_ROOT / "src" / "gui" / "log"
 # JSON 进程身份（pid/starttime/cmdline）；旧版纯数字 PID 仍可读取。

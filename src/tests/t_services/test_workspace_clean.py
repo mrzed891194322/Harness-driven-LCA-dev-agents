@@ -37,7 +37,7 @@ class CleanDirectoryTests(unittest.TestCase):
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
                     "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
-                    "keep_patterns": ["**/README.md"],
+                    "keep_patterns": ["**/README.md", "memory/orchestrator.lock"],
                 }
             ]
             with (
@@ -244,6 +244,108 @@ class CleanDirectoryTests(unittest.TestCase):
             )
 
         self.assertEqual(calls, [])
+
+    def test_symlink_clean_roots_do_not_follow_external(self) -> None:
+        for dir_name in ("memory", "outputs", "tmp"):
+            with self.subTest(dir_name=dir_name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                external = root / "external"
+                external.mkdir()
+                sentinel = external / "sentinel.txt"
+                sentinel.write_text("keep-me", encoding="utf-8")
+
+                workspace = root / "workspace"
+                workspace.mkdir()
+                link = workspace / dir_name
+                link.symlink_to(external, target_is_directory=True)
+                (workspace / "inputs").mkdir()
+
+                targets = [
+                    {
+                        "name": "workspace",
+                        "path": workspace,
+                        "gitignore": workspace / ".gitignore",
+                        "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
+                        "keep_patterns": ["**/README.md", "memory/orchestrator.lock"],
+                    }
+                ]
+                with (
+                    patch.object(clean_main, "CLEAN_TARGETS", targets),
+                    patch.object(clean_main, "PROJECT_ROOT", root),
+                ):
+                    self.assertEqual(clean_main.run_clean(yes=True), 0)
+
+                self.assertTrue(sentinel.exists())
+                self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep-me")
+                self.assertFalse(link.exists() or link.is_symlink())
+
+    def test_clean_keeps_orchestrator_lock_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            workspace = root / "workspace"
+            memory = workspace / "memory"
+            memory.mkdir(parents=True)
+            (workspace / "outputs").mkdir()
+            (workspace / "tmp").mkdir()
+            lock_path = memory / "orchestrator.lock"
+            lock_path.write_text("owned", encoding="utf-8")
+            (memory / "old.json").write_text("{}", encoding="utf-8")
+
+            targets = [
+                {
+                    "name": "workspace",
+                    "path": workspace,
+                    "gitignore": workspace / ".gitignore",
+                    "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
+                    "keep_patterns": ["**/README.md"],
+                }
+            ]
+            with (
+                patch.object(clean_main, "CLEAN_TARGETS", targets),
+                patch.object(clean_main, "PROJECT_ROOT", root),
+            ):
+                self.assertEqual(clean_main.run_clean(yes=True), 0)
+
+            self.assertTrue(lock_path.exists())
+            self.assertEqual(lock_path.read_text(encoding="utf-8"), "owned")
+            self.assertFalse((memory / "old.json").exists())
+
+    def test_run_clean_fails_when_workspace_lock_held(self) -> None:
+        from core.orchestrator.persist.checkpoint import workspace_lock
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            workspace = root / "workspace"
+            memory = workspace / "memory"
+            memory.mkdir(parents=True)
+            (workspace / "outputs").mkdir()
+            (workspace / "tmp").mkdir()
+            victim = memory / "victim.json"
+            victim.write_text("{}", encoding="utf-8")
+
+            targets = [
+                {
+                    "name": "workspace",
+                    "path": workspace,
+                    "gitignore": workspace / ".gitignore",
+                    "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
+                    "keep_patterns": ["**/README.md", "memory/orchestrator.lock"],
+                }
+            ]
+
+            with workspace_lock(workspace):
+                with (
+                    patch.object(clean_main, "CLEAN_TARGETS", targets),
+                    patch.object(clean_main, "PROJECT_ROOT", root),
+                ):
+                    code = clean_main.run_clean(yes=True)
+
+            self.assertEqual(code, 1)
+            self.assertTrue(victim.exists())
+            self.assertTrue(memory.exists())
+            self.assertTrue((workspace / "outputs").exists())
+            self.assertTrue((workspace / "tmp").exists())
+            self.assertTrue((memory / "orchestrator.lock").exists())
 
 
 class RunCleanWorkspaceConsoleTests(unittest.TestCase):

@@ -15,10 +15,6 @@ from core.orchestrator.load.lists import (
     resolve_list,
 )
 from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.main import (
-    compose_capabilities,
-    peek_capability_ids,
-)
 from core.orchestrator.persist.config_fingerprint import (
     assert_runtime_config_matches,
     write_runtime_config,
@@ -33,6 +29,10 @@ from domains.lca.artifacts import checks as lca_checks
 from domains.lca.artifacts.store import Context
 from domains.lca.bootstrap import lca_capabilities
 from domains.lca.knowledge import enrich_local_files
+from services.workflow import (
+    compose_capabilities,
+    peek_capability_ids,
+)
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 

@@ -1,4 +1,4 @@
-"""LCA Python orchestrator entry."""
+"""LCA Python orchestrator entry (generic ``--workflow`` runner)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import argparse
 import importlib
 import sys
 import uuid
+from collections.abc import Mapping
 from pathlib import Path
 
 PROJECT_ROOT = next(
@@ -20,8 +21,8 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.agents.archive import progress_log_path  # noqa: E402
+from core.agents.config import load_worker_model  # noqa: E402
 from core.agents.inspect import WORKERS  # noqa: E402
-from core.agents.models import load_worker_model  # noqa: E402
 from core.agents.progress import (  # noqa: E402
     print_orchestrator,
     set_progress_log,
@@ -40,7 +41,7 @@ from core.orchestrator.loop.runner import (  # noqa: E402
     initial_state,
     run_workflow,
 )
-from core.orchestrator.persist.checkpoint import (
+from core.orchestrator.persist.checkpoint import (  # noqa: E402
     CheckpointStore,
     WorkspaceBusy,
     open_store,
@@ -54,23 +55,20 @@ from core.runtime.capabilities import (  # noqa: E402
     HarnessCapabilities,
     base_capabilities,
 )
-from core.runtime.identifiers import (  # noqa: E402
-    require_identifier,
-)
-
-TASK_NAMES = ("whole-lca", "revise-lca")
-DOMAIN_CAPABILITY_SETS = {
-    "lca": "domains.lca.bootstrap:register_lca",
-}
+from core.runtime.identifiers import require_identifier  # noqa: E402
+from utils.env import parse_env_file  # noqa: E402
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    capability_registry: Mapping[str, str] | None = None,
+) -> int:
     parser = argparse.ArgumentParser(description="LCA Python orchestrator")
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--task", choices=TASK_NAMES)
-    source.add_argument(
+    parser.add_argument(
         "--workflow",
         type=Path,
+        required=True,
         help="path to a workflow YAML (generic harness entry)",
     )
     parser.add_argument("--worker", default=None, help="worker name")
@@ -99,14 +97,13 @@ def main(argv: list[str] | None = None) -> int:
         print_orchestrator(f"unsupported worker: {worker}", file=sys.stderr)
         return 2
 
-    workflow_path = (
-        args.workflow.resolve()
-        if args.workflow is not None
-        else _task_file(project_root, args.task)
-    )
+    workflow_path = args.workflow.resolve()
     document = read_workflow_document(workflow_path, project_root=project_root)
-    capabilities = compose_capabilities(document.get("capabilities") or [])
-    task_label = args.task or str(workflow_path)
+    capabilities = compose_capabilities(
+        document.get("capabilities") or [],
+        registry=capability_registry,
+    )
+    task_label = str(workflow_path)
     workflow = load_workflow(
         workflow_path,
         project_root=project_root,
@@ -163,28 +160,26 @@ def main(argv: list[str] | None = None) -> int:
         set_progress_log(None)
 
 
-def _capabilities_for(
-    args: argparse.Namespace, project_root: Path, workflow_path: Path
-) -> HarnessCapabilities:
-    del args  # --task only selects the workflow path; YAML capabilities are authority.
-    ids = peek_capability_ids(workflow_path, project_root=project_root)
-    return compose_capabilities(ids)
-
-
 def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
     document = read_workflow_document(path, project_root=project_root)
     return document.get("capabilities") or []
 
 
-def compose_capabilities(ids: list[str]) -> HarnessCapabilities:
+def compose_capabilities(
+    ids: list[str],
+    *,
+    registry: Mapping[str, str] | None = None,
+) -> HarnessCapabilities:
+    """Compose capability sets from a caller-supplied registry (no LCA hardcoding)."""
     if not isinstance(ids, list) or any(not isinstance(item, str) for item in ids):
         raise ValueError("capabilities must be a list of strings")
     caps = base_capabilities()
-    unknown = [item for item in ids if item not in DOMAIN_CAPABILITY_SETS]
+    reg = dict(registry or {})
+    unknown = [item for item in ids if item not in reg]
     if unknown:
         raise ValueError(f"unknown capability set(s): {unknown}")
     for item in ids:
-        module, name = DOMAIN_CAPABILITY_SETS[item].split(":")
+        module, name = reg[item].split(":")
         getattr(importlib.import_module(module), name)(caps)
     return caps
 
@@ -251,22 +246,10 @@ def _bind_progress_log(workspace_root: Path, run_id: str, *, append: bool) -> No
 
 
 def _load_worker(project_root: Path) -> str:
-    env_path = project_root / ".env"
-    if env_path.is_file():
-        for raw in env_path.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            if key.strip() == "HARNESS_AGENT":
-                return value.strip().strip('"').strip("'") or "codex"
-    return "codex"
-
-
-def _task_file(project_root: Path, task: str) -> Path:
-    name = "LCA-main.yaml" if task == "whole-lca" else "LCA-revise.yaml"
-    return project_root / "harness" / name
+    values = parse_env_file(project_root / ".env")
+    return values.get("HARNESS_AGENT") or "codex"
 
 
 if __name__ == "__main__":
+    # Direct core entry has no LCA capability registry; prefer services.workflow.
     raise SystemExit(main())

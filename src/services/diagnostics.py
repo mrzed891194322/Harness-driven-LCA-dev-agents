@@ -7,6 +7,7 @@ from pathlib import Path
 
 from core.agents.inspect import WORKERS, check, inspect
 from domains.lca.service import health
+from utils.env import parse_env_file
 
 SUPPORTED_HARNESS_CLIS = WORKERS
 
@@ -28,20 +29,10 @@ def check_harness_cli(name: str, timeout: int = 10) -> tuple[bool, str]:
 
 
 def _selected_harness_agent(project_root: Path) -> str | None:
-    env_path = project_root / ".env"
-    agent = ""
-    if env_path.is_file():
-        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            if key.strip() == "HARNESS_AGENT":
-                agent = value.strip().strip('"').strip("'")
-                break
-    else:
-        agent = os.getenv("HARNESS_AGENT", "").strip().strip('"')
-    agent = agent.lower()
+    values = parse_env_file(project_root / ".env")
+    agent = (
+        (values.get("HARNESS_AGENT") or os.getenv("HARNESS_AGENT", "")).strip().lower()
+    )
     if agent in SUPPORTED_HARNESS_CLIS:
         return agent
     return None

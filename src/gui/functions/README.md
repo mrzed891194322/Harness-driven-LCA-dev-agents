@@ -17,12 +17,12 @@
 ### 1. 公共工具库 (`functions/utils/`)
 包含可被所有特征模块全局调用的公共工具：
 - **[process_manager.py](utils/process_manager.py)**：负责跟踪当前活动命令执行子进程，并提供强制杀死底层任务进程树的统一实现。
-- **[log_exporter.py](utils/log_exporter.py)**：管理命令输出日志存放目录、路径规则以及将 stdout 实时追加写入本地日志文件。
+- **[（已移除）](utils/（已移除）)**：管理命令输出日志存放目录、路径规则以及将 stdout 实时追加写入本地日志文件。
   - **[path_utils.py](utils/path_utils.py)**：负责自动定位项目/仓库根目录（通过寻找包含 `pyproject.toml` 或 `.git` 的父目录）。
 - **命令执行子包 (`functions/utils/executor/`)**：GUI 经 `run_workflow_command_console` 启动 Python 主编排器跑 whole-lca / revise-lca（worker：codex、claude、opencode、pi）。`executor/main.py` 非 GUI 入口；bootstrap-env 执行 `src/scripts/proj_init/PROMPT.md`，不经 GUI。
   - **功能入口**：[main.py](utils/executor/main.py) 中的 `main` 函数（非 GUI 使用）。
   - **私有辅助包 (`private_utils/`)**：
-    - `executor_utils.py`：流式捕获进程输出；`CLEAN_GUI_STAGING` 控制是否清 knowledge+inputs；`run_pre_workflow_console` 编排 clean_dir preset 与 file_sync。
+    - `executor_utils.py`：流式捕获进程输出；`CLEAN_GUI_STAGING` 控制是否清 knowledge+inputs；`run_pre_workflow_console` 编排 `src/scripts/clean.py` preset 与 file_sync。
 - **文件处理子包 (`functions/utils/file_loader/`)**：承担不同类型的文件读取、保存以及 LCA 计划模板解析与填写值加载的工作。
   - **功能入口**：[main.py](utils/file_loader/main.py) 中的 `main` 函数。
   - **私有辅助包 (`private_utils/`)**：

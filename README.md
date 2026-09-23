@@ -15,7 +15,7 @@
 首次运行前，在所用 AI 工具中打开本仓库，输入：
 
 ```text
-读取并执行 scripts/proj_init/PROMPT.md
+读取并执行 `src/scripts/proj_init/PROMPT.md`
 ```
 
 或直接：

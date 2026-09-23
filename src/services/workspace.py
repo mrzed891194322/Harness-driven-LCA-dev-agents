@@ -5,8 +5,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from core.orchestrator.persist.checkpoint import WorkspaceBusy, workspace_lock
 from domains.lca.cleanup import run_openlca_clean
-from utils.filesystem import clean_ignored_dir, clean_root_files, parse_gitignore
+from utils.filesystem import (
+    clean_ignored_dir,
+    clean_root_files,
+    ensure_path_within,
+    parse_gitignore,
+)
 
 PROJECT_ROOT = next(
     parent
@@ -15,6 +21,10 @@ PROJECT_ROOT = next(
 )
 
 STAGING_TARGETS = ("knowledge", "inputs")
+# Targets that must not race an active orchestrator process.
+LOCKED_CLEAN_TARGETS = frozenset({"workspace", "openlca"})
+# Never unlink the process lock inode; see checkpoint.workspace_lock.
+ORCHESTRATOR_LOCK_KEEP = "memory/orchestrator.lock"
 
 CLEAN_TARGETS = [
     {
@@ -36,7 +46,7 @@ CLEAN_TARGETS = [
         "gitignore": PROJECT_ROOT / "workspace" / ".gitignore",
         # memory/outputs/tmp only; plan.md/revise.md are the inputs target.
         "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
-        "keep_patterns": ["**/README.md"],
+        "keep_patterns": ["**/README.md", ORCHESTRATOR_LOCK_KEEP],
     },
 ]
 
@@ -69,8 +79,12 @@ def _clean_filesystem_target(
     ignored_dirs, keep_patterns = parse_gitignore(gitignore_path)
     ignored_dirs = list(target_cfg.get("ignored_dirs", ignored_dirs))
     keep_patterns = list(target_cfg.get("keep_patterns", keep_patterns))
+    if name == "workspace" and ORCHESTRATOR_LOCK_KEEP not in keep_patterns:
+        # Permanent keep: do not unlink orchestrator.lock (inode shared with flock).
+        keep_patterns.append(ORCHESTRATOR_LOCK_KEEP)
 
     total_files = total_dirs = total_kept = total_failed = 0
+    allowed_root = root_dir
 
     if target_cfg.get("clean_root_files"):
         print(f"\n开始清理 [{name}] 根级文件与子目录...")
@@ -81,6 +95,7 @@ def _clean_filesystem_target(
             PROJECT_ROOT,
             keep_patterns,
             dry_run=dry_run,
+            allowed_root=allowed_root,
         )
         return (
             files + total_files,
@@ -115,15 +130,35 @@ def _clean_filesystem_target(
             print(f"  保留活动目录: {ignored}")
             continue
         target_path = root_dir / ignored.replace("/**", "").strip("/")
-        if not target_path.exists() or not target_path.is_dir():
+        if not target_path.exists() and not target_path.is_symlink():
             continue
-        files, dirs, kept, failed = clean_ignored_dir(
-            target_path,
-            root_dir,
-            PROJECT_ROOT,
-            keep_patterns,
-            dry_run=dry_run,
-        )
+        if target_path.is_symlink():
+            # Unlink the link only; never follow into an external tree.
+            files, dirs, kept, failed = clean_ignored_dir(
+                target_path,
+                root_dir,
+                PROJECT_ROOT,
+                keep_patterns,
+                dry_run=dry_run,
+                allowed_root=allowed_root,
+            )
+        elif not target_path.is_dir():
+            continue
+        else:
+            try:
+                ensure_path_within(target_path, allowed_root)
+            except ValueError as exc:
+                print(f"  拒绝越界清理根: {exc}", file=sys.stderr)
+                total_failed += 1
+                continue
+            files, dirs, kept, failed = clean_ignored_dir(
+                target_path,
+                root_dir,
+                PROJECT_ROOT,
+                keep_patterns,
+                dry_run=dry_run,
+                allowed_root=allowed_root,
+            )
         total_files += files
         total_dirs += dirs
         total_kept += kept
@@ -255,21 +290,38 @@ def run_clean(
             print("操作已取消。")
             return 0
 
-    for target_name in targets:
-        code = _run_single_target(target_name, dry_run=dry_run)
-        if code != 0:
-            print("\n" + "=" * 60)
-            print(f"[FAIL] clean aborted after target '{target_name}'")
-            print("=" * 60)
-            return 1
+    needs_lock = bool(LOCKED_CLEAN_TARGETS.intersection(targets))
+    workspace_root = PROJECT_ROOT / "workspace"
 
-    print("\n" + "=" * 60)
-    if dry_run:
-        print("[OK] dry-run completed for all requested targets")
-    else:
-        print("[OK] all requested clean targets completed")
-    print("=" * 60)
-    return 0
+    def _run_targets() -> int:
+        for target_name in targets:
+            code = _run_single_target(target_name, dry_run=dry_run)
+            if code != 0:
+                print("\n" + "=" * 60)
+                print(f"[FAIL] clean aborted after target '{target_name}'")
+                print("=" * 60)
+                return 1
+        print("\n" + "=" * 60)
+        if dry_run:
+            print("[OK] dry-run completed for all requested targets")
+        else:
+            print("[OK] all requested clean targets completed")
+        print("=" * 60)
+        return 0
+
+    if not needs_lock:
+        return _run_targets()
+
+    try:
+        with workspace_lock(workspace_root):
+            return _run_targets()
+    except WorkspaceBusy:
+        print(
+            f"[FAIL] workspace busy: cannot clean while orchestrator holds "
+            f"{workspace_root / 'memory' / 'orchestrator.lock'}",
+            file=sys.stderr,
+        )
+        return 1
 
 
 def cli_main(argv: list[str] | None = None) -> None:

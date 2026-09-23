@@ -15,7 +15,7 @@
 
 ## 工作流失败取证（排障）
 
-`clean_dir` 会清除 `workspace/memory/logs/` 与 handoffs；**失败后请先备份再清理**。
+`src/scripts/clean.py` 会清除 `workspace/memory/logs/` 与 handoffs；**失败后请先备份再清理**。
 
 1. [`workspace/memory/manifest.json`](../workspace/memory/manifest.json) — `status`、`current_stage`、`status_reason`、`run_id`
 2. [`workspace/memory/logs/<run_id>/progress.txt`](../workspace/memory/logs/) — 搜索 `protocol rework`、`worker turn ended without handoff`

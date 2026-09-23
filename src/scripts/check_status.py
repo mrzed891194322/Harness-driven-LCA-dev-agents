@@ -26,7 +26,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 
 def main() -> int:
-    from gui.functions.settings.settings import (
+    from services.settings import (
         DEFAULT_OPENLCA_IPC_PORT,
         load_port_settings,
     )
