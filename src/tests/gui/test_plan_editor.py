@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from GUI import config  # noqa: E402
-from GUI.functions import plan_editor  # noqa: E402
+from gui import config  # noqa: E402
+from gui.functions import plan_editor  # noqa: E402
 from tests.conftest import PROJECT_ROOT
 
 
@@ -96,7 +96,7 @@ class PlanEditorTests(unittest.TestCase):
 
     def test_documents_with_no_or_arbitrary_metadata_round_trip(self) -> None:
         prompt_plan = (
-            PROJECT_ROOT / "src" / "GUI" / "ui" / "assets" / "template" / "plan.md"
+            PROJECT_ROOT / "src" / "gui" / "ui" / "assets" / "template" / "plan.md"
         ).read_text(encoding="utf-8")
         documents = (
             self.VALID_PLAN,

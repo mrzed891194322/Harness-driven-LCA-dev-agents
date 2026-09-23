@@ -1,0 +1,225 @@
+from pathlib import Path
+from typing import Any
+
+import gradio as gr
+import gradio.themes as gr_themes
+
+from gui.ui.components.left_sidebar import build_left_sidebar
+from gui.ui.components.tab_initial import build_tab_initial
+from gui.ui.components.tab_lci import build_tab_lci
+from gui.ui.components.tab_plan import build_tab_plan
+from gui.ui.components.tab_result import build_tab_result
+from gui.ui.components.tab_revise import build_tab_revise
+from gui.ui.components.tab_terminal import build_tab_terminal
+from gui.ui.events import bind_ui_events
+
+
+def _font_css() -> str:
+    from gui import config
+
+    return (
+        ":root {\n"
+        f"    --academic-serif-font: {config.GUI_FONT_FAMILY};\n"
+        f"    --gui-monospace-font: {config.GUI_MONO_FONT_FAMILY};\n"
+        "}"
+    )
+
+
+def build_ui() -> tuple[gr.Blocks, Any, str, str]:
+    theme = gr_themes.Soft(
+        primary_hue="teal", secondary_hue="indigo", neutral_hue="slate"
+    )
+
+    assets_dir = Path(__file__).resolve().parent / "assets"
+    css_dir = assets_dir / "css"
+    css_files = [
+        css_dir / "layout.css",
+        css_dir / "left_sidebar.css",
+        css_dir / "tab_terminal.css",
+        css_dir / "tab_initial.css",
+        css_dir / "render_mdfile.css",
+        css_dir / "tab_plan.css",
+    ]
+    css = "\n\n".join(
+        [
+            _font_css(),
+            *(
+                css_file.read_text(encoding="utf-8")
+                for css_file in css_files
+                if css_file.exists()
+            ),
+        ]
+    )
+
+    js_dir = assets_dir / "js"
+    js_files = [
+        js_dir / "tab_navigation.js",
+        js_dir / "status_monitor.js",
+        js_dir / "terminal_scroll.js",
+    ]
+    js_code = "\n\n".join(
+        js_file.read_text(encoding="utf-8") for js_file in js_files if js_file.exists()
+    )
+
+    with gr.Blocks(title="LCA Multi-agent UI") as demo:
+        with gr.Row():
+            gr.Markdown(
+                """
+                # 🌲 生命周期评估多智能体系统 - 控制面板
+                ---
+                """,
+                elem_id="main-title",
+            )
+
+        with gr.Row(elem_id="main-layout-row"):
+            with gr.Column(scale=1, elem_id="left-sidebar"):
+                (
+                    open_init_btn,
+                    start_lca_btn,
+                    ref_upload_file,
+                ) = build_left_sidebar()
+
+            with gr.Column(scale=2, elem_id="right-panel"):
+                with gr.Tabs(elem_id="right-tabs") as right_tabs:
+                    _, output_console, status, clear_btn, stop_btn = (
+                        build_tab_terminal()
+                    )
+
+                    (
+                        _settings_init_tab,
+                        init_check_btn,
+                        init_check_status_agent,
+                        init_check_status_openlca,
+                        agent_dropdown,
+                        codex_model,
+                        claude_model,
+                        opencode_model,
+                        pi_model,
+                        opencode_refresh_btn,
+                        pi_refresh_btn,
+                        codex_probe_btn,
+                        claude_probe_btn,
+                        opencode_probe_btn,
+                        pi_probe_btn,
+                        codex_probe_status,
+                        claude_probe_status,
+                        opencode_probe_status,
+                        pi_probe_status,
+                        agent_save_btn,
+                        init_openlca_port,
+                        dev_gui_port,
+                        dev_ports_save_btn,
+                        view_lca_result_btn,
+                    ) = build_tab_initial()
+
+                    (
+                        _result_tab,
+                        result_heading,
+                        success_panel,
+                        failure_panel,
+                        failure_markdown,
+                        report_view,
+                        report_warning,
+                        download_report_btn,
+                        show_lci_btn,
+                        modify_rerun_btn,
+                    ) = build_tab_result()
+
+                    (
+                        _plan_tab,
+                        plan_view,
+                        close_plan_btn,
+                        upload_plan_btn,
+                        execute_lca_btn,
+                    ) = build_tab_plan()
+
+                    (
+                        _improvement_tab,
+                        improvement_view,
+                        close_improvement_btn,
+                        upload_improvement_btn,
+                        execute_improvement_btn,
+                    ) = build_tab_revise()
+
+                    (
+                        _lci_mapping_tab,
+                        close_lci_mapping_btn,
+                        bom_json,
+                        bom_warning,
+                        download_bom_btn,
+                        mapping_json,
+                        mapping_warning,
+                        download_mapping_btn,
+                        _modify_lci_btn,
+                    ) = build_tab_lci()
+
+        run_result_state = gr.State(value=None)
+        init_check_ok_state = gr.State(value=False)
+        plan_ready_state = gr.State(value=False)
+        improvement_ready_state = gr.State(value=False)
+
+        bind_ui_events(
+            open_init_btn=open_init_btn,
+            start_lca_btn=start_lca_btn,
+            execute_lca_btn=execute_lca_btn,
+            view_lca_result_btn=view_lca_result_btn,
+            ref_upload_file=ref_upload_file,
+            right_tabs=right_tabs,
+            output_console=output_console,
+            status=status,
+            clear_btn=clear_btn,
+            stop_btn=stop_btn,
+            init_check_btn=init_check_btn,
+            init_check_status_values=[
+                init_check_status_agent,
+                init_check_status_openlca,
+            ],
+            agent_dropdown=agent_dropdown,
+            codex_model=codex_model,
+            claude_model=claude_model,
+            opencode_model=opencode_model,
+            pi_model=pi_model,
+            opencode_refresh_btn=opencode_refresh_btn,
+            pi_refresh_btn=pi_refresh_btn,
+            codex_probe_btn=codex_probe_btn,
+            claude_probe_btn=claude_probe_btn,
+            opencode_probe_btn=opencode_probe_btn,
+            pi_probe_btn=pi_probe_btn,
+            codex_probe_status=codex_probe_status,
+            claude_probe_status=claude_probe_status,
+            opencode_probe_status=opencode_probe_status,
+            pi_probe_status=pi_probe_status,
+            agent_save_btn=agent_save_btn,
+            init_openlca_port=init_openlca_port,
+            dev_gui_port=dev_gui_port,
+            dev_ports_save_btn=dev_ports_save_btn,
+            close_lci_mapping_btn=close_lci_mapping_btn,
+            bom_json=bom_json,
+            bom_warning=bom_warning,
+            download_bom_btn=download_bom_btn,
+            mapping_json=mapping_json,
+            mapping_warning=mapping_warning,
+            download_mapping_btn=download_mapping_btn,
+            run_result_state=run_result_state,
+            result_heading=result_heading,
+            success_panel=success_panel,
+            failure_panel=failure_panel,
+            failure_markdown=failure_markdown,
+            show_lci_btn=show_lci_btn,
+            modify_rerun_btn=modify_rerun_btn,
+            improvement_view=improvement_view,
+            close_improvement_btn=close_improvement_btn,
+            upload_improvement_btn=upload_improvement_btn,
+            execute_improvement_btn=execute_improvement_btn,
+            plan_view=plan_view,
+            close_plan_btn=close_plan_btn,
+            upload_plan_btn=upload_plan_btn,
+            report_view=report_view,
+            report_warning=report_warning,
+            download_report_btn=download_report_btn,
+            init_check_ok_state=init_check_ok_state,
+            plan_ready_state=plan_ready_state,
+            improvement_ready_state=improvement_ready_state,
+        )
+
+    return demo, theme, css, js_code

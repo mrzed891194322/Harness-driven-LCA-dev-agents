@@ -44,14 +44,14 @@ uv run python src/scripts/proj_init/main.py
 根据 Phase 1 JSON 的 `harness_clis.clis`，逐项汇报每个 CLI「可用」或「未安装」。
 
 - 四个都没有：标明 **GUI 路径不可用**（GUI 必须能在 PATH 上找到所选 CLI）。当前会话仍可完成引导。
-- 可用的 CLI 由主编排器经 `src/scripts/agent_sdk` 会话接口调用；不要再找仓库内平台 skill 目录。
+- 可用的 CLI 由主编排器经 `src/core/agents` 会话接口调用；不要再找仓库内平台 skill 目录。
 
 ## Phase 3：openLCA IPC
 
 在仓库根目录执行：
 
 ```bash
-uv run python src/scripts/check_status/main.py --only openlca
+uv run python src/scripts/check_status.py --only openlca
 ```
 
 - 成功：openLCA 记为通过。
@@ -69,4 +69,4 @@ uv run python src/scripts/check_status/main.py --only openlca
 5. Worker CLI：分别列出 codex / claude / opencode / pi
 6. openLCA IPC
 
-最后一句：下一步可启动 GUI（见 `README.md`），或在完成 `clean_dir` 并放入资料后执行 `uv run python src/scripts/workflows/orchestrator/main.py --task whole-lca`。不要在本次引导里启动 whole-lca。
+最后一句：下一步可启动 GUI（见 `README.md`），或在完成 `clean_dir` 并放入资料后执行 `uv run python src/scripts/workflow.py --task whole-lca`。不要在本次引导里启动 whole-lca。

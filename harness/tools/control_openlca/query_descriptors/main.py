@@ -20,6 +20,7 @@ except ImportError:
 # 从私有的 private_utils 导入
 from private_utils.cli import add_arguments
 from private_utils.query import query_and_print_descriptors
+
 from utils.connection import connect_ipc
 from utils.readonly import ENTITY_TYPES
 

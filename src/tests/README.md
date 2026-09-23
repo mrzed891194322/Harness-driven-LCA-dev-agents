@@ -6,33 +6,19 @@
 uv run pytest
 ```
 
-## 目录结构
+## 布局
 
-| 路径 | 覆盖范围 |
+| 目录 | 覆盖 |
 | --- | --- |
-| `gui/` | Gradio GUI 路径、设置、计划编辑器、文件同步、LCA 结果 |
-| `scripts/` | `agent_sdk`、`clean_dir`、项目初始化、GUI 进程管理 |
-| `harness/workflows/` | 工作流 YAML 加载与 Python 串行编排、检查点与恢复回归 |
-| `harness/tools/control_openlca/` | openLCA MCP 离线回归（mock IPC） |
-| `support/` | 共享测试 fakes（如 openLCA FakeClient） |
-| `conftest.py` | `PROJECT_ROOT`、`WORKFLOWS`（现为 `harness/`）与 `local_script_packages` |
-
-## 分模块运行
+| `t_core/` | orchestrator、agents、runtime（避免与包名 `core` 冲突） |
+| `t_domains/` | LCA checker/MCP/artifacts |
+| `t_services/` | workspace clean、gui_control、proj_init |
+| `gui/` | Gradio 启动、门禁、设置 |
+| `support/` | 共享 fake / ScriptedSession 等设施 |
 
 ```bash
 uv run pytest src/tests/gui -v
-uv run pytest src/tests/scripts -v
-uv run pytest src/tests/harness/workflows -v
-uv run pytest src/tests/harness/tools/control_openlca -v
+uv run pytest src/tests/t_core -v
+uv run pytest src/tests/t_domains -v
+uv run pytest src/tests/t_services -v
 ```
-
-## 开发检查
-
-```bash
-uv run ruff format .
-uv run ruff check .
-uv run pyright
-uv run pytest
-```
-
-测试使用临时目录与 mock，不读写真实 `workspace` 运行产物。

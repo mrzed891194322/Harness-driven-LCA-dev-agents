@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from GUI.functions import lca_run  # noqa: E402
+from gui.functions import lca_run  # noqa: E402
 
 
 class LcaResultTests(unittest.TestCase):

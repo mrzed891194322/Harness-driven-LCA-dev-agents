@@ -8,9 +8,14 @@ from __future__ import annotations
 
 import sys
 import time
+from pathlib import Path
 
-from utils.config import PID_FILE, PORT
-from utils.process import (
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from gc_utils.config import PID_FILE, PORT
+from gc_utils.process import (
     kill_process_tree,
     kill_recorded_target,
     load_gui_record,

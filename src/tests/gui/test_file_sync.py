@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from functions.file_sync.main import sync_files  # noqa: E402
+from gui.functions.file_sync.main import sync_files  # noqa: E402
 
 
 class FileSyncTests(unittest.TestCase):
@@ -20,7 +20,7 @@ class FileSyncTests(unittest.TestCase):
             source.parent.mkdir(parents=True)
             source.write_text("hello", encoding="utf-8")
 
-            with patch("config.KNOWLEDGE_DIR", knowledge):
+            with patch("gui.config.KNOWLEDGE_DIR", knowledge):
                 result = sync_files("knowledge", uploads=str(source))
 
             self.assertTrue(result.ok)
@@ -31,7 +31,7 @@ class FileSyncTests(unittest.TestCase):
             knowledge = Path(temp) / "knowledge"
             knowledge.mkdir(parents=True)
 
-            with patch("config.KNOWLEDGE_DIR", knowledge):
+            with patch("gui.config.KNOWLEDGE_DIR", knowledge):
                 result = sync_files("knowledge", uploads=None)
 
             self.assertTrue(result.ok)

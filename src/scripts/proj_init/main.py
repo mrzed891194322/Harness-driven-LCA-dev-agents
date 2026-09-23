@@ -19,7 +19,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from utils.bootstrap import dumps_report, run_bootstrap
+from pi_utils.bootstrap import dumps_report, run_bootstrap
 
 
 def main() -> int:

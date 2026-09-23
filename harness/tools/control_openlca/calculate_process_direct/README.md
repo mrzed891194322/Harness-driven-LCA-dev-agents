@@ -17,7 +17,7 @@
     *   **`__init__.py`**：初始化标识文件。
     *   **`calculation.py`**：包含仅针对过程直接计算日志和设置的 `run_calculation` 函数。
     *   **`cli.py`**：专属命令行参数解析定义。
-*   **`scripts/utils/` (共享模块)**：存放多个脚本共用的工具函数包，位于上一级脚本目录下。
+*   **`src/scripts/utils/` (共享模块)**：存放多个脚本共用的工具函数包，位于上一级脚本目录下。
     *   `connection.py`：负责建立与 openLCA IPC Server 的 HTTP 连接并测试可用性。
     *   `entity.py`：实现通用实体查找逻辑（`find_entity`）。
     *   `export.py`：负责 LCIA 计算结果的格式化提取、控制台 Markdown 打印与 CSV/JSON 文件导出。

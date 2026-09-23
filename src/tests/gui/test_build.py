@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from GUI import config
-from GUI.main import build_ui
+from gui import config
+from gui.main import build_ui
 from tests.conftest import GUI_ROOT, PROJECT_ROOT
 
 
@@ -43,7 +43,7 @@ class GuiBuildTests(unittest.TestCase):
 
 class SettingsTabTests(unittest.TestCase):
     def test_init_check_status_update_pending_prefix(self) -> None:
-        from ui.components.tab_initial import (
+        from gui.ui.components.tab_initial import (
             AGENT_CHOICES,
             PENDING_INIT_STATUS,
             init_check_status_update,
@@ -56,14 +56,14 @@ class SettingsTabTests(unittest.TestCase):
         self.assertIn("init-check-status-pending", update["elem_classes"])
 
     def test_init_check_status_update_success_prefix(self) -> None:
-        from ui.components.tab_initial import init_check_status_update
+        from gui.ui.components.tab_initial import init_check_status_update
 
         update = init_check_status_update(True, "成功")
         self.assertEqual(update["value"], "状态：成功")
         self.assertIn("init-check-status-ok", update["elem_classes"])
 
     def test_settings_nav_switches_agent_panel(self) -> None:
-        from ui.components.tab_initial import apply_settings_nav
+        from gui.ui.components.tab_initial import apply_settings_nav
 
         updates = apply_settings_nav("agent")
         self.assertEqual(len(updates), 2)
@@ -71,7 +71,7 @@ class SettingsTabTests(unittest.TestCase):
         self.assertNotIn("settings-section-hidden", updates[1]["elem_classes"])
 
     def test_agent_form_switches_single_backend(self) -> None:
-        from ui.components.tab_initial import apply_agent_form
+        from gui.ui.components.tab_initial import apply_agent_form
 
         updates = apply_agent_form("claude")
         self.assertEqual(len(updates), 8)
@@ -82,7 +82,7 @@ class SettingsTabTests(unittest.TestCase):
         self.assertIn("settings-agent-card-active", updates[5]["elem_classes"])
 
     def test_model_catalog_choices_keep_default_and_current(self) -> None:
-        from ui.components.tab_initial import (
+        from gui.ui.components.tab_initial import (
             CATALOG_MODEL_WORKERS,
             LOCAL_DEFAULT_MODEL_LABEL,
             model_catalog_choices,
@@ -103,10 +103,10 @@ class SettingsTabTests(unittest.TestCase):
     def test_refresh_model_catalog_updates_dropdown_choices(self) -> None:
         from unittest.mock import patch
 
-        from ui.events.tab_initial import refresh_model_catalog
+        from gui.ui.events.tab_initial import refresh_model_catalog
 
         with patch(
-            "scripts.agent_sdk.catalog.list_models",
+            "core.agents.catalog.list_models",
             return_value=(
                 True,
                 "已加载 2 个模型",
@@ -123,10 +123,10 @@ class SettingsTabTests(unittest.TestCase):
     def test_refresh_model_catalog_keeps_value_on_failure(self) -> None:
         from unittest.mock import patch
 
-        from ui.events.tab_initial import refresh_model_catalog
+        from gui.ui.events.tab_initial import refresh_model_catalog
 
         with patch(
-            "scripts.agent_sdk.catalog.list_models",
+            "core.agents.catalog.list_models",
             return_value=(False, "未安装", []),
         ):
             update = refresh_model_catalog("pi", "keep-me")
@@ -137,7 +137,7 @@ class SettingsTabTests(unittest.TestCase):
     def test_bind_tab_initial_events_does_not_invalidate_on_upload(self) -> None:
         import inspect
 
-        from ui.events.tab_initial import bind_tab_initial_events
+        from gui.ui.events.tab_initial import bind_tab_initial_events
 
         source = inspect.getsource(bind_tab_initial_events)
         self.assertNotIn("ref_upload_file.upload", source)
@@ -152,7 +152,7 @@ class WorkDetailsJsonTests(unittest.TestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
 
-        from ui.events.tab_lci import read_work_details_json
+        from gui.ui.events.tab_lci import read_work_details_json
 
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "extracted-bom.json"
@@ -175,7 +175,7 @@ class WorkDetailsJsonTests(unittest.TestCase):
             self.assertIsNone(warning)
 
     def test_spec_examples_are_readable_work_details_json(self) -> None:
-        from ui.events.tab_lci import read_work_details_json
+        from gui.ui.events.tab_lci import read_work_details_json
 
         bom_example = (
             PROJECT_ROOT

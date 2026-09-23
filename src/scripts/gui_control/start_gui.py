@@ -9,9 +9,14 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from pathlib import Path
 
-from utils.config import GUI_SCRIPT, LOG_DIR, PID_FILE, PORT, PROJECT_ROOT
-from utils.process import (
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from gc_utils.config import GUI_SCRIPT, LOG_DIR, PID_FILE, PORT, PROJECT_ROOT
+from gc_utils.process import (
     is_process_alive,
     port_listeners,
     refresh_gui_record,
@@ -72,7 +77,7 @@ def start_gui() -> None:
     if not is_process_alive(proc.pid):
         print("==> GUI 启动失败！已退出。", file=sys.stderr)
         print("==> 请在前台运行以下命令来排错：", file=sys.stderr)
-        print("    uv run python src/GUI/main.py", file=sys.stderr)
+        print("    uv run python src/gui/main.py", file=sys.stderr)
         sys.exit(1)
 
     record = write_gui_record(PID_FILE, proc.pid)

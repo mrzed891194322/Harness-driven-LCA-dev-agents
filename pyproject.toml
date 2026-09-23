@@ -1,7 +1,7 @@
 [project]
 name = "202606-harness-agent-lca"
 version = "0.1.0"
-description = "Add your description here"
+description = "Harness-driven LCA orchestration agents"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -12,8 +12,6 @@ dependencies = [
   "pyyaml>=6.0.3",
 ]
 
-
-
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
@@ -23,7 +21,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["src/tests"]
-pythonpath = ["src", "src/GUI", "."]
+pythonpath = ["src", "."]
 addopts = "-ra"
 
 [tool.ruff]
@@ -37,15 +35,16 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "**/main.py" = ["E402"]
 "src/tests/**" = ["E402"]
-"src/scripts/clean_dir/utils/openlca_clean.py" = ["E402"]
+"src/scripts/**" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
-  "GUI",
-  "ui",
-  "functions",
-  "scripts",
-  "agent_sdk",
+  "core",
+  "schema",
+  "services",
+  "domains",
+  "utils",
+  "gui",
   "harness",
   "tests",
 ]
@@ -54,5 +53,5 @@ known-first-party = [
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
 include = ["src", "harness"]
-extraPaths = ["src", "src/GUI", ".", "src/scripts/proj_init", "src/scripts/gui_control", "src/scripts/clean_dir", "src/scripts/gitee_upload"]
+extraPaths = ["src", "."]
 reportMissingTypeStubs = false

@@ -20,7 +20,7 @@ registry:
     lca_artifacts:
       transport: stdio
       command: uv
-      args: [run, python, src/scripts/workflows/domains/lca/artifacts/main.py]
+      args: [run, python, src/domains/lca/artifacts/main.py]
       rules: [artifact_usage]
       runtime:
         use_host_python: true
@@ -30,7 +30,7 @@ registry:
     control_openlca:
       transport: stdio
       command: uv
-      args: [run, python, src/scripts/workflows/domains/lca/openlca_mcp.py]
+      args: [run, python, src/domains/lca/openlca_mcp.py]
       tool_timeout_sec: 7320
       rules: [openlca_usage]
       runtime:

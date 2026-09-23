@@ -8,12 +8,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from GUI.functions.settings.check_status import (
+from gui.functions.settings.check_status import (
     check_agent_result,
     check_openlca_result,
     run_initialization_checks,
 )
-from GUI.functions.settings.settings import (
+from gui.functions.settings.settings import (
     DEFAULT_GUI_PORT,
     DEFAULT_HARNESS_AGENT,
     DEFAULT_OPENLCA_IPC_PORT,
@@ -26,12 +26,12 @@ from GUI.functions.settings.settings import (
     save_port_settings,
     upsert_env_keys,
 )
-from GUI.functions.utils.executor.private_utils.codex_jsonl import CodexJsonlFormatter
-from GUI.functions.utils.executor.private_utils.executor_utils import (
+from gui.functions.utils.executor.private_utils.codex_jsonl import CodexJsonlFormatter
+from gui.functions.utils.executor.private_utils.executor_utils import (
     workflow_command_args,
 )
-from scripts.check_status import main as check_status_main
-from scripts.check_status.agents_check import (
+from scripts import check_status as check_status_main
+from services.diagnostics import (
     check_harness_cli,
     check_project_environment,
 )
@@ -217,7 +217,7 @@ class WorkflowCommandTests(unittest.TestCase):
             "uv",
             "run",
             "python",
-            "src/scripts/workflows/orchestrator/main.py",
+            "src/scripts/workflow.py",
             "--task",
             "whole-lca",
             "--worker",
@@ -230,7 +230,7 @@ class WorkflowCommandTests(unittest.TestCase):
                 "uv",
                 "run",
                 "python",
-                "src/scripts/workflows/orchestrator/main.py",
+                "src/scripts/workflow.py",
                 "--task",
                 "revise-lca",
                 "--worker",
@@ -243,7 +243,7 @@ class WorkflowCommandTests(unittest.TestCase):
                 "uv",
                 "run",
                 "python",
-                "src/scripts/workflows/orchestrator/main.py",
+                "src/scripts/workflow.py",
                 "--task",
                 "whole-lca",
                 "--worker",
@@ -256,7 +256,7 @@ class WorkflowCommandTests(unittest.TestCase):
                 "uv",
                 "run",
                 "python",
-                "src/scripts/workflows/orchestrator/main.py",
+                "src/scripts/workflow.py",
                 "--task",
                 "whole-lca",
                 "--worker",
@@ -274,7 +274,7 @@ class WorkflowCommandTests(unittest.TestCase):
 class HarnessCliCheckTests(unittest.TestCase):
     def test_check_harness_cli_reports_missing_package(self) -> None:
         with patch(
-            "scripts.check_status.agents_check.main.check",
+            "services.diagnostics.check",
             return_value=(False, "未安装"),
         ):
             ok, message = check_harness_cli("opencode")
@@ -293,7 +293,7 @@ class HarnessCliCheckTests(unittest.TestCase):
             root = Path(temp_dir)
             (root / ".env").write_text('HARNESS_AGENT="opencode"\n', encoding="utf-8")
             with patch(
-                "scripts.check_status.agents_check.main.check",
+                "services.diagnostics.check",
                 return_value=(False, "未安装"),
             ):
                 ok, message = check_project_environment(project_root=root)
@@ -313,7 +313,7 @@ class HarnessCliCheckTests(unittest.TestCase):
                 return False, "未安装"
 
             with patch(
-                "scripts.check_status.agents_check.main.inspect",
+                "services.diagnostics.inspect",
                 side_effect=fake_inspect,
             ):
                 ok, message = check_project_environment(project_root=root)
@@ -325,11 +325,11 @@ class ExecutionGateTests(unittest.TestCase):
     def test_run_initialization_checks_lists_failed_items(self) -> None:
         with (
             patch(
-                "GUI.functions.settings.check_status.check_agent_result",
+                "gui.functions.settings.check_status.check_agent_result",
                 return_value=(True, "可用"),
             ),
             patch(
-                "GUI.functions.settings.check_status.check_openlca_result",
+                "gui.functions.settings.check_status.check_openlca_result",
                 return_value=(False, "不可用"),
             ),
         ):
@@ -339,7 +339,7 @@ class ExecutionGateTests(unittest.TestCase):
 
     def test_openlca_check_uses_package_import_without_main_collision(self) -> None:
         with patch(
-            "scripts.check_status.openlca_check.get_openlca_health",
+            "services.diagnostics.get_openlca_health",
             return_value={
                 "schema_version": 2,
                 "status": "success",
@@ -357,14 +357,13 @@ class ExecutionGateTests(unittest.TestCase):
             ),
             patch.object(sys, "argv", ["check_status", "--only", "agents"]),
         ):
-            with self.assertRaisesRegex(RuntimeError, "codex未安装"):
-                check_status_main.main()
+            self.assertEqual(check_status_main.main(), 1)
 
 
 class InitCheckStatusMessageTests(unittest.TestCase):
     def test_check_agent_result_includes_agent_name(self) -> None:
         with patch(
-            "scripts.check_status.agents_check.check_harness_cli",
+            "services.diagnostics.check_harness_cli",
             return_value=(True, "可用"),
         ):
             ok, message = check_agent_result("codex")
@@ -379,14 +378,14 @@ class CodexJsonlFormatterTests(unittest.TestCase):
             formatter.consume(line)
             for line in (
                 '{"type":"turn.started"}\n',
-                '{"type":"item.started","item":{"type":"command_execution","command":"uv run python src/scripts/clean_dir/main.py"}}\n',
-                '{"type":"item.completed","item":{"type":"command_execution","command":"uv run python src/scripts/clean_dir/main.py","exit_code":0,"aggregated_output":"ok"}}\n',
+                '{"type":"item.started","item":{"type":"command_execution","command":"uv run python src/scripts/clean.py"}}\n',
+                '{"type":"item.completed","item":{"type":"command_execution","command":"uv run python src/scripts/clean.py","exit_code":0,"aggregated_output":"ok"}}\n',
                 '{"type":"item.started","item":{"item_type":"mcp_tool_call","server":"control_openlca","tool":"health_check","arguments":{}}}\n',
                 '{"type":"item.completed","item":{"item_type":"mcp_tool_call","server":"control_openlca","tool":"health_check","status":"completed","result":{"content":"ok"}}}\n',
                 '{"type":"item.completed","item":{"type":"agent_message","text":"进入 01 计划质量门禁"}}\n',
             )
         )
-        self.assertIn("→ 命令: uv run python src/scripts/clean_dir/main.py", rendered)
+        self.assertIn("→ 命令: uv run python src/scripts/clean.py", rendered)
         self.assertIn("✓ 命令结束 (exit 0)", rendered)
         self.assertIn("ok", rendered)
         self.assertIn("→ MCP control_openlca.health_check", rendered)

@@ -24,17 +24,16 @@ import argparse
 import sys
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).parent
-SRC_ROOT = SCRIPT_DIR.parent
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-from scripts.gitee_upload.config import (
+from config import (
     DEFAULT_GITEE_URL,
     GIT_REMOTE_NAME,
     PROJECT_ROOT,
 )
-from scripts.gitee_upload.utils.git import (
+from gu_utils.git import (
     check_and_setup_gitee_remote,
     get_current_branch,
     sync_to_gitee,

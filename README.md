@@ -15,7 +15,7 @@
 首次运行前，在所用 AI 工具中打开本仓库，输入：
 
 ```text
-读取并执行 src/scripts/proj_init/PROMPT.md
+读取并执行 scripts/proj_init/PROMPT.md
 ```
 
 或直接：
@@ -31,13 +31,13 @@ Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制�
 
 ## 启动控制面板 GUI (推荐)
 
-项目已提供 **Gradio Web 控制面板**（位于 [src/GUI](src/GUI)），支持可视化所有工作内容。
+项目已提供 **Gradio Web 控制面板**（位于 [src/gui](src/gui)），支持可视化所有工作内容。
 
 ### 启动方式 (通用)
 
 在项目根目录下，于终端执行以下命令：
 ```bash
-uv run python src/GUI/main.py
+uv run python src/gui/main.py
 ```
 
 浏览器访问 [http://127.0.0.1:7860](http://127.0.0.1:7860)。默认端口 `7860` 可在 `.env` 的 `GUI_PORT` 修改。
@@ -75,14 +75,14 @@ uv run python src/GUI/main.py
 2. 手动清理：
 
 ```bash
-uv run python src/scripts/clean_dir/main.py -y --preset whole-lca
+uv run python src/scripts/clean.py -y --preset whole-lca
 ```
 
 3. 复制参考资料到 `harness/knowledge/`，编写 `workspace/inputs/plan.md`。
 4. 启动：
 
 ```bash
-uv run python src/scripts/workflows/orchestrator/main.py --task whole-lca
+uv run python src/scripts/workflow.py --task whole-lca
 ```
 
 可选 `--worker codex`（或 `claude` / `opencode` / `pi`）。模型 id 读 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。恢复已有运行：`--resume <run_id>`（不执行新运行清理）。
@@ -93,16 +93,16 @@ uv run python src/scripts/workflows/orchestrator/main.py --task whole-lca
 2. 手动清理（不清理 workspace）：
 
 ```bash
-uv run python src/scripts/clean_dir/main.py -y --preset revise-lca
+uv run python src/scripts/clean.py -y --preset revise-lca
 ```
 
 3. 更新 `harness/knowledge/` 与 `workspace/inputs/revise.md`（保留既有 plan / manifest / 报告）。
 4. 启动：
 
 ```bash
-uv run python src/scripts/workflows/orchestrator/main.py --task revise-lca
+uv run python src/scripts/workflow.py --task revise-lca
 ```
 
 revise 走同一套 01–04：01 审查修订门禁，02–04 由 `reviser` 在既有产物上落实 `revise.md`，再由 reviewer 审核（用户意图优先）。
 
-`clean_dir` 详见 [src/scripts/clean_dir/README.md](src/scripts/clean_dir/README.md)。GUI 内部启动命令见 [platform-adapter.md](docs/lang_CN/platform-adapter.md)。
+`clean` CLI 见 `src/scripts/clean.py`。GUI 内部启动命令见 [platform-adapter.md](docs/lang_CN/platform-adapter.md)。

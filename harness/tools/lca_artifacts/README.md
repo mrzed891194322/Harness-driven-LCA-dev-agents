@@ -15,4 +15,4 @@ uv run python harness/tools/lca_artifacts/main.py
 
 `provider_pairs` 的每项包含 `process_id`、`flow_id`。`calculation_rows` 的每行依次是产品系统 UUID、方法 UUID、影响类别、数值、单位、证据路径。
 
-whole-lca / revise-lca 使用单独的工作流适配入口 `src/scripts/workflows/domains/lca/artifacts/main.py`。原有 `validate_artifacts`、`get_validation_state`、`get_rework_status`、无参数的 `render_report_tables` 以及 v2 证据响应保持在适配层，详见其 README。
+whole-lca / revise-lca 使用单独的工作流适配入口 `src/domains/lca/artifacts/main.py`。原有 `validate_artifacts`、`get_validation_state`、`get_rework_status`、无参数的 `render_report_tables` 以及 v2 证据响应保持在适配层，详见其 README。

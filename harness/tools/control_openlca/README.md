@@ -1,6 +1,6 @@
 # control_openlca MCP v2
 
-正式工作流使用 `src/scripts/workflows/domains/lca/openlca_mcp.py` 适配入口；以下 v2 响应、阶段审核、角色与路径约束均由适配层承担。
+正式工作流使用 `src/domains/lca/openlca_mcp.py` 适配入口；以下 v2 响应、阶段审核、角色与路径约束均由适配层承担。
 
 本目录 `main.py` 是独立 MCP，不读取 workflow 上下文。查询和计算参数保持业务含义；预检/导入显式传入 `lci_dir`、`target_category`、`operation_dir`、`scope_id`，日志查询显式传入 `operation_dir`、`scope_id`；清理要求明确分类，可指定日志目录。`scope_id` 只是操作日志命名空间，不表示工作流阶段或批准状态。底层保留数据库预检、请求去重、IPC 锁和超时保护，返回原始结构化业务结果。
 
@@ -28,12 +28,12 @@
 
 > **硬约束**
 > - 严禁为 openLCA 连接检测、描述符遍历、UUID 查询、模型图读取、导入或计算编写临时 Python 脚本。
-> - CLI 中只检查连接时，运行 `src/scripts/check_status/openlca_check/main.py`；MCP 客户端调用 `health_check`。
+> - CLI 中只检查连接时，运行 `src/scripts/check_status.py --only openlca`；MCP 客户端调用 `health_check`。
 > - 运行任务通过已注册的 `query_descriptors_batch` / `query_descriptors` MCP 查询已有数据库实体；`query_descriptors/main.py` 仅供独立 CLI 使用，不能作为工作流绕过 MCP 的入口。新建前景 UUID 由建模任务创建，导入后正式读回确认。
 > - 按 Process UUID 回读地域和定量参考时，MCP 客户端必须使用 `get_process_details`。
 > - 按 Flow UUID 查询可用 Provider 时，MCP 客户端必须使用 `get_flow_providers`。
 > - 运行任务用已注册的 `get_model_graph` MCP 读回模型图；`get_model_graph/main.py` 是独立 CLI 入口。
-> - whole-lca / revise-lca 启动前清理由 `src/scripts/clean_dir/`（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可用 MCP `cleanup_output`（如 `cleanup-lci` 命令）。
+> - whole-lca / revise-lca 启动前清理由 `src/scripts/clean.py `（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可用 MCP `cleanup_output`（如 `cleanup-lci` 命令）。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
 
 ---
@@ -178,8 +178,8 @@ uv run pytest src/tests/harness/tools/control_openlca -v
 ## Agent 开发与扩展规范
 
 1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。完整 Agent 纪律见 [`harness/rules/tools/control_openlca.md`](../../rules/tools/control_openlca.md)。
-2.  **首选复用**：当开发正式新脚本时，主程序顶部必须通过追加 `sys.path` 导入 `scripts/utils/` 下的对应功能。
+2.  **首选复用**：当开发正式新脚本时，主程序顶部必须通过追加 `sys.path` 导入 `src/scripts/utils/` 下的对应功能。
 3.  **单一职责**：请勿在新脚本主文件中编写关于连接、查找、导出等繁琐实现。`main.py` 应当只负责顶层流程编排。
 4.  **升级与扩展**：
-    *   如果需要对通用逻辑（如引入新的结果展现形式）进行调整，**应当直接修改 `scripts/utils/` 下的对应模块**，确保全技能通用逻辑同步升级。
+    *   如果需要对通用逻辑（如引入新的结果展现形式）进行调整，**应当直接修改 `src/scripts/utils/` 下的对应模块**，确保全技能通用逻辑同步升级。
     *   如果某项功能仅在您的新任务脚本中被使用，且带有很强的针对性日志或语境（如特定的计算配置打印），应将其封装在您任务文件夹下的 `private_utils/` 目录中。
