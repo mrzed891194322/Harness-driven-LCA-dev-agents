@@ -53,8 +53,18 @@ def claude_allowed_tools_flag(
     return ",".join(claude_allowed_tools(mcp_servers))
 
 
-def pi_tools_flag() -> str:
-    return ",".join(PI_BUILTIN_TOOLS)
+def pi_tools(
+    mcp_servers: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
+    # pi-mcp-adapter exposes proxy tools mcp / mcpScript, not mcp__<server>.
+    extras = ("mcp", "mcpScript") if mcp_servers else ()
+    return PI_BUILTIN_TOOLS + extras
+
+
+def pi_tools_flag(
+    mcp_servers: Mapping[str, Any] | None = None,
+) -> str:
+    return ",".join(pi_tools(mcp_servers))
 
 
 def opencode_permission_config(

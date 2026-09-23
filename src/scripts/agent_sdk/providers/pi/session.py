@@ -65,7 +65,7 @@ class PiSessionProvider(CliSessionProvider):
             "json",
             "-a",
             "--tools",
-            pi_tools_flag(),
+            pi_tools_flag(config.mcp_servers),
         ]
         if config.model:
             provider, model_id = split_pi_model_ref(config.model)

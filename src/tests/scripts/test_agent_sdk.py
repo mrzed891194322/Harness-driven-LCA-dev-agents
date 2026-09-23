@@ -17,9 +17,11 @@ from scripts.agent_sdk.models import (  # noqa: E402
 from scripts.agent_sdk.permissions import (  # noqa: E402
     CLAUDE_PERMISSION_MODE,
     CODEX_SANDBOX,
+    PI_BUILTIN_TOOLS,
     claude_allowed_tools,
     claude_allowed_tools_flag,
     opencode_permission_config,
+    pi_tools,
     pi_tools_flag,
 )
 from scripts.agent_sdk.providers.claude.session import (
@@ -115,6 +117,15 @@ class AgentSdkPermissionTests(unittest.TestCase):
 
     def test_pi_tools_flag_enables_search(self) -> None:
         self.assertEqual(pi_tools_flag(), "read,bash,edit,write,grep,find,ls")
+        self.assertEqual(pi_tools(None), PI_BUILTIN_TOOLS)
+        self.assertEqual(
+            pi_tools_flag({"control_openlca": {}}),
+            "read,bash,edit,write,grep,find,ls,mcp,mcpScript",
+        )
+        self.assertEqual(
+            pi_tools({"control_openlca": {}, "lca_artifacts": {}}),
+            PI_BUILTIN_TOOLS + ("mcp", "mcpScript"),
+        )
 
     def test_opencode_permissions_include_mcp_servers(self) -> None:
         permission = opencode_permission_config({"control_openlca": {}})
@@ -556,8 +567,21 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertEqual(ref.storage["pi_session_id"], "pi-sess-1")
         argv = runner.calls[0]["argv"]
         self.assertEqual(argv[:4], ["/bin/pi", "-p", "hello", "--mode"])
-        self.assertEqual(argv[argv.index("--tools") + 1], pi_tools_flag())
-        for name in ("read", "bash", "edit", "write", "grep", "find", "ls"):
+        self.assertEqual(
+            argv[argv.index("--tools") + 1],
+            pi_tools_flag(config.mcp_servers),
+        )
+        for name in (
+            "read",
+            "bash",
+            "edit",
+            "write",
+            "grep",
+            "find",
+            "ls",
+            "mcp",
+            "mcpScript",
+        ):
             self.assertIn(name, argv[argv.index("--tools") + 1].split(","))
         self.assertIn("json", argv)
         self.assertIn("--provider", argv)
@@ -589,6 +613,9 @@ class AgentSdkSessionTests(unittest.TestCase):
         argv = runner.calls[0]["argv"]
         self.assertNotIn("--model", argv)
         self.assertNotIn("--provider", argv)
+        tools = argv[argv.index("--tools") + 1].split(",")
+        self.assertNotIn("mcp", tools)
+        self.assertNotIn("mcpScript", tools)
 
     def test_pi_splits_opencode_go_provider_and_model(self) -> None:
         runner = _FakeRunner(stdout='{"type":"session","id":"pi-sess-3"}\n')
