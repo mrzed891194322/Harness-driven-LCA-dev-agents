@@ -1,6 +1,6 @@
 # control_openlca MCP v2
 
-正式工作流使用 `src/domains/lca/openlca_mcp.py` 适配入口；以下 v2 响应、阶段审核、角色与路径约束均由适配层承担。
+正式工作流使用 `harness/tools/control_openlca/workflow_mcp.py` 适配入口；以下 v2 响应、阶段审核、角色与路径约束均由适配层承担。
 
 本目录 `main.py` 是独立 MCP，不读取 workflow 上下文。查询和计算参数保持业务含义；预检/导入显式传入 `lci_dir`、`target_category`、`operation_dir`、`scope_id`，日志查询显式传入 `operation_dir`、`scope_id`；清理要求明确分类，可指定日志目录。`scope_id` 只是操作日志命名空间，不表示工作流阶段或批准状态。底层保留数据库预检、请求去重、IPC 锁和超时保护，返回原始结构化业务结果。
 

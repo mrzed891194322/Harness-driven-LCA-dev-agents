@@ -6,16 +6,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.orchestrator.load.loader import (
+from core.workflow.config.loader import (
     assignment_rule_ids,
     load_workflow,
 )
-from core.orchestrator.loop.assemble import assemble_prompt
-from core.orchestrator.loop.session_bind import (
+from core.workflow.execution.assemble import assemble_prompt
+from core.workflow.execution.session_bind import (
     build_session_config,
     mcp_context_path,
 )
-from domains.lca.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 STAGE_PACKAGES = (
@@ -286,7 +286,7 @@ class WorkflowYamlTests(unittest.TestCase):
             )
             self.assertEqual(
                 config.mcp_servers["control_openlca"]["args"][0],
-                "src/domains/lca/openlca_mcp.py",
+                "harness/tools/control_openlca/workflow_mcp.py",
             )
             self.assertIn("UV_CACHE_DIR", config.mcp_servers["control_openlca"]["env"])
             self.assertIsNotNone(config.mcp_render_dir)
@@ -451,7 +451,7 @@ class PlatformAdapterTests(unittest.TestCase):
         )
         tool = workflow.tools["control_openlca"]
         self.assertEqual(tool.command, "uv")
-        self.assertEqual(tool.args[-1], "src/domains/lca/openlca_mcp.py")
+        self.assertEqual(tool.args[-1], "harness/tools/control_openlca/workflow_mcp.py")
 
     def test_reconnect_implementation_is_documented_outside_prompts(self) -> None:
         tool = (PROJECT_ROOT / "harness/tools/control_openlca/README.md").read_text(

@@ -10,28 +10,28 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.load.yaml_strict import load_yaml_strict
-from core.orchestrator.loop.handoff import (
+from core.runtime.hashing import stable_hash
+from core.runtime.knowledge_providers.local_files import discover_files_at
+from core.workflow.config.loader import load_workflow
+from core.workflow.config.yaml_strict import load_yaml_strict
+from core.workflow.execution.handoff import (
     review_note_path,
     write_review_note,
 )
-from core.orchestrator.loop.runner import (
+from core.workflow.execution.runner import (
     OrchestratorRuntime,
     WorkflowState,
     initial_state,
     missing_expected_outputs,
 )
-from core.orchestrator.persist.config_fingerprint import (
+from core.workflow.persistence.config_fingerprint import (
     assert_runtime_config_matches,
     build_runtime_config,
     write_runtime_config,
 )
-from core.runtime.hashing import stable_hash
-from core.runtime.knowledge_providers.local_files import discover_files_at
-from domains.lca.artifacts import checks as lca_checks
-from domains.lca.artifacts.store import Context
-from domains.lca.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts import checks as lca_checks
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.store import Context
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -75,7 +75,6 @@ def _payload(*, with_hook: bool = True) -> dict:
         stage["hooks"] = {"on_reviewer_passed": ["lca.record_acceptance"]}
     return {
         "id": "audit",
-        "capabilities": ["lca"],
         "runtime_spec": "harness/specs/public/references/workflow-runtime-spec.md",
         "registry": {
             "rules": {

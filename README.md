@@ -82,7 +82,7 @@ uv run python src/scripts/clean.py -y --preset whole-lca
 4. 启动：
 
 ```bash
-uv run python src/scripts/workflow.py --task whole-lca
+uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
 ```
 
 可选 `--worker codex`（或 `claude` / `opencode` / `pi`）。模型 id 读 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。恢复已有运行：`--resume <run_id>`（不执行新运行清理）。
@@ -100,7 +100,7 @@ uv run python src/scripts/clean.py -y --preset revise-lca
 4. 启动：
 
 ```bash
-uv run python src/scripts/workflow.py --task revise-lca
+uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
 ```
 
 revise 走同一套 01–04：01 审查修订门禁，02–04 由 `reviser` 在既有产物上落实 `revise.md`，再由 reviewer 审核（用户意图优先）。

@@ -18,15 +18,15 @@ for _p in (_ROOT / "src", _ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from services.diagnostics import check_openlca, check_project_environment
-from services.workspace import run_clean
+from diagnostics import check_openlca, check_project_environment
+from workspace_clean import run_clean
 
 PROJECT_ROOT = _ROOT
 load_dotenv(PROJECT_ROOT / ".env")
 
 
 def main() -> int:
-    from services.settings import (
+    from app_settings import (
         DEFAULT_OPENLCA_IPC_PORT,
         load_port_settings,
     )

@@ -69,4 +69,4 @@ uv run python src/scripts/check_status.py --only openlca
 5. Worker CLI：分别列出 codex / claude / opencode / pi
 6. openLCA IPC
 
-最后一句：下一步可启动 GUI（见 `README.md`），或在完成 `src/scripts/clean.py` 并放入资料后执行 `uv run python src/scripts/workflow.py --task whole-lca`。不要在本次引导里启动 whole-lca。
+最后一句：下一步可启动 GUI（见 `README.md`），或在完成 `src/scripts/clean.py` 并放入资料后执行 `uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml`。不要在本次引导里启动 whole-lca。

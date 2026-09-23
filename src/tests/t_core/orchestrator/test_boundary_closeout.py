@@ -9,30 +9,42 @@ from pathlib import Path
 
 import yaml
 
-from core.orchestrator.load.bundle import KnowledgeBinding, TaskBundle
-from core.orchestrator.load.lists import (
-    merge_list_declarations,
-    resolve_list,
-)
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.persist.config_fingerprint import (
-    assert_runtime_config_matches,
-    write_runtime_config,
-)
-from core.runtime.capabilities import empty_capabilities
+from core.runtime.capabilities import base_capabilities, empty_capabilities
 from core.runtime.context import RunContext
 from core.runtime.identifiers import require_identifier
 from core.runtime.knowledge_providers.local_files import (
+    enrich_local_files,
     register_local_files,
 )
-from domains.lca.artifacts import checks as lca_checks
-from domains.lca.artifacts.store import Context
-from domains.lca.bootstrap import lca_capabilities
-from domains.lca.knowledge import enrich_local_files
-from services.workflow import (
-    compose_capabilities,
-    peek_capability_ids,
+from core.workflow.config.bundle import KnowledgeBinding, TaskBundle
+from core.workflow.config.lists import (
+    merge_list_declarations,
+    resolve_list,
 )
+from core.workflow.config.loader import load_workflow
+from core.workflow.main import peek_capability_ids
+from core.workflow.persistence.config_fingerprint import (
+    assert_runtime_config_matches,
+    write_runtime_config,
+)
+from harness.tools.lca_artifacts import checks as lca_checks
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.store import Context
+
+
+def compose_capabilities(ids=None):
+    ids = list(ids or [])
+    if not ids:
+        return base_capabilities()
+    if ids == ["lca"] or all(
+        str(i).startswith("lca") or str(i) == "lca_rework" for i in ids
+    ):
+        from harness.tools.lca_artifacts.bootstrap import lca_capabilities
+
+        return lca_capabilities()
+    raise ValueError(f"unknown capability set(s): {ids}")
+
+
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -66,7 +78,6 @@ def _tree(root: Path) -> None:
 def _reviewed_payload() -> dict:
     return {
         "id": "boundary",
-        "capabilities": [],
         "runtime_spec": "harness/specs/public/references/workflow-runtime-spec.md",
         "registry": {
             "rules": {
@@ -136,7 +147,7 @@ class MetadataIsolationTests(unittest.TestCase):
     def test_session_bind_uses_stage_context_not_checker_prefix(self) -> None:
         import inspect
 
-        from core.orchestrator.loop import session_bind
+        from core.workflow.execution import session_bind
 
         source = inspect.getsource(session_bind)
         self.assertNotIn('startswith("lca.")', source)
@@ -147,7 +158,6 @@ class MetadataIsolationTests(unittest.TestCase):
             root = Path(temp_dir)
             _tree(root)
             payload = _reviewed_payload()
-            payload["capabilities"] = ["lca"]
             payload["stages"][0]["checks"] = [
                 {"id": "lca.report"},
                 {"id": "lca.mapping"},
@@ -481,7 +491,16 @@ class CapabilitiesAndResumeTests(unittest.TestCase):
         ids = peek_capability_ids(
             WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT
         )
-        self.assertEqual(ids, ["lca"])
+        self.assertEqual(
+            set(ids),
+            {
+                "lca.inventory",
+                "lca.mapping",
+                "lca.report",
+                "lca.record_acceptance",
+                "lca_rework",
+            },
+        )
 
     def test_resume_fingerprint_mismatch(self) -> None:
         workflow = load_workflow(

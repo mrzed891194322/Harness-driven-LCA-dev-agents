@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Workflow CLI — thin wrapper over services.workflow / orchestrator."""
+"""Thin CLI: forward argv to the core workflow engine (``--workflow`` required)."""
 
 from __future__ import annotations
 
@@ -15,11 +15,13 @@ for _p in (_ROOT / "src", _ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from services.workflow import run_workflow
+from core.workflow.main import main as orchestrator_main  # noqa: E402
+
+PROJECT_ROOT = _ROOT
 
 
 def main(argv: list[str] | None = None) -> int:
-    return run_workflow(argv if argv is not None else sys.argv[1:])
+    return orchestrator_main(argv if argv is not None else sys.argv[1:])
 
 
 if __name__ == "__main__":

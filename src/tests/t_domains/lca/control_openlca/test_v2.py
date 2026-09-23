@@ -11,14 +11,14 @@ import olca_schema as s
 import pytest
 import requests
 
-from domains.lca.artifacts import checks, report
-from domains.lca.artifacts.store import (
+from harness.tools.control_openlca.utils import guard, operations, readonly
+from harness.tools.lca_artifacts import checks, report
+from harness.tools.lca_artifacts import offline_report as artifact_report
+from harness.tools.lca_artifacts.store import (
     MAX_RESPONSE_BYTES,
     Context,
     invoke,
 )
-from harness.tools.control_openlca.utils import guard, operations, readonly
-from harness.tools.lca_artifacts import report as artifact_report
 from tests.support.openlca_fakes import (
     FakeClient,
     FakeImportClient,
@@ -465,8 +465,8 @@ def test_calculation_change_and_raw_corruption(context):
 
 
 def test_ignored_source_manifest_and_inventory_dependency_scope(context):
-    from domains.lca.artifacts.store import discover_sources
     from harness.tools.control_openlca.utils.workflow import sha256_file
+    from harness.tools.lca_artifacts.store import discover_sources
 
     source = context.project / "harness" / "knowledge" / "ignored.md"
     source.parent.mkdir(parents=True)
@@ -557,7 +557,7 @@ def test_preflight_is_single_use_and_cross_run_not_reused(context):
 
 
 def test_mcp_reviewer_cannot_write_or_calculate(context, monkeypatch):
-    from domains.lca import openlca_mcp as main
+    import harness.tools.control_openlca.workflow_mcp as main
 
     monkeypatch.setenv("LCA_RUN_ID", context.run_id)
     monkeypatch.setenv("LCA_WORKSPACE", str(context.workspace))
@@ -618,7 +618,7 @@ def test_mapping_checks_coverage_and_lci_semantics(context):
 
 
 def test_raw_pointer_read_uses_checksum(context, monkeypatch):
-    from domains.lca.artifacts import main
+    from harness.tools.lca_artifacts import workflow_mcp as main
 
     monkeypatch.setenv("LCA_WORKSPACE", str(context.workspace))
     ref, _ = context.save_result("example", {"queries": [{"count": 31}]}, {})
@@ -692,7 +692,7 @@ def test_rpc_failure_is_not_an_empty_descriptor_list(context):
 
 
 def test_mcp_channel_gate_rejects_without_env(monkeypatch):
-    from domains.lca import openlca_mcp as main
+    import harness.tools.control_openlca.workflow_mcp as main
 
     monkeypatch.delenv("LCA_CONTROL_OPENLCA_MCP", raising=False)
     blocked = main.health_check()
@@ -717,7 +717,7 @@ def test_resolve_ipc_tool_timeout_sec_clamps(monkeypatch):
 
 
 def test_long_tool_reports_applied_timeout_sec(context, monkeypatch):
-    from domains.lca import openlca_mcp as main
+    import harness.tools.control_openlca.workflow_mcp as main
     from harness.tools.control_openlca.utils import guard
 
     monkeypatch.setenv("LCA_RUN_ID", context.run_id)
@@ -782,7 +782,7 @@ def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
 
 
 def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):
-    from domains.lca import openlca_mcp as main
+    import harness.tools.control_openlca.workflow_mcp as main
     from harness.tools.control_openlca.utils import guard
 
     monkeypatch.setenv("LCA_RUN_ID", context.run_id)

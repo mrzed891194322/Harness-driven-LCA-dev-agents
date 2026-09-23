@@ -11,21 +11,21 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.load.models import Workflow
-from core.orchestrator.loop.runner import (
-    OrchestratorRuntime,
-    missing_expected_outputs,
-)
 from core.runtime.context import RunContext
 from core.runtime.hashing import sha256_file
 from core.runtime.knowledge_providers.local_files import discover_files_at
-from domains.lca import checkers as lca_checkers
-from domains.lca import hooks as lca_hooks
-from domains.lca.artifacts import checks as lca_checks
-from domains.lca.artifacts.store import Context
-from domains.lca.bootstrap import lca_capabilities
+from core.workflow.config.loader import load_workflow
+from core.workflow.config.models import Workflow
+from core.workflow.execution.runner import (
+    OrchestratorRuntime,
+    missing_expected_outputs,
+)
 from harness.tools.control_openlca.utils import workflow as openlca_workflow
+from harness.tools.lca_artifacts import checkers as lca_checkers
+from harness.tools.lca_artifacts import checks as lca_checks
+from harness.tools.lca_artifacts import hooks as lca_hooks
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.store import Context
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.openlca_fakes import write_product_system_fixture
 
@@ -56,7 +56,6 @@ def _tree(root: Path) -> None:
 def _base_payload() -> dict:
     return {
         "id": "base",
-        "capabilities": ["lca"],
         "runtime_spec": "harness/specs/public/references/workflow-runtime-spec.md",
         "registry": {
             "rules": {
@@ -453,7 +452,7 @@ class LcaPhaseFailClosedTests(unittest.TestCase):
                 metadata={"lca": {"phase": "report"}},
             )
             with self.assertRaisesRegex(ValueError, "phase == 'mapping'"):
-                lca_hooks._record_acceptance(run_ctx)
+                lca_hooks.record_acceptance(run_ctx)
 
     def test_acceptance_rejects_other_stage_check(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1179,7 +1178,7 @@ class FrozenModelTests(unittest.TestCase):
             stage = workflow.stages[0]
             assignment = workflow.assignments["s1.executor"]
             bundle = workflow.bundles[assignment.assignment_id]
-            from core.orchestrator.loop.session_bind import (
+            from core.workflow.execution.session_bind import (
                 build_session_config,
             )
 
@@ -1201,7 +1200,7 @@ class FrozenModelTests(unittest.TestCase):
 
 class ImplementationFingerprintTests(unittest.TestCase):
     def test_implementation_change_rejects_resume(self) -> None:
-        from core.orchestrator.persist.config_fingerprint import (
+        from core.workflow.persistence.config_fingerprint import (
             assert_runtime_config_matches,
             write_runtime_config,
         )

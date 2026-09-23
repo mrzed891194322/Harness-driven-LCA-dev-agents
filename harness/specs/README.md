@@ -12,7 +12,7 @@
 编排入口：`harness/LCA-main.yaml`。启动命令：
 
 ```bash
-uv run python src/scripts/workflow.py --task whole-lca
+uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
 ```
 
 ## Revise-LCA
@@ -20,5 +20,5 @@ uv run python src/scripts/workflow.py --task whole-lca
 同一套 01–04。编排入口：`harness/LCA-revise.yaml`（`reuse` 主工作流后把 02–04 的写者换成 `reviser.md`）。修订契约在各包 `references/revise.md`；01 仍只派 reviewer。
 
 ```bash
-uv run python src/scripts/workflow.py --task revise-lca
+uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
 ```

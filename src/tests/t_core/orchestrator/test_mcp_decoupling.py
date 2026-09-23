@@ -17,12 +17,12 @@ from core.agents.providers.claude.session import write_claude_mcp
 from core.agents.providers.codex.session import mcp_overrides
 from core.agents.providers.opencode.session import write_opencode_mcp
 from core.agents.providers.pi.session import write_pi_mcp
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.loop.handoff import read_handoff
-from core.orchestrator.loop.session_bind import build_session_config
 from core.runtime.capabilities import base_capabilities
 from core.runtime.context import RunContext
-from domains.lca.bootstrap import validate_handoff
+from core.workflow.config.loader import load_workflow
+from core.workflow.execution.handoff import read_handoff
+from core.workflow.execution.session_bind import build_session_config
+from harness.tools.lca_artifacts.handoff import validate as validate_handoff
 from tests.conftest import PROJECT_ROOT
 
 
@@ -179,7 +179,7 @@ import sys
 class BlockWorkflow(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
         blocked = (
-            "core.orchestrator",
+            "core.workflow",
             "domains.lca",
             "services",
             "gui",
@@ -243,7 +243,7 @@ def test_standalone_openlca_mcp_uses_explicit_journal(tmp_path):
 
 
 def test_report_render_does_not_follow_existing_temp_symlink(tmp_path):
-    from harness.tools.lca_artifacts import report
+    from harness.tools.lca_artifacts import offline_report as report
 
     target = tmp_path / "report.md"
     target.write_text(
@@ -261,7 +261,7 @@ def test_report_render_does_not_follow_existing_temp_symlink(tmp_path):
 
 
 def test_check_snapshot_does_not_hide_changes_or_leak_between_calls(tmp_path):
-    from domains.lca.artifacts.snapshot_io import (
+    from harness.tools.lca_artifacts.snapshot_io import (
         check_snapshot,
         load_json,
         sha256_file,
@@ -301,16 +301,15 @@ def test_workflow_adapter_entrypoints_preserve_context_and_response(tmp_path, to
             }
         )
     )
-    base = PROJECT_ROOT / "src/domains/lca"
     if tool == "artifacts":
         script, method, arguments = (
-            base / "artifacts/main.py",
+            PROJECT_ROOT / "harness/tools/lca_artifacts/workflow_mcp.py",
             "get_validation_state",
             {"profile": "inventory"},
         )
     else:
         script, method, arguments = (
-            base / "openlca_mcp.py",
+            PROJECT_ROOT / "harness/tools/control_openlca/workflow_mcp.py",
             "get_import_operation",
             {"request_id": "missing"},
         )

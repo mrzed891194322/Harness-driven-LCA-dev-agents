@@ -39,11 +39,11 @@ def check_agent_result(agent: str | None = None) -> tuple[bool, str]:
         带 CLI 名的状态文案。
     """
     try:
+        from diagnostics import check_harness_cli
         from gui.functions.settings.settings import (
             load_harness_agent,
             normalize_harness_agent,
         )
-        from services.diagnostics import check_harness_cli
 
         selected = normalize_harness_agent(agent) if agent else load_harness_agent()
         ok, message = check_harness_cli(selected)
@@ -81,7 +81,7 @@ def check_openlca_result(
     resolved_host = host or default_host
     resolved_port = default_port if port is None else port
     try:
-        from services.diagnostics import get_openlca_health
+        from diagnostics import get_openlca_health
 
         result = get_openlca_health(host=resolved_host, port=resolved_port)
         if result["status"] == "success":

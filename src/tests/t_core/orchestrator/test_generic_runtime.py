@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 import yaml
 
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.loop.session_bind import build_session_config
 from core.runtime.capabilities import HarnessCapabilities
 from core.runtime.checkers import CheckerRegistry
 from core.runtime.context import RunContext
 from core.runtime.hooks import HookRegistry
 from core.runtime.knowledge import KnowledgeProviderRegistry
-from domains.lca.bootstrap import lca_capabilities
+from core.workflow.config.loader import load_workflow
+from core.workflow.execution.session_bind import build_session_config
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -57,7 +57,7 @@ class GenericRuntimeTests(unittest.TestCase):
             self.assertEqual(bundle.checks[0].checker_id, "test.ping")
 
     def test_renamed_stage_runs_lca_inventory_checker(self) -> None:
-        from domains.lca.artifacts import checks as lca_checks
+        from harness.tools.lca_artifacts import checks as lca_checks
 
         caps = lca_capabilities()
         with tempfile.TemporaryDirectory() as temp_dir:

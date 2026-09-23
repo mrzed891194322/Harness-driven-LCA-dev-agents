@@ -7,9 +7,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import services.workspace as clean_main
+import workspace_clean as clean_main
 from gui.functions.utils.executor.private_utils import executor_utils
-from services.workspace import CLEAN_PRESETS
+from workspace_clean import CLEAN_PRESETS
 
 
 class CleanDirectoryTests(unittest.TestCase):
@@ -311,7 +311,7 @@ class CleanDirectoryTests(unittest.TestCase):
             self.assertFalse((memory / "old.json").exists())
 
     def test_run_clean_fails_when_workspace_lock_held(self) -> None:
-        from core.orchestrator.persist.checkpoint import workspace_lock
+        from core.workflow.persistence.checkpoint import workspace_lock
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -173,19 +173,31 @@ ORCHESTRATOR_COMMAND = [
     "python",
     "src/scripts/workflow.py",
 ]
-WORKFLOW_TASKS = ("whole-lca", "revise-lca")
+# GUI UX labels → workflow YAML paths (composition lives in harness YAML, not aliases).
+WORKFLOW_YAML_BY_TASK = {
+    "whole-lca": "harness/LCA-main.yaml",
+    "revise-lca": "harness/LCA-revise.yaml",
+}
+WORKFLOW_TASKS = tuple(WORKFLOW_YAML_BY_TASK)
 
 
 def workflow_command_args(task: str, agent: str) -> list[str]:
-    """Return the Python orchestrator CLI. Agent selects the worker only."""
+    """Return the Python orchestrator CLI with an explicit workflow YAML path."""
     from gui.functions.settings.settings import HARNESS_AGENTS
 
     agent_key = (agent or "codex").strip().lower()
     if agent_key not in HARNESS_AGENTS:
         raise ValueError(f"Unsupported harness agent: {agent}")
-    if task not in WORKFLOW_TASKS:
+    workflow = WORKFLOW_YAML_BY_TASK.get(task)
+    if workflow is None:
         raise ValueError(f"Unsupported workflow task: {task}")
-    return [*ORCHESTRATOR_COMMAND, "--task", task, "--worker", agent_key]
+    return [
+        *ORCHESTRATOR_COMMAND,
+        "--workflow",
+        workflow,
+        "--worker",
+        agent_key,
+    ]
 
 
 CLEAN_DIR_SCRIPT = [

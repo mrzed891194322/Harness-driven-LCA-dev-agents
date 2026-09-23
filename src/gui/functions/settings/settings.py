@@ -7,14 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TypedDict
 
-from core.agents.config import (
-    LEGACY_WORKER_ENV_KEYS,
-    WORKER_MODEL_KEYS,
-    default_model_for_worker,
-    load_all_models,
-    normalize_model,
-)
-from services.settings import (
+from app_settings import (
     DEFAULT_GUI_PORT,
     DEFAULT_HARNESS_AGENT,
     DEFAULT_OPENLCA_IPC_PORT,
@@ -28,11 +21,18 @@ from services.settings import (
     normalize_harness_agent,
     parse_port,
 )
-from services.settings import (
+from app_settings import (
     load_harness_agent as _load_harness_agent,
 )
-from services.settings import (
+from app_settings import (
     load_port_settings as _load_port_settings,
+)
+from core.agents.config import (
+    LEGACY_WORKER_ENV_KEYS,
+    WORKER_MODEL_KEYS,
+    default_model_for_worker,
+    load_all_models,
+    normalize_model,
 )
 from utils.env import parse_env_file, remove_env_keys, upsert_env_keys
 

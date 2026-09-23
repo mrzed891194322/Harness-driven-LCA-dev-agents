@@ -8,21 +8,21 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.loop.handoff import read_handoff
-from core.orchestrator.loop.runner import (
+from core.runtime.checkers import CheckerRegistry
+from core.workflow.config.loader import load_workflow
+from core.workflow.execution.handoff import read_handoff
+from core.workflow.execution.runner import (
     PROTOCOL_REPAIR_LIMIT,
     OrchestratorRuntime,
     initial_state,
     run_workflow,
 )
-from core.orchestrator.main import _resume
-from core.orchestrator.persist.checkpoint import open_store
-from core.orchestrator.persist.config_fingerprint import (
+from core.workflow.main import _resume
+from core.workflow.persistence.checkpoint import open_store
+from core.workflow.persistence.config_fingerprint import (
     write_runtime_config,
 )
-from core.runtime.checkers import CheckerRegistry
-from domains.lca.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.scripted_session import (
     ScriptedSessionClient,

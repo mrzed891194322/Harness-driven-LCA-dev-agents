@@ -6,9 +6,9 @@ from pathlib import Path
 
 import yaml
 
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.load.resolve import diagnose_assignment
-from domains.lca.bootstrap import lca_capabilities
+from core.workflow.config.loader import load_workflow
+from core.workflow.config.resolve import diagnose_assignment
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 STAGE_PACKAGES = (
@@ -157,7 +157,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             capabilities=lca_capabilities(),
         )
         bundle = workflow.bundles["02-inventory-extraction.executor"]
-        from core.orchestrator.load.bundle import TaskBundle
+        from core.workflow.config.bundle import TaskBundle
 
         restored = TaskBundle.from_dict(bundle.to_dict())
         self.assertEqual(restored.assignment_id, bundle.assignment_id)

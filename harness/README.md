@@ -11,7 +11,7 @@
 | `tools/` | MCP 工具实现（如 `control_openlca`、`lca_artifacts`） |
 | `knowledge/` | 用户参考资料落点（GUI/用户写入；Agent 只读） |
 
-编排引擎在 [`src/core/`](../src/core/)（`orchestrator` / `runtime` / `domains`）。
+编排引擎在 [`src/core/`](../src/core/)（`workflow` / `runtime` / `agents` / `contracts`）。业务能力经 YAML `registry`（tools MCP + checkers/hooks providers）注入，无 `index.yaml` / `--task` 别名。
 
 ## 工作流失败取证（排障）
 
@@ -26,10 +26,8 @@
 `handoff 无效` 且提及 `memory/handoffs/` 时，一般是 **Agent 未写入交卷 JSON**，不是 GUI 上传的 plan/knowledge 缺失。
 
 ```bash
-uv run python src/scripts/workflow.py --task whole-lca
-uv run python src/scripts/workflow.py --task revise-lca
-# 或任意 YAML：
 uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
+uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
 ```
 
 YAML **只引用** path / ID，不内嵌任务正文或规则正文。
@@ -91,7 +89,7 @@ runtime:
   env_prefix: LCA
 ```
 
-LCA 主 YAML 注册的是 `src/domains/lca/openlca_mcp.py` 和 `artifacts/main.py` 两个适配入口。它们在底层工具之外实施审核批准、角色限制、证据归档与固定产物路径；独立工具仍在 `harness/tools/`，不依赖 workflow。`control_openlca.tool_timeout_sec` 显式设为 7320 秒；修改 IPC 会话预算时同步调整该值，留足约 120 秒缓冲。
+LCA 主 YAML 注册的是 `harness/tools/control_openlca/workflow_mcp.py` 和 `harness/tools/lca_artifacts/main.py` 两个适配入口。它们在底层工具之外实施审核批准、角色限制、证据归档与固定产物路径；独立工具仍在 `harness/tools/`，不依赖 workflow。`control_openlca.tool_timeout_sec` 显式设为 7320 秒；修改 IPC 会话预算时同步调整该值，留足约 120 秒缓冲。
 
 ### 3. 绑定阶段任务（`stages` / `assignments`）
 
@@ -123,7 +121,7 @@ assignments:
 - `defaults.rules` / `defaults.knowledge`：全工作流基线。
 - LCA 默认包含项目边界、运行环境、路径、共同方法和资料来源；02/03 增加清单规则，03 增加映射规则，04 增加解释规则。reviewer 另加只读规则，工具规则随绑定自动注入；相同 ID 去重。
 - 列表字段默认 **整表替换**；需要增量时用 `rules.add` / `rules.remove`（或 tools 同名形式）。
-- `capabilities: [lca]`：启用 `src/domains/lca` 对应检查/钩子。
+- `registry.checkers` / `hooks` / `handoff_validators`：在 YAML 中声明 harness provider，由编排器按需加载。
 
 ### 5. Revise 覆盖
 

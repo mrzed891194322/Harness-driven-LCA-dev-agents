@@ -15,7 +15,12 @@ from mcp.server import MCPServer
 from mcp_types import ToolAnnotations
 
 from harness.tools.control_openlca.utils.workflow import sha256_file
-from harness.tools.lca_artifacts import checks, report
+from harness.tools.lca_artifacts import (
+    offline_checks as checks,
+)
+from harness.tools.lca_artifacts import (
+    offline_report as report,
+)
 
 mcp = MCPServer(
     "lca-artifacts",

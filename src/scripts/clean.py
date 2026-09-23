@@ -15,7 +15,7 @@ for _p in (_ROOT / "src", _ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from services.workspace import cli_main
+from workspace_clean import cli_main
 
 if __name__ == "__main__":
     cli_main()

@@ -7,10 +7,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core.orchestrator.loop.handoff import read_handoff
-from domains.lca.artifacts import checks
-from domains.lca.artifacts.main import submit_handoff
-from domains.lca.artifacts.store import (
+from core.workflow.execution.handoff import read_handoff
+from harness.tools.lca_artifacts import checks
+from harness.tools.lca_artifacts.store import (
     Context,
     HostContextError,
     bind_context_argv,
@@ -18,6 +17,7 @@ from domains.lca.artifacts.store import (
     invoke,
     reset_bound_context,
 )
+from harness.tools.lca_artifacts.workflow_mcp import submit_handoff
 
 
 def _write_context(path: Path, **overrides: object) -> Path:

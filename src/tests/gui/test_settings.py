@@ -9,6 +9,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from core.agents.providers.codex.jsonl import CodexJsonlFormatter
+from diagnostics import (
+    check_harness_cli,
+    check_project_environment,
+)
 from gui.functions.settings.check_status import (
     check_agent_result,
     check_openlca_result,
@@ -31,10 +35,6 @@ from gui.functions.utils.executor.private_utils.executor_utils import (
     workflow_command_args,
 )
 from scripts import check_status as check_status_main
-from services.diagnostics import (
-    check_harness_cli,
-    check_project_environment,
-)
 
 ENV_KEYS = (
     "HARNESS_AGENT",
@@ -218,8 +218,8 @@ class WorkflowCommandTests(unittest.TestCase):
             "run",
             "python",
             "src/scripts/workflow.py",
-            "--task",
-            "whole-lca",
+            "--workflow",
+            "harness/LCA-main.yaml",
             "--worker",
             "codex",
         ]
@@ -231,8 +231,8 @@ class WorkflowCommandTests(unittest.TestCase):
                 "run",
                 "python",
                 "src/scripts/workflow.py",
-                "--task",
-                "revise-lca",
+                "--workflow",
+                "harness/LCA-revise.yaml",
                 "--worker",
                 "opencode",
             ],
@@ -244,8 +244,8 @@ class WorkflowCommandTests(unittest.TestCase):
                 "run",
                 "python",
                 "src/scripts/workflow.py",
-                "--task",
-                "whole-lca",
+                "--workflow",
+                "harness/LCA-main.yaml",
                 "--worker",
                 "claude",
             ],
@@ -257,8 +257,8 @@ class WorkflowCommandTests(unittest.TestCase):
                 "run",
                 "python",
                 "src/scripts/workflow.py",
-                "--task",
-                "whole-lca",
+                "--workflow",
+                "harness/LCA-main.yaml",
                 "--worker",
                 "pi",
             ],
@@ -274,7 +274,7 @@ class WorkflowCommandTests(unittest.TestCase):
 class HarnessCliCheckTests(unittest.TestCase):
     def test_check_harness_cli_reports_missing_package(self) -> None:
         with patch(
-            "services.diagnostics.check",
+            "diagnostics.check",
             return_value=(False, "未安装"),
         ):
             ok, message = check_harness_cli("opencode")
@@ -293,7 +293,7 @@ class HarnessCliCheckTests(unittest.TestCase):
             root = Path(temp_dir)
             (root / ".env").write_text('HARNESS_AGENT="opencode"\n', encoding="utf-8")
             with patch(
-                "services.diagnostics.check",
+                "diagnostics.check",
                 return_value=(False, "未安装"),
             ):
                 ok, message = check_project_environment(project_root=root)
@@ -313,7 +313,7 @@ class HarnessCliCheckTests(unittest.TestCase):
                 return False, "未安装"
 
             with patch(
-                "services.diagnostics.inspect",
+                "diagnostics.inspect",
                 side_effect=fake_inspect,
             ):
                 ok, message = check_project_environment(project_root=root)
@@ -339,7 +339,7 @@ class ExecutionGateTests(unittest.TestCase):
 
     def test_openlca_check_uses_package_import_without_main_collision(self) -> None:
         with patch(
-            "services.diagnostics.get_openlca_health",
+            "diagnostics.get_openlca_health",
             return_value={
                 "schema_version": 2,
                 "status": "success",
@@ -363,7 +363,7 @@ class ExecutionGateTests(unittest.TestCase):
 class InitCheckStatusMessageTests(unittest.TestCase):
     def test_check_agent_result_includes_agent_name(self) -> None:
         with patch(
-            "services.diagnostics.check_harness_cli",
+            "diagnostics.check_harness_cli",
             return_value=(True, "可用"),
         ):
             ok, message = check_agent_result("codex")

@@ -1,5 +1,4 @@
 id: whole-lca
-capabilities: [lca]
 runtime_spec: harness/specs/public/references/workflow-runtime-spec.md
 max_attempts: 3
 
@@ -20,7 +19,7 @@ registry:
     lca_artifacts:
       transport: stdio
       command: uv
-      args: [run, python, src/domains/lca/artifacts/main.py]
+      args: [run, python, harness/tools/lca_artifacts/workflow_mcp.py]
       rules: [artifact_usage]
       runtime:
         use_host_python: true
@@ -30,7 +29,7 @@ registry:
     control_openlca:
       transport: stdio
       command: uv
-      args: [run, python, src/domains/lca/openlca_mcp.py]
+      args: [run, python, harness/tools/control_openlca/workflow_mcp.py]
       tool_timeout_sec: 7320
       rules: [openlca_usage]
       runtime:
@@ -43,6 +42,19 @@ registry:
       kind: local_dir
       path: harness/knowledge/
       provider: local_files
+  checkers:
+    lca.inventory:
+      provider: harness.tools.lca_artifacts.checkers:inventory
+    lca.mapping:
+      provider: harness.tools.lca_artifacts.checkers:mapping
+    lca.report:
+      provider: harness.tools.lca_artifacts.checkers:report
+  hooks:
+    lca.record_acceptance:
+      provider: harness.tools.lca_artifacts.hooks:record_acceptance
+  handoff_validators:
+    lca_rework:
+      provider: harness.tools.lca_artifacts.handoff:validate
 
 defaults:
   rules: [workspace_boundary, runtime, paths, lca_method, knowledge_files]

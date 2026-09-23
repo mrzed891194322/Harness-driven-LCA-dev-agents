@@ -12,24 +12,24 @@ from unittest.mock import Mock, patch
 import pytest
 
 from core.agents.progress import set_progress_log
-from core.orchestrator import main as orch_main
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.loop.runner import (
+from core.runtime.checkers import CheckerRegistry
+from core.workflow import main as orch_main
+from core.workflow.config.loader import load_workflow
+from core.workflow.execution.runner import (
     OrchestratorRuntime,
     initial_state,
     run_workflow,
 )
-from core.orchestrator.persist.checkpoint import (
+from core.workflow.persistence.checkpoint import (
     WorkspaceBusy,
     checkpoint_path,
     open_store,
     workspace_lock,
 )
-from core.orchestrator.persist.config_fingerprint import (
+from core.workflow.persistence.config_fingerprint import (
     write_runtime_config,
 )
-from core.runtime.checkers import CheckerRegistry
-from domains.lca.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.scripted_session import (
     ScriptedSessionClient,
@@ -247,7 +247,7 @@ def test_snapshot_and_event_rollback_together(run_case):
 
 def test_manifest_failure_after_commit_does_not_repeat_worker(run_case):
     runtime, state, client, store = run_case
-    from core.orchestrator.loop import runner
+    from core.workflow.execution import runner
 
     publish = runner.publish_state
 
@@ -361,9 +361,7 @@ def test_cli_busy_workspace_does_not_dispatch_or_write(run_case, resuming, capsy
         workspace_lock(runtime.workspace_root),
         patch.object(orch_main, "run_workflow") as run,
     ):
-        from services.workflow import DOMAIN_CAPABILITY_SETS
-
-        assert orch_main.main(args, capability_registry=DOMAIN_CAPABILITY_SETS) == 1
+        assert orch_main.main(args) == 1
     assert "workspace busy" in capsys.readouterr().err
     run.assert_not_called()
     assert store.conn.execute("SELECT count(*) FROM workflow_runs").fetchone()[0] == 0
@@ -376,7 +374,7 @@ def test_process_lock_released_on_process_death(tmp_path):
     program = """
 import sys
 from pathlib import Path
-from core.orchestrator.persist.checkpoint import workspace_lock
+from core.workflow.persistence.checkpoint import workspace_lock
 with workspace_lock(Path(sys.argv[1])):
     print('locked', flush=True)
     sys.stdin.read()

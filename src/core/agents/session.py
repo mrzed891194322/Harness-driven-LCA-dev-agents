@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from schema.session import (
+from core.contracts.session import (
     SessionClient,
     SessionConfig,
     SessionError,

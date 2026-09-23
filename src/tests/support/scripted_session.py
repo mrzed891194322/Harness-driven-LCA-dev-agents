@@ -13,7 +13,7 @@ from core.agents.session import (
     SessionResumeError,
     TurnResult,
 )
-from domains.lca.artifacts.checks import CHECKER_VERSION
+from harness.tools.lca_artifacts.checks import CHECKER_VERSION
 from tests.conftest import PROJECT_ROOT
 
 HandoffScript = dict[tuple[str, str, int], Any]

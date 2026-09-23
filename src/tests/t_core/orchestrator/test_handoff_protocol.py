@@ -11,15 +11,15 @@ from unittest.mock import patch
 
 import yaml
 
-from core.orchestrator.load.bundle import KnowledgeBinding, TaskBundle
-from core.orchestrator.load.lists import resolve_list
-from core.orchestrator.load.loader import load_workflow
 from core.runtime.capabilities import empty_capabilities
 from core.runtime.context import RunContext
-from domains.lca.artifacts import checks as lca_checks
-from domains.lca.artifacts.store import Context
-from domains.lca.bootstrap import lca_capabilities
-from domains.lca.knowledge import enrich_local_files
+from core.runtime.knowledge_providers.local_files import enrich_local_files
+from core.workflow.config.bundle import KnowledgeBinding, TaskBundle
+from core.workflow.config.lists import resolve_list
+from core.workflow.config.loader import load_workflow
+from harness.tools.lca_artifacts import checks as lca_checks
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.store import Context
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -553,14 +553,14 @@ class FailFastSessionCliTests(unittest.TestCase):
                 load_workflow(path, project_root=root, capabilities=lca_capabilities())
 
     def test_session_key_is_assignment_id(self) -> None:
-        from core.orchestrator.loop.runner import session_key
+        from core.workflow.execution.runner import session_key
 
         self.assertEqual(
             session_key("03-dataset-mapping.executor"), "03-dataset-mapping.executor"
         )
 
     def test_workflow_cli_flag(self) -> None:
-        from core.orchestrator import main as orch_main
+        from core.workflow import main as orch_main
 
         with (
             patch.object(orch_main, "load_workflow") as load_mock,
@@ -591,9 +591,6 @@ class FailFastSessionCliTests(unittest.TestCase):
                         "--worker",
                         "codex",
                     ],
-                    capability_registry={
-                        "lca": "domains.lca.bootstrap:register_lca",
-                    },
                 )
             self.assertEqual(code, 0)
             run_mock.assert_called_once()

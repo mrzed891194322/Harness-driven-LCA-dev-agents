@@ -6,10 +6,14 @@ import re
 
 import pytest
 
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.loop.prompt_build import build_prompt
-from domains.lca.bootstrap import lca_capabilities
-from harness.tools.lca_artifacts.report import markers, render, report_table_errors
+from core.workflow.config.loader import load_workflow
+from core.workflow.execution.prompt_build import build_prompt
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.offline_report import (
+    markers,
+    render,
+    report_table_errors,
+)
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 

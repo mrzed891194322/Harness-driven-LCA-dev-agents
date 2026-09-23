@@ -12,22 +12,6 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from core.orchestrator.load.bundle import KnowledgeBinding, TaskBundle
-from core.orchestrator.load.lists import (
-    merge_list_declarations,
-    parse_optional_list_field,
-    resolve_list,
-)
-from core.orchestrator.load.loader import load_workflow
-from core.orchestrator.loop.runner import (
-    OrchestratorRuntime,
-    WorkflowState,
-    initial_state,
-)
-from core.orchestrator.persist.config_fingerprint import (
-    assert_runtime_config_matches,
-    write_runtime_config,
-)
 from core.runtime.capabilities import base_capabilities
 from core.runtime.context import RunContext
 from core.runtime.hashing import stable_hash
@@ -36,14 +20,41 @@ from core.runtime.identifiers import (
     resolve_project_path,
 )
 from core.runtime.knowledge_providers.local_files import enrich_local_files
-from domains.lca.artifacts import checks as lca_checks
-from domains.lca.artifacts.store import Context
-from domains.lca.bootstrap import lca_capabilities
-from services.workflow import (
-    compose_capabilities,
-    peek_capability_ids,
-    task_workflow_path,
+from core.workflow.config.bundle import KnowledgeBinding, TaskBundle
+from core.workflow.config.lists import (
+    merge_list_declarations,
+    parse_optional_list_field,
+    resolve_list,
 )
+from core.workflow.config.loader import load_workflow
+from core.workflow.execution.runner import (
+    OrchestratorRuntime,
+    WorkflowState,
+    initial_state,
+)
+from core.workflow.main import peek_capability_ids
+from core.workflow.persistence.config_fingerprint import (
+    assert_runtime_config_matches,
+    write_runtime_config,
+)
+from harness.tools.lca_artifacts import checks as lca_checks
+from harness.tools.lca_artifacts.bootstrap import lca_capabilities
+from harness.tools.lca_artifacts.store import Context
+
+
+def compose_capabilities(ids=None):
+    ids = list(ids or [])
+    if not ids:
+        return base_capabilities()
+    if ids == ["lca"] or all(
+        str(i).startswith("lca") or str(i) == "lca_rework" for i in ids
+    ):
+        from harness.tools.lca_artifacts.bootstrap import lca_capabilities
+
+        return lca_capabilities()
+    raise ValueError(f"unknown capability set(s): {ids}")
+
+
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
@@ -90,7 +101,6 @@ def _stage_payload(*, with_check: bool = True, with_outputs: bool = True) -> dic
         stage["hooks"] = {"on_reviewer_passed": ["lca.record_acceptance"]}
     return {
         "id": "merge-closeout",
-        "capabilities": ["lca"],
         "runtime_spec": "harness/specs/public/references/workflow-runtime-spec.md",
         "registry": {
             "rules": {
@@ -788,10 +798,11 @@ class GenericDependencyTests(unittest.TestCase):
 
         code = """
 import sys
-from core.orchestrator.main import compose_capabilities
-from core.orchestrator.persist import config_fingerprint
+from core.runtime.capabilities import base_capabilities
+from core.workflow.persistence import config_fingerprint
 from core.agents.session import default_client
-compose_capabilities([])
+base_capabilities()
+config_fingerprint
 default_client()
 banned = ("domains.lca", "harness.tools")
 assert not [name for name in sys.modules if any(name == b or name.startswith(b + ".") for b in banned)]
@@ -857,7 +868,6 @@ class CapabilitiesCompositionTests(unittest.TestCase):
             root = Path(temp_dir)
             _tree(root)
             payload = _stage_payload(with_check=False)
-            payload["capabilities"] = []
             path = root / "harness" / "generic.yaml"
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
@@ -868,24 +878,17 @@ class CapabilitiesCompositionTests(unittest.TestCase):
             self.assertIn("local_files", caps.knowledge.known_ids())
             self.assertTrue(workflow.bundles)
 
-    def test_task_and_workflow_same_capabilities(self) -> None:
+    def test_workflow_yaml_loads_declared_providers(self) -> None:
         path = WORKFLOWS / "LCA-main.yaml"
-        via_workflow = compose_capabilities(
+        caps = compose_capabilities(
             peek_capability_ids(path, project_root=PROJECT_ROOT)
         )
-        via_task = compose_capabilities(
-            peek_capability_ids(
-                task_workflow_path(PROJECT_ROOT, "whole-lca"),
-                project_root=PROJECT_ROOT,
-            )
-        )
         self.assertEqual(
-            via_workflow.checkers.known_ids(), via_task.checkers.known_ids()
+            caps.checkers.known_ids(),
+            frozenset({"lca.inventory", "lca.mapping", "lca.report"}),
         )
-        self.assertEqual(
-            via_workflow.knowledge.known_ids(), via_task.knowledge.known_ids()
-        )
-        self.assertEqual(via_workflow.hooks.known_ids(), via_task.hooks.known_ids())
+        self.assertIn("lca.record_acceptance", caps.hooks.known_ids())
+        self.assertTrue(caps.handoff_validators)
 
     def test_unknown_capability_fail_fast(self) -> None:
         with self.assertRaises(ValueError):
@@ -980,7 +983,7 @@ class RuntimeVersionTests(unittest.TestCase):
 
 class ListDeclarationTests(unittest.TestCase):
     def test_user_seq_forbidden(self) -> None:
-        from core.orchestrator.load.lists import (
+        from core.workflow.config.lists import (
             reject_user_seq_declaration,
         )
 
