@@ -879,13 +879,13 @@ class GraphWorkflowTests(unittest.TestCase):
                 flow=olca_schema.Ref(id="f1", name="F1"),
             )
         ]
-        client = GraphClient(system)
-        client.close_calls = 0
+        class ClosingClient(GraphClient):
+            close_calls = 0
 
-        def close() -> None:
-            client.close_calls += 1
+            def close(self) -> None:
+                self.close_calls += 1
 
-        client.close = close
+        client = ClosingClient(system)
         with patch.object(
             workflow,
             "create_ipc_client",

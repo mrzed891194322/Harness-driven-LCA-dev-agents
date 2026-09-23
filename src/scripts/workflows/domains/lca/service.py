@@ -1,16 +1,19 @@
 """V2 entrypoints used by GUI initialization and cleanup CLI."""
 
-from harness.tools.lca_artifacts.store import Context, invoke
+from collections.abc import Callable
+from typing import Any
 
-from .cleanup import run_cleanup_output
-from .guard import serialized_ipc
-from .operations import reconcile_cleanup
-from .readonly import health_check
+from harness.tools.control_openlca.utils.cleanup import run_cleanup_output
+from harness.tools.control_openlca.utils.guard import serialized_ipc
+from harness.tools.control_openlca.utils.operations import reconcile_cleanup
+from harness.tools.control_openlca.utils.readonly import health_check
+from scripts.workflows.domains.lca.artifacts.store import Context, invoke
 
 
 def health(host, port):
     def execute():
-        return serialized_ipc(health_check)(host, port)
+        runner: Callable[..., Any] = serialized_ipc(health_check)
+        return runner(host, port)
 
     return invoke("health_check", execute)
 
@@ -29,7 +32,8 @@ def cleanup(host, port, category, confirm=False):
                 )
             return result
 
-        return serialized_ipc(perform, long_running=True)(host, port)
+        runner: Callable[..., Any] = serialized_ipc(perform, long_running=True)
+        return runner(host, port)
 
     return invoke(
         "cleanup_output",

@@ -1,34 +1,26 @@
-# Agent 规则
+# LCA Agent 规则
 
-本目录是 LCA 运行 Agent 的行为约束。**由主编排按工作流 YAML 组装进任务输入**。YAML 只引用规则 ID，不内嵌规则正文。
+规则由主编排按工作流 YAML 组装进任务输入；YAML 只引用 ID 和路径，不内嵌提示词。Agent 不扫描未绑定规则。
 
-## 三类
+## 注入方式
 
-| 目录 | 回答的问题 | 谁加载 |
+`registry.rules` 登记 ID → Markdown；`defaults.rules` 提供共同规则，`stages[].rules.add` 绑定阶段方法，`assignments.*.rules.add` 增加角色约束。工具关联的 `registry.tools.<id>.rules` 随工具自动注入。解析后按 ID 去重。
+
+| 类别 | 内容 | 绑定 |
 | --- | --- | --- |
-| [`project/`](project/) | 写边界、固定路径、只用 `uv`、审查只读 | 主 YAML `defaults.rules`；审查任务另绑 `reviewer_readonly` |
-| [`lca/`](lca/) | LCA 方法、资料来源策略 | 各 assignment 的 `rules` |
-| [`tools/`](tools/) | 某个 MCP 怎么调 | 工具注册项的 `rules`，随工具绑定到任务 |
+| [project](project/) | 写边界、产物位置、uv 与离线脚本、审查只读 | 共同规则；reviewer 单独增加只读规则 |
+| [lca](lca/) | 研究要求、证据、清单、映射、解释 | 共同方法与来源；02/03 清单、03 映射、04 解释 |
+| [tools](tools/) | MCP 访问、正式证据、调用纪律 | 工具注册项 |
 
-阶段产物、循环、停止条件在 `harness/specs/`。通用职责与 handoff 在 `harness/specs/public/references/workflow-runtime-spec.md`。
+whole-lca 和 revise-lca 共用研究要求规则；修订的阶段差异由 spec_additions 和 reviser 任务表达，不另注入一套方法优先级。
 
-## spec vs rule
+## 内容归属
 
-- 改变任务目标、必须提交的内容或验收条件 → `harness/specs/`
-- 约束工作方式（写边界、数据来源、调用纪律）→ 本目录
-- 工具签名与参数 → `harness/tools/` 实现、MCP 发现结果和工具文档
+- **规则**：如何判断与工作，例如缺口、功能等价、数量换算和证据边界。
+- **阶段 spec**：目标、产物、字段、验收和执行顺序；角色文件只规定各角色职责。
+- **公共协议**：handoff、循环、状态、角色交接，由 `harness/specs/public/references/workflow-runtime-spec.md` 维护。
+- **工具文档/发现结果**：签名、参数范围、重连、缓存、上下文和实现。工具入口以 YAML 注册为准，不假定所有入口都在 harness/tools。
 
-不要在 YAML 中追加自然语言提示词来实现特殊要求。新增规则：写 Markdown、在主 YAML `registry.rules` 登记、绑定到 assignment。
+新增规则先写 Markdown、注册 ID，再绑定需要它的阶段或角色。新增工具在 YAML 注册连接及可选工具规则；新增阶段使用独立 spec 包。不要将同一段契约同时复制到规则、阶段和角色文件。
 
-## 如何加模块
-
-**新 MCP**
-
-1. 实现放 `harness/tools/<name>/`（外部 MCP 不必复制进仓库）
-2. 新增 `harness/rules/tools/<name>.md`（如需）
-3. 在 `harness/LCA-main.yaml` 的 `registry.tools` 登记连接，并绑定到 assignment
-
-**新阶段**
-
-1. 加 spec 包（README + 角色任务文件）
-2. 在 YAML `stages` / `assignments` 增加引用
+绑定回归用 `uv run pytest src/tests/harness/workflows -q`；方法审查案例见 [检查契约](../specs/public/references/evidence-contract.md)。

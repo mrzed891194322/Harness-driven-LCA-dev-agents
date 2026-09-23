@@ -6,10 +6,18 @@ import json
 from pathlib import Path
 from typing import Any
 
+from scripts.workflows.runtime.tool_runtime import write_json_atomic
+
 SCHEMA_VERSION = 1
 WRITER_ROLES = frozenset({"executor", "reviser"})
 WRITER_STATUSES = {"ok", "failed", "blocked"}
 REVIEWER_STATUSES = {"passed", "failed"}
+
+
+def handoff_not_found_error(path: Path) -> FileNotFoundError:
+    return FileNotFoundError(
+        f"{path}: handoff 文件不存在（当前角色须在运行上下文 handoff_path 写入 JSON 交卷）"
+    )
 
 
 def _path_ref(value: Any, *, field: str, path: Path) -> str:
@@ -26,18 +34,14 @@ def handoff_path(workspace_root: Path, stage_id: str, role: str, attempt: int) -
     return workspace_root / "memory" / "handoffs" / f"{stage_id}-{role}-{attempt}.json"
 
 
-def read_handoff(
-    path: Path,
+def validate_handoff_payload(
+    payload: dict[str, Any],
     *,
+    path: Path,
     role: str,
     stage: str,
     attempt: int,
 ) -> dict[str, Any]:
-    if not path.is_file():
-        raise FileNotFoundError(str(path))
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"{path}: handoff 必须是 JSON 对象")
     if int(payload.get("schema_version") or 0) != SCHEMA_VERSION:
         raise ValueError(f"{path}: schema_version 必须为 {SCHEMA_VERSION}")
     if payload.get("role") != role:
@@ -67,14 +71,39 @@ def read_handoff(
     for field in ("checks_ref", "evidence_manifest_ref"):
         if field in payload:
             payload[field] = _path_ref(payload[field], field=field, path=path)
-    if payload.get("rework_scope", "none") not in {
-        "none",
-        "report_only",
-        "calculation_changed",
-        "model_changed",
-    }:
-        raise ValueError(f"{path}: invalid rework_scope")
     return payload
+
+
+def write_handoff_file(
+    path: Path,
+    payload: dict[str, Any],
+    *,
+    role: str,
+    stage: str,
+    attempt: int,
+) -> dict[str, Any]:
+    validated = validate_handoff_payload(
+        dict(payload), path=path, role=role, stage=stage, attempt=attempt
+    )
+    write_json_atomic(path, validated)
+    return validated
+
+
+def read_handoff(
+    path: Path,
+    *,
+    role: str,
+    stage: str,
+    attempt: int,
+) -> dict[str, Any]:
+    if not path.is_file():
+        raise handoff_not_found_error(path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path}: handoff 必须是 JSON 对象")
+    return validate_handoff_payload(
+        payload, path=path, role=role, stage=stage, attempt=attempt
+    )
 
 
 def review_note_path(workspace_root: Path, stage_id: str, attempt: int) -> Path:

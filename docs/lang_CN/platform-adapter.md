@@ -29,7 +29,9 @@ uv run python src/scripts/workflows/orchestrator/main.py --task revise-lca --wor
 
 项目 `control_openlca` 的唯一配置来源是主工作流 YAML 注册表，由 worker 会话在任务中注入。不要在仓库根目录再放一份 MCP 声明。
 
-实现仍在 `harness/tools/control_openlca/main.py`。
+独立工具在 `harness/tools/control_openlca/main.py`；LCA YAML 使用 `src/scripts/workflows/domains/lca/openlca_mcp.py` 适配入口承接角色限制、审核批准与证据归档。普通外部 stdio MCP 只需注册 command/args/env 并绑定 assignment，不需要上下文协议；`tool_timeout_sec` 默认 60 秒，openLCA 显式为 7320 秒。其他 transport 当前会明确拒绝。
+
+SDK 不导入具体工具代码；LCA capability 按需加载。
 
 ## Agent 分层
 

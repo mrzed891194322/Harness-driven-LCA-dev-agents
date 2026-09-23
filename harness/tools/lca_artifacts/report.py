@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import tempfile
+from pathlib import Path
 
-from .checks import _items, evidence, report_evidence_errors
+from harness.tools.control_openlca.utils.workflow import sha256_file
 
 
 def cell(value):
@@ -32,24 +34,7 @@ def table(headers, rows):
     )
 
 
-def blocks(ctx):
-    bom = _items(ctx.workspace / "outputs" / "inventory" / "extracted-bom.json")
-    mapping = _items(ctx.workspace / "outputs" / "inventory" / "process-mapping.json")
-    results = []
-    for call, raw in evidence(ctx):
-        if call["tool"] != "calculate_product_system":
-            continue
-        for category in raw.get("impact_categories", []):
-            results.append(
-                [
-                    raw["product_system"]["id"],
-                    raw["impact_method"]["id"],
-                    category["name"],
-                    category["amount"],
-                    category["unit"],
-                    call["artifact"]["path"],
-                ]
-            )
+def blocks(bom: list[dict], mapping: list[dict], results: list[list]):
     return {
         "inventory": table(
             ["item_id", "名称", "数量", "单位", "来源"],
@@ -107,45 +92,52 @@ def replace_block(text, name, content):
     return before + start + "\n" + content + "\n" + end + after
 
 
-def render(ctx):
-    if ctx.role == "reviewer":
-        raise ValueError("reviewer cannot rewrite report")
-    errors = report_evidence_errors(ctx)
-    if errors:
-        raise ValueError("; ".join(errors))
-    path = ctx.safe(ctx.workspace / "outputs" / "reports" / "lca_report.md")
+def render(path: Path, bom: list[dict], mapping: list[dict], results: list[list]):
     text = path.read_text(encoding="utf-8")
-    for name, content in blocks(ctx).items():
+    for name, content in blocks(bom, mapping, results).items():
         text = replace_block(text, name, content)
-    temporary = ctx.safe(path.with_suffix(".tmp"))
-    temporary.write_text(text, encoding="utf-8")
-    os.replace(temporary, path)
-    return {"ok": True, "counts": {"tables": 3}, "report": ctx.ref(path)}
+    fd, temporary = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return {
+        "ok": True,
+        "counts": {"tables": 3},
+        "report": {
+            "path": str(path),
+            "sha256": sha256_file(path),
+            "size_bytes": path.stat().st_size,
+        },
+    }
 
 
-def report_table_errors(ctx):
-    path = ctx.safe(ctx.workspace / "outputs" / "reports" / "lca_report.md")
+def report_table_errors(
+    path: Path, bom: list[dict], mapping: list[dict], results: list[list]
+):
     actual = path.read_text(encoding="utf-8")
     errors = []
-    for name, content in blocks(ctx).items():
+    for name, content in blocks(bom, mapping, results).items():
         if replace_block(actual, name, content) != actual:
             errors.append(f"report table differs from structured evidence: {name}")
     return errors
 
 
-def language_hints(ctx):
+def language_hints(path: Path, mapping: list[dict]):
     """Heuristics flag likely untranslated explanations, never certify language."""
     warnings = []
-    mapping = _items(ctx.workspace / "outputs" / "inventory" / "process-mapping.json")
     for row in mapping:
         reason = str(row.get("selection_reason") or "")
         if reason and not re.search(r"[\u4e00-\u9fff]", reason):
             warnings.append(
                 f"selection_reason may need Chinese explanation: {row.get('item_id')}"
             )
-    text = (ctx.workspace / "outputs" / "reports" / "lca_report.md").read_text(
-        encoding="utf-8"
-    )
+    text = path.read_text(encoding="utf-8")
     for name in ("inventory", "mapping", "lcia"):
         text = replace_block(text, name, "")
     for index, line in enumerate(text.splitlines(), 1):

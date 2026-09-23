@@ -10,8 +10,8 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from harness.tools.lca_artifacts import checks as lca_checks
-from harness.tools.lca_artifacts.store import Context
+from scripts.workflows.domains.lca.artifacts import checks as lca_checks
+from scripts.workflows.domains.lca.artifacts.store import Context
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.orchestrator.load.loader import load_workflow
 from scripts.workflows.orchestrator.load.yaml_strict import load_yaml_strict
@@ -89,7 +89,6 @@ def _payload(*, with_hook: bool = True) -> dict:
                     "command": "python",
                     "args": ["harness/tools/lca_artifacts/main.py"],
                     "env": {"MODE": "production"},
-                    "headers": {"X-Token": "secret-value"},
                 }
             },
             "knowledge": {
@@ -514,8 +513,8 @@ class ExecutionFingerprintTests(unittest.TestCase):
                 )
 
 
-class EnvHeaderFingerprintTests(unittest.TestCase):
-    def test_env_and_header_value_change_fingerprint(self) -> None:
+class EnvTimeoutFingerprintTests(unittest.TestCase):
+    def test_env_and_timeout_value_change_fingerprint(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _tree(root)
@@ -549,9 +548,7 @@ class EnvHeaderFingerprintTests(unittest.TestCase):
                 stable_hash("production"),
             )
             payload["registry"]["tools"]["lca_artifacts"]["env"]["MODE"] = "production"
-            payload["registry"]["tools"]["lca_artifacts"]["headers"]["X-Token"] = (
-                "other"
-            )
+            payload["registry"]["tools"]["lca_artifacts"]["tool_timeout_sec"] = 120
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )

@@ -1,21 +1,7 @@
 # 02 前景清单修订（执行）
 
-按本阶段共有契约与修订补充契约写出完整 BOM。不要查询 openLCA、不要写 LCI。不要覆盖 `plan.md`。
+读取 plan、revise、上一轮 BOM 及本任务声明资料，按共有契约和修订补充契约提交完整新 BOM。应用共同方法中的修订优先级，不覆盖 plan。
 
-## 需要解决的问题
+逐项落实增删改，同步受影响的情景、数量推导、合计和缺口说明。未受影响且仍符合当前研究要求的行保留；保留原始来源，并在 Markdown 对应到修订位置。不查 openLCA、不写 LCI。
 
-- 同时读取上一轮 `extracted-bom.json` / `.md`、`workspace/inputs/plan.md`、`workspace/inputs/revise.md` 与本任务资料来源（`knowledge_sources` / `source_manifest`）。
-- `revise.md` 与原计划冲突时以 `revise.md` 为准。
-- 用户未点名的 BOM 行默认保留；点名的增删改必须写入完整新 BOM，并在 `source_locations` 或缺口说明中回链意见原文。
-- 读得出的资料必须抽取；读不出的二进制标为 `unreadable`，不得编造数量。
-- 写出完整的 `extracted-bom.json` 与 `extracted-bom.md`，不要只交差量文件。
-
-## 返工方式
-
-若在原修订会话中收到审查意见：先落实指出的用户意图缺口，再改正确定性错误，重新提交完整 BOM 与 handoff。历史对话中的旧 BOM 不能替代本轮落盘文件。
-
-## 提交
-
-写 handoff：`role=reviser`，`status` 为 `ok` / `failed` / `blocked`，列出 `artifacts`。`status_reason` 非空。
-
-确定性检查由主编排在本轮 handoff 后执行。可选用 `get_validation_state("inventory")` / `validate_artifacts("inventory")` 做提前反馈，不是提交 `ok` 的前提。只引用工具生成的检查，不自报权威校验计数。
+返工先核用户要求缺口，再修正确性问题及其关联项。提交 `role=reviser` 的 handoff 和完整产物，不能只交差量文件。

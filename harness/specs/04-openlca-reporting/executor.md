@@ -1,22 +1,7 @@
-# 04 导入与报告（执行）
+# 04 计算与报告（执行）
 
-首次执行按本阶段共有契约执行预检 → 导入 → 读回 → 计算 → 报告；返工先调用 get_rework_status。
+按共有契约核对已审模型、数量依据和全部研究要求，执行预检、导入、读回、计算及报告；返工先 get_rework_status。导入身份、超时和复用边界以共有契约为准。
 
-## 需要解决的问题
+计算计划中的 amount 由功能单位换算得到；实际调用和 raw 应与之相符。完成需求落实表、情景比较、解释与出处表；按规则自主推断每条关键主张的 provenance，解释类主张不得漏行。使用正式工具生成表格。硬工具交付缺失如实失败；解释类无分解工具时标 `llm_inferred` 并写局限，不能把硬计算缺失藏在限制中，也不能把 `llm_inferred` 写成工具测得结果。
 
-- 记下预检得到的库名、分类、LCI 目录，把同一范围交给导入。
-- 仅通过 MCP 调用 openLCA（禁止 bash/`uv run python` 直调 main）；慢库可在 `import_lci`、`get_model_graph` 等长工具上传 `timeout_sec`（≤7200，同时覆盖会话预算与单次 HTTP 读），勿用 shell `timeout` 包裹。
-- 超时只查导入操作状态，不盲目重试写操作。范围若相对预检发生变化则停止。
-- 保留 MCP 原始返回，写入 `workspace/outputs/reports/`。
-- 报告须写前景清单与数据集映射两节，行能指回 BOM `item_id`。
-- 部分失败、断链、空结果或资源未释放如实上报，不宣称通过。不要无界重试 `import_lci`。
-
-## 返工方式
-
-在原执行会话中根据审查意见返工：修正报告或按意见补做读回/计算（不得在范围变化后强行再导入）。重新提交最新报告与 handoff。
-
-## 提交
-
-handoff：`role=executor`，`status` 为 `ok` / `failed` / `blocked`，`artifacts` 含 `lca_report.md` 与原始结果路径。
-
-确定性检查由主编排在本轮 handoff 后执行。可选用 `get_validation_state("report")` / `validate_artifacts("report")` 做提前反馈，不是提交 `ok` 的前提。只引用工具生成的检查，不自报权威校验计数。
+本轮最后一动作为交卷：优先 `submit_handoff`，或写入运行上下文 `handoff_path` 的 JSON。提交 `role=executor` 的 handoff，列出完整报告、计算计划和正式 raw 引用；硬工具能力缺口、部分失败或无法恢复的证据缺失如实失败，不代替上游改已审模型。

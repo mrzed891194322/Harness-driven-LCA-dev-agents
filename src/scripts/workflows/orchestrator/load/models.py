@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from scripts.agent_sdk.mcp import DEFAULT_TOOL_TIMEOUT_SEC
 from scripts.workflows.runtime.tool_runtime import ToolRuntimeSpec
 
 from .bundle import CheckRef
@@ -25,9 +26,13 @@ class ToolSpec:
     headers: dict[str, str] = field(default_factory=dict)
     rules: list[str] = field(default_factory=list)
     runtime: ToolRuntimeSpec | None = None
+    tool_timeout_sec: int = DEFAULT_TOOL_TIMEOUT_SEC
 
     def to_mcp_dict(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {"transport": self.transport}
+        payload: dict[str, Any] = {
+            "transport": self.transport,
+            "tool_timeout_sec": self.tool_timeout_sec,
+        }
         if self.command:
             payload["command"] = self.command
         if self.args:

@@ -8,13 +8,13 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from harness.tools.lca_artifacts.checks import CHECKER_VERSION
 from scripts.agent_sdk.session import (
     SessionConfig,
     SessionRef,
     SessionResumeError,
     TurnResult,
 )
+from scripts.workflows.domains.lca.artifacts.checks import CHECKER_VERSION
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.orchestrator.load.loader import load_workflow
 from scripts.workflows.orchestrator.loop.handoff import read_handoff
@@ -148,6 +148,8 @@ class ScriptedSessionClient:
             else:
                 handoff_path = PROJECT_ROOT / handoff_rel
         handoff_path.parent.mkdir(parents=True, exist_ok=True)
+        if payload.get("skip_handoff"):
+            return TurnResult(status="completed", session_ref=ref, text="ok")
         if payload.get("handoff") is not None:
             body = dict(payload["handoff"])
         else:
@@ -501,6 +503,33 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertIn("缺一行", note)
         self.assertNotIn("不能为空", note)
 
+    def test_executor_missing_handoff_protocol_rework_exhausted_fails(self) -> None:
+        skip = {"status": "ok", "skip_handoff": True}
+        script = {
+            ("01-intake-gate", "reviewer", 1): {
+                "status": "passed",
+                "status_reason": "计划可启动",
+            },
+            ("02-inventory-extraction", "executor", 1): [skip]
+            * (PROTOCOL_REPAIR_LIMIT + 1),
+        }
+        result, client = self._run(script)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("handoff 无效", result["status_reason"])
+        self.assertIn("02-inventory-extraction.executor", result["status_reason"])
+        self.assertIn("协议返工", result["status_reason"])
+        executor_labels = [
+            label
+            for _sid, label in client.turns
+            if label == "02-inventory-extraction:executor:1"
+        ]
+        self.assertEqual(len(executor_labels), PROTOCOL_REPAIR_LIMIT + 1)
+        self.assertGreaterEqual(client.resume_count, PROTOCOL_REPAIR_LIMIT)
+        manifest = json.loads(
+            (self.workspace / "memory" / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["status"], "failed")
+
     def test_protocol_rework_exhausted_fails(self) -> None:
         invalid = {
             "status": "failed",
@@ -668,6 +697,13 @@ class ReadHandoffTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "必须是路径字符串"):
             read_handoff(
                 path, role="reviewer", stage="02-inventory-extraction", attempt=1
+            )
+
+    def test_missing_handoff_file_error_message(self) -> None:
+        path = self.dir / "missing.json"
+        with self.assertRaisesRegex(FileNotFoundError, "handoff 文件不存在"):
+            read_handoff(
+                path, role="executor", stage="02-inventory-extraction", attempt=1
             )
 
 

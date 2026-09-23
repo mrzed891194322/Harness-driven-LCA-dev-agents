@@ -12,10 +12,10 @@ from unittest.mock import MagicMock
 import yaml
 
 from harness.tools.control_openlca.utils import workflow as openlca_workflow
-from harness.tools.lca_artifacts import checks as lca_checks
-from harness.tools.lca_artifacts.store import Context
 from scripts.workflows.domains.lca import checkers as lca_checkers
 from scripts.workflows.domains.lca import hooks as lca_hooks
+from scripts.workflows.domains.lca.artifacts import checks as lca_checks
+from scripts.workflows.domains.lca.artifacts.store import Context
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.orchestrator.load.loader import load_workflow
 from scripts.workflows.orchestrator.load.models import Workflow
@@ -213,7 +213,7 @@ class DefaultsRulesLiveBundlesTests(unittest.TestCase):
         for assignment_id, bundle in workflow.bundles.items():
             for rule_id in REQUIRED_DEFAULT_RULES:
                 self.assertIn(rule_id, bundle.rule_ids, msg=assignment_id)
-            self.assertIn("user_intent", bundle.rule_ids, msg=assignment_id)
+            self.assertNotIn("user_intent", bundle.rule_ids, msg=assignment_id)
             self.assertIn("lca_method", bundle.rule_ids, msg=assignment_id)
             self.assertIn("knowledge_files", bundle.rule_ids, msg=assignment_id)
 

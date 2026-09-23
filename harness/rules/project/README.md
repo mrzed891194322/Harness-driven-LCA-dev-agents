@@ -1,10 +1,5 @@
-# 项目总则
+# 项目规则
 
-主工作流默认把本目录的写边界、运行时与路径规则交给每个任务。审查任务另绑 [`reviewer-readonly.md`](reviewer-readonly.md)。
+默认注入 [write-boundary.md](write-boundary.md)、[runtime.md](runtime.md) 和 [paths.md](paths.md)，分别约束读写边界、uv 与受限离线处理、产物位置。审查任务另加 [reviewer-readonly.md](reviewer-readonly.md)。
 
-| 文件 | 用途 |
-| --- | --- |
-| [`write-boundary.md`](write-boundary.md) | 只写 `workspace/`；`harness/` 只读 |
-| [`runtime.md`](runtime.md) | 只用 `uv` / `.venv`；禁止一次性脚本 |
-| [`paths.md`](paths.md) | `knowledge/` 与 `workspace/` 固定路径 |
-| [`reviewer-readonly.md`](reviewer-readonly.md) | 审查只读被审对象，只提交意见与 handoff |
+Agent 只写当前角色获准产物；工具维护的缓存、锁和权威证据不属于可手工编辑的业务文件。离线脚本获准用于提取、换算和复核，不允许绕过 MCP 或修改被审对象。

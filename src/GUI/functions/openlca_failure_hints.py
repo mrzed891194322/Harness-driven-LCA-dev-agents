@@ -171,3 +171,37 @@ def maybe_append_openlca_timeout_hint(
     if not should_show_openlca_timeout_hint(manifest, workspace_root):
         return failure_markdown
     return f"{failure_markdown.rstrip()}\n\n{_hint_markdown(manifest)}"
+
+
+def should_show_handoff_failure_hint(manifest: dict[str, Any]) -> bool:
+    reason = str(manifest.get("status_reason") or "")
+    return "handoff 无效" in reason and "memory/handoffs" in reason
+
+
+def _handoff_hint_markdown(manifest: dict[str, Any], workspace_root: Path) -> str:
+    run_id = str(manifest.get("run_id") or "").strip()
+    log_hint = (
+        f"`{workspace_root / 'memory' / 'logs' / run_id / 'progress.txt'}`"
+        if run_id
+        else "`workspace/memory/logs/<run_id>/progress.txt`"
+    )
+    lines = [
+        "### handoff 交卷失败（非上传资料缺失）",
+        "",
+        "- 失败路径是 **Agent 应写入的交卷 JSON**（`workspace/memory/handoffs/…`），不是 `plan.md` 或 `harness/knowledge/` 上传项。",
+        "- 主编排通常已进行最多 3 次 **协议返工**；请在终端或",
+        f"  {log_hint}",
+        "  中搜索 `protocol rework` 与 `worker turn ended without handoff`。",
+        "- 重跑前请备份 `memory/logs/` 与 `memory/handoffs/`；Agent 应优先调用 `submit_handoff` 或按 prompt 中的 `handoff_path` 写入 JSON。",
+    ]
+    return "\n".join(lines)
+
+
+def maybe_append_handoff_failure_hint(
+    workspace_root: Path,
+    manifest: dict[str, Any],
+    failure_markdown: str,
+) -> str:
+    if not should_show_handoff_failure_hint(manifest):
+        return failure_markdown
+    return f"{failure_markdown.rstrip()}\n\n{_handoff_hint_markdown(manifest, workspace_root)}"

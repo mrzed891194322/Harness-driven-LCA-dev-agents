@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import sys
 import uuid
 from pathlib import Path
@@ -27,8 +28,10 @@ from scripts.agent_sdk.progress import (  # noqa: E402
 )
 from scripts.agent_sdk.session import default_client  # noqa: E402
 from scripts.agent_sdk.uv_env import ensure_uv_cache_dir  # noqa: E402
-from scripts.workflows.domains.lca.bootstrap import register_lca  # noqa: E402
-from scripts.workflows.orchestrator.load.loader import load_workflow  # noqa: E402
+from scripts.workflows.orchestrator.load.loader import (  # noqa: E402
+    load_workflow,
+    read_workflow_document,
+)
 from scripts.workflows.orchestrator.loop.runner import (  # noqa: E402
     RUNTIME_VERSION,
     OrchestratorRuntime,
@@ -53,12 +56,11 @@ from scripts.workflows.runtime.capabilities import (  # noqa: E402
 )
 from scripts.workflows.runtime.identifiers import (  # noqa: E402
     require_identifier,
-    resolve_project_path,
 )
 
 TASK_NAMES = ("whole-lca", "revise-lca")
 DOMAIN_CAPABILITY_SETS = {
-    "lca": register_lca,
+    "lca": "scripts.workflows.domains.lca.bootstrap:register_lca",
 }
 
 
@@ -102,12 +104,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.workflow is not None
         else _task_file(project_root, args.task)
     )
-    capabilities = _capabilities_for(args, project_root, workflow_path)
+    document = read_workflow_document(workflow_path, project_root=project_root)
+    capabilities = compose_capabilities(document.get("capabilities") or [])
     task_label = args.task or str(workflow_path)
     workflow = load_workflow(
         workflow_path,
         project_root=project_root,
         capabilities=capabilities,
+        document=document,
     )
     session_client = default_client()
     model = load_worker_model(worker, project_root)
@@ -168,31 +172,20 @@ def _capabilities_for(
 
 
 def peek_capability_ids(path: Path, *, project_root: Path) -> list[str]:
-    from scripts.workflows.orchestrator.load.yaml_strict import load_yaml_strict
-
-    raw = load_yaml_strict(path) or {}
-    if not isinstance(raw, dict):
-        return []
-    if "capabilities" in raw:
-        return [str(item) for item in raw.get("capabilities") or []]
-    reuse = raw.get("reuse")
-    if reuse:
-        base_path = resolve_project_path(
-            project_root, str(reuse), label="workflow reuse"
-        )
-        base = load_yaml_strict(base_path) or {}
-        if isinstance(base, dict):
-            return [str(item) for item in base.get("capabilities") or []]
-    return []
+    document = read_workflow_document(path, project_root=project_root)
+    return document.get("capabilities") or []
 
 
 def compose_capabilities(ids: list[str]) -> HarnessCapabilities:
+    if not isinstance(ids, list) or any(not isinstance(item, str) for item in ids):
+        raise ValueError("capabilities must be a list of strings")
     caps = base_capabilities()
     unknown = [item for item in ids if item not in DOMAIN_CAPABILITY_SETS]
     if unknown:
         raise ValueError(f"unknown capability set(s): {unknown}")
     for item in ids:
-        DOMAIN_CAPABILITY_SETS[item](caps.checkers, caps.knowledge, caps.hooks)
+        module, name = DOMAIN_CAPABILITY_SETS[item].split(":")
+        getattr(importlib.import_module(module), name)(caps)
     return caps
 
 

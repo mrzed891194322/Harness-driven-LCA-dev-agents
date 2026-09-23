@@ -18,12 +18,13 @@ from harness.tools.control_openlca.utils.guard import (
 from harness.tools.control_openlca.utils.operations import identifier
 from harness.tools.control_openlca.utils.workflow import (
     _write_json_atomic,
-    sha256_file,
     utc_now,
 )
 
+from .snapshot_io import load_json, sha256_file
+
 MAX_RESPONSE_BYTES = 32768
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[6]
 CONTEXT_FILE_FLAG = "--context-file"
 _STANDALONE_RUN = "standalone-" + uuid.uuid4().hex
 _BOUND_CONTEXT_FILE: Path | None = None
@@ -255,7 +256,7 @@ class Context:
                 "calls": [],
                 "accepted": {},
             }
-        value = json.loads(self.manifest.read_text(encoding="utf-8"))
+        value = load_json(self.manifest)
         if value.get("run_id") != self.run_id:
             raise ValueError("manifest run identity mismatch")
         return value

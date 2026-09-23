@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from harness.tools.lca_artifacts import checks as lca_checks
-from harness.tools.lca_artifacts.store import Context
+from scripts.workflows.domains.lca.artifacts import checks as lca_checks
+from scripts.workflows.domains.lca.artifacts.store import Context
 from scripts.workflows.runtime.context import RunContext
 from scripts.workflows.runtime.hooks import HookRegistry
 

@@ -216,17 +216,17 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertEqual(argv[-1], "hello")
         rows = mcp_overrides(config.mcp_servers)
         self.assertTrue(
-            any(f"control_openlca.command={sys.executable}" in row for row in rows)
+            any('control_openlca.command="uv"' in row for row in rows)
         )
-        from harness.tools.control_openlca.utils.connection import mcp_tool_timeout_sec
+        from scripts.agent_sdk.mcp import DEFAULT_TOOL_TIMEOUT_SEC
 
         self.assertIn("mcp_servers.control_openlca.startup_timeout_sec=30", rows)
         expected_timeout = (
-            f"mcp_servers.control_openlca.tool_timeout_sec={mcp_tool_timeout_sec()}"
+            f"mcp_servers.control_openlca.tool_timeout_sec={DEFAULT_TOOL_TIMEOUT_SEC}"
         )
         self.assertIn(expected_timeout, rows)
         self.assertTrue(
-            any(row in argv for row in rows if f"command={sys.executable}" in row)
+            any(row in argv for row in rows if 'command="uv"' in row)
         )
 
     def test_persistent_logs_redact_mcp_secrets(self) -> None:
@@ -409,7 +409,7 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertEqual(payload["permission"]["control_openlca_*"], "allow")
         self.assertEqual(
             payload["mcp"]["control_openlca"]["command"],
-            [sys.executable, "harness/tools/control_openlca/main.py"],
+            ["uv", "run", "python", "harness/tools/control_openlca/main.py"],
         )
 
     def test_opencode_omits_model_and_mcp_permission_when_empty(self) -> None:
@@ -497,12 +497,12 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertIn("--verbose", argv)
         self.assertNotIn("--include-partial-messages", argv)
         self.assertIn("control_openlca", mcp_text)
-        from harness.tools.control_openlca.utils.connection import mcp_tool_timeout_sec
+        from scripts.agent_sdk.mcp import DEFAULT_TOOL_TIMEOUT_SEC
 
         claude_mcp = json.loads(mcp_text)
         self.assertEqual(
             claude_mcp["mcpServers"]["control_openlca"]["timeout"],
-            mcp_tool_timeout_sec() * 1000,
+            DEFAULT_TOOL_TIMEOUT_SEC * 1000,
         )
 
     def test_claude_omits_mcp_allowlist_when_empty(self) -> None:
@@ -570,11 +570,11 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertIn("npm:pi-mcp-adapter", argv)
         self.assertIn("--mcp-config", argv)
         self.assertIn("control_openlca", mcp_text)
-        from harness.tools.control_openlca.utils.connection import mcp_tool_timeout_sec
+        from scripts.agent_sdk.mcp import DEFAULT_TOOL_TIMEOUT_SEC
 
         mcp_payload = json.loads(mcp_text)
         timeout_ms = mcp_payload["mcpServers"]["control_openlca"]["timeout"]
-        self.assertEqual(timeout_ms, mcp_tool_timeout_sec() * 1000)
+        self.assertEqual(timeout_ms, DEFAULT_TOOL_TIMEOUT_SEC * 1000)
 
     def test_pi_omits_model_flag_when_empty(self) -> None:
         runner = _FakeRunner(stdout='{"type":"session","id":"pi-sess-2"}\n')
@@ -647,13 +647,13 @@ class AgentSdkSessionTests(unittest.TestCase):
             }
         }
         servers = mcp_servers_for_tools(["control_openlca"], registry)
-        self.assertEqual(servers["control_openlca"]["command"], sys.executable)
+        self.assertEqual(servers["control_openlca"]["command"], "uv")
         self.assertEqual(
             servers["control_openlca"]["args"],
-            ["harness/tools/control_openlca/main.py"],
+            ["run", "python", "harness/tools/control_openlca/main.py"],
         )
-        raw = mcp_servers_for_tools(["control_openlca"], registry, rewrite_uv=False)
-        self.assertEqual(raw["control_openlca"]["command"], "uv")
+        raw = mcp_servers_for_tools(["control_openlca"], registry, rewrite_uv=True)
+        self.assertEqual(raw["control_openlca"]["command"], sys.executable)
         payload = json.dumps(servers)
         self.assertIn("control_openlca", payload)
 

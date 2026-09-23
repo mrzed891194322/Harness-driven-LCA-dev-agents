@@ -71,6 +71,7 @@ def build_runtime_config(
         "tools": {
             tool_id: {
                 "transport": spec.transport,
+                "tool_timeout_sec": spec.tool_timeout_sec,
                 "command": spec.command,
                 "args": list(spec.args),
                 "url": spec.url,
@@ -82,6 +83,7 @@ def build_runtime_config(
                     "context_file": spec.runtime.context_file,
                     "context_file_flag": spec.runtime.context_file_flag,
                     "env_prefix": spec.runtime.env_prefix,
+                    "use_host_python": spec.runtime.use_host_python,
                 },
                 "env": {
                     key: stable_hash(value) for key, value in sorted(spec.env.items())

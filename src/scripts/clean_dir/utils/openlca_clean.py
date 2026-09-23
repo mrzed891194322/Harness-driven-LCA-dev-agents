@@ -16,11 +16,12 @@ PROJECT_ROOT = next(
 )
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from harness.tools.control_openlca.utils.service import cleanup as run_cleanup_output
-from harness.tools.control_openlca.utils.service import health as health_check
+from scripts.workflows.domains.lca.service import cleanup as run_cleanup_output
+from scripts.workflows.domains.lca.service import health as health_check
 
 
 def _endpoint_config() -> tuple[str, int]:

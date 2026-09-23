@@ -1,6 +1,8 @@
 # control_openlca MCP v2
 
-正式工作流使用 main.py 的 v2 MCP；内部历史 CLI 辅助函数不属于新的公开响应契约。
+正式工作流使用 `src/scripts/workflows/domains/lca/openlca_mcp.py` 适配入口；以下 v2 响应、阶段审核、角色与路径约束均由适配层承担。
+
+本目录 `main.py` 是独立 MCP，不读取 workflow 上下文。查询和计算参数保持业务含义；预检/导入显式传入 `lci_dir`、`target_category`、`operation_dir`、`scope_id`，日志查询显式传入 `operation_dir`、`scope_id`；清理要求明确分类，可指定日志目录。`scope_id` 只是操作日志命名空间，不表示工作流阶段或批准状态。底层保留数据库预检、请求去重、IPC 锁和超时保护，返回原始结构化业务结果。
 
 - 响应为 schema_version=2、status、summary、counts、errors、warnings、artifacts、duration_ms；完整结果由工具写入 `reports/runs/<run>/<stage>/<attempt>/<call>/raw.json`，路径相对 workspace，并附 SHA-256 与字节数。响应最大 32 KiB；省略明细在附件。
 - `query_descriptors_batch(entity_type, searches, limit=20, offset=0)` 每批扫描一次描述符（最多 50 关键词）；`validate_providers_batch(requirements)` 最多 200 对 process_id/flow_id，可附 expected_geography；同 Process 只回读一次。无跨批缓存。
@@ -27,10 +29,10 @@
 > **硬约束**
 > - 严禁为 openLCA 连接检测、描述符遍历、UUID 查询、模型图读取、导入或计算编写临时 Python 脚本。
 > - CLI 中只检查连接时，运行 `src/scripts/check_status/openlca_check/main.py`；MCP 客户端调用 `health_check`。
-> - 查询数据库实体名称、UUID 或描述符时，必须使用 `query_descriptors/main.py`。
+> - 运行任务通过已注册的 `query_descriptors_batch` / `query_descriptors` MCP 查询已有数据库实体；`query_descriptors/main.py` 仅供独立 CLI 使用，不能作为工作流绕过 MCP 的入口。新建前景 UUID 由建模任务创建，导入后正式读回确认。
 > - 按 Process UUID 回读地域和定量参考时，MCP 客户端必须使用 `get_process_details`。
 > - 按 Flow UUID 查询可用 Provider 时，MCP 客户端必须使用 `get_flow_providers`。
-> - 读取产品系统模型图时，必须使用 `get_model_graph/main.py`。
+> - 运行任务用已注册的 `get_model_graph` MCP 读回模型图；`get_model_graph/main.py` 是独立 CLI 入口。
 > - whole-lca / revise-lca 启动前清理由 `src/scripts/clean_dir/`（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可用 MCP `cleanup_output`（如 `cleanup-lci` 命令）。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
 
@@ -40,7 +42,7 @@
 
 ```
 control_openlca/
-├── main.py                         # 查询与带门禁写入的 stdio MCP 入口
+├── main.py                         # 独立 stdio MCP，显式传入路径及日志命名空间
 ├── README.md                       # 本说明文档（开发规范与工具包定义）
 ├── tests/                          # 无需真实 openLCA 的离线单元测试
 │   ├── test_readonly_mcp.py
@@ -86,7 +88,7 @@ control_openlca/
 
 ## MCP 服务
 
-`main.py` 启动名为 `openLCA-Control` 的 stdio MCP server，注册以下工具：
+独立入口与工作流适配入口均提供 `openLCA-Control` stdio MCP；以下默认路径、批准记录和 v2 响应描述适配入口：
 
 - `health_check`：使用有界轻量 descriptor 请求检查 IPC Server 和活动数据库；首次失败后
   新建客户端重连 3 次，并返回每次尝试的耗时和错误类别。
@@ -133,7 +135,7 @@ uv run pytest src/tests/harness/tools/control_openlca -v
 ### 1. IPC 连接模块 (`utils/connection.py`)
 *   **核心函数**：`create_ipc_client(...)`、`probe_ipc(...)`、`close_ipc_client(...)` 和兼容 CLI 的 `connect_ipc(...)`。
 *   **用途**：统一构造带 HTTP timeout 的 `BoundedIPCClient`；探测使用较小的 Currency descriptor 请求，并显式识别 JSON-RPC 错误。
-*   **规范**：每个 MCP 工具在 `IPC_TOOL_PROFILES` 中有唯一档位（`none` / `health` / `short` / `long`）。档位决定 endpoint 锁的会话预算；**省略 timeout 的 `create_ipc_client` 使用当前会话剩余预算作为 HTTP 读超时**。长作业默认会话 **7200 秒**（`OPENLCA_IPC_SESSION_BUDGET_SEC` 或工具 `timeout_sec`）。无会话（CLI 直调）时保底 **600 秒**（`OPENLCA_IPC_LONG_READ_SEC`）。`OPENLCA_IPC_READ_SEC`（30 秒）不再是 MCP 工具的实际上限。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 的 tool 超时与长作业会话预算对齐（约 budget+120 秒）。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。新增 MCP 工具必须登记档位，否则测试失败。
+*   **规范**：每个 MCP 工具在 `IPC_TOOL_PROFILES` 中有唯一档位（`none` / `health` / `short` / `long`）。档位决定 endpoint 锁的会话预算；**省略 timeout 的 `create_ipc_client` 使用当前会话剩余预算作为 HTTP 读超时**。长作业默认会话 **7200 秒**（`OPENLCA_IPC_SESSION_BUDGET_SEC` 或工具 `timeout_sec`）。无会话（CLI 直调）时保底 **600 秒**（`OPENLCA_IPC_LONG_READ_SEC`）。`OPENLCA_IPC_READ_SEC`（30 秒）不再是 MCP 工具的实际上限。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 超时由 YAML 的 `tool_timeout_sec` 显式配置（本项目默认 7320 秒）；修改 IPC 会话预算时应同步配置为至少 budget+120 秒。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。新增 MCP 工具必须登记档位，否则测试失败。
 
 ### 2. 实体检索模块 (`utils/entity.py`)
 *   **核心函数**：`find_entity(client, model_type, name_or_uuid)`

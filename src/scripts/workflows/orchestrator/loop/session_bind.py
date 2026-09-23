@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.agent_sdk.archive import mcp_render_dir, turn_archive_dir
-from scripts.agent_sdk.mcp import mcp_servers_for_tools
+from scripts.agent_sdk.mcp import mcp_servers_for_tools, rewrite_uv_run_python
 from scripts.agent_sdk.session import SessionConfig
 from scripts.agent_sdk.uv_env import ensure_uv_cache_dir
 from scripts.workflows.runtime.context import RunContext
@@ -63,6 +63,8 @@ def build_session_config(
     for tool_id in tool_ids:
         spec = workflow.tools.get(tool_id)
         runtime = spec.runtime if spec else None
+        if runtime and runtime.use_host_python:
+            mcp_servers[tool_id] = rewrite_uv_run_python(mcp_servers[tool_id])
         apply_tool_runtime(
             mcp_servers[tool_id],
             runtime,

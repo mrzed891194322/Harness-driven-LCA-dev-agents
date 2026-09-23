@@ -6,6 +6,7 @@ import copy
 from pathlib import Path
 from typing import Any
 
+from scripts.agent_sdk.mcp import DEFAULT_TOOL_TIMEOUT_SEC, validate_stdio_server
 from scripts.workflows.runtime.capabilities import HarnessCapabilities
 from scripts.workflows.runtime.identifiers import (
     require_identifier,
@@ -26,8 +27,6 @@ from .models import Assignment, KnowledgeSource, Stage, ToolSpec, Workflow
 from .resolve import attach_bundles
 from .yaml_strict import load_yaml_strict
 
-FORBIDDEN_PROMPT_KEYS = frozenset({"prompt", "extra_prompt"})
-
 TOP_LEVEL_KEYS = frozenset(
     {
         "id",
@@ -47,10 +46,26 @@ REGISTRY_KEYS = frozenset({"rules", "tools", "knowledge"})
 DEFAULTS_KEYS = frozenset({"rules", "knowledge"})
 HOOKS_KEYS = frozenset({"on_reviewer_passed"})
 TOOL_KEYS = frozenset(
-    {"transport", "command", "args", "url", "env", "headers", "rules", "runtime"}
+    {
+        "transport",
+        "command",
+        "args",
+        "url",
+        "env",
+        "headers",
+        "rules",
+        "runtime",
+        "tool_timeout_sec",
+    }
 )
 TOOL_RUNTIME_KEYS = frozenset(
-    {"run_context_env", "context_file", "context_file_flag", "env_prefix"}
+    {
+        "run_context_env",
+        "context_file",
+        "context_file_flag",
+        "env_prefix",
+        "use_host_python",
+    }
 )
 KNOWLEDGE_KEYS = frozenset({"kind", "path", "provider"})
 STAGE_KEYS = frozenset(
@@ -124,9 +139,22 @@ def load_workflow(
     *,
     project_root: Path,
     capabilities: HarnessCapabilities,
+    document: dict[str, Any] | None = None,
 ) -> Workflow:
+    raw = (
+        document
+        if document is not None
+        else read_workflow_document(path, project_root=project_root)
+    )
+    workflow = _parse_workflow(raw, source_path=path)
+    attach_bundles(workflow, project_root, capabilities)
+    _validate_files(workflow, project_root)
+    return workflow
+
+
+def read_workflow_document(path: Path, *, project_root: Path) -> dict[str, Any]:
+    """Read and merge once; capability composition and model parsing share this document."""
     raw = _read_yaml(path)
-    _reject_prompt_fields(raw, path)
     _reject_user_seq_fields(raw, path)
     reject_unknown_keys(raw, TOP_LEVEL_KEYS | frozenset({"reuse"}), str(path))
     if raw.get("reuse"):
@@ -134,16 +162,12 @@ def load_workflow(
             project_root, str(raw["reuse"]), label=f"{path}: reuse"
         )
         base_raw = _read_yaml(base_path)
-        _reject_prompt_fields(base_raw, base_path)
         _reject_user_seq_fields(base_raw, base_path)
         reject_unknown_keys(base_raw, TOP_LEVEL_KEYS, str(base_path))
         if base_raw.get("reuse"):
             raise ValueError(f"{path}: nested reuse is not supported")
         raw = _merge_workflow(base_raw, raw, overlay_path=path)
-    workflow = _parse_workflow(raw, source_path=path)
-    _validate_files(workflow, project_root)
-    attach_bundles(workflow, project_root, capabilities)
-    return workflow
+    return raw
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -151,21 +175,6 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"{path}: workflow YAML must be a mapping")
     return payload
-
-
-def _reject_prompt_fields(raw: dict[str, Any], path: Path) -> None:
-    stack: list[Any] = [raw]
-    while stack:
-        current = stack.pop()
-        if isinstance(current, dict):
-            for key, value in current.items():
-                if key in FORBIDDEN_PROMPT_KEYS:
-                    raise ValueError(
-                        f"{path}: YAML must not contain task text field {key!r}"
-                    )
-                stack.append(value)
-        elif isinstance(current, list):
-            stack.extend(current)
 
 
 def _reject_user_seq_fields(raw: dict[str, Any], path: Path) -> None:
@@ -431,6 +440,7 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             raise ValueError(f"{source_path}: tool {tool_id} must be a mapping")
         reject_unknown_keys(spec, TOOL_KEYS, f"{source_path}: tool {tool_id}")
         tid = require_identifier(str(tool_id), label="tool id")
+        validate_stdio_server(tid, spec)
         tools[tid] = ToolSpec(
             tool_id=tid,
             transport=str(spec.get("transport") or "stdio"),
@@ -446,6 +456,7 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 for item in spec.get("rules") or []
             ],
             runtime=_parse_tool_runtime(spec, label=f"{source_path}: tool {tid}"),
+            tool_timeout_sec=spec.get("tool_timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC),
         )
     defaults = raw.get("defaults") or {}
     reject_unknown_keys(defaults, DEFAULTS_KEYS, f"{source_path}: defaults")
@@ -500,15 +511,11 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         )
     else:
         default_attempts = 3
-    seen_stage_ids: set[str] = set()
     for spec in raw.get("stages") or []:
         if not isinstance(spec, dict):
             raise ValueError(f"{source_path}: each stage must be a mapping")
         reject_unknown_keys(spec, STAGE_KEYS, f"{source_path}: stage")
         stage_id = require_identifier(str(spec.get("id") or ""), label="stage id")
-        if stage_id in seen_stage_ids:
-            raise ValueError(f"{source_path}: duplicate stage id {stage_id}")
-        seen_stage_ids.add(stage_id)
         steps: list[str] = []
         for step in spec.get("steps") or []:
             if isinstance(step, dict) and step.get("assignment"):
@@ -648,11 +655,16 @@ def _validate_context_tree(obj: Any, *, label: str) -> dict[str, object]:
 
 def _parse_tool_runtime(spec: dict[str, Any], *, label: str) -> ToolRuntimeSpec | None:
     raw = spec.get("runtime")
-    if not raw or not isinstance(raw, dict):
+    if raw is None:
         return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"{label}.runtime must be a mapping")
     reject_unknown_keys(raw, TOOL_RUNTIME_KEYS, f"{label}.runtime")
     prefix = raw.get("env_prefix")
     return ToolRuntimeSpec(
+        use_host_python=_require_bool(
+            raw.get("use_host_python", False), label=f"{label}.runtime.use_host_python"
+        ),
         run_context_env=_require_bool(
             raw.get("run_context_env", False),
             label=f"{label}.runtime.run_context_env",
@@ -676,72 +688,49 @@ def _parse_checks(raw: Any, *, source_path: Path) -> list[CheckRef]:
     if not isinstance(raw, list):
         raise ValueError(f"{source_path}: checks must be a list")
     checks: list[CheckRef] = []
-    seen: set[str] = set()
     for item in raw:
         if not isinstance(item, dict) or "id" not in item:
             raise ValueError(f"{source_path}: each check must declare id")
         reject_unknown_keys(item, CHECK_KEYS, f"{source_path}: check")
         checker_id = require_identifier(str(item["id"]), label="checker id")
-        if checker_id in seen:
-            raise ValueError(f"{source_path}: duplicate checker id {checker_id}")
-        seen.add(checker_id)
         checks.append(CheckRef(checker_id=checker_id))
     return checks
 
 
 def _validate_files(workflow: Workflow, project_root: Path) -> None:
-    if not workflow.workflow_id:
-        raise ValueError("workflow id is required")
-    if not workflow.stages:
-        raise ValueError("workflow must declare stages")
-    _require_file(project_root, workflow.runtime_spec)
-    for rule_id, relative in workflow.rules.items():
-        _require_file(project_root, relative, label=f"rule {rule_id}")
-    for knowledge_id, source in workflow.knowledge.items():
-        if not source.path:
-            raise ValueError(f"knowledge {knowledge_id} path is empty")
-        path = resolve_project_path(
-            project_root, source.path, label=f"knowledge {knowledge_id}"
-        )
-        if source.kind == "local_dir":
-            if not path.is_dir():
-                raise FileNotFoundError(
-                    f"missing knowledge dir {knowledge_id}: {source.path}"
-                )
-        elif not path.is_file():
-            raise FileNotFoundError(f"missing knowledge {knowledge_id}: {source.path}")
-    for kid in workflow.default_knowledge:
-        if kid not in workflow.knowledge:
-            raise ValueError(f"defaults: unknown knowledge {kid}")
-    for assignment in workflow.assignments.values():
-        _require_file(
-            project_root, assignment.task_spec, label=assignment.assignment_id
-        )
+    """Check each declared material once, including unused registry entries."""
+    files = {workflow.runtime_spec: "runtime_spec"}
+    files.update({path: f"rule {key}" for key, path in workflow.rules.items()})
+    files.update(
+        {item.task_spec: item.assignment_id for item in workflow.assignments.values()}
+    )
     for stage in workflow.stages:
-        if not stage.stage_id:
-            raise ValueError("stage id is required")
-        _require_file(project_root, stage.spec, label=stage.stage_id)
-        for addition in stage.spec_additions:
-            _require_file(project_root, addition, label=f"{stage.stage_id} addition")
-        if not stage.steps:
-            raise ValueError(f"{stage.stage_id}: steps must not be empty")
-        for assignment_id in stage.steps:
-            if assignment_id not in workflow.assignments:
-                raise ValueError(
-                    f"{stage.stage_id}: unknown assignment {assignment_id}"
-                )
-    for tool in workflow.tools.values():
-        for rule_id in tool.rules:
-            if rule_id not in workflow.rules:
-                raise ValueError(f"tool {tool.tool_id}: unknown rule {rule_id}")
-
-
-def _require_file(project_root: Path, relative: str, label: str | None = None) -> None:
-    if not relative:
-        raise ValueError(f"{label or 'path'} is empty")
-    path = resolve_project_path(project_root, relative, label=label or relative)
-    if not path.is_file():
-        raise FileNotFoundError(f"missing {label or relative}: {relative}")
+        files[stage.spec] = stage.stage_id
+        files.update(
+            {path: f"{stage.stage_id} addition" for path in stage.spec_additions}
+        )
+    for key, source in workflow.knowledge.items():
+        if source.kind != "local_dir":
+            files[source.path] = f"knowledge {key}"
+    checked: set[tuple[Path, str]] = set()
+    for relative, label in files.items():
+        path = resolve_project_path(project_root, relative, label=label)
+        key = (path, "file")
+        if key not in checked:
+            if not path.is_file():
+                raise FileNotFoundError(f"missing {label}: {relative}")
+            checked.add(key)
+    for name, source in workflow.knowledge.items():
+        if source.kind != "local_dir":
+            continue
+        path = resolve_project_path(
+            project_root, source.path, label=f"knowledge {name}"
+        )
+        key = (path, "dir")
+        if key not in checked:
+            if not path.is_dir():
+                raise FileNotFoundError(f"missing knowledge dir {name}: {source.path}")
+            checked.add(key)
 
 
 def assignment_rule_ids(workflow: Workflow, assignment: Assignment) -> list[str]:

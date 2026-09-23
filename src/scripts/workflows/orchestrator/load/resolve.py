@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from scripts.workflows.runtime.capabilities import HarnessCapabilities
-from scripts.workflows.runtime.identifiers import resolve_project_path
 
 from ..loop.handoff import WRITER_ROLES
 from .bundle import KnowledgeBinding, TaskBundle
@@ -17,6 +16,15 @@ from .models import Assignment, Stage, Workflow
 def resolve_workflow(
     workflow: Workflow, capabilities: HarnessCapabilities
 ) -> dict[str, TaskBundle]:
+    if not workflow.stages:
+        raise ValueError("workflow must declare stages")
+    for kid in workflow.default_knowledge:
+        if kid not in workflow.knowledge:
+            raise ValueError(f"defaults: unknown knowledge {kid}")
+    for tool in workflow.tools.values():
+        for rule_id in tool.rules:
+            if rule_id not in workflow.rules:
+                raise ValueError(f"tool {tool.tool_id}: unknown rule {rule_id}")
     stage_ids = [stage.stage_id for stage in workflow.stages]
     if len(stage_ids) != len(set(stage_ids)):
         raise ValueError("duplicate stage id in workflow")
@@ -26,6 +34,7 @@ def resolve_workflow(
         _reject_duplicate_ids(
             [check.checker_id for check in stage.checks],
             label=f"{stage.stage_id}: checks",
+            kind="checker id",
         )
         stage_knowledge = resolve_list(
             list(workflow.default_knowledge), stage.knowledge_decl
@@ -39,7 +48,14 @@ def resolve_workflow(
         for hook_id in stage_hooks:
             if hook_id not in capabilities.hooks.known_ids():
                 raise ValueError(f"{stage.stage_id}: unknown hook {hook_id}")
+        for check in stage.checks:
+            if check.checker_id not in capabilities.checkers.known_ids():
+                raise ValueError(
+                    f"{stage.stage_id}: unknown checker {check.checker_id!r}"
+                )
         for assignment_id in stage.steps:
+            if assignment_id in bundles:
+                raise ValueError(f"duplicate assignment id {assignment_id}")
             assignment = workflow.assignments[assignment_id]
             bundle = _resolve_assignment(
                 workflow,
@@ -121,9 +137,6 @@ def _resolve_assignment(
             raise ValueError(
                 f"{assignment.assignment_id}: unknown knowledge provider {provider}"
             )
-    for check in stage.checks:
-        if check.checker_id not in capabilities.checkers.known_ids():
-            raise ValueError(f"{stage.stage_id}: unknown checker {check.checker_id!r}")
     for tool_id in tool_ids:
         if tool_id not in workflow.tools:
             raise ValueError(f"{assignment.assignment_id}: unknown tool {tool_id}")
@@ -187,11 +200,11 @@ def _validate_stage_topology(workflow: Workflow, stage: Stage) -> None:
     )
 
 
-def _reject_duplicate_ids(values: list[str], *, label: str) -> None:
+def _reject_duplicate_ids(values: list[str], *, label: str, kind: str = "id") -> None:
     seen: set[str] = set()
     for value in values:
         if value in seen:
-            raise ValueError(f"{label}: duplicate id {value}")
+            raise ValueError(f"{label}: duplicate {kind} {value}")
         seen.add(value)
 
 
@@ -221,43 +234,5 @@ def attach_bundles(
     project_root: Path,
     capabilities: HarnessCapabilities,
 ) -> None:
-    bundles = resolve_workflow(workflow, capabilities)
-    workflow.bundles = bundles
-    _validate_bundle_files(workflow, project_root)
-
-
-def _validate_bundle_files(workflow: Workflow, project_root: Path) -> None:
-    seen_assignments: set[str] = set()
-    for stage in workflow.stages:
-        for assignment_id in stage.steps:
-            if assignment_id in seen_assignments:
-                raise ValueError(f"duplicate assignment id {assignment_id}")
-            seen_assignments.add(assignment_id)
-            bundle = workflow.bundles[assignment_id]
-            for relative in bundle.spec_paths:
-                _require_file(project_root, relative, label=assignment_id)
-            for rule_id in bundle.rule_ids:
-                _require_file(
-                    project_root, workflow.rules[rule_id], label=f"rule {rule_id}"
-                )
-            for binding in bundle.knowledge_sources:
-                path = resolve_project_path(
-                    project_root, binding.path, label=binding.knowledge_id
-                )
-                if binding.kind == "local_dir":
-                    if not path.is_dir():
-                        raise FileNotFoundError(
-                            f"missing knowledge dir {binding.knowledge_id}: {binding.path}"
-                        )
-                else:
-                    _require_file(
-                        project_root, binding.path, label=binding.knowledge_id
-                    )
-
-
-def _require_file(project_root: Path, relative: str, label: str | None = None) -> None:
-    if not relative:
-        raise ValueError(f"{label or 'path'} is empty")
-    path = resolve_project_path(project_root, relative, label=label or relative)
-    if not path.is_file():
-        raise FileNotFoundError(f"missing {label or relative}: {relative}")
+    del project_root  # Files are checked once by the loader, after resolution.
+    workflow.bundles = resolve_workflow(workflow, capabilities)

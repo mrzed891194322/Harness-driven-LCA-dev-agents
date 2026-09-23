@@ -99,7 +99,7 @@ class WorkflowYamlTests(unittest.TestCase):
                 stage_id,
             )
 
-    def test_revise_assembly_includes_reviser_and_user_intent(self) -> None:
+    def test_revise_assembly_includes_reviser_and_common_method(self) -> None:
         workflow = load_workflow(
             WORKFLOWS / "LCA-revise.yaml",
             project_root=PROJECT_ROOT,
@@ -112,8 +112,8 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertIn(
             "control_openlca", workflow.bundles[reviser.assignment_id].tool_ids
         )
-        self.assertIn("user_intent", assignment_rule_ids(workflow, reviser))
-        self.assertIn("user_intent", assignment_rule_ids(workflow, reviewer))
+        self.assertIn("lca_method", assignment_rule_ids(workflow, reviser))
+        self.assertIn("lca_method", assignment_rule_ids(workflow, reviewer))
         self.assertIn("reviewer_readonly", assignment_rule_ids(workflow, reviewer))
         prompt = assemble_prompt(
             workflow,
@@ -131,9 +131,9 @@ class WorkflowYamlTests(unittest.TestCase):
         )
         self.assertIn("role=reviser", prompt)
         self.assertIn("完整 canonical LCI", prompt)
-        self.assertIn("用户意图优先", prompt)
+        self.assertIn("# 规则 lca_method", prompt)
         self.assertIn("先判 mapping / LCI 是否落实用户意见", review_prompt)
-        self.assertIn("未落实用户意图不得通过", review_prompt)
+        self.assertIn("# 规则 lca_method", review_prompt)
         intake = workflow.stage_by_id("01-intake-gate")
         intake_reviewer = workflow.assignments[intake.steps[0]]
         intake_prompt = assemble_prompt(
@@ -163,11 +163,11 @@ class WorkflowYamlTests(unittest.TestCase):
             assignment=executor,
             run_context={"run_id": "r", "role": "executor", "task": "whole-lca"},
         )
-        self.assertNotIn("user-intent", assignment_rule_ids(workflow, executor))
+        self.assertNotIn("user_intent", assignment_rule_ids(workflow, executor))
         self.assertFalse(stage.spec_additions)
         self.assertIn("role=executor", prompt)
         self.assertNotIn("role=reviser", prompt)
-        self.assertNotIn("完整 canonical LCI", prompt)
+        self.assertFalse(any(path.endswith("references/revise.md") for path in workflow.bundles[executor.assignment_id].spec_paths))
 
     def test_stage_packages_have_role_files_not_old_specs(self) -> None:
         spec_root = PROJECT_ROOT / "harness" / "specs"
@@ -216,8 +216,8 @@ class WorkflowYamlTests(unittest.TestCase):
         contract = (PROJECT_ROOT / stage.spec).read_text(encoding="utf-8")
         self.assertIn(contract.strip()[:80], exec_prompt)
         self.assertIn(contract.strip()[:80], review_prompt)
-        self.assertIn("审查通过前禁止", exec_prompt)
-        self.assertIn("独立核对", review_prompt)
+        self.assertIn((PROJECT_ROOT / workflow.rules["openlca_usage"]).read_text(encoding="utf-8").strip(), exec_prompt)
+        self.assertIn((PROJECT_ROOT / workflow.rules["reviewer_readonly"]).read_text(encoding="utf-8").strip(), review_prompt)
         self.assertIn(
             "control_openlca", workflow.bundles[executor.assignment_id].tool_ids
         )
@@ -271,7 +271,7 @@ class WorkflowYamlTests(unittest.TestCase):
             )
             self.assertEqual(
                 config.mcp_servers["control_openlca"]["args"][0],
-                "harness/tools/control_openlca/main.py",
+                "src/scripts/workflows/domains/lca/openlca_mcp.py",
             )
             self.assertIn("UV_CACHE_DIR", config.mcp_servers["control_openlca"]["env"])
             self.assertIsNotNone(config.mcp_render_dir)
@@ -437,10 +437,10 @@ class PlatformAdapterTests(unittest.TestCase):
         )
         tool = workflow.tools["control_openlca"]
         self.assertEqual(tool.command, "uv")
-        self.assertEqual(tool.args[-1], "harness/tools/control_openlca/main.py")
+        self.assertEqual(tool.args[-1], "src/scripts/workflows/domains/lca/openlca_mcp.py")
 
-    def test_reconnect_count_lives_only_in_tool_rule(self) -> None:
-        tool = (PROJECT_ROOT / "harness/rules/tools/control_openlca.md").read_text(
+    def test_reconnect_implementation_is_documented_outside_prompts(self) -> None:
+        tool = (PROJECT_ROOT / "harness/tools/control_openlca/README.md").read_text(
             encoding="utf-8"
         )
         self.assertRegex(tool, r"(?:3 次重连|重连 3 次)")
@@ -448,6 +448,7 @@ class PlatformAdapterTests(unittest.TestCase):
             (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             for relative in (
                 "harness/LCA-main.yaml",
+                "harness/rules/tools/control_openlca.md",
                 "harness/specs/public/references/workflow-runtime-spec.md",
             )
         )

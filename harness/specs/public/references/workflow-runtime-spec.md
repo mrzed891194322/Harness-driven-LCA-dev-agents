@@ -1,6 +1,6 @@
 # Whole-LCA 运行说明
 
-工作流编成四个编号阶段，语义上是 **1 个启动门禁 + 3 个 LCA 业务步**。没有 JSON Schema 业务门禁；离线工具生成校验证据，不代替 reviewer 判断。阶段推进由纯 Python 主编排器负责，agent 只完成本轮被委派的任务。
+工作流编成四个编号阶段，语义上是 **1 个启动门禁 + 3 个 LCA 业务步**。离线工具生成校验证据，不代替 reviewer 判断。阶段推进由主编排器负责，agent 只完成本轮被委派的任务。
 
 ## 阶段
 
@@ -9,7 +9,7 @@
 3. `03-dataset-mapping`：把 BOM 映射到活动库 Process/Flow/Provider，并写出可导入 LCI。通过前不 import。
 4. `04-openlca-reporting`：预检、导入、读回、LCIA、写报告。
 
-`revise-lca` 是同一套 01–04。02–04 的写者换成 `reviser`（任务文件为各包 `reviser.md`），审查仍由 `reviewer` 决定是否推进。修订补充契约在各包 `references/revise.md`，由 YAML `spec_additions` 注入。不要覆盖 `plan.md`。审查时用户意图优先于单纯正确性。
+`revise-lca` 是同一套 01–04。02–04 的写者换成 `reviser`（任务文件为各包 `reviser.md`），审查仍由 `reviewer` 决定是否推进。修订补充契约在各包 `references/revise.md`，由 YAML `spec_additions` 注入。两种工作流均须满足共同方法规则中的研究要求和正确性，修订不覆盖 `plan.md`。
 
 进入某阶段时才把该阶段共有契约与角色任务交给对应会话；启动只把本文纳入公共协议，不预读编号包全文到无关会话。
 
@@ -60,7 +60,7 @@ Agent 完成本轮后写入 `workspace/memory/handoffs/<stage>-<role>-<attempt>.
 - `artifacts`：本轮提交或核过的路径列表
 - 可选 `checks_ref`、`evidence_manifest_ref`：路径字符串（取工具返回的 `.path`，不要写入 `{path, sha256, size_bytes}` 对象）
 
-检查点和 manifest 由主编排维护。agent 不维护 SDK 会话映射，不决定阶段推进。写者 `ok` 的充分条件是本轮产物已落盘且 `status_reason` 非空；不必自己先跑 `validate_artifacts`。协议校验失败时按循环一节原地改写 handoff，不要把协议错误当成审查意见去改产物。
+检查点和 manifest 由主编排维护。agent 不维护 SDK 会话映射，不决定阶段推进。写者只有完成本阶段任务且产物已落盘后才提交 `ok` 和非空 `status_reason`，等待主编排检查与 reviewer 审查；不必自己先跑 `validate_artifacts`，文件存在本身不证明任务完成。协议校验失败时按循环一节原地改写 handoff，不要把协议错误当成审查意见去改产物。
 
 失败时必须提供：失败对象、已核对证据、建议修正或为何不可恢复。缺少产物、`blocked` 或审查失败不得被当成完成。
 
@@ -73,7 +73,7 @@ Agent 完成本轮后写入 `workspace/memory/handoffs/<stage>-<role>-<attempt>.
 - `status_reason`：终止时非空说明
 - `run_id`：本次运行 id
 
-不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定。可留档的匹配由写者自行选择并写入 BOM/映射/报告。
+不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定；在共同方法规则允许的范围内自主选择并留档。无法满足明确要求、存在关键未解决缺口或缺少必做**硬**工具能力时，以现有失败协议受控停止，不自行降低要求。解释类要求按阶段契约允许 `llm_inferred` + 出处表 fallback，不得因用户未在 plan 写许可而停止。
 
 恢复运行时以 SQLite 检查点为准，不以 manifest 单独作为恢复依据。当前协议为 `runtime_version = 4`，检查点保存下一动作 `next_action`（prepare / run_sdk / advance / done）。worker 结果已提交时，从 advance 继续处理 handoff，不重发 worker。worker 或验收动作（含检查器、hooks）执行中断且检查点仍标 `in_flight` 时，主编排持久化 `failed`，不自动重发任务或重放 hook。已完成和失败的运行恢复时直接返回原终态。
 
@@ -81,7 +81,7 @@ Agent 完成本轮后写入 `workspace/memory/handoffs/<stage>-<role>-<attempt>.
 
 审查 `passed` 后执行的 lifecycle hooks（如 `lca.record_acceptance`）应尽量幂等；运行器在 hook 异常时 fail-closed，不会自动重放 hook，也不会回写者重做业务产物。
 
-每个角色首次访问 openLCA 前调用 `health_check`；仅离线报告返工或审查不访问 IPC 时无需探测。失败则如实上报。
+openLCA 访问遵守绑定的工具规则；导入和同 run 返工顺序以 04 共有契约为准。
 
 示例见 `references/examples/`。
 

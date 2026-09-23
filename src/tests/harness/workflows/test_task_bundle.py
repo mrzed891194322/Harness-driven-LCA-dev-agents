@@ -65,9 +65,9 @@ class TaskBundleResolveTests(unittest.TestCase):
         reviser = revise.bundles["03-dataset-mapping.reviser"]
         reviewer = revise.bundles["03-dataset-mapping.reviewer"]
         self.assertEqual(reviser.role, "reviser")
-        self.assertIn("user_intent", reviser.rule_ids)
+        self.assertIn("lca_method", reviser.rule_ids)
         self.assertIn("reviewer_readonly", reviewer.rule_ids)
-        self.assertIn("user_intent", reviewer.rule_ids)
+        self.assertIn("lca_method", reviewer.rule_ids)
         intake = revise.stage_by_id("01-intake-gate")
         self.assertTrue(
             any(item.endswith("references/revise.md") for item in intake.spec_additions)

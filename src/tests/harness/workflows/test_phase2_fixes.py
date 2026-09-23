@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import json
 import sys
 import tempfile
@@ -12,8 +11,8 @@ from unittest.mock import patch
 
 import yaml
 
-from harness.tools.lca_artifacts import checks as lca_checks
-from harness.tools.lca_artifacts.store import Context
+from scripts.workflows.domains.lca.artifacts import checks as lca_checks
+from scripts.workflows.domains.lca.artifacts.store import Context
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.domains.lca.knowledge import enrich_local_files
 from scripts.workflows.orchestrator.load.bundle import KnowledgeBinding, TaskBundle
@@ -238,8 +237,8 @@ class ListInheritTests(unittest.TestCase):
         self.assertIn("reviewer_readonly", reviewer.rule_ids)
         self.assertIn("knowledge_files", reviser.rule_ids)
         self.assertIn("lca_method", reviser.rule_ids)
-        self.assertIn("user_intent", reviser.rule_ids)
-        self.assertIn("user_intent", reviewer.rule_ids)
+        self.assertIn("lca_inventory", reviser.rule_ids)
+        self.assertIn("lca_mapping", reviewer.rule_ids)
         self.assertIn("lca.record_acceptance", reviewer.reviewer_passed_hooks)
 
 
@@ -462,26 +461,23 @@ class RuntimeBoundaryTests(unittest.TestCase):
         self.assertIn("metadata", names)
 
     def test_runtime_does_not_import_lca_domain(self) -> None:
-        banned = [
-            name
-            for name in list(sys.modules)
-            if name == "scripts.workflows.domains.lca"
-            or name.startswith("scripts.workflows.domains.lca.")
-        ]
-        for name in banned:
-            sys.modules.pop(name, None)
-        sys.modules.pop("scripts.workflows.runtime", None)
-        sys.modules.pop("scripts.workflows.runtime.capabilities", None)
-        runtime = importlib.import_module("scripts.workflows.runtime")
-        self.assertNotIn("scripts.workflows.domains.lca", sys.modules)
-        self.assertFalse(
-            any(
-                name.startswith("scripts.workflows.domains.lca.")
-                for name in sys.modules
-            )
+        import os
+        import subprocess
+
+        from tests.conftest import PROJECT_ROOT
+
+        code = """
+import sys
+import scripts.workflows.runtime as runtime
+assert not any(name == "scripts.workflows.domains.lca" or name.startswith("scripts.workflows.domains.lca.") for name in sys.modules)
+assert not runtime.empty_capabilities().checkers.known_ids()
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code], cwd=PROJECT_ROOT,
+            env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src")},
+            capture_output=True, text=True, timeout=20,
         )
-        caps = runtime.empty_capabilities()
-        self.assertEqual(set(caps.checkers.known_ids()), set())
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_fake_workflow_loads_without_lca_registry(self) -> None:
         caps = empty_capabilities()

@@ -7,7 +7,10 @@ from typing import Any
 
 import config
 
-from functions.openlca_failure_hints import maybe_append_openlca_timeout_hint
+from functions.openlca_failure_hints import (
+    maybe_append_handoff_failure_hint,
+    maybe_append_openlca_timeout_hint,
+)
 
 
 def manifest_fingerprint(path: Path | None = None) -> str | None:
@@ -104,10 +107,16 @@ def parse_lca_result(
     if not reason:
         reasons.append("工作流提前结束，但没有提供更具体的失败说明。")
     lines = ["### 失败原因", "", *(f"- {item}" for item in reasons)]
+    failure_body = "\n".join(lines)
+    failure_markdown = maybe_append_handoff_failure_hint(
+        config.WORKSPACE_MEMORY.parent,
+        manifest,
+        failure_body,
+    )
     failure_markdown = maybe_append_openlca_timeout_hint(
         config.WORKSPACE_MEMORY.parent,
         manifest,
-        "\n".join(lines),
+        failure_markdown,
     )
     return {
         "success": False,

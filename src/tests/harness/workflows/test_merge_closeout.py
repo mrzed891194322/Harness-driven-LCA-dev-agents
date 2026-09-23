@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -13,8 +13,8 @@ from unittest.mock import MagicMock
 
 import yaml
 
-from harness.tools.lca_artifacts import checks as lca_checks
-from harness.tools.lca_artifacts.store import Context
+from scripts.workflows.domains.lca.artifacts import checks as lca_checks
+from scripts.workflows.domains.lca.artifacts.store import Context
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.orchestrator.load.bundle import KnowledgeBinding, TaskBundle
 from scripts.workflows.orchestrator.load.lists import (
@@ -785,26 +785,24 @@ class EvidenceFingerprintTests(unittest.TestCase):
 
 class GenericDependencyTests(unittest.TestCase):
     def test_generic_modules_do_not_import_lca(self) -> None:
-        banned = (
-            "scripts.workflows.domains.lca",
-            "harness.tools.control_openlca",
-            "harness.tools.lca_artifacts",
-        )
-        for mod in list(sys.modules):
-            if any(mod == b or mod.startswith(b + ".") for b in banned):
-                del sys.modules[mod]
-        importlib.invalidate_caches()
-        import scripts.workflows.orchestrator.persist.config_fingerprint as fp_mod
-        import scripts.workflows.runtime as runtime_mod
-        import scripts.workflows.runtime.knowledge_providers.local_files as local_mod
+        import subprocess
 
-        del runtime_mod, local_mod, fp_mod
-        loaded = [
-            name
-            for name in sys.modules
-            if any(name == b or name.startswith(b + ".") for b in banned)
-        ]
-        self.assertEqual(loaded, [])
+        code = """
+import sys
+from scripts.workflows.orchestrator.main import compose_capabilities
+from scripts.workflows.orchestrator.persist import config_fingerprint
+from scripts.agent_sdk.session import default_client
+compose_capabilities([])
+default_client()
+banned = ("scripts.workflows.domains.lca", "harness.tools")
+assert not [name for name in sys.modules if any(name == b or name.startswith(b + ".") for b in banned)]
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code], cwd=PROJECT_ROOT,
+            env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src")},
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class PathSafetyTests(unittest.TestCase):

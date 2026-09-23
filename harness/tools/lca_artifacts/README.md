@@ -1,25 +1,18 @@
-# lca_artifacts
+# 独立 lca_artifacts MCP
 
-离线 MCP 入口：`uv run python harness/tools/lca_artifacts/main.py`。
-
-工具由工作流 YAML 绑定到 02–04。主编排每轮写入 `workspace/tmp/mcp-context/<run_id>/<stage>/<role>.json`，并以 `--context-file` 传给 MCP；进程每次调用重读该文件。`LCA_*` 环境变量仅为冗余。无 `--context-file` 时（GUI/探测）才回退环境变量或 standalone。01 仅接收编排器提供的文件清单，不绑定本工具。主编排在写者合法提交后运行确定性检查。
-
-| 工具 | 行为 |
-| --- | --- |
-| validate_artifacts(profile) | inventory/mapping/report 确定性校验，独立审计落盘 |
-| get_validation_state(profile) | 检测输入变更，返回 not_run/passed/failed/stale |
-| get_rework_status() | 同 run 04 返工复用资格与缺口 |
-| render_report_tables() | 写者生成三个标记区；保留叙述 |
-| read_artifact(path, sha256, offset=0, limit=2000, json_pointer=None) | 校验和验证后选取 JSON Pointer（如 /queries/0/items），再按字符切片；limit 最大 4000 |
-
-公开响应 v2 统一为摘要加 artifact。可用 status 判断工具是否执行成功，检查本身的结论见 checks；stage 是否通过由 reviewer 决定。具体契约见 `harness/specs/public/references/evidence-contract.md`。
-
-计算计划为 `workspace/outputs/reports/calculation-plan.json`：
-
-```json
-{"calculations":[{"product_system":"queried-system-uuid","impact_method":"queried-method-uuid","amount":1.0}]}
+```bash
+uv run python harness/tools/lca_artifacts/main.py
 ```
 
-正式调用中必须使用查询得到的 UUID，以上仅为结构示意。同一系统和方法只配置一次，不同模型情景分别建 Product System。
+本入口不导入 workflow、不读取 `LCA_*` 上下文，也不写工作流检查/批准记录。所有路径和证据由调用方显式传入；相对路径基于启动目录。返回普通结构化结果。
 
-报告浮点数统一显示 12 位有效数字，raw 保留完整精度；审查工具使用相同格式生成预期表格。get_rework_status 返回 scope=none 且 eligible=false 时，根据 changes 修复具体证据缺口，不能当作 calculation_changed 或 report_only。
+| 工具 | 输入与行为 |
+| --- | --- |
+| `validate_inventory` | `bom_path`、`declared_sources`；检查清单与来源引用 |
+| `validate_mapping` | `bom_path`、`mapping_path`、`lci_dir`、`provider_pairs`；检查覆盖、LCI 格式及外部 provider 对 |
+| `render_report_tables` | `report_path`、`bom_path`、`mapping_path`、`calculation_rows`；替换 inventory/mapping/lcia 标记区，保留叙述 |
+| `read_artifact` | `path`、`sha256`、可选 offset/limit/json_pointer；检查校验和后读取有界片段 |
+
+`provider_pairs` 的每项包含 `process_id`、`flow_id`。`calculation_rows` 的每行依次是产品系统 UUID、方法 UUID、影响类别、数值、单位、证据路径。
+
+whole-lca / revise-lca 使用单独的工作流适配入口 `src/scripts/workflows/domains/lca/artifacts/main.py`。原有 `validate_artifacts`、`get_validation_state`、`get_rework_status`、无参数的 `render_report_tables` 以及 v2 证据响应保持在适配层，详见其 README。

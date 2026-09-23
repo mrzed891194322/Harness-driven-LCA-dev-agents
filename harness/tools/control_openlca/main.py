@@ -1,3 +1,5 @@
+"""Standalone openLCA MCP. Inputs and journal location are supplied explicitly."""
+
 from __future__ import annotations
 
 import functools
@@ -28,8 +30,6 @@ from harness.tools.control_openlca.utils.connection import (
     resolve_ipc_tool_timeout_sec,
 )
 from harness.tools.control_openlca.utils.guard import serialized_ipc
-
-LCA_CONTROL_OPENLCA_MCP = "LCA_CONTROL_OPENLCA_MCP"
 from harness.tools.control_openlca.utils.readonly import (
     get_flow_providers as run_get_flow_providers,
 )
@@ -48,67 +48,33 @@ from harness.tools.control_openlca.utils.workflow import (
 from harness.tools.control_openlca.utils.workflow import (
     get_model_graph as run_get_model_graph,
 )
-from harness.tools.lca_artifacts.store import Context, bind_context_argv, invoke
 
 
-def _require_mcp_stdio_channel() -> None:
-    if os.getenv(LCA_CONTROL_OPENLCA_MCP) != "1":
-        raise ValueError(
-            "须通过 MCP 调用 control_openlca 工具，禁止 bash 或 Python 直调 "
-            "harness.tools.control_openlca.main"
-        )
+def ipc_tool(name):
+    """Apply only IPC serialization and time budgets; no workflow policy."""
 
-
-def v2_tool(name):
     def decorate(function):
         @functools.wraps(function)
         def wrapped(*args, **kwargs):
-            def execute():
-                _require_mcp_stdio_channel()
-                context = Context.environment()
-                if context.role == "reviewer" and name in {
-                    "import_lci",
-                    "calculate_product_system",
-                    "cleanup_output",
-                }:
-                    raise ValueError("reviewer may not import, calculate or clean")
-                bound = inspect.signature(function).bind_partial(*args, **kwargs)
-                bound.apply_defaults()
-                params = dict(bound.arguments)
-                timeout_raw = params.pop("timeout_sec", None)
-                profile = ipc_tool_profile(name)
-                applied_budget = None
-                if profile == "long":
-                    applied_budget = resolve_ipc_tool_timeout_sec(
-                        None if timeout_raw is None else int(timeout_raw)
-                    )
-
-                def run_call():
-                    if profile == "none":
-                        result = function(**params)
-                    else:
-                        host, port = _endpoint_config()
-                        runner: Callable[..., Any] = serialized_ipc(
-                            lambda host, port: function(**params),
-                            long_running=ipc_tool_is_long_running(name),
-                        )
-                        result = runner(host, port)
-                    if applied_budget is not None and isinstance(result, dict):
-                        result["applied_timeout_sec"] = int(applied_budget)
-                    return result
-
-                if applied_budget is not None:
-                    with ipc_budget_scope(applied_budget):
-                        return run_call()
-                return run_call()
-
-            try:
-                arguments = dict(
-                    inspect.signature(function).bind(*args, **kwargs).arguments
-                )
-            except TypeError:
-                arguments = kwargs
-            return invoke(name, execute, arguments=arguments)
+            bound = inspect.signature(function).bind(*args, **kwargs)
+            bound.apply_defaults()
+            params = dict(bound.arguments)
+            timeout = params.pop("timeout_sec", None)
+            profile = ipc_tool_profile(name)
+            if profile == "none":
+                return function(**params)
+            host, port = _endpoint_config()
+            runner: Callable[..., Any] = serialized_ipc(
+                lambda host, port: function(**params),
+                long_running=ipc_tool_is_long_running(name),
+            )
+            if profile == "long":
+                budget = resolve_ipc_tool_timeout_sec(timeout)
+                with ipc_budget_scope(budget):
+                    result = runner(host, port)
+                result["applied_timeout_sec"] = int(budget)
+                return result
+            return runner(host, port)
 
         return wrapped
 
@@ -118,7 +84,7 @@ def v2_tool(name):
 mcp = MCPServer(
     "openLCA-Control",
     instructions=(
-        "Query and gated workflow access to the openLCA IPC Server configured "
+        "Independent access to the openLCA IPC Server configured "
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci and cleanup_output "
         "are destructive; import_lci requires a matching current import scope. "
         "Long-running tools accept optional timeout_sec (300-7200) for IPC session "
@@ -151,34 +117,12 @@ def _endpoint_config() -> tuple[str, int]:
     return host, port
 
 
-def _workflow_lci_dir(lci_dir: str) -> Path:
-    """Limit MCP imports to canonical LCI or a workflow compatibility directory."""
-    project_root = PROJECT_ROOT.resolve()
-    workspace_root = Path(
-        os.getenv("LCA_WORKSPACE", str(project_root / "workspace"))
-    ).resolve()
-    configured = Path(lci_dir)
-    if not configured.is_absolute() and configured.parts[:1] == ("workspace",):
-        candidate = workspace_root.joinpath(*configured.parts[1:])
-    else:
-        candidate = (
-            configured if configured.is_absolute() else project_root / configured
-        )
-    resolved = candidate.resolve()
-    canonical = workspace_root / "outputs" / "LCI"
-    temporary_root = workspace_root / "tmp"
-    if resolved != canonical and temporary_root not in resolved.parents:
-        raise ValueError(
-            "lci_dir must resolve to workspace/outputs/LCI or a subdirectory "
-            "of workspace/tmp"
-        )
-    return resolved
-
-
 def _target_category(target_category: str) -> str:
-    category = target_category.strip() or PROJECT_ROOT.name
-    if any(character in category for character in "\r\n\0"):
-        raise ValueError("target_category contains invalid characters")
+    category = target_category.strip()
+    if not category or any(character in category for character in "\r\n\0"):
+        raise ValueError(
+            "target_category must be nonempty and contain no control characters"
+        )
     return category
 
 
@@ -190,7 +134,7 @@ def _target_category(target_category: str) -> str:
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("health_check")
+@ipc_tool("health_check")
 def health_check() -> dict[str, Any]:
     """Check the configured openLCA IPC Server without modifying data."""
     host, port = _endpoint_config()
@@ -206,7 +150,7 @@ def health_check() -> dict[str, Any]:
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("query_descriptors")
+@ipc_tool("query_descriptors")
 def query_descriptors(
     entity_type: Literal[
         "Process",
@@ -248,7 +192,7 @@ def query_descriptors(
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("get_process_details")
+@ipc_tool("get_process_details")
 def get_process_details(
     process_id: str,
     timeout_sec: int | None = None,
@@ -267,7 +211,7 @@ def get_process_details(
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("get_flow_providers")
+@ipc_tool("get_flow_providers")
 def get_flow_providers(
     flow_id: str,
     location: str = "",
@@ -289,39 +233,40 @@ def get_flow_providers(
 
 @mcp.tool(
     description=(
-        "Read and validate canonical workspace/outputs/LCI or a compatibility LCI under "
-        "workspace/tmp, inspect the active database and target category, and list "
+        "Read and validate the supplied LCI directory, "
+        "inspect the active database and target category, and list "
         "create/overwrite/delete scope. This tool performs no database writes. "
         "Optional timeout_sec (300-7200) sets the IPC session budget for slow databases."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("preflight_import_lci")
+@ipc_tool("preflight_import_lci")
 def preflight_import_lci(
-    lci_dir: str = "workspace/outputs/LCI",
-    target_category: str = "",
+    lci_dir: str,
+    target_category: str,
+    operation_dir: str,
+    scope_id: str,
     database_name: str | None = None,
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
-    """Create a read-only import preflight for the workflow-owned LCI directory."""
+    """Inspect an LCI directory and save a preflight in the supplied journal."""
     host, port = _endpoint_config()
-    context = Context.environment()
     return operations.preflight(
         host=host,
         port=port,
-        lci_dir=_workflow_lci_dir(lci_dir),
+        lci_dir=Path(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "memory" / "import-operations"),
-        run_id=context.run_id,
+        operation_dir=Path(operation_dir),
+        run_id=scope_id,
     )
 
 
 @mcp.tool(
     description=(
-        "Destructively import canonical workspace/outputs/LCI or a compatibility LCI "
-        "under workspace/tmp after rerunning preflight. Rejects the write when the "
+        "Import the supplied LCI directory "
+        "after rerunning preflight. Rejects the write when the "
         "database name, target category, or LCI directory does not match the last "
         "successful preflight scope. Optional timeout_sec (300-7200) extends the IPC "
         "session budget; do not wrap this tool in shell timeout."
@@ -329,33 +274,27 @@ def preflight_import_lci(
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("import_lci")
+@ipc_tool("import_lci")
 def import_lci(
     request_id: str,
     preflight_id: str,
-    lci_dir: str = "workspace/outputs/LCI",
-    target_category: str = "",
+    lci_dir: str,
+    target_category: str,
+    operation_dir: str,
+    scope_id: str,
     database_name: str | None = None,
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
-    """Import LCI under a precise, current preflight scope."""
+    """Import only after a matching fresh preflight; persist request identity."""
     host, port = _endpoint_config()
-    context = Context.environment()
-    from harness.tools.lca_artifacts.checks import (
-        require_approved_model,
-        require_import_directory,
-    )
-
-    require_approved_model(context)
-    require_import_directory(context, _workflow_lci_dir(lci_dir))
     return operations.import_request(
         host=host,
         port=port,
-        lci_dir=_workflow_lci_dir(lci_dir),
+        lci_dir=Path(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "memory" / "import-operations"),
-        run_id=context.run_id,
+        operation_dir=Path(operation_dir),
+        run_id=scope_id,
         request_id=request_id,
         preflight_id=preflight_id,
     )
@@ -369,15 +308,17 @@ def import_lci(
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("get_import_operation")
+@ipc_tool("get_import_operation")
 def get_import_operation(
-    request_id: str | None = None, operation_id: str | None = None
+    operation_dir: str,
+    scope_id: str,
+    request_id: str | None = None,
+    operation_id: str | None = None,
 ) -> dict[str, Any]:
-    """Read an import journal without writing to openLCA."""
-    context = Context.environment()
+    """Read a journal without database writes."""
     return operations.get_operation(
-        context.safe(context.workspace / "memory" / "import-operations"),
-        run_id=context.run_id,
+        Path(operation_dir),
+        run_id=scope_id,
         request_id=request_id,
         operation_id=operation_id,
     )
@@ -392,7 +333,7 @@ def get_import_operation(
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("get_model_graph")
+@ipc_tool("get_model_graph")
 def get_model_graph(
     product_system: str,
     expected_process_ids: list[str] | None = None,
@@ -417,7 +358,7 @@ def get_model_graph(
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("calculate_product_system")
+@ipc_tool("calculate_product_system")
 def calculate_product_system(
     product_system: str,
     impact_method: str,
@@ -431,24 +372,6 @@ def calculate_product_system(
 ) -> dict[str, Any]:
     """Calculate a Product System and always attempt to release the result handle."""
     host, port = _endpoint_config()
-    from harness.tools.lca_artifacts.checks import (
-        require_approved_model,
-        require_calculation_plan,
-    )
-
-    require_approved_model(Context.environment())
-    require_calculation_plan(
-        Context.environment(),
-        {
-            "product_system": product_system,
-            "impact_method": impact_method,
-            "amount": amount,
-            "allocation": allocation,
-            "regionalized": regionalized,
-            "costs": costs,
-            "parameters": parameters,
-        },
-    )
     return run_calculate_product_system(
         host=host,
         port=port,
@@ -472,30 +395,18 @@ def calculate_product_system(
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("cleanup_output")
+@ipc_tool("cleanup_output")
 def cleanup_output(
-    target_category: str = "",
-    include_supporting: bool = False,
+    target_category: str,
     confirm: bool = False,
+    operation_dir: str | None = None,
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
-    """Clean workflow-imported entities from the active openLCA database."""
     host, port = _endpoint_config()
-    result = run_cleanup_output(
-        host=host,
-        port=port,
-        target_category=_target_category(target_category),
-        include_supporting=include_supporting,
-        confirm=confirm,
-    )
-    if confirm and result.get("ok"):
-        context = Context.environment()
-        operations.reconcile_cleanup(
-            context.safe(context.workspace / "memory" / "import-operations"),
-            host,
-            port,
-            _target_category(target_category),
-        )
+    category = _target_category(target_category)
+    result = run_cleanup_output(host, port, category, confirm=confirm)
+    if confirm and result.get("ok") and operation_dir is not None:
+        operations.reconcile_cleanup(Path(operation_dir), host, port, category)
     return result
 
 
@@ -507,7 +418,7 @@ def cleanup_output(
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("query_descriptors_batch")
+@ipc_tool("query_descriptors_batch")
 def query_descriptors_batch(
     entity_type: str,
     searches: list[str],
@@ -530,7 +441,7 @@ def query_descriptors_batch(
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-@v2_tool("validate_providers_batch")
+@ipc_tool("validate_providers_batch")
 def validate_providers_batch(
     requirements: list[dict[str, str]],
     timeout_sec: int | None = None,
@@ -540,6 +451,4 @@ def validate_providers_batch(
 
 
 if __name__ == "__main__":
-    os.environ[LCA_CONTROL_OPENLCA_MCP] = "1"
-    bind_context_argv()
     mcp.run()

@@ -21,6 +21,7 @@ class ToolRuntimeSpec:
     context_file: bool = False
     context_file_flag: str = CONTEXT_FILE_FLAG_DEFAULT
     env_prefix: str | None = None
+    use_host_python: bool = False
 
 
 def write_json_atomic(path: Path, payload: Any) -> None:
@@ -107,7 +108,11 @@ def apply_tool_runtime(
     uv_cache_dir: str,
     context_path: Path | None,
 ) -> None:
-    merged: dict[str, Any] = {**server.get("env", {}), "UV_CACHE_DIR": uv_cache_dir}
+    if runtime is None:
+        return
+    merged: dict[str, Any] = dict(server.get("env", {}))
+    if runtime.use_host_python:
+        merged["UV_CACHE_DIR"] = uv_cache_dir
     if runtime and runtime.run_context_env:
         merged.update(run_context_env(ctx, runtime))
     if runtime and runtime.context_file and context_path is not None:

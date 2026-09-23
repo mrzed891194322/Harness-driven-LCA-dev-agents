@@ -9,8 +9,8 @@ from pathlib import Path
 
 import yaml
 
-from harness.tools.lca_artifacts import checks as lca_checks
-from harness.tools.lca_artifacts.store import Context
+from scripts.workflows.domains.lca.artifacts import checks as lca_checks
+from scripts.workflows.domains.lca.artifacts.store import Context
 from scripts.workflows.domains.lca.bootstrap import lca_capabilities
 from scripts.workflows.domains.lca.knowledge import enrich_local_files
 from scripts.workflows.orchestrator.load.bundle import KnowledgeBinding, TaskBundle

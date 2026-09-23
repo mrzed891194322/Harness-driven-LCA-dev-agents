@@ -1,21 +1,7 @@
 # 03 背景映射与 LCI（执行）
 
-按本阶段共有契约写出 mapping 与可导入 LCI。审查通过前禁止 `import_lci`。
+按共有契约完成完整 mapping、全部必做情景的 LCI，以及可复算的换算和适配说明。背景匹配遵守映射规则；区分正式查询到的背景实体与本次创建的前景实体。
 
-## 需要解决的问题
+定稿后做正式 Provider–Flow 验证，保留查询与验证引用；不执行导入。返工修复指出的问题及关联实体、目标量和文字说明，再提交完整产物，避免只改 JSON 或只改说明。
 
-- 首次调用 openLCA 前做 `health_check`。名称与 UUID 必须用正式工具查询，禁止编造。
-- 不得用错误功能冒充（再生粒料不得代替原生，除非计划要求）。
-- 精确地域无候选时自行选区域市场或 `RoW`/`GLO`，记下请求值、选用值和理由。
-- 可留档的匹配自行选择并写入 mapping。
-- 写出 `process-mapping.json` 与 `workspace/outputs/LCI/`（含 `human_readable_mapping.md`），JSON-LD 字段以共有契约为准。
-
-## 返工方式
-
-在原执行会话中根据审查意见返工：只改指出的映射行或 LCI 实体，重新提交完整产物与修改说明。不要在本阶段导入。最新落盘文件才是本轮交付。
-
-## 提交
-
-handoff：`role=executor`，`status` 为 `ok` / `failed` / `blocked`，`artifacts` 列出 mapping 与 LCI 路径。
-
-确定性检查由主编排在本轮 handoff 后执行。可选用 `get_validation_state("mapping")` / `validate_artifacts("mapping")` 做提前反馈，不是提交 `ok` 的前提。只引用工具生成的检查，不自报权威校验计数。
+本轮最后一动作为交卷：优先 `submit_handoff`，或写入运行上下文 `handoff_path` 的 JSON。提交 `role=executor` 的 handoff，artifacts 列出 mapping 与 LCI（含 human_readable_mapping.md）。无法解决的关键数据或工具缺口明确失败，不以无依据代理补齐。

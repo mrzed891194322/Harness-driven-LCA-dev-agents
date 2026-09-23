@@ -14,10 +14,11 @@ if str(INIT_DIR) not in sys.path:
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from utils.encoding import setup_io_encoding
 
-from harness.tools.control_openlca.utils.service import health
+from scripts.workflows.domains.lca.service import health
 
 
 def get_openlca_health(

@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from ..mcp import tool_entry_to_mcp
 from ..session import SessionConfig, SessionRef, SessionResumeError
 
 
@@ -67,18 +68,4 @@ def write_ref(storage_dir: Path, ref: SessionRef) -> None:
 
 
 def write_stdio_mcp_snippet(mcp_servers: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    servers = {}
-    for name, spec in mcp_servers.items():
-        entry: dict[str, Any] = {}
-        transport = spec.get("transport") or "stdio"
-        if transport in {"stdio", "local"}:
-            entry["command"] = spec.get("command")
-            entry["args"] = list(spec.get("args") or [])
-            if spec.get("env"):
-                entry["env"] = dict(spec["env"])
-        else:
-            entry["url"] = spec.get("url")
-            if spec.get("headers"):
-                entry["headers"] = dict(spec["headers"])
-        servers[name] = entry
-    return servers
+    return {name: tool_entry_to_mcp(name, spec) for name, spec in mcp_servers.items()}

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from ...archive import resolve_mcp_render_dir
-from ...openlca_mcp_timeout import mcp_tool_timeout_sec
 from ...permissions import CODEX_SANDBOX
 from ...progress import LineFormatter
 from ...session import SessionConfig, SessionRef, SessionResumeError
@@ -74,10 +74,11 @@ def mcp_overrides(mcp_servers: dict[str, dict[str, Any]]) -> tuple[str, ...]:
     snippet = write_stdio_mcp_snippet(mcp_servers)
     rows: list[str] = []
     for name, spec in snippet.items():
-        rows.append(f"mcp_servers.{name}.tool_timeout_sec={mcp_tool_timeout_sec()}")
+        name = name if re.fullmatch(r"[A-Za-z0-9_-]+", name) else json.dumps(name)
+        rows.append(f"mcp_servers.{name}.tool_timeout_sec={spec['tool_timeout_sec']}")
         rows.append(f"mcp_servers.{name}.startup_timeout_sec=30")
         if spec.get("command"):
-            rows.append(f"mcp_servers.{name}.command={spec['command']}")
+            rows.append(f"mcp_servers.{name}.command={json.dumps(spec['command'])}")
         args = spec.get("args") or []
         if args:
             rendered = ", ".join(json.dumps(item) for item in args)

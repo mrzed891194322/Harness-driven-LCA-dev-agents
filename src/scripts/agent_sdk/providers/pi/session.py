@@ -6,7 +6,6 @@ from typing import Any
 
 from ...archive import resolve_mcp_render_dir
 from ...catalog import split_pi_model_ref
-from ...openlca_mcp_timeout import mcp_tool_timeout_sec
 from ...permissions import pi_tools_flag
 from ...progress import LineFormatter
 from ...session import SessionConfig, SessionRef, SessionResumeError
@@ -114,7 +113,7 @@ def write_pi_mcp(path: Path, mcp_servers: dict[str, dict[str, Any]]) -> None:
         }
         if spec.get("env"):
             entry["env"] = dict(spec["env"])
-        entry["timeout"] = mcp_tool_timeout_sec() * 1000
+        entry["timeout"] = spec["tool_timeout_sec"] * 1000
         servers[name] = entry
     if servers:
         path.write_text(

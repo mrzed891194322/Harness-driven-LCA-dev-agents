@@ -10,6 +10,9 @@ registry:
     paths: harness/rules/project/paths.md
     lca_method: harness/rules/lca/method.md
     knowledge_files: harness/rules/lca/knowledge-files.md
+    lca_inventory: harness/rules/lca/inventory.md
+    lca_mapping: harness/rules/lca/mapping.md
+    lca_interpretation: harness/rules/lca/interpretation.md
     artifact_usage: harness/rules/tools/lca_artifacts.md
     openlca_usage: harness/rules/tools/control_openlca.md
     reviewer_readonly: harness/rules/project/reviewer-readonly.md
@@ -17,18 +20,21 @@ registry:
     lca_artifacts:
       transport: stdio
       command: uv
-      args: [run, python, harness/tools/lca_artifacts/main.py]
+      args: [run, python, src/scripts/workflows/domains/lca/artifacts/main.py]
       rules: [artifact_usage]
       runtime:
+        use_host_python: true
         run_context_env: true
         context_file: true
         env_prefix: LCA
     control_openlca:
       transport: stdio
       command: uv
-      args: [run, python, harness/tools/control_openlca/main.py]
+      args: [run, python, src/scripts/workflows/domains/lca/openlca_mcp.py]
+      tool_timeout_sec: 7320
       rules: [openlca_usage]
       runtime:
+        use_host_python: true
         run_context_env: true
         context_file: true
         env_prefix: LCA
@@ -39,7 +45,7 @@ registry:
       provider: local_files
 
 defaults:
-  rules: [workspace_boundary, runtime, paths]
+  rules: [workspace_boundary, runtime, paths, lca_method, knowledge_files]
   knowledge: [workspace_knowledge]
 
 stages:
@@ -53,6 +59,8 @@ stages:
   - id: 02-inventory-extraction
     spec: harness/specs/02-inventory-extraction/README.md
     max_attempts: 3
+    rules:
+      add: [lca_inventory]
     context:
       lca:
         phase: inventory
@@ -67,6 +75,8 @@ stages:
   - id: 03-dataset-mapping
     spec: harness/specs/03-dataset-mapping/README.md
     max_attempts: 3
+    rules:
+      add: [lca_inventory, lca_mapping]
     context:
       lca:
         phase: mapping
@@ -84,6 +94,8 @@ stages:
   - id: 04-openlca-reporting
     spec: harness/specs/04-openlca-reporting/README.md
     max_attempts: 3
+    rules:
+      add: [lca_interpretation]
     context:
       lca:
         phase: report
@@ -101,40 +113,34 @@ assignments:
     task_spec: harness/specs/01-intake-gate/reviewer.md
     tools: []
     rules:
-      add: [lca_method, knowledge_files, reviewer_readonly]
+      add: [reviewer_readonly]
   02-inventory-extraction.executor:
     role: executor
     task_spec: harness/specs/02-inventory-extraction/executor.md
     tools: [lca_artifacts]
-    rules:
-      add: [lca_method, knowledge_files]
   02-inventory-extraction.reviewer:
     role: reviewer
     task_spec: harness/specs/02-inventory-extraction/reviewer.md
     tools: [lca_artifacts]
     rules:
-      add: [lca_method, knowledge_files, reviewer_readonly]
+      add: [reviewer_readonly]
   03-dataset-mapping.executor:
     role: executor
     task_spec: harness/specs/03-dataset-mapping/executor.md
     tools: [control_openlca, lca_artifacts]
-    rules:
-      add: [lca_method, knowledge_files]
   03-dataset-mapping.reviewer:
     role: reviewer
     task_spec: harness/specs/03-dataset-mapping/reviewer.md
     tools: [control_openlca, lca_artifacts]
     rules:
-      add: [lca_method, knowledge_files, reviewer_readonly]
+      add: [reviewer_readonly]
   04-openlca-reporting.executor:
     role: executor
     task_spec: harness/specs/04-openlca-reporting/executor.md
     tools: [control_openlca, lca_artifacts]
-    rules:
-      add: [lca_method, knowledge_files]
   04-openlca-reporting.reviewer:
     role: reviewer
     task_spec: harness/specs/04-openlca-reporting/reviewer.md
     tools: [control_openlca, lca_artifacts]
     rules:
-      add: [lca_method, knowledge_files, reviewer_readonly]
+      add: [reviewer_readonly]

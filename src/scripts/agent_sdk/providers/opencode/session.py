@@ -5,17 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from ...archive import resolve_mcp_render_dir
-from ...openlca_mcp_timeout import mcp_tool_timeout_sec
 from ...permissions import opencode_permission_config
 from ...progress import LineFormatter
 from ...session import SessionConfig, SessionRef, SessionResumeError
 from ..cli_base import CliRunResult, CliSessionProvider
 from ..store import write_stdio_mcp_snippet
 from .jsonl import OpenCodeJsonlFormatter
-
-
-def _mcp_timeout_ms() -> int:
-    return mcp_tool_timeout_sec() * 1000
 
 
 class OpenCodeSessionProvider(CliSessionProvider):
@@ -122,7 +117,7 @@ def write_opencode_mcp(
             "type": "local",
             "command": argv,
             "enabled": True,
-            "timeout": _mcp_timeout_ms(),
+            "timeout": spec["tool_timeout_sec"] * 1000,
         }
         if spec.get("env"):
             entry["environment"] = dict(spec["env"])

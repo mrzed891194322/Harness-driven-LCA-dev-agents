@@ -57,7 +57,7 @@ class GenericRuntimeTests(unittest.TestCase):
             self.assertEqual(bundle.checks[0].checker_id, "test.ping")
 
     def test_renamed_stage_runs_lca_inventory_checker(self) -> None:
-        from harness.tools.lca_artifacts import checks as lca_checks
+        from scripts.workflows.domains.lca.artifacts import checks as lca_checks
 
         caps = lca_capabilities()
         with tempfile.TemporaryDirectory() as temp_dir:

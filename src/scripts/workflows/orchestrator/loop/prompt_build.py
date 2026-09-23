@@ -47,14 +47,15 @@ def build_prompt(
         [
             "",
             "# 本轮提交",
-            "完成本轮后写入 handoff JSON：",
-            str(run_context.get("handoff_path") or ""),
+            "完成本轮的最后一动作为交卷（无 handoff 文件等于未交卷，主编排会协议返工）：",
+            "- 优先调用 lca_artifacts 的 submit_handoff（路径由主机决定）；或",
+            f"- 将 handoff JSON 写入与下列路径完全一致的位置：{run_context.get('handoff_path') or ''}",
             "字段：schema_version=1, role, stage, attempt, status, status_reason, fix_instructions, artifacts。",
-            "写者 ok 的充分条件是本轮产物已落盘且 status_reason 非空；不必自己先跑 validate_artifacts，主编排会在 handoff 后做确定性检查。",
+            "路径必须与运行上下文 handoff_path 完全一致；failed/blocked 也必须写入 handoff 并给出非空 status_reason。",
+            "写者完成本阶段任务且产物已落盘后才提交 ok 和非空 status_reason；主编排随后执行配置的确定性检查，文件存在本身不证明任务完成。",
             "checks_ref、evidence_manifest_ref 若写入则必须是路径字符串，取工具返回的 .path，不要把 {path, sha256, size_bytes} 整段写入。",
-            "rework_scope: none/report_only/calculation_changed/model_changed。校验状态由工具生成。",
             "executor / reviser status: ok / failed / blocked；reviewer status: passed / failed。",
-            "若运行上下文的 fix_instructions 是 handoff 契约错误：只改写当前 handoff JSON，不要当成审查意见去改 BOM 或其他产物。",
+            "若运行上下文的 fix_instructions 是 handoff 契约错误：只改写当前 handoff JSON，不要当成审查意见去改产物。",
             "不要推进阶段、不要维护会话映射、不要改检查点或 manifest。",
         ]
     )

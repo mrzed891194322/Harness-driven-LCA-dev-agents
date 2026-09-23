@@ -1,25 +1,13 @@
-# 固定路径
+# 产物位置
 
-```text
-workspace/
-├── inputs/                 # plan.md、可选 revise.md
-├── memory/                 # manifest.json、handoffs/、reviews/、logs/、检查点
-├── outputs/
-│   ├── inventory/          # extracted-bom.json/.md、process-mapping.json
-│   ├── LCI/                # Flows/Processes/Product Systems 与 mapping 报告
-│   └── reports/            # MCP 原始返回与 lca_report.md
-└── tmp/                    # mcp-context、mcp-render、sdk-sessions；严禁在此存放一次性脚本
-```
+| 路径 | 用途与约束 |
+| --- | --- |
+| `workspace/inputs/` | 只读的 `plan.md`、可选 `revise.md`；不是默认证据检索域 |
+| 运行上下文的 `source_manifest` | 资料定位的依据；`harness/knowledge/` 只是默认配置的用户资料目录 |
+| `workspace/outputs/inventory/` | `extracted-bom.json`、`extracted-bom.md`、`process-mapping.json`；GUI 读取两份 JSON |
+| `workspace/outputs/LCI/` | `flows/`、`processes/`、`product_systems/` 中一文件一 JSON-LD 实体；根目录保存 `human_readable_mapping.md` |
+| `workspace/outputs/reports/` | `calculation-plan.json`、`lca_report.md`；raw 使用工具返回的实际路径，不自行搬运或覆盖 |
+| `workspace/memory/` | 当前 handoff 与编排器/工具维护的状态、审查记录和证据；具体写权限按角色和公共协议 |
+| `workspace/tmp/` | 临时离线脚本、复核结果及运行时中间文件；可被外部清理，不能作为唯一证据 |
 
-仓库根另有 `.uv-cache/`（`UV_CACHE_DIR` 默认值，不进 workspace，不被 clean_dir 清理）。
-
-## 约束
-
-- **`workspace/inputs/`**：仅 `plan.md` 与可选 `revise.md`。不得放置参考资料，也不建 `references/` 子树。默认用户知识只在 `harness/knowledge/`。
-- **`harness/knowledge/`**：用户参考资料的默认落点，扁平目录。
-- **`workspace/outputs/inventory/`**：BOM 与工艺映射。GUI「工作细节」渲染 `extracted-bom.json` 与 `process-mapping.json`。不要把这些 JSON 放进 `outputs/LCI/`（导入工具只认 JSON-LD 实体目录）。
-- **`workspace/outputs/LCI/`**：仅在 `flows/`、`processes/`、`product_systems/` 中保存一文件一实体的 openLCA JSON-LD，并在根目录保存 `human_readable_mapping.md`。
-- **`workspace/memory/`**：`manifest.json`、handoff、审查笔记，可选 `checklist.md`。编排器检查点（SQLite）也在此目录。`memory/logs/<run_id>/` 保存进度镜像与 worker turn 排障快照。不要在记忆中记录 SHA-256。revise-lca 直接读取并覆盖上一轮 `workspace/outputs/`，不另建 `baseline/` 快照。
-- **`workspace/tmp/`**：`mcp-context/`、`mcp-render/`（各 CLI 实际读取的 MCP 中间格式）、`sdk-sessions/`。可被 clean_dir 清空。
-- **`workspace/outputs/reports/`**：MCP 原始返回和最终报告，不再创建运行 ID 子目录。
-- 旧运行产物由外部流程在开始前清理；工作流自身不负责删除。恢复已有 run 时不要做新运行清理。
+revise-lca 提交完整的新版本到既有 outputs 位置；不另建 baseline 副本。BOM/mapping JSON 不放入 LCI 实体目录。路径相对 workspace 还是项目根以相应接口说明为准，不凭猜测拼接 raw 路径。

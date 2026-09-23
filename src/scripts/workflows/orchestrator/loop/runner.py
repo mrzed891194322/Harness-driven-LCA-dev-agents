@@ -288,6 +288,14 @@ class OrchestratorRuntime:
             }
         sessions[key] = ref.to_dict()
         print_orchestrator(f"worker turn done session={ref.session_id}")
+        handoff_file = handoff_path(
+            self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
+        )
+        if not handoff_file.is_file():
+            print_orchestrator(
+                f"worker turn ended without handoff file: {handoff_file} "
+                "(advance will protocol-rework if still missing)"
+            )
         return {
             "sessions": sessions,
             "prompt": "",
@@ -306,6 +314,8 @@ class OrchestratorRuntime:
             handoff = read_handoff(
                 path, role=assignment.role, stage=stage.stage_id, attempt=attempt
             )
+            for validate in self.capabilities.handoff_validators:
+                validate(self._run_context(state, stage, assignment), handoff)
         except Exception as exc:
             return self._rework_invalid_handoff(state, stage, assignment, path, exc)
 
@@ -529,13 +539,20 @@ class OrchestratorRuntime:
         path: Path,
         exc: Exception,
     ) -> dict[str, Any]:
-        reason = f"handoff 无效：{exc}"
         repairs = _state_int(state, "protocol_repairs", 0)
+        detail = str(exc)
         if repairs >= PROTOCOL_REPAIR_LIMIT:
+            reason = (
+                f"handoff 无效：{assignment.assignment_id} 在 "
+                f"{PROTOCOL_REPAIR_LIMIT} 次协议返工后仍无法提交合法 handoff：{detail}"
+            )
             print_orchestrator(reason)
             return {"status": "failed", "status_reason": reason}
+        attempt_no = repairs + 1
+        reason = f"handoff 无效（{assignment.assignment_id}）：{detail}"
         print_orchestrator(
-            f"protocol rework {assignment.assignment_id} repair={repairs + 1}: {reason}"
+            f"protocol rework {assignment.assignment_id} "
+            f"repair={attempt_no}/{PROTOCOL_REPAIR_LIMIT}: {reason}"
         )
         return {
             "protocol_repairs": repairs + 1,
@@ -545,6 +562,10 @@ class OrchestratorRuntime:
                 "也不要当成审查意见去改 BOM 或其他产物。"
             ),
             "status": "running",
+            "status_reason": (
+                f"协议返工 handoff（{attempt_no}/{PROTOCOL_REPAIR_LIMIT}）："
+                f"{assignment.assignment_id}"
+            ),
         }
 
     def _retry_or_fail(
