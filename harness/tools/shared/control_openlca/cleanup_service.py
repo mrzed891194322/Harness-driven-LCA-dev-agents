@@ -8,10 +8,10 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from harness.tools.mcp.control_openlca.health_service import (
+from harness.tools.shared.control_openlca.health_service import (
     cleanup as run_cleanup_output,
 )
-from harness.tools.mcp.control_openlca.health_service import health as health_check
+from harness.tools.shared.control_openlca.health_service import health as health_check
 
 PROJECT_ROOT = next(
     parent

@@ -18,8 +18,13 @@ for _stream in (sys.stdout, sys.stderr):
         except Exception:
             pass
 
-# 将 scripts 目录加入 sys.path 以使用公共的 utils
-sys.path.append(str(Path(__file__).parent.parent))
+PROJECT_ROOT = next(
+    parent
+    for parent in Path(__file__).resolve().parents
+    if (parent / "pyproject.toml").is_file()
+)
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 # 将当前脚本目录加入 sys.path 以使用私有的 private_utils
 sys.path.append(str(Path(__file__).parent))
 
@@ -34,11 +39,11 @@ except ImportError:
 from private_utils.cli import add_arguments
 from private_utils.importer import import_json_files
 
-from utils.connection import connect_ipc
+from harness.tools.shared.control_openlca.connection import connect_ipc
 
 
 def main():
-    from utils.encoding import setup_io_encoding
+    from harness.tools.shared.control_openlca.encoding import setup_io_encoding
 
     setup_io_encoding()
 

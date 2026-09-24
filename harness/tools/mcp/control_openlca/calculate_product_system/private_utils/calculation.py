@@ -1,6 +1,9 @@
 import sys
 
-from utils.workflow import build_calculation_setup, calculate_handle
+from harness.tools.shared.control_openlca.workflow import (
+    build_calculation_setup,
+    calculate_handle,
+)
 
 
 def run_calculation(

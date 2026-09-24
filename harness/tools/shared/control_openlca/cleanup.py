@@ -6,12 +6,12 @@ from typing import Any
 
 import olca_schema
 
-from harness.tools.mcp.control_openlca.utils.connection import (
+from harness.tools.shared.control_openlca.connection import (
     close_ipc_client,
     create_ipc_client,
     is_transport_error,
 )
-from harness.tools.mcp.control_openlca.utils.protocols import (
+from harness.tools.shared.control_openlca.protocols import (
     OlcaDescriptor,
     OpenLcaClient,
 )

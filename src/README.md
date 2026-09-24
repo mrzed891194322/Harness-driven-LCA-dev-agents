@@ -23,7 +23,7 @@ scripts / gui
 | 路径 | 职责 |
 | --- | --- |
 | [`core/workflow/`](core/workflow/) | YAML 装配、stage spec 解析、执行循环、checkpoint |
-| [`core/runtime/`](core/runtime/) | 知识注入、宿主 MCP（`mcp_host`）、上下文 |
+| [`core/runtime/`](core/runtime/) | 知识注入、Host Action、上下文 |
 | [`core/agents/`](core/agents/) | worker 会话 |
 | [`app_settings.py`](app_settings.py) / [`diagnostics.py`](diagnostics.py) / [`workspace_clean.py`](workspace_clean.py) | 应用级设置与清理 |
 | [`gui/`](gui/) / [`scripts/`](scripts/) / [`tests/`](tests/) | GUI、薄 CLI、回归 |

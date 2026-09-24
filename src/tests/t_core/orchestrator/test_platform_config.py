@@ -109,7 +109,7 @@ class WorkflowYamlTests(unittest.TestCase):
         reviewer = workflow.assignments["03-dataset-mapping.reviewer"]
         self.assertEqual(reviser.role, "reviser")
         self.assertIn(
-            "control_openlca", workflow.bundles[reviser.assignment_id].tool_ids
+            "control_openlca", workflow.bundles[reviser.assignment_id].mcp_tool_ids
         )
         self.assertIn("lca_method", assignment_rule_ids(workflow, reviser))
         self.assertIn("lca_method", assignment_rule_ids(workflow, reviewer))
@@ -237,7 +237,7 @@ class WorkflowYamlTests(unittest.TestCase):
             review_prompt,
         )
         self.assertIn(
-            "control_openlca", workflow.bundles[executor.assignment_id].tool_ids
+            "control_openlca", workflow.bundles[executor.assignment_id].mcp_tool_ids
         )
         self.assertIn("reviewer_readonly", assignment_rule_ids(workflow, reviewer))
         self.assertNotIn("reviewer_readonly", assignment_rule_ids(workflow, executor))
@@ -312,7 +312,7 @@ class WorkflowYamlTests(unittest.TestCase):
                 / f"{executor.assignment_id}#2",
             )
         self.assertEqual(
-            config.tool_ids, list(workflow.bundles[executor.assignment_id].tool_ids)
+            config.tool_ids, list(workflow.bundles[executor.assignment_id].mcp_tool_ids)
         )
         self.assertIn("control_openlca", config.tool_ids)
         self.assertIn("openlca_usage", config.rule_ids)
@@ -448,7 +448,7 @@ class PlatformAdapterTests(unittest.TestCase):
             project_root=PROJECT_ROOT,
             capabilities=base_capabilities(),
         )
-        tool = workflow.tools["control_openlca"]
+        tool = workflow.mcp_tools["control_openlca"]
         self.assertEqual(tool.command, "uv")
         self.assertEqual(
             tool.args[-1], "harness/tools/mcp/control_openlca/workflow_mcp.py"

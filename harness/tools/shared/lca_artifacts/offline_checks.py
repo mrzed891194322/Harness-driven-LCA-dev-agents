@@ -6,7 +6,7 @@ import json
 import math
 from pathlib import Path
 
-from harness.tools.mcp.control_openlca.utils.workflow import validate_lci_directory
+from harness.tools.shared.control_openlca.workflow import validate_lci_directory
 
 
 def read_items(path: Path) -> list[dict]:

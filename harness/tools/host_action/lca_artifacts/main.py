@@ -33,15 +33,19 @@ COMMANDS = {
 
 
 def _ok(summary: str, **extra: Any) -> dict[str, Any]:
-    return {
+    payload = {
         "schema_version": 1,
         "ok": True,
         "status": "passed",
         "summary": summary,
         "errors": [],
         "warnings": [],
-        **extra,
+        "details": {},
     }
+    payload.update(extra)
+    if not isinstance(payload.get("details"), dict):
+        payload["details"] = {}
+    return payload
 
 
 def _fail(summary: str, errors: list[str] | None = None) -> dict[str, Any]:
@@ -53,6 +57,7 @@ def _fail(summary: str, errors: list[str] | None = None) -> dict[str, Any]:
         "summary": summary,
         "errors": errs,
         "warnings": [],
+        "details": {},
     }
 
 

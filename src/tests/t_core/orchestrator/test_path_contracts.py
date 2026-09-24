@@ -146,6 +146,49 @@ class PathContractTests(unittest.TestCase):
             self.assertEqual(update["status"], "failed")
             self.assertIn("输入契约", update["status_reason"])
 
+    def test_input_symlink_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            outside = root / "outside.txt"
+            outside.write_text("secret", encoding="utf-8")
+            link = workspace / "inputs" / "plan.md"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(outside)
+            spec = StageSpec(
+                version=1,
+                spec_id="s",
+                source_path="x",
+                inputs=[PathContract(path="workspace/inputs/plan.md", required=True)],
+            )
+            errors = validate_inputs(spec, workspace_root=workspace, project_root=root)
+            self.assertTrue(any("escapes workspace" in e for e in errors), errors)
+
+    def test_output_symlink_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            outside = root / "leak.json"
+            outside.write_text("{}", encoding="utf-8")
+            link = workspace / "out.json"
+            link.symlink_to(outside)
+            spec = StageSpec(
+                version=1,
+                spec_id="s",
+                source_path="x",
+                outputs=[
+                    PathContract(
+                        path="workspace/out.json",
+                        required=True,
+                        format="json",
+                    )
+                ],
+            )
+            errors = validate_outputs(spec, workspace_root=workspace, project_root=root)
+            self.assertTrue(any("escapes workspace" in e for e in errors), errors)
+
 
 if __name__ == "__main__":
     unittest.main()

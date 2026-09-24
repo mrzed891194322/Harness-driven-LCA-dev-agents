@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 
-from utils.workflow import model_graph_from_product_system
+from harness.tools.shared.control_openlca.workflow import (
+    model_graph_from_product_system,
+)
 
 
 def print_model_graph(product_system, output_path: str | None = None):

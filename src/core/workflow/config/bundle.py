@@ -50,11 +50,6 @@ class TaskBundle:
     on_reviewer_passed: list[HostActionRef] = field(default_factory=list)
     context: dict[str, object] = field(default_factory=dict)
 
-    @property
-    def tool_ids(self) -> list[str]:
-        """Alias for Agent MCP tool ids."""
-        return self.mcp_tool_ids
-
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload.pop("stage_spec", None)

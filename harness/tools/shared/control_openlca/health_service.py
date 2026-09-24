@@ -3,10 +3,10 @@
 from collections.abc import Callable
 from typing import Any
 
-from harness.tools.mcp.control_openlca.utils.cleanup import run_cleanup_output
-from harness.tools.mcp.control_openlca.utils.guard import serialized_ipc
-from harness.tools.mcp.control_openlca.utils.operations import reconcile_cleanup
-from harness.tools.mcp.control_openlca.utils.readonly import health_check
+from harness.tools.shared.control_openlca.cleanup import run_cleanup_output
+from harness.tools.shared.control_openlca.guard import serialized_ipc
+from harness.tools.shared.control_openlca.operations import reconcile_cleanup
+from harness.tools.shared.control_openlca.readonly import health_check
 from harness.tools.shared.lca_artifacts.store import Context, invoke
 
 

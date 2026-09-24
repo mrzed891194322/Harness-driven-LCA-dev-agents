@@ -27,10 +27,15 @@ def validate_path_contracts(
     - missing + required → error
     - missing + optional → ok
     - present → always validate kind/format/schema (required or optional)
+    - resolved path must stay inside workspace (symlink escape → error)
     """
     errors: list[str] = []
     for item in items:
-        target = _resolve_workspace_path(workspace_root, item.path)
+        try:
+            target = _resolve_workspace_path(workspace_root, item.path)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
         exists = target.exists()
         if not exists:
             if item.required:
@@ -137,8 +142,12 @@ def _schema_errors(schema_path: Path, payload: Any, label: str) -> list[str]:
 
 
 def _resolve_workspace_path(workspace_root: Path, declared: str) -> Path:
+    """Join declared path under workspace and resolve; reject symlink escapes."""
     text = declared.replace("\\", "/")
     prefix = "workspace/"
-    if text.startswith(prefix):
-        return workspace_root / text[len(prefix) :]
-    return workspace_root / text
+    relative = text[len(prefix) :] if text.startswith(prefix) else text
+    root = workspace_root.resolve()
+    candidate = (root / relative).resolve()
+    if candidate != root and root not in candidate.parents:
+        raise ValueError(f"path escapes workspace: {declared}")
+    return candidate

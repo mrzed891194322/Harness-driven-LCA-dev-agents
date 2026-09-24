@@ -2,8 +2,13 @@ import argparse
 import sys
 from pathlib import Path
 
-# 将 scripts 目录加入 sys.path 以使用公共的 utils
-sys.path.append(str(Path(__file__).parent.parent))
+PROJECT_ROOT = next(
+    parent
+    for parent in Path(__file__).resolve().parents
+    if (parent / "pyproject.toml").is_file()
+)
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 # 将当前脚本目录加入 sys.path 以使用私有的 private_utils
 sys.path.append(str(Path(__file__).parent))
 
@@ -18,12 +23,12 @@ except ImportError:
 from private_utils.cli import add_arguments
 from private_utils.graph_reader import print_model_graph
 
-from utils.connection import connect_ipc
-from utils.entity import find_entity
+from harness.tools.shared.control_openlca.connection import connect_ipc
+from harness.tools.shared.control_openlca.entity import find_entity
 
 
 def main():
-    from utils.encoding import setup_io_encoding
+    from harness.tools.shared.control_openlca.encoding import setup_io_encoding
 
     setup_io_encoding()
 

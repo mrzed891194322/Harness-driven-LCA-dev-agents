@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 
 from mcp_types import ToolAnnotations
 
-from harness.tools.mcp.control_openlca.utils.workflow import sha256_file
+from harness.tools.shared.control_openlca.workflow import sha256_file
 from harness.tools.shared.lca_artifacts import (
     offline_checks as checks,
 )

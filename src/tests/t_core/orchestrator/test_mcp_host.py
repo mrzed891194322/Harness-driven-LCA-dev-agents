@@ -10,12 +10,12 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from core.runtime.context import RunContext
-from core.runtime.mcp_host import invoke_tool, normalize_check_result
-from core.workflow.config.models import ToolSpec
+from core.workflow.config.models import McpToolSpec
+from tests.support.mcp_stdio import invoke_tool, normalize_check_result
 
 
-def _tool(*, script: Path, timeout_sec: int = 30) -> ToolSpec:
-    return ToolSpec(
+def _tool(*, script: Path, timeout_sec: int = 30) -> McpToolSpec:
+    return McpToolSpec(
         tool_id="probe",
         transport="stdio",
         command=sys.executable,
@@ -93,7 +93,7 @@ class McpHostFailClosedTests(unittest.TestCase):
                 captured["timeout_sec"] = float(kwargs["timeout_sec"])
                 return {"ok": True, "status": "passed", "summary": "ok"}
 
-            with patch("core.runtime.mcp_host._stdio_call", side_effect=fake_stdio):
+            with patch("tests.support.mcp_stdio._stdio_call", side_effect=fake_stdio):
                 result = invoke_tool(
                     _tool(script=script, timeout_sec=240),
                     "validate",

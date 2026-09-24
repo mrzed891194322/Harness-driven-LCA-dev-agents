@@ -8,7 +8,7 @@ import json
 from contextvars import ContextVar
 from pathlib import Path
 
-from harness.tools.mcp.control_openlca.utils.workflow import sha256_file as _hash_file
+from harness.tools.shared.control_openlca.workflow import sha256_file as _hash_file
 
 _reads: ContextVar[dict | None] = ContextVar("lca_check_reads", default=None)
 

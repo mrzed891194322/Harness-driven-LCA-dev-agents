@@ -11,7 +11,7 @@ import olca_schema as s
 import pytest
 import requests
 
-from harness.tools.mcp.control_openlca.utils import guard, operations, readonly
+from harness.tools.shared.control_openlca import guard, operations, readonly
 from harness.tools.shared.lca_artifacts import checks, report
 from harness.tools.shared.lca_artifacts import offline_report as artifact_report
 from harness.tools.shared.lca_artifacts.store import (
@@ -340,7 +340,7 @@ def test_report_only_reuses_without_ipc_and_checks_tampering(context):
         path.read_text().replace("中文报告", "修改后的中文说明"), encoding="utf-8"
     )
     with patch(
-        "harness.tools.mcp.control_openlca.utils.connection.create_ipc_client",
+        "harness.tools.shared.control_openlca.connection.create_ipc_client",
         side_effect=AssertionError("no IPC"),
     ):
         assert checks.validation_state(retry, "report")["status"] == "stale"
@@ -465,7 +465,7 @@ def test_calculation_change_and_raw_corruption(context):
 
 
 def test_ignored_source_manifest_and_inventory_dependency_scope(context):
-    from harness.tools.mcp.control_openlca.utils.workflow import sha256_file
+    from harness.tools.shared.control_openlca.workflow import sha256_file
     from harness.tools.shared.lca_artifacts.store import discover_sources
 
     source = context.project / "harness" / "knowledge" / "ignored.md"
@@ -644,7 +644,7 @@ def test_request_deadline_reserves_disposal(context):
 
 
 def test_entity_transport_error_never_triggers_fallback_scan(context):
-    from harness.tools.mcp.control_openlca.utils.entity import find_entity
+    from harness.tools.shared.control_openlca.entity import find_entity
 
     client = FakeClient(error=requests.Timeout("timed out"))
     with patch.object(client, "get_descriptors", wraps=client.get_descriptors) as scan:
@@ -656,7 +656,7 @@ def test_entity_transport_error_never_triggers_fallback_scan(context):
 def test_rpc_failure_is_not_an_empty_descriptor_list(context):
     import olca_ipc
 
-    from harness.tools.mcp.control_openlca.utils.connection import (
+    from harness.tools.shared.control_openlca.connection import (
         BoundedIPCClient,
         OpenLCARequestError,
         long_read_sec,
@@ -701,7 +701,7 @@ def test_mcp_channel_gate_rejects_without_env(monkeypatch):
 
 
 def test_resolve_ipc_tool_timeout_sec_clamps(monkeypatch):
-    from harness.tools.mcp.control_openlca.utils.connection import (
+    from harness.tools.shared.control_openlca.connection import (
         IPC_TOOL_TIMEOUT_MAX_SEC,
         IPC_TOOL_TIMEOUT_MIN_SEC,
         long_read_sec,
@@ -718,7 +718,7 @@ def test_resolve_ipc_tool_timeout_sec_clamps(monkeypatch):
 
 def test_long_tool_reports_applied_timeout_sec(context, monkeypatch):
     import harness.tools.mcp.control_openlca.workflow_mcp as main
-    from harness.tools.mcp.control_openlca.utils import guard
+    from harness.tools.shared.control_openlca import guard
 
     monkeypatch.setenv("LCA_RUN_ID", context.run_id)
     monkeypatch.setenv("LCA_WORKSPACE", str(context.workspace))
@@ -739,7 +739,7 @@ def test_long_tool_reports_applied_timeout_sec(context, monkeypatch):
 
 def test_session_request_timeout_follows_remaining_budget(tmp_path, monkeypatch):
     monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
-    from harness.tools.mcp.control_openlca.utils.connection import (
+    from harness.tools.shared.control_openlca.connection import (
         LONG_REQUEST_TIMEOUT,
         session_request_timeout,
     )
@@ -754,14 +754,14 @@ def test_session_request_timeout_follows_remaining_budget(tmp_path, monkeypatch)
 
 def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
     monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
-    from harness.tools.mcp.control_openlca.utils.connection import (
+    from harness.tools.shared.control_openlca.connection import (
         LONG_REQUEST_TIMEOUT,
         create_ipc_client,
     )
 
     dummy = FakeClient()
     with patch(
-        "harness.tools.mcp.control_openlca.utils.connection.BoundedIPCClient",
+        "harness.tools.shared.control_openlca.connection.BoundedIPCClient",
         return_value=dummy,
     ) as factory:
         create_ipc_client("localhost", 8080)
@@ -772,7 +772,7 @@ def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
 
     with guard.endpoint_guard("localhost", 8080, budget_sec=3600):
         with patch(
-            "harness.tools.mcp.control_openlca.utils.connection.BoundedIPCClient",
+            "harness.tools.shared.control_openlca.connection.BoundedIPCClient",
             return_value=dummy,
         ) as factory:
             create_ipc_client("localhost", 8080)
@@ -783,7 +783,7 @@ def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
 
 def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):
     import harness.tools.mcp.control_openlca.workflow_mcp as main
-    from harness.tools.mcp.control_openlca.utils import guard
+    from harness.tools.shared.control_openlca import guard
 
     monkeypatch.setenv("LCA_RUN_ID", context.run_id)
     monkeypatch.setenv("LCA_WORKSPACE", str(context.workspace))

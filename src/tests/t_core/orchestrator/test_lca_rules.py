@@ -39,7 +39,7 @@ def _expected_rules(workflow_file: str, bundle) -> set[str]:
         expected |= {f"stage_{stage_num}_revise"}
     if bundle.role == "reviewer":
         expected |= {"reviewer_readonly"}
-    expected |= {tools[tool] for tool in bundle.tool_ids}
+    expected |= {tools[tool] for tool in bundle.mcp_tool_ids}
     # assignment role rule
     role = bundle.role
     expected |= {f"assign_{stage_num}_{role}"}

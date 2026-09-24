@@ -46,10 +46,6 @@ class McpToolSpec:
         return payload
 
 
-# Backward-compatible alias for MCP-only call sites.
-ToolSpec = McpToolSpec
-
-
 @dataclass
 class HostActionSpec:
     """Core-facing Host Action registration (JSON stdin/stdout, not MCP)."""
@@ -113,11 +109,6 @@ class Workflow:
     assignments: dict[str, Assignment]
     source_path: Path
     bundles: dict[str, TaskBundle] = field(default_factory=dict)
-
-    @property
-    def tools(self) -> dict[str, McpToolSpec]:
-        """Alias: Agent MCP tools only."""
-        return self.mcp_tools
 
     def stage_by_id(self, stage_id: str) -> Stage:
         for stage in self.stages:

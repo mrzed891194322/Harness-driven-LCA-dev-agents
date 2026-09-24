@@ -14,8 +14,8 @@ from core.agents.session import (
     TurnResult,
 )
 from core.runtime.host_action import HostActionResult
-from core.runtime.mcp_host import CheckResult
 from tests.conftest import PROJECT_ROOT
+from tests.support.mcp_stdio import CheckResult
 
 HandoffScript = dict[tuple[str, str, int], Any]
 

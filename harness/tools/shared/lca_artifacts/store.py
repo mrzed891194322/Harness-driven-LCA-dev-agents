@@ -10,13 +10,13 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from harness.tools.mcp.control_openlca.utils.guard import (
+from harness.tools.shared.control_openlca.guard import (
     EndpointBusy,
     _transport_failure,
     file_lock,
 )
-from harness.tools.mcp.control_openlca.utils.operations import identifier
-from harness.tools.mcp.control_openlca.utils.workflow import (
+from harness.tools.shared.control_openlca.operations import identifier
+from harness.tools.shared.control_openlca.workflow import (
     _write_json_atomic,
     utc_now,
 )

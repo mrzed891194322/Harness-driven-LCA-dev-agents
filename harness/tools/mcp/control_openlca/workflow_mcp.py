@@ -23,33 +23,33 @@ if str(PROJECT_ROOT) not in sys.path:
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from harness.tools.mcp.control_openlca.utils import operations, readonly
-from harness.tools.mcp.control_openlca.utils.cleanup import run_cleanup_output
-from harness.tools.mcp.control_openlca.utils.connection import (
+from harness.tools.shared.control_openlca import operations, readonly
+from harness.tools.shared.control_openlca.cleanup import run_cleanup_output
+from harness.tools.shared.control_openlca.connection import (
     ipc_budget_scope,
     ipc_tool_is_long_running,
     ipc_tool_profile,
     resolve_ipc_tool_timeout_sec,
 )
-from harness.tools.mcp.control_openlca.utils.guard import serialized_ipc
+from harness.tools.shared.control_openlca.guard import serialized_ipc
 
 LCA_CONTROL_OPENLCA_MCP = "LCA_CONTROL_OPENLCA_MCP"
-from harness.tools.mcp.control_openlca.utils.readonly import (
+from harness.tools.shared.control_openlca.readonly import (
     get_flow_providers as run_get_flow_providers,
 )
-from harness.tools.mcp.control_openlca.utils.readonly import (
+from harness.tools.shared.control_openlca.readonly import (
     get_process_details as run_get_process_details,
 )
-from harness.tools.mcp.control_openlca.utils.readonly import (
+from harness.tools.shared.control_openlca.readonly import (
     health_check as run_health_check,
 )
-from harness.tools.mcp.control_openlca.utils.readonly import (
+from harness.tools.shared.control_openlca.readonly import (
     query_descriptors as run_query_descriptors,
 )
-from harness.tools.mcp.control_openlca.utils.workflow import (
+from harness.tools.shared.control_openlca.workflow import (
     calculate_product_system as run_calculate_product_system,
 )
-from harness.tools.mcp.control_openlca.utils.workflow import (
+from harness.tools.shared.control_openlca.workflow import (
     get_model_graph as run_get_model_graph,
 )
 from harness.tools.shared.lca_artifacts.store import (

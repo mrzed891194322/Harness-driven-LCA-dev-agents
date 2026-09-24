@@ -22,7 +22,7 @@ class TaskBundleResolveTests(unittest.TestCase):
         )
         self.assertEqual(len(workflow.bundles), 7)
         executor = workflow.bundles["03-dataset-mapping.executor"]
-        self.assertEqual(executor.tool_ids, ["control_openlca", "lca_artifacts"])
+        self.assertEqual(executor.mcp_tool_ids, ["control_openlca", "lca_artifacts"])
         self.assertIn("openlca_usage", executor.rule_ids)
         self.assertIn("workspace_knowledge", executor.knowledge_ids)
         self.assertEqual(

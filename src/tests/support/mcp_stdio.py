@@ -1,4 +1,4 @@
-"""Agent-facing stdio MCP tool invocation (session tools / host probes)."""
+"""Test-only stdio MCP probe helper (not a Core runtime API)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from core.runtime.tool_runtime import (
     apply_tool_runtime,
     write_context_file,
 )
-from core.workflow.config.models import ToolSpec
+from core.workflow.config.models import McpToolSpec
 
 
 @dataclass
@@ -95,7 +95,7 @@ def normalize_check_result(payload: Any) -> CheckResult:
 
 
 def invoke_tool(
-    tool: ToolSpec,
+    tool: McpToolSpec,
     method: str,
     arguments: dict[str, Any] | None,
     *,
@@ -281,5 +281,5 @@ def _stdio_call(
                 process.stderr.close()
 
 
-def tool_spec_runtime(tool: ToolSpec) -> ToolRuntimeSpec | None:
+def tool_spec_runtime(tool: McpToolSpec) -> ToolRuntimeSpec | None:
     return tool.runtime

@@ -8,7 +8,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from harness.tools.mcp.control_openlca.utils.workflow import sha256_file
+from harness.tools.shared.control_openlca.workflow import sha256_file
 
 
 def cell(value):

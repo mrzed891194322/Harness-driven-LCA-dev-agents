@@ -14,10 +14,10 @@ import yaml
 
 from core.runtime.capabilities import base_capabilities
 from core.runtime.context import RunContext
-from core.runtime.mcp_host import invoke_tool
 from core.workflow.config.loader import load_workflow
 from core.workflow.main import peek_tool_ids
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
+from tests.support.mcp_stdio import invoke_tool
 from tests.support.minimal_workflow import write_fake_mcp_server, write_minimal_workflow
 
 CORE_ROOT = PROJECT_ROOT / "src" / "core"
@@ -94,6 +94,61 @@ class CoreArchitectureTests(unittest.TestCase):
                         rel = path.relative_to(PROJECT_ROOT)
                         violations.append(f"{rel}: import {module}")
         self.assertEqual(violations, [], "\n".join(violations))
+
+    def test_shared_does_not_import_mcp_or_host_action(self) -> None:
+        violations: list[str] = []
+        shared = HARNESS_TOOLS / "shared"
+        banned = ("harness.tools.mcp", "harness.tools.host_action")
+        for path in _iter_py_files(shared):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                for module in _module_prefixes(node):
+                    if _is_banned(module, banned):
+                        rel = path.relative_to(PROJECT_ROOT)
+                        violations.append(f"{rel}: import {module}")
+        self.assertEqual(violations, [], "\n".join(violations))
+
+    def test_mcp_does_not_import_host_action(self) -> None:
+        violations: list[str] = []
+        mcp = HARNESS_TOOLS / "mcp"
+        banned = ("harness.tools.host_action",)
+        for path in _iter_py_files(mcp):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                for module in _module_prefixes(node):
+                    if _is_banned(module, banned):
+                        rel = path.relative_to(PROJECT_ROOT)
+                        violations.append(f"{rel}: import {module}")
+        self.assertEqual(violations, [], "\n".join(violations))
+
+    def test_host_action_does_not_import_mcp(self) -> None:
+        violations: list[str] = []
+        host_action = HARNESS_TOOLS / "host_action"
+        banned = ("harness.tools.mcp",)
+        for path in _iter_py_files(host_action):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                for module in _module_prefixes(node):
+                    if _is_banned(module, banned):
+                        rel = path.relative_to(PROJECT_ROOT)
+                        violations.append(f"{rel}: import {module}")
+        self.assertEqual(violations, [], "\n".join(violations))
+
+    def test_shared_has_no_protocol_entrypoints(self) -> None:
+        violations: list[str] = []
+        shared = HARNESS_TOOLS / "shared"
+        for path in _iter_py_files(shared):
+            text = path.read_text(encoding="utf-8")
+            if "MCPServer(" in text:
+                violations.append(f"{path.relative_to(PROJECT_ROOT)}: MCPServer(")
+            if 'if __name__ == "__main__"' in text:
+                violations.append(
+                    f"{path.relative_to(PROJECT_ROOT)}: __main__ entrypoint"
+                )
+        self.assertEqual(violations, [], "\n".join(violations))
+
+    def test_core_runtime_has_no_mcp_host(self) -> None:
+        self.assertFalse((CORE_ROOT / "runtime" / "mcp_host.py").exists())
 
     def test_core_has_no_providers_compose_or_dead_registries(self) -> None:
         self.assertFalse((CORE_ROOT / "runtime" / "providers.py").exists())
@@ -279,7 +334,7 @@ assert not loaded, loaded
             self.assertEqual(workflow.workflow_id, "generic")
             self.assertEqual(len(workflow.stages), 1)
             bundle = workflow.bundles["s1.executor"]
-            self.assertEqual(bundle.tool_ids, ["probe"])
+            self.assertEqual(bundle.mcp_tool_ids, ["probe"])
             self.assertEqual(bundle.acceptance_checks[0].action, "verify")
             self.assertEqual(
                 bundle.stage_spec.source_path, "harness/specs/s1/spec.yaml"
@@ -319,7 +374,7 @@ assert not loaded, loaded
             )
             (root / "workspace").mkdir(parents=True, exist_ok=True)
             result = invoke_tool(
-                workflow.tools["probe"],
+                workflow.mcp_tools["probe"],
                 "echo",
                 {},
                 run_ctx=run_ctx,

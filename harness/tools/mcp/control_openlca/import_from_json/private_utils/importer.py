@@ -1,7 +1,10 @@
 import sys
 from pathlib import Path
 
-from utils.workflow import legacy_clear_category, legacy_import_lci
+from harness.tools.shared.control_openlca.workflow import (
+    legacy_clear_category,
+    legacy_import_lci,
+)
 
 
 def clear_category(client, project_name: str):

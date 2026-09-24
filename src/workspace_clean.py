@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from core.workflow.persistence.checkpoint import WorkspaceBusy, workspace_lock
-from harness.tools.mcp.control_openlca.cleanup_service import run_openlca_clean
+from harness.tools.shared.control_openlca.cleanup_service import run_openlca_clean
 from utils.filesystem import (
     clean_ignored_dir,
     clean_root_files,

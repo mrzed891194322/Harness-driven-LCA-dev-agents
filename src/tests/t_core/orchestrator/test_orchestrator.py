@@ -84,9 +84,21 @@ class OrchestratorGraphTests(unittest.TestCase):
                     profile = str(action.action_id).removesuffix("_check")
                 checker_id = f"lca.{profile}" if profile else action.action_id
                 payload = validate(run_ctx, checker_id)
-                from core.runtime.host_action import normalize_host_action_result
+                from core.runtime.host_action import HostActionResult
 
-                return normalize_host_action_result(payload)
+                ok = bool(payload.get("ok"))
+                errors = [str(e) for e in list(payload.get("errors") or [])]
+                return HostActionResult(
+                    ok=ok,
+                    status="passed" if ok else "failed",
+                    summary="; ".join(errors[:5])
+                    if errors
+                    else ("ok" if ok else "failed"),
+                    errors=errors,
+                    warnings=[str(w) for w in list(payload.get("warnings") or [])],
+                    details={},
+                    raw=dict(payload) if isinstance(payload, dict) else {},
+                )
             return _passing_run_host_action(
                 action, run_ctx=run_ctx, arguments=arguments
             )

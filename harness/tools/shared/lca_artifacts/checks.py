@@ -6,8 +6,8 @@ import json
 import re
 from pathlib import Path
 
-from harness.tools.mcp.control_openlca.utils.guard import file_lock
-from harness.tools.mcp.control_openlca.utils.workflow import (
+from harness.tools.shared.control_openlca.guard import file_lock
+from harness.tools.shared.control_openlca.workflow import (
     _write_json_atomic,
     stable_hash,
     utc_now,
