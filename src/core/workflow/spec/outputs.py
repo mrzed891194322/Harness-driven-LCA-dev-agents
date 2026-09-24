@@ -8,6 +8,8 @@ from typing import Any
 
 import yaml
 
+from core.runtime.identifiers import resolve_project_path
+
 from .models import PathContract, StageSpec
 
 try:
@@ -82,7 +84,11 @@ def validate_handoff_schema(
 ) -> list[str]:
     if not schema_relative:
         return []
-    return _schema_errors(project_root / schema_relative, handoff, "handoff")
+    return _schema_errors(
+        resolve_project_path(project_root, schema_relative, label="handoff schema"),
+        handoff,
+        "handoff",
+    )
 
 
 def _validate_present_contract(
@@ -110,7 +116,13 @@ def _validate_present_contract(
             return errors
         if item.schema:
             errors.extend(
-                _schema_errors(project_root / item.schema, payload, item.path)
+                _schema_errors(
+                    resolve_project_path(
+                        project_root, item.schema, label=f"{item.path} schema"
+                    ),
+                    payload,
+                    item.path,
+                )
             )
     elif item.format == "yaml":
         try:
@@ -120,7 +132,13 @@ def _validate_present_contract(
             return errors
         if item.schema:
             errors.extend(
-                _schema_errors(project_root / item.schema, payload, item.path)
+                _schema_errors(
+                    resolve_project_path(
+                        project_root, item.schema, label=f"{item.path} schema"
+                    ),
+                    payload,
+                    item.path,
+                )
             )
     return errors
 

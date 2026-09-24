@@ -13,7 +13,6 @@ from core.runtime.identifiers import (
     resolve_project_path,
 )
 from core.runtime.tool_runtime import ToolRuntimeSpec
-from core.workflow.spec.loader import load_stage_spec
 
 from .lists import parse_optional_list_field, reject_user_seq_declaration, resolve_list
 from .models import (
@@ -451,16 +450,30 @@ def _validate_files(workflow: Workflow, project_root: Path) -> None:
         )
         if not path.is_file():
             raise ValueError(f"missing stage spec: {stage.spec}")
-        load_stage_spec(path, project_root=project_root, relative=stage.spec)
     for tool in workflow.mcp_tools.values():
         for arg in tool.args:
-            if arg.endswith(".py"):
-                candidate = project_root / arg
-                if candidate.is_file() or Path(arg).is_file():
-                    continue
+            _require_python_script(
+                arg,
+                label=f"mcp tool '{tool.tool_id}'",
+                project_root=project_root,
+            )
     for action in workflow.host_actions.values():
         for arg in action.args:
-            if arg.endswith(".py"):
-                candidate = project_root / arg
-                if candidate.is_file() or Path(arg).is_file():
-                    continue
+            _require_python_script(
+                arg,
+                label=f"host action '{action.action_id}'",
+                project_root=project_root,
+            )
+
+
+def _require_python_script(arg: str, *, label: str, project_root: Path) -> None:
+    if not str(arg).endswith(".py"):
+        return
+    path = Path(arg)
+    if path.is_absolute():
+        if not path.is_file():
+            raise ValueError(f"{label}: script not found: {arg}")
+        return
+    resolved = resolve_project_path(project_root, arg, label=label)
+    if not resolved.is_file():
+        raise ValueError(f"{label}: script not found: {arg}")

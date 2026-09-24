@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.capabilities import HarnessCapabilities
+from core.runtime.identifiers import resolve_project_path
 from core.workflow.spec.loader import load_stage_spec
 from core.workflow.spec.models import HostActionRef, StageSpec
 
@@ -34,7 +35,9 @@ def resolve_workflow(
     for stage in workflow.stages:
         _validate_stage_topology(workflow, stage)
         stage_spec = load_stage_spec(
-            project_root / stage.spec,
+            resolve_project_path(
+                project_root, stage.spec, label=f"{stage.stage_id} spec"
+            ),
             project_root=project_root,
             relative=stage.spec,
         )

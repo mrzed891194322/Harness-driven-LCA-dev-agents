@@ -188,6 +188,7 @@ def write_minimal_workflow(
     acceptance: list[dict] | None = None,
     on_reviewer_passed: list[dict] | None = None,
     handoff_checks: list[dict] | None = None,
+    outputs: list[dict] | None = None,
     max_attempts: int = 3,
     executor_tools: list[str] | None = None,
     executor_rules: dict | None = None,
@@ -211,6 +212,7 @@ def write_minimal_workflow(
         acceptance=acceptance,
         on_reviewer_passed=on_reviewer_passed,
         handoff_checks=handoff_checks,
+        outputs=outputs,
         action=host_action_id,
     )
     if tool_args is None:

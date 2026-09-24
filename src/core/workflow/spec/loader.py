@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from core.runtime.identifiers import require_relative_path
+from core.runtime.identifiers import require_relative_path, resolve_project_path
 from core.workflow.config.yaml_strict import load_yaml_strict
 
 from .models import HostActionRef, PathContract, StageSpec
@@ -62,7 +62,9 @@ def load_stage_spec(path: Path, *, project_root: Path, relative: str) -> StageSp
         handoff_schema = require_relative_path(
             str(handoff_schema), label=f"{relative}: handoff.schema"
         )
-        schema_path = project_root / handoff_schema
+        schema_path = resolve_project_path(
+            project_root, handoff_schema, label=f"{relative}: handoff.schema"
+        )
         if not schema_path.is_file():
             raise ValueError(f"{relative}: missing handoff schema {handoff_schema}")
     return StageSpec(
@@ -113,7 +115,10 @@ def _parse_paths(items: Any, label: str, project_root: Path) -> list[PathContrac
             schema = require_relative_path(
                 str(schema), label=f"{label}[{index}].schema"
             )
-            if not (project_root / schema).is_file():
+            schema_path = resolve_project_path(
+                project_root, schema, label=f"{label}[{index}].schema"
+            )
+            if not schema_path.is_file():
                 raise ValueError(f"{label}[{index}]: missing schema {schema}")
         required = item.get("required", True)
         if not isinstance(required, bool):

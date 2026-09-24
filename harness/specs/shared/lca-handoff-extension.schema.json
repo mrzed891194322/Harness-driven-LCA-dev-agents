@@ -5,14 +5,6 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "checks_ref": {
-      "type": "string",
-      "description": "Path string to checks artifact (tool return .path)."
-    },
-    "evidence_manifest_ref": {
-      "type": "string",
-      "description": "Path string to evidence manifest."
-    },
     "rework_scope": {
       "type": "string",
       "enum": ["none", "report_only", "calculation_changed", "model_changed"],
