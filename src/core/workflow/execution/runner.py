@@ -8,7 +8,7 @@ from typing import Any, Literal, TypedDict, cast
 from core.agents.progress import print_orchestrator
 from core.runtime.capabilities import HarnessCapabilities
 from core.runtime.context import RunContext
-from core.runtime.host_action import run_host_action
+from core.runtime.host_action import HostActionError, run_host_action
 from core.workflow.spec.outputs import (
     validate_handoff_schema,
     validate_inputs,
@@ -326,15 +326,32 @@ class OrchestratorRuntime:
                 raise ValueError("; ".join(schema_errors[:5]))
             run_ctx = self._run_context(state, stage, assignment)
             for check in bundle.stage_spec.handoff_checks:
-                result = run_host_action(
-                    self.workflow.host_actions[check.action],
-                    run_ctx=run_ctx,
-                    project_root=self.project_root,
-                    arguments={**dict(check.arguments), "handoff": handoff},
-                )
+                try:
+                    result = run_host_action(
+                        self.workflow.host_actions[check.action],
+                        run_ctx=run_ctx,
+                        project_root=self.project_root,
+                        arguments={**dict(check.arguments), "handoff": handoff},
+                    )
+                except HostActionError as exc:
+                    reason = (
+                        f"handoff check {check.id} 基础设施/协议失败："
+                        f"{assignment.assignment_id}: {exc}"
+                    )
+                    print_orchestrator(reason)
+                    return {
+                        "status": "failed",
+                        "status_reason": reason,
+                        "last_handoff": {
+                            "status": "failed",
+                            "status_reason": reason,
+                        },
+                    }
                 if not result.ok:
                     detail = "; ".join(result.errors[:10]) or result.summary
                     raise ValueError(f"{check.id}: {detail}")
+        except HostActionError:
+            raise
         except Exception as exc:
             return self._rework_invalid_handoff(state, stage, assignment, path, exc)
 
@@ -424,14 +441,19 @@ class OrchestratorRuntime:
                     project_root=self.project_root,
                     arguments=dict(check.arguments),
                 )
-            except Exception as exc:
-                reason = f"{check.id} 检查未能执行：{exc}"
+            except HostActionError as exc:
+                reason = f"{check.id} 检查基础设施/协议失败：{exc}"
                 print_orchestrator(
-                    f"host check failed {assignment.assignment_id}: {reason}"
+                    f"host check system failure {assignment.assignment_id}: {reason}"
                 )
-                return self._retry_or_fail(
-                    state, stage, assignment, reason, fix_instructions=reason
-                )
+                return {
+                    "status": "failed",
+                    "status_reason": reason,
+                    "last_handoff": {
+                        "status": "failed",
+                        "status_reason": reason,
+                    },
+                }
             if not result.ok:
                 detail = "; ".join(result.errors[:20]) or (
                     result.summary.strip() or "确定性检查未通过"
@@ -456,7 +478,28 @@ class OrchestratorRuntime:
             self.workspace_root, stage.stage_id, _attempt(state)
         )
         if handoff["status"] == "passed":
-            guard = self._guard_reviewer_passed(state, stage, assignment)
+            try:
+                guard = self._guard_reviewer_passed(state, stage, assignment)
+            except HostActionError as exc:
+                reason = (
+                    f"审查重验 Host Action 基础设施/协议失败："
+                    f"{assignment.assignment_id}: {exc}"
+                )
+                write_review_note(
+                    note_path,
+                    handoff,
+                    system_status="hook_failed",
+                    system_reason=reason,
+                )
+                print_orchestrator(reason)
+                return {
+                    "status": "failed",
+                    "status_reason": reason,
+                    "last_handoff": {
+                        "status": "failed",
+                        "status_reason": reason,
+                    },
+                }
             if guard is not None:
                 write_review_note(
                     note_path,
@@ -485,6 +528,26 @@ class OrchestratorRuntime:
                         raise RuntimeError(
                             "; ".join(result.errors[:10]) or result.summary
                         )
+                except HostActionError as exc:
+                    reason = (
+                        f"reviewer passed，但 lifecycle action {action.id} "
+                        f"基础设施/协议失败：{exc}"
+                    )
+                    write_review_note(
+                        note_path,
+                        handoff,
+                        system_status="hook_failed",
+                        system_reason=reason,
+                    )
+                    print_orchestrator(reason)
+                    return {
+                        "status": "failed",
+                        "status_reason": reason,
+                        "last_handoff": {
+                            "status": "failed",
+                            "status_reason": reason,
+                        },
+                    }
                 except Exception as exc:
                     reason = (
                         f"reviewer passed，但 lifecycle action {action.id} "
@@ -554,18 +617,12 @@ class OrchestratorRuntime:
             return None
         run_ctx = self._run_context(state, stage, assignment)
         for check in bundle.acceptance_checks:
-            try:
-                result = run_host_action(
-                    self.workflow.host_actions[check.action],
-                    run_ctx=run_ctx,
-                    project_root=self.project_root,
-                    arguments=dict(check.arguments),
-                )
-            except Exception as exc:
-                return (
-                    "审查期间产物或确定性检查状态已变化："
-                    f"{check.id} 检查未能读取：{exc}"
-                )
+            result = run_host_action(
+                self.workflow.host_actions[check.action],
+                run_ctx=run_ctx,
+                project_root=self.project_root,
+                arguments=dict(check.arguments),
+            )
             if result.status != "passed":
                 return (
                     "审查期间产物或确定性检查状态已变化："

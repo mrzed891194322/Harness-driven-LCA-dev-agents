@@ -48,9 +48,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             ],
         )
         self.assertEqual(writer.acceptance_checks[0].action, "inventory_check")
-        self.assertEqual(
-            writer.acceptance_checks[0].arguments.get("profile"), "inventory"
-        )
+        self.assertEqual(writer.acceptance_checks[0].arguments, {})
         self.assertEqual(reviewer.expected_outputs, [])
         self.assertEqual(reviewer.acceptance_checks[0].id, "inventory")
 

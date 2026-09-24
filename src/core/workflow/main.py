@@ -153,10 +153,10 @@ def peek_tool_ids(path: Path, *, project_root: Path) -> list[str]:
     document = read_workflow_document(path, project_root=project_root)
     registry = document.get("registry") or {}
     tools = registry.get("tools") or {}
-    if isinstance(tools, dict) and "mcp" in tools:
-        mcp = tools.get("mcp") or {}
-        return sorted(str(key) for key in mcp)
-    return sorted(str(key) for key in tools)
+    mcp = tools.get("mcp") if isinstance(tools, dict) else None
+    if not isinstance(mcp, dict):
+        return []
+    return sorted(str(key) for key in mcp)
 
 
 def _resume(

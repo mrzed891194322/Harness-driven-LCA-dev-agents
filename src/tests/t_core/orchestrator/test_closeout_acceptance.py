@@ -116,11 +116,8 @@ class HostCheckRetryTests(unittest.TestCase):
             timeout_sec=None,
             **kwargs,
         ):
-            profile = str((arguments or {}).get("profile") or "")
-            if (
-                str(getattr(action, "action_id", "")).endswith("_check")
-                and profile == "mapping"
-            ):
+            action_id = str(getattr(action, "action_id", "") or "")
+            if action_id == "mapping_check":
                 mapping_validate["n"] += 1
                 if mapping_validate["n"] == 1:
                     return HostActionResult(

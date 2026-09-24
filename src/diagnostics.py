@@ -63,7 +63,7 @@ def get_openlca_health(
     host: str = "127.0.0.1",
     port: int = 8080,
 ) -> dict:
-    """Return the shared structured IPC health result."""
+    """Return the shared structured IPC health result (raw domain dict)."""
     return health(host, port)
 
 
@@ -72,16 +72,17 @@ def check_openlca(host: str = "127.0.0.1", port: int = 8080) -> bool:
     endpoint = f"http://{host}:{port}"
     print(f"Attempting to connect to openLCA IPC Server ({endpoint})...")
     result = get_openlca_health(host=host, port=port)
-    if result["status"] == "success":
+    if result.get("ok"):
         print(
             "Successfully established IPC connection after "
-            f"{result['counts'].get('attempt_count', 0)} attempt(s). openLCA is ready."
+            f"{result.get('attempt_count', 0)} attempt(s). openLCA is ready."
         )
         return True
 
     print(
         "\n[Error] Cannot connect to openLCA IPC Server after "
-        f"{result['counts'].get('attempt_count', 0)} attempts: {result['errors']}"
+        f"{result.get('attempt_count', 0)} attempts: "
+        f"{result.get('error') or result.get('errors')}"
     )
     _print_diagnosis(port)
     return False

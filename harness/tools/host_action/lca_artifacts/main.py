@@ -16,18 +16,15 @@ ROOT = next(
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from harness.tools.shared.context import parse_host_request
+from harness.tools.host_action.protocol import parse_host_request
 from harness.tools.shared.lca_artifacts import checks
-from harness.tools.shared.lca_artifacts.handoff import (
-    validate as validate_handoff_payload,
-)
 from harness.tools.shared.lca_artifacts.store import Context
 
+# Subcommand → fixed acceptance profile (no arguments.profile override).
 COMMANDS = {
     "inventory-check": "inventory",
     "mapping-check": "mapping",
     "report-check": "report",
-    "validate-handoff": None,
     "record-acceptance": "mapping",
 }
 
@@ -48,19 +45,6 @@ def _ok(summary: str, **extra: Any) -> dict[str, Any]:
     return payload
 
 
-def _fail(summary: str, errors: list[str] | None = None) -> dict[str, Any]:
-    errs = list(errors or [summary])
-    return {
-        "schema_version": 1,
-        "ok": False,
-        "status": "failed",
-        "summary": summary,
-        "errors": errs,
-        "warnings": [],
-        "details": {},
-    }
-
-
 def _context_from_request(context: dict[str, Any]) -> Context:
     workspace = Path(str(context["workspace"])).resolve()
     project = Path(str(context.get("project_root") or ROOT)).resolve()
@@ -78,30 +62,14 @@ def _context_from_request(context: dict[str, Any]) -> Context:
 
 
 def run(command: str, request: dict[str, Any]) -> dict[str, Any]:
-    context, arguments = parse_host_request(request)
+    context, _arguments = parse_host_request(request)
     if command not in COMMANDS:
         raise ValueError(f"unknown host action command: {command}")
     ctx = _context_from_request(context)
-    if command == "validate-handoff":
-        payload = dict(arguments.get("handoff") or {})
-        label = str(context.get("assignment") or f"{ctx.stage}-{ctx.role}")
-        try:
-            validate_handoff_payload(payload, label=label)
-        except ValueError as exc:
-            return _fail(str(exc), [str(exc)])
-        return _ok("handoff ok")
     if command == "record-acceptance":
-        profile = str(arguments.get("profile") or "mapping")
-        if profile != "mapping":
-            return _fail(
-                f"record_acceptance requires profile='mapping', got {profile!r}"
-            )
         checks.record_acceptance(ctx, acceptance_key=checks.ACCEPTANCE_MODEL)
         return _ok("acceptance recorded")
     profile = COMMANDS[command]
-    assert profile is not None
-    # Allow override via arguments.profile when present.
-    profile = str(arguments.get("profile") or profile)
     result = checks.validate(ctx, profile)
     ok = bool(result.get("ok"))
     errors = [str(e) for e in list(result.get("errors") or [])]
@@ -128,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args or args[0] in {"-h", "--help"}:
         sys.stderr.write(
             "usage: host_action/lca_artifacts/main.py "
-            "<inventory-check|mapping-check|report-check|validate-handoff|record-acceptance>\n"
+            "<inventory-check|mapping-check|report-check|record-acceptance>\n"
         )
         return 2
     command = args[0]

@@ -64,7 +64,7 @@ registry:
         - python
         - harness/tools/host_action/lca_artifacts/main.py
         - inventory-check
-        tool_timeout_sec: 60
+        timeout_sec: 60
       mapping_check:
         command: uv
         args:
@@ -72,7 +72,7 @@ registry:
         - python
         - harness/tools/host_action/lca_artifacts/main.py
         - mapping-check
-        tool_timeout_sec: 60
+        timeout_sec: 60
       report_check:
         command: uv
         args:
@@ -80,15 +80,7 @@ registry:
         - python
         - harness/tools/host_action/lca_artifacts/main.py
         - report-check
-        tool_timeout_sec: 60
-      validate_handoff:
-        command: uv
-        args:
-        - run
-        - python
-        - harness/tools/host_action/lca_artifacts/main.py
-        - validate-handoff
-        tool_timeout_sec: 60
+        timeout_sec: 60
       record_acceptance:
         command: uv
         args:
@@ -96,7 +88,7 @@ registry:
         - python
         - harness/tools/host_action/lca_artifacts/main.py
         - record-acceptance
-        tool_timeout_sec: 60
+        timeout_sec: 60
   knowledge:
     workspace_knowledge:
       kind: local_dir

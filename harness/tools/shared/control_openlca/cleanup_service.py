@@ -35,14 +35,19 @@ def _target_category() -> str:
     return PROJECT_ROOT.name
 
 
+def _workspace_root() -> Path:
+    return PROJECT_ROOT / "workspace"
+
+
 def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]:
     """Health-check, preview, and delete workflow entities under the project category."""
     host, port = _endpoint_config()
     category = _target_category()
+    workspace = _workspace_root()
 
     health = health_check(host, port)
-    if health["status"] != "success":
-        message = str(health["errors"] or health["summary"])
+    if not health.get("ok"):
+        message = str(health.get("error") or health.get("message") or "health failed")
         return False, message, {"health": health}
 
     preview = run_cleanup_output(
@@ -50,10 +55,18 @@ def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]
         port,
         category,
         confirm=False,
+        workspace=workspace,
     )
-    if preview["status"] != "success":
-        return False, str(preview["errors"]), {"health": health, "preview": preview}
-    entity_count = int(preview["counts"].get("entity_count", 0))
+    if not preview.get("ok"):
+        return (
+            False,
+            str(preview.get("errors") or "preview failed"),
+            {
+                "health": health,
+                "preview": preview,
+            },
+        )
+    entity_count = int(preview.get("entity_count", 0))
     print(f"  openLCA 预览: target_category={category}, entity_count={entity_count}")
 
     if dry_run:
@@ -82,10 +95,11 @@ def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]
         port,
         category,
         confirm=True,
+        workspace=workspace,
     )
     errors = list(result.get("errors") or [])
-    deleted_count = int(result["counts"].get("deleted_count", 0))
-    if errors or result["status"] != "success":
+    deleted_count = int(result.get("deleted_count", 0))
+    if errors or not result.get("ok"):
         detail = (
             "; ".join(str(e) for e in errors) if errors else "cleanup_output failed"
         )

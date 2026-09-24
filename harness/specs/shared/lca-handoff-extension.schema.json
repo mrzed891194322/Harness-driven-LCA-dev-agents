@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "harness/specs/shared/lca-handoff-extension.schema.json",
+  "title": "LCA handoff extension fields",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "checks_ref": {
+      "type": "string",
+      "description": "Path string to checks artifact (tool return .path)."
+    },
+    "evidence_manifest_ref": {
+      "type": "string",
+      "description": "Path string to evidence manifest."
+    },
+    "rework_scope": {
+      "type": "string",
+      "enum": ["none", "report_only", "calculation_changed", "model_changed"],
+      "default": "none"
+    }
+  }
+}

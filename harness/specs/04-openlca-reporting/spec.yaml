@@ -16,13 +16,8 @@ acceptance:
   checks:
   - id: report
     action: report_check
-    arguments:
-      profile: report
 lifecycle:
   on_reviewer_passed: []
 handoff:
-  schema: harness/specs/shared/handoff.schema.json
-  checks:
-  - id: handoff
-    action: validate_handoff
-    arguments: {}
+  schema: harness/specs/shared/lca-handoff-extension.schema.json
+  checks: []

@@ -18,17 +18,10 @@ acceptance:
   checks:
   - id: mapping
     action: mapping_check
-    arguments:
-      profile: mapping
 lifecycle:
   on_reviewer_passed:
   - id: record_acceptance
     action: record_acceptance
-    arguments:
-      profile: mapping
 handoff:
-  schema: harness/specs/shared/handoff.schema.json
-  checks:
-  - id: handoff
-    action: validate_handoff
-    arguments: {}
+  schema: harness/specs/shared/lca-handoff-extension.schema.json
+  checks: []

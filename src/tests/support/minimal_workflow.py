@@ -187,6 +187,8 @@ def write_minimal_workflow(
     tool_runtime: dict | None = None,
     acceptance: list[dict] | None = None,
     on_reviewer_passed: list[dict] | None = None,
+    handoff_checks: list[dict] | None = None,
+    max_attempts: int = 3,
     executor_tools: list[str] | None = None,
     executor_rules: dict | None = None,
     knowledge_provider: str = "local_files",
@@ -208,6 +210,7 @@ def write_minimal_workflow(
         stage_id=stage_id,
         acceptance=acceptance,
         on_reviewer_passed=on_reviewer_passed,
+        handoff_checks=handoff_checks,
         action=host_action_id,
     )
     if tool_args is None:
@@ -234,7 +237,7 @@ def write_minimal_workflow(
                     host_action_id: {
                         "command": host_action_command,
                         "args": host_action_args,
-                        "tool_timeout_sec": 30,
+                        "timeout_sec": 30,
                     }
                 },
             },
@@ -254,6 +257,7 @@ def write_minimal_workflow(
             {
                 "id": stage_id,
                 "spec": spec_rel,
+                "max_attempts": max_attempts,
                 "steps": [
                     {"assignment": f"{stage_id}.executor"},
                     {"assignment": f"{stage_id}.reviewer"},

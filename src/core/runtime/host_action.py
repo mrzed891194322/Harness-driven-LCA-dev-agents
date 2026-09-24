@@ -15,6 +15,35 @@ from core.workflow.config.models import HostActionSpec
 
 _HOST_ACTION_SCHEMA_VERSION = 1
 _ALLOWED_STATUS = frozenset({"passed", "failed"})
+_RESULT_KEYS = frozenset(
+    {"schema_version", "ok", "status", "summary", "errors", "warnings", "details"}
+)
+_REQUEST_KEYS = frozenset({"schema_version", "context", "arguments"})
+_CONTEXT_KEYS = frozenset(
+    {
+        "run_id",
+        "stage",
+        "assignment",
+        "attempt",
+        "role",
+        "workspace",
+        "project_root",
+        "metadata",
+        "handoff_path",
+    }
+)
+
+
+class HostActionError(RuntimeError):
+    """Base: Host Action infrastructure or wire-protocol failure (not business)."""
+
+
+class HostActionExecutionError(HostActionError):
+    """Spawn/timeout/nonzero exit — process could not complete normally."""
+
+
+class HostActionProtocolError(HostActionError):
+    """Stdout is not a valid Host Action result envelope."""
 
 
 @dataclass
@@ -69,74 +98,59 @@ def build_host_request(
     }
 
 
-def _protocol_failure(
-    message: str, *, raw: dict[str, Any] | None = None
-) -> HostActionResult:
-    return HostActionResult(
-        ok=False,
-        status="failed",
-        summary=message,
-        errors=[message],
-        raw=dict(raw or {}),
-    )
-
-
 def normalize_host_action_result(payload: Any) -> HostActionResult:
-    """Fail-closed Host Action result protocol (schema_version 1)."""
+    """Parse a valid business result; raise HostActionProtocolError on wire faults."""
     if not isinstance(payload, dict):
-        return _protocol_failure("Host Action result was not an object")
+        raise HostActionProtocolError("Host Action result was not an object")
+    unknown = set(payload) - _RESULT_KEYS
+    if unknown:
+        raise HostActionProtocolError(
+            f"Host Action result has unknown fields: {sorted(unknown)}"
+        )
     if payload.get("schema_version") != _HOST_ACTION_SCHEMA_VERSION:
-        return _protocol_failure(
+        raise HostActionProtocolError(
             f"Host Action schema_version must be {_HOST_ACTION_SCHEMA_VERSION}, "
-            f"got {payload.get('schema_version')!r}",
-            raw=payload,
+            f"got {payload.get('schema_version')!r}"
         )
     if "ok" not in payload or "status" not in payload:
-        return _protocol_failure(
-            "Host Action result missing ok/status",
-            raw=payload,
-        )
+        raise HostActionProtocolError("Host Action result missing ok/status")
     ok = payload["ok"]
     if not isinstance(ok, bool):
-        return _protocol_failure("Host Action ok must be a boolean", raw=payload)
+        raise HostActionProtocolError("Host Action ok must be a boolean")
     status = payload["status"]
     if not isinstance(status, str) or status not in _ALLOWED_STATUS:
-        return _protocol_failure(
+        raise HostActionProtocolError(
             f"Host Action status must be one of {sorted(_ALLOWED_STATUS)}, "
-            f"got {status!r}",
-            raw=payload,
+            f"got {status!r}"
         )
     if ok and status != "passed":
-        return _protocol_failure(
-            f"Host Action ok/status mismatch: ok={ok!r} status={status!r}",
-            raw=payload,
+        raise HostActionProtocolError(
+            f"Host Action ok/status mismatch: ok={ok!r} status={status!r}"
         )
     if not ok and status != "failed":
-        return _protocol_failure(
-            f"Host Action ok/status mismatch: ok={ok!r} status={status!r}",
-            raw=payload,
+        raise HostActionProtocolError(
+            f"Host Action ok/status mismatch: ok={ok!r} status={status!r}"
         )
     summary = payload.get("summary")
     if not isinstance(summary, str):
-        return _protocol_failure("Host Action summary must be a string", raw=payload)
+        raise HostActionProtocolError("Host Action summary must be a string")
     errors = payload.get("errors")
     if not isinstance(errors, list) or any(
         not isinstance(item, str) for item in errors
     ):
-        return _protocol_failure(
-            "Host Action errors must be a list of strings", raw=payload
-        )
+        raise HostActionProtocolError("Host Action errors must be a list of strings")
     warnings = payload.get("warnings")
     if not isinstance(warnings, list) or any(
         not isinstance(item, str) for item in warnings
     ):
-        return _protocol_failure(
-            "Host Action warnings must be a list of strings",
-            raw=payload,
-        )
+        raise HostActionProtocolError("Host Action warnings must be a list of strings")
     details = payload.get("details", {})
     if not isinstance(details, dict):
-        return _protocol_failure("Host Action details must be an object", raw=payload)
+        raise HostActionProtocolError("Host Action details must be an object")
+    if ok and errors:
+        raise HostActionProtocolError(
+            "Host Action ok=true cannot include non-empty errors"
+        )
     return HostActionResult(
         ok=ok,
         status=status,
@@ -156,11 +170,11 @@ def run_host_action(
     arguments: dict[str, Any] | None = None,
     timeout_sec: float | None = None,
 ) -> HostActionResult:
-    """Spawn Host Action once with JSON stdin; parse single JSON stdout object."""
-    declared = int(action.tool_timeout_sec)
+    """Spawn Host Action; return business result or raise HostActionError."""
+    declared = int(action.timeout_sec)
     if declared <= 0:
-        return _protocol_failure(
-            f"tool_timeout_sec must be positive: {action.action_id}"
+        raise HostActionProtocolError(
+            f"timeout_sec must be positive: {action.action_id}"
         )
     deadline = float(timeout_sec if timeout_sec is not None else declared)
     payload = build_host_request(
@@ -185,20 +199,22 @@ def run_host_action(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        return _protocol_failure(f"Host Action timed out: {exc}")
+        raise HostActionExecutionError(f"Host Action timed out: {exc}") from exc
     except OSError as exc:
-        return _protocol_failure(str(exc))
+        raise HostActionExecutionError(str(exc)) from exc
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()[:500]
-        return _protocol_failure(
+        raise HostActionExecutionError(
             f"Host Action exited {completed.returncode}"
             + (f": {detail}" if detail else "")
         )
     text = (completed.stdout or "").strip()
     if not text:
-        return _protocol_failure("Host Action produced empty stdout")
+        raise HostActionProtocolError("Host Action produced empty stdout")
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError as exc:
-        return _protocol_failure(f"Host Action stdout was not JSON: {exc}")
+        raise HostActionProtocolError(
+            f"Host Action stdout was not JSON: {exc}"
+        ) from exc
     return normalize_host_action_result(parsed)

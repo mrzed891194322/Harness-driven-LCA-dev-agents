@@ -84,7 +84,7 @@ def check_openlca_result(
         from diagnostics import get_openlca_health
 
         result = get_openlca_health(host=resolved_host, port=resolved_port)
-        if result["status"] == "success":
+        if result.get("ok"):
             return True, "可用"
         return False, "不可用"
     except Exception:

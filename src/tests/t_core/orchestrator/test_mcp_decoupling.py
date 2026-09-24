@@ -21,7 +21,7 @@ from core.runtime.capabilities import base_capabilities
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.handoff import read_handoff
 from core.workflow.execution.session_bind import build_session_config
-from harness.tools.shared.lca_artifacts.handoff import validate as validate_handoff
+from core.workflow.spec.outputs import validate_handoff_schema
 from tests.conftest import PROJECT_ROOT
 
 
@@ -183,13 +183,22 @@ def test_generic_handoff_leaves_domain_extension_to_adapter(tmp_path):
                 "attempt": 1,
                 "status": "ok",
                 "status_reason": "done",
+                "fix_instructions": "",
+                "artifacts": [],
                 "rework_scope": "another-domain",
             }
         )
     )
     payload = read_handoff(path, role="executor", stage="s", attempt=1)
-    with pytest.raises(ValueError, match="rework_scope"):
-        validate_handoff(payload, label="writer")
+    errors = validate_handoff_schema(
+        "harness/specs/shared/lca-handoff-extension.schema.json",
+        payload,
+        project_root=PROJECT_ROOT,
+    )
+    assert errors, "expected extension schema to reject invalid rework_scope"
+    assert any(
+        "rework_scope" in error or "another-domain" in error for error in errors
+    ), errors
 
 
 @pytest.mark.parametrize("module", ["mcp.control_openlca", "mcp.lca_artifacts"])

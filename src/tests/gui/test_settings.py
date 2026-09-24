@@ -341,9 +341,9 @@ class ExecutionGateTests(unittest.TestCase):
         with patch(
             "diagnostics.get_openlca_health",
             return_value={
-                "schema_version": 2,
-                "status": "success",
-                "counts": {"attempt_count": 1},
+                "ok": True,
+                "attempt_count": 1,
+                "message": "reachable",
             },
         ):
             self.assertEqual(check_openlca_result(), (True, "可用"))

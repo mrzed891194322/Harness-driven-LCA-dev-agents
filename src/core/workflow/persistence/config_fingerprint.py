@@ -70,7 +70,6 @@ def build_runtime_config(
                     "tool_timeout_sec": spec.tool_timeout_sec,
                     "command": spec.command,
                     "args": list(spec.args),
-                    "url": spec.url,
                     "rules": list(spec.rules),
                     "runtime": None
                     if spec.runtime is None
@@ -85,10 +84,6 @@ def build_runtime_config(
                         key: stable_hash(value)
                         for key, value in sorted(spec.env.items())
                     },
-                    "headers": {
-                        key: stable_hash(value)
-                        for key, value in sorted(spec.headers.items())
-                    },
                 }
                 for tool_id, spec in sorted(workflow.mcp_tools.items())
             },
@@ -96,7 +91,7 @@ def build_runtime_config(
                 action_id: {
                     "command": spec.command,
                     "args": list(spec.args),
-                    "tool_timeout_sec": spec.tool_timeout_sec,
+                    "timeout_sec": spec.timeout_sec,
                     "env": {
                         key: stable_hash(value)
                         for key, value in sorted(spec.env.items())

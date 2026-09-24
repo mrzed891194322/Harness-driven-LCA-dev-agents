@@ -26,7 +26,7 @@ def validate_stdio_server(name: str, spec: dict[str, Any]) -> None:
         for key, value in env.items()
     ):
         raise ValueError(f"MCP {name}: env must map strings to strings")
-    if spec.get("url") or spec.get("headers"):
+    if "url" in spec or "headers" in spec:
         raise ValueError(f"MCP {name}: url/headers are not supported for stdio")
     timeout = spec.get("tool_timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
     if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
@@ -43,12 +43,8 @@ def tool_entry_to_mcp(name: str, spec: dict[str, Any]) -> dict[str, Any]:
         payload["command"] = spec["command"]
     if spec.get("args"):
         payload["args"] = list(spec["args"])
-    if spec.get("url"):
-        payload["url"] = spec["url"]
     if spec.get("env"):
         payload["env"] = dict(spec["env"])
-    if spec.get("headers"):
-        payload["headers"] = dict(spec["headers"])
     payload["name"] = name
     return payload
 

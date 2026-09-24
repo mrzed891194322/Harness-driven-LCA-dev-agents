@@ -39,15 +39,13 @@ MCP_TOOL_KEYS = frozenset(
         "transport",
         "command",
         "args",
-        "url",
         "env",
-        "headers",
         "rules",
         "runtime",
         "tool_timeout_sec",
     }
 )
-HOST_ACTION_KEYS = frozenset({"command", "args", "env", "tool_timeout_sec"})
+HOST_ACTION_KEYS = frozenset({"command", "args", "env", "timeout_sec"})
 TOOL_RUNTIME_KEYS = frozenset(
     {
         "run_context_env",
@@ -252,11 +250,7 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             transport=str(spec.get("transport") or "stdio"),
             command=spec.get("command"),
             args=[str(item) for item in spec.get("args") or []],
-            url=spec.get("url"),
             env={str(k): str(v) for k, v in dict(spec.get("env") or {}).items()},
-            headers={
-                str(k): str(v) for k, v in dict(spec.get("headers") or {}).items()
-            },
             rules=[
                 require_identifier(str(item), label="rule id")
                 for item in spec.get("rules") or []
@@ -284,16 +278,16 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         command = str(spec.get("command") or "").strip()
         if not command:
             raise ValueError(f"{source_path}: host_action {aid}: command is required")
-        timeout = spec.get("tool_timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
+        timeout = spec.get("timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
         timeout = _require_positive_int(
-            timeout, label=f"{source_path}: host_action {aid} tool_timeout_sec"
+            timeout, label=f"{source_path}: host_action {aid} timeout_sec"
         )
         host_actions[aid] = HostActionSpec(
             action_id=aid,
             command=command,
             args=[str(item) for item in spec.get("args") or []],
             env={str(k): str(v) for k, v in dict(spec.get("env") or {}).items()},
-            tool_timeout_sec=timeout,
+            timeout_sec=timeout,
         )
 
     defaults = raw.get("defaults") or {}

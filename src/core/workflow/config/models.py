@@ -21,9 +21,7 @@ class McpToolSpec:
     transport: str
     command: str | None = None
     args: list[str] = field(default_factory=list)
-    url: str | None = None
     env: dict[str, str] = field(default_factory=dict)
-    headers: dict[str, str] = field(default_factory=dict)
     rules: list[str] = field(default_factory=list)
     runtime: ToolRuntimeSpec | None = None
     tool_timeout_sec: int = DEFAULT_TOOL_TIMEOUT_SEC
@@ -37,12 +35,8 @@ class McpToolSpec:
             payload["command"] = self.command
         if self.args:
             payload["args"] = list(self.args)
-        if self.url:
-            payload["url"] = self.url
         if self.env:
             payload["env"] = dict(self.env)
-        if self.headers:
-            payload["headers"] = dict(self.headers)
         return payload
 
 
@@ -54,7 +48,7 @@ class HostActionSpec:
     command: str
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
-    tool_timeout_sec: int = DEFAULT_TOOL_TIMEOUT_SEC
+    timeout_sec: int = DEFAULT_TOOL_TIMEOUT_SEC
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -62,7 +56,7 @@ class HostActionSpec:
             "command": self.command,
             "args": list(self.args),
             "env": dict(self.env),
-            "tool_timeout_sec": self.tool_timeout_sec,
+            "timeout_sec": self.timeout_sec,
         }
 
 

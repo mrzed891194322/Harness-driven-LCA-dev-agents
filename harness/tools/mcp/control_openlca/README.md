@@ -14,7 +14,7 @@
 - 03 审核通过快照由编排器记录；04 导入/计算只接受未变化的已审模型。计算请求须与 calculation-plan.json 一致。
 - 工具身份由编排器写入 `--context-file`（每轮覆盖 attempt/role）；MCP 每次调用重读。`LCA_*` 环境变量仅为冗余。无该参数时（GUI/探测）才用独立 standalone run，其产物不进入正式运行复用。
 
-离线回归：`uv run pytest src/tests/harness/tools/mcp/control_openlca -q`。行为规则见 `harness/rules/tools/control_openlca.md`，证据与返工约定见 `harness/rules/project/runtime-loop.md`。
+离线回归：`uv run pytest src/tests/t_harness/tools/control_openlca -q`。行为规则见 `harness/rules/tools/control_openlca.md`，证据与返工约定见 `harness/rules/project/runtime-loop.md`。
 
 ---
 
@@ -29,10 +29,10 @@
 > **硬约束**
 > - 严禁为 openLCA 连接检测、描述符遍历、UUID 查询、模型图读取、导入或计算编写临时 Python 脚本。
 > - CLI 中只检查连接时，运行 `src/scripts/check_status.py --only openlca`；MCP 客户端调用 `health_check`。
-> - 运行任务通过已注册的 `query_descriptors_batch` / `query_descriptors` MCP 查询已有数据库实体；`query_descriptors/main.py` 仅供独立 CLI 使用，不能作为工作流绕过 MCP 的入口。新建前景 UUID 由建模任务创建，导入后正式读回确认。
+> - 运行任务通过已注册的 `query_descriptors_batch` / `query_descriptors` MCP 查询已有数据库实体。新建前景 UUID 由建模任务创建，导入后正式读回确认。
 > - 按 Process UUID 回读地域和定量参考时，MCP 客户端必须使用 `get_process_details`。
 > - 按 Flow UUID 查询可用 Provider 时，MCP 客户端必须使用 `get_flow_providers`。
-> - 运行任务用已注册的 `get_model_graph` MCP 读回模型图；`get_model_graph/main.py` 是独立 CLI 入口。
+> - 运行任务用已注册的 `get_model_graph` MCP 读回模型图。
 > - whole-lca / revise-lca 启动前清理由 `src/scripts/clean.py `（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可用 MCP `cleanup_output`（如 `cleanup-lci` 命令）。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
 
@@ -43,46 +43,11 @@
 ```
 control_openlca/
 ├── main.py                         # 独立 stdio MCP，显式传入路径及日志命名空间
-├── README.md                       # 本说明文档（开发规范与工具包定义）
-├── tests/                          # 无需真实 openLCA 的离线单元测试
-│   ├── test_readonly_mcp.py
-│   ├── test_workflow_mcp.py
-│   └── README.md
-├── utils/                          # 公共共享工具模块包 (未来所有新脚本需要尽量复用此处功能)
-│   ├── __init__.py
-│   ├── connection.py               # IPC 连接建立与测试连接可用性
-│   ├── readonly.py                 # MCP 健康检查、描述符/Flow Provider 查询与分页
-│   ├── workflow.py                 # 预检/导入、模型图与计算的 CLI/MCP 共用服务
-│   ├── cleanup.py                  # 项目分类前景实体清理（MCP cleanup_output）
-│   ├── entity.py                   # 实体模糊查找与匹配 (UUID/名称)
-│   ├── export.py                   # 结果解析提取、Markdown 打印与 JSON/CSV 写出
-│   └── validation.py               # 分配方案校验与参数重定义 Fail-Fast 解析
-│
-├── calculate_product_system/       # 任务：计算产品系统 (Product System) 目录
-│   ├── main.py                     # 入口主程序
-│   ├── README.md                   # 该计算任务的配置使用文档
-│   └── private_utils/              # 产品系统局部的私有工具目录
-│
-├── calculate_process_direct/       # 任务：直接计算过程 (Process) 目录
-│   ├── main.py                     # 入口主程序
-│   ├── README.md                   # 该计算任务的配置使用文档
-│   └── private_utils/              # 过程计算局部的私有工具目录
-│
-├── import_from_json/               # 任务：从 JSON 配置文件批量导入 Flow/Process 目录
-│   ├── main.py                     # 入口主程序
-│   ├── README.md                   # 该导入任务的配置使用文档
-│   ├── examples/                   # 示例 JSON 配置目录
-│   └── private_utils/              # 导入任务局部的私有工具目录
-│
-├── get_model_graph/                # 任务：获取产品系统的模型图依赖及连线拓扑目录
-│   ├── main.py                     # 入口主程序
-│   ├── README.md                   # 该提取任务的配置使用文档
-│   └── private_utils/              # 提取任务局部的私有工具目录
-└── query_descriptors/              # 任务：查询当前数据库的实体描述符
-    ├── main.py                     # CLI 入口
-    ├── README.md                   # 查询参数说明
-    └── private_utils/
+├── workflow_mcp.py                 # 工作流适配 stdio MCP（v2 响应与上下文）
+└── README.md                       # 本说明文档（开发规范与 MCP 工具定义）
 ```
+
+共享实现在 `harness/tools/shared/control_openlca/`。离线单元测试在 `src/tests/t_harness/tools/control_openlca/`（无需真实 openLCA）。
 
 ---
 
@@ -105,9 +70,9 @@ control_openlca/
 `import_lci` 与 `cleanup_output` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径默认为
 `workspace/outputs/LCI`；连续改进运行可改用 `workspace/tmp/` 下的具体兼容 LCI 子目录。
 路径解析会拒绝 `workspace/tmp` 根目录、inputs、其他 workspace 目录、项目外路径及通过
-`..` 或符号链接逃逸的路径。CLI 原参数和调用入口保持兼容，并与 MCP 共用
-`utils/workflow.py` 的实体解析、删除顺序、图结构和计算执行逻辑。
-Whole-LCA 不得把 legacy CLI 当作超时回退；超时后必须先查询 operation journal。
+`..` 或符号链接逃逸的路径。实体解析、删除顺序、图结构和计算执行逻辑由
+`harness/tools/shared/control_openlca/workflow.py` 承担。
+Whole-LCA 超时后必须先查询 operation journal，不得绕过 MCP 重试写入。
 
 MCP endpoint 固定由服务进程环境配置，工具调用方不能传入任意网络地址：
 
@@ -123,7 +88,7 @@ uv run python harness/tools/mcp/control_openlca/main.py
 离线测试不要求启动 openLCA：
 
 ```bash
-uv run pytest src/tests/harness/tools/mcp/control_openlca -v
+uv run pytest src/tests/t_harness/tools/control_openlca -v
 ```
 
 ---
@@ -166,7 +131,7 @@ uv run pytest src/tests/harness/tools/mcp/control_openlca -v
 * `get_import_operation(...)`：只读返回持久化导入状态。
 * `get_model_graph(...)`：构建带预期节点和连接性检查的模型图结果。
 * `calculate_product_system(...)`：执行产品系统 LCIA，并在成功/异常路径释放结果句柄。
-* `legacy_import_lci(...)`、`model_graph_from_product_system(...)`、`build_calculation_setup(...)`：供既有 CLI 复用，避免 MCP 与 CLI 产生两套实现。
+* `model_graph_from_product_system(...)`、`build_calculation_setup(...)`：供 MCP 与共享层内部复用。
 
 `utils/readonly.py` 的 `get_process_details(...)` 只返回一个确切 Process 的地域和定量
 参考；`get_flow_providers(...)` 只调用 openLCA 原生 Flow Provider 查询，并返回紧凑、

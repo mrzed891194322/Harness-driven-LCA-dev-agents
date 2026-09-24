@@ -10,13 +10,15 @@ from tempfile import TemporaryDirectory
 
 from core.runtime.context import RunContext
 from core.runtime.host_action import (
+    HostActionExecutionError,
+    HostActionProtocolError,
     HostActionResult,
     build_host_request,
     normalize_host_action_result,
     run_host_action,
 )
 from core.workflow.config.models import HostActionSpec
-from harness.tools.shared.context import parse_host_request
+from harness.tools.host_action.protocol import parse_host_request
 
 
 def _ctx(**overrides: object) -> dict:
@@ -76,138 +78,164 @@ class HostActionResultContractTests(unittest.TestCase):
         self.assertEqual(result.status, "failed")
 
     def test_wrong_schema_version(self) -> None:
-        result = normalize_host_action_result(
-            {
-                "schema_version": 2,
-                "ok": True,
-                "status": "passed",
-                "summary": "x",
-                "errors": [],
-                "warnings": [],
-            }
-        )
-        self.assertFalse(result.ok)
-        self.assertIn("schema_version", result.summary)
+        with self.assertRaises(HostActionProtocolError):
+            normalize_host_action_result(
+                {
+                    "schema_version": 2,
+                    "ok": True,
+                    "status": "passed",
+                    "summary": "x",
+                    "errors": [],
+                    "warnings": [],
+                }
+            )
 
     def test_missing_schema_version(self) -> None:
-        result = normalize_host_action_result(
-            {
-                "ok": True,
-                "status": "passed",
-                "summary": "x",
-                "errors": [],
-                "warnings": [],
-            }
-        )
-        self.assertFalse(result.ok)
+        with self.assertRaises(HostActionProtocolError):
+            normalize_host_action_result(
+                {
+                    "ok": True,
+                    "status": "passed",
+                    "summary": "x",
+                    "errors": [],
+                    "warnings": [],
+                }
+            )
 
     def test_ok_true_status_failed(self) -> None:
-        result = normalize_host_action_result(
-            {
-                "schema_version": 1,
-                "ok": True,
-                "status": "failed",
-                "summary": "x",
-                "errors": [],
-                "warnings": [],
-            }
-        )
-        self.assertFalse(result.ok)
-        self.assertIn("mismatch", result.summary)
+        with self.assertRaises(HostActionProtocolError) as ctx:
+            normalize_host_action_result(
+                {
+                    "schema_version": 1,
+                    "ok": True,
+                    "status": "failed",
+                    "summary": "x",
+                    "errors": [],
+                    "warnings": [],
+                }
+            )
+        self.assertIn("mismatch", str(ctx.exception))
 
     def test_ok_false_status_passed(self) -> None:
-        result = normalize_host_action_result(
-            {
-                "schema_version": 1,
-                "ok": False,
-                "status": "passed",
-                "summary": "x",
-                "errors": [],
-                "warnings": [],
-            }
-        )
-        self.assertFalse(result.ok)
-        self.assertIn("mismatch", result.summary)
+        with self.assertRaises(HostActionProtocolError) as ctx:
+            normalize_host_action_result(
+                {
+                    "schema_version": 1,
+                    "ok": False,
+                    "status": "passed",
+                    "summary": "x",
+                    "errors": [],
+                    "warnings": [],
+                }
+            )
+        self.assertIn("mismatch", str(ctx.exception))
+
+    def test_ok_true_with_errors(self) -> None:
+        with self.assertRaises(HostActionProtocolError):
+            normalize_host_action_result(
+                {
+                    "schema_version": 1,
+                    "ok": True,
+                    "status": "passed",
+                    "summary": "x",
+                    "errors": ["nope"],
+                    "warnings": [],
+                }
+            )
+
+    def test_unknown_result_field(self) -> None:
+        with self.assertRaises(HostActionProtocolError):
+            normalize_host_action_result(
+                {
+                    "schema_version": 1,
+                    "ok": True,
+                    "status": "passed",
+                    "summary": "x",
+                    "errors": [],
+                    "warnings": [],
+                    "extra": 1,
+                }
+            )
 
     def test_unknown_status(self) -> None:
-        result = normalize_host_action_result(
-            {
-                "schema_version": 1,
-                "ok": True,
-                "status": "banana",
-                "summary": "x",
-                "errors": [],
-                "warnings": [],
-            }
-        )
-        self.assertFalse(result.ok)
+        with self.assertRaises(HostActionProtocolError):
+            normalize_host_action_result(
+                {
+                    "schema_version": 1,
+                    "ok": True,
+                    "status": "banana",
+                    "summary": "x",
+                    "errors": [],
+                    "warnings": [],
+                }
+            )
 
     def test_errors_not_list(self) -> None:
-        result = normalize_host_action_result(
-            {
-                "schema_version": 1,
-                "ok": False,
-                "status": "failed",
-                "summary": "x",
-                "errors": "oops",
-                "warnings": [],
-            }
-        )
-        self.assertFalse(result.ok)
+        with self.assertRaises(HostActionProtocolError):
+            normalize_host_action_result(
+                {
+                    "schema_version": 1,
+                    "ok": False,
+                    "status": "failed",
+                    "summary": "x",
+                    "errors": "oops",
+                    "warnings": [],
+                }
+            )
 
     def test_warnings_not_list(self) -> None:
-        result = normalize_host_action_result(
-            {
-                "schema_version": 1,
-                "ok": True,
-                "status": "passed",
-                "summary": "x",
-                "errors": [],
-                "warnings": "w",
-            }
-        )
-        self.assertFalse(result.ok)
+        with self.assertRaises(HostActionProtocolError):
+            normalize_host_action_result(
+                {
+                    "schema_version": 1,
+                    "ok": True,
+                    "status": "passed",
+                    "summary": "x",
+                    "errors": [],
+                    "warnings": "w",
+                }
+            )
 
     def test_details_not_object(self) -> None:
-        result = normalize_host_action_result(
-            {
-                "schema_version": 1,
-                "ok": True,
-                "status": "passed",
-                "summary": "x",
-                "errors": [],
-                "warnings": [],
-                "details": [],
-            }
-        )
-        self.assertFalse(result.ok)
+        with self.assertRaises(HostActionProtocolError):
+            normalize_host_action_result(
+                {
+                    "schema_version": 1,
+                    "ok": True,
+                    "status": "passed",
+                    "summary": "x",
+                    "errors": [],
+                    "warnings": [],
+                    "details": [],
+                }
+            )
 
     def test_plain_text_stdout(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             script = root / "plain.py"
             script.write_text("print('done')\n", encoding="utf-8")
-            result = self._run(root, script)
-            self.assertFalse(result.ok)
-            self.assertIn("JSON", result.summary)
+            with self.assertRaises(HostActionProtocolError) as ctx:
+                self._run(root, script)
+            self.assertIn("JSON", str(ctx.exception))
 
     def test_empty_stdout(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             script = root / "empty.py"
             script.write_text("pass\n", encoding="utf-8")
-            result = self._run(root, script)
-            self.assertFalse(result.ok)
-            self.assertIn("empty", result.summary)
+            with self.assertRaises(HostActionProtocolError) as ctx:
+                self._run(root, script)
+            self.assertIn("empty", str(ctx.exception))
 
     def test_nonzero_exit(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             script = root / "fail.py"
             script.write_text("raise SystemExit(3)\n", encoding="utf-8")
-            result = self._run(root, script)
-            self.assertFalse(result.ok)
-            self.assertIn("exited 3", result.summary)
+            with self.assertRaises(HostActionExecutionError) as ctx:
+                self._run(root, script)
+            self.assertIn("exited 3", str(ctx.exception))
 
     def test_timeout(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -222,13 +250,12 @@ class HostActionResultContractTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            result = self._run(root, script, timeout_sec=0.2)
-            self.assertFalse(result.ok)
-            # Sandbox may deny process signals; either timeout or OSError is fail-closed.
+            with self.assertRaises(HostActionExecutionError) as ctx:
+                self._run(root, script, timeout_sec=0.2)
+            message = str(ctx.exception).lower()
             self.assertTrue(
-                "timed out" in result.summary.lower()
-                or "permission denied" in result.summary.lower(),
-                result.summary,
+                "timed out" in message or "permission denied" in message,
+                message,
             )
 
     def _run(
@@ -249,7 +276,7 @@ class HostActionResultContractTests(unittest.TestCase):
             action_id="probe",
             command=sys.executable,
             args=[str(script)],
-            tool_timeout_sec=30,
+            timeout_sec=30,
         )
         return run_host_action(
             action,
@@ -288,6 +315,14 @@ class HostActionRequestContractTests(unittest.TestCase):
             context, arguments = parse_host_request(envelope)
             self.assertEqual(context["attempt"], 2)
             self.assertEqual(arguments, {"p": 1})
+
+    def test_unknown_request_field(self) -> None:
+        with self.assertRaises(ValueError):
+            parse_host_request(_req(extra=True))
+
+    def test_unknown_context_field(self) -> None:
+        with self.assertRaises(ValueError):
+            parse_host_request(_req(context=_ctx(foo="bar")))
 
     def test_missing_run_id(self) -> None:
         with self.assertRaises(ValueError):

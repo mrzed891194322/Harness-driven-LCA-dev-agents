@@ -131,7 +131,7 @@ class GenericRuntimeTests(unittest.TestCase):
                             "verify": {
                                 "command": "python",
                                 "args": ["harness/tools/host_action/verify/main.py"],
-                                "tool_timeout_sec": 30,
+                                "timeout_sec": 30,
                             }
                         },
                     },

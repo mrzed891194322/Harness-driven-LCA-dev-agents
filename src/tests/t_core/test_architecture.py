@@ -108,6 +108,19 @@ class CoreArchitectureTests(unittest.TestCase):
                         violations.append(f"{rel}: import {module}")
         self.assertEqual(violations, [], "\n".join(violations))
 
+    def test_shared_control_openlca_does_not_import_lca_artifacts(self) -> None:
+        violations: list[str] = []
+        control = HARNESS_TOOLS / "shared" / "control_openlca"
+        banned = ("harness.tools.shared.lca_artifacts",)
+        for path in _iter_py_files(control):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                for module in _module_prefixes(node):
+                    if _is_banned(module, banned):
+                        rel = path.relative_to(PROJECT_ROOT)
+                        violations.append(f"{rel}: import {module}")
+        self.assertEqual(violations, [], "\n".join(violations))
+
     def test_mcp_does_not_import_host_action(self) -> None:
         violations: list[str] = []
         mcp = HARNESS_TOOLS / "mcp"

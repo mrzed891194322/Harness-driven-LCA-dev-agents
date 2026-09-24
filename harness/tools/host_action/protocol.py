@@ -1,10 +1,24 @@
-"""Harness-side Host Action request parser (no core imports)."""
+"""Host Action request parser (harness-side; no core imports)."""
 
 from __future__ import annotations
 
 from typing import Any
 
 _HOST_ACTION_SCHEMA_VERSION = 1
+_REQUEST_KEYS = frozenset({"schema_version", "context", "arguments"})
+_CONTEXT_KEYS = frozenset(
+    {
+        "run_id",
+        "stage",
+        "assignment",
+        "attempt",
+        "role",
+        "workspace",
+        "project_root",
+        "metadata",
+        "handoff_path",
+    }
+)
 _REQUIRED_CONTEXT_STRINGS = (
     "run_id",
     "stage",
@@ -39,6 +53,9 @@ def parse_host_request(
     """
     if not isinstance(payload, dict):
         raise ValueError("request must be a JSON object")
+    unknown = set(payload) - _REQUEST_KEYS
+    if unknown:
+        raise ValueError(f"request has unknown fields: {sorted(unknown)}")
     if payload.get("schema_version") != _HOST_ACTION_SCHEMA_VERSION:
         raise ValueError(
             f"schema_version must be {_HOST_ACTION_SCHEMA_VERSION}, "
@@ -47,6 +64,9 @@ def parse_host_request(
     context = payload.get("context")
     if not isinstance(context, dict):
         raise ValueError("context must be an object")
+    unknown_ctx = set(context) - _CONTEXT_KEYS
+    if unknown_ctx:
+        raise ValueError(f"context has unknown fields: {sorted(unknown_ctx)}")
     arguments = payload.get("arguments")
     if arguments is None:
         arguments = {}

@@ -20,9 +20,6 @@ from mcp_types import ToolAnnotations
 
 from harness.tools.shared.control_openlca.workflow import _write_json_atomic
 from harness.tools.shared.lca_artifacts import checks, report
-from harness.tools.shared.lca_artifacts.handoff import (
-    validate as validate_handoff_payload,
-)
 from harness.tools.shared.lca_artifacts.path_safety import require_relative_path
 from harness.tools.shared.lca_artifacts.store import (
     Context,
@@ -104,9 +101,6 @@ def submit_handoff(
             body["checks_ref"] = checks_ref
         if evidence_manifest_ref is not None:
             body["evidence_manifest_ref"] = evidence_manifest_ref
-        assignment = ctx.assignment or f"{ctx.stage}-{ctx.role}"
-        # LCA-specific field only; Core owns generic handoff protocol validation.
-        validate_handoff_payload(body, label=assignment)
         path.parent.mkdir(parents=True, exist_ok=True)
         _write_json_atomic(path, body)
         rel = path.relative_to(ctx.workspace)
