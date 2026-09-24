@@ -47,6 +47,17 @@ def _format_event(payload: dict[str, Any]) -> str:
     event_type = str(payload.get("type") or "")
     if event_type == "error":
         return format_error(payload.get("error") or payload.get("message") or payload)
+    if event_type == "auto_retry_end" and payload.get("success") is False:
+        detail = payload.get("finalError") or payload.get("errorMessage") or "retry failed"
+        return format_error(f"模型连接失败: {detail}")
+    if event_type in {"turn_end", "message_end"}:
+        message = payload.get("message")
+        if isinstance(message, dict) and str(message.get("stopReason") or "") == "error":
+            detail = message.get("errorMessage") or message.get("error") or "model error"
+            return format_error(f"模型连接失败: {detail}")
+        if event_type in _TEXT_TYPES:
+            text = _message_text(message)
+            return format_assistant(text) if text else ""
     args = tool_args_from(payload)
     if event_type in _START_TYPES:
         return format_tool_start(_tool_name(payload), args)

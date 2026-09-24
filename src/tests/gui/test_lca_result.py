@@ -15,7 +15,7 @@ class LcaResultTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         root = Path(self.temp_dir.name)
-        self.memory = root / "memory"
+        self.memory = root / "records"
         self.memory.mkdir()
         runtime_config = lca_run.config
         self.patches = [

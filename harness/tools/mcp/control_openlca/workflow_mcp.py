@@ -321,7 +321,7 @@ def preflight_import_lci(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "memory" / "import-operations"),
+        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
         run_id=context.run_id,
     )
 
@@ -362,7 +362,7 @@ def import_lci(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "memory" / "import-operations"),
+        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
         run_id=context.run_id,
         request_id=request_id,
         preflight_id=preflight_id,
@@ -384,7 +384,7 @@ def get_import_operation(
     """Read an import journal without writing to openLCA."""
     context = Context.environment()
     return operations.get_operation(
-        context.safe(context.workspace / "memory" / "import-operations"),
+        context.safe(context.workspace / "records" / "import-operations"),
         run_id=context.run_id,
         request_id=request_id,
         operation_id=operation_id,
@@ -499,7 +499,7 @@ def cleanup_output(
     if confirm and result.get("ok"):
         context = Context.environment()
         operations.reconcile_cleanup(
-            context.safe(context.workspace / "memory" / "import-operations"),
+            context.safe(context.workspace / "records" / "import-operations"),
             host,
             port,
             _target_category(target_category),

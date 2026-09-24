@@ -184,7 +184,7 @@ class AgentSdkSessionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             tmp = Path(temp_dir)
             render = tmp / "tmp" / "mcp-render" / "run-1" / "stage" / "executor"
-            archive = tmp / "memory" / "logs" / "run-1" / "stage" / "executor#1"
+            archive = tmp / "records" / "logs" / "run-1" / "stage" / "executor#1"
             config = SessionConfig(
                 worker="codex",
                 cwd=tmp,
@@ -248,7 +248,7 @@ class AgentSdkSessionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             tmp = Path(temp_dir)
             render = tmp / "tmp" / "mcp-render" / "run-s" / "stage" / "executor"
-            archive = tmp / "memory" / "logs" / "run-s" / "stage" / "executor#1"
+            archive = tmp / "records" / "logs" / "run-s" / "stage" / "executor#1"
             render.mkdir(parents=True)
             (render / "mcp-overrides.json").write_text(
                 json.dumps({"env": {"API_TOKEN": sentinel}}),
@@ -288,7 +288,7 @@ class AgentSdkSessionTests(unittest.TestCase):
                 config,
                 SessionRef(platform="codex", session_id="s1", storage={"dir": "x"}),
             )
-            log_root = tmp / "memory" / "logs" / "run-s"
+            log_root = tmp / "records" / "logs" / "run-s"
             for path in log_root.rglob("*"):
                 if not path.is_file():
                     continue
@@ -1064,7 +1064,7 @@ class AgentSdkProgressTests(unittest.TestCase):
         from core.agents.progress import print_orchestrator, set_progress_log
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            log_path = Path(temp_dir) / "memory" / "logs" / "run-abc" / "progress.txt"
+            log_path = Path(temp_dir) / "records" / "logs" / "run-abc" / "progress.txt"
             leftover = Path(temp_dir) / "leftover"
             leftover.mkdir()
             (leftover / "old").write_text("stale", encoding="utf-8")
@@ -1148,6 +1148,12 @@ class AgentSdkProgressTests(unittest.TestCase):
         self.assertEqual(opencode.consume('{"type":"step_start"}\n'), "")
 
         pi = PiJsonlFormatter()
+        self.assertIn(
+            "error:",
+            pi.consume(
+                '{"type":"auto_retry_end","success":false,"finalError":"Connection error."}\n'
+            ),
+        )
         self.assertIn(
             "→ read",
             pi.consume('{"type":"tool_execution_start","toolName":"read"}\n'),

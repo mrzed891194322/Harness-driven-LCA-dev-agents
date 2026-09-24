@@ -186,7 +186,9 @@ class KnowledgeFingerprintTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             path = write_minimal_workflow(root)
-            knowledge = root / "harness" / "knowledge" / "README.md"
+            knowledge = root / "harness" / "knowledge" / "inputs" / "fixture.md"
+            knowledge.parent.mkdir(parents=True, exist_ok=True)
+            knowledge.write_text("# fixture\n", encoding="utf-8")
             workflow = load_workflow(
                 path, project_root=root, capabilities=base_capabilities()
             )

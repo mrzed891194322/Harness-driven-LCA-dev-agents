@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from core.agents.turn_transport import WorkerTransportError
 from core.contracts.session import (
     SessionClient,
     SessionConfig,
@@ -18,6 +19,7 @@ __all__ = [
     "SessionRef",
     "SessionResumeError",
     "TurnResult",
+    "WorkerTransportError",
     "default_client",
 ]
 

@@ -1,4 +1,4 @@
-"""Turn archive paths and writers under workspace/memory/logs."""
+"""Turn archive paths and writers under workspace/records/logs."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.hashing import sha256_file
+from utils.workspace_layout import records_root
 
 from .session import SessionConfig, SessionRef
 
@@ -14,7 +15,7 @@ REDACTED = "<redacted>"
 
 
 def run_log_dir(workspace_root: Path, run_id: str) -> Path:
-    return workspace_root / "memory" / "logs" / run_id
+    return records_root(workspace_root) / "logs" / run_id
 
 
 def progress_log_path(workspace_root: Path, run_id: str) -> Path:

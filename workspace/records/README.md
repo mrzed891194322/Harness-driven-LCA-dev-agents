@@ -1,4 +1,4 @@
-# Workflow Memory
+# Workflow Records
 
 Whole-LCA 运行时在此目录维护固定的运行证据：
 

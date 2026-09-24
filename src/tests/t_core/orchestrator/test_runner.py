@@ -94,7 +94,9 @@ def resume(runtime, store, run_id="run-python"):
 
 
 def manifest(runtime):
-    return json.loads((runtime.workspace_root / "memory" / "manifest.json").read_text())
+    return json.loads(
+        (runtime.workspace_root / "records" / "manifest.json").read_text()
+    )
 
 
 @pytest.mark.parametrize(
@@ -309,7 +311,7 @@ def test_terminal_resume_repairs_manifest_without_rechecking_config(
     store.save(state, event="finished")
     config = (
         runtime.workspace_root
-        / "memory"
+        / "records"
         / "evidence"
         / state["run_id"]
         / "runtime-config.json"
@@ -325,7 +327,7 @@ def test_changed_config_failure_is_persisted(run_case):
     store.save(state, event="ready")
     config = (
         runtime.workspace_root
-        / "memory"
+        / "records"
         / "evidence"
         / state["run_id"]
         / "runtime-config.json"

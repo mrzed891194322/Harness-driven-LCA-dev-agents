@@ -13,9 +13,11 @@ from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
     from ..execution.runner import WorkflowState
 
+from utils.workspace_layout import records_root
+
 
 def checkpoint_path(workspace_root: Path) -> Path:
-    return workspace_root / "memory" / "orchestrator.sqlite"
+    return records_root(workspace_root) / "orchestrator.sqlite"
 
 
 class WorkspaceBusy(RuntimeError):
@@ -25,7 +27,7 @@ class WorkspaceBusy(RuntimeError):
 @contextmanager
 def workspace_lock(workspace_root: Path) -> Iterator[None]:
     """Fail immediately if another orchestrator owns this workspace."""
-    path = workspace_root / "memory" / "orchestrator.lock"
+    path = records_root(workspace_root) / "orchestrator.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as stream:
         if os.name == "nt":

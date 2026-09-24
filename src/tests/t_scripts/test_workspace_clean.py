@@ -13,18 +13,16 @@ from workspace_clean import CLEAN_PRESETS
 
 
 class CleanDirectoryTests(unittest.TestCase):
-    def test_clean_removes_generated_run_data_but_keeps_plan(self) -> None:
+    def test_clean_removes_generated_run_data(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             workspace = root / "workspace"
-            (workspace / "inputs").mkdir(parents=True)
-            (workspace / "memory").mkdir()
+            workspace.mkdir()
+            (workspace / "records").mkdir()
             (workspace / "outputs").mkdir()
             (workspace / "tmp").mkdir()
-            plan_path = workspace / "inputs" / "plan.md"
-            plan_path.write_text("plan", encoding="utf-8")
-            (workspace / "memory" / "old.json").write_text("{}", encoding="utf-8")
-            memory_readme = workspace / "memory" / "README.md"
+            (workspace / "records" / "old.json").write_text("{}", encoding="utf-8")
+            memory_readme = workspace / "records" / "README.md"
             memory_readme.write_text("keep", encoding="utf-8")
             (workspace / "outputs" / "old.json").write_text("{}", encoding="utf-8")
             (workspace / "tmp" / "cache.json").write_text("{}", encoding="utf-8")
@@ -36,8 +34,8 @@ class CleanDirectoryTests(unittest.TestCase):
                     "name": "workspace",
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
-                    "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
-                    "keep_patterns": ["**/README.md", "memory/orchestrator.lock"],
+                    "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
+                    "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
                 }
             ]
             with (
@@ -46,23 +44,23 @@ class CleanDirectoryTests(unittest.TestCase):
             ):
                 self.assertEqual(clean_main.run_clean(yes=True), 0)
 
-            self.assertTrue(plan_path.exists())
             self.assertTrue(memory_readme.exists())
             self.assertTrue(tmp_readme.exists())
-            self.assertFalse((workspace / "memory" / "old.json").exists())
+            self.assertFalse((workspace / "records" / "old.json").exists())
             self.assertFalse((workspace / "outputs" / "old.json").exists())
             self.assertFalse((workspace / "tmp" / "cache.json").exists())
 
-    def test_clean_knowledge_root_files_keeps_tracked_docs(self) -> None:
+    def test_clean_knowledge_staging_subdirs(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             knowledge = root / "harness" / "knowledge"
-            knowledge.mkdir(parents=True)
+            inputs = knowledge / "inputs"
+            inputs.mkdir(parents=True)
             readme = knowledge / "README.md"
             readme.write_text("keep", encoding="utf-8")
             gitignore = knowledge / ".gitignore"
             gitignore.write_text("*", encoding="utf-8")
-            user_file = knowledge / "sample.pdf"
+            user_file = inputs / "sample.pdf"
             user_file.write_text("data", encoding="utf-8")
 
             targets = [
@@ -70,8 +68,8 @@ class CleanDirectoryTests(unittest.TestCase):
                     "name": "knowledge",
                     "path": knowledge,
                     "gitignore": gitignore,
-                    "clean_root_files": True,
-                    "keep_patterns": [".gitignore", "README.md"],
+                    "staging_subdirs": ["inputs", "plan"],
+                    "keep_patterns": ["README.md"],
                 }
             ]
             with (
@@ -91,7 +89,8 @@ class CleanDirectoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             knowledge = root / "harness" / "knowledge"
-            nested = knowledge / "水瓶案例学习"
+            inputs = knowledge / "inputs"
+            nested = inputs / "水瓶案例学习"
             nested.mkdir(parents=True)
             readme = knowledge / "README.md"
             readme.write_text("keep", encoding="utf-8")
@@ -99,7 +98,7 @@ class CleanDirectoryTests(unittest.TestCase):
             gitignore.write_text("*", encoding="utf-8")
             nested_file = nested / "水瓶案例学习.md"
             nested_file.write_text("case", encoding="utf-8")
-            root_copy = knowledge / "水瓶案例学习.md"
+            root_copy = inputs / "水瓶案例学习.md"
             root_copy.write_text("case", encoding="utf-8")
 
             targets = [
@@ -107,8 +106,8 @@ class CleanDirectoryTests(unittest.TestCase):
                     "name": "knowledge",
                     "path": knowledge,
                     "gitignore": gitignore,
-                    "clean_root_files": True,
-                    "keep_patterns": [".gitignore", "README.md"],
+                    "staging_subdirs": ["inputs", "plan"],
+                    "keep_patterns": ["README.md"],
                 }
             ]
             with (
@@ -125,23 +124,22 @@ class CleanDirectoryTests(unittest.TestCase):
             self.assertFalse(nested.exists())
             self.assertFalse(root_copy.exists())
 
-    def test_clean_inputs_root_files_keeps_readme(self) -> None:
+    def test_clean_knowledge_plan_subdir(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            inputs = root / "workspace" / "inputs"
-            inputs.mkdir(parents=True)
-            readme = inputs / "README.md"
-            readme.write_text("keep", encoding="utf-8")
-            plan_path = inputs / "plan.md"
-            plan_path.write_text("plan", encoding="utf-8")
-            revise_path = inputs / "revise.md"
-            revise_path.write_text("revise", encoding="utf-8")
+            knowledge = root / "harness" / "knowledge"
+            plan = knowledge / "plan"
+            plan.mkdir(parents=True)
+            (knowledge / "README.md").write_text("keep", encoding="utf-8")
+            main_plan = plan / "main_plan.md"
+            main_plan.write_text("plan", encoding="utf-8")
+            (plan / "README.md").write_text("keep", encoding="utf-8")
 
             targets = [
                 {
-                    "name": "inputs",
-                    "path": inputs,
-                    "clean_root_files": True,
+                    "name": "knowledge",
+                    "path": knowledge,
+                    "staging_subdirs": ["inputs", "plan"],
                     "keep_patterns": ["README.md"],
                 }
             ]
@@ -150,18 +148,17 @@ class CleanDirectoryTests(unittest.TestCase):
                 patch.object(clean_main, "PROJECT_ROOT", root),
             ):
                 self.assertEqual(
-                    clean_main.run_clean(yes=True, target="inputs"),
+                    clean_main.run_clean(yes=True, target="knowledge"),
                     0,
                 )
 
-            self.assertTrue(readme.exists())
-            self.assertFalse(plan_path.exists())
-            self.assertFalse(revise_path.exists())
+            self.assertFalse(main_plan.exists())
+            self.assertTrue((plan / "README.md").exists())
 
-    def test_preset_whole_lca_includes_inputs(self) -> None:
+    def test_preset_whole_lca_targets(self) -> None:
         self.assertEqual(
             CLEAN_PRESETS["whole-lca"],
-            ["knowledge", "inputs", "workspace", "openlca"],
+            ["knowledge", "workspace", "openlca"],
         )
         self.assertEqual(CLEAN_PRESETS["revise-lca"], ["knowledge", "openlca"])
 
@@ -205,7 +202,7 @@ class CleanDirectoryTests(unittest.TestCase):
             1,
         )
 
-    def test_clean_staging_false_skips_knowledge_and_inputs(self) -> None:
+    def test_clean_staging_false_skips_knowledge_staging(self) -> None:
         calls: list[str] = []
 
         def fake_single(target_name: str, *, dry_run: bool = False) -> int:
@@ -246,7 +243,7 @@ class CleanDirectoryTests(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_symlink_clean_roots_do_not_follow_external(self) -> None:
-        for dir_name in ("memory", "outputs", "tmp"):
+        for dir_name in ("records", "outputs", "tmp"):
             with self.subTest(dir_name=dir_name), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 external = root / "external"
@@ -265,8 +262,8 @@ class CleanDirectoryTests(unittest.TestCase):
                         "name": "workspace",
                         "path": workspace,
                         "gitignore": workspace / ".gitignore",
-                        "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
-                        "keep_patterns": ["**/README.md", "memory/orchestrator.lock"],
+                        "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
+                        "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
                     }
                 ]
                 with (
@@ -283,7 +280,7 @@ class CleanDirectoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             workspace = root / "workspace"
-            memory = workspace / "memory"
+            memory = workspace / "records"
             memory.mkdir(parents=True)
             (workspace / "outputs").mkdir()
             (workspace / "tmp").mkdir()
@@ -296,7 +293,7 @@ class CleanDirectoryTests(unittest.TestCase):
                     "name": "workspace",
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
-                    "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
+                    "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
                     "keep_patterns": ["**/README.md"],
                 }
             ]
@@ -316,7 +313,7 @@ class CleanDirectoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             workspace = root / "workspace"
-            memory = workspace / "memory"
+            memory = workspace / "records"
             memory.mkdir(parents=True)
             (workspace / "outputs").mkdir()
             (workspace / "tmp").mkdir()
@@ -328,8 +325,8 @@ class CleanDirectoryTests(unittest.TestCase):
                     "name": "workspace",
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
-                    "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
-                    "keep_patterns": ["**/README.md", "memory/orchestrator.lock"],
+                    "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
+                    "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
                 }
             ]
 

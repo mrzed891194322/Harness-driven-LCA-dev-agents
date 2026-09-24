@@ -61,7 +61,7 @@ control_openlca/
 - `get_process_details`：按一个确切 Process UUID 返回紧凑元数据、地域和定量参考 exchange。
 - `get_flow_providers`：按一个确切 Flow UUID 返回可用 Process Provider 的 UUID、名称、分类、地域和 Flow 引用；支持地域过滤与分页。
 - `preflight_import_lci`：只读解析一文件一实体 JSON-LD，验证声明库名、目标分类和背景 Provider，返回库名、分类、LCI 目录、计划实体和 Provider 检查。
-- `import_lci`：唯一的 Whole-LCA 数据库写入工具。写入前工具内部再预检；库名、分类或 LCI 目录与上次成功预检不一致则拒绝。执行中持续写 `workspace/memory/import-operations/current.json`。
+- `import_lci`：唯一的 Whole-LCA 数据库写入工具。写入前工具内部再预检；库名、分类或 LCI 目录与上次成功预检不一致则拒绝。执行中持续写 `workspace/records/import-operations/current.json`。
 - `get_import_operation`：只读查询当前导入 journal，供 MCP 超时后判断是否已经成功、失败或仍不可确定。
 - `get_model_graph`：读回 Product System 节点、边、断链、孤立节点和缺失预期节点。
 - `calculate_product_system`：执行 LCIA，返回方法/类别名称与 UUID、数值、单位、计算设置和句柄释放状态。

@@ -150,13 +150,15 @@ def _safe_lci_files(lci_root: Path) -> list[Path]:
 
 
 def upstream_files(ctx):
+    plan_dir = ctx.project / "harness" / "knowledge" / "plan"
     paths = [
-        ctx.workspace / "inputs" / "plan.md",
+        plan_dir / "main_plan.md",
         ctx.workspace / "outputs" / "inventory" / "extracted-bom.json",
         ctx.workspace / "outputs" / "inventory" / "process-mapping.json",
     ]
-    if (ctx.workspace / "inputs" / "revise.md").exists():
-        paths.append(ctx.workspace / "inputs" / "revise.md")
+    revise_plan = plan_dir / "revise_plan.md"
+    if revise_plan.exists():
+        paths.append(revise_plan)
     lci_root = ctx.workspace / "outputs" / "LCI"
     paths.extend(_safe_lci_files(lci_root))
     paths.extend(knowledge_files_from_manifest(ctx))

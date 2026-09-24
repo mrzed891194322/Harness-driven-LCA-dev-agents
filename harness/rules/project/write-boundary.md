@@ -3,7 +3,7 @@
 本规则约束 LCA 运行任务；任务只完成当前角色和阶段获准的工作。
 
 - 只读取本任务的契约、已声明资料、交接产物，以及已绑定工具的文档和返回证据。研究资料的读取范围以 `knowledge_sources` / `source_manifest` 为准，不扫描未声明目录。
-- Agent 的业务写入限于 `workspace/` 内本阶段产物与当前 handoff。`workspace/inputs/`、用户资料、被审对象（reviewer）、工作流 YAML、rules、specs、工具及编排代码均不可修改。
+- Agent 的业务写入限于 `workspace/` 内本阶段产物与当前 handoff。`harness/knowledge/`（含 `inputs/` 与 `plan/`）、被审对象（reviewer）、工作流 YAML、rules、specs、工具及编排代码均不可修改。
 - 临时脚本和离线复核结果只写 `workspace/tmp/`，不得覆盖 MCP 中间配置、其他角色产物或源资料。长期可审查的推导写入本阶段正式产物。
 - manifest、检查点、会话映射、导入 journal、raw、checks 和 evidence manifest 由编排器或正式工具维护；不得手工更改、删除或伪造。允许引用工具返回的路径和 SHA-256。
 - 工具管理的包缓存、进程锁和不确定状态标记属于基础设施，不是 Agent 自行写入的许可；业务资料与证据仍保存在 workspace。不得修改这些基础设施文件来绕过门禁。

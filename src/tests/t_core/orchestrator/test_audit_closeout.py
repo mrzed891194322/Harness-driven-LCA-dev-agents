@@ -120,7 +120,7 @@ class ReviewNoteGateTests(unittest.TestCase):
                     store,
                 )
             self.assertEqual(result["status"], "completed")
-            note = workspace / "memory" / "reviews" / "03-dataset-mapping-1.md"
+            note = workspace / "records" / "reviews" / "03-dataset-mapping-1.md"
             self.assertTrue(note.is_file())
             self.assertIn("accepted", note.read_text(encoding="utf-8"))
 

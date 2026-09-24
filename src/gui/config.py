@@ -7,6 +7,8 @@ GUI 源码位于 ``src/gui``，运行时 workspace 位于仓库根目录。这�
 
 from pathlib import Path
 
+from utils.workspace_layout import records_root
+
 # -----------------------------------------------------------------------------
 # 基础目录
 # GUI_ROOT 定位 GUI 源码；PROJECT_ROOT 定位仓库并作为其他绝对路径的起点。
@@ -32,11 +34,11 @@ GUI_MONO_FONT_FAMILY = (
 
 # -----------------------------------------------------------------------------
 # workspace 基础目录
-# inputs/ 仅保存 plan.md 与 revise.md；memory/ 与 outputs/ 为运行产物。
+# records/ 与 outputs/ 为运行产物；计划与资料在 harness/knowledge/ 下。
 # -----------------------------------------------------------------------------
-WORKSPACE_INPUTS = PROJECT_ROOT / "workspace" / "inputs"
-WORKSPACE_MEMORY = PROJECT_ROOT / "workspace" / "memory"
-WORKSPACE_OUTPUTS = PROJECT_ROOT / "workspace" / "outputs"
+WORKSPACE_ROOT = PROJECT_ROOT / "workspace"
+WORKSPACE_RECORDS = records_root(WORKSPACE_ROOT)
+WORKSPACE_OUTPUTS = WORKSPACE_ROOT / "outputs"
 REPORTS_DIR = WORKSPACE_OUTPUTS / "reports"
 
 # -----------------------------------------------------------------------------
@@ -46,6 +48,9 @@ REPORTS_DIR = WORKSPACE_OUTPUTS / "reports"
 # 固定意见输入。两者都只在对应执行按钮被点击后写入。
 # 工作细节面板渲染 EXTRACTED_BOM_* 与 PROCESS_MAPPING_*（JSON）。
 # -----------------------------------------------------------------------------
+KNOWLEDGE_ROOT = PROJECT_ROOT / "harness" / "knowledge"
+KNOWLEDGE_PLAN_DIR = KNOWLEDGE_ROOT / "plan"
+
 PLAN_INPUT_TEMPLATE_RELATIVE_PATH = (
     Path("src") / "gui" / "ui" / "assets" / "template" / "plan.md"
 )
@@ -56,8 +61,8 @@ REVISE_TEMPLATE_RELATIVE_PATH = (
 )
 REVISE_TEMPLATE_PATH = PROJECT_ROOT / REVISE_TEMPLATE_RELATIVE_PATH
 
-CURRENT_PLAN_PATH = WORKSPACE_INPUTS / "plan.md"
-CURRENT_REVISION_PATH = WORKSPACE_INPUTS / "revise.md"
+CURRENT_PLAN_PATH = KNOWLEDGE_PLAN_DIR / "main_plan.md"
+CURRENT_REVISION_PATH = KNOWLEDGE_PLAN_DIR / "revise_plan.md"
 
 EXTRACTED_BOM_RELATIVE_PATH = (
     Path("workspace") / "outputs" / "inventory" / "extracted-bom.json"
@@ -75,12 +80,15 @@ LCA_REPORT_PATH = PROJECT_ROOT / LCA_REPORT_RELATIVE_PATH
 # Whole-LCA 运行产物
 # 成功与否只看 manifest 的 status / status_reason。
 # -----------------------------------------------------------------------------
-WORKFLOW_MANIFEST_PATH = WORKSPACE_MEMORY / "manifest.json"
-WORKFLOW_REVIEWS_DIR = WORKSPACE_MEMORY / "reviews"
+WORKFLOW_MANIFEST_PATH = WORKSPACE_RECORDS / "manifest.json"
+WORKFLOW_REVIEWS_DIR = WORKSPACE_RECORDS / "reviews"
 
 # -----------------------------------------------------------------------------
 # 用户上传目录
-# GUI 侧栏用户资料在执行前经 file_sync 写入 harness/knowledge/（扁平目录）。
+# GUI 侧栏用户资料在执行前经 file_sync 写入 harness/knowledge/inputs/。
 # -----------------------------------------------------------------------------
-KNOWLEDGE_DIR = PROJECT_ROOT / "harness" / "knowledge"
+KNOWLEDGE_DIR = KNOWLEDGE_ROOT / "inputs"
 USER_UPLOAD_DIR = KNOWLEDGE_DIR
+
+# Back-compat aliases for tests patching legacy names.
+WORKSPACE_MEMORY = WORKSPACE_RECORDS

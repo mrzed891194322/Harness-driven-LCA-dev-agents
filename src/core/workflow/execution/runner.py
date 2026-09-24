@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
 
@@ -30,6 +31,8 @@ from .handoff import (
 
 RUNTIME_VERSION = 4
 PROTOCOL_REPAIR_LIMIT = 3
+WORKER_TRANSPORT_RETRY_LIMIT = 5
+_WORKER_TRANSPORT_BACKOFF_SEC = (2, 4, 8, 16, 32)
 Action = Literal["prepare", "run_sdk", "advance", "done"]
 
 
@@ -246,7 +249,11 @@ class OrchestratorRuntime:
         }
 
     def run_sdk(self, state: WorkflowState) -> dict[str, Any]:
-        from core.agents.session import SessionRef, SessionResumeError
+        from core.agents.session import (
+            SessionRef,
+            SessionResumeError,
+            WorkerTransportError,
+        )
 
         from .session_bind import build_session_config
 
@@ -266,27 +273,62 @@ class OrchestratorRuntime:
             run_id=_state_str(state, "run_id"),
             attempt=_attempt(state),
         )
-        try:
-            if key in sessions:
-                ref = SessionRef.from_dict(sessions[key])
-                ref = self.session_client.resume(ref, config)
-            else:
-                ref = self.session_client.create(config)
-            result = self.session_client.run_turn(
-                ref, _state_str(state, "prompt"), config
+        ref: SessionRef | None = None
+        last_transport = ""
+        for transport_try in range(WORKER_TRANSPORT_RETRY_LIMIT):
+            try:
+                if key in sessions:
+                    ref = SessionRef.from_dict(sessions[key])
+                    ref = self.session_client.resume(ref, config)
+                else:
+                    ref = self.session_client.create(config)
+                result = self.session_client.run_turn(
+                    ref, _state_str(state, "prompt"), config
+                )
+                ref = result.session_ref
+                break
+            except SessionResumeError as exc:
+                print_orchestrator(f"worker resume failed: {exc}")
+                return {
+                    "status": "failed",
+                    "status_reason": str(exc),
+                }
+            except WorkerTransportError as exc:
+                last_transport = str(exc)
+                attempt_no = transport_try + 1
+                if attempt_no >= WORKER_TRANSPORT_RETRY_LIMIT:
+                    reason = (
+                        f"worker 模型连接失败（{assignment.assignment_id}，"
+                        f"agent={self.worker}）：{last_transport}"
+                        f"（编排器已重试 {WORKER_TRANSPORT_RETRY_LIMIT} 次）"
+                    )
+                    print_orchestrator(reason)
+                    return {"status": "failed", "status_reason": reason}
+                delay = _WORKER_TRANSPORT_BACKOFF_SEC[
+                    min(transport_try, len(_WORKER_TRANSPORT_BACKOFF_SEC) - 1)
+                ]
+                print_orchestrator(
+                    f"worker transport retry {attempt_no}/"
+                    f"{WORKER_TRANSPORT_RETRY_LIMIT} ({self.worker}): {last_transport}"
+                )
+                time.sleep(delay)
+            except Exception as exc:
+                print_orchestrator(f"worker 调用失败：{exc}")
+                return {
+                    "status": "failed",
+                    "status_reason": f"worker 调用失败：{exc}",
+                }
+        else:
+            reason = (
+                f"worker 模型连接失败（{assignment.assignment_id}，"
+                f"agent={self.worker}）：{last_transport or 'unknown'}"
+                f"（编排器已重试 {WORKER_TRANSPORT_RETRY_LIMIT} 次）"
             )
-            ref = result.session_ref
-        except SessionResumeError as exc:
-            print_orchestrator(f"worker resume failed: {exc}")
+            return {"status": "failed", "status_reason": reason}
+        if ref is None:
             return {
                 "status": "failed",
-                "status_reason": str(exc),
-            }
-        except Exception as exc:
-            print_orchestrator(f"worker 调用失败：{exc}")
-            return {
-                "status": "failed",
-                "status_reason": f"worker 调用失败：{exc}",
+                "status_reason": "worker 调用失败：未获得会话引用",
             }
         sessions[key] = ref.to_dict()
         print_orchestrator(f"worker turn done session={ref.session_id}")

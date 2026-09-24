@@ -18,6 +18,15 @@ except ImportError:  # pragma: no cover - dependency declared in pyproject
     jsonschema = None  # type: ignore[assignment]
 
 
+def _resolve_contract_path(
+    workspace_root: Path, project_root: Path, declared: str
+) -> Path:
+    text = declared.replace("\\", "/")
+    if text.startswith("harness/"):
+        return resolve_project_path(project_root, text, label="contract path")
+    return _resolve_workspace_path(workspace_root, declared)
+
+
 def validate_path_contracts(
     items: list[PathContract],
     *,
@@ -34,7 +43,7 @@ def validate_path_contracts(
     errors: list[str] = []
     for item in items:
         try:
-            target = _resolve_workspace_path(workspace_root, item.path)
+            target = _resolve_contract_path(workspace_root, project_root, item.path)
         except ValueError as exc:
             errors.append(str(exc))
             continue

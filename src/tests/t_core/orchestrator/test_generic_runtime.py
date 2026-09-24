@@ -138,14 +138,19 @@ class GenericRuntimeTests(unittest.TestCase):
                     "knowledge": {
                         "workspace_knowledge": {
                             "kind": "local_dir",
-                            "path": "harness/knowledge/",
+                            "path": "harness/knowledge/inputs/",
                             "provider": "local_files",
-                        }
+                        },
+                        "workflow_plan": {
+                            "kind": "local_dir",
+                            "path": "harness/knowledge/plan/",
+                            "provider": "local_files",
+                        },
                     },
                 },
                 "defaults": {
                     "rules": ["workspace_boundary", "runtime", "paths"],
-                    "knowledge": ["workspace_knowledge"],
+                    "knowledge": ["workspace_knowledge", "workflow_plan"],
                 },
                 "stages": [
                     {

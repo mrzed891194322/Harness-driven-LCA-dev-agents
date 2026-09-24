@@ -1,6 +1,6 @@
 # 离线产物工具调用纪律
 
-- 每轮结束前**优先调用 `submit_handoff`** 交卷：由主机写入当前 assignment 的 handoff 路径并校验字段。不要手拼 `memory/handoffs/` 文件名，不要省略交卷。仅在工具不可用时，才回退写入运行上下文给出的 `handoff_path` JSON。
+- 每轮结束前**优先调用 `submit_handoff`** 交卷：由主机写入当前 assignment 的 handoff 路径并校验字段。不要手拼 `records/handoffs/` 文件名，不要省略交卷。仅在工具不可用时，才回退写入运行上下文给出的 `handoff_path` JSON。
 - Core Host Action（`inventory_check` / `mapping_check` / `report_check`）由编排器在验收与 reviewer gate 重跑；Agent 不要自行调用这些 Host Action，也不要把 MCP 当成验收门。检查通过不代替 reviewer 对方法和需求落实的判断。
 - 引用工具返回的 `checks_ref.path` 和 `evidence_manifest_ref`；按其相对路径语义定位。`read_artifact` 分段读取，保留完整证据引用，不全量展开 raw。
 - `render_report_tables` 仅供写者使用；生成区域数值不得手工修改。reviewer 可调用只读 MCP 做独立离线复核，不能代写报告。

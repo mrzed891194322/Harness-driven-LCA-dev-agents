@@ -12,6 +12,7 @@ from core.agents.session import (
     SessionRef,
     SessionResumeError,
     TurnResult,
+    WorkerTransportError,
 )
 from core.runtime.host_action import HostActionResult
 from tests.conftest import PROJECT_ROOT
@@ -95,14 +96,9 @@ class ScriptedSessionClient:
         self.resume_count = 0
         self.configs: list[SessionConfig] = []
         self._call_counts: dict[tuple[str, str, int], int] = {}
-        inputs = workspace / "inputs"
-        inputs.mkdir(parents=True, exist_ok=True)
-        plan = inputs / "plan.md"
-        if not plan.is_file():
-            plan.write_text("# plan\n", encoding="utf-8")
-        revise = inputs / "revise.md"
-        if not revise.is_file():
-            revise.write_text("# revise\n", encoding="utf-8")
+        from tests.conftest import ensure_harness_plan_files
+
+        ensure_harness_plan_files()
 
     def create(self, config: SessionConfig) -> SessionRef:
         key = f"{config.worker}-{len(self.created)}"
@@ -139,6 +135,11 @@ class ScriptedSessionClient:
         else:
             payload = dict(raw)
         self.turns.append((ref.session_id, f"{stage}:{role}:{attempt}"))
+        if payload.get("raise_transport"):
+            message = str(
+                payload.get("transport_message") or "test 模型连接失败：Connection error."
+            )
+            raise WorkerTransportError(message)
         self._write_outputs(payload)
         handoff_rel = context["handoff_path"]
         handoff_path = Path(handoff_rel)

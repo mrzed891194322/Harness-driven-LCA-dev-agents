@@ -361,7 +361,7 @@ def test_workflow_adapter_entrypoints_preserve_context_and_response(tmp_path, to
     )
     assert result["schema_version"] == 2
     assert result["artifacts"]
-    assert (workspace / "memory/evidence/run-1/manifest.json").is_file()
+    assert (workspace / "records/evidence/run-1/manifest.json").is_file()
     if tool == "artifacts":
         assert "reuse" in result or "ok" in result or "status" in result
         names = {item["name"] for item in listed}

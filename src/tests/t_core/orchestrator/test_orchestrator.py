@@ -13,6 +13,7 @@ from core.workflow.config.loader import load_workflow
 from core.workflow.execution.handoff import read_handoff
 from core.workflow.execution.runner import (
     PROTOCOL_REPAIR_LIMIT,
+    WORKER_TRANSPORT_RETRY_LIMIT,
     OrchestratorRuntime,
     initial_state,
     run_workflow,
@@ -129,9 +130,9 @@ class OrchestratorGraphTests(unittest.TestCase):
         ]
         self.assertEqual(len(mapping_turns), 2)
         self.assertNotEqual(mapping_turns[0][0], mapping_turns[1][0])
-        self.assertTrue((self.workspace / "memory" / "manifest.json").is_file())
+        self.assertTrue((self.workspace / "records" / "manifest.json").is_file())
         manifest = json.loads(
-            (self.workspace / "memory" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "completed")
         self.assertEqual(client.configs[0].mcp_servers, {})
@@ -255,11 +256,11 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(client.turns, [])
         self.assertTrue(
             (
-                self.workspace / "memory" / "logs" / "run-inflight" / "progress.txt"
+                self.workspace / "records" / "logs" / "run-inflight" / "progress.txt"
             ).is_file()
         )
         manifest = json.loads(
-            (self.workspace / "memory" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
         self.assertIn("in_flight", manifest["status_reason"])
@@ -315,10 +316,84 @@ class OrchestratorGraphTests(unittest.TestCase):
         ][1]
         self.assertIn("契约", second_repair_prompt)
         note = (
-            self.workspace / "memory" / "reviews" / "02-inventory-extraction-1.md"
+            self.workspace / "records" / "reviews" / "02-inventory-extraction-1.md"
         ).read_text(encoding="utf-8")
         self.assertIn("缺一行", note)
         self.assertNotIn("不能为空", note)
+
+    @patch("core.workflow.execution.runner.time.sleep")
+    def test_worker_transport_retry_exhausted_fails(self, _sleep: Any) -> None:
+        transport = {
+            "raise_transport": True,
+            "transport_message": "codex 模型连接失败：Connection error.",
+        }
+        script = {
+            ("01-intake-gate", "reviewer", 1): {
+                "status": "passed",
+                "status_reason": "计划可启动",
+            },
+            ("02-inventory-extraction", "executor", 1): {
+                "status": "ok",
+                "status_reason": "ok",
+                "write": [
+                    "workspace/outputs/inventory/extracted-bom.json",
+                    "workspace/outputs/inventory/extracted-bom.md",
+                ],
+            },
+            ("02-inventory-extraction", "reviewer", 1): [transport]
+            * WORKER_TRANSPORT_RETRY_LIMIT,
+        }
+        result, client = self._run(script)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("worker 模型连接失败", result["status_reason"])
+        self.assertIn("02-inventory-extraction.reviewer", result["status_reason"])
+        self.assertNotIn("handoff 无效", result["status_reason"])
+        review_turns = [
+            label
+            for _sid, label in client.turns
+            if label == "02-inventory-extraction:reviewer:1"
+        ]
+        self.assertEqual(len(review_turns), WORKER_TRANSPORT_RETRY_LIMIT)
+
+    @patch("core.workflow.execution.runner.time.sleep")
+    def test_worker_transport_retry_then_succeeds(self, _sleep: Any) -> None:
+        script = {
+            ("01-intake-gate", "reviewer", 1): {
+                "status": "passed",
+                "status_reason": "计划可启动",
+            },
+            ("02-inventory-extraction", "executor", 1): {
+                "status": "ok",
+                "status_reason": "ok",
+                "write": [
+                    "workspace/outputs/inventory/extracted-bom.json",
+                    "workspace/outputs/inventory/extracted-bom.md",
+                ],
+            },
+            ("02-inventory-extraction", "reviewer", 1): [
+                {"raise_transport": True},
+                {"raise_transport": True},
+                {"status": "passed", "status_reason": "审查通过"},
+            ],
+        }
+        result, client = self._run(script)
+        review_turns = [
+            label
+            for _sid, label in client.turns
+            if label == "02-inventory-extraction:reviewer:1"
+        ]
+        self.assertEqual(len(review_turns), 3)
+        handoff = read_handoff(
+            self.workspace
+            / "records"
+            / "handoffs"
+            / "02-inventory-extraction-reviewer-1.json",
+            role="reviewer",
+            stage="02-inventory-extraction",
+            attempt=1,
+        )
+        self.assertEqual(handoff["status"], "passed")
+        self.assertNotIn("handoff 无效", result.get("status_reason") or "")
 
     def test_executor_missing_handoff_protocol_rework_exhausted_fails(self) -> None:
         skip = {"status": "ok", "skip_handoff": True}
@@ -343,7 +418,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(len(executor_labels), PROTOCOL_REPAIR_LIMIT + 1)
         self.assertGreaterEqual(client.resume_count, PROTOCOL_REPAIR_LIMIT)
         manifest = json.loads(
-            (self.workspace / "memory" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
 
@@ -379,13 +454,13 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(len(review_labels), PROTOCOL_REPAIR_LIMIT + 1)
         self.assertTrue(all(label.endswith(":1") for label in review_labels))
         manifest = json.loads(
-            (self.workspace / "memory" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
         self.assertIn("handoff 无效", manifest["status_reason"])
         self.assertFalse(
             (
-                self.workspace / "memory" / "reviews" / "02-inventory-extraction-1.md"
+                self.workspace / "records" / "reviews" / "02-inventory-extraction-1.md"
             ).is_file()
         )
 
@@ -481,17 +556,17 @@ class ReadHandoffTests(unittest.TestCase):
         return body
 
     def test_string_checks_ref(self) -> None:
-        path = self._write(self._base(checks_ref="memory/checks.json"))
+        path = self._write(self._base(checks_ref="records/checks.json"))
         payload = read_handoff(
             path, role="reviewer", stage="02-inventory-extraction", attempt=1
         )
-        self.assertEqual(payload["checks_ref"], "memory/checks.json")
+        self.assertEqual(payload["checks_ref"], "records/checks.json")
 
     def test_object_checks_ref_coerced_to_path(self) -> None:
         path = self._write(
             self._base(
                 checks_ref={
-                    "path": "memory/checks.json",
+                    "path": "records/checks.json",
                     "sha256": "ab",
                     "size_bytes": 1,
                 }
@@ -500,7 +575,7 @@ class ReadHandoffTests(unittest.TestCase):
         payload = read_handoff(
             path, role="reviewer", stage="02-inventory-extraction", attempt=1
         )
-        self.assertEqual(payload["checks_ref"], "memory/checks.json")
+        self.assertEqual(payload["checks_ref"], "records/checks.json")
 
     def test_object_without_path_rejected(self) -> None:
         path = self._write(self._base(checks_ref={"sha256": "ab"}))

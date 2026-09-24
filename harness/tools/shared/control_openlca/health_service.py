@@ -36,7 +36,7 @@ def cleanup(
                 )
             root = Path(workspace)
             reconcile_cleanup(
-                root / "memory" / "import-operations",
+                root / "records" / "import-operations",
                 host,
                 port,
                 category,

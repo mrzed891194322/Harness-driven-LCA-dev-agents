@@ -31,7 +31,7 @@ def _ctx(**overrides: object) -> dict:
         "workspace": "/tmp/ws",
         "project_root": "/tmp/proj",
         "metadata": {},
-        "handoff_path": "memory/handoffs/x.json",
+        "handoff_path": "records/handoffs/x.json",
     }
     payload.update(overrides)
     return payload

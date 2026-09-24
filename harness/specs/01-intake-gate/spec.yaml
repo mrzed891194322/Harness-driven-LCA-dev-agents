@@ -1,7 +1,7 @@
 version: 1
 id: 01-intake-gate
 inputs:
-- path: workspace/inputs/plan.md
+- path: harness/knowledge/plan/main_plan.md
   required: true
 outputs: []
 acceptance:

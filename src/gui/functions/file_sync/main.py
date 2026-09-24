@@ -27,7 +27,7 @@ class SyncResult:
 
 
 def sync_files(target: SyncTarget, **kwargs: Any) -> SyncResult:
-    """Sync GUI-staged inputs to harness/knowledge or workspace/inputs."""
+    """Sync GUI-staged inputs to harness/knowledge/inputs or harness/knowledge/plan."""
     if target == "knowledge":
         return _sync_knowledge(kwargs.get("uploads"))
     if target == "plan":
@@ -54,6 +54,7 @@ def _sync_knowledge(uploads: Any) -> SyncResult:
 
     knowledge_dir = config.KNOWLEDGE_DIR
     knowledge_dir.mkdir(parents=True, exist_ok=True)
+    config.KNOWLEDGE_PLAN_DIR.mkdir(parents=True, exist_ok=True)
     details: list[str] = []
     copied = 0
 
@@ -68,7 +69,7 @@ def _sync_knowledge(uploads: Any) -> SyncResult:
         try:
             shutil.copy2(path, dest_path)
             copied += 1
-            details.append(f"copied {path.name} -> harness/knowledge/")
+            details.append(f"copied {path.name} -> harness/knowledge/inputs/")
         except OSError as exc:
             return SyncResult(
                 ok=False,
@@ -87,7 +88,7 @@ def _sync_knowledge(uploads: Any) -> SyncResult:
     return SyncResult(
         ok=True,
         target="knowledge",
-        message=f"synced {copied} file(s) to harness/knowledge/",
+        message=f"synced {copied} file(s) to harness/knowledge/inputs/",
         details=details,
     )
 

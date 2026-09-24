@@ -83,4 +83,4 @@ uv run python src/scripts/clean.py -y --preset whole-lca
 # 或 revise-lca：--preset revise-lca（不清理 workspace）
 ```
 
-然后手工复制资料到 `harness/knowledge/`，并编写 `workspace/inputs/plan.md`（或 `revise.md`）。详见根目录 `README.md` 与 `src/scripts/clean.py`。
+然后手工复制资料到 `harness/knowledge/inputs/`，并编写 `harness/knowledge/plan/main_plan.md`（或 `revise_plan.md`）。详见根目录 `README.md` 与 `src/scripts/clean.py`。

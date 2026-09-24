@@ -4,10 +4,10 @@
 
 ## 产物与排障路径（LCA 约定）
 
-- 输入：`workspace/inputs/plan.md`（revise 另加 `workspace/inputs/revise.md`）
+- 输入：`harness/knowledge/plan/main_plan.md`（revise 另加 `harness/knowledge/plan/revise_plan.md`）
 - 知识：以工作流 YAML 绑定的 `knowledge_sources` / `source_manifest` 为准
-- 状态：`workspace/memory/manifest.json`、`workspace/memory/reviews/`、`workspace/memory/handoffs/`；编排检查点在 `workspace/memory/` 的 SQLite
-- 排障留档：`workspace/memory/logs/<run_id>/`；运行时 MCP 渲染在 `workspace/tmp/mcp-render/`
+- 状态：`workspace/records/manifest.json`、`workspace/records/reviews/`、`workspace/records/handoffs/`；编排检查点在 `workspace/records/` 的 SQLite
+- 排障留档：`workspace/records/logs/<run_id>/`；运行时 MCP 渲染在 `workspace/tmp/mcp-render/`
 - 前景产物：`extracted-bom.json` / `.md`、`process-mapping.json`。GUI「工作细节」只渲染两份 JSON
 - LCI：`workspace/outputs/LCI/`（`flows/`、`processes/`、`product_systems/`，外加 `human_readable_mapping.md`）
 - 报告：`lca_report.md`；MCP 完整业务结果在 `reports/runs/<run_id>/.../raw.json`。revise 覆盖该报告并追加修订三节
@@ -30,4 +30,4 @@
 
 ## 终止与自主决策
 
-`manifest.json` 的 `status` 为 `running` | `failed` | `completed`。不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定；在共同方法规则允许的范围内自主选择并留档。无法满足明确要求、存在关键未解决缺口或缺少必做**硬**工具能力时，以现有失败协议受控停止。解释类要求按阶段契约允许 `llm_inferred` + 出处表 fallback，不得因用户未在 plan 写许可而停止。
+Worker（`codex` / `claude` / `opencode` / `pi`）模型 API 连接失败时，主编排会单独标记 `worker 模型连接失败` 并对整轮 turn 额外重试（与 handoff 协议返工区分）。`manifest.json` 的 `status` 为 `running` | `failed` | `completed`。不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定；在共同方法规则允许的范围内自主选择并留档。无法满足明确要求、存在关键未解决缺口或缺少必做**硬**工具能力时，以现有失败协议受控停止。解释类要求按阶段契约允许 `llm_inferred` + 出处表 fallback，不得因用户未在 plan 写许可而停止。

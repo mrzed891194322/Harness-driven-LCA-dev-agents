@@ -44,7 +44,7 @@ def context(tmp_path, monkeypatch):
 def start_import(ctx, client) -> tuple[Path, dict[str, Any]]:
     lci = ctx.workspace / "outputs" / "LCI"
     write_flow(lci)
-    operation_dir = ctx.workspace / "memory" / "import-operations"
+    operation_dir = ctx.workspace / "records" / "import-operations"
     preflight = operations.preflight(
         "localhost",
         8080,

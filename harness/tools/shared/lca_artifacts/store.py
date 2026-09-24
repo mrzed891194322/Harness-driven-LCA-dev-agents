@@ -23,6 +23,8 @@ from harness.tools.shared.control_openlca.workflow import (
 
 from .snapshot_io import load_json, sha256_file
 
+_RECORDS_DIRNAME = "records"
+
 MAX_RESPONSE_BYTES = 32768
 PROJECT_ROOT = next(
     parent
@@ -115,7 +117,7 @@ class Context:
             raise ValueError("invalid role")
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
         object.__setattr__(self, "handoff_path", str(self.handoff_path or ""))
-        self.safe(self.workspace / "memory")
+        self.safe(self.workspace / _RECORDS_DIRNAME)
         self.safe(self.workspace / "outputs")
 
     def sources_manifest_path(self) -> Path:
@@ -236,7 +238,7 @@ class Context:
 
     @property
     def memory(self):
-        return self.safe(self.workspace / "memory" / "evidence" / self.run_id)
+        return self.safe(self.workspace / _RECORDS_DIRNAME / "evidence" / self.run_id)
 
     @property
     def manifest(self):

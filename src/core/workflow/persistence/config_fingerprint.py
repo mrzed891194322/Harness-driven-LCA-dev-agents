@@ -14,6 +14,7 @@ from core.runtime.knowledge_providers.local_files import (
 from core.runtime.knowledge_providers.local_files import discover_files_at
 from core.runtime.tool_runtime import write_json_atomic
 from core.workflow.spec.models import StageSpec
+from utils.workspace_layout import records_root
 
 from ..config.models import KnowledgeSource, Workflow
 
@@ -27,7 +28,7 @@ IMPLEMENTATION_ROOTS = (
 
 
 def runtime_config_path(workspace_root: Path, run_id: str) -> Path:
-    return workspace_root / "memory" / "evidence" / run_id / "runtime-config.json"
+    return records_root(workspace_root) / "evidence" / run_id / "runtime-config.json"
 
 
 def implementation_fingerprint(project_root: Path) -> str:

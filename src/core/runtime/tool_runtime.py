@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from utils.workspace_layout import records_root
+
 from .context import RunContext
 
 CONTEXT_FILE_FLAG_DEFAULT = "--context-file"
@@ -57,8 +59,7 @@ def mcp_context_path(
 
 def _handoff_path_for_context(ctx: RunContext) -> str:
     handoff = (
-        ctx.workspace_root
-        / "memory"
+        records_root(ctx.workspace_root)
         / "handoffs"
         / f"{ctx.stage_id}-{ctx.role}-{ctx.attempt}.json"
     )

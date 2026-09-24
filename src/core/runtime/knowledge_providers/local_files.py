@@ -10,6 +10,7 @@ from core.runtime.hashing import sha256_file
 from core.runtime.identifiers import resolve_project_path
 from core.runtime.knowledge import KnowledgeProviderRegistry
 from core.runtime.tool_runtime import write_json_atomic
+from utils.workspace_layout import records_root
 
 PROVIDER_ID = "local_files"
 
@@ -99,8 +100,7 @@ def discover_files_at(project_root: Path, relative_dir: str) -> dict:
 
 def enrich_local_files(ctx: RunContext, bundle: KnowledgeTask) -> dict[str, object]:
     source_path = (
-        ctx.workspace_root
-        / "memory"
+        records_root(ctx.workspace_root)
         / "evidence"
         / ctx.run_id
         / "sources"
@@ -129,6 +129,6 @@ def enrich_local_files(ctx: RunContext, bundle: KnowledgeTask) -> dict[str, obje
             "sha256": sha256_file(source_path),
         },
         "evidence_manifest_ref": str(
-            ctx.workspace_root / "memory" / "evidence" / ctx.run_id / "manifest.json"
+            records_root(ctx.workspace_root) / "evidence" / ctx.run_id / "manifest.json"
         ),
     }

@@ -9,6 +9,7 @@ from gui import config
 from gui.functions.openlca_failure_hints import (
     maybe_append_handoff_failure_hint,
     maybe_append_openlca_timeout_hint,
+    maybe_append_worker_transport_hint,
 )
 
 
@@ -67,7 +68,7 @@ def parse_lca_result(
             "success": False,
             "tab_label": "LCA执行结果（LCA提前中止）",
             "status": "missing",
-            "failure_markdown": "### 失败原因\n\n- 本次执行未生成 `workspace/memory/manifest.json`。",
+            "failure_markdown": "### 失败原因\n\n- 本次执行未生成 `workspace/records/manifest.json`。",
         }
     if previous_fingerprint is not None and current_fingerprint == previous_fingerprint:
         return {
@@ -107,10 +108,15 @@ def parse_lca_result(
         reasons.append("工作流提前结束，但没有提供更具体的失败说明。")
     lines = ["### 失败原因", "", *(f"- {item}" for item in reasons)]
     failure_body = "\n".join(lines)
-    failure_markdown = maybe_append_handoff_failure_hint(
+    failure_markdown = maybe_append_worker_transport_hint(
         config.WORKSPACE_MEMORY.parent,
         manifest,
         failure_body,
+    )
+    failure_markdown = maybe_append_handoff_failure_hint(
+        config.WORKSPACE_MEMORY.parent,
+        manifest,
+        failure_markdown,
     )
     failure_markdown = maybe_append_openlca_timeout_hint(
         config.WORKSPACE_MEMORY.parent,

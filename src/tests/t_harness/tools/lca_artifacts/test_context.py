@@ -34,11 +34,11 @@ def _write_context(path: Path, **overrides: object) -> Path:
     attempt = int(payload["attempt"])  # type: ignore[arg-type]
     payload.setdefault(
         "handoff_path",
-        f"memory/handoffs/{stage}-{role}-{attempt}.json",
+        f"records/handoffs/{stage}-{role}-{attempt}.json",
     )
     workspace = Path(str(payload["workspace"]))
     workspace.mkdir(parents=True, exist_ok=True)
-    (workspace / "memory").mkdir(exist_ok=True)
+    (workspace / "records").mkdir(exist_ok=True)
     (workspace / "outputs").mkdir(exist_ok=True)
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
@@ -145,7 +145,7 @@ class ContextFileTests(unittest.TestCase):
         workspace = Path(json.loads(path.read_text())["workspace"])
         handoff_path = (
             workspace
-            / "memory"
+            / "records"
             / "handoffs"
             / "02-inventory-extraction-executor-1.json"
         )

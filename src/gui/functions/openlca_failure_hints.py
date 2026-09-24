@@ -104,7 +104,9 @@ def should_show_openlca_timeout_hint(
     if any(marker in lower for marker in _IMPORT_FAILURE_MARKERS):
         return True
 
-    journal_root = workspace_root / "memory" / "import-operations"
+    from utils.workspace_layout import records_root
+
+    journal_root = records_root(workspace_root) / "import-operations"
     operation = _relevant_import_operation(journal_root)
     if operation is None:
         return False
@@ -173,26 +175,68 @@ def maybe_append_openlca_timeout_hint(
     return f"{failure_markdown.rstrip()}\n\n{_hint_markdown(manifest)}"
 
 
+def should_show_worker_transport_hint(manifest: dict[str, Any]) -> bool:
+    reason = str(manifest.get("status_reason") or "")
+    return "worker 模型连接失败" in reason
+
+
+def _transport_agent_lines() -> list[str]:
+    return [
+        "- 这是 **Agent / 模型 API 连接或鉴权问题**，不是 handoff 交卷格式错误，也不是 `harness/knowledge/inputs/` 资料缺失。",
+        "- 主编排已对当前 worker turn 额外重试最多 5 次；请在 `progress.txt` 中搜索 `worker transport retry` 或 `模型连接失败`。",
+        "- 按 GUI「设置&初始化」所选 **HARNESS_AGENT** 检查对应 CLI 登录与 `.env` 模型变量：",
+        "  - `pi` → `PI_MODEL`、opencode-go 提供方与网络/代理",
+        "  - `codex` → `CODEX_MODEL`、Codex CLI 登录",
+        "  - `claude` → `CLAUDE_MODEL`、Claude CLI 认证",
+        "  - `opencode` → `OPENCODE_MODEL`、OpenCode 配置",
+        "- 连通恢复后重跑；可备份 `workspace/records/logs/` 与 `records/handoffs/` 再开新运行。",
+    ]
+
+
+def _transport_hint_markdown(manifest: dict[str, Any], workspace_root: Path) -> str:
+    run_id = str(manifest.get("run_id") or "").strip()
+    log_hint = (
+        f"`{workspace_root / 'records' / 'logs' / run_id / 'progress.txt'}`"
+        if run_id
+        else "`workspace/records/logs/<run_id>/progress.txt`"
+    )
+    lines = ["### Worker 模型连接失败", "", f"- 排障日志：{log_hint}", ""]
+    lines.extend(_transport_agent_lines())
+    return "\n".join(lines)
+
+
+def maybe_append_worker_transport_hint(
+    workspace_root: Path,
+    manifest: dict[str, Any],
+    failure_markdown: str,
+) -> str:
+    if not should_show_worker_transport_hint(manifest):
+        return failure_markdown
+    return f"{failure_markdown.rstrip()}\n\n{_transport_hint_markdown(manifest, workspace_root)}"
+
+
 def should_show_handoff_failure_hint(manifest: dict[str, Any]) -> bool:
     reason = str(manifest.get("status_reason") or "")
-    return "handoff 无效" in reason and "memory/handoffs" in reason
+    if should_show_worker_transport_hint(manifest):
+        return False
+    return "handoff 无效" in reason and "records/handoffs" in reason
 
 
 def _handoff_hint_markdown(manifest: dict[str, Any], workspace_root: Path) -> str:
     run_id = str(manifest.get("run_id") or "").strip()
     log_hint = (
-        f"`{workspace_root / 'memory' / 'logs' / run_id / 'progress.txt'}`"
+        f"`{workspace_root / 'records' / 'logs' / run_id / 'progress.txt'}`"
         if run_id
-        else "`workspace/memory/logs/<run_id>/progress.txt`"
+        else "`workspace/records/logs/<run_id>/progress.txt`"
     )
     lines = [
         "### handoff 交卷失败（非上传资料缺失）",
         "",
-        "- 失败路径是 **Agent 应写入的交卷 JSON**（`workspace/memory/handoffs/…`），不是 `plan.md` 或 `harness/knowledge/` 上传项。",
+        "- 失败路径是 **Agent 应写入的交卷 JSON**（`workspace/records/handoffs/…`），不是计划文件或 `harness/knowledge/inputs/` 上传项。",
         "- 主编排通常已进行最多 3 次 **协议返工**；请在终端或",
         f"  {log_hint}",
         "  中搜索 `protocol rework` 与 `worker turn ended without handoff`。",
-        "- 重跑前请备份 `memory/logs/` 与 `memory/handoffs/`；Agent 应优先调用 `submit_handoff` 或按 prompt 中的 `handoff_path` 写入 JSON。",
+        "- 重跑前请备份 `records/logs/` 与 `records/handoffs/`；Agent 应优先调用 `submit_handoff` 或按 prompt 中的 `handoff_path` 写入 JSON。",
     ]
     return "\n".join(lines)
 

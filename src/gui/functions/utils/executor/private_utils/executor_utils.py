@@ -208,7 +208,7 @@ CLEAN_DIR_SCRIPT = [
     "-y",
 ]
 
-# False 则跳过 knowledge + inputs 清理（仍清 workspace 生成物与 openLCA）。
+# False 则跳过 knowledge staging 清理（仍清 workspace 生成物与 openLCA）。
 CLEAN_GUI_STAGING = True
 
 

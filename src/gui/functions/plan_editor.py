@@ -3,7 +3,7 @@
 Plan and improvement views start from configured templates, while result and
 LCI views load workflow outputs on demand. Every document supports the same
 optional textbox grammar; only the execution-plan form is written to
-``workspace/inputs/plan.md``.
+``harness/knowledge/plan/main_plan.md``.
 
 Editable regions use one deliberately small grammar::
 

@@ -25,6 +25,7 @@ class TaskBundleResolveTests(unittest.TestCase):
         self.assertEqual(executor.mcp_tool_ids, ["control_openlca", "lca_artifacts"])
         self.assertIn("openlca_usage", executor.rule_ids)
         self.assertIn("workspace_knowledge", executor.knowledge_ids)
+        self.assertIn("workflow_plan", executor.knowledge_ids)
         self.assertEqual(
             executor.stage_spec.source_path,
             "harness/specs/03-dataset-mapping/spec.yaml",

@@ -28,7 +28,7 @@ uv run python src/gui/main.py
 点「AI Agent 工具」卡片上的「配置」进入模型页：横向 Codex / Claude / OpenCode / Pi 卡片点一张只显示该后端表单，页面用竖直滚动条；点「返回」回到初始化检查。
 当前 Agent CLI 仍由初始化检查页的下拉框选择（codex / claude / opencode / pi）；各后端模型 id 缺省来自 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。OpenCode / Pi 可点「刷新模型列表」拉取本机可用模型后再点选（也可手填）。Pi 填写 `provider/model`（例如 `opencode-go/deepseek-v4.1-flash`），启动时拆成 `--provider` 与 `--model`。认证走各 CLI 本机登录，配置页可点「测试连接」做诊断探测（不开对话）。
 「开始初始化检查」会依次探测所选 Agent CLI（PATH 上的 `--version`）与 openLCA，两项全部通过后才解锁「执行LCA计划」；**不会**在 GUI 内调用 bootstrap-env（环境引导：执行 `src/scripts/proj_init/PROMPT.md` 或 `uv run python src/scripts/proj_init/main.py`）。
-侧栏「用户资料上传」仅暂存于 GUI，不重置初始化检查门禁；点击「执行LCA计划」或「执行改进」时，先 `src/scripts/clean.py --preset`（whole-lca 含 `knowledge` + `inputs` staging，可用 `CLEAN_GUI_STAGING` 跳过），再经 `file_sync` 写入 `harness/knowledge/` 与 `workspace/inputs/`。所选 Agent 与模型写入仓库根目录 `.env`。
+侧栏「用户资料上传」仅暂存于 GUI，不重置初始化检查门禁；点击「执行LCA计划」或「执行改进」时，先 `src/scripts/clean.py --preset`（whole-lca 含 `knowledge` staging，可用 `CLEAN_GUI_STAGING` 跳过），再经 `file_sync` 写入 `harness/knowledge/inputs/` 与 `harness/knowledge/plan/`。所选 Agent 与模型写入仓库根目录 `.env`。
 
 「开发者选项」中的“查看LCA结果(仅开发过程使用)”会读取已有的
 `workspace/outputs/reports/lca_report.md`，打开同名 Tab，并提供报告下载。
@@ -44,13 +44,13 @@ front matter；若文档包含完整的 `PLAN_TEXTBOX` 区域，则在原位置�
 
 侧栏的“开始LCA工作”始终可用，用于打开“计划制定”Tab。该面板按
 `ui/assets/template/plan.md` 动态渲染结构化表单，完全忽略已有的
-`workspace/inputs/plan.md`。`<!-- PLAN_TEXTBOX -->` 是唯一输入判定标记，
+`harness/knowledge/plan/main_plan.md`。`<!-- PLAN_TEXTBOX -->` 是唯一输入判定标记，
 其后的“用户填写内容区”区块会在原位显示为 Textbox；其他 Markdown 原样分段显示。
 左侧目录直接使用 `#`、`##` 两级标题的完整文字。最多 20 个输入区域由固定的
 Markdown/Textbox 交替组件池动态更新；无标记的普通 Markdown 作为只读计划显示。
 上传 `.md` 只替换当前页面的暂存内容。点击「执行LCA计划」时先清理（`knowledge`、
-`inputs`、`workspace`、`openLCA`）再同步计划与用户资料，最后启动 agent；同步后才写入
-`workspace/inputs/plan.md`。
+`workspace`、`openlca` preset）再同步计划与用户资料，最后启动 agent；同步后才写入
+`harness/knowledge/plan/main_plan.md`。
 默认模板不含 YAML front matter；上传计划可省略 front matter，也可携带任意
 metadata，GUI 会原样保留而不校验类型或版本。
 旧显式 `PLAN_INPUT` 注释不再支持。
@@ -58,7 +58,7 @@ metadata，GUI 会原样保留而不校验类型或版本。
 面板内执行按钮需要「初始化检查」两项全部通过；带输入区域的计划还需任一字段有内容，
 openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败时保持执行按钮禁用，
 无输入标记的 Markdown 计划可直接执行。不可用时
-悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 启动 Python 主编排器（`--worker`），并根据 `workspace/memory/manifest.json` 展示完成或提前
+悬停显示“请先完成初始化检查并填写计划”。执行后 GUI 按设置页所选 Agent 启动 Python 主编排器（`--worker`），并根据 `workspace/records/manifest.json` 展示完成或提前
 中止结果。完成后，`workspace/outputs/reports/lca_report.md` 直接显示在
 “LCA评估结果”Tab；左侧目录可导航报告章节，正文在独立滚动区域内渲染，
 用户可下载报告或按需打开「工作细节」，上下渲染
@@ -71,7 +71,7 @@ openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败
 重新加载 `ui/assets/template/revise.md`，可在内存中暂存最多 20 个
 `PLAN_TEXTBOX` 输入区域的 `.md` 改进方案。初始化检查通过、意见非空，
 且现有 plan、manifest、LCI 和最终报告齐备时启用“执行改进”；点击后原子保存到
-`workspace/inputs/revise.md` 并按所选 Agent 调用 `revise-lca`。成功后结果 Tab
+`harness/knowledge/plan/revise_plan.md` 并按所选 Agent 调用 `revise-lca`。成功后结果 Tab
 重新加载被覆盖的 `lca_report.md`，失败时读取 revise manifest 展示原因。
 “关闭面板”返回 LCA 结果。“修改工作细节”当前仅
 作为禁用的功能占位按钮显示。

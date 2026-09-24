@@ -20,38 +20,31 @@ PROJECT_ROOT = next(
     if (parent / "pyproject.toml").is_file()
 )
 
-STAGING_TARGETS = ("knowledge", "inputs")
+STAGING_TARGETS = ("knowledge",)
 # Targets that must not race an active orchestrator process.
 LOCKED_CLEAN_TARGETS = frozenset({"workspace", "openlca"})
 # Never unlink the process lock inode; see checkpoint.workspace_lock.
-ORCHESTRATOR_LOCK_KEEP = "memory/orchestrator.lock"
+ORCHESTRATOR_LOCK_KEEP = "records/orchestrator.lock"
 
 CLEAN_TARGETS = [
     {
         "name": "knowledge",
         "path": PROJECT_ROOT / "harness" / "knowledge",
         "gitignore": PROJECT_ROOT / "harness" / "knowledge" / ".gitignore",
-        "clean_root_files": True,
-        "keep_patterns": [".gitignore", "README.md"],
-    },
-    {
-        "name": "inputs",
-        "path": PROJECT_ROOT / "workspace" / "inputs",
-        "clean_root_files": True,
+        "staging_subdirs": ["inputs", "plan"],
         "keep_patterns": ["README.md"],
     },
     {
         "name": "workspace",
         "path": PROJECT_ROOT / "workspace",
         "gitignore": PROJECT_ROOT / "workspace" / ".gitignore",
-        # memory/outputs/tmp only; plan.md/revise.md are the inputs target.
-        "ignored_dirs": ["memory/**", "outputs/**", "tmp/**"],
+        "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
         "keep_patterns": ["**/README.md", ORCHESTRATOR_LOCK_KEEP],
     },
 ]
 
 CLEAN_PRESETS: dict[str, list[str]] = {
-    "whole-lca": ["knowledge", "inputs", "workspace", "openlca"],
+    "whole-lca": ["knowledge", "workspace", "openlca"],
     "revise-lca": ["knowledge", "openlca"],
 }
 
@@ -85,6 +78,28 @@ def _clean_filesystem_target(
 
     total_files = total_dirs = total_kept = total_failed = 0
     allowed_root = root_dir
+
+    staging_subdirs = list(target_cfg.get("staging_subdirs") or [])
+    if staging_subdirs:
+        print(f"\n开始清理 [{name}] 子目录: {', '.join(staging_subdirs)}")
+        if keep_patterns:
+            print(f"  例外保留: {', '.join(keep_patterns)}")
+        for sub_name in staging_subdirs:
+            sub_root = root_dir / sub_name
+            if not sub_root.exists():
+                continue
+            files, dirs, kept, failed = clean_root_files(
+                sub_root,
+                PROJECT_ROOT,
+                keep_patterns,
+                dry_run=dry_run,
+                allowed_root=sub_root,
+            )
+            total_files += files
+            total_dirs += dirs
+            total_kept += kept
+            total_failed += failed
+        return total_files, total_dirs, total_kept, total_failed
 
     if target_cfg.get("clean_root_files"):
         print(f"\n开始清理 [{name}] 根级文件与子目录...")
@@ -318,7 +333,7 @@ def run_clean(
     except WorkspaceBusy:
         print(
             f"[FAIL] workspace busy: cannot clean while orchestrator holds "
-            f"{workspace_root / 'memory' / 'orchestrator.lock'}",
+            f"{workspace_root / 'records' / 'orchestrator.lock'}",
             file=sys.stderr,
         )
         return 1
@@ -329,7 +344,7 @@ def cli_main(argv: list[str] | None = None) -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="按目标清理 knowledge、inputs、workspace 或 openLCA 前景实体。"
+        description="按目标清理 knowledge、workspace 或 openLCA 前景实体。"
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="演练模式，仅打印将要删除的文件/目录"
@@ -342,7 +357,7 @@ def cli_main(argv: list[str] | None = None) -> None:
         "--target",
         type=str,
         default=None,
-        help="单个清理目标: knowledge, inputs, workspace, openlca",
+        help="单个清理目标: knowledge, workspace, openlca",
     )
     parser.add_argument(
         "--preset",
@@ -354,7 +369,7 @@ def cli_main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--no-staging",
         action="store_true",
-        help="跳过 knowledge 与 inputs（GUI staging）清理",
+        help="跳过 knowledge（GUI staging）清理",
     )
     args = parser.parse_args(argv)
     raise SystemExit(

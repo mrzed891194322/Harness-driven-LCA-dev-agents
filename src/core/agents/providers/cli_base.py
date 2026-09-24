@@ -18,6 +18,7 @@ from ..archive import (
 )
 from ..progress import LineFormatter, print_session
 from ..session import SessionConfig, SessionError, SessionRef, TurnResult
+from ..turn_transport import WorkerTransportError, detect_worker_transport_failure
 from .store import StoredSessionProvider, write_ref
 
 
@@ -85,12 +86,23 @@ class CliSessionProvider(StoredSessionProvider):
         argv = self.build_command(binary, ref, prompt, config)
         write_argv_archive(config, argv)
         result = self._run(argv, config)
+        transport = detect_worker_transport_failure(
+            self.worker,
+            result.stdout,
+            result.stderr,
+            returncode=result.returncode,
+        )
         if result.returncode != 0:
+            finish_turn_archive(config, ref)
+            if transport:
+                raise WorkerTransportError(f"{self.worker} 模型连接失败：{transport}")
             detail = (
                 result.stderr or result.stdout or ""
             ).strip() or f"exit {result.returncode}"
-            finish_turn_archive(config, ref)
             raise SessionError(f"{self.worker} CLI 失败：{detail}")
+        if transport:
+            finish_turn_archive(config, ref)
+            raise WorkerTransportError(f"{self.worker} 模型连接失败：{transport}")
         self.apply_output(ref, result)
         write_ref(Path(ref.storage["dir"]), ref)
         finish_turn_archive(config, ref)

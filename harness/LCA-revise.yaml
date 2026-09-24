@@ -96,7 +96,11 @@ registry:
   knowledge:
     workspace_knowledge:
       kind: local_dir
-      path: harness/knowledge/
+      path: harness/knowledge/inputs/
+      provider: local_files
+    workflow_plan:
+      kind: local_dir
+      path: harness/knowledge/plan/
       provider: local_files
 defaults:
   rules:
@@ -108,6 +112,7 @@ defaults:
   - knowledge_files
   knowledge:
   - workspace_knowledge
+  - workflow_plan
 stages:
 - id: 01-intake-gate
   spec: harness/specs/01-intake-gate/spec.yaml

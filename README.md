@@ -78,7 +78,7 @@ uv run python src/gui/main.py
 uv run python src/scripts/clean.py -y --preset whole-lca
 ```
 
-3. 复制参考资料到 `harness/knowledge/`，编写 `workspace/inputs/plan.md`。
+3. 复制参考资料到 `harness/knowledge/inputs/`，编写 `harness/knowledge/plan/main_plan.md`。
 4. 启动：
 
 ```bash
@@ -96,7 +96,7 @@ uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
 uv run python src/scripts/clean.py -y --preset revise-lca
 ```
 
-3. 更新 `harness/knowledge/` 与 `workspace/inputs/revise.md`（保留既有 plan / manifest / 报告）。
+3. 更新 `harness/knowledge/inputs/` 与 `harness/knowledge/plan/revise_plan.md`（保留既有 main_plan / manifest / 报告）。
 4. 启动：
 
 ```bash

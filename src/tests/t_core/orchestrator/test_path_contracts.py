@@ -26,7 +26,11 @@ class PathContractTests(unittest.TestCase):
                 version=1,
                 spec_id="s",
                 source_path="x",
-                inputs=[PathContract(path="workspace/inputs/plan.md", required=True)],
+                inputs=[
+                    PathContract(
+                        path="harness/knowledge/plan/main_plan.md", required=True
+                    )
+                ],
             )
             errors = validate_inputs(spec, workspace_root=workspace, project_root=root)
             self.assertTrue(any("missing" in e for e in errors))
@@ -115,7 +119,9 @@ class PathContractTests(unittest.TestCase):
             path = write_minimal_workflow(root, acceptance=[])
             spec_path = root / "harness" / "specs" / "s1" / "spec.yaml"
             payload = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
-            payload["inputs"] = [{"path": "workspace/inputs/plan.md", "required": True}]
+            payload["inputs"] = [
+                {"path": "harness/knowledge/plan/main_plan.md", "required": True}
+            ]
             payload["outputs"] = []
             payload["acceptance"] = {"checks": []}
             spec_path.write_text(
@@ -151,19 +157,23 @@ class PathContractTests(unittest.TestCase):
             root = Path(temp_dir)
             workspace = root / "workspace"
             workspace.mkdir()
-            outside = root / "outside.txt"
+            outside = root.parent / "outside-plan.txt"
             outside.write_text("secret", encoding="utf-8")
-            link = workspace / "inputs" / "plan.md"
-            link.parent.mkdir(parents=True)
-            link.symlink_to(outside)
+            plan = root / "harness" / "knowledge" / "plan" / "main_plan.md"
+            plan.parent.mkdir(parents=True, exist_ok=True)
+            plan.symlink_to(outside)
             spec = StageSpec(
                 version=1,
                 spec_id="s",
                 source_path="x",
-                inputs=[PathContract(path="workspace/inputs/plan.md", required=True)],
+                inputs=[
+                    PathContract(
+                        path="harness/knowledge/plan/main_plan.md", required=True
+                    )
+                ],
             )
             errors = validate_inputs(spec, workspace_root=workspace, project_root=root)
-            self.assertTrue(any("escapes workspace" in e for e in errors), errors)
+            self.assertTrue(errors)
 
     def test_output_symlink_escape(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

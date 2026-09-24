@@ -56,4 +56,4 @@
   和纯 Markdown 均可解析，已有 front matter 原样保留且不校验类型或版本。
   同时为所有文档型 Tab 生成可配置标题层级的 Markdown 目录和匹配锚点。
   上传内容只在内存暂存；执行按钮触发 `file_sync` 原子写入
-  `workspace/inputs/plan.md` 或 `revise.md`。
+  `harness/knowledge/plan/main_plan.md` 或 `revise.md`。

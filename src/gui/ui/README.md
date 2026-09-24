@@ -23,7 +23,7 @@
 - `events/tab_plan.py`：每次打开时重载默认模板，上传成功后只替换暂存文档及当前
   Markdown 片段/目录/字段状态，上传失败不改变页面，并维护执行门禁。
 - `events/tab_improvement.py`：“修改LCA评估”打开独立改进面板，每次重载默认模板；
-  上传只更新该面板内存状态，执行时保存 `workspace/inputs/revise.md`、运行
+  上传只更新该面板内存状态，执行时保存 `harness/knowledge/plan/revise_plan.md`、运行
   `revise-lca` 并把结构化结果交给结果 Tab；关闭返回结果 Tab。
 - `events/tab_lci.py`：分别加载 `extracted-bom.json` 与 `process-mapping.json` 到两棵
   JSON 树；缺文件或非法 JSON 只隐藏该区并显示警告。底部关闭按钮只返回结果 Tab。

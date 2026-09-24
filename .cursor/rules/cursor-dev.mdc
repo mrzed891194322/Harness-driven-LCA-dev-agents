@@ -29,18 +29,18 @@ alwaysApply: true
 | `src/scripts/` | 薄 CLI：workflow / clean / check_status / gui_control / proj_init | 正式库实现 |
 | `src/tests/` | GUI/脚本/core/domains 回归 | 金标 workspace |
 | `workspace/` | 用户输入与运行结果 | 源码或测试夹具 |
-| `harness/knowledge/` | 用户参考资料落点 | 应提交的修复点 |
+| `harness/knowledge/` | `inputs/` 参考资料与 `plan/` 计划文档 | 应提交的修复点 |
 
-固定路径：`workspace/inputs/plan.md`、`workspace/inputs/revise.md`（仅工作流输入）、`harness/knowledge/`（用户参考资料）、`workspace/memory/`（含 `logs/<run_id>/` 排障留档）、`workspace/outputs/inventory/`、`workspace/outputs/LCI/`、`workspace/outputs/reports/`、`workspace/tmp/`（`mcp-context` / `mcp-render` / `sdk-sessions`）、仓库根 `.uv-cache/`（uv 包缓存）。不要恢复旧的 `workspace/plan/`、`workspace/LCI/`、`workspace/results/` 或 `workspace/inputs/references/`。
+固定路径：`harness/knowledge/plan/main_plan.md`、`harness/knowledge/plan/revise_plan.md`、`harness/knowledge/inputs/`（用户参考资料）、`workspace/records/`（含 `logs/<run_id>/` 排障留档）、`workspace/outputs/inventory/`、`workspace/outputs/LCI/`、`workspace/outputs/reports/`、`workspace/tmp/`（`mcp-context` / `mcp-render` / `sdk-sessions`）、仓库根 `.uv-cache/`（uv 包缓存）。不要恢复旧的 `workspace/plan/`、`workspace/LCI/`、`workspace/results/` 或 `workspace/inputs/`。
 
 ## 工作流排障优先顺序
 
 开发会话排查 whole-lca / revise-lca 问题时，按此顺序读产物（这些是开发排障输入，不是业务验收）：
 
-1. `workspace/memory/manifest.json` — 是否完成、卡在哪一阶段
-2. `workspace/memory/handoffs/`、`workspace/memory/reviews/` — 角色怎么交卷
-3. `workspace/memory/logs/<run_id>/` — `progress.txt` 与 turn 快照（prompt、argv、stdout、rendered）
-4. `workspace/memory/evidence/`、`workspace/outputs/reports/runs/` — MCP 业务证据
+1. `workspace/records/manifest.json` — 是否完成、卡在哪一阶段
+2. `workspace/records/handoffs/`、`workspace/records/reviews/` — 角色怎么交卷
+3. `workspace/records/logs/<run_id>/` — `progress.txt` 与 turn 快照（prompt、argv、stdout、rendered）
+4. `workspace/records/evidence/`、`workspace/outputs/reports/runs/` — MCP 业务证据
 5. `workspace/tmp/mcp-render/`、`workspace/tmp/sdk-sessions/` — 仅运行中尚未被 clean 时
 
 `clean` 会清 `memory/`（含 logs）与 `tmp/`；跨次保留请先拷走。

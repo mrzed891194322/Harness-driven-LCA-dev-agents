@@ -10,8 +10,10 @@ import yaml
 
 def write_tree(root: Path) -> None:
     """Create rule/knowledge/tool stubs under a fake project root."""
-    (root / "harness" / "knowledge").mkdir(parents=True, exist_ok=True)
-    (root / "harness" / "knowledge" / "README.md").write_text("# k\n", encoding="utf-8")
+    knowledge = root / "harness" / "knowledge"
+    (knowledge / "inputs").mkdir(parents=True, exist_ok=True)
+    (knowledge / "plan").mkdir(parents=True, exist_ok=True)
+    (knowledge / "README.md").write_text("# k\n", encoding="utf-8")
     rules = root / "harness" / "rules" / "project"
     rules.mkdir(parents=True, exist_ok=True)
     for name in ("write-boundary.md", "runtime.md", "paths.md", "extra.md"):
@@ -246,14 +248,19 @@ def write_minimal_workflow(
             "knowledge": {
                 "workspace_knowledge": {
                     "kind": "local_dir",
-                    "path": "harness/knowledge/",
+                    "path": "harness/knowledge/inputs/",
                     "provider": knowledge_provider,
-                }
+                },
+                "workflow_plan": {
+                    "kind": "local_dir",
+                    "path": "harness/knowledge/plan/",
+                    "provider": knowledge_provider,
+                },
             },
         },
         "defaults": {
             "rules": ["workspace_boundary", "runtime", "paths"],
-            "knowledge": ["workspace_knowledge"],
+            "knowledge": ["workspace_knowledge", "workflow_plan"],
         },
         "stages": [
             {

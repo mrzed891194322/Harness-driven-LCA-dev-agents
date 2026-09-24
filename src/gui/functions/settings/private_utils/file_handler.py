@@ -21,7 +21,7 @@ def copy_uploaded_files(
     if ref_data:
         uploads.append(ref_data)
     result = sync_files("knowledge", uploads=uploads)
-    yield "[System] Syncing uploaded files to harness/knowledge/...\n"
+    yield "[System] Syncing uploaded files to harness/knowledge/inputs/...\n"
     for detail in result.details:
         yield f"  - {detail}\n"
     yield f"[System] {result.message}\n"

@@ -3,7 +3,7 @@ id: 03-dataset-mapping
 inputs:
 - path: workspace/outputs/inventory/extracted-bom.json
   required: true
-- path: workspace/inputs/plan.md
+- path: harness/knowledge/plan/main_plan.md
   required: true
 outputs:
 - path: workspace/outputs/inventory/process-mapping.json

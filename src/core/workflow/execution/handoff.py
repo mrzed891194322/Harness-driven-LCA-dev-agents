@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.tool_runtime import write_json_atomic
+from utils.workspace_layout import records_root
 
 SCHEMA_VERSION = 1
 WRITER_ROLES = frozenset({"executor", "reviser"})
@@ -31,7 +32,9 @@ def _path_ref(value: Any, *, field: str, path: Path) -> str:
 
 
 def handoff_path(workspace_root: Path, stage_id: str, role: str, attempt: int) -> Path:
-    return workspace_root / "memory" / "handoffs" / f"{stage_id}-{role}-{attempt}.json"
+    return (
+        records_root(workspace_root) / "handoffs" / f"{stage_id}-{role}-{attempt}.json"
+    )
 
 
 def validate_handoff_payload(
@@ -107,7 +110,7 @@ def read_handoff(
 
 
 def review_note_path(workspace_root: Path, stage_id: str, attempt: int) -> Path:
-    return workspace_root / "memory" / "reviews" / f"{stage_id}-{attempt}.md"
+    return records_root(workspace_root) / "reviews" / f"{stage_id}-{attempt}.md"
 
 
 def write_review_note(

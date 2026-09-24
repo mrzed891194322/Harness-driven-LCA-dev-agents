@@ -6,10 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.tool_runtime import write_json_atomic
+from utils.workspace_layout import records_root
 
 
 def manifest_path(workspace_root: Path) -> Path:
-    return workspace_root / "memory" / "manifest.json"
+    return records_root(workspace_root) / "manifest.json"
 
 
 def write_manifest(
