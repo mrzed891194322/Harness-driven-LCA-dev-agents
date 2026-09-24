@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Literal
@@ -15,17 +16,13 @@ ROOT = next(
 )
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "src"))
 from mcp.server import MCPServer
 from mcp_types import ToolAnnotations
 
-from core.runtime.context import RunContext
-from core.workflow.execution.handoff import (
-    handoff_path,
-    write_handoff_file,
-)
+from harness.tools.control_openlca.utils.workflow import _write_json_atomic
 from harness.tools.lca_artifacts import checks, report
 from harness.tools.lca_artifacts.handoff import validate as validate_handoff_payload
+from harness.tools.lca_artifacts.path_safety import require_relative_path
 from harness.tools.lca_artifacts.store import (
     Context,
     bind_context_argv,
@@ -48,6 +45,60 @@ WRITE = ToolAnnotations(
     idempotent_hint=True,
     open_world_hint=False,
 )
+
+_SCHEMA_VERSION = 1
+_WRITER_ROLES = frozenset({"executor", "reviser"})
+_WRITER_STATUSES = {"ok", "failed", "blocked"}
+_REVIEWER_STATUSES = {"passed", "failed"}
+
+
+def _resolve_handoff_path(ctx: Context) -> Path:
+    raw = str(ctx.handoff_path or os.getenv("LCA_HANDOFF_PATH") or "").strip()
+    if not raw:
+        raise ValueError("handoff_path missing from host context")
+    if Path(raw).is_absolute():
+        path = Path(raw)
+    else:
+        require_relative_path(raw, label="handoff_path")
+        path = ctx.workspace / raw
+    return ctx.safe(path)
+
+
+def _validate_core_handoff(
+    payload: dict[str, Any],
+    *,
+    path: Path,
+    role: str,
+    stage: str,
+    attempt: int,
+) -> dict[str, Any]:
+    """Mirror core handoff protocol fields without importing core."""
+    if int(payload.get("schema_version") or 0) != _SCHEMA_VERSION:
+        raise ValueError(f"{path}: schema_version must be {_SCHEMA_VERSION}")
+    if payload.get("role") != role:
+        raise ValueError(f"{path}: role mismatch")
+    if payload.get("stage") != stage:
+        raise ValueError(f"{path}: stage mismatch")
+    if int(payload.get("attempt") or 0) != attempt:
+        raise ValueError(f"{path}: attempt mismatch")
+    status = str(payload.get("status") or "")
+    allowed = _WRITER_STATUSES if role in _WRITER_ROLES else _REVIEWER_STATUSES
+    if status not in allowed:
+        raise ValueError(f"{path}: invalid status {status!r}")
+    if not str(payload.get("status_reason") or "").strip():
+        raise ValueError(f"{path}: status_reason must not be empty")
+    if role == "reviewer" and status == "failed":
+        if not str(payload.get("fix_instructions") or "").strip():
+            raise ValueError(f"{path}: failed review requires fix_instructions")
+    payload.setdefault("fix_instructions", "")
+    payload.setdefault("artifacts", [])
+    if not isinstance(payload["artifacts"], list):
+        raise ValueError(f"{path}: artifacts must be a list")
+    if any(not isinstance(item, str) for item in payload["artifacts"]):
+        raise ValueError(f"{path}: artifacts must be path strings")
+    if not isinstance(payload["fix_instructions"], str):
+        raise ValueError(f"{path}: fix_instructions must be a string")
+    return payload
 
 
 @mcp.tool(
@@ -124,9 +175,9 @@ def submit_handoff(
 ) -> dict[str, Any]:
     def execute() -> dict[str, Any]:
         ctx = Context.environment()
-        path = handoff_path(ctx.workspace, ctx.stage, ctx.role, ctx.attempt)
+        path = _resolve_handoff_path(ctx)
         body: dict[str, Any] = {
-            "schema_version": 1,
+            "schema_version": _SCHEMA_VERSION,
             "role": ctx.role,
             "stage": ctx.stage,
             "attempt": ctx.attempt,
@@ -141,24 +192,16 @@ def submit_handoff(
         if evidence_manifest_ref is not None:
             body["evidence_manifest_ref"] = evidence_manifest_ref
         assignment = ctx.assignment or f"{ctx.stage}-{ctx.role}"
-        run_ctx = RunContext(
-            ctx.project,
-            ctx.workspace,
-            ctx.run_id,
-            ctx.stage,
-            assignment,
-            ctx.attempt,
-            ctx.role,
-            dict(ctx.metadata or {}),
-        )
-        validated = write_handoff_file(
-            path,
+        validated = _validate_core_handoff(
             body,
+            path=path,
             role=ctx.role,
             stage=ctx.stage,
             attempt=ctx.attempt,
         )
-        validate_handoff_payload(run_ctx, validated)
+        validate_handoff_payload(validated, label=assignment)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json_atomic(path, validated)
         rel = path.relative_to(ctx.workspace)
         return {"ok": True, "path": rel.as_posix()}
 
@@ -209,18 +252,8 @@ def validate_handoff(handoff: dict[str, Any] | None = None) -> dict[str, Any]:
         ctx = Context.environment()
         payload = dict(handoff or {})
         assignment = ctx.assignment or f"{ctx.stage}-{ctx.role}"
-        run_ctx = RunContext(
-            ctx.project,
-            ctx.workspace,
-            ctx.run_id,
-            ctx.stage,
-            assignment,
-            ctx.attempt,
-            ctx.role,
-            dict(ctx.metadata or {}),
-        )
         try:
-            validate_handoff_payload(run_ctx, payload)
+            validate_handoff_payload(payload, label=assignment)
         except ValueError as exc:
             return {
                 "ok": False,

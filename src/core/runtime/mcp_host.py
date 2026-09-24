@@ -48,6 +48,14 @@ def normalize_check_result(payload: Any) -> CheckResult:
             errors=["MCP result was not an object"],
             raw={},
         )
+    if "ok" not in payload and "status" not in payload:
+        return CheckResult(
+            ok=False,
+            status="failed",
+            summary="MCP result missing ok/status",
+            errors=["MCP result missing ok/status"],
+            raw=dict(payload),
+        )
     errors = payload.get("errors") or []
     if not isinstance(errors, list):
         errors = [str(errors)]
@@ -119,10 +127,11 @@ def invoke_tool(
         if key in os.environ
     }
     env.update({str(k): str(v) for k, v in dict(server.get("env") or {}).items()})
-    env.setdefault("PYTHONPATH", f"{project_root / 'src'}{os.pathsep}{project_root}")
-    deadline = float(
-        timeout_sec if timeout_sec is not None else min(int(tool.tool_timeout_sec), 120)
-    )
+    env.setdefault("PYTHONPATH", str(project_root))
+    declared = int(tool.tool_timeout_sec)
+    if declared <= 0:
+        raise ValueError(f"tool_timeout_sec must be positive: {tool.tool_id}")
+    deadline = float(timeout_sec if timeout_sec is not None else declared)
     try:
         raw = _stdio_call(
             command,
@@ -220,15 +229,42 @@ def _stdio_call(
             structured = result.get("structuredContent")
             if structured is not None:
                 return structured
-            # Fallback: parse first text content as JSON if present.
+            # Fail-closed: only accept parseable JSON text that looks like a check result.
             for item in result.get("content") or []:
                 if isinstance(item, dict) and item.get("type") == "text":
-                    text = str(item.get("text") or "")
+                    text = str(item.get("text") or "").strip()
+                    if not text:
+                        continue
                     try:
-                        return json.loads(text)
+                        parsed = json.loads(text)
                     except json.JSONDecodeError:
-                        return {"ok": True, "status": "passed", "summary": text}
-            return {"ok": True, "status": "passed", "summary": ""}
+                        return {
+                            "ok": False,
+                            "status": "failed",
+                            "summary": "MCP result was not structured JSON",
+                            "errors": ["MCP result was not structured JSON"],
+                        }
+                    if not isinstance(parsed, dict):
+                        return {
+                            "ok": False,
+                            "status": "failed",
+                            "summary": "MCP result was not an object",
+                            "errors": ["MCP result was not an object"],
+                        }
+                    if "ok" not in parsed and "status" not in parsed:
+                        return {
+                            "ok": False,
+                            "status": "failed",
+                            "summary": "MCP result missing ok/status",
+                            "errors": ["MCP result missing ok/status"],
+                        }
+                    return parsed
+            return {
+                "ok": False,
+                "status": "failed",
+                "summary": "MCP result missing structuredContent",
+                "errors": ["MCP result missing structuredContent"],
+            }
         finally:
             try:
                 process.stdin.close()

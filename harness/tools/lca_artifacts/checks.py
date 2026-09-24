@@ -6,7 +6,6 @@ import json
 import re
 from pathlib import Path
 
-from core.runtime.identifiers import require_relative_path
 from harness.tools.control_openlca.utils.guard import file_lock
 from harness.tools.control_openlca.utils.workflow import (
     _write_json_atomic,
@@ -14,6 +13,7 @@ from harness.tools.control_openlca.utils.workflow import (
     utc_now,
 )
 from harness.tools.lca_artifacts import offline_checks as artifact_checks
+from harness.tools.lca_artifacts.path_safety import require_relative_path
 
 from .snapshot_io import check_snapshot, load_json, sha256_file
 

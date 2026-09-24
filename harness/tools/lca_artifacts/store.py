@@ -104,6 +104,7 @@ class Context:
     role: str = "executor"
     assignment: str = ""
     metadata: dict | None = None
+    handoff_path: str = ""
 
     def __post_init__(self):
         identifier(self.run_id)
@@ -113,6 +114,7 @@ class Context:
         if self.role not in {"executor", "reviser", "reviewer", "system"}:
             raise ValueError("invalid role")
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
+        object.__setattr__(self, "handoff_path", str(self.handoff_path or ""))
         self.safe(self.workspace / "memory")
         self.safe(self.workspace / "outputs")
 
@@ -171,6 +173,7 @@ class Context:
                 str(payload.get("role") or "executor"),
                 str(payload.get("assignment") or ""),
                 dict(payload.get("metadata") or {}),
+                str(payload.get("handoff_path") or ""),
             )
         except ValueError as exc:
             raise HostContextError(f"host_context_missing: {exc}") from exc
@@ -199,6 +202,7 @@ class Context:
             os.getenv("LCA_ROLE", "executor"),
             os.getenv("LCA_ASSIGNMENT", ""),
             metadata,
+            os.getenv("LCA_HANDOFF_PATH", ""),
         )
 
     @classmethod

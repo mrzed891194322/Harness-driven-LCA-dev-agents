@@ -29,6 +29,13 @@ def _write_context(path: Path, **overrides: object) -> Path:
         "workspace": str(path.parent / "workspace"),
     }
     payload.update(overrides)
+    stage = str(payload["stage"])
+    role = str(payload["role"])
+    attempt = int(payload["attempt"])  # type: ignore[arg-type]
+    payload.setdefault(
+        "handoff_path",
+        f"memory/handoffs/{stage}-{role}-{attempt}.json",
+    )
     workspace = Path(str(payload["workspace"]))
     workspace.mkdir(parents=True, exist_ok=True)
     (workspace / "memory").mkdir(exist_ok=True)

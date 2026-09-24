@@ -45,9 +45,6 @@ ignore = ["E501"]
 [tool.ruff.lint.isort]
 known-first-party = [
   "core",
-  "schema",
-  "services",
-  "domains",
   "utils",
   "gui",
   "harness",

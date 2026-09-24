@@ -18,7 +18,6 @@ from core.agents.providers.codex.session import mcp_overrides
 from core.agents.providers.opencode.session import write_opencode_mcp
 from core.agents.providers.pi.session import write_pi_mcp
 from core.runtime.capabilities import base_capabilities
-from core.runtime.context import RunContext
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.handoff import read_handoff
 from core.workflow.execution.session_bind import build_session_config
@@ -184,9 +183,8 @@ def test_generic_handoff_leaves_domain_extension_to_adapter(tmp_path):
         )
     )
     payload = read_handoff(path, role="executor", stage="s", attempt=1)
-    ctx = RunContext(tmp_path, tmp_path, "r", "s", "writer", 1, "executor")
     with pytest.raises(ValueError, match="rework_scope"):
-        validate_handoff(ctx, payload)
+        validate_handoff(payload, label="writer")
 
 
 @pytest.mark.parametrize("module", ["control_openlca", "lca_artifacts"])

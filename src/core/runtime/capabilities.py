@@ -1,35 +1,21 @@
-"""Aggregate harness capability registries."""
+"""Aggregate harness capability registries (knowledge-only)."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
-from .checkers import CheckerRegistry
-from .context import RunContext
-from .hooks import HookRegistry
 from .knowledge import KnowledgeProviderRegistry
 from .knowledge_providers.local_files import register_local_files
 
 
 @dataclass
 class HarnessCapabilities:
-    checkers: CheckerRegistry
     knowledge: KnowledgeProviderRegistry
-    hooks: HookRegistry
-    handoff_validators: list[Callable[[RunContext, dict[str, Any]], None]] = field(
-        default_factory=list
-    )
 
 
 def empty_capabilities() -> HarnessCapabilities:
     """Domain-agnostic empty registries (no providers). Prefer base_capabilities()."""
-    return HarnessCapabilities(
-        checkers=CheckerRegistry(),
-        knowledge=KnowledgeProviderRegistry(),
-        hooks=HookRegistry(),
-    )
+    return HarnessCapabilities(knowledge=KnowledgeProviderRegistry())
 
 
 def base_capabilities() -> HarnessCapabilities:

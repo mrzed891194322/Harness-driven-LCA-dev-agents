@@ -55,6 +55,19 @@ def mcp_context_path(
     )
 
 
+def _handoff_path_for_context(ctx: RunContext) -> str:
+    handoff = (
+        ctx.workspace_root
+        / "memory"
+        / "handoffs"
+        / f"{ctx.stage_id}-{ctx.role}-{ctx.attempt}.json"
+    )
+    try:
+        return str(handoff.relative_to(ctx.workspace_root)).replace("\\", "/")
+    except ValueError:
+        return str(handoff)
+
+
 def write_context_file(ctx: RunContext) -> Path:
     path = mcp_context_path(
         ctx.workspace_root, ctx.run_id, ctx.stage_id, ctx.assignment_id
@@ -69,6 +82,7 @@ def write_context_file(ctx: RunContext) -> Path:
             "role": ctx.role,
             "assignment": ctx.assignment_id,
             "workspace": str(ctx.workspace_root),
+            "handoff_path": _handoff_path_for_context(ctx),
             "metadata": dict(ctx.metadata),
         },
     )
@@ -84,6 +98,7 @@ def run_context_env(ctx: RunContext, spec: ToolRuntimeSpec) -> dict[str, str]:
         f"{prefix}_ROLE": ctx.role,
         f"{prefix}_WORKSPACE": str(ctx.workspace_root),
         f"{prefix}_ASSIGNMENT": ctx.assignment_id,
+        f"{prefix}_HANDOFF_PATH": _handoff_path_for_context(ctx),
         f"{prefix}_METADATA_JSON": json.dumps(ctx.metadata, ensure_ascii=False),
     }
 

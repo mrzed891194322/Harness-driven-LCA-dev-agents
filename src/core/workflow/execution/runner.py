@@ -9,7 +9,11 @@ from core.agents.progress import print_orchestrator
 from core.runtime.capabilities import HarnessCapabilities
 from core.runtime.context import RunContext
 from core.runtime.mcp_host import invoke_tool
-from core.workflow.spec.outputs import validate_handoff_schema, validate_outputs
+from core.workflow.spec.outputs import (
+    validate_handoff_schema,
+    validate_inputs,
+    validate_outputs,
+)
 
 from ..config.bundle import TaskBundle
 from ..config.models import Assignment, Stage, Workflow
@@ -180,6 +184,26 @@ class OrchestratorRuntime:
     def prepare(self, state: WorkflowState) -> dict[str, Any]:
         stage, assignment = self._current(state)
         bundle = self.bundles[assignment.assignment_id]
+        # Stage entry: validate inputs before first assignment work (no retry bump).
+        if _state_int(state, "step_index") == 0:
+            input_errors = validate_inputs(
+                bundle.stage_spec,
+                workspace_root=self.workspace_root,
+                project_root=self.project_root,
+            )
+            if input_errors:
+                reason = "输入契约未通过：" + "; ".join(input_errors[:20])
+                print_orchestrator(
+                    f"input check failed {assignment.assignment_id}: {reason}"
+                )
+                return {
+                    "status": "failed",
+                    "status_reason": reason,
+                    "last_handoff": {
+                        "status": "blocked",
+                        "status_reason": reason,
+                    },
+                }
         handoff = handoff_path(
             self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
         )
@@ -543,20 +567,15 @@ class OrchestratorRuntime:
         bundle = self.bundles[assignment.assignment_id]
         if not bundle.stage_spec.outputs and not bundle.acceptance_checks:
             return None
-        note_rel = (
-            Path("workspace")
-            / "memory"
-            / "reviews"
-            / f"{stage.stage_id}-{_attempt(state)}.md"
-        ).as_posix()
-        outputs = [
-            item.path
-            for item in bundle.stage_spec.outputs
-            if item.required and item.path != note_rel
-        ]
-        missing = missing_expected_outputs(self.workspace_root, outputs)
-        if missing:
-            return "审查期间产物或确定性检查状态已变化：缺少产物：" + ", ".join(missing)
+        output_errors = validate_outputs(
+            bundle.stage_spec,
+            workspace_root=self.workspace_root,
+            project_root=self.project_root,
+        )
+        if output_errors:
+            return "审查期间产物或确定性检查状态已变化：" + "; ".join(
+                output_errors[:20]
+            )
         if not bundle.acceptance_checks:
             return None
         run_ctx = self._run_context(state, stage, assignment)

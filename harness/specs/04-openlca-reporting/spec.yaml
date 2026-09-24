@@ -2,6 +2,7 @@ version: 1
 id: 04-openlca-reporting
 inputs:
   - path: workspace/outputs/LCI
+    kind: directory
     required: true
   - path: workspace/outputs/inventory/extracted-bom.json
     required: true
