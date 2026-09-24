@@ -8,7 +8,7 @@ from typing import Any
 from core.runtime.identifiers import require_relative_path
 from core.workflow.config.yaml_strict import load_yaml_strict
 
-from .models import McpCallSpec, PathContract, StageSpec
+from .models import HostActionRef, PathContract, StageSpec
 
 SPEC_TOP_KEYS = frozenset(
     {
@@ -25,7 +25,7 @@ PATH_KEYS = frozenset({"path", "required", "kind", "format", "schema"})
 ACCEPTANCE_KEYS = frozenset({"checks"})
 LIFECYCLE_KEYS = frozenset({"on_reviewer_passed"})
 HANDOFF_KEYS = frozenset({"schema", "checks"})
-MCP_CALL_KEYS = frozenset({"id", "tool", "call", "arguments", "state_call"})
+HOST_ACTION_REF_KEYS = frozenset({"id", "action", "arguments"})
 
 
 def load_stage_spec(path: Path, *, project_root: Path, relative: str) -> StageSpec:
@@ -75,15 +75,15 @@ def load_stage_spec(path: Path, *, project_root: Path, relative: str) -> StageSp
         outputs=_parse_paths(
             raw.get("outputs") or [], f"{relative}: outputs", project_root
         ),
-        acceptance_checks=_parse_calls(
+        acceptance_checks=_parse_action_refs(
             acceptance.get("checks") or [], f"{relative}: acceptance.checks"
         ),
-        on_reviewer_passed=_parse_calls(
+        on_reviewer_passed=_parse_action_refs(
             lifecycle.get("on_reviewer_passed") or [],
             f"{relative}: lifecycle.on_reviewer_passed",
         ),
         handoff_schema=handoff_schema,
-        handoff_checks=_parse_calls(
+        handoff_checks=_parse_action_refs(
             handoff.get("checks") or [], f"{relative}: handoff.checks"
         ),
     )
@@ -130,40 +130,40 @@ def _parse_paths(items: Any, label: str, project_root: Path) -> list[PathContrac
     return out
 
 
-def _parse_calls(items: Any, label: str) -> list[McpCallSpec]:
+def _parse_action_refs(items: Any, label: str) -> list[HostActionRef]:
     if not isinstance(items, list):
         raise ValueError(f"{label}: must be a list")
-    out: list[McpCallSpec] = []
+    out: list[HostActionRef] = []
     seen: set[str] = set()
     for index, item in enumerate(items):
         if not isinstance(item, dict):
             raise ValueError(f"{label}[{index}]: must be a mapping")
         if "provider" in item:
             raise ValueError(
-                f"{label}[{index}]: provider imports are forbidden; use tool/call"
+                f"{label}[{index}]: provider imports are forbidden; use action"
             )
-        _reject_unknown(item, MCP_CALL_KEYS, f"{label}[{index}]")
+        for banned in ("tool", "call", "state_call"):
+            if banned in item:
+                raise ValueError(
+                    f"{label}[{index}]: '{banned}' is not supported; "
+                    "use Host Action 'action' id"
+                )
+        _reject_unknown(item, HOST_ACTION_REF_KEYS, f"{label}[{index}]")
         call_id = str(item.get("id") or "").strip()
-        tool = str(item.get("tool") or "").strip()
-        call = str(item.get("call") or "").strip()
-        if not call_id or not tool or not call:
-            raise ValueError(f"{label}[{index}]: id, tool, and call are required")
+        action = str(item.get("action") or "").strip()
+        if not call_id or not action:
+            raise ValueError(f"{label}[{index}]: id and action are required")
         if call_id in seen:
             raise ValueError(f"{label}: duplicate check id {call_id}")
         seen.add(call_id)
         arguments = item.get("arguments") or {}
         if not isinstance(arguments, dict):
             raise ValueError(f"{label}[{index}]: arguments must be a mapping")
-        state_call = item.get("state_call")
-        if state_call is not None:
-            state_call = str(state_call).strip() or None
         out.append(
-            McpCallSpec(
+            HostActionRef(
                 id=call_id,
-                tool=tool,
-                call=call,
+                action=action,
                 arguments=dict(arguments),
-                state_call=state_call,
             )
         )
     return out

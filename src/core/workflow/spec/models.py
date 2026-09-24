@@ -16,25 +16,19 @@ class PathContract:
 
 
 @dataclass(frozen=True)
-class McpCallSpec:
-    """Declarative stdio MCP invocation (host or lifecycle)."""
+class HostActionRef:
+    """Reference to a workflow-registered Host Action (logical id)."""
 
     id: str
-    tool: str
-    call: str
+    action: str
     arguments: dict[str, Any] = field(default_factory=dict)
-    state_call: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
+        return {
             "id": self.id,
-            "tool": self.tool,
-            "call": self.call,
+            "action": self.action,
             "arguments": dict(self.arguments),
         }
-        if self.state_call:
-            payload["state_call"] = self.state_call
-        return payload
 
 
 @dataclass
@@ -46,10 +40,10 @@ class StageSpec:
     source_path: str
     inputs: list[PathContract] = field(default_factory=list)
     outputs: list[PathContract] = field(default_factory=list)
-    acceptance_checks: list[McpCallSpec] = field(default_factory=list)
-    on_reviewer_passed: list[McpCallSpec] = field(default_factory=list)
+    acceptance_checks: list[HostActionRef] = field(default_factory=list)
+    on_reviewer_passed: list[HostActionRef] = field(default_factory=list)
     handoff_schema: str | None = None
-    handoff_checks: list[McpCallSpec] = field(default_factory=list)
+    handoff_checks: list[HostActionRef] = field(default_factory=list)
 
     def output_paths(self) -> list[str]:
         return [item.path for item in self.outputs if item.required]

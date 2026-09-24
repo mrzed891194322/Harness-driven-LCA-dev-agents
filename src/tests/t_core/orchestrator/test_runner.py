@@ -33,7 +33,7 @@ from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.scripted_session import (
     ScriptedSessionClient,
     _happy_script,
-    _passing_invoke_tool,
+    _passing_run_host_action,
 )
 
 
@@ -73,8 +73,8 @@ def run_case(tmp_path):
     with (
         open_store(workspace) as store,
         patch(
-            "core.workflow.execution.runner.invoke_tool",
-            side_effect=_passing_invoke_tool,
+            "core.workflow.execution.runner.run_host_action",
+            side_effect=_passing_run_host_action,
         ),
     ):
         yield runtime, state, client, store
@@ -168,21 +168,29 @@ def test_lifecycle_crash_is_not_replayed(run_case):
         raise ProcessCrash()
 
     # Crash only when advancing after mapping reviewer (has on_reviewer_passed).
-    original = _passing_invoke_tool
+    original = _passing_run_host_action
 
-    def selective(tool, method, arguments, **kwargs):
-        if method == "record_acceptance":
+    def selective(
+        action,
+        *,
+        run_ctx=None,
+        project_root=None,
+        arguments=None,
+        timeout_sec=None,
+        **kwargs,
+    ):
+        if getattr(action, "action_id", None) == "record_acceptance":
             return boom()
-        return original(tool, method, arguments, **kwargs)
+        return original(action, run_ctx=run_ctx, arguments=arguments)
 
     with (
-        patch("core.workflow.execution.runner.invoke_tool", side_effect=selective),
+        patch("core.workflow.execution.runner.run_host_action", side_effect=selective),
         pytest.raises(ProcessCrash),
     ):
         run_workflow(runtime, state, store)
     assert calls["n"] == 1
     turns = len(client.turns)
-    with patch("core.workflow.execution.runner.invoke_tool", side_effect=selective):
+    with patch("core.workflow.execution.runner.run_host_action", side_effect=selective):
         assert resume(runtime, store) == 1
     assert calls["n"] == 1
     assert len(client.turns) == turns
@@ -191,16 +199,24 @@ def test_lifecycle_crash_is_not_replayed(run_case):
 
 def test_lifecycle_error_publishes_failure_after_commit(run_case):
     runtime, state, client, store = run_case
-    from core.runtime.mcp_host import CheckResult
+    from core.runtime.host_action import HostActionResult
 
-    def selective(tool, method, arguments, **kwargs):
-        if method == "record_acceptance":
-            return CheckResult(
+    def selective(
+        action,
+        *,
+        run_ctx=None,
+        project_root=None,
+        arguments=None,
+        timeout_sec=None,
+        **kwargs,
+    ):
+        if getattr(action, "action_id", None) == "record_acceptance":
+            return HostActionResult(
                 ok=False, status="failed", summary="hook failed", errors=["hook failed"]
             )
-        return _passing_invoke_tool(tool, method, arguments, **kwargs)
+        return _passing_run_host_action(action, run_ctx=run_ctx, arguments=arguments)
 
-    with patch("core.workflow.execution.runner.invoke_tool", side_effect=selective):
+    with patch("core.workflow.execution.runner.run_host_action", side_effect=selective):
         result = run_workflow(runtime, state, store)
     assert result["status"] == "failed"
     assert (
@@ -238,8 +254,8 @@ def test_actions_run_outside_sqlite_transactions(run_case):
             side_effect=observe("worker", original_turn),
         ),
         patch(
-            "core.workflow.execution.runner.invoke_tool",
-            side_effect=observe("check", _passing_invoke_tool),
+            "core.workflow.execution.runner.run_host_action",
+            side_effect=observe("check", _passing_run_host_action),
         ),
     ):
         assert run_workflow(runtime, state, store)["status"] == "completed"

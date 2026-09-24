@@ -1,4 +1,4 @@
-"""Helpers to write minimal new-format workflows (spec.yaml + rules, no providers)."""
+"""Helpers to write minimal new-format workflows (spec.yaml + rules, MCP + Host Action)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,9 @@ def write_tree(root: Path) -> None:
     rules.mkdir(parents=True, exist_ok=True)
     for name in ("write-boundary.md", "runtime.md", "paths.md", "extra.md"):
         (rules / name).write_text(f"# {name}\n", encoding="utf-8")
-    tools = root / "harness" / "tools" / "probe"
+    for kind in ("mcp", "host_action", "shared"):
+        (root / "harness" / "tools" / kind).mkdir(parents=True, exist_ok=True)
+    tools = root / "harness" / "tools" / "mcp" / "probe"
     tools.mkdir(parents=True, exist_ok=True)
     (tools / "main.py").write_text("print('ok')\n", encoding="utf-8")
 
@@ -29,7 +31,7 @@ def write_stage_spec(
     acceptance: list[dict] | None = None,
     on_reviewer_passed: list[dict] | None = None,
     handoff_checks: list[dict] | None = None,
-    tool: str = "probe",
+    action: str = "verify",
 ) -> str:
     """Write ``harness/specs/<stage_id>/spec.yaml`` and return relative path."""
     specs = root / "harness" / "specs" / stage_id
@@ -38,9 +40,7 @@ def write_stage_spec(
         acceptance = [
             {
                 "id": "ping",
-                "tool": tool,
-                "call": "validate",
-                "state_call": "get_state",
+                "action": action,
                 "arguments": {},
             }
         ]
@@ -74,7 +74,7 @@ def write_stage_spec(
 
 
 def write_fake_mcp_server(
-    root: Path, *, relative: str = "harness/tools/probe/main.py"
+    root: Path, *, relative: str = "harness/tools/mcp/probe/main.py"
 ) -> Path:
     """Write a tiny newline JSON-RPC MCP stub (no mcp package framing)."""
     path = root / relative
@@ -112,8 +112,7 @@ def write_fake_mcp_server(
                         message_id,
                         {
                             "tools": [
-                                {"name": "validate", "inputSchema": {"type": "object"}},
-                                {"name": "get_state", "inputSchema": {"type": "object"}},
+                                {"name": "echo", "inputSchema": {"type": "object"}},
                                 {"name": "noop", "inputSchema": {"type": "object"}},
                             ]
                         },
@@ -143,6 +142,39 @@ def write_fake_mcp_server(
     return path
 
 
+def write_fake_host_action(
+    root: Path, *, relative: str = "harness/tools/host_action/verify/main.py"
+) -> Path:
+    """Write a Host Action that echoes JSON stdin and returns passed."""
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        textwrap.dedent(
+            """\
+            import json, sys
+            raw = sys.stdin.read()
+            req = json.loads(raw) if raw.strip() else {}
+            ctx = req.get("context") or {}
+            if not ctx.get("workspace"):
+                print("missing workspace", file=sys.stderr)
+                raise SystemExit(1)
+            out = {
+                "schema_version": 1,
+                "ok": True,
+                "status": "passed",
+                "summary": "verify ok",
+                "errors": [],
+                "warnings": [],
+                "details": {"run_id": ctx.get("run_id"), "arguments": req.get("arguments") or {}},
+            }
+            sys.stdout.write(json.dumps(out) + "\\n")
+            """
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def write_minimal_workflow(
     root: Path,
     *,
@@ -158,18 +190,28 @@ def write_minimal_workflow(
     executor_tools: list[str] | None = None,
     executor_rules: dict | None = None,
     knowledge_provider: str = "local_files",
+    host_action_id: str = "verify",
+    host_action_command: str | None = None,
+    host_action_args: list[str] | None = None,
 ) -> Path:
     """Write a complete independent workflow YAML + stage spec under ``root``."""
     write_tree(root)
+    action_script = write_fake_host_action(root)
+    if host_action_command is None:
+        host_action_command = "python"
+    if host_action_args is None:
+        host_action_args = [str(action_script)]
+    if acceptance is None:
+        acceptance = [{"id": "ping", "action": host_action_id, "arguments": {}}]
     spec_rel = write_stage_spec(
         root,
         stage_id=stage_id,
         acceptance=acceptance,
         on_reviewer_passed=on_reviewer_passed,
-        tool=tool_id,
+        action=host_action_id,
     )
     if tool_args is None:
-        tool_args = [f"harness/tools/{tool_id}/main.py"]
+        tool_args = [f"harness/tools/mcp/{tool_id}/main.py"]
     tool_entry: dict = {
         "transport": "stdio",
         "command": tool_command,
@@ -186,7 +228,16 @@ def write_minimal_workflow(
                 "paths": "harness/rules/project/paths.md",
                 "extra_rule": "harness/rules/project/extra.md",
             },
-            "tools": {tool_id: tool_entry},
+            "tools": {
+                "mcp": {tool_id: tool_entry},
+                "host_action": {
+                    host_action_id: {
+                        "command": host_action_command,
+                        "args": host_action_args,
+                        "tool_timeout_sec": 30,
+                    }
+                },
+            },
             "knowledge": {
                 "workspace_knowledge": {
                     "kind": "local_dir",
@@ -212,14 +263,16 @@ def write_minimal_workflow(
         "assignments": {
             f"{stage_id}.executor": {
                 "role": "executor",
-                "tools": executor_tools if executor_tools is not None else [tool_id],
+                "tools": {
+                    "mcp": executor_tools if executor_tools is not None else [tool_id]
+                },
                 "rules": executor_rules
                 if executor_rules is not None
                 else {"add": ["extra_rule"], "remove": ["paths"]},
             },
             f"{stage_id}.reviewer": {
                 "role": "reviewer",
-                "tools": [],
+                "tools": {"mcp": []},
             },
         },
     }

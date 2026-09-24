@@ -1,31 +1,28 @@
 version: 1
 id: 02-inventory-extraction
 inputs:
-  - path: workspace/inputs/plan.md
-    required: true
+- path: workspace/inputs/plan.md
+  required: true
 outputs:
-  - path: workspace/outputs/inventory/extracted-bom.json
-    kind: file
-    required: true
-    format: json
-    schema: harness/specs/02-inventory-extraction/extracted-bom.schema.json
-  - path: workspace/outputs/inventory/extracted-bom.md
-    kind: file
-    required: true
+- path: workspace/outputs/inventory/extracted-bom.json
+  kind: file
+  required: true
+  format: json
+  schema: harness/specs/02-inventory-extraction/extracted-bom.schema.json
+- path: workspace/outputs/inventory/extracted-bom.md
+  kind: file
+  required: true
 acceptance:
   checks:
-    - id: inventory
-      tool: lca_artifacts
-      call: validate_artifacts
-      state_call: get_validation_state
-      arguments:
-        profile: inventory
+  - id: inventory
+    action: inventory_check
+    arguments:
+      profile: inventory
 lifecycle:
   on_reviewer_passed: []
 handoff:
   schema: harness/specs/shared/handoff.schema.json
   checks:
-    - id: handoff
-      tool: lca_artifacts
-      call: validate_handoff
-      arguments: {}
+  - id: handoff
+    action: validate_handoff
+    arguments: {}

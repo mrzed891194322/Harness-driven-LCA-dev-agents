@@ -1,0 +1,1 @@
+"""Shared LCA artifact library."""

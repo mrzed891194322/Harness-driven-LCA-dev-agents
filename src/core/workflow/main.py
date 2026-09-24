@@ -149,10 +149,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def peek_tool_ids(path: Path, *, project_root: Path) -> list[str]:
-    """Return registered stdio MCP tool ids (tests / diagnostics)."""
+    """Return registered Agent-facing MCP tool ids (tests / diagnostics)."""
     document = read_workflow_document(path, project_root=project_root)
     registry = document.get("registry") or {}
     tools = registry.get("tools") or {}
+    if isinstance(tools, dict) and "mcp" in tools:
+        mcp = tools.get("mcp") or {}
+        return sorted(str(key) for key in mcp)
     return sorted(str(key) for key in tools)
 
 

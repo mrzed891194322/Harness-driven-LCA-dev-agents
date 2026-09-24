@@ -7,4 +7,4 @@ UV_MISSING_REMINDER = (
 REQUIRED_PYTHON = (3, 12)
 HARNESS_CLIS = ("codex", "claude", "opencode", "pi")
 CONTROL_OPENLCA_TOOLS = frozenset({"health_check"})
-CONTROL_OPENLCA_MAIN = "harness/tools/control_openlca/workflow_mcp.py"
+CONTROL_OPENLCA_MAIN = "harness/tools/mcp/control_openlca/workflow_mcp.py"

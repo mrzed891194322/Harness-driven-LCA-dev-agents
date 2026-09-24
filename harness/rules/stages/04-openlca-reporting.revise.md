@@ -10,7 +10,7 @@
 ## 修订要求
 
 - 覆盖完整报告，不得只改摘要而丢掉共有契约要求的章节。
-- 在共有模板 §7 声明边界后追加修订报告三节（见 `harness/tools/lca_artifacts/templates/revision-report-sections.md`）：§8 本轮修订摘要、§9 用户意见落实矩阵、§10 与上一轮结果的差异。
+- 在共有模板 §7 声明边界后追加修订报告三节（见 `harness/tools/shared/lca_artifacts/templates/revision-report-sections.md`）：§8 本轮修订摘要、§9 用户意见落实矩阵、§10 与上一轮结果的差异。
 - §9 必须覆盖 `revise.md` 中每条可执行意见；`REV-*` 指向 BOM `item_id`、mapping 行或分析证据。共有需求落实表仍覆盖未被修订的原计划要求。
 - §10 每个数值差异回链新旧 raw 结果路径；比较前核对功能单位、范围与方法是否一致，无法比较时说明原因，不得推断环境优势。
 

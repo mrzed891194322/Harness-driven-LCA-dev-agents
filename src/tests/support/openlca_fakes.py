@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import olca_schema
 
-from harness.tools.control_openlca.utils import workflow
+from harness.tools.mcp.control_openlca.utils import workflow
 
 
 class FakeClient:

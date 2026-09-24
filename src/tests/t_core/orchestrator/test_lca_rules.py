@@ -9,7 +9,7 @@ import pytest
 from core.runtime.capabilities import base_capabilities
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.prompt_build import build_prompt
-from harness.tools.lca_artifacts.offline_report import (
+from harness.tools.shared.lca_artifacts.offline_report import (
     markers,
     render,
     report_table_errors,
@@ -77,7 +77,7 @@ def test_stage_and_role_rules_reach_each_prompt_once(workflow_file):
 def test_report_templates_preserve_narrative_when_tables_are_rendered(
     tmp_path, revised
 ):
-    templates = PROJECT_ROOT / "harness/tools/lca_artifacts/templates"
+    templates = PROJECT_ROOT / "harness/tools/shared/lca_artifacts/templates"
     text = (templates / "lca_report.md").read_text()
     assert "### 出处表" in text
     assert "| 主张 | provenance | 依据路径 | 局限 |" in text

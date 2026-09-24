@@ -25,13 +25,12 @@ uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml --worke
 
 `agent` 为 `codex` / `claude` / `opencode` / `pi`。
 
-## MCP 接线
+## MCP 与 Host Action
 
-项目 `control_openlca` 的唯一配置来源是主工作流 YAML 注册表，由 worker 会话在任务中注入。不要在仓库根目录再放一份 MCP 声明。
+- **Agent MCP**（`registry.tools.mcp`）：注入 worker 会话的 stdio MCP。项目 `control_openlca` 的唯一配置来源是主工作流 YAML；独立工具在 `harness/tools/mcp/control_openlca/main.py`，LCA YAML 使用 `harness/tools/mcp/control_openlca/workflow_mcp.py`。普通外部 stdio MCP 只需注册 command/args/env 并绑定 assignment；`tool_timeout_sec` 默认 60 秒，openLCA 显式为 7320 秒。
+- **Host Action**（`registry.tools.host_action`）：Core 子进程 JSON stdin/stdout，由 stage `spec.yaml` 的 `acceptance` / `handoff` / `lifecycle` 以逻辑 `action` id 引用。不注入 Agent 会话，也不走 MCP initialize/tools/call。
 
-独立工具在 `harness/tools/control_openlca/main.py`；LCA YAML 使用 `harness/tools/control_openlca/workflow_mcp.py` 适配入口承接角色限制、审核批准与证据归档。普通外部 stdio MCP 只需注册 command/args/env 并绑定 assignment，不需要上下文协议；`tool_timeout_sec` 默认 60 秒，openLCA 显式为 7320 秒。其他 transport 当前会明确拒绝。
-
-SDK 不导入具体工具代码。确定性验收与 lifecycle action 由 stage `spec.yaml` 声明，经宿主 stdio MCP 调用；worker 仍通过会话注入同一批 MCP 工具。
+SDK 不导入具体工具代码。Assignment 只绑 MCP；Host Action 仅来自 stage_spec。
 
 ## Agent 分层
 
@@ -42,4 +41,7 @@ SDK 不导入具体工具代码。确定性验收与 lifecycle action 由 stage 
 | 机器契约 | `harness/specs/**/spec.yaml` + JSON Schema |
 | 自然语言规则 | `harness/rules/` |
 | Worker 会话 | `src/core/agents/`（当前 CLI provider；接口可换 SDK） |
+| Agent MCP | `harness/tools/mcp/` |
+| Host Action | `harness/tools/host_action/` |
+| 共享实现 | `harness/tools/shared/` |
 | 环境引导 | `src/scripts/proj_init/PROMPT.md` |

@@ -1,8 +1,8 @@
 version: 1
 id: 01-intake-gate
 inputs:
-  - path: workspace/inputs/plan.md
-    required: true
+- path: workspace/inputs/plan.md
+  required: true
 outputs: []
 acceptance:
   checks: []
@@ -10,3 +10,7 @@ lifecycle:
   on_reviewer_passed: []
 handoff:
   schema: harness/specs/shared/handoff.schema.json
+  checks:
+  - id: handoff
+    action: validate_handoff
+    arguments: {}

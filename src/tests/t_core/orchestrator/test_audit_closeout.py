@@ -10,7 +10,7 @@ from unittest.mock import patch
 import yaml
 
 from core.runtime.capabilities import base_capabilities
-from core.runtime.mcp_host import CheckResult
+from core.runtime.host_action import HostActionResult
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.runner import (
     OrchestratorRuntime,
@@ -27,7 +27,7 @@ from tests.support.minimal_workflow import write_minimal_workflow
 from tests.support.scripted_session import (
     ScriptedSessionClient,
     _happy_script,
-    _passing_invoke_tool,
+    _passing_run_host_action,
 )
 
 
@@ -105,8 +105,8 @@ class ReviewNoteGateTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.invoke_tool",
-                    side_effect=_passing_invoke_tool,
+                    "core.workflow.execution.runner.run_host_action",
+                    side_effect=_passing_run_host_action,
                 ),
             ):
                 result = run_workflow(
@@ -133,12 +133,22 @@ class HookFailClosedTests(unittest.TestCase):
             capabilities=base_capabilities(),
         )
 
-        def selective(tool, method, arguments, **kwargs):
-            if method == "record_acceptance":
-                return CheckResult(
+        def selective(
+            action,
+            *,
+            run_ctx=None,
+            project_root=None,
+            arguments=None,
+            timeout_sec=None,
+            **kwargs,
+        ):
+            if getattr(action, "action_id", None) == "record_acceptance":
+                return HostActionResult(
                     ok=False, status="failed", summary="boom", errors=["boom"]
                 )
-            return _passing_invoke_tool(tool, method, arguments, **kwargs)
+            return _passing_run_host_action(
+                action, run_ctx=run_ctx, arguments=arguments
+            )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir) / "workspace"
@@ -156,7 +166,8 @@ class HookFailClosedTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.invoke_tool", side_effect=selective
+                    "core.workflow.execution.runner.run_host_action",
+                    side_effect=selective,
                 ),
             ):
                 result = run_workflow(

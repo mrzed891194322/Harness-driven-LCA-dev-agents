@@ -14,7 +14,9 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ToolSpec:
+class McpToolSpec:
+    """Agent-facing stdio MCP tool registration."""
+
     tool_id: str
     transport: str
     command: str | None = None
@@ -44,6 +46,30 @@ class ToolSpec:
         return payload
 
 
+# Backward-compatible alias for MCP-only call sites.
+ToolSpec = McpToolSpec
+
+
+@dataclass
+class HostActionSpec:
+    """Core-facing Host Action registration (JSON stdin/stdout, not MCP)."""
+
+    action_id: str
+    command: str
+    args: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
+    tool_timeout_sec: int = DEFAULT_TOOL_TIMEOUT_SEC
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "action_id": self.action_id,
+            "command": self.command,
+            "args": list(self.args),
+            "env": dict(self.env),
+            "tool_timeout_sec": self.tool_timeout_sec,
+        }
+
+
 @dataclass
 class KnowledgeSource:
     knowledge_id: str
@@ -56,7 +82,7 @@ class KnowledgeSource:
 class Assignment:
     assignment_id: str
     role: str
-    tools_decl: Any | None = None
+    tools_decl: Any | None = None  # {"mcp": list|patch} or None
     rules_decl: Any | None = None
     knowledge_decl: Any | None = None
 
@@ -69,7 +95,7 @@ class Stage:
     steps: list[str]
     knowledge_decl: Any | None = None
     rules_decl: Any | None = None
-    tools_decl: Any | None = None
+    tools_decl: Any | None = None  # {"mcp": list|patch} or None
     context: dict[str, object] = field(default_factory=dict)
 
 
@@ -78,7 +104,8 @@ class Workflow:
     workflow_id: str
     max_attempts: int
     rules: dict[str, str]
-    tools: dict[str, ToolSpec]
+    mcp_tools: dict[str, McpToolSpec]
+    host_actions: dict[str, HostActionSpec]
     knowledge: dict[str, KnowledgeSource]
     default_rules: list[str]
     default_knowledge: list[str]
@@ -86,6 +113,11 @@ class Workflow:
     assignments: dict[str, Assignment]
     source_path: Path
     bundles: dict[str, TaskBundle] = field(default_factory=dict)
+
+    @property
+    def tools(self) -> dict[str, McpToolSpec]:
+        """Alias: Agent MCP tools only."""
+        return self.mcp_tools
 
     def stage_by_id(self, stage_id: str) -> Stage:
         for stage in self.stages:

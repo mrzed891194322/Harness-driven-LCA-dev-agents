@@ -1,6 +1,5 @@
 id: revise-lca
 max_attempts: 3
-
 registry:
   rules:
     workspace_boundary: harness/rules/project/write-boundary.md
@@ -31,112 +30,206 @@ registry:
     assign_04_reviser: harness/rules/assignments/04-openlca-reporting/reviser.md
     assign_04_reviewer: harness/rules/assignments/04-openlca-reporting/reviewer.md
   tools:
-    lca_artifacts:
-      transport: stdio
-      command: uv
-      args: [run, python, harness/tools/lca_artifacts/workflow_mcp.py]
-      rules: [artifact_usage]
-      runtime:
-        use_host_python: true
-        run_context_env: true
-        context_file: true
-        env_prefix: LCA
-    control_openlca:
-      transport: stdio
-      command: uv
-      args: [run, python, harness/tools/control_openlca/workflow_mcp.py]
-      tool_timeout_sec: 7320
-      rules: [openlca_usage]
-      runtime:
-        use_host_python: true
-        run_context_env: true
-        context_file: true
-        env_prefix: LCA
+    mcp:
+      lca_artifacts:
+        transport: stdio
+        command: uv
+        args:
+        - run
+        - python
+        - harness/tools/mcp/lca_artifacts/main.py
+        rules:
+        - artifact_usage
+        runtime:
+          use_host_python: true
+          run_context_env: true
+          context_file: true
+          env_prefix: LCA
+      control_openlca:
+        transport: stdio
+        command: uv
+        args:
+        - run
+        - python
+        - harness/tools/mcp/control_openlca/workflow_mcp.py
+        tool_timeout_sec: 7320
+        rules:
+        - openlca_usage
+        runtime:
+          use_host_python: true
+          run_context_env: true
+          context_file: true
+          env_prefix: LCA
+    host_action:
+      inventory_check:
+        command: uv
+        args:
+        - run
+        - python
+        - harness/tools/host_action/lca_artifacts/main.py
+        - inventory-check
+        tool_timeout_sec: 60
+      mapping_check:
+        command: uv
+        args:
+        - run
+        - python
+        - harness/tools/host_action/lca_artifacts/main.py
+        - mapping-check
+        tool_timeout_sec: 60
+      report_check:
+        command: uv
+        args:
+        - run
+        - python
+        - harness/tools/host_action/lca_artifacts/main.py
+        - report-check
+        tool_timeout_sec: 60
+      validate_handoff:
+        command: uv
+        args:
+        - run
+        - python
+        - harness/tools/host_action/lca_artifacts/main.py
+        - validate-handoff
+        tool_timeout_sec: 60
+      record_acceptance:
+        command: uv
+        args:
+        - run
+        - python
+        - harness/tools/host_action/lca_artifacts/main.py
+        - record-acceptance
+        tool_timeout_sec: 60
   knowledge:
     workspace_knowledge:
       kind: local_dir
       path: harness/knowledge/
       provider: local_files
-
 defaults:
-  rules: [workspace_boundary, runtime, runtime_loop, paths, lca_method, knowledge_files]
-  knowledge: [workspace_knowledge]
-
+  rules:
+  - workspace_boundary
+  - runtime
+  - runtime_loop
+  - paths
+  - lca_method
+  - knowledge_files
+  knowledge:
+  - workspace_knowledge
 stages:
-  - id: 01-intake-gate
-    spec: harness/specs/01-intake-gate/spec.yaml
-    max_attempts: 1
-    rules:
-      add: [stage_01, stage_01_revise]
-    steps:
-      - assignment: 01-intake-gate.reviewer
-  - id: 02-inventory-extraction
-    spec: harness/specs/02-inventory-extraction/spec.yaml
-    max_attempts: 3
-    rules:
-      add: [lca_inventory, stage_02, stage_02_revise]
-    context:
-      lca:
-        phase: inventory
-    steps:
-      - assignment: 02-inventory-extraction.reviser
-      - assignment: 02-inventory-extraction.reviewer
-  - id: 03-dataset-mapping
-    spec: harness/specs/03-dataset-mapping/spec.yaml
-    max_attempts: 3
-    rules:
-      add: [lca_inventory, lca_mapping, stage_03, stage_03_revise]
-    context:
-      lca:
-        phase: mapping
-    steps:
-      - assignment: 03-dataset-mapping.reviser
-      - assignment: 03-dataset-mapping.reviewer
-  - id: 04-openlca-reporting
-    spec: harness/specs/04-openlca-reporting/spec.yaml
-    max_attempts: 3
-    rules:
-      add: [lca_interpretation, stage_04, stage_04_revise]
-    context:
-      lca:
-        phase: report
-    steps:
-      - assignment: 04-openlca-reporting.reviser
-      - assignment: 04-openlca-reporting.reviewer
-
+- id: 01-intake-gate
+  spec: harness/specs/01-intake-gate/spec.yaml
+  max_attempts: 1
+  rules:
+    add:
+    - stage_01
+    - stage_01_revise
+  steps:
+  - assignment: 01-intake-gate.reviewer
+- id: 02-inventory-extraction
+  spec: harness/specs/02-inventory-extraction/spec.yaml
+  max_attempts: 3
+  rules:
+    add:
+    - lca_inventory
+    - stage_02
+    - stage_02_revise
+  context:
+    lca:
+      phase: inventory
+  steps:
+  - assignment: 02-inventory-extraction.reviser
+  - assignment: 02-inventory-extraction.reviewer
+- id: 03-dataset-mapping
+  spec: harness/specs/03-dataset-mapping/spec.yaml
+  max_attempts: 3
+  rules:
+    add:
+    - lca_inventory
+    - lca_mapping
+    - stage_03
+    - stage_03_revise
+  context:
+    lca:
+      phase: mapping
+  steps:
+  - assignment: 03-dataset-mapping.reviser
+  - assignment: 03-dataset-mapping.reviewer
+- id: 04-openlca-reporting
+  spec: harness/specs/04-openlca-reporting/spec.yaml
+  max_attempts: 3
+  rules:
+    add:
+    - lca_interpretation
+    - stage_04
+    - stage_04_revise
+  context:
+    lca:
+      phase: report
+  steps:
+  - assignment: 04-openlca-reporting.reviser
+  - assignment: 04-openlca-reporting.reviewer
 assignments:
   01-intake-gate.reviewer:
     role: reviewer
-    tools: []
+    tools:
+      mcp: []
     rules:
-      add: [reviewer_readonly, assign_01_reviewer]
+      add:
+      - reviewer_readonly
+      - assign_01_reviewer
   02-inventory-extraction.reviser:
     role: reviser
-    tools: [lca_artifacts]
+    tools:
+      mcp:
+      - lca_artifacts
     rules:
-      add: [assign_02_reviser]
+      add:
+      - assign_02_reviser
   02-inventory-extraction.reviewer:
     role: reviewer
-    tools: [lca_artifacts]
+    tools:
+      mcp:
+      - lca_artifacts
     rules:
-      add: [reviewer_readonly, assign_02_reviewer]
+      add:
+      - reviewer_readonly
+      - assign_02_reviewer
   03-dataset-mapping.reviser:
     role: reviser
-    tools: [control_openlca, lca_artifacts]
+    tools:
+      mcp:
+      - control_openlca
+      - lca_artifacts
     rules:
-      add: [assign_03_reviser]
+      add:
+      - assign_03_reviser
   03-dataset-mapping.reviewer:
     role: reviewer
-    tools: [control_openlca, lca_artifacts]
+    tools:
+      mcp:
+      - control_openlca
+      - lca_artifacts
     rules:
-      add: [reviewer_readonly, assign_03_reviewer]
+      add:
+      - reviewer_readonly
+      - assign_03_reviewer
   04-openlca-reporting.reviser:
     role: reviser
-    tools: [control_openlca, lca_artifacts]
+    tools:
+      mcp:
+      - control_openlca
+      - lca_artifacts
     rules:
-      add: [assign_04_reviser]
+      add:
+      - assign_04_reviser
   04-openlca-reporting.reviewer:
     role: reviewer
-    tools: [control_openlca, lca_artifacts]
+    tools:
+      mcp:
+      - control_openlca
+      - lca_artifacts
     rules:
-      add: [reviewer_readonly, assign_04_reviewer]
+      add:
+      - reviewer_readonly
+      - assign_04_reviewer

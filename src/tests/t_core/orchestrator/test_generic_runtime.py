@@ -9,11 +9,11 @@ import yaml
 
 from core.runtime.capabilities import base_capabilities
 from core.runtime.context import RunContext
-from core.runtime.mcp_host import CheckResult
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.session_bind import build_session_config
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.minimal_workflow import (
+    write_fake_host_action,
     write_fake_mcp_server,
     write_minimal_workflow,
     write_stage_spec,
@@ -52,7 +52,7 @@ class GenericRuntimeTests(unittest.TestCase):
             self.assertEqual(bundle.stage_id, "alpha-step")
             self.assertEqual(bundle.acceptance_checks[0].id, "ping")
 
-    def test_acceptance_check_mocked_via_invoke_tool(self) -> None:
+    def test_acceptance_check_mocked_via_run_host_action(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             path = write_minimal_workflow(root, stage_id="inv-phase")
@@ -70,18 +70,19 @@ class GenericRuntimeTests(unittest.TestCase):
                 role="executor",
                 metadata={},
             )
-            with patch(
-                "core.runtime.mcp_host.invoke_tool",
-                return_value=CheckResult(ok=True, status="passed", summary="ok"),
-            ) as mocked:
-                from core.runtime import mcp_host
+            from core.runtime import host_action as host_action_mod
+            from core.runtime.host_action import HostActionResult
 
-                result = mcp_host.invoke_tool(
-                    workflow.tools[check.tool],
-                    check.call,
-                    dict(check.arguments),
+            with patch.object(
+                host_action_mod,
+                "run_host_action",
+                return_value=HostActionResult(ok=True, status="passed", summary="ok"),
+            ) as mocked:
+                result = host_action_mod.run_host_action(
+                    workflow.host_actions[check.action],
                     run_ctx=run_ctx,
                     project_root=root,
+                    arguments=dict(check.arguments),
                 )
             self.assertTrue(result.ok)
             mocked.assert_called_once()
@@ -90,15 +91,16 @@ class GenericRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_tree(root)
-            write_stage_spec(root, stage_id="s1", acceptance=[], tool="fake_tool")
-            (root / "harness" / "tools" / "fake_tool").mkdir(parents=True)
-            (root / "harness" / "tools" / "fake_tool" / "main.py").write_text(
+            write_stage_spec(root, stage_id="s1", acceptance=[], action="verify")
+            (root / "harness" / "tools" / "mcp" / "fake_tool").mkdir(parents=True)
+            (root / "harness" / "tools" / "mcp" / "fake_tool" / "main.py").write_text(
                 "print('ok')\n", encoding="utf-8"
             )
-            (root / "harness" / "tools" / "plain_tool").mkdir(parents=True)
-            (root / "harness" / "tools" / "plain_tool" / "main.py").write_text(
+            (root / "harness" / "tools" / "mcp" / "plain_tool").mkdir(parents=True)
+            (root / "harness" / "tools" / "mcp" / "plain_tool" / "main.py").write_text(
                 "print('ok')\n", encoding="utf-8"
             )
+            write_fake_host_action(root)
             payload = {
                 "id": "runtime-test",
                 "registry": {
@@ -108,20 +110,29 @@ class GenericRuntimeTests(unittest.TestCase):
                         "paths": "harness/rules/project/paths.md",
                     },
                     "tools": {
-                        "fake_tool": {
-                            "transport": "stdio",
-                            "command": "python",
-                            "args": ["harness/tools/fake_tool/main.py"],
-                            "runtime": {
-                                "run_context_env": True,
-                                "context_file": True,
-                                "env_prefix": "HARNESS",
+                        "mcp": {
+                            "fake_tool": {
+                                "transport": "stdio",
+                                "command": "python",
+                                "args": ["harness/tools/mcp/fake_tool/main.py"],
+                                "runtime": {
+                                    "run_context_env": True,
+                                    "context_file": True,
+                                    "env_prefix": "HARNESS",
+                                },
+                            },
+                            "plain_tool": {
+                                "transport": "stdio",
+                                "command": "python",
+                                "args": ["harness/tools/mcp/plain_tool/main.py"],
                             },
                         },
-                        "plain_tool": {
-                            "transport": "stdio",
-                            "command": "python",
-                            "args": ["harness/tools/plain_tool/main.py"],
+                        "host_action": {
+                            "verify": {
+                                "command": "python",
+                                "args": ["harness/tools/host_action/verify/main.py"],
+                                "tool_timeout_sec": 30,
+                            }
                         },
                     },
                     "knowledge": {
@@ -149,9 +160,9 @@ class GenericRuntimeTests(unittest.TestCase):
                 "assignments": {
                     "s1.executor": {
                         "role": "executor",
-                        "tools": ["fake_tool", "plain_tool"],
+                        "tools": {"mcp": ["fake_tool", "plain_tool"]},
                     },
-                    "s1.reviewer": {"role": "reviewer", "tools": []},
+                    "s1.reviewer": {"role": "reviewer", "tools": {"mcp": []}},
                 },
             }
             path = root / "harness" / "runtime-test.yaml"
@@ -189,8 +200,7 @@ class GenericRuntimeTests(unittest.TestCase):
                 acceptance=[
                     {
                         "id": "missing",
-                        "tool": "nope",
-                        "call": "validate",
+                        "action": "nope",
                         "arguments": {},
                     }
                 ],
@@ -209,7 +219,7 @@ class GenericRuntimeTests(unittest.TestCase):
         report = workflow.bundles["04-openlca-reporting.reviewer"]
         self.assertEqual(inventory.on_reviewer_passed, [])
         self.assertEqual(len(mapping.on_reviewer_passed), 1)
-        self.assertEqual(mapping.on_reviewer_passed[0].call, "record_acceptance")
+        self.assertEqual(mapping.on_reviewer_passed[0].action, "record_acceptance")
         self.assertEqual(report.on_reviewer_passed, [])
 
 

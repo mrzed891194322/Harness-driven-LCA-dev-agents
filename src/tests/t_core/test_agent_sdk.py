@@ -178,7 +178,7 @@ class AgentSdkSessionTests(unittest.TestCase):
             "control_openlca": {
                 "transport": "stdio",
                 "command": "uv",
-                "args": ["run", "python", "harness/tools/control_openlca/main.py"],
+                "args": ["run", "python", "harness/tools/mcp/control_openlca/main.py"],
             }
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -316,7 +316,7 @@ class AgentSdkSessionTests(unittest.TestCase):
                     "args": [
                         "run",
                         "python",
-                        "harness/tools/lca_artifacts/main.py",
+                        "harness/tools/mcp/lca_artifacts/main.py",
                         "--context-file",
                         "/tmp/ctx.json",
                     ],
@@ -338,7 +338,7 @@ class AgentSdkSessionTests(unittest.TestCase):
                         "args": [
                             "run",
                             "python",
-                            "harness/tools/lca_artifacts/main.py",
+                            "harness/tools/mcp/lca_artifacts/main.py",
                             "--context-file",
                             "/tmp/ctx.json",
                         ],
@@ -381,7 +381,7 @@ class AgentSdkSessionTests(unittest.TestCase):
             "control_openlca": {
                 "transport": "stdio",
                 "command": "uv",
-                "args": ["run", "python", "harness/tools/control_openlca/main.py"],
+                "args": ["run", "python", "harness/tools/mcp/control_openlca/main.py"],
             }
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -416,7 +416,7 @@ class AgentSdkSessionTests(unittest.TestCase):
         self.assertEqual(payload["permission"]["control_openlca_*"], "allow")
         self.assertEqual(
             payload["mcp"]["control_openlca"]["command"],
-            ["uv", "run", "python", "harness/tools/control_openlca/main.py"],
+            ["uv", "run", "python", "harness/tools/mcp/control_openlca/main.py"],
         )
 
     def test_opencode_omits_model_and_mcp_permission_when_empty(self) -> None:
@@ -469,7 +469,7 @@ class AgentSdkSessionTests(unittest.TestCase):
             "control_openlca": {
                 "transport": "stdio",
                 "command": "uv",
-                "args": ["run", "python", "harness/tools/control_openlca/main.py"],
+                "args": ["run", "python", "harness/tools/mcp/control_openlca/main.py"],
             }
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -541,7 +541,7 @@ class AgentSdkSessionTests(unittest.TestCase):
             "control_openlca": {
                 "transport": "stdio",
                 "command": "uv",
-                "args": ["run", "python", "harness/tools/control_openlca/main.py"],
+                "args": ["run", "python", "harness/tools/mcp/control_openlca/main.py"],
             }
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -666,14 +666,14 @@ class AgentSdkSessionTests(unittest.TestCase):
             "control_openlca": {
                 "transport": "stdio",
                 "command": "uv",
-                "args": ["run", "python", "harness/tools/control_openlca/main.py"],
+                "args": ["run", "python", "harness/tools/mcp/control_openlca/main.py"],
             }
         }
         servers = mcp_servers_for_tools(["control_openlca"], registry)
         self.assertEqual(servers["control_openlca"]["command"], "uv")
         self.assertEqual(
             servers["control_openlca"]["args"],
-            ["run", "python", "harness/tools/control_openlca/main.py"],
+            ["run", "python", "harness/tools/mcp/control_openlca/main.py"],
         )
         raw = mcp_servers_for_tools(["control_openlca"], registry, rewrite_uv=True)
         self.assertEqual(raw["control_openlca"]["command"], sys.executable)

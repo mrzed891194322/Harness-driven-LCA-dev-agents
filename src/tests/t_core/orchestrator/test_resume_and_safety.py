@@ -24,7 +24,7 @@ from tests.support.minimal_workflow import write_minimal_workflow
 from tests.support.scripted_session import (
     ScriptedSessionClient,
     _happy_script,
-    _passing_invoke_tool,
+    _passing_run_host_action,
 )
 
 
@@ -47,8 +47,8 @@ class DuplicateIdsTests(unittest.TestCase):
             path = write_minimal_workflow(
                 root,
                 acceptance=[
-                    {"id": "a", "tool": "probe", "call": "validate", "arguments": {}},
-                    {"id": "b", "tool": "probe", "call": "get_state", "arguments": {}},
+                    {"id": "a", "action": "verify", "arguments": {}},
+                    {"id": "b", "action": "verify", "arguments": {"mode": "state"}},
                 ],
             )
             workflow = load_workflow(
@@ -61,9 +61,7 @@ class DuplicateIdsTests(unittest.TestCase):
             root = Path(temp_dir)
             path = write_minimal_workflow(
                 root,
-                acceptance=[
-                    {"id": "a", "tool": "missing", "call": "validate", "arguments": {}}
-                ],
+                acceptance=[{"id": "a", "action": "missing", "arguments": {}}],
             )
             with self.assertRaises(ValueError):
                 load_workflow(path, project_root=root, capabilities=base_capabilities())
@@ -162,8 +160,8 @@ class HappyResumeSmokeTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.invoke_tool",
-                    side_effect=_passing_invoke_tool,
+                    "core.workflow.execution.runner.run_host_action",
+                    side_effect=_passing_run_host_action,
                 ),
             ):
                 result = run_workflow(

@@ -8,7 +8,7 @@ from typing import Any, Literal, TypedDict, cast
 from core.agents.progress import print_orchestrator
 from core.runtime.capabilities import HarnessCapabilities
 from core.runtime.context import RunContext
-from core.runtime.mcp_host import invoke_tool
+from core.runtime.host_action import run_host_action
 from core.workflow.spec.outputs import (
     validate_handoff_schema,
     validate_inputs,
@@ -227,29 +227,6 @@ class OrchestratorRuntime:
             context["handoff_path"] = str(handoff)
         run_ctx = self._run_context(state, stage, assignment)
         context.update(self._enrich_knowledge(run_ctx, bundle))
-        check_summaries: list[dict[str, object]] = []
-        for check in bundle.acceptance_checks:
-            method = check.state_call or check.call
-            try:
-                result = invoke_tool(
-                    self.workflow.tools[check.tool],
-                    method,
-                    dict(check.arguments),
-                    run_ctx=run_ctx,
-                    project_root=self.project_root,
-                )
-                summary = result.to_summary(check.id)
-                check_summaries.append(summary)
-            except (OSError, ValueError, KeyError, RuntimeError, TimeoutError) as exc:
-                check_summaries.append(
-                    {
-                        "check_id": check.id,
-                        "status": "stale",
-                        "summary": str(exc)[:500],
-                    }
-                )
-        if check_summaries:
-            context["checks"] = check_summaries
         prompt = assemble_prompt(
             self.workflow,
             project_root=self.project_root,
@@ -349,12 +326,11 @@ class OrchestratorRuntime:
                 raise ValueError("; ".join(schema_errors[:5]))
             run_ctx = self._run_context(state, stage, assignment)
             for check in bundle.stage_spec.handoff_checks:
-                result = invoke_tool(
-                    self.workflow.tools[check.tool],
-                    check.call,
-                    {**dict(check.arguments), "handoff": handoff},
+                result = run_host_action(
+                    self.workflow.host_actions[check.action],
                     run_ctx=run_ctx,
                     project_root=self.project_root,
+                    arguments={**dict(check.arguments), "handoff": handoff},
                 )
                 if not result.ok:
                     detail = "; ".join(result.errors[:10]) or result.summary
@@ -442,12 +418,11 @@ class OrchestratorRuntime:
             return None
         for check in bundle.acceptance_checks:
             try:
-                result = invoke_tool(
-                    self.workflow.tools[check.tool],
-                    check.call,
-                    dict(check.arguments),
+                result = run_host_action(
+                    self.workflow.host_actions[check.action],
                     run_ctx=run_ctx,
                     project_root=self.project_root,
+                    arguments=dict(check.arguments),
                 )
             except Exception as exc:
                 reason = f"{check.id} 检查未能执行：{exc}"
@@ -500,12 +475,11 @@ class OrchestratorRuntime:
             run_ctx = self._run_context(state, stage, assignment)
             for action in bundle.on_reviewer_passed:
                 try:
-                    result = invoke_tool(
-                        self.workflow.tools[action.tool],
-                        action.call,
-                        dict(action.arguments),
+                    result = run_host_action(
+                        self.workflow.host_actions[action.action],
                         run_ctx=run_ctx,
                         project_root=self.project_root,
+                        arguments=dict(action.arguments),
                     )
                     if not result.ok:
                         raise RuntimeError(
@@ -580,14 +554,12 @@ class OrchestratorRuntime:
             return None
         run_ctx = self._run_context(state, stage, assignment)
         for check in bundle.acceptance_checks:
-            method = check.state_call or check.call
             try:
-                result = invoke_tool(
-                    self.workflow.tools[check.tool],
-                    method,
-                    dict(check.arguments),
+                result = run_host_action(
+                    self.workflow.host_actions[check.action],
                     run_ctx=run_ctx,
                     project_root=self.project_root,
+                    arguments=dict(check.arguments),
                 )
             except Exception as exc:
                 return (

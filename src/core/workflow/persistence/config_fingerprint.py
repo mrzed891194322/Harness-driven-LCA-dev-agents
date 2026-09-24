@@ -64,31 +64,46 @@ def build_runtime_config(
             for rule_id, relative in sorted(workflow.rules.items())
         },
         "tools": {
-            tool_id: {
-                "transport": spec.transport,
-                "tool_timeout_sec": spec.tool_timeout_sec,
-                "command": spec.command,
-                "args": list(spec.args),
-                "url": spec.url,
-                "rules": list(spec.rules),
-                "runtime": None
-                if spec.runtime is None
-                else {
-                    "run_context_env": spec.runtime.run_context_env,
-                    "context_file": spec.runtime.context_file,
-                    "context_file_flag": spec.runtime.context_file_flag,
-                    "env_prefix": spec.runtime.env_prefix,
-                    "use_host_python": spec.runtime.use_host_python,
-                },
-                "env": {
-                    key: stable_hash(value) for key, value in sorted(spec.env.items())
-                },
-                "headers": {
-                    key: stable_hash(value)
-                    for key, value in sorted(spec.headers.items())
-                },
-            }
-            for tool_id, spec in sorted(workflow.tools.items())
+            "mcp": {
+                tool_id: {
+                    "transport": spec.transport,
+                    "tool_timeout_sec": spec.tool_timeout_sec,
+                    "command": spec.command,
+                    "args": list(spec.args),
+                    "url": spec.url,
+                    "rules": list(spec.rules),
+                    "runtime": None
+                    if spec.runtime is None
+                    else {
+                        "run_context_env": spec.runtime.run_context_env,
+                        "context_file": spec.runtime.context_file,
+                        "context_file_flag": spec.runtime.context_file_flag,
+                        "env_prefix": spec.runtime.env_prefix,
+                        "use_host_python": spec.runtime.use_host_python,
+                    },
+                    "env": {
+                        key: stable_hash(value)
+                        for key, value in sorted(spec.env.items())
+                    },
+                    "headers": {
+                        key: stable_hash(value)
+                        for key, value in sorted(spec.headers.items())
+                    },
+                }
+                for tool_id, spec in sorted(workflow.mcp_tools.items())
+            },
+            "host_action": {
+                action_id: {
+                    "command": spec.command,
+                    "args": list(spec.args),
+                    "tool_timeout_sec": spec.tool_timeout_sec,
+                    "env": {
+                        key: stable_hash(value)
+                        for key, value in sorted(spec.env.items())
+                    },
+                }
+                for action_id, spec in sorted(workflow.host_actions.items())
+            },
         },
         "knowledge": {
             kid: {

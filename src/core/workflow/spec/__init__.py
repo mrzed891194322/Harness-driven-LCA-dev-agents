@@ -1,11 +1,11 @@
-"""Stage machine contracts (YAML/JSON Schema) for the generic workflow engine."""
+"""Stage machine-readable contracts."""
 
 from .loader import load_stage_spec
-from .models import McpCallSpec, PathContract, StageSpec
+from .models import HostActionRef, PathContract, StageSpec
 from .outputs import validate_handoff_schema, validate_outputs
 
 __all__ = [
-    "McpCallSpec",
+    "HostActionRef",
     "PathContract",
     "StageSpec",
     "load_stage_spec",

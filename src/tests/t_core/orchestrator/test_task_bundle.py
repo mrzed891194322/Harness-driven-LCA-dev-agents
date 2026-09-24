@@ -30,7 +30,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             "harness/specs/03-dataset-mapping/spec.yaml",
         )
         self.assertEqual(executor.acceptance_checks[0].id, "mapping")
-        self.assertEqual(executor.acceptance_checks[0].tool, "lca_artifacts")
+        self.assertEqual(executor.acceptance_checks[0].action, "mapping_check")
 
     def test_writer_outputs_and_checks(self) -> None:
         workflow = load_workflow(
@@ -47,7 +47,7 @@ class TaskBundleResolveTests(unittest.TestCase):
                 "workspace/outputs/inventory/extracted-bom.md",
             ],
         )
-        self.assertEqual(writer.acceptance_checks[0].call, "validate_artifacts")
+        self.assertEqual(writer.acceptance_checks[0].action, "inventory_check")
         self.assertEqual(
             writer.acceptance_checks[0].arguments.get("profile"), "inventory"
         )
@@ -112,7 +112,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             root = Path(temp_dir)
             workflow_path = write_minimal_workflow(root)
             payload = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-            payload["assignments"]["s1.executor"]["tools"] = ["missing_tool"]
+            payload["assignments"]["s1.executor"]["tools"] = {"mcp": ["missing_tool"]}
             workflow_path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -129,8 +129,7 @@ class TaskBundleResolveTests(unittest.TestCase):
                 acceptance=[
                     {
                         "id": "bad",
-                        "tool": "missing_tool",
-                        "call": "validate",
+                        "action": "missing_action",
                         "arguments": {},
                     }
                 ],

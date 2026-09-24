@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 import olca_schema
 
-import harness.tools.control_openlca.workflow_mcp as mcp_module
-from harness.tools.control_openlca.utils import connection, readonly
+import harness.tools.mcp.control_openlca.workflow_mcp as mcp_module
+from harness.tools.mcp.control_openlca.utils import connection, readonly
 from tests.support.openlca_fakes import FakeClient
 
 

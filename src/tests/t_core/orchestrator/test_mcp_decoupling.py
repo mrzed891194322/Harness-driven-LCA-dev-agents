@@ -21,7 +21,7 @@ from core.runtime.capabilities import base_capabilities
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.handoff import read_handoff
 from core.workflow.execution.session_bind import build_session_config
-from harness.tools.lca_artifacts.handoff import validate as validate_handoff
+from harness.tools.shared.lca_artifacts.handoff import validate as validate_handoff
 from tests.conftest import PROJECT_ROOT
 
 
@@ -48,7 +48,12 @@ def _workflow(tmp_path, server):
         yaml.safe_dump(
             {
                 "id": "external",
-                "registry": {"tools": {"external.echo": server}},
+                "registry": {
+                    "tools": {
+                        "mcp": {"external.echo": server},
+                        "host_action": {},
+                    }
+                },
                 "stages": [
                     {
                         "id": "work",
@@ -59,9 +64,9 @@ def _workflow(tmp_path, server):
                 "assignments": {
                     "writer": {
                         "role": "executor",
-                        "tools": ["external.echo"],
+                        "tools": {"mcp": ["external.echo"]},
                     },
-                    "reviewer": {"role": "reviewer", "tools": []},
+                    "reviewer": {"role": "reviewer", "tools": {"mcp": []}},
                 },
             }
         )
@@ -187,7 +192,7 @@ def test_generic_handoff_leaves_domain_extension_to_adapter(tmp_path):
         validate_handoff(payload, label="writer")
 
 
-@pytest.mark.parametrize("module", ["control_openlca", "lca_artifacts"])
+@pytest.mark.parametrize("module", ["mcp.control_openlca", "mcp.lca_artifacts"])
 def test_standalone_tools_do_not_import_workflow(module):
     code = f"""
 import importlib.abc
@@ -222,16 +227,22 @@ import harness.tools.{module}.main
 def test_standalone_artifact_mcp_needs_no_workflow_context(tmp_path):
     import hashlib
 
-    path = tmp_path / "document.txt"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    path = workspace / "document.txt"
     path.write_text("independent artifact")
     result, _ = _call(
         {
             "command": sys.executable,
-            "args": [str(PROJECT_ROOT / "harness/tools/lca_artifacts/main.py")],
+            "args": [str(PROJECT_ROOT / "harness/tools/mcp/lca_artifacts/main.py")],
+            "env": {
+                "PYTHONPATH": str(PROJECT_ROOT),
+                "LCA_WORKSPACE": str(workspace),
+            },
         },
         "read_artifact",
         {
-            "path": str(path),
+            "path": "document.txt",
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         },
     )
@@ -242,7 +253,8 @@ def test_standalone_openlca_mcp_uses_explicit_journal(tmp_path):
     result, tools = _call(
         {
             "command": sys.executable,
-            "args": [str(PROJECT_ROOT / "harness/tools/control_openlca/main.py")],
+            "args": [str(PROJECT_ROOT / "harness/tools/mcp/control_openlca/main.py")],
+            "env": {"PYTHONPATH": str(PROJECT_ROOT)},
         },
         "get_import_operation",
         {
@@ -259,7 +271,7 @@ def test_standalone_openlca_mcp_uses_explicit_journal(tmp_path):
 
 
 def test_report_render_does_not_follow_existing_temp_symlink(tmp_path):
-    from harness.tools.lca_artifacts import offline_report as report
+    from harness.tools.shared.lca_artifacts import offline_report as report
 
     target = tmp_path / "report.md"
     target.write_text(
@@ -277,7 +289,7 @@ def test_report_render_does_not_follow_existing_temp_symlink(tmp_path):
 
 
 def test_check_snapshot_does_not_hide_changes_or_leak_between_calls(tmp_path):
-    from harness.tools.lca_artifacts.snapshot_io import (
+    from harness.tools.shared.lca_artifacts.snapshot_io import (
         check_snapshot,
         load_json,
         sha256_file,
@@ -319,13 +331,13 @@ def test_workflow_adapter_entrypoints_preserve_context_and_response(tmp_path, to
     )
     if tool == "artifacts":
         script, method, arguments = (
-            PROJECT_ROOT / "harness/tools/lca_artifacts/workflow_mcp.py",
-            "get_validation_state",
-            {"profile": "inventory"},
+            PROJECT_ROOT / "harness/tools/mcp/lca_artifacts/main.py",
+            "get_rework_status",
+            {},
         )
     else:
         script, method, arguments = (
-            PROJECT_ROOT / "harness/tools/control_openlca/workflow_mcp.py",
+            PROJECT_ROOT / "harness/tools/mcp/control_openlca/workflow_mcp.py",
             "get_import_operation",
             {"request_id": "missing"},
         )
@@ -333,6 +345,7 @@ def test_workflow_adapter_entrypoints_preserve_context_and_response(tmp_path, to
         {
             "command": sys.executable,
             "args": [str(script), "--context-file", str(context)],
+            "env": {"PYTHONPATH": str(PROJECT_ROOT)},
         },
         method,
         arguments,
@@ -341,7 +354,11 @@ def test_workflow_adapter_entrypoints_preserve_context_and_response(tmp_path, to
     assert result["artifacts"]
     assert (workspace / "memory/evidence/run-1/manifest.json").is_file()
     if tool == "artifacts":
-        assert result["checks"][0]["status"] == "not_run"
+        assert "reuse" in result or "ok" in result or "status" in result
+        names = {item["name"] for item in listed}
+        assert "get_rework_status" in names
+        assert "validate_artifacts" not in names
+        assert "get_validation_state" not in names
     else:
         imported = next(item for item in listed if item["name"] == "import_lci")
         assert set(imported["inputSchema"]["required"]) == {

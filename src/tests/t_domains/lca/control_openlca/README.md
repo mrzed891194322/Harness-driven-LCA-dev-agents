@@ -2,7 +2,7 @@
 
 Run the offline test suite from the repository root:
 
-    uv run pytest src/tests/harness/tools/control_openlca -v
+    uv run pytest src/tests/harness/tools/mcp/control_openlca -v
 
 The tests mock the openLCA IPC client and validate endpoint handling, health diagnostics,
 descriptor filtering, compact Process/Flow Provider reads, pagination, MCP annotations,

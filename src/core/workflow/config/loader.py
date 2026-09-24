@@ -16,7 +16,14 @@ from core.runtime.tool_runtime import ToolRuntimeSpec
 from core.workflow.spec.loader import load_stage_spec
 
 from .lists import parse_optional_list_field, reject_user_seq_declaration, resolve_list
-from .models import Assignment, KnowledgeSource, Stage, ToolSpec, Workflow
+from .models import (
+    Assignment,
+    HostActionSpec,
+    KnowledgeSource,
+    McpToolSpec,
+    Stage,
+    Workflow,
+)
 from .resolve import attach_bundles
 from .yaml_strict import load_yaml_strict
 
@@ -26,7 +33,8 @@ TOP_LEVEL_KEYS = frozenset(
 REGISTRY_KEYS = frozenset({"rules", "tools", "knowledge"})
 FORBIDDEN_REGISTRY = frozenset({"checkers", "hooks", "handoff_validators"})
 DEFAULTS_KEYS = frozenset({"rules", "knowledge"})
-TOOL_KEYS = frozenset(
+TOOLS_REGISTRY_KEYS = frozenset({"mcp", "host_action"})
+MCP_TOOL_KEYS = frozenset(
     {
         "transport",
         "command",
@@ -39,6 +47,7 @@ TOOL_KEYS = frozenset(
         "tool_timeout_sec",
     }
 )
+HOST_ACTION_KEYS = frozenset({"command", "args", "env", "tool_timeout_sec"})
 TOOL_RUNTIME_KEYS = frozenset(
     {
         "run_context_env",
@@ -53,6 +62,7 @@ STAGE_KEYS = frozenset(
     {"id", "spec", "max_attempts", "steps", "knowledge", "rules", "tools", "context"}
 )
 ASSIGNMENT_KEYS = frozenset({"role", "tools", "rules", "knowledge"})
+ASSIGNMENT_TOOLS_KEYS = frozenset({"mcp"})
 
 
 def reject_unknown_keys(
@@ -67,6 +77,23 @@ def _require_positive_int(value: Any, *, label: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"{label} must be a positive integer, got {value!r}")
     return value
+
+
+def parse_mcp_tools_decl(raw: Any, *, label: str) -> dict[str, Any] | None:
+    """Parse assignment/stage ``tools: {mcp: ...}`` declaration."""
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        raise ValueError(
+            f"{label}: tools must be a mapping {{mcp: [...]}}; bare lists are not allowed"
+        )
+    if not isinstance(raw, dict):
+        raise ValueError(f"{label}: tools must be a mapping with mcp")
+    reject_unknown_keys(raw, ASSIGNMENT_TOOLS_KEYS, label)
+    if "mcp" not in raw:
+        return {"mcp": None}
+    reject_user_seq_declaration(raw.get("mcp"), label=f"{label}.mcp")
+    return {"mcp": parse_optional_list_field(raw.get("mcp"))}
 
 
 def load_workflow(
@@ -96,9 +123,6 @@ def read_workflow_document(path: Path, *, project_root: Path) -> dict[str, Any]:
             f"{path}: reuse/stage_overrides are not supported; "
             "each workflow YAML must be a complete assembly map"
         )
-    if "runtime_spec" in raw or "task_spec" in str(raw.get("assignments") or {}):
-        # task_spec checked per-assignment below; reject top-level runtime_spec here.
-        pass
     if "runtime_spec" in raw:
         raise ValueError(
             f"{path}: runtime_spec was removed; core embeds the generic runtime protocol"
@@ -118,7 +142,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 def _reject_user_seq_fields(raw: dict[str, Any], path: Path) -> None:
     defaults = raw.get("defaults") or {}
     if isinstance(defaults, dict):
-        for key in ("rules", "knowledge", "tools"):
+        for key in ("rules", "knowledge"):
             if key in defaults:
                 reject_user_seq_declaration(
                     defaults.get(key), label=f"{path}: defaults.{key}"
@@ -127,20 +151,29 @@ def _reject_user_seq_fields(raw: dict[str, Any], path: Path) -> None:
         if not isinstance(stage, dict):
             continue
         stage_id = stage.get("id") or "?"
-        for key in ("rules", "knowledge", "tools"):
+        for key in ("rules", "knowledge"):
             if key in stage:
                 reject_user_seq_declaration(
                     stage.get(key), label=f"{path}: stage {stage_id} {key}"
                 )
+        if "tools" in stage:
+            parse_mcp_tools_decl(
+                stage.get("tools"), label=f"{path}: stage {stage_id} tools"
+            )
     for assignment_id, assignment in (raw.get("assignments") or {}).items():
         if not isinstance(assignment, dict):
             continue
-        for key in ("rules", "knowledge", "tools"):
+        for key in ("rules", "knowledge"):
             if key in assignment:
                 reject_user_seq_declaration(
                     assignment.get(key),
                     label=f"{path}: assignment {assignment_id} {key}",
                 )
+        if "tools" in assignment:
+            parse_mcp_tools_decl(
+                assignment.get("tools"),
+                label=f"{path}: assignment {assignment_id} tools",
+            )
 
 
 def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
@@ -156,14 +189,8 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
     if forbidden:
         raise ValueError(
             f"{source_path}: registry.{sorted(forbidden)[0]} Python providers "
-            "are forbidden; declare deterministic checks in stage spec.yaml "
-            "as stdio MCP calls"
+            "are forbidden; declare Host Actions under registry.tools.host_action"
         )
-    if any(
-        "provider" in str(registry.get(section) or {}) for section in FORBIDDEN_REGISTRY
-    ):
-        raise ValueError(f"{source_path}: provider imports are forbidden")
-    # Also reject provider: under tools? tools don't use provider for callables.
     reject_unknown_keys(registry, REGISTRY_KEYS, f"{source_path}: registry")
 
     rules: dict[str, str] = {}
@@ -192,18 +219,35 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             ),
         )
 
-    tools: dict[str, ToolSpec] = {}
-    for tool_id, spec in dict(registry.get("tools") or {}).items():
+    tools_block = registry.get("tools") or {}
+    if not isinstance(tools_block, dict):
+        raise ValueError(f"{source_path}: registry.tools must be a mapping")
+    # Reject flat legacy registry.tools.<id> (MCP-shaped keys at top level).
+    if tools_block and not (set(tools_block) <= TOOLS_REGISTRY_KEYS):
+        raise ValueError(
+            f"{source_path}: registry.tools must nest under 'mcp' and/or "
+            f"'host_action' (got {sorted(tools_block)})"
+        )
+    reject_unknown_keys(
+        tools_block, TOOLS_REGISTRY_KEYS, f"{source_path}: registry.tools"
+    )
+
+    mcp_tools: dict[str, McpToolSpec] = {}
+    for tool_id, spec in dict(tools_block.get("mcp") or {}).items():
         if not isinstance(spec, dict):
-            raise ValueError(f"{source_path}: tool {tool_id} must be a mapping")
+            raise ValueError(f"{source_path}: mcp tool {tool_id} must be a mapping")
         if "provider" in spec:
             raise ValueError(
-                f"{source_path}: tool {tool_id}: provider imports are forbidden"
+                f"{source_path}: mcp tool {tool_id}: provider imports are forbidden"
             )
-        reject_unknown_keys(spec, TOOL_KEYS, f"{source_path}: tool {tool_id}")
+        reject_unknown_keys(spec, MCP_TOOL_KEYS, f"{source_path}: mcp tool {tool_id}")
         tid = require_identifier(str(tool_id), label="tool id")
         validate_stdio_server(tid, spec)
-        tools[tid] = ToolSpec(
+        timeout = spec.get("tool_timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
+        timeout = _require_positive_int(
+            timeout, label=f"{source_path}: mcp tool {tid} tool_timeout_sec"
+        )
+        mcp_tools[tid] = McpToolSpec(
             tool_id=tid,
             transport=str(spec.get("transport") or "stdio"),
             command=spec.get("command"),
@@ -217,8 +261,39 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 require_identifier(str(item), label="rule id")
                 for item in spec.get("rules") or []
             ],
-            runtime=_parse_tool_runtime(spec, label=f"{source_path}: tool {tid}"),
-            tool_timeout_sec=spec.get("tool_timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC),
+            runtime=_parse_tool_runtime(spec, label=f"{source_path}: mcp tool {tid}"),
+            tool_timeout_sec=timeout,
+        )
+
+    host_actions: dict[str, HostActionSpec] = {}
+    for action_id, spec in dict(tools_block.get("host_action") or {}).items():
+        if not isinstance(spec, dict):
+            raise ValueError(
+                f"{source_path}: host_action {action_id} must be a mapping"
+            )
+        for banned in ("transport", "rules", "runtime", "url", "headers", "provider"):
+            if banned in spec:
+                raise ValueError(
+                    f"{source_path}: host_action {action_id}: '{banned}' is not "
+                    "supported on Host Actions"
+                )
+        reject_unknown_keys(
+            spec, HOST_ACTION_KEYS, f"{source_path}: host_action {action_id}"
+        )
+        aid = require_identifier(str(action_id), label="host action id")
+        command = str(spec.get("command") or "").strip()
+        if not command:
+            raise ValueError(f"{source_path}: host_action {aid}: command is required")
+        timeout = spec.get("tool_timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
+        timeout = _require_positive_int(
+            timeout, label=f"{source_path}: host_action {aid} tool_timeout_sec"
+        )
+        host_actions[aid] = HostActionSpec(
+            action_id=aid,
+            command=command,
+            args=[str(item) for item in spec.get("args") or []],
+            env={str(k): str(v) for k, v in dict(spec.get("env") or {}).items()},
+            tool_timeout_sec=timeout,
         )
 
     defaults = raw.get("defaults") or {}
@@ -247,7 +322,9 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         assignments[aid] = Assignment(
             assignment_id=aid,
             role=role,
-            tools_decl=parse_optional_list_field(spec["tools"])
+            tools_decl=parse_mcp_tools_decl(
+                spec.get("tools"), label=f"{source_path}: assignment {aid} tools"
+            )
             if "tools" in spec
             else None,
             rules_decl=parse_optional_list_field(spec["rules"])
@@ -307,7 +384,10 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 rules_decl=parse_optional_list_field(spec["rules"])
                 if "rules" in spec
                 else None,
-                tools_decl=parse_optional_list_field(spec["tools"])
+                tools_decl=parse_mcp_tools_decl(
+                    spec.get("tools"),
+                    label=f"{source_path}: stage {stage_id} tools",
+                )
                 if "tools" in spec
                 else None,
                 context=_parse_context(
@@ -321,7 +401,8 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         workflow_id=workflow_id,
         max_attempts=default_attempts,
         rules=rules,
-        tools=tools,
+        mcp_tools=mcp_tools,
+        host_actions=host_actions,
         knowledge=knowledge,
         default_rules=[
             require_identifier(str(item), label="rule id")
@@ -376,10 +457,15 @@ def _validate_files(workflow: Workflow, project_root: Path) -> None:
         )
         if not path.is_file():
             raise ValueError(f"missing stage spec: {stage.spec}")
-        # Eager-parse to fail fast; bundles already hold parsed StageSpec.
         load_stage_spec(path, project_root=project_root, relative=stage.spec)
-    for tool in workflow.tools.values():
+    for tool in workflow.mcp_tools.values():
         for arg in tool.args:
+            if arg.endswith(".py"):
+                candidate = project_root / arg
+                if candidate.is_file() or Path(arg).is_file():
+                    continue
+    for action in workflow.host_actions.values():
+        for arg in action.args:
             if arg.endswith(".py"):
                 candidate = project_root / arg
                 if candidate.is_file() or Path(arg).is_file():

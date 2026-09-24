@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from core.agents.inspect import WORKERS, check, inspect
-from harness.tools.control_openlca.health_service import health
+from harness.tools.mcp.control_openlca.health_service import health
 from utils.env import parse_env_file
 
 SUPPORTED_HARNESS_CLIS = WORKERS

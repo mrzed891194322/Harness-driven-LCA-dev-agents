@@ -7,6 +7,7 @@ from typing import Any
 
 from core.runtime.capabilities import HarnessCapabilities
 from core.workflow.spec.loader import load_stage_spec
+from core.workflow.spec.models import HostActionRef, StageSpec
 
 from ..execution.handoff import WRITER_ROLES
 from .bundle import KnowledgeBinding, TaskBundle
@@ -22,10 +23,10 @@ def resolve_workflow(
     for kid in workflow.default_knowledge:
         if kid not in workflow.knowledge:
             raise ValueError(f"defaults: unknown knowledge {kid}")
-    for tool in workflow.tools.values():
+    for tool in workflow.mcp_tools.values():
         for rule_id in tool.rules:
             if rule_id not in workflow.rules:
-                raise ValueError(f"tool {tool.tool_id}: unknown rule {rule_id}")
+                raise ValueError(f"mcp tool {tool.tool_id}: unknown rule {rule_id}")
     stage_ids = [stage.stage_id for stage in workflow.stages]
     if len(stage_ids) != len(set(stage_ids)):
         raise ValueError("duplicate stage id in workflow")
@@ -41,29 +42,12 @@ def resolve_workflow(
             raise ValueError(
                 f"{stage.stage_id}: spec id {stage_spec.spec_id!r} does not match stage"
             )
-        for check in stage_spec.acceptance_checks:
-            if check.tool not in workflow.tools:
-                raise ValueError(
-                    f"{stage.stage_id}: acceptance check {check.id} "
-                    f"references unknown tool {check.tool!r}"
-                )
-        for action in stage_spec.on_reviewer_passed:
-            if action.tool not in workflow.tools:
-                raise ValueError(
-                    f"{stage.stage_id}: lifecycle action {action.id} "
-                    f"references unknown tool {action.tool!r}"
-                )
-        for check in stage_spec.handoff_checks:
-            if check.tool not in workflow.tools:
-                raise ValueError(
-                    f"{stage.stage_id}: handoff check {check.id} "
-                    f"references unknown tool {check.tool!r}"
-                )
+        _validate_host_action_refs(workflow, stage.stage_id, stage_spec)
         stage_knowledge = resolve_list(
             list(workflow.default_knowledge), stage.knowledge_decl
         )
         stage_rules = resolve_list(list(workflow.default_rules), stage.rules_decl)
-        stage_tools = resolve_list([], stage.tools_decl)
+        stage_mcp = _mcp_decl(stage.tools_decl)
         for assignment_id in stage.steps:
             if assignment_id in bundles:
                 raise ValueError(f"duplicate assignment id {assignment_id}")
@@ -75,10 +59,39 @@ def resolve_workflow(
                 stage_spec,
                 stage_knowledge,
                 stage_rules,
-                stage_tools,
+                stage_mcp,
                 capabilities,
             )
     return bundles
+
+
+def _validate_host_action_refs(
+    workflow: Workflow, stage_id: str, stage_spec: StageSpec
+) -> None:
+    for check in stage_spec.acceptance_checks:
+        _require_action(workflow, stage_id, "acceptance check", check)
+    for action in stage_spec.on_reviewer_passed:
+        _require_action(workflow, stage_id, "lifecycle action", action)
+    for check in stage_spec.handoff_checks:
+        _require_action(workflow, stage_id, "handoff check", check)
+
+
+def _require_action(
+    workflow: Workflow, stage_id: str, kind: str, ref: HostActionRef
+) -> None:
+    if ref.action not in workflow.host_actions:
+        raise ValueError(
+            f"stage {stage_id!r}: {kind} {ref.id!r} references unknown "
+            f"host action {ref.action!r}"
+        )
+
+
+def _mcp_decl(tools_decl: Any) -> Any:
+    if tools_decl is None:
+        return None
+    if isinstance(tools_decl, dict):
+        return tools_decl.get("mcp")
+    return None
 
 
 def resolve_bundle(
@@ -117,7 +130,7 @@ def diagnose_assignment(
         "role": bundle.role,
         "spec": bundle.stage_spec.source_path,
         "rules": list(bundle.rule_ids),
-        "tools": list(bundle.tool_ids),
+        "tools": list(bundle.mcp_tool_ids),
         "knowledge": [item.to_dict() for item in bundle.knowledge_sources],
         "outputs": list(bundle.expected_outputs),
         "acceptance_checks": [item.to_dict() for item in bundle.acceptance_checks],
@@ -129,17 +142,17 @@ def _resolve_assignment(
     workflow: Workflow,
     stage: Stage,
     assignment: Assignment,
-    stage_spec: Any,
+    stage_spec: StageSpec,
     stage_knowledge: list[str],
     stage_rules: list[str],
-    stage_tools: list[str],
+    stage_mcp: Any,
     capabilities: HarnessCapabilities,
 ) -> TaskBundle:
     knowledge_ids = resolve_list(stage_knowledge, assignment.knowledge_decl)
-    tool_ids = resolve_list(stage_tools, assignment.tools_decl)
+    mcp_tool_ids = resolve_list(stage_mcp, _mcp_decl(assignment.tools_decl))
     base_rules = resolve_list(stage_rules, assignment.rules_decl)
     _reject_duplicate_ids(knowledge_ids, label=f"{assignment.assignment_id}: knowledge")
-    _reject_duplicate_ids(tool_ids, label=f"{assignment.assignment_id}: tools")
+    _reject_duplicate_ids(mcp_tool_ids, label=f"{assignment.assignment_id}: tools.mcp")
     for kid in knowledge_ids:
         if kid not in workflow.knowledge:
             raise ValueError(f"{assignment.assignment_id}: unknown knowledge {kid}")
@@ -148,11 +161,11 @@ def _resolve_assignment(
             raise ValueError(
                 f"{assignment.assignment_id}: unknown knowledge provider {provider}"
             )
-    for tool_id in tool_ids:
-        if tool_id not in workflow.tools:
-            raise ValueError(f"{assignment.assignment_id}: unknown tool {tool_id}")
+    for tool_id in mcp_tool_ids:
+        if tool_id not in workflow.mcp_tools:
+            raise ValueError(f"{assignment.assignment_id}: unknown mcp tool {tool_id}")
     rule_ids = _finalize_rule_ids(
-        workflow, assignment.assignment_id, base_rules, tool_ids
+        workflow, assignment.assignment_id, base_rules, mcp_tool_ids
     )
     expected_outputs = (
         list(stage_spec.output_paths()) if assignment.role in WRITER_ROLES else []
@@ -174,7 +187,7 @@ def _resolve_assignment(
         max_attempts=stage.max_attempts,
         stage_spec=stage_spec,
         rule_ids=rule_ids,
-        tool_ids=tool_ids,
+        mcp_tool_ids=mcp_tool_ids,
         knowledge_ids=knowledge_ids,
         knowledge_sources=knowledge_sources,
         expected_outputs=expected_outputs,
@@ -214,7 +227,7 @@ def _finalize_rule_ids(
     workflow: Workflow,
     assignment_id: str,
     base_rules: list[str],
-    tool_ids: list[str],
+    mcp_tool_ids: list[str],
 ) -> list[str]:
     ordered: list[str] = []
     for rule_id in base_rules:
@@ -222,8 +235,8 @@ def _finalize_rule_ids(
             raise ValueError(f"{assignment_id}: unknown rule {rule_id}")
         if rule_id not in ordered:
             ordered.append(rule_id)
-    for tool_id in tool_ids:
-        for rule_id in workflow.tools[tool_id].rules:
+    for tool_id in mcp_tool_ids:
+        for rule_id in workflow.mcp_tools[tool_id].rules:
             if rule_id not in workflow.rules:
                 raise ValueError(f"{assignment_id}: unknown rule {rule_id}")
             if rule_id not in ordered:

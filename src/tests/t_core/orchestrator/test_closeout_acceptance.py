@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from core.runtime.capabilities import base_capabilities
-from core.runtime.mcp_host import CheckResult
+from core.runtime.host_action import HostActionResult
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.runner import (
     OrchestratorRuntime,
@@ -22,7 +22,7 @@ from tests.support.minimal_workflow import write_minimal_workflow
 from tests.support.scripted_session import (
     ScriptedSessionClient,
     _happy_script,
-    _passing_invoke_tool,
+    _passing_run_host_action,
 )
 
 
@@ -51,9 +51,19 @@ class ReviewerPassGuardTests(unittest.TestCase):
         )
         calls: list[str] = []
 
-        def track(tool, method, arguments, **kwargs):
-            calls.append(method)
-            return _passing_invoke_tool(tool, method, arguments, **kwargs)
+        def track(
+            action,
+            *,
+            run_ctx=None,
+            project_root=None,
+            arguments=None,
+            timeout_sec=None,
+            **kwargs,
+        ):
+            calls.append(getattr(action, "action_id", ""))
+            return _passing_run_host_action(
+                action, run_ctx=run_ctx, arguments=arguments
+            )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir) / "workspace"
@@ -70,7 +80,9 @@ class ReviewerPassGuardTests(unittest.TestCase):
             )
             with (
                 open_store(workspace) as store,
-                patch("core.workflow.execution.runner.invoke_tool", side_effect=track),
+                patch(
+                    "core.workflow.execution.runner.run_host_action", side_effect=track
+                ),
             ):
                 result = run_workflow(
                     runtime,
@@ -95,18 +107,31 @@ class HostCheckRetryTests(unittest.TestCase):
         )
         mapping_validate = {"n": 0}
 
-        def selective(tool, method, arguments, **kwargs):
+        def selective(
+            action,
+            *,
+            run_ctx=None,
+            project_root=None,
+            arguments=None,
+            timeout_sec=None,
+            **kwargs,
+        ):
             profile = str((arguments or {}).get("profile") or "")
-            if method == "validate_artifacts" and profile == "mapping":
+            if (
+                str(getattr(action, "action_id", "")).endswith("_check")
+                and profile == "mapping"
+            ):
                 mapping_validate["n"] += 1
                 if mapping_validate["n"] == 1:
-                    return CheckResult(
+                    return HostActionResult(
                         ok=False,
                         status="failed",
                         summary="gap",
                         errors=["item_id gap"],
                     )
-            return _passing_invoke_tool(tool, method, arguments, **kwargs)
+            return _passing_run_host_action(
+                action, run_ctx=run_ctx, arguments=arguments
+            )
 
         script = _happy_script()
         script[("03-dataset-mapping", "executor", 2)] = {
@@ -133,7 +158,8 @@ class HostCheckRetryTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.invoke_tool", side_effect=selective
+                    "core.workflow.execution.runner.run_host_action",
+                    side_effect=selective,
                 ),
             ):
                 result = run_workflow(

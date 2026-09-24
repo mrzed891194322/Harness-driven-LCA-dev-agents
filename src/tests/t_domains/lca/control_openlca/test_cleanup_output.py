@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import olca_schema
 
-from harness.tools.control_openlca.utils import cleanup
+from harness.tools.mcp.control_openlca.utils import cleanup
 
 
 class FakeCleanupClient:

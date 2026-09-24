@@ -1,4 +1,4 @@
-"""Host-side stdio MCP tool invocation (deterministic checks / lifecycle actions)."""
+"""Agent-facing stdio MCP tool invocation (session tools / host probes)."""
 
 from __future__ import annotations
 

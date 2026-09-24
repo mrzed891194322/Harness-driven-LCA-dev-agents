@@ -11,7 +11,7 @@ from unittest.mock import patch
 import olca_schema
 import requests
 
-from harness.tools.control_openlca.utils import workflow
+from harness.tools.mcp.control_openlca.utils import workflow
 from tests.support.openlca_fakes import (
     FLOW_ID,
     GENERATED_SYSTEM_ID,

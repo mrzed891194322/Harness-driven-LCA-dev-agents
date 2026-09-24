@@ -37,10 +37,10 @@ def build_session_config(
     """Fill SessionConfig from resolved TaskBundle. Providers must not parse YAML."""
     del stage, assignment
     uv_cache = ensure_uv_cache_dir(project_root)
-    tool_ids = list(bundle.tool_ids)
+    tool_ids = list(bundle.mcp_tool_ids)
     mcp_servers = mcp_servers_for_tools(
         tool_ids,
-        {tool_id: spec.to_mcp_dict() for tool_id, spec in workflow.tools.items()},
+        {tool_id: spec.to_mcp_dict() for tool_id, spec in workflow.mcp_tools.items()},
     )
     run_ctx = RunContext(
         project_root=project_root,
@@ -56,12 +56,12 @@ def build_session_config(
     if any(
         (spec.runtime and spec.runtime.context_file)
         for tool_id in tool_ids
-        for spec in [workflow.tools.get(tool_id)]
+        for spec in [workflow.mcp_tools.get(tool_id)]
         if spec is not None
     ):
         context_path = write_context_file(run_ctx)
     for tool_id in tool_ids:
-        spec = workflow.tools.get(tool_id)
+        spec = workflow.mcp_tools.get(tool_id)
         runtime = spec.runtime if spec else None
         if runtime and runtime.use_host_python:
             mcp_servers[tool_id] = rewrite_uv_run_python(mcp_servers[tool_id])

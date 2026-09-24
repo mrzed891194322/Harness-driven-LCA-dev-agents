@@ -42,6 +42,7 @@ HARNESS_ROOT_ALLOWLIST = frozenset(
         "specs",
     }
 )
+HARNESS_TOOLS_ALLOWLIST = frozenset({"mcp", "host_action", "shared"})
 
 
 def _src_env() -> dict[str, str]:
@@ -165,6 +166,14 @@ assert not loaded, loaded
             f"harness/ root may only contain {sorted(HARNESS_ROOT_ALLOWLIST)}; "
             f"unexpected: {unexpected}",
         )
+        tools_names = {p.name for p in (HARNESS_ROOT / "tools").iterdir() if p.is_dir()}
+        unexpected_tools = sorted(tools_names - HARNESS_TOOLS_ALLOWLIST)
+        self.assertEqual(
+            unexpected_tools,
+            [],
+            f"harness/tools may only contain {sorted(HARNESS_TOOLS_ALLOWLIST)}; "
+            f"unexpected: {unexpected_tools}",
+        )
 
     def test_main_and_revise_load_independently_without_reuse(self) -> None:
         for name in ("LCA-main.yaml", "LCA-revise.yaml"):
@@ -218,7 +227,7 @@ assert not loaded, loaded
             payload = yaml.safe_load(two.read_text(encoding="utf-8"))
             from tests.support.minimal_workflow import write_stage_spec
 
-            write_stage_spec(root, stage_id="b", tool="probe", acceptance=[])
+            write_stage_spec(root, stage_id="b", action="verify", acceptance=[])
             payload["stages"].append(
                 {
                     "id": "b",
@@ -231,11 +240,11 @@ assert not loaded, loaded
             )
             payload["assignments"]["b.executor"] = {
                 "role": "executor",
-                "tools": ["probe"],
+                "tools": {"mcp": ["probe"]},
             }
             payload["assignments"]["b.reviewer"] = {
                 "role": "reviewer",
-                "tools": [],
+                "tools": {"mcp": []},
             }
             two.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
@@ -271,7 +280,7 @@ assert not loaded, loaded
             self.assertEqual(len(workflow.stages), 1)
             bundle = workflow.bundles["s1.executor"]
             self.assertEqual(bundle.tool_ids, ["probe"])
-            self.assertEqual(bundle.acceptance_checks[0].call, "validate")
+            self.assertEqual(bundle.acceptance_checks[0].action, "verify")
             self.assertEqual(
                 bundle.stage_spec.source_path, "harness/specs/s1/spec.yaml"
             )
@@ -291,7 +300,7 @@ assert not loaded, loaded
             script = write_fake_mcp_server(root)
             # Refresh args to the rewritten fake server script.
             payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-            payload["registry"]["tools"]["probe"]["args"] = [str(script)]
+            payload["registry"]["tools"]["mcp"]["probe"]["args"] = [str(script)]
             path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )
@@ -311,7 +320,7 @@ assert not loaded, loaded
             (root / "workspace").mkdir(parents=True, exist_ok=True)
             result = invoke_tool(
                 workflow.tools["probe"],
-                "validate",
+                "echo",
                 {},
                 run_ctx=run_ctx,
                 project_root=root,
@@ -321,8 +330,9 @@ assert not loaded, loaded
 
     def test_harness_mcp_entrypoints_start_with_root_pythonpath(self) -> None:
         for relative in (
-            "harness/tools/lca_artifacts/workflow_mcp.py",
-            "harness/tools/control_openlca/workflow_mcp.py",
+            "harness/tools/mcp/lca_artifacts/main.py",
+            "harness/tools/mcp/control_openlca/workflow_mcp.py",
+            "harness/tools/host_action/lca_artifacts/main.py",
         ):
             code = (
                 "import ast, pathlib, sys\n"

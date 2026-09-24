@@ -287,7 +287,7 @@ class WorkflowYamlTests(unittest.TestCase):
             )
             self.assertEqual(
                 config.mcp_servers["control_openlca"]["args"][0],
-                "harness/tools/control_openlca/workflow_mcp.py",
+                "harness/tools/mcp/control_openlca/workflow_mcp.py",
             )
             self.assertIn("UV_CACHE_DIR", config.mcp_servers["control_openlca"]["env"])
             self.assertIsNotNone(config.mcp_render_dir)
@@ -450,10 +450,12 @@ class PlatformAdapterTests(unittest.TestCase):
         )
         tool = workflow.tools["control_openlca"]
         self.assertEqual(tool.command, "uv")
-        self.assertEqual(tool.args[-1], "harness/tools/control_openlca/workflow_mcp.py")
+        self.assertEqual(
+            tool.args[-1], "harness/tools/mcp/control_openlca/workflow_mcp.py"
+        )
 
     def test_reconnect_implementation_is_documented_outside_prompts(self) -> None:
-        tool = (PROJECT_ROOT / "harness/tools/control_openlca/README.md").read_text(
+        tool = (PROJECT_ROOT / "harness/tools/mcp/control_openlca/README.md").read_text(
             encoding="utf-8"
         )
         self.assertRegex(tool, r"(?:3 次重连|重连 3 次)")

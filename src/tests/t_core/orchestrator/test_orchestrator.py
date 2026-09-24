@@ -26,7 +26,7 @@ from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.scripted_session import (
     ScriptedSessionClient,
     _happy_script,
-    _passing_invoke_tool,
+    _passing_run_host_action,
     _passing_validate,
     _revise_happy_script,
 )
@@ -67,24 +67,34 @@ class OrchestratorGraphTests(unittest.TestCase):
         )
 
         def _invoke(
-            tool, method, arguments, *, run_ctx, project_root, timeout_sec=None
+            action,
+            *,
+            run_ctx,
+            project_root,
+            arguments=None,
+            timeout_sec=None,
         ):
             del project_root, timeout_sec
-            # Only acceptance validate_* calls use the optional validate hook.
-            # prepare()'s state_call must not consume the failure budget.
-            if validate is not None and method == "validate_artifacts":
+            # Acceptance Host Actions may use the optional validate hook.
+            if validate is not None and str(getattr(action, "action_id", "")).endswith(
+                "_check"
+            ):
                 profile = str((arguments or {}).get("profile") or "")
-                checker_id = f"lca.{profile}" if profile else method
+                if not profile:
+                    profile = str(action.action_id).removesuffix("_check")
+                checker_id = f"lca.{profile}" if profile else action.action_id
                 payload = validate(run_ctx, checker_id)
-                from core.runtime.mcp_host import normalize_check_result
+                from core.runtime.host_action import normalize_host_action_result
 
-                return normalize_check_result(payload)
-            return _passing_invoke_tool(tool, method, arguments, run_ctx=run_ctx)
+                return normalize_host_action_result(payload)
+            return _passing_run_host_action(
+                action, run_ctx=run_ctx, arguments=arguments
+            )
 
         with open_store(self.workspace) as store:
             run_id = "run-test"
             with patch(
-                "core.workflow.execution.runner.invoke_tool",
+                "core.workflow.execution.runner.run_host_action",
                 side_effect=_invoke,
             ):
                 result = run_workflow(
@@ -535,8 +545,8 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
         with open_store(self.workspace) as store:
             run_id = "run-revise"
             with patch(
-                "core.workflow.execution.runner.invoke_tool",
-                side_effect=_passing_invoke_tool,
+                "core.workflow.execution.runner.run_host_action",
+                side_effect=_passing_run_host_action,
             ):
                 result = run_workflow(
                     runtime,

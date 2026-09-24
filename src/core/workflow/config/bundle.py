@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from core.workflow.spec.models import McpCallSpec, StageSpec
+from core.workflow.spec.models import HostActionRef, StageSpec
 
 
 @dataclass(frozen=True)
@@ -42,13 +42,18 @@ class TaskBundle:
     max_attempts: int
     stage_spec: StageSpec
     rule_ids: list[str] = field(default_factory=list)
-    tool_ids: list[str] = field(default_factory=list)
+    mcp_tool_ids: list[str] = field(default_factory=list)
     knowledge_ids: list[str] = field(default_factory=list)
     knowledge_sources: list[KnowledgeBinding] = field(default_factory=list)
     expected_outputs: list[str] = field(default_factory=list)
-    acceptance_checks: list[McpCallSpec] = field(default_factory=list)
-    on_reviewer_passed: list[McpCallSpec] = field(default_factory=list)
+    acceptance_checks: list[HostActionRef] = field(default_factory=list)
+    on_reviewer_passed: list[HostActionRef] = field(default_factory=list)
     context: dict[str, object] = field(default_factory=dict)
+
+    @property
+    def tool_ids(self) -> list[str]:
+        """Alias for Agent MCP tool ids."""
+        return self.mcp_tool_ids
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)

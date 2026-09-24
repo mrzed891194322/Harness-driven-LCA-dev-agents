@@ -13,6 +13,7 @@ from core.agents.session import (
     SessionResumeError,
     TurnResult,
 )
+from core.runtime.host_action import HostActionResult
 from core.runtime.mcp_host import CheckResult
 from tests.conftest import PROJECT_ROOT
 
@@ -54,8 +55,15 @@ _MINIMAL_MAPPING = {
 
 
 def passing_invoke_tool(*_args: Any, **_kwargs: Any) -> CheckResult:
-    """Host MCP stub: every check / lifecycle / handoff call succeeds."""
+    """Host MCP stub (legacy name): every MCP call succeeds."""
     return CheckResult(ok=True, status="passed", summary="ok", errors=[], warnings=[])
+
+
+def passing_run_host_action(*_args: Any, **_kwargs: Any) -> HostActionResult:
+    """Host Action stub: every Core-facing check / lifecycle call succeeds."""
+    return HostActionResult(
+        ok=True, status="passed", summary="ok", errors=[], warnings=[]
+    )
 
 
 # Backward-compatible alias used by older tests that patched CheckerRegistry.
@@ -70,6 +78,7 @@ def passing_validate(_ctx: Any, _checker_id: str) -> dict[str, Any]:
 
 _passing_validate = passing_validate
 _passing_invoke_tool = passing_invoke_tool
+_passing_run_host_action = passing_run_host_action
 
 
 class ScriptedSessionClient:
