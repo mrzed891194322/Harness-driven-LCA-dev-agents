@@ -17,7 +17,7 @@ def build_left_sidebar() -> tuple[
             """
         )
         ref_upload_file = gr.File(
-            label="用户资料上传 (User Materials)",
+            label="用户资料上传",
             file_count="multiple",
             interactive=True,
             elem_id="reference-upload",
@@ -26,7 +26,7 @@ def build_left_sidebar() -> tuple[
     with gr.Column(elem_id="quick-actions-section"):
         gr.Markdown(
             """
-            ### 🛠️ 快捷操作区 (Quick Actions)
+            ### 🛠️ 快捷操作区
             本面板用于触发 LCA 系统运行的预设任务。
             """
         )
