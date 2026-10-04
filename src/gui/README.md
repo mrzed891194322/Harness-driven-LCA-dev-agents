@@ -78,7 +78,10 @@ openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败
 
 GUI 按钮、表单等控件使用 `config.py` 中本地优先的无衬线字体栈（`GUI_UI_FONT_FAMILY`），
 计划/报告等 Markdown 文档正文使用学术衬线字体栈（`GUI_FONT_FAMILY`），不依赖在线字体；
-代码片段与终端输出使用同文件配置的等宽字体栈，终端为深色底。启动时隐藏 Gradio 默认页脚。
+代码片段与终端输出使用同文件配置的等宽字体栈。启动时隐藏 Gradio 默认页脚。
+
+顶部标题栏封装在 `ui/components/header.py`：标题、GitHub 链接、作者与邮箱都是文件顶部
+常量，改文字只改这几个常量；样式在 `ui/assets/css/header.css`。
 
 自定义 CSS 会被 Gradio 自动加上 `.gradio-container.gradio-container-<版本> .contain` 前缀。
 组件级选择器不要再手写 `.gradio-container` 祖先：带前缀的副本无法匹配，未加前缀的副本

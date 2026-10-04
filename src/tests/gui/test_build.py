@@ -40,6 +40,35 @@ class GuiBuildTests(unittest.TestCase):
         self.assertIn("#settings-opencode-refresh-btn", _css)
         self.assertIn("#settings-pi-refresh-btn", _css)
 
+    def test_build_ui_includes_header_assets(self) -> None:
+        _demo, _theme, css, _js_code = build_ui()
+        self.assertIn(".app-header", css)
+
+
+class HeaderTests(unittest.TestCase):
+    def test_header_renders_title_github_and_author_links(self) -> None:
+        from gui.ui.components.header import (
+            AUTHOR_EMAIL,
+            AUTHOR_NAME,
+            GITHUB_URL,
+            HEADER_TITLE,
+            render_header_html,
+        )
+
+        html = render_header_html()
+        self.assertIn(HEADER_TITLE, html)
+        self.assertIn(f'href="{GITHUB_URL}"', html)
+        self.assertIn(AUTHOR_NAME, html)
+        self.assertIn(f'href="mailto:{AUTHOR_EMAIL}"', html)
+        self.assertEqual(AUTHOR_EMAIL, "yuandu0214@outlook.com")
+
+    def test_header_escapes_custom_values(self) -> None:
+        from gui.ui.components.header import render_header_html
+
+        html = render_header_html(title="<b>x</b>", author_name="A & B")
+        self.assertIn("&lt;b&gt;x&lt;/b&gt;", html)
+        self.assertIn("A &amp; B", html)
+
 
 class SettingsTabTests(unittest.TestCase):
     def test_init_check_status_update_pending_prefix(self) -> None:

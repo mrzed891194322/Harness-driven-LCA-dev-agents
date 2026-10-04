@@ -4,6 +4,7 @@ from typing import Any
 import gradio as gr
 import gradio.themes as gr_themes
 
+from gui.ui.components.header import build_header
 from gui.ui.components.left_sidebar import build_left_sidebar
 from gui.ui.components.tab_initial import build_tab_initial
 from gui.ui.components.tab_lci import build_tab_lci
@@ -35,6 +36,7 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
     css_dir = assets_dir / "css"
     css_files = [
         css_dir / "layout.css",
+        css_dir / "header.css",
         css_dir / "left_sidebar.css",
         css_dir / "tab_terminal.css",
         css_dir / "tab_initial.css",
@@ -64,13 +66,7 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
 
     with gr.Blocks(title="LCA Multi-agent UI") as demo:
         with gr.Row():
-            gr.Markdown(
-                """
-                # 🌲 生命周期评估多智能体系统 - 控制面板
-                ---
-                """,
-                elem_id="main-title",
-            )
+            build_header()
 
         with gr.Row(elem_id="main-layout-row"):
             with gr.Column(scale=1, elem_id="left-sidebar"):
