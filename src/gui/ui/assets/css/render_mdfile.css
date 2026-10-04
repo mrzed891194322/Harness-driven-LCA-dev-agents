@@ -6,6 +6,64 @@
     overflow-y: auto !important;
 }
 
+.markdown-document-toc-column h3 {
+    margin: 0 0 10px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em !important;
+    color: var(--body-text-color-subdued, #64748b) !important;
+}
+
+.markdown-document-toc-column ul {
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.markdown-document-toc-column ul ul {
+    margin: 2px 0 6px 10px !important;
+    padding-left: 8px !important;
+    border-left: 1px solid var(--border-color-primary, #e5e7eb) !important;
+}
+
+.markdown-document-toc-column li {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.markdown-document-toc-column li::marker {
+    content: none !important;
+}
+
+.markdown-document-toc-column a {
+    display: block !important;
+    padding: 5px 10px !important;
+    border-left: 3px solid transparent !important;
+    border-radius: 0 6px 6px 0 !important;
+    color: var(--body-text-color, #334155) !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    text-decoration: none !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+.markdown-document-toc-column li > a {
+    font-weight: 600 !important;
+}
+
+.markdown-document-toc-column ul ul li > a {
+    font-weight: 400 !important;
+    color: var(--body-text-color-subdued, #475569) !important;
+}
+
+.markdown-document-toc-column a:hover,
+.markdown-document-toc-column a:focus-visible {
+    background: var(--color-accent-soft, #ecfdf5) !important;
+    border-left-color: var(--color-accent, #14b8a6) !important;
+    color: var(--color-accent, #0f766e) !important;
+    outline: none !important;
+}
+
 .markdown-document-column,
 .markdown-document-scroll {
     height: 100% !important;
