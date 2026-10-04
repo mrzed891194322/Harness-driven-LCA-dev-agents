@@ -19,6 +19,7 @@ def _font_css() -> str:
 
     return (
         ":root {\n"
+        f"    --gui-ui-font: {config.GUI_UI_FONT_FAMILY};\n"
         f"    --academic-serif-font: {config.GUI_FONT_FAMILY};\n"
         f"    --gui-monospace-font: {config.GUI_MONO_FONT_FAMILY};\n"
         "}"

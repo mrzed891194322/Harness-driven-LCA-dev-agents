@@ -20,9 +20,15 @@ PROJECT_ROOT = next(
 
 # -----------------------------------------------------------------------------
 # 界面字体
-# 两个字体栈由 ui/ui_main.py 注入 CSS：普通字体用于界面与 Markdown，
-# 等宽字体用于代码片段和终端；均优先使用本地字体，不依赖在线服务。
+# 三个字体栈由 ui/ui_main.py 注入 CSS：无衬线字体用于按钮、表单等界面控件，
+# 衬线字体用于计划/报告等 Markdown 文档正文，等宽字体用于代码片段和终端；
+# 均优先使用本地字体，不依赖在线服务。
 # -----------------------------------------------------------------------------
+GUI_UI_FONT_FAMILY = (
+    'Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", '
+    '"Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", '
+    '"Helvetica Neue", Arial, sans-serif'
+)
 GUI_FONT_FAMILY = (
     '"Libertinus Serif", "Linux Libertine O", "Source Serif 4", '
     '"Noto Serif", Georgia, "Times New Roman", "Noto Serif CJK SC", '
