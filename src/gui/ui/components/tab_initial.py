@@ -47,6 +47,7 @@ def pending_init_check_status_updates() -> list[dict[str, Any]]:
 def init_check_status_update(
     ok: bool | None,
     message: str = "",
+    extra_classes: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Build a Gradio update for one initialization check status row."""
     if ok is None:
@@ -62,7 +63,7 @@ def init_check_status_update(
         tone = "init-check-status-fail"
     return gr.update(
         value=value,
-        elem_classes=["project-init-status-value", tone],
+        elem_classes=["project-init-status-value", tone, *extra_classes],
     )
 
 

@@ -1060,3 +1060,76 @@
     color: #475569 !important;
     font-weight: 650 !important;
 }
+
+/* Status chips: shared by the init-check rows and the agent probe status. */
+.project-init-status-value.init-check-status-pending p,
+.project-init-status-value.init-check-status-ok p,
+.project-init-status-value.init-check-status-fail p {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 3px 12px 3px 10px !important;
+    border: 1px solid var(--status-chip-border) !important;
+    border-radius: 999px !important;
+    background: var(--status-chip-bg) !important;
+    color: var(--status-chip-text) !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    line-height: 1.5 !important;
+    white-space: nowrap !important;
+}
+
+.project-init-status-value.init-check-status-pending p::before,
+.project-init-status-value.init-check-status-ok p::before,
+.project-init-status-value.init-check-status-fail p::before {
+    content: "" !important;
+    display: block !important;
+    flex: 0 0 auto !important;
+    width: 7px !important;
+    height: 7px !important;
+    border-radius: 50% !important;
+    background: var(--status-chip-dot) !important;
+}
+
+.project-init-status-value.init-check-status-pending {
+    --status-chip-bg: #f1f5f9;
+    --status-chip-border: #e2e8f0;
+    --status-chip-text: #475569;
+    --status-chip-dot: #94a3b8;
+}
+
+.project-init-status-value.init-check-status-ok {
+    --status-chip-bg: #ecfdf5;
+    --status-chip-border: #a7f3d0;
+    --status-chip-text: #047857;
+    --status-chip-dot: #10b981;
+}
+
+.project-init-status-value.init-check-status-fail {
+    --status-chip-bg: #fef2f2;
+    --status-chip-border: #fecaca;
+    --status-chip-text: #b91c1c;
+    --status-chip-dot: #ef4444;
+}
+
+.settings-agent-probe-row {
+    align-items: center !important;
+    gap: 12px !important;
+}
+
+.settings-agent-probe-status,
+.settings-agent-probe-status .prose {
+    display: flex !important;
+    justify-content: flex-start !important;
+    width: auto !important;
+    min-width: 0 !important;
+}
+
+.settings-agent-probe-status.project-init-status-value p {
+    max-width: 100% !important;
+    white-space: normal !important;
+    border-radius: 12px !important;
+}

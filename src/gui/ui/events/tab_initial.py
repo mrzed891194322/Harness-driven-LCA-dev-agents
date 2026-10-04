@@ -228,7 +228,9 @@ def bind_tab_initial_events(
                 gr.Info("连接成功")
             else:
                 gr.Warning(message)
-            return init_check_status_update(ok, message)
+            return init_check_status_update(
+                ok, message, extra_classes=("settings-agent-probe-status",)
+            )
 
         _probe.__name__ = f"probe_{worker}"
         return _probe
