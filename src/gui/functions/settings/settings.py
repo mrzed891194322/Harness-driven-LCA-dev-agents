@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import TypedDict
 
 from app_settings import (
+    DEFAULT_GUI_LANG,
     DEFAULT_GUI_PORT,
     DEFAULT_HARNESS_AGENT,
     DEFAULT_OPENLCA_IPC_PORT,
+    GUI_LANG_KEY,
     GUI_PORT_KEY,
     HARNESS_AGENT_KEY,
     HARNESS_AGENTS,
@@ -18,6 +20,7 @@ from app_settings import (
     MIN_PORT,
     OPENLCA_IPC_PORT_KEY,
     ensure_env_path,
+    normalize_gui_lang,
     normalize_harness_agent,
     parse_port,
 )
@@ -47,6 +50,7 @@ __all__ = [
     "MIN_PORT",
     "OPENLCA_IPC_PORT_KEY",
     "GuiSettings",
+    "load_gui_language",
     "ensure_env_path",
     "load_gui_settings",
     "load_harness_agent",
@@ -55,6 +59,7 @@ __all__ = [
     "parse_env_file",
     "parse_port",
     "save_gui_settings",
+    "save_developer_settings",
     "save_port_settings",
     "upsert_env_keys",
 ]
@@ -66,6 +71,7 @@ class GuiSettings(TypedDict):
     models: dict[str, str]
     gui_port: int
     openlca_ipc_port: int
+    gui_lang: str
 
 
 def _project_root() -> Path:
@@ -77,6 +83,15 @@ def _project_root() -> Path:
 def _apply_environ(updates: Mapping[str, str]) -> None:
     for key, value in updates.items():
         os.environ[key] = value
+
+
+def load_gui_language(project_root: Path | None = None) -> str:
+    """Load persisted GUI locale from .env."""
+    root = project_root or _project_root()
+    values = parse_env_file(root / ".env")
+    return normalize_gui_lang(
+        values.get(GUI_LANG_KEY) or os.getenv(GUI_LANG_KEY) or DEFAULT_GUI_LANG
+    )
 
 
 def load_port_settings(project_root: Path | None = None) -> dict[str, int]:
@@ -132,6 +147,37 @@ def load_gui_settings(
         "models": models,
         "gui_port": ports["gui_port"],
         "openlca_ipc_port": ports["openlca_ipc_port"],
+        "gui_lang": load_gui_language(root),
+    }
+
+
+def save_developer_settings(
+    *,
+    gui_port: str | int,
+    gui_lang: object,
+    project_root: Path | None = None,
+) -> dict[str, int | str]:
+    """Persist GUI port and UI language to .env."""
+    root = project_root or _project_root()
+    env_path = ensure_env_path(root)
+    try:
+        parsed_gui = int(gui_port)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("端口必须为整数") from exc
+    if not (MIN_PORT <= parsed_gui <= MAX_PORT):
+        raise ValueError(
+            f"GUI_PORT must be an integer between {MIN_PORT} and {MAX_PORT}"
+        )
+    lang = normalize_gui_lang(gui_lang)
+    updates = {
+        GUI_PORT_KEY: str(parsed_gui),
+        GUI_LANG_KEY: lang,
+    }
+    upsert_env_keys(env_path, updates)
+    _apply_environ(updates)
+    return {
+        "gui_port": parsed_gui,
+        "gui_lang": lang,
     }
 
 

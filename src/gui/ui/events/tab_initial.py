@@ -7,9 +7,11 @@ from gui.functions.settings.check_status import (
 from gui.functions.settings.settings import (
     load_gui_settings,
     load_port_settings,
+    save_developer_settings,
     save_gui_settings,
     save_port_settings,
 )
+from gui.i18n import normalize_locale, t
 from gui.ui.components.tab_initial import (
     init_check_status_update,
     model_catalog_choices,
@@ -29,7 +31,7 @@ def _parse_openlca_port(value: str | int | float | None) -> int:
     return port
 
 
-def refresh_model_catalog(worker: str, current: object):
+def refresh_model_catalog(worker: str, current: object, locale: str):
     from core.agents.catalog import list_models
 
     current_value = str(current or "").strip()
@@ -39,7 +41,7 @@ def refresh_model_catalog(worker: str, current: object):
         return gr.update()
     gr.Info(message)
     return gr.update(
-        choices=model_catalog_choices(ids, current_value),
+        choices=model_catalog_choices(ids, current_value, locale),
         value=current_value,
     )
 
@@ -66,6 +68,10 @@ def bind_tab_initial_events(
     agent_save_btn: gr.Button,
     init_openlca_port: gr.Number,
     dev_gui_port: gr.Number,
+    dev_gui_lang: gr.Dropdown,
+    gui_reload_flag: gr.Textbox,
+    gui_locale_state: gr.State,
+    reload_after_lang_change_js: str,
     execute_lca_btn: gr.Button,
     execute_improvement_btn: gr.Button,
     init_check_ok_state: gr.State,
@@ -93,10 +99,10 @@ def bind_tab_initial_events(
             gr.update(interactive=execution_ready(init_ok, improvement_ready)),
         )
 
-    def invalidate_init_gate(plan_ready, improvement_ready):
+    def invalidate_init_gate(plan_ready, improvement_ready, locale):
         return (
             *_gate_updates(False, plan_ready, improvement_ready),
-            *pending_init_check_status_updates(),
+            *pending_init_check_status_updates(locale),
         )
 
     def _agent_field_values(settings):
@@ -135,18 +141,18 @@ def bind_tab_initial_events(
             },
         )
 
-    def switch_agent(agent, openlca_port, plan_ready, improvement_ready):
+    def switch_agent(agent, openlca_port, plan_ready, improvement_ready, locale):
         try:
             settings = persist_selected_agent(agent, openlca_port)
         except ValueError as exc:
             gr.Warning(str(exc))
             settings = load_gui_settings()
             return (
-                *invalidate_init_gate(plan_ready, improvement_ready),
+                *invalidate_init_gate(plan_ready, improvement_ready, locale),
                 *_agent_field_values(settings),
             )
         return (
-            *invalidate_init_gate(plan_ready, improvement_ready),
+            *invalidate_init_gate(plan_ready, improvement_ready, locale),
             *_agent_field_values(settings),
         )
 
@@ -158,6 +164,7 @@ def bind_tab_initial_events(
         pi_model_value,
         plan_ready,
         improvement_ready,
+        locale,
     ):
         settings = persist_agent_config(
             agent,
@@ -166,76 +173,107 @@ def bind_tab_initial_events(
             opencode_model_value,
             pi_model_value,
         )
-        gr.Info("模型已保存。")
+        gr.Info(t("toast.model_saved", locale))
         return (
-            *invalidate_init_gate(plan_ready, improvement_ready),
+            *invalidate_init_gate(plan_ready, improvement_ready, locale),
             *_agent_field_values(settings),
         )
 
-    def persist_and_invalidate(agent, openlca_port, plan_ready, improvement_ready):
+    def persist_and_invalidate(
+        agent, openlca_port, plan_ready, improvement_ready, locale
+    ):
         try:
             persist_selected_agent(agent, openlca_port)
         except ValueError as exc:
             gr.Warning(str(exc))
-            return invalidate_init_gate(plan_ready, improvement_ready)
-        return invalidate_init_gate(plan_ready, improvement_ready)
+            return invalidate_init_gate(plan_ready, improvement_ready, locale)
+        return invalidate_init_gate(plan_ready, improvement_ready, locale)
 
-    def run_init_check(agent, openlca_port, plan_ready, improvement_ready):
+    def run_init_check(agent, openlca_port, plan_ready, improvement_ready, locale):
         try:
             persist_selected_agent(agent, openlca_port)
         except ValueError as exc:
             gr.Warning(str(exc))
             return (
                 *_gate_updates(False, plan_ready, improvement_ready),
-                *pending_init_check_status_updates(),
+                *pending_init_check_status_updates(locale),
             )
         statuses = collect_initialization_statuses(agent)
         failed = [label for label, ok, _message in statuses if not ok]
         init_ok = not failed
         if init_ok:
-            gr.Info("初始化成功")
+            gr.Info(t("toast.init_ok", locale))
         elif len(failed) == 1:
-            gr.Warning(f"{failed[0]}未通过")
+            gr.Warning(t("toast.init_one_failed", locale, label=failed[0]))
         else:
-            gr.Warning("、".join(failed) + "未通过")
+            gr.Warning(t("toast.init_many_failed", locale, labels="、".join(failed)))
         return (
             *_gate_updates(init_ok, plan_ready, improvement_ready),
             *[
-                init_check_status_update(ok, "成功" if ok else "失败")
+                init_check_status_update(
+                    ok,
+                    t("status.success", locale) if ok else t("status.fail", locale),
+                    locale=locale,
+                )
                 for _label, ok, _message in statuses
             ],
         )
 
-    def save_dev_ports(gui_port, plan_ready, improvement_ready):
-        ports = load_port_settings()
+    def save_dev_settings(
+        gui_port,
+        gui_lang,
+        stored_locale,
+        plan_ready,
+        improvement_ready,
+    ):
+        locale = normalize_locale(stored_locale)
+        new_lang = normalize_locale(gui_lang)
         try:
-            save_port_settings(
-                gui_port=gui_port,
-                openlca_ipc_port=ports["openlca_ipc_port"],
-            )
+            save_developer_settings(gui_port=gui_port, gui_lang=new_lang)
         except ValueError as exc:
             gr.Warning(str(exc))
-            return invalidate_init_gate(plan_ready, improvement_ready)
-        gr.Info("端口配置已保存；修改 GUI 端口后需重启界面方可生效。")
-        return invalidate_init_gate(plan_ready, improvement_ready)
+            return (
+                gr.update(value=""),
+                *invalidate_init_gate(plan_ready, improvement_ready, locale),
+                stored_locale,
+            )
+        lang_changed = new_lang != locale
+        if lang_changed:
+            gr.Info(t("toast.lang_saved", new_lang))
+            return (
+                gr.update(value="reload"),
+                *invalidate_init_gate(plan_ready, improvement_ready, locale),
+                new_lang,
+            )
+        gr.Info(t("toast.ports_saved_dev", locale))
+        return (
+            gr.update(value=""),
+            *invalidate_init_gate(plan_ready, improvement_ready, locale),
+            stored_locale,
+        )
 
-    def probe_worker(worker: str):
+    def probe_worker(worker: str, locale: str):
         def _probe(model_value):
             from core.agents.probe import probe
 
             ok, message = probe(worker, str(model_value or "").strip())
             if ok:
-                gr.Info("连接成功")
+                gr.Info(t("toast.probe_ok", locale))
             else:
                 gr.Warning(message)
-            return init_check_status_update(ok, message)
+            return init_check_status_update(
+                ok,
+                message,
+                extra_classes=("settings-agent-probe-status",),
+                locale=locale,
+            )
 
         _probe.__name__ = f"probe_{worker}"
         return _probe
 
-    def refresh_worker(worker: str):
+    def refresh_worker(worker: str, locale: str):
         def _refresh(current):
-            return refresh_model_catalog(worker, current)
+            return refresh_model_catalog(worker, current, locale)
 
         _refresh.__name__ = f"refresh_{worker}_models"
         return _refresh
@@ -247,18 +285,22 @@ def bind_tab_initial_events(
             init_openlca_port,
             plan_ready_state,
             improvement_ready_state,
+            gui_locale_state,
         ],
         outputs=[*gate_outputs, *status_outputs],
     )
 
     dev_ports_save_btn.click(
-        fn=save_dev_ports,
+        fn=save_dev_settings,
         inputs=[
             dev_gui_port,
+            dev_gui_lang,
+            gui_locale_state,
             plan_ready_state,
             improvement_ready_state,
         ],
-        outputs=[*gate_outputs, *status_outputs],
+        outputs=[gui_reload_flag, *gate_outputs, *status_outputs, gui_locale_state],
+        js=reload_after_lang_change_js,
     )
 
     agent_dropdown.change(
@@ -268,6 +310,7 @@ def bind_tab_initial_events(
             init_openlca_port,
             plan_ready_state,
             improvement_ready_state,
+            gui_locale_state,
         ],
         outputs=[*gate_outputs, *status_outputs, *agent_field_outputs],
     )
@@ -281,6 +324,7 @@ def bind_tab_initial_events(
             pi_model,
             plan_ready_state,
             improvement_ready_state,
+            gui_locale_state,
         ],
         outputs=[*gate_outputs, *status_outputs, *agent_field_outputs],
     )
@@ -291,9 +335,13 @@ def bind_tab_initial_events(
             init_openlca_port,
             plan_ready_state,
             improvement_ready_state,
+            gui_locale_state,
         ],
         outputs=[*gate_outputs, *status_outputs],
     )
+
+    def _probe_click(worker: str, model_value: object, locale: str):
+        return probe_worker(worker, locale)(model_value)
 
     for worker, button, model_box, status in (
         ("codex", codex_probe_btn, codex_model, codex_probe_status),
@@ -302,8 +350,10 @@ def bind_tab_initial_events(
         ("pi", pi_probe_btn, pi_model, pi_probe_status),
     ):
         button.click(
-            fn=probe_worker(worker),
-            inputs=[model_box],
+            fn=lambda model_value, locale, w=worker: _probe_click(
+                w, model_value, locale
+            ),
+            inputs=[model_box, gui_locale_state],
             outputs=[status],
         )
 
@@ -312,7 +362,7 @@ def bind_tab_initial_events(
         ("pi", pi_refresh_btn, pi_model),
     ):
         button.click(
-            fn=refresh_worker(worker),
-            inputs=[model_box],
+            fn=lambda current, locale, w=worker: refresh_worker(w, locale)(current),
+            inputs=[model_box, gui_locale_state],
             outputs=[model_box],
         )

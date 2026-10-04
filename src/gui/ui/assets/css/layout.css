@@ -3,6 +3,12 @@
 .gradio-container input,
 .gradio-container select,
 .gradio-container textarea {
+    font-family: var(--gui-ui-font) !important;
+}
+
+.markdown-document-scroll .prose,
+.markdown-document-scroll .prose *:not(code):not(pre):not(kbd):not(samp),
+.markdown-document-scroll textarea {
     font-family: var(--academic-serif-font) !important;
 }
 
@@ -166,9 +172,4 @@
     justify-content: center !important;
     margin-top: 10px !important;
     width: 100% !important;
-}
-
-#main-title,
-#main-title * {
-    text-align: center !important;
 }

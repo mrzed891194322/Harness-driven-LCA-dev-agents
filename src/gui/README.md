@@ -76,8 +76,21 @@ openLCA 检查使用有界请求并在首次失败后重连 3 次，全部失败
 “关闭面板”返回 LCA 结果。“修改工作细节”当前仅
 作为禁用的功能占位按钮显示。
 
-GUI 使用 `config.py` 中本地优先的学术衬线字体栈显示中英文界面，不依赖在线字体；
-代码片段与终端输出继续使用同文件配置的等宽字体栈。
+GUI 按钮、表单等控件使用 `config.py` 中本地优先的无衬线字体栈（`GUI_UI_FONT_FAMILY`），
+计划/报告等 Markdown 文档正文使用学术衬线字体栈（`GUI_FONT_FAMILY`），不依赖在线字体；
+代码片段与终端输出使用同文件配置的等宽字体栈。启动时隐藏 Gradio 默认页脚。
+
+顶部标题栏封装在 `ui/components/header.py`：GitHub 链接与作者信息为文件顶部常量；
+界面标题等多语言文案在 `gui/i18n/messages.py`，通过 `t(key, locale)` 取用。
+样式在 `ui/assets/css/header.css`。
+
+界面语言在「设置&初始化 → 开发者选项」中选择中文或 English，写入 `.env` 的
+`GUI_LANG`（`zh` / `en`）。切换语言后会自动刷新页面；`GUI_PORT` 变更仍需手动重启 GUI。
+Tab 导航按稳定 `id`（见 `tab_navigation.js` 的 `RIGHT_TAB_IDS`），不依赖可见标题文字。
+
+自定义 CSS 会被 Gradio 自动加上 `.gradio-container.gradio-container-<版本> .contain` 前缀。
+组件级选择器不要再手写 `.gradio-container` 祖先：带前缀的副本无法匹配，未加前缀的副本
+优先级又低于其他已加前缀的规则，样式会被覆盖。
 
 旧的需求表单、计划输出和计划修改 Tab 不再创建，LCI 制定 Tab 已移除。
 

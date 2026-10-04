@@ -1,17 +1,21 @@
 import gradio as gr
 
+from gui.i18n import t
 
-def build_tab_terminal() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.Button]:
+
+def build_tab_terminal(
+    locale: str,
+) -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.Button]:
     """
     构建“终端显示” Tab 组件及其内部布局。
     """
-    with gr.Tab("终端显示", id="terminal_tab") as tab:
+    with gr.Tab(t("tab.terminal", locale), id="terminal_tab") as tab:
         with gr.Group(
             elem_id="terminal-console-panel",
             elem_classes=["right-tab-workspace", "right-workspace-panel"],
         ):
             output_console = gr.Textbox(
-                label="终端输出 (Terminal Output)",
+                label=t("terminal.output_label", locale),
                 value="",
                 autoscroll=True,
                 interactive=False,
@@ -20,8 +24,8 @@ def build_tab_terminal() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.
             with gr.Row(variant="compact", elem_id="status-row"):
                 with gr.Column(scale=1, min_width=100):
                     status = gr.Textbox(
-                        label="状态 (Status)",
-                        value="Ready",
+                        label=t("terminal.status_label", locale),
+                        value=t("terminal.status_ready", locale),
                         interactive=False,
                         max_lines=1,
                         elem_id="status-box",
@@ -29,13 +33,13 @@ def build_tab_terminal() -> tuple[gr.Tab, gr.Textbox, gr.Textbox, gr.Button, gr.
                 with gr.Column(scale=2, min_width=250):
                     with gr.Row():
                         clear_btn = gr.Button(
-                            "🧹 清空控制台日志 (Clear Logs)",
+                            t("terminal.clear", locale),
                             variant="secondary",
                             size="sm",
                             elem_id="clear-btn",
                         )
                         stop_btn = gr.Button(
-                            "🛑 停止工作 (Stop)",
+                            t("terminal.stop", locale),
                             variant="stop",
                             size="sm",
                             elem_id="stop-btn",

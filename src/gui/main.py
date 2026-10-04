@@ -36,6 +36,7 @@ def main() -> None:
         server_port=gui_port,
         share=False,
         show_error=True,
+        footer_links=[],
     )
 
 

@@ -35,16 +35,29 @@
     flex-grow: 1 !important;
 }
 
+#terminal-console-panel,
+#terminal-console-panel > .styler,
+#terminal-console-panel .form {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
 #terminal-output textarea {
-    font-family: Consolas, Monaco, "Courier New", monospace;
+    font-family: var(--gui-monospace-font) !important;
     font-size: 13px;
-    line-height: 1.45;
+    line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-all;
     flex-grow: 1 !important;
     height: 100% !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
+    padding: 14px 16px !important;
+    background: #ffffff !important;
+    color: #1f2937 !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
 }
 
 #status-box label {

@@ -4,6 +4,9 @@ from typing import Any
 import gradio as gr
 import gradio.themes as gr_themes
 
+from gui.functions.settings.settings import load_gui_language
+from gui.i18n import html_lang_attr, t
+from gui.ui.components.header import build_header
 from gui.ui.components.left_sidebar import build_left_sidebar
 from gui.ui.components.tab_initial import build_tab_initial
 from gui.ui.components.tab_lci import build_tab_lci
@@ -13,19 +16,35 @@ from gui.ui.components.tab_revise import build_tab_revise
 from gui.ui.components.tab_terminal import build_tab_terminal
 from gui.ui.events import bind_ui_events
 
+RELOAD_AFTER_LANG_CHANGE_JS = """
+(reloadFlag) => {
+    const value = Array.isArray(reloadFlag) ? reloadFlag[0] : reloadFlag;
+    if (value === "reload") {
+        setTimeout(() => window.location.reload(), 400);
+    }
+}
+"""
+
 
 def _font_css() -> str:
     from gui import config
 
     return (
         ":root {\n"
+        f"    --gui-ui-font: {config.GUI_UI_FONT_FAMILY};\n"
         f"    --academic-serif-font: {config.GUI_FONT_FAMILY};\n"
         f"    --gui-monospace-font: {config.GUI_MONO_FONT_FAMILY};\n"
         "}"
     )
 
 
+def _locale_bootstrap_js(locale: str) -> str:
+    lang = html_lang_attr(locale)
+    return f'document.documentElement.lang = "{lang}";\n'
+
+
 def build_ui() -> tuple[gr.Blocks, Any, str, str]:
+    locale = load_gui_language()
     theme = gr_themes.Soft(
         primary_hue="teal", secondary_hue="indigo", neutral_hue="slate"
     )
@@ -34,6 +53,7 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
     css_dir = assets_dir / "css"
     css_files = [
         css_dir / "layout.css",
+        css_dir / "header.css",
         css_dir / "left_sidebar.css",
         css_dir / "tab_terminal.css",
         css_dir / "tab_initial.css",
@@ -57,19 +77,20 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
         js_dir / "status_monitor.js",
         js_dir / "terminal_scroll.js",
     ]
-    js_code = "\n\n".join(
+    js_code = _locale_bootstrap_js(locale) + "\n\n".join(
         js_file.read_text(encoding="utf-8") for js_file in js_files if js_file.exists()
     )
 
-    with gr.Blocks(title="LCA Multi-agent UI") as demo:
+    with gr.Blocks(title=t("app.window_title", locale)) as demo:
+        gui_reload_flag = gr.Textbox(
+            value="",
+            visible=False,
+            elem_id="gui-reload-flag",
+        )
+        gui_locale_state = gr.State(value=locale)
+
         with gr.Row():
-            gr.Markdown(
-                """
-                # 🌲 生命周期评估多智能体系统 - 控制面板
-                ---
-                """,
-                elem_id="main-title",
-            )
+            build_header(locale)
 
         with gr.Row(elem_id="main-layout-row"):
             with gr.Column(scale=1, elem_id="left-sidebar"):
@@ -77,12 +98,12 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
                     open_init_btn,
                     start_lca_btn,
                     ref_upload_file,
-                ) = build_left_sidebar()
+                ) = build_left_sidebar(locale)
 
             with gr.Column(scale=2, elem_id="right-panel"):
                 with gr.Tabs(elem_id="right-tabs") as right_tabs:
-                    _, output_console, status, clear_btn, stop_btn = (
-                        build_tab_terminal()
+                    _, output_console, status, clear_btn, stop_btn = build_tab_terminal(
+                        locale
                     )
 
                     (
@@ -108,9 +129,10 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
                         agent_save_btn,
                         init_openlca_port,
                         dev_gui_port,
+                        dev_gui_lang,
                         dev_ports_save_btn,
                         view_lca_result_btn,
-                    ) = build_tab_initial()
+                    ) = build_tab_initial(locale)
 
                     (
                         _result_tab,
@@ -123,7 +145,7 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
                         download_report_btn,
                         show_lci_btn,
                         modify_rerun_btn,
-                    ) = build_tab_result()
+                    ) = build_tab_result(locale)
 
                     (
                         _plan_tab,
@@ -131,7 +153,7 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
                         close_plan_btn,
                         upload_plan_btn,
                         execute_lca_btn,
-                    ) = build_tab_plan()
+                    ) = build_tab_plan(locale)
 
                     (
                         _improvement_tab,
@@ -139,7 +161,7 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
                         close_improvement_btn,
                         upload_improvement_btn,
                         execute_improvement_btn,
-                    ) = build_tab_revise()
+                    ) = build_tab_revise(locale)
 
                     (
                         _lci_mapping_tab,
@@ -151,7 +173,7 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
                         mapping_warning,
                         download_mapping_btn,
                         _modify_lci_btn,
-                    ) = build_tab_lci()
+                    ) = build_tab_lci(locale)
 
         run_result_state = gr.State(value=None)
         init_check_ok_state = gr.State(value=False)
@@ -192,7 +214,10 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
             agent_save_btn=agent_save_btn,
             init_openlca_port=init_openlca_port,
             dev_gui_port=dev_gui_port,
+            dev_gui_lang=dev_gui_lang,
             dev_ports_save_btn=dev_ports_save_btn,
+            gui_reload_flag=gui_reload_flag,
+            gui_locale_state=gui_locale_state,
             close_lci_mapping_btn=close_lci_mapping_btn,
             bom_json=bom_json,
             bom_warning=bom_warning,
@@ -220,6 +245,7 @@ def build_ui() -> tuple[gr.Blocks, Any, str, str]:
             init_check_ok_state=init_check_ok_state,
             plan_ready_state=plan_ready_state,
             improvement_ready_state=improvement_ready_state,
+            reload_after_lang_change_js=RELOAD_AFTER_LANG_CHANGE_JS,
         )
 
     return demo, theme, css, js_code

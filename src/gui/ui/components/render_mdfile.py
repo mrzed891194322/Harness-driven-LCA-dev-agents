@@ -17,6 +17,7 @@ from gui.functions.plan_editor import (
     render_document_status,
     render_document_toc,
 )
+from gui.i18n import t
 
 
 @dataclass
@@ -54,6 +55,7 @@ def build_markdown_document_view(
     status_heading: str = "",
     show_load_status: bool = True,
     content_visible: bool = True,
+    locale: str = "zh",
 ) -> MarkdownDocumentView:
     """Build an independent document view with an optional textbox pool."""
     if template_path is not None and initial_source is not None:
@@ -122,7 +124,7 @@ def build_markdown_document_view(
                         title=toc_title,
                     )
                     if document is not None
-                    else f"### {toc_title}\n\n*尚未加载文档。*"
+                    else f"### {toc_title}\n\n*{t('md.toc_empty', locale)}*"
                 ),
                 elem_id=f"{component_prefix}-toc",
             )

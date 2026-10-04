@@ -14,8 +14,10 @@ DEFAULT_HARNESS_AGENT = "codex"
 HARNESS_AGENT_KEY = "HARNESS_AGENT"
 GUI_PORT_KEY = "GUI_PORT"
 OPENLCA_IPC_PORT_KEY = "OPENLCA_IPC_PORT"
+GUI_LANG_KEY = "GUI_LANG"
 DEFAULT_GUI_PORT = 7860
 DEFAULT_OPENLCA_IPC_PORT = 8080
+DEFAULT_GUI_LANG = "zh"
 MIN_PORT = 1
 MAX_PORT = 65535
 
@@ -45,6 +47,14 @@ def parse_port(value: object, default: int) -> int:
     if MIN_PORT <= port <= MAX_PORT:
         return port
     return default
+
+
+def normalize_gui_lang(value: object) -> str:
+    """Return a supported GUI locale code (zh or en)."""
+    text = str(value or "").strip().lower()
+    if text in ("en", "english", "en-us", "en_us"):
+        return "en"
+    return DEFAULT_GUI_LANG
 
 
 def normalize_harness_agent(value: object) -> str:
