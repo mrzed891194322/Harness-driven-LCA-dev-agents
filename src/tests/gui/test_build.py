@@ -47,16 +47,16 @@ class GuiBuildTests(unittest.TestCase):
 
 class HeaderTests(unittest.TestCase):
     def test_header_renders_title_github_and_author_links(self) -> None:
+        from gui.i18n import t
         from gui.ui.components.header import (
             AUTHOR_EMAIL,
             AUTHOR_NAME,
             GITHUB_URL,
-            HEADER_TITLE,
             render_header_html,
         )
 
-        html = render_header_html()
-        self.assertIn(HEADER_TITLE, html)
+        html = render_header_html("zh")
+        self.assertIn(t("header.title", "zh"), html)
         self.assertIn(f'href="{GITHUB_URL}"', html)
         self.assertIn(AUTHOR_NAME, html)
         self.assertIn(f'href="mailto:{AUTHOR_EMAIL}"', html)
@@ -65,29 +65,28 @@ class HeaderTests(unittest.TestCase):
     def test_header_escapes_custom_values(self) -> None:
         from gui.ui.components.header import render_header_html
 
-        html = render_header_html(title="<b>x</b>", author_name="A & B")
-        self.assertIn("&lt;b&gt;x&lt;/b&gt;", html)
+        html = render_header_html("en", author_name="A & B")
         self.assertIn("A &amp; B", html)
 
 
 class SettingsTabTests(unittest.TestCase):
     def test_init_check_status_update_pending_prefix(self) -> None:
+        from gui.i18n import t
         from gui.ui.components.tab_initial import (
             AGENT_CHOICES,
-            PENDING_INIT_STATUS,
             init_check_status_update,
         )
 
-        self.assertEqual(PENDING_INIT_STATUS, "状态：待检查")
+        self.assertEqual(t("status.pending", "zh"), "状态：待检查")
         self.assertEqual(AGENT_CHOICES, ["codex", "claude", "opencode", "pi"])
-        update = init_check_status_update(None)
+        update = init_check_status_update(None, locale="zh")
         self.assertEqual(update["value"], "状态：待检查")
         self.assertIn("init-check-status-pending", update["elem_classes"])
 
     def test_init_check_status_update_success_prefix(self) -> None:
         from gui.ui.components.tab_initial import init_check_status_update
 
-        update = init_check_status_update(True, "成功")
+        update = init_check_status_update(True, locale="zh")
         self.assertEqual(update["value"], "状态：成功")
         self.assertIn("init-check-status-ok", update["elem_classes"])
 
@@ -111,9 +110,9 @@ class SettingsTabTests(unittest.TestCase):
         self.assertIn("settings-agent-card-active", updates[5]["elem_classes"])
 
     def test_model_catalog_choices_keep_default_and_current(self) -> None:
+        from gui.i18n import t
         from gui.ui.components.tab_initial import (
             CATALOG_MODEL_WORKERS,
-            LOCAL_DEFAULT_MODEL_LABEL,
             model_catalog_choices,
         )
 
@@ -121,8 +120,9 @@ class SettingsTabTests(unittest.TestCase):
         choices = model_catalog_choices(
             ["anthropic/claude-sonnet-4-5", "openai/gpt-4o"],
             "saved/custom",
+            "zh",
         )
-        self.assertEqual(choices[0], (LOCAL_DEFAULT_MODEL_LABEL, ""))
+        self.assertEqual(choices[0], (t("settings.local_default", "zh"), ""))
         values = [value for _label, value in choices]
         self.assertEqual(
             values,
@@ -142,7 +142,7 @@ class SettingsTabTests(unittest.TestCase):
                 ["anthropic/claude-sonnet-4-5", "openai/gpt-4o"],
             ),
         ):
-            update = refresh_model_catalog("opencode", "keep/custom")
+            update = refresh_model_catalog("opencode", "keep/custom", "zh")
         payload = dict(update)
         values = [value for _label, value in payload["choices"]]
         self.assertEqual(payload["value"], "keep/custom")
@@ -158,7 +158,7 @@ class SettingsTabTests(unittest.TestCase):
             "core.agents.catalog.list_models",
             return_value=(False, "未安装", []),
         ):
-            update = refresh_model_catalog("pi", "keep-me")
+            update = refresh_model_catalog("pi", "keep-me", "zh")
         payload = dict(update)
         self.assertNotIn("choices", payload)
         self.assertNotIn("value", payload)
@@ -233,10 +233,10 @@ class WorkDetailsJsonTests(unittest.TestCase):
         self.assertIn("items", bom_payload)
         self.assertIn("items", mapping_payload)
 
-    def test_build_ui_js_uses_work_details_tab_title(self) -> None:
+    def test_build_ui_js_uses_work_details_tab_id(self) -> None:
         _demo, _theme, _css, js_code = build_ui()
-        self.assertIn("工作细节", js_code)
-        self.assertNotIn("'LCI清单'", js_code)
+        self.assertIn("lci_mapping_tab", js_code)
+        self.assertNotIn("selectRightTabByText", js_code)
 
 
 if __name__ == "__main__":

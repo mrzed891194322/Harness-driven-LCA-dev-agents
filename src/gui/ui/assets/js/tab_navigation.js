@@ -8,6 +8,16 @@ let activeRightTabMode = 'project';
 let rightTabsObserver = null;
 let rightTabsUpdateScheduled = false;
 
+const RIGHT_TAB_IDS = {
+    project: ['terminal_tab', 'settings_init_tab'],
+    terminal: ['terminal_tab'],
+    plan: ['terminal_tab', 'plan_editor_tab'],
+    running: ['terminal_tab'],
+    result: ['terminal_tab', 'lca_result_tab'],
+    lciReport: ['terminal_tab', 'lca_result_tab', 'lci_mapping_tab'],
+    improvement: ['terminal_tab', 'lca_result_tab', 'lca_improvement_tab'],
+};
+
 function setQuickActionMode(mode) {
     const activeId = mode === 'plan'
         ? 'quick-action-start-lca'
@@ -28,29 +38,24 @@ function setQuickActionMode(mode) {
     });
 }
 
-function visibleRightTabLabels(mode) {
-    const visibleByMode = {
-        project: ['终端显示', '设置&初始化'],
-        terminal: ['终端显示'],
-        plan: ['终端显示', '计划制定'],
-        running: ['终端显示'],
-        result: ['终端显示', 'LCA评估结果'],
-        lciReport: ['终端显示', 'LCA评估结果', '工作细节'],
-        improvement: ['终端显示', 'LCA评估结果', 'LCA评估修改面板(功能开发中)'],
-    };
-    return visibleByMode[mode] || visibleByMode.project;
+function visibleRightTabIds(mode) {
+    return RIGHT_TAB_IDS[mode] || RIGHT_TAB_IDS.project;
+}
+
+function tabButtonId(button) {
+    return button.dataset.tabId || button.getAttribute('data-tab-id') || '';
 }
 
 function applyRightTabMode(mode) {
-    const visibleLabels = visibleRightTabLabels(mode);
+    const visibleIds = visibleRightTabIds(mode);
     const seenTabIds = new Set();
 
     rightTabButtons().forEach((button) => {
-        const label = button.textContent.trim();
-        const tabId = button.dataset.tabId || label;
-        const matchesMode = visibleLabels.some((visibleLabel) => label.includes(visibleLabel));
-        const shouldShow = matchesMode && !seenTabIds.has(tabId);
-        seenTabIds.add(tabId);
+        const tabId = tabButtonId(button);
+        const shouldShow = visibleIds.includes(tabId) && !seenTabIds.has(tabId);
+        if (visibleIds.includes(tabId)) {
+            seenTabIds.add(tabId);
+        }
         button.style.display = shouldShow ? '' : 'none';
     });
 }
@@ -82,8 +87,8 @@ function observeRightTabs() {
     });
 }
 
-function selectRightTabByText(label, attempt = 0) {
-    const button = rightTabButtons().find(el => el.textContent.includes(label));
+function selectRightTabById(tabId, attempt = 0) {
+    const button = rightTabButtons().find((el) => tabButtonId(el) === tabId);
     if (button) {
         button.style.display = '';
         button.click();
@@ -91,7 +96,7 @@ function selectRightTabByText(label, attempt = 0) {
     }
 
     if (attempt < 12) {
-        setTimeout(() => selectRightTabByText(label, attempt + 1), 100);
+        setTimeout(() => selectRightTabById(tabId, attempt + 1), 100);
     }
 }
 
@@ -99,7 +104,7 @@ function initializeRightTabs(attempt = 0) {
     if (rightTabButtons().length > 0) {
         observeRightTabs();
         setRightTabMode('terminal');
-        selectRightTabByText('终端显示');
+        selectRightTabById('terminal_tab');
         return;
     }
 
@@ -110,12 +115,12 @@ function initializeRightTabs(attempt = 0) {
 
 window.setRightTabMode = setRightTabMode;
 window.setQuickActionMode = setQuickActionMode;
-window.selectRightTabByText = selectRightTabByText;
-window.selectProjectInitTab = () => selectRightTabByText('设置&初始化');
-window.selectPlanEditorTab = () => selectRightTabByText('计划制定');
-window.selectImprovementTab = () => selectRightTabByText('LCA评估修改面板(功能开发中)');
-window.selectLciMappingTab = () => selectRightTabByText('工作细节');
-window.selectTerminalTab = () => selectRightTabByText('终端显示');
+window.selectRightTabById = selectRightTabById;
+window.selectProjectInitTab = () => selectRightTabById('settings_init_tab');
+window.selectPlanEditorTab = () => selectRightTabById('plan_editor_tab');
+window.selectImprovementTab = () => selectRightTabById('lca_improvement_tab');
+window.selectLciMappingTab = () => selectRightTabById('lci_mapping_tab');
+window.selectTerminalTab = () => selectRightTabById('terminal_tab');
 
 const SETTINGS_SECTION_IDS = {
     init_check: 'settings-section-init-check',
@@ -213,62 +218,62 @@ window.guiSelectAgentForm_pi = bindAgentFormHandler('pi');
 
 window.guiOpenProjectMode = (...args) => {
     setRightTabMode('project');
-    selectRightTabByText('设置&初始化');
+    selectRightTabById('settings_init_tab');
     applySettingsSection('init_check');
     return args;
 };
 
 window.guiOpenPlanMode = (...args) => {
     setRightTabMode('plan');
-    selectRightTabByText('计划制定');
+    selectRightTabById('plan_editor_tab');
     return args;
 };
 
 window.guiStartLca = (...args) => {
     setRightTabMode('running');
-    selectRightTabByText('终端显示');
+    selectRightTabById('terminal_tab');
     return args;
 };
 
 window.guiOpenResultMode = (...args) => {
     setRightTabMode('result');
-    selectRightTabByText('LCA评估结果');
+    selectRightTabById('lca_result_tab');
     return args;
 };
 
 window.guiOpenLciReportMode = (...args) => {
     setRightTabMode('lciReport');
-    selectRightTabByText('工作细节');
+    selectRightTabById('lci_mapping_tab');
     return args;
 };
 
 window.guiOpenImprovementMode = (...args) => {
     setRightTabMode('improvement');
-    selectRightTabByText('LCA评估修改面板(功能开发中)');
+    selectRightTabById('lca_improvement_tab');
     return args;
 };
 
 window.guiCloseImprovementPanel = (...args) => {
     setRightTabMode('result');
-    selectRightTabByText('LCA评估结果');
+    selectRightTabById('lca_result_tab');
     return args;
 };
 
 window.guiCloseLciReportPanel = (...args) => {
     setRightTabMode('result');
-    selectRightTabByText('LCA评估结果');
+    selectRightTabById('lca_result_tab');
     return args;
 };
 
 window.guiClosePanel = (...args) => {
     setRightTabMode('terminal');
-    selectRightTabByText('终端显示');
+    selectRightTabById('terminal_tab');
     return args;
 };
 
 window.guiSelectTerminal = (...args) => {
     setRightTabMode('terminal');
-    selectRightTabByText('终端显示');
+    selectRightTabById('terminal_tab');
     return args;
 };
 

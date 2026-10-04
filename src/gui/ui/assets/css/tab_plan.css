@@ -53,8 +53,16 @@
     height: 100% !important;
 }
 
-#execute-lca-button-wrap:has(button:disabled)::after {
+html[lang="zh-CN"] #execute-lca-button-wrap:has(button:disabled)::after {
     content: "请先完成初始化检查并填写计划";
+}
+
+html[lang="en"] #execute-lca-button-wrap:has(button:disabled)::after {
+    content: "Complete initialization and fill in the plan first";
+}
+
+html[lang="zh-CN"] #execute-lca-button-wrap:has(button:disabled)::after,
+html[lang="en"] #execute-lca-button-wrap:has(button:disabled)::after {
     position: absolute;
     left: 50%;
     bottom: calc(100% + 8px);

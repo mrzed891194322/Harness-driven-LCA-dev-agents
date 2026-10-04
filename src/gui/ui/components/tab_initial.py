@@ -9,12 +9,11 @@ from gui.functions.settings.settings import (
     default_model_for_worker,
     load_gui_settings,
 )
-
-PENDING_INIT_STATUS = "状态：待检查"
+from gui.i18n import LOCALE_DROPDOWN_CHOICES, t
 
 INIT_CHECK_STATUS_ITEMS = (
-    ("status-card-env", "AI Agent 工具"),
-    ("status-card-openlca", "OpenLCA"),
+    ("status-card-env", "settings.agent_tool"),
+    ("status-card-openlca", "settings.openlca"),
 )
 
 AGENT_CHOICES = list(HARNESS_AGENTS)
@@ -31,35 +30,33 @@ SETTINGS_SECTION_VISIBILITY = {
 }
 DEFAULT_SETTINGS_NAV = "init_check"
 SETTINGS_SECTION_HIDDEN_CLASS = "settings-section-hidden"
-PROBE_PENDING_STATUS = "状态：未测试"
-LOCAL_DEFAULT_MODEL_LABEL = "（本机默认）"
 CATALOG_MODEL_WORKERS = ("opencode", "pi")
-CATALOG_MODEL_INFO = (
-    "点「刷新模型列表」后选择；留空则使用本机默认。也可手填 provider/model。"
-    " Pi 会把该项拆成 --provider 与 --model。"
-)
 
 
-def pending_init_check_status_updates() -> list[dict[str, Any]]:
-    return [init_check_status_update(None) for _ in INIT_CHECK_STATUS_ITEMS]
+def pending_init_check_status_updates(locale: str) -> list[dict[str, Any]]:
+    return [
+        init_check_status_update(None, locale=locale) for _ in INIT_CHECK_STATUS_ITEMS
+    ]
 
 
 def init_check_status_update(
     ok: bool | None,
     message: str = "",
     extra_classes: tuple[str, ...] = (),
+    locale: str = "zh",
 ) -> dict[str, Any]:
     """Build a Gradio update for one initialization check status row."""
+    prefix = t("status.prefix", locale)
     if ok is None:
-        value = message or PENDING_INIT_STATUS
+        value = message or t("status.pending", locale)
         tone = "init-check-status-pending"
     elif ok:
-        detail = message or "成功"
-        value = detail if detail.startswith("状态：") else f"状态：{detail}"
+        detail = message or t("status.success", locale)
+        value = detail if detail.startswith(prefix) else f"{prefix}{detail}"
         tone = "init-check-status-ok"
     else:
-        detail = message or "失败"
-        value = detail if detail.startswith("状态：") else f"状态：{detail}"
+        detail = message or t("status.fail", locale)
+        value = detail if detail.startswith(prefix) else f"{prefix}{detail}"
         tone = "init-check-status-fail"
     return gr.update(
         value=value,
@@ -103,9 +100,10 @@ def agent_card_classes(item_key: str, selected_key: str) -> list[str]:
 def model_catalog_choices(
     ids: list[str] | None = None,
     current: str = "",
+    locale: str = "zh",
 ) -> list[tuple[str, str]]:
     """Build Dropdown choices, always keeping the empty default and current id."""
-    choices: list[tuple[str, str]] = [(LOCAL_DEFAULT_MODEL_LABEL, "")]
+    choices: list[tuple[str, str]] = [(t("settings.local_default", locale), "")]
     seen = {""}
     for item in ids or []:
         text = str(item or "").strip()
@@ -182,7 +180,7 @@ def _bind_agent_form_button(
     )
 
 
-def build_tab_initial() -> tuple:
+def build_tab_initial(locale: str) -> tuple:
     """
     构建右侧“设置&初始化”Tab。
     """
@@ -190,7 +188,7 @@ def build_tab_initial() -> tuple:
     models: dict[str, str] = dict(settings["models"])
     default_visibility = SETTINGS_SECTION_VISIBILITY[DEFAULT_SETTINGS_NAV]
     default_form = resolve_agent_form_key(str(settings["agent"]))
-    with gr.Tab("设置&初始化", id="settings_init_tab") as settings_init_tab:
+    with gr.Tab(t("tab.settings", locale), id="settings_init_tab") as settings_init_tab:
         with gr.Column(
             elem_id="project-init-workspace",
             elem_classes=["right-tab-workspace", "right-workspace-panel"],
@@ -213,15 +211,15 @@ def build_tab_initial() -> tuple:
                                     scale=1,
                                 ):
                                     gr.Markdown(
-                                        "初始化检查",
+                                        t("settings.init_heading", locale),
                                         elem_classes=["project-init-section-label"],
                                     )
                                     gr.Markdown(
-                                        "通过后才可执行正式LCA计划。",
+                                        t("settings.init_subtitle", locale),
                                         elem_classes=["init-check-subtitle"],
                                     )
                                 init_check_btn = gr.Button(
-                                    "开始初始化检查",
+                                    t("settings.init_run", locale),
                                     variant="primary",
                                     elem_id="settings-init-check-btn",
                                     elem_classes=["init-check-top-btn"],
@@ -239,7 +237,7 @@ def build_tab_initial() -> tuple:
                                     ],
                                 ):
                                     gr.Markdown(
-                                        INIT_CHECK_STATUS_ITEMS[0][1],
+                                        t(INIT_CHECK_STATUS_ITEMS[0][1], locale),
                                         elem_classes=[
                                             "init-check-status-label",
                                             "init-check-label-col",
@@ -252,7 +250,7 @@ def build_tab_initial() -> tuple:
                                         ],
                                     ):
                                         gr.Markdown(
-                                            "请选择",
+                                            t("settings.please_select", locale),
                                             elem_classes=["init-check-inline-label"],
                                         )
                                         agent_dropdown = gr.Dropdown(
@@ -264,13 +262,13 @@ def build_tab_initial() -> tuple:
                                             elem_classes=["init-check-status-control"],
                                         )
                                     open_agent_btn = gr.Button(
-                                        "配置",
+                                        t("settings.configure", locale),
                                         variant="secondary",
                                         elem_id="settings-open-agent-btn",
                                         elem_classes=["init-check-card-action-btn"],
                                     )
                                     init_check_status_agent = gr.Markdown(
-                                        PENDING_INIT_STATUS,
+                                        t("status.pending", locale),
                                         elem_classes=[
                                             "project-init-status-value",
                                             "init-check-status-pending",
@@ -285,7 +283,7 @@ def build_tab_initial() -> tuple:
                                     ],
                                 ):
                                     gr.Markdown(
-                                        INIT_CHECK_STATUS_ITEMS[1][1],
+                                        t(INIT_CHECK_STATUS_ITEMS[1][1], locale),
                                         elem_classes=[
                                             "init-check-status-label",
                                             "init-check-label-col",
@@ -298,7 +296,7 @@ def build_tab_initial() -> tuple:
                                         ],
                                     ):
                                         gr.Markdown(
-                                            "IPC 端口",
+                                            t("settings.ipc_port", locale),
                                             elem_classes=["init-check-inline-label"],
                                         )
                                         init_openlca_port = gr.Number(
@@ -310,7 +308,7 @@ def build_tab_initial() -> tuple:
                                             elem_classes=["init-check-status-control"],
                                         )
                                     init_check_status_openlca = gr.Markdown(
-                                        PENDING_INIT_STATUS,
+                                        t("status.pending", locale),
                                         elem_classes=[
                                             "project-init-status-value",
                                             "init-check-status-pending",
@@ -319,7 +317,7 @@ def build_tab_initial() -> tuple:
 
                         with gr.Column(elem_classes=["settings-dev-section"]):
                             gr.Markdown(
-                                "开发者选项",
+                                t("settings.dev_heading", locale),
                                 elem_classes=["project-init-section-label"],
                             )
                             with gr.Column(
@@ -337,7 +335,7 @@ def build_tab_initial() -> tuple:
                                     ],
                                 ):
                                     gr.Markdown(
-                                        "GUI 端口",
+                                        t("settings.gui_port", locale),
                                         elem_classes=[
                                             "init-check-status-label",
                                             "init-check-label-col",
@@ -355,18 +353,44 @@ def build_tab_initial() -> tuple:
                                             elem_classes=["init-check-status-control"],
                                         )
                                     dev_ports_save_btn = gr.Button(
-                                        "保存端口配置",
+                                        t("settings.save_dev", locale),
                                         variant="secondary",
                                         elem_id="settings-dev-ports-save-btn",
                                         elem_classes=["init-check-card-action-btn"],
                                     )
+                                with gr.Row(
+                                    elem_classes=[
+                                        "project-init-status-card",
+                                        "init-check-status-row",
+                                        "init-check-dev-card",
+                                    ],
+                                ):
+                                    gr.Markdown(
+                                        t("settings.ui_language", locale),
+                                        elem_classes=[
+                                            "init-check-status-label",
+                                            "init-check-label-col",
+                                        ],
+                                    )
+                                    with gr.Row(
+                                        elem_classes=["init-check-control-slot"]
+                                    ):
+                                        dev_gui_lang = gr.Dropdown(
+                                            choices=LOCALE_DROPDOWN_CHOICES,
+                                            value=settings["gui_lang"],
+                                            show_label=False,
+                                            container=False,
+                                            elem_id="settings-dev-gui-lang",
+                                            elem_classes=["init-check-status-control"],
+                                        )
                                 gr.Markdown(
-                                    "修改 GUI 端口后需重启界面方可生效。",
+                                    f"{t('settings.dev_port_hint', locale)}\n\n"
+                                    f"{t('settings.dev_lang_hint', locale)}",
                                     elem_id="settings-dev-hint",
                                     elem_classes=["settings-dev-hint"],
                                 )
                         view_lca_result_btn = gr.Button(
-                            "查看LCA结果(仅开发过程使用)",
+                            t("settings.view_lca_result", locale),
                             variant="secondary",
                             elem_id="settings-view-lca-result-btn",
                         )
@@ -377,18 +401,18 @@ def build_tab_initial() -> tuple:
                     ) as agent_section:
                         with gr.Row(elem_classes=["init-check-header-row"]):
                             gr.Markdown(
-                                "AI Agent 工具",
+                                t("settings.agent_panel_heading", locale),
                                 elem_classes=["project-init-section-label"],
                             )
                             back_from_agent_btn = gr.Button(
-                                "返回",
+                                t("settings.back", locale),
                                 variant="secondary",
                                 elem_id="settings-back-from-agent-btn",
                                 elem_classes=["settings-back-btn"],
                                 scale=0,
                             )
                         gr.Markdown(
-                            "点击卡片填写对应后端的模型 id。当前使用的 Agent 仍由初始化检查页的下拉框决定。认证使用各 CLI 的本机登录。",
+                            t("settings.agent_panel_subtitle", locale),
                             elem_classes=["init-check-subtitle"],
                         )
                         with gr.Row(
@@ -415,7 +439,7 @@ def build_tab_initial() -> tuple:
                         ) as codex_form:
                             gr.Markdown("Codex")
                             codex_model = gr.Textbox(
-                                label="模型",
+                                label=t("settings.model_label", locale),
                                 value=str(
                                     models.get("codex")
                                     or default_model_for_worker("codex")
@@ -424,7 +448,7 @@ def build_tab_initial() -> tuple:
                                 elem_id="settings-codex-model",
                             )
                             codex_probe_btn, codex_probe_status = _build_probe_row(
-                                "codex"
+                                "codex", locale
                             )
 
                         with gr.Column(
@@ -433,7 +457,7 @@ def build_tab_initial() -> tuple:
                         ) as claude_form:
                             gr.Markdown("Claude")
                             claude_model = gr.Textbox(
-                                label="模型",
+                                label=t("settings.model_label", locale),
                                 value=str(
                                     models.get("claude")
                                     or default_model_for_worker("claude")
@@ -442,7 +466,7 @@ def build_tab_initial() -> tuple:
                                 elem_id="settings-claude-model",
                             )
                             claude_probe_btn, claude_probe_status = _build_probe_row(
-                                "claude"
+                                "claude", locale
                             )
 
                         with gr.Column(
@@ -454,10 +478,11 @@ def build_tab_initial() -> tuple:
                                 _build_catalog_model_field(
                                     "opencode",
                                     str(models.get("opencode") or ""),
+                                    locale,
                                 )
                             )
                             opencode_probe_btn, opencode_probe_status = (
-                                _build_probe_row("opencode")
+                                _build_probe_row("opencode", locale)
                             )
 
                         with gr.Column(
@@ -468,11 +493,14 @@ def build_tab_initial() -> tuple:
                             pi_model, pi_refresh_btn = _build_catalog_model_field(
                                 "pi",
                                 str(models.get("pi") or ""),
+                                locale,
                             )
-                            pi_probe_btn, pi_probe_status = _build_probe_row("pi")
+                            pi_probe_btn, pi_probe_status = _build_probe_row(
+                                "pi", locale
+                            )
 
                         agent_save_btn = gr.Button(
-                            "保存配置",
+                            t("settings.save_agent", locale),
                             variant="secondary",
                             elem_id="settings-agent-save-btn",
                         )
@@ -523,6 +551,7 @@ def build_tab_initial() -> tuple:
         agent_save_btn,
         init_openlca_port,
         dev_gui_port,
+        dev_gui_lang,
         dev_ports_save_btn,
         view_lca_result_btn,
     )
@@ -531,20 +560,21 @@ def build_tab_initial() -> tuple:
 def _build_catalog_model_field(
     worker: str,
     value: str,
+    locale: str,
 ) -> tuple[gr.Dropdown, gr.Button]:
     current = str(value or "").strip()
     with gr.Row(elem_classes=["settings-agent-model-row"]):
         dropdown = gr.Dropdown(
-            label="模型",
-            choices=model_catalog_choices([], current),
+            label=t("settings.model_label", locale),
+            choices=model_catalog_choices([], current, locale),
             value=current,
             allow_custom_value=True,
             filterable=True,
-            info=CATALOG_MODEL_INFO,
+            info=t("settings.catalog_info", locale),
             elem_id=f"settings-{worker}-model",
         )
         button = gr.Button(
-            "刷新模型列表",
+            t("settings.refresh_models", locale),
             variant="secondary",
             elem_id=f"settings-{worker}-refresh-btn",
             elem_classes=["settings-agent-refresh-btn"],
@@ -553,16 +583,16 @@ def _build_catalog_model_field(
     return dropdown, button
 
 
-def _build_probe_row(worker: str) -> tuple[gr.Button, gr.Markdown]:
+def _build_probe_row(worker: str, locale: str) -> tuple[gr.Button, gr.Markdown]:
     with gr.Row(elem_classes=["settings-agent-probe-row"]):
         button = gr.Button(
-            "测试连接",
+            t("settings.test_connection", locale),
             variant="secondary",
             elem_id=f"settings-{worker}-probe-btn",
             elem_classes=["settings-agent-probe-btn"],
         )
         status = gr.Markdown(
-            PROBE_PENDING_STATUS,
+            t("status.not_tested", locale),
             elem_id=f"settings-{worker}-probe-status",
             elem_classes=[
                 "project-init-status-value",

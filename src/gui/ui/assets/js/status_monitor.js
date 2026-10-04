@@ -6,7 +6,10 @@ function updateStatusClass() {
     const inputEl = statusBox.querySelector('textarea') || statusBox.querySelector('input');
     if (!inputEl) return;
 
-    const val = inputEl.value ? inputEl.value.trim().toLowerCase() : '';
+    let val = inputEl.value ? inputEl.value.trim().toLowerCase() : '';
+    if (val === '就绪') {
+        val = 'ready';
+    }
     
     // Remove previous status classes
     statusBox.classList.remove('status-running', 'status-finished', 'status-failed', 'status-stopped', 'status-ready');

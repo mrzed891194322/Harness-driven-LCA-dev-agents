@@ -1,7 +1,11 @@
 import gradio as gr
 
+from gui.i18n import t
 
-def build_left_sidebar() -> tuple[
+
+def build_left_sidebar(
+    locale: str,
+) -> tuple[
     gr.Button,
     gr.Button,
     gr.File,
@@ -11,13 +15,10 @@ def build_left_sidebar() -> tuple[
     """
     with gr.Group(elem_id="file-exchange-section"):
         gr.Markdown(
-            """
-            ### 📁 文件交换区
-            上传用于智能体制定LCA报告的参考资料
-            """
+            f"{t('sidebar.file_heading', locale)}\n{t('sidebar.file_desc', locale)}"
         )
         ref_upload_file = gr.File(
-            label="用户资料上传",
+            label=t("sidebar.upload_label", locale),
             file_count="multiple",
             interactive=True,
             elem_id="reference-upload",
@@ -25,14 +26,11 @@ def build_left_sidebar() -> tuple[
 
     with gr.Column(elem_id="quick-actions-section"):
         gr.Markdown(
-            """
-            ### 🛠️ 快捷操作区
-            本面板用于触发 LCA 系统运行的预设任务。
-            """
+            f"{t('sidebar.actions_heading', locale)}\n{t('sidebar.actions_desc', locale)}"
         )
 
         open_init_btn = gr.Button(
-            "设置&初始化",
+            t("sidebar.open_settings", locale),
             variant="secondary",
             size="lg",
             interactive=True,
@@ -40,7 +38,7 @@ def build_left_sidebar() -> tuple[
             elem_classes=["quick-action-btn"],
         )
         start_lca_btn = gr.Button(
-            "开始LCA工作",
+            t("sidebar.start_lca", locale),
             variant="secondary",
             size="lg",
             interactive=True,
