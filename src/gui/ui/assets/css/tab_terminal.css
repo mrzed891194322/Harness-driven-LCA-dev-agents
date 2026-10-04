@@ -137,7 +137,7 @@
 #status-box label > textarea,
 #status-box label > input {
     border-radius: 6px !important;
-    border: 1px solid #e2e8f0 !important;
+    border: 1px solid var(--lca-border-divider) !important;
     padding: 6px 12px !important;
     font-size: 14px !important;
     transition: all 0.3s ease !important;
@@ -147,9 +147,9 @@
 /* 1. Running State (Teal pulsing glow and breathing indicator dot) */
 #status-box.status-running label > textarea,
 #status-box.status-running label > input {
-    color: #0d9488 !important; /* teal-600 */
-    border-color: #0d9488 !important;
-    background-color: #f0fdfa !important; /* teal-50 */
+    color: var(--lca-accent-muted) !important;
+    border-color: var(--lca-accent-muted) !important;
+    background-color: var(--lca-running-soft) !important;
     font-weight: bold !important;
     animation: status-running-pulse 2s infinite ease-in-out !important;
 }
@@ -159,7 +159,7 @@
     display: block;
     width: 10px;
     height: 10px;
-    background-color: #0d9488;
+    background-color: var(--lca-accent-muted);
     border-radius: 50%;
     flex-shrink: 0;
     animation: status-dot-pulse 1.5s infinite cubic-bezier(0.66, 0, 0, 1) !important;
@@ -171,7 +171,7 @@
     }
     50% {
         box-shadow: 0 0 8px 3px rgba(13, 148, 136, 0.35) !important;
-        border-color: #0f766e !important;
+        border-color: var(--lca-accent-strong) !important;
     }
     100% {
         box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.2) !important;
@@ -196,9 +196,9 @@
 /* 2. Finished State (Emerald green static success indicator) */
 #status-box.status-finished label > textarea,
 #status-box.status-finished label > input {
-    color: #059669 !important; /* emerald-600 */
-    border-color: #10b981 !important;
-    background-color: #ecfdf5 !important;
+    color: var(--lca-success) !important;
+    border-color: var(--lca-success-border) !important;
+    background-color: var(--lca-success-soft) !important;
     font-weight: bold !important;
 }
 
@@ -207,7 +207,7 @@
     display: block;
     width: 10px;
     height: 10px;
-    background-color: #10b981;
+    background-color: var(--lca-success-border);
     border-radius: 50%;
     flex-shrink: 0;
     box-shadow: 0 0 4px rgba(16, 185, 129, 0.5) !important;
@@ -216,9 +216,9 @@
 /* 3. Failed State (Red pulse error indicator) */
 #status-box.status-failed label > textarea,
 #status-box.status-failed label > input {
-    color: #dc2626 !important; /* red-600 */
-    border-color: #ef4444 !important;
-    background-color: #fef2f2 !important;
+    color: var(--lca-danger) !important;
+    border-color: var(--lca-danger-border) !important;
+    background-color: var(--lca-danger-soft) !important;
     font-weight: bold !important;
 }
 
@@ -227,7 +227,7 @@
     display: block;
     width: 10px;
     height: 10px;
-    background-color: #ef4444;
+    background-color: var(--lca-danger-border);
     border-radius: 50%;
     flex-shrink: 0;
     animation: status-dot-pulse-red 1.5s infinite cubic-bezier(0.66, 0, 0, 1) !important;
@@ -251,9 +251,9 @@
 /* 4. Stopped State (Gray slate indicator) */
 #status-box.status-stopped label > textarea,
 #status-box.status-stopped label > input {
-    color: #475569 !important; /* slate-600 */
-    border-color: #94a3b8 !important;
-    background-color: #f8fafc !important;
+    color: var(--lca-stopped) !important;
+    border-color: var(--lca-stopped-border) !important;
+    background-color: var(--lca-stopped-soft) !important;
     font-weight: bold !important;
 }
 
@@ -262,7 +262,7 @@
     display: block;
     width: 10px;
     height: 10px;
-    background-color: #94a3b8;
+    background-color: var(--lca-stopped-border);
     border-radius: 50%;
     flex-shrink: 0;
 }
@@ -270,9 +270,9 @@
 /* 5. Ready State (Blue indigo default indicator) */
 #status-box.status-ready label > textarea,
 #status-box.status-ready label > input {
-    color: #2563eb !important; /* blue-600 */
-    border-color: #3b82f6 !important;
-    background-color: #eff6ff !important;
+    color: var(--lca-ready) !important;
+    border-color: var(--lca-ready-border) !important;
+    background-color: var(--lca-ready-soft) !important;
     font-weight: bold !important;
 }
 
@@ -281,7 +281,7 @@
     display: block;
     width: 10px;
     height: 10px;
-    background-color: #3b82f6;
+    background-color: var(--lca-ready-border);
     border-radius: 50%;
     flex-shrink: 0;
 }

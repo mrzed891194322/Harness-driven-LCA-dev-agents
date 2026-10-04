@@ -1,5 +1,5 @@
 .markdown-document-toc-column {
-    border-right: 1px solid var(--border-color-primary, #e5e7eb) !important;
+    border-right: 1px solid var(--lca-border) !important;
     padding-right: 16px !important;
     height: 100% !important;
     min-height: 0 !important;

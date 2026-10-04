@@ -136,10 +136,10 @@
     min-height: 0 !important;
     display: block !important;
     overflow-y: auto !important;
-    border: 1px solid var(--border-color-primary, #e5e7eb) !important;
-    border-radius: 8px !important;
+    border: 1px solid var(--lca-border) !important;
+    border-radius: var(--lca-radius-md) !important;
     padding: 16px !important;
-    background-color: var(--background-fill-secondary, #f9fafb) !important;
+    background-color: var(--lca-surface-muted) !important;
     margin-top: 10px !important;
 }
 

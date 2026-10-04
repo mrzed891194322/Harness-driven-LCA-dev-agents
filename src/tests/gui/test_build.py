@@ -6,6 +6,8 @@ import unittest
 
 from gui import config
 from gui.main import build_ui
+from gui.ui.styles import CSS_BUNDLE, bundle_css
+from gui.ui.theme import build_gradio_theme
 from tests.conftest import GUI_ROOT, PROJECT_ROOT
 
 
@@ -24,6 +26,16 @@ class GuiConfigurationTests(unittest.TestCase):
 
 
 class GuiBuildTests(unittest.TestCase):
+    def test_style_bundle_loads_tokens_first(self) -> None:
+        self.assertEqual(CSS_BUNDLE[0], "tokens.css")
+        css = bundle_css()
+        self.assertIn("--lca-accent:", css)
+        self.assertIn(".dark", css)
+
+    def test_gradio_theme_is_soft_variant(self) -> None:
+        theme = build_gradio_theme()
+        self.assertEqual(type(theme).__name__, "Soft")
+
     def test_build_ui_creates_gradio_blocks(self) -> None:
         demo, _theme, _css, _js_code = build_ui()
         self.assertEqual(type(demo).__name__, "Blocks")

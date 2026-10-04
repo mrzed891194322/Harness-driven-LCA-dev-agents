@@ -7,11 +7,11 @@
 .toc-wrapper h4 {
     margin-bottom: 12px !important;
     font-weight: bold !important;
-    color: var(--body-text-color, #1f2937) !important;
+    color: var(--lca-text) !important;
 }
 
 .toc-link {
-    color: var(--body-text-color, #4b5563) !important;
+    color: var(--lca-text-subtle) !important;
     text-decoration: none !important;
     font-size: 13px !important;
     cursor: pointer !important;
@@ -20,7 +20,7 @@
 }
 
 .toc-link:hover {
-    color: var(--primary-hue, #0d9488) !important;
+    color: var(--lca-accent-muted) !important;
     text-decoration: underline !important;
     padding-left: 4px !important;
 }
@@ -29,13 +29,13 @@
     font-weight: bold !important;
     margin-top: 10px !important;
     font-size: 14px !important;
-    color: var(--body-text-color, #1f2937) !important;
+    color: var(--lca-text) !important;
 }
 
 .toc-level-3 {
     padding-left: 14px !important;
     font-size: 12px !important;
-    color: var(--body-text-color-subdued, #6b7280) !important;
+    color: var(--lca-text-muted) !important;
 }
 
 #plan-editor-actions-row {
@@ -71,8 +71,8 @@ html[lang="en"] #execute-lca-button-wrap:has(button:disabled)::after {
     max-width: 260px;
     padding: 7px 10px;
     border-radius: 6px;
-    background: rgba(15, 23, 42, 0.94);
-    color: #ffffff;
+    background: var(--lca-tooltip-bg);
+    color: var(--lca-tooltip-text);
     font-size: 13px;
     line-height: 1.35;
     opacity: 0;

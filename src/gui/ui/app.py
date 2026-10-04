@@ -1,0 +1,211 @@
+"""Assemble the Gradio Blocks UI (components, events, theme, assets)."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import gradio as gr
+
+from gui.functions.settings.settings import load_gui_language
+from gui.i18n import html_lang_attr, t
+from gui.ui.components.header import build_header
+from gui.ui.components.left_sidebar import build_left_sidebar
+from gui.ui.components.tab_initial import build_tab_initial
+from gui.ui.components.tab_lci import build_tab_lci
+from gui.ui.components.tab_plan import build_tab_plan
+from gui.ui.components.tab_result import build_tab_result
+from gui.ui.components.tab_revise import build_tab_revise
+from gui.ui.components.tab_terminal import build_tab_terminal
+from gui.ui.events import bind_ui_events
+from gui.ui.styles import bundle_css, bundle_js
+from gui.ui.theme import build_gradio_theme
+
+RELOAD_AFTER_LANG_CHANGE_JS = """
+(reloadFlag) => {
+    const value = Array.isArray(reloadFlag) ? reloadFlag[0] : reloadFlag;
+    if (value === "reload") {
+        setTimeout(() => window.location.reload(), 400);
+    }
+}
+"""
+
+
+def _locale_bootstrap_js(locale: str) -> str:
+    lang = html_lang_attr(locale)
+    return f'document.documentElement.lang = "{lang}";\n'
+
+
+def build_ui() -> tuple[gr.Blocks, Any, str, str]:
+    locale = load_gui_language()
+    theme = build_gradio_theme()
+    css = bundle_css()
+    js_code = _locale_bootstrap_js(locale) + "\n\n" + bundle_js()
+
+    with gr.Blocks(title=t("app.window_title", locale)) as demo:
+        gui_reload_flag = gr.Textbox(
+            value="",
+            visible=False,
+            elem_id="gui-reload-flag",
+        )
+        gui_locale_state = gr.State(value=locale)
+
+        with gr.Row():
+            build_header(locale)
+
+        with gr.Row(elem_id="main-layout-row"):
+            with gr.Column(scale=1, elem_id="left-sidebar"):
+                (
+                    open_init_btn,
+                    start_lca_btn,
+                    ref_upload_file,
+                ) = build_left_sidebar(locale)
+
+            with gr.Column(scale=2, elem_id="right-panel"):
+                with gr.Tabs(elem_id="right-tabs") as right_tabs:
+                    _, output_console, status, clear_btn, stop_btn = build_tab_terminal(
+                        locale
+                    )
+
+                    (
+                        _settings_init_tab,
+                        init_check_btn,
+                        init_check_status_agent,
+                        init_check_status_openlca,
+                        agent_dropdown,
+                        codex_model,
+                        claude_model,
+                        opencode_model,
+                        pi_model,
+                        opencode_refresh_btn,
+                        pi_refresh_btn,
+                        codex_probe_btn,
+                        claude_probe_btn,
+                        opencode_probe_btn,
+                        pi_probe_btn,
+                        codex_probe_status,
+                        claude_probe_status,
+                        opencode_probe_status,
+                        pi_probe_status,
+                        agent_save_btn,
+                        init_openlca_port,
+                        dev_gui_port,
+                        dev_gui_lang,
+                        dev_ports_save_btn,
+                        view_lca_result_btn,
+                    ) = build_tab_initial(locale)
+
+                    (
+                        _result_tab,
+                        result_heading,
+                        success_panel,
+                        failure_panel,
+                        failure_markdown,
+                        report_view,
+                        report_warning,
+                        download_report_btn,
+                        show_lci_btn,
+                        modify_rerun_btn,
+                    ) = build_tab_result(locale)
+
+                    (
+                        _plan_tab,
+                        plan_view,
+                        close_plan_btn,
+                        upload_plan_btn,
+                        execute_lca_btn,
+                    ) = build_tab_plan(locale)
+
+                    (
+                        _improvement_tab,
+                        improvement_view,
+                        close_improvement_btn,
+                        upload_improvement_btn,
+                        execute_improvement_btn,
+                    ) = build_tab_revise(locale)
+
+                    (
+                        _lci_mapping_tab,
+                        close_lci_mapping_btn,
+                        bom_json,
+                        bom_warning,
+                        download_bom_btn,
+                        mapping_json,
+                        mapping_warning,
+                        download_mapping_btn,
+                        _modify_lci_btn,
+                    ) = build_tab_lci(locale)
+
+        run_result_state = gr.State(value=None)
+        init_check_ok_state = gr.State(value=False)
+        plan_ready_state = gr.State(value=False)
+        improvement_ready_state = gr.State(value=False)
+
+        bind_ui_events(
+            open_init_btn=open_init_btn,
+            start_lca_btn=start_lca_btn,
+            execute_lca_btn=execute_lca_btn,
+            view_lca_result_btn=view_lca_result_btn,
+            ref_upload_file=ref_upload_file,
+            right_tabs=right_tabs,
+            output_console=output_console,
+            status=status,
+            clear_btn=clear_btn,
+            stop_btn=stop_btn,
+            init_check_btn=init_check_btn,
+            init_check_status_values=[
+                init_check_status_agent,
+                init_check_status_openlca,
+            ],
+            agent_dropdown=agent_dropdown,
+            codex_model=codex_model,
+            claude_model=claude_model,
+            opencode_model=opencode_model,
+            pi_model=pi_model,
+            opencode_refresh_btn=opencode_refresh_btn,
+            pi_refresh_btn=pi_refresh_btn,
+            codex_probe_btn=codex_probe_btn,
+            claude_probe_btn=claude_probe_btn,
+            opencode_probe_btn=opencode_probe_btn,
+            pi_probe_btn=pi_probe_btn,
+            codex_probe_status=codex_probe_status,
+            claude_probe_status=claude_probe_status,
+            opencode_probe_status=opencode_probe_status,
+            pi_probe_status=pi_probe_status,
+            agent_save_btn=agent_save_btn,
+            init_openlca_port=init_openlca_port,
+            dev_gui_port=dev_gui_port,
+            dev_gui_lang=dev_gui_lang,
+            dev_ports_save_btn=dev_ports_save_btn,
+            gui_reload_flag=gui_reload_flag,
+            gui_locale_state=gui_locale_state,
+            close_lci_mapping_btn=close_lci_mapping_btn,
+            bom_json=bom_json,
+            bom_warning=bom_warning,
+            download_bom_btn=download_bom_btn,
+            mapping_json=mapping_json,
+            mapping_warning=mapping_warning,
+            download_mapping_btn=download_mapping_btn,
+            run_result_state=run_result_state,
+            result_heading=result_heading,
+            success_panel=success_panel,
+            failure_panel=failure_panel,
+            failure_markdown=failure_markdown,
+            show_lci_btn=show_lci_btn,
+            modify_rerun_btn=modify_rerun_btn,
+            improvement_view=improvement_view,
+            close_improvement_btn=close_improvement_btn,
+            upload_improvement_btn=upload_improvement_btn,
+            execute_improvement_btn=execute_improvement_btn,
+            plan_view=plan_view,
+            close_plan_btn=close_plan_btn,
+            upload_plan_btn=upload_plan_btn,
+            report_view=report_view,
+            report_warning=report_warning,
+            download_report_btn=download_report_btn,
+            init_check_ok_state=init_check_ok_state,
+            plan_ready_state=plan_ready_state,
+            improvement_ready_state=improvement_ready_state,
+            reload_after_lang_change_js=RELOAD_AFTER_LANG_CHANGE_JS,
+        )
+
+    return demo, theme, css, js_code

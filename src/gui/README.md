@@ -7,7 +7,11 @@
 
 - `main.py`：GUI 启动入口。
 - `config.py`：仓库根目录、工作目录和脚本路径的统一配置。
-- `ui/`：Gradio 组件、事件绑定和静态资源。
+- `ui/app.py`：组装 `gr.Blocks` 与事件绑定（原 `ui_main.py` 逻辑）。
+- `ui/theme.py`：Gradio `Soft` 主题与圆角/主色配置。
+- `ui/styles/`：CSS/JS 打包顺序（`assets/css/tokens.css` 设计令牌优先）。
+- `ui/components/`、`ui/events/`：面板组件与事件接线。
+- `ui/assets/`：静态 CSS、JS 与计划模板。
 - `functions/`：项目初始化、文件处理、进程管理等后端逻辑。
 - `log/`：GUI 运行时日志目录。
 
