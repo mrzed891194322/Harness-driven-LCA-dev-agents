@@ -35,16 +35,46 @@
     flex-grow: 1 !important;
 }
 
+#terminal-console-panel,
+#terminal-console-panel > .styler,
+#terminal-console-panel .form {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
 #terminal-output textarea {
-    font-family: Consolas, Monaco, "Courier New", monospace;
+    font-family: var(--gui-monospace-font) !important;
     font-size: 13px;
-    line-height: 1.45;
+    line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-all;
     flex-grow: 1 !important;
     height: 100% !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
+    padding: 14px 16px !important;
+    background: #0f172a !important;
+    color: #e2e8f0 !important;
+    caret-color: #5eead4 !important;
+    border: 1px solid #1e293b !important;
+    border-radius: 10px !important;
+    box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.35) !important;
+    scrollbar-color: #334155 transparent;
+}
+
+#terminal-output textarea::selection {
+    background: rgba(94, 234, 212, 0.28) !important;
+}
+
+#terminal-output textarea::-webkit-scrollbar {
+    width: 10px;
+}
+
+#terminal-output textarea::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+    border: 2px solid #0f172a;
 }
 
 #status-box label {
