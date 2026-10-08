@@ -26,11 +26,7 @@ logs/
 uv.lock
 
 #
-.cursor/*
-!.cursor/skills/
-.cursor/skills/*
-!.cursor/skills/bootstrap-env/
-!.cursor/skills/bootstrap-env/**
+.cursor/
 
 # dev: AI agents
 .codex/*
@@ -55,3 +51,4 @@ uv.lock
 node_modules/
 src/frontend/web/.next/
 src/pi_agents/pi-runtime/dist/
+*.tsbuildinfo

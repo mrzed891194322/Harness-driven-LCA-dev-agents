@@ -7,7 +7,7 @@
 运行本仓库前请先安装：
 
 1. **uv** - Python 包和项目管理工具（[下载&安装链接](https://docs.astral.sh/uv/getting-started/installation/)）
-2. **Node.js 22+** 与 **pnpm**（Pi SDK 运行时与 Next.js GUI）。模型凭证与档案在 Web 设置页或 `.local/credentials/` 配置，不再依赖全局 `codex` / `claude` / `opencode` / `pi` CLI。
+2. **Node.js 22+**（自带 npm；Pi SDK 运行时与 Next.js GUI）。模型凭证与档案在 Web 设置页或 `.local/credentials/` 配置，不再依赖全局 `codex` / `claude` / `opencode` / `pi` CLI。
 3. **[openLCA](https://www.openlca.org/download/)** 桌面客户端。**每次开始项目前**必须打开 openLCA、打开目标数据库，并启用 IPC Server（默认 `127.0.0.1:8080`），否则后续导入与计算无法进行。
 
 ## 环境配置
@@ -35,9 +35,9 @@ Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制�
 
 ```bash
 uv sync
-pnpm install
-pnpm --filter @harness/pi-runtime build
-pnpm dev
+npm install
+npm run build -w @harness/pi-runtime
+npm run dev
 ```
 
 浏览器访问 [http://127.0.0.1:3000](http://127.0.0.1:3000)。业务 API 在 `127.0.0.1:8000`。
@@ -105,4 +105,4 @@ uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
 
 revise 走同一套 01–04：01 审查修订门禁，02–04 由 `reviser` 在既有产物上落实 `revise.md`，再由 reviewer 审核（用户意图优先）。
 
-`clean` CLI 见 `src/scripts/clean.py`。Web 控制面板见上文 `pnpm dev`。
+`clean` CLI 见 `src/scripts/clean.py`。Web 控制面板见上文 `npm run dev`。

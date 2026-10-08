@@ -17,7 +17,7 @@ src/
 ```bash
 uv run uvicorn api.app:app --app-dir src/backend --host 127.0.0.1 --port 8000
 uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
-pnpm dev
+npm run dev
 ```
 
 `PYTHONPATH`：`src/backend` + `src/shared` + `src`（见根目录 `pyproject.toml`）。
