@@ -46,7 +46,7 @@ def strip_ansi(text: str) -> str:
 
 def render_terminal_text(raw_logs: str) -> str:
     """
-    将编排器输出转换为适合 Gradio 原生文本组件展示的稳定终端文本。
+    将编排器输出转换为适合 Web 终端组件展示的稳定文本。
     """
     cleaned = strip_ansi(raw_logs)
     rendered_lines: list[str] = []
@@ -141,7 +141,7 @@ def execute_command_stream(
                 if not line and process.poll() is not None:
                     break
                 if line:
-                    # 打印到当前运行 Gradio 终端的主控制台上
+                    # 同步打印到 API 进程 stdout（便于本地调试）
                     safe_console_print(f"[CLI Output] {line.rstrip()}")
 
                     yield line

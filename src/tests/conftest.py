@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "src" / "backend"
 SHARED_ROOT = PROJECT_ROOT / "src" / "shared"
 FRONTEND_ROOT = PROJECT_ROOT / "src" / "frontend"
-GUI_ROOT = FRONTEND_ROOT / "legacy" / "gui"
+WEB_ROOT = FRONTEND_ROOT / "web"
 WORKFLOWS = PROJECT_ROOT / "harness"
 
 MAIN_PLAN_PATH = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "main_plan.md"

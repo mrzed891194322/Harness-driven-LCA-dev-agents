@@ -14,5 +14,5 @@ class SyncResult:
 
 
 def sync_files(kind: str, **_: Any) -> SyncResult:
-    """No-op sync for legacy console helpers used in tests."""
+    """No-op sync stub used by executor_console tests."""
     return SyncResult(ok=True, target=kind, message="ok")
