@@ -53,10 +53,10 @@ class PiRuntimeProcess:
             self._reader.start()
 
     def _runtime_entry(self) -> list[str]:
-        dist = self.project_root / "apps" / "pi-runtime" / "dist" / "main.js"
+        dist = self.project_root / "src" / "pi-runtime" / "dist" / "main.js"
         if dist.is_file():
             return ["node", str(dist)]
-        src = self.project_root / "apps" / "pi-runtime" / "src" / "main.ts"
+        src = self.project_root / "src" / "pi-runtime" / "src" / "main.ts"
         return ["node", "--import", "tsx", str(src)]
 
     def _read_loop(self) -> None:

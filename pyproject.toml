@@ -23,7 +23,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["src/tests", "tests"]
+testpaths = ["src/tests"]
 pythonpath = ["src", "."]
 addopts = "-ra"
 

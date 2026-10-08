@@ -5,8 +5,8 @@
 | 组件 | 版本 | 依据 |
 | --- | --- | --- |
 | Node | 22.x（`.node-version`） | Cloud / nvm 22.14+ |
-| `@earendil-works/pi-coding-agent` | 1.1.0 | npm registry / `apps/pi-runtime` 锁定 |
-| Next.js | 15.x | `apps/web/package.json` |
+| `@earendil-works/pi-coding-agent` | 1.1.0 | npm registry / `src/pi-runtime` 锁定 |
+| Next.js | 15.x | `src/web/package.json` |
 | FastAPI | uv `pyproject.toml` | Python 业务 API |
 
 SDK 使用 `createAgentSession` + `DefaultResourceLoader`（禁用 skills/模板自动发现）+ `createMcpExtension()`（MCP 写入隔离 `agent_dir/mcp.json`）。
@@ -14,11 +14,11 @@ SDK 使用 `createAgentSession` + `DefaultResourceLoader`（禁用 skills/模板
 ## 架构
 
 - **Python**：workflow 语义、验收、checkpoint、handoff 校验（不变）
-- **Node `apps/pi-runtime`**：Pi SDK session、工具、MCP；stdin/stdout NDJSON 协议
+- **Node `src/pi-runtime`**：Pi SDK session、工具、MCP；stdin/stdout NDJSON 协议
 - **FastAPI `src/api`**：浏览器唯一业务 API
-- **Next.js `apps/web`**：替代 Gradio GUI
+- **Next.js `src/web`**：替代 Gradio GUI
 
-跨语言契约：`contracts/session_launch_spec.schema.json` + `src/core/contracts/session_launch_spec.py`。
+跨语言契约：`src/contracts/session_launch_spec.schema.json` + `src/core/contracts/session_launch_spec.py`。
 
 ## 启动
 

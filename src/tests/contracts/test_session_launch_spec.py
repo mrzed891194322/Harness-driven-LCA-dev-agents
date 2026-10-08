@@ -13,10 +13,13 @@ from core.contracts.session_launch_spec import (
     SystemSection,
 )
 
-ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = json.loads(
-    (ROOT / "contracts" / "session_launch_spec.schema.json").read_text(encoding="utf-8")
+    (SRC_ROOT / "contracts" / "session_launch_spec.schema.json").read_text(
+        encoding="utf-8"
+    )
 )
+PROJECT_ROOT = SRC_ROOT.parent
 
 
 def test_launch_spec_validates_against_schema() -> None:
@@ -40,7 +43,7 @@ def test_launch_spec_validates_against_schema() -> None:
         ],
         turn_context={"handoff_path": "workspace/x.json"},
         knowledge_bindings=[],
-        resource_bindings={"project_root": str(ROOT)},
+        resource_bindings={"project_root": str(PROJECT_ROOT)},
         mcp_bindings={},
         permission_policy=PermissionPolicy(
             allowed_tools=["read"],

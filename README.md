@@ -31,7 +31,7 @@ Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制�
 
 ## 启动控制面板 GUI (推荐)
 
-项目提供 **Next.js + FastAPI** 控制面板（`apps/web` + `src/api`），由 Python 编排器监管 **Pi SDK** Node 运行时（`apps/pi-runtime`）。
+项目提供 **Next.js + FastAPI** 控制面板（`src/web` + `src/api`），由 Python 编排器监管 **Pi SDK** Node 运行时（`src/pi-runtime`）。
 
 ```bash
 uv sync

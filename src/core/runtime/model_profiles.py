@@ -9,7 +9,7 @@ from typing import Any
 from core.contracts.session_launch_spec import ModelProfile
 from core.agents.catalog import split_pi_model_ref
 
-DEFAULT_PROFILES_PATH = Path("config/model_profiles.json")
+DEFAULT_PROFILES_PATH = Path("src/config/model_profiles.json")
 
 
 def _profiles_path(project_root: Path) -> Path:

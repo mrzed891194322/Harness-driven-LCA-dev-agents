@@ -16,7 +16,7 @@ scripts / gui
 
 - `core` **不得**静态或动态 import `harness.tools`
 - 确定性业务检查 / lifecycle action 只能经 stage `spec.yaml` 声明的 stdio MCP 调用
-- 会话契约在 `core/contracts/`
+- 跨语言 JSON 契约在 `src/contracts/`；Python 类型在 `core/contracts/`
 
 ## 目录结构
 
