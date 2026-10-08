@@ -55,19 +55,19 @@ def run_case(tmp_path):
         project_root=PROJECT_ROOT,
         workspace_root=workspace,
         session_client=client,
-        worker="codex",
+        worker="pi",
         model="test-model",
         capabilities=base_capabilities(),
     )
     state = initial_state(
-        run_id="run-python", task="whole-lca", worker="codex", workflow=workflow
+        run_id="run-python", task="whole-lca", worker="pi", workflow=workflow
     )
     write_runtime_config(
         workspace,
         state["run_id"],
         workflow,
         project_root=PROJECT_ROOT,
-        worker="codex",
+        worker="pi",
         model="test-model",
     )
     with (
@@ -88,7 +88,7 @@ def resume(runtime, store, run_id="run-python"):
         run_id,
         runtime.workspace_root,
         project_root=PROJECT_ROOT,
-        worker="codex",
+        worker="pi",
         model="test-model",
     )
 
@@ -386,7 +386,7 @@ def test_cli_busy_workspace_does_not_dispatch_or_write(run_case, resuming, capsy
         "--workflow",
         str(PROJECT_ROOT / "harness" / "LCA-main.yaml"),
         "--worker",
-        "codex",
+        "pi",
         "--workspace",
         str(runtime.workspace_root),
     ]
@@ -405,7 +405,12 @@ def test_cli_busy_workspace_does_not_dispatch_or_write(run_case, resuming, capsy
 
 def test_process_lock_released_on_process_death(tmp_path):
     env = dict(os.environ)
-    env["PYTHONPATH"] = str(PROJECT_ROOT / "src")
+    env["PYTHONPATH"] = os.pathsep.join(
+        [
+            str(PROJECT_ROOT / "src" / "backend"),
+            str(PROJECT_ROOT / "src" / "shared"),
+        ]
+    )
     program = """
 import sys
 from pathlib import Path

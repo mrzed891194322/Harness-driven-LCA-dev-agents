@@ -423,24 +423,19 @@ class PlatformAdapterTests(unittest.TestCase):
     def test_env_example_documents_worker_models_and_secrets(self) -> None:
         text = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
         for key in (
-            "HARNESS_AGENT",
-            "CODEX_MODEL",
-            "CLAUDE_MODEL",
-            "OPENCODE_MODEL",
             "PI_MODEL",
-            "GUI_PORT",
             "OPENLCA_IPC_HOST",
             "OPENLCA_IPC_PORT",
             "UV_CACHE_DIR",
         ):
             self.assertIn(key, text, key)
-        self.assertIn('HARNESS_AGENT="codex"', text)
-        self.assertIn("CODEX_MODEL=", text)
-        self.assertIn("CLAUDE_MODEL=", text)
+        self.assertIn("src/shared/config/model_profiles.json", text)
+        self.assertIn("PI_MODEL=", text)
         self.assertIn(".uv-cache", text)
         self.assertNotIn("ANTHROPIC_API_KEY", text)
         self.assertNotIn("DEEPSEEK_API_KEY", text)
         self.assertNotIn("HARNESS_DSH_MODEL", text)
+        self.assertNotIn("CODEX_MODEL", text)
 
     def test_yaml_registry_declares_control_openlca(self) -> None:
         workflow = load_workflow(

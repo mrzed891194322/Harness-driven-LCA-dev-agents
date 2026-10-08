@@ -20,7 +20,7 @@ from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.mcp_stdio import invoke_tool
 from tests.support.minimal_workflow import write_fake_mcp_server, write_minimal_workflow
 
-CORE_ROOT = PROJECT_ROOT / "src" / "core"
+CORE_ROOT = PROJECT_ROOT / "src" / "shared" / "core"
 HARNESS_ROOT = PROJECT_ROOT / "harness"
 HARNESS_TOOLS = HARNESS_ROOT / "tools"
 BANNED_IMPORT_PREFIXES = (
@@ -46,7 +46,9 @@ HARNESS_TOOLS_ALLOWLIST = frozenset({"mcp", "host_action", "shared"})
 
 
 def _src_env() -> dict[str, str]:
-    return {**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src")}
+    backend = PROJECT_ROOT / "src" / "backend"
+    shared = PROJECT_ROOT / "src" / "shared"
+    return {**os.environ, "PYTHONPATH": f"{backend}{os.pathsep}{shared}"}
 
 
 def _root_env() -> dict[str, str]:

@@ -7,7 +7,7 @@
 运行本仓库前请先安装：
 
 1. **uv** - Python 包和项目管理工具（[下载&安装链接](https://docs.astral.sh/uv/getting-started/installation/)）
-2. **Codex、Claude、OpenCode 或 Pi** 的官方 CLI（需在 PATH 上：`codex` / `claude` / `opencode` / `pi`）。走 GUI 时，在「设置&初始化」点「AI Agent 工具」卡片上的「配置」，选择其中一个并填写对应模型 id。认证使用各 CLI 的本机登录。Cursor 只用于本仓库开发，不当 LCA 操作员。
+2. **Node.js 22+** 与 **pnpm**（Pi SDK 运行时与 Next.js GUI）。模型凭证与档案在 Web 设置页或 `.local/credentials/` 配置，不再依赖全局 `codex` / `claude` / `opencode` / `pi` CLI。
 3. **[openLCA](https://www.openlca.org/download/)** 桌面客户端。**每次开始项目前**必须打开 openLCA、打开目标数据库，并启用 IPC Server（默认 `127.0.0.1:8080`），否则后续导入与计算无法进行。
 
 ## 环境配置
@@ -31,16 +31,16 @@ Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制�
 
 ## 启动控制面板 GUI (推荐)
 
-项目已提供 **Gradio Web 控制面板**（位于 [src/gui](src/gui)），支持可视化所有工作内容。
+项目提供 **Next.js + FastAPI** 控制面板（`src/frontend/web` + `src/backend/api`），由 Python 编排器监管 **Pi SDK** Node 运行时（`src/pi_agents/pi-runtime`）。
 
-### 启动方式 (通用)
-
-在项目根目录下，于终端执行以下命令：
 ```bash
-uv run python src/gui/main.py
+uv sync
+pnpm install
+pnpm --filter @harness/pi-runtime build
+pnpm dev
 ```
 
-浏览器访问 [http://127.0.0.1:7860](http://127.0.0.1:7860)。默认端口 `7860` 可在 `.env` 的 `GUI_PORT` 修改。
+浏览器访问 [http://127.0.0.1:3000](http://127.0.0.1:3000)。业务 API 在 `127.0.0.1:8000`。
 
 ### 1. 设置并完成初始化检查
 
@@ -105,4 +105,4 @@ uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
 
 revise 走同一套 01–04：01 审查修订门禁，02–04 由 `reviser` 在既有产物上落实 `revise.md`，再由 reviewer 审核（用户意图优先）。
 
-`clean` CLI 见 `src/scripts/clean.py`。GUI 内部启动命令见 [platform-adapter.md](docs/lang_CN/platform-adapter.md)。
+`clean` CLI 见 `src/scripts/clean.py`。Web 控制面板见上文 `pnpm dev`。

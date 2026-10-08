@@ -19,7 +19,7 @@ specs/
 | `tools/` | `mcp/`、`host_action/`、`shared/` 三层 |
 | `knowledge/` | 用户参考资料落点 |
 
-编排引擎在 [`src/core/`](../src/core/)。Agent 能力经 YAML 注册的 stdio MCP 进入会话；Core 验收经 Host Action。core 不 import `harness.tools`。
+编排引擎在 [`src/shared/core/`](../src/shared/core/)。Agent 能力经 YAML 注册的 stdio MCP 进入会话；Core 验收经 Host Action。core 不 import `harness.tools`。
 
 ## 注入链
 

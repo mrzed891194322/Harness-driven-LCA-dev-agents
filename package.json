@@ -1,0 +1,11 @@
+{
+  "name": "harness-driven-lca",
+  "private": true,
+  "packageManager": "pnpm@10.33.3",
+  "scripts": {
+    "dev": "node src/scripts/dev.mjs",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test:runtime": "pnpm --filter @harness/pi-runtime test"
+  }
+}

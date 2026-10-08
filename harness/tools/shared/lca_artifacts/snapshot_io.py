@@ -38,8 +38,11 @@ def _read(path: Path) -> bytes:
     identity = _identity(path)
     previous = cache.get(path)
     if previous is not None and previous[0] == identity:
-        return previous[1]
-    data = path.read_bytes()
+        data = path.read_bytes()
+        if data == previous[1]:
+            return previous[1]
+    else:
+        data = path.read_bytes()
     if _identity(path) != identity:
         raise ValueError(f"input changed while reading: {path}")
     cache[path] = (identity, data, None)

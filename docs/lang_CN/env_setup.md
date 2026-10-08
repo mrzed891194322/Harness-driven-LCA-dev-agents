@@ -11,7 +11,7 @@ uv run python src/scripts/proj_init/main.py
 
 也可以在所用 AI 工具中输入「读取并执行 `src/scripts/proj_init/PROMPT.md`」。步骤正文在该文件。没有 uv 时脚本会判定不通过，需要你按下面说明手动安装。
 
-Worker 是 PATH 上的官方 CLI：`codex`、`claude`、`opencode`、`pi`。走 GUI 时，在「设置&初始化」点「AI Agent 工具」卡片上的「配置」，选择其中一个并填写该 CLI 的模型 id。认证使用各 CLI 的本机登录。GUI「初始化检查」探测所选 CLI 能否 `--version`，以及 openLCA IPC，不运行 bootstrap-env。主编排经 `src/core/agents` 的会话接口 spawn CLI；日后换 SDK 只换 provider，不改 YAML 与图。
+Worker 是 PATH 上的官方 CLI：`codex`、`claude`、`opencode`、`pi`。走 GUI 时，在「设置&初始化」点「AI Agent 工具」卡片上的「配置」，选择其中一个并填写该 CLI 的模型 id。认证使用各 CLI 的本机登录。GUI「初始化检查」探测所选 CLI 能否 `--version`，以及 openLCA IPC，不运行 bootstrap-env。主编排经 `src/shared/core/agents` 的会话接口 spawn CLI；日后换 SDK 只换 provider，不改 YAML 与图。
 
 `.env` 要填的全部字段见仓库根目录 `.env.example`（Worker、四个模型 id、端口）。缺失的 `.env` 会从该模板复制。
 
