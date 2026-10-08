@@ -221,7 +221,13 @@ def _bind_progress_log(workspace_root: Path, run_id: str, *, append: bool) -> No
 
 def _load_worker(project_root: Path) -> str:
     values = parse_env_file(project_root / ".env")
-    return values.get("HARNESS_AGENT") or "codex"
+    legacy = (values.get("HARNESS_AGENT") or "").strip().lower()
+    if legacy and legacy != "pi":
+        print_orchestrator(
+            f"HARNESS_AGENT={legacy} 已弃用，统一使用 Pi SDK runtime（pi）",
+            file=sys.stderr,
+        )
+    return "pi"
 
 
 if __name__ == "__main__":

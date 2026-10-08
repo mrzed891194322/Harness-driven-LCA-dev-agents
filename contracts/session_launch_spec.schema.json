@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://harness.local/contracts/session_launch_spec.schema.json",
+  "title": "SessionLaunchSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "stage_id",
+    "assignment_id",
+    "role",
+    "attempt",
+    "session_key",
+    "execution_id",
+    "bundle_hash",
+    "input_snapshot_hash",
+    "model_profile",
+    "system_sections",
+    "turn_context",
+    "knowledge_bindings",
+    "resource_bindings",
+    "mcp_bindings",
+    "permission_policy",
+    "session_storage"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "stage_id": { "type": "string", "minLength": 1 },
+    "assignment_id": { "type": "string", "minLength": 1 },
+    "role": { "type": "string", "minLength": 1 },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "session_key": { "type": "string", "minLength": 1 },
+    "execution_id": { "type": "string", "minLength": 1 },
+    "bundle_hash": { "type": "string", "minLength": 8 },
+    "input_snapshot_hash": { "type": "string", "minLength": 8 },
+    "model_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "provider", "model_id"],
+      "properties": {
+        "profile_id": { "type": "string" },
+        "display_name": { "type": "string" },
+        "provider": { "type": "string" },
+        "model_id": { "type": "string" },
+        "api_type": { "type": "string" },
+        "base_url": { "type": "string" },
+        "parameters": { "type": "object" }
+      }
+    },
+    "system_sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "content", "source_hash"],
+        "properties": {
+          "id": { "type": "string" },
+          "content": { "type": "string" },
+          "source_hash": { "type": "string" }
+        }
+      }
+    },
+    "turn_context": { "type": "object" },
+    "knowledge_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "root_path", "content_hash"],
+        "properties": {
+          "id": { "type": "string" },
+          "root_path": { "type": "string" },
+          "content_hash": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "resource_bindings": {
+      "type": "object",
+      "properties": {
+        "project_root": { "type": "string" },
+        "workspace_root": { "type": "string" },
+        "host_python": { "type": "string" },
+        "credentials_dir": { "type": "string" }
+      }
+    },
+    "mcp_bindings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "command": { "type": "string" },
+          "args": { "type": "array", "items": { "type": "string" } },
+          "env": { "type": "object" },
+          "timeout_ms": { "type": "integer" },
+          "exposure": { "type": "string", "enum": ["direct", "deferred", "codemode", "hidden"] }
+        }
+      }
+    },
+    "permission_policy": {
+      "type": "object",
+      "required": ["allowed_tools", "allowed_read_globs", "allowed_write_globs"],
+      "properties": {
+        "allowed_tools": { "type": "array", "items": { "type": "string" } },
+        "allowed_read_globs": { "type": "array", "items": { "type": "string" } },
+        "allowed_write_globs": { "type": "array", "items": { "type": "string" } },
+        "deny_shell": { "type": "boolean" }
+      }
+    },
+    "session_storage": {
+      "type": "object",
+      "required": ["agent_dir", "session_file"],
+      "properties": {
+        "agent_dir": { "type": "string" },
+        "session_file": { "type": "string" }
+      }
+    },
+    "handoff_binding": {
+      "type": "object",
+      "properties": {
+        "relative_path": { "type": "string" },
+        "schema_path": { "type": "string" }
+      }
+    }
+  }
+}

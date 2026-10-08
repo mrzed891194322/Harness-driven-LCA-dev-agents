@@ -64,23 +64,20 @@ print("core-ok", flush=True)
     assert "core-ok" in result.stdout
 
 
-def test_gui_control_config_imports_without_launch() -> None:
+def test_fastapi_app_imports_without_launch() -> None:
     probe = """
-import importlib
 import sys
 from pathlib import Path
 here = Path(".").resolve()
 root = next(
     p for p in (here, *here.parents) if (p / "pyproject.toml").is_file()
 )
-script_dir = root / "src" / "scripts" / "gui_control"
-sys.path.insert(0, str(script_dir))
 sys.path.insert(0, str(root / "src"))
 sys.path.insert(0, str(root))
-mod = importlib.import_module("gc_utils.config")
-assert hasattr(mod, "PROJECT_ROOT")
-print("gui-control-ok", flush=True)
+from api.app import app
+assert app.title
+print("api-ok", flush=True)
 """
     result = _run([sys.executable, "-c", probe], timeout=20)
     assert result.returncode == 0, result.stderr
-    assert "gui-control-ok" in result.stdout
+    assert "api-ok" in result.stdout

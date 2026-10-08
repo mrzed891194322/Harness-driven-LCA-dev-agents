@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..session import SessionClient, SessionConfig, SessionError, SessionRef, TurnResult
 
-WORKERS = ("codex", "claude", "opencode", "pi")
+WORKERS = ("pi",)
 
 
 class ProviderDispatcher:
@@ -43,20 +43,8 @@ class ProviderDispatcher:
 
 
 def _new_provider(name: str) -> SessionClient:
-    if name == "codex":
-        from .codex.session import CodexSessionProvider
-
-        return CodexSessionProvider()
-    if name == "claude":
-        from .claude.session import ClaudeSessionProvider
-
-        return ClaudeSessionProvider()
-    if name == "opencode":
-        from .opencode.session import OpenCodeSessionProvider
-
-        return OpenCodeSessionProvider()
     if name == "pi":
-        from .pi.session import PiSessionProvider
+        from core.agents.pi_runtime.client import PiRuntimeSessionClient
 
-        return PiSessionProvider()
-    raise SessionError(f"不支持的 Agent：{name}")
+        return PiRuntimeSessionClient()
+    raise SessionError(f"不支持的 Agent：{name}（仅支持 Pi SDK runtime）")

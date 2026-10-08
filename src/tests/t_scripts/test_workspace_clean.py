@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import workspace_clean as clean_main
-from gui.functions.utils.executor.private_utils import executor_utils
+from services import executor_console as executor_utils
 from workspace_clean import CLEAN_PRESETS
 
 
@@ -431,7 +431,7 @@ class RunPreWorkflowConsoleTests(unittest.TestCase):
 
         with (
             patch.object(executor_utils, "run_clean_preset_console", fake_preset),
-            patch("gui.functions.file_sync.main.sync_files", fake_sync),
+            patch("services.file_sync.sync_files", fake_sync),
         ):
             outputs = list(
                 executor_utils.run_pre_workflow_console(
@@ -468,7 +468,7 @@ class RunPreWorkflowConsoleTests(unittest.TestCase):
 
         with (
             patch.object(executor_utils, "execute_command_stream", fake_stream),
-            patch("gui.functions.file_sync.main.sync_files", fake_sync),
+            patch("services.file_sync.sync_files", fake_sync),
         ):
             outputs = list(
                 executor_utils.run_pre_workflow_console(

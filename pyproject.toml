@@ -5,12 +5,14 @@ description = "Harness-driven LCA orchestration agents"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "gradio>=6.19.0",
+  "fastapi>=0.115.0",
   "jsonschema>=4.26.0",
   "mcp>=2.1.1",
   "olca-ipc>=2.6.3",
   "python-dotenv>=1.2.2",
   "pyyaml>=6.0.3",
+  "sse-starlette>=2.1.0",
+  "uvicorn>=0.34.0",
 ]
 
 [dependency-groups]
@@ -21,7 +23,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["src/tests"]
+testpaths = ["src/tests", "tests"]
 pythonpath = ["src", "."]
 addopts = "-ra"
 
@@ -44,9 +46,10 @@ ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
+  "api",
   "core",
+  "services",
   "utils",
-  "gui",
   "harness",
   "tests",
 ]

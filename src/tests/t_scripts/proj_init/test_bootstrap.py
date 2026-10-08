@@ -109,16 +109,15 @@ class SetupEnvBootstrapTests(unittest.TestCase):
 
     def test_detect_harness_clis_lists_supported_workers(self) -> None:
         def fake_inspect(name: str) -> tuple[bool, str]:
-            if name in {"codex", "claude", "opencode", "pi"}:
+            if name == "pi":
                 return True, "已安装"
             return False, "未安装"
 
         report = detect_harness_clis(inspect_fn=fake_inspect)
-        self.assertEqual(set(HARNESS_CLIS), {"codex", "claude", "opencode", "pi"})
-        self.assertEqual(report["found"], ["codex", "claude", "opencode", "pi"])
+        self.assertEqual(set(HARNESS_CLIS), {"pi"})
+        self.assertEqual(report["found"], ["pi"])
         self.assertTrue(report["ok"])
-        self.assertTrue(report["clis"]["codex"]["available"])
-        self.assertTrue(report["clis"]["opencode"]["available"])
+        self.assertTrue(report["clis"]["pi"]["available"])
 
     def test_missing_all_clis_does_not_fail_bootstrap(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -13,10 +13,7 @@ import pytest
 import yaml
 
 from core.agents.mcp import mcp_servers_for_tools
-from core.agents.providers.claude.session import write_claude_mcp
-from core.agents.providers.codex.session import mcp_overrides
-from core.agents.providers.opencode.session import write_opencode_mcp
-from core.agents.providers.pi.session import write_pi_mcp
+from core.agents.mcp_render import write_pi_mcp
 from core.runtime.capabilities import base_capabilities
 from core.workflow.config.loader import load_workflow
 from core.workflow.execution.handoff import read_handoff
@@ -128,7 +125,7 @@ mcp.run()
     assert result == {"value": "hello world", "project_imports": []}
 
 
-def test_all_worker_renderers_preserve_external_launch_config(tmp_path):
+def test_pi_renderer_preserves_external_launch_config(tmp_path):
     original = {
         "command": "/a path/bin/uv",
         "args": ["run", "python", "external.py", "a b"],
@@ -136,21 +133,11 @@ def test_all_worker_renderers_preserve_external_launch_config(tmp_path):
         "tool_timeout_sec": 123,
     }
     servers = mcp_servers_for_tools(["external.echo"], {"external.echo": original})
-    rendered = tomllib.loads("\n".join(mcp_overrides(servers)))["mcp_servers"][
-        "external.echo"
-    ]
-    for key in ("command", "args", "env", "tool_timeout_sec"):
-        assert rendered[key] == original[key]
-    for writer in (write_claude_mcp, write_pi_mcp):
-        path = tmp_path / "mcp.json"
-        writer(path, servers)
-        entry = json.loads(path.read_text())["mcpServers"]["external.echo"]
-        for key in ("command", "args", "env"):
-            assert entry[key] == original[key]
-        assert entry["timeout"] == 123000
-    entry = write_opencode_mcp(servers)["external.echo"]
-    assert entry["command"] == [original["command"], *original["args"]]
-    assert entry["environment"] == original["env"]
+    path = tmp_path / "mcp.json"
+    write_pi_mcp(path, servers)
+    entry = json.loads(path.read_text())["mcpServers"]["external.echo"]
+    for key in ("command", "args", "env"):
+        assert entry[key] == original[key]
     assert entry["timeout"] == 123000
 
 

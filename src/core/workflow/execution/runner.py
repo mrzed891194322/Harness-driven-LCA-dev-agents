@@ -255,12 +255,50 @@ class OrchestratorRuntime:
             WorkerTransportError,
         )
 
+        from core.runtime.launch_spec import build_session_launch_spec
+
         from .session_bind import build_session_config
 
         stage, assignment = self._current(state)
         key = session_key(assignment.assignment_id)
         sessions = dict(state.get("sessions") or {})
         bundle = self.bundles[assignment.assignment_id]
+        handoff = handoff_path(
+            self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
+        )
+        run_context = {
+            "run_id": _state_str(state, "run_id"),
+            "task": _state_str(state, "task"),
+            "stage": stage.stage_id,
+            "role": assignment.role,
+            "assignment": assignment.assignment_id,
+            "attempt": _attempt(state),
+            "handoff_path": str(handoff.relative_to(self.project_root))
+            if handoff.is_relative_to(self.project_root)
+            else str(handoff),
+            "workspace": str(self.workspace_root),
+            "fix_instructions": state.get("fix_instructions") or "",
+        }
+        run_ctx = self._run_context(state, stage, assignment)
+        run_context.update(self._enrich_knowledge(run_ctx, bundle))
+        launch_spec = build_session_launch_spec(
+            self.workflow,
+            bundle,
+            project_root=self.project_root,
+            workspace_root=self.workspace_root,
+            worker=self.worker,
+            model=self.model,
+            stage=stage,
+            assignment=assignment,
+            run_id=_state_str(state, "run_id"),
+            attempt=_attempt(state),
+            session_key=key,
+            run_context=run_context,
+        )
+        client = self.session_client
+        attach = getattr(client, "attach_launch_spec", None)
+        if callable(attach):
+            attach(key, launch_spec)
         config = build_session_config(
             self.workflow,
             bundle,

@@ -1,0 +1,12 @@
+{
+  "default": {
+    "display_name": "项目默认",
+    "provider": "anthropic",
+    "model_id": "claude-sonnet-4-5"
+  },
+  "fast": {
+    "display_name": "快速模型",
+    "provider": "anthropic",
+    "model_id": "claude-haiku-4-5"
+  }
+}

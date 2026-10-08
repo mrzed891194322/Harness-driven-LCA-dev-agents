@@ -1,31 +1,49 @@
-"""Worker availability probes (PATH CLIs, not Python SDK packages)."""
+"""Worker availability probes (Pi SDK runtime, not global CLI)."""
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from .providers.registry import WORKERS
 
 WhichFn = Callable[[str], str | None]
 
+PROJECT_ROOT = next(
+    parent
+    for parent in Path(__file__).resolve().parents
+    if (parent / "pyproject.toml").is_file()
+)
+
+
+def _runtime_built(project_root: Path) -> bool:
+    dist = project_root / "apps" / "pi-runtime" / "dist" / "main.js"
+    src = project_root / "apps" / "pi-runtime" / "src" / "main.ts"
+    return dist.is_file() or src.is_file()
+
 
 def inspect(
     worker: str,
     *,
     which: WhichFn | None = None,
+    project_root: Path | None = None,
 ) -> tuple[bool, str]:
-    """Return whether the worker CLI is on PATH."""
-    locate = which or shutil.which
+    """Return whether the Pi SDK runtime is available."""
+    del which
     name = (worker or "").strip().lower()
     if name not in WORKERS:
         return False, f"不支持的 Agent：{worker}"
-    path = locate(name)
-    if not path:
-        return False, "未安装"
-    return True, f"已安装 {path}"
+    root = project_root or PROJECT_ROOT
+    node = shutil.which("node")
+    if not node:
+        return False, "未安装 Node.js"
+    if not _runtime_built(root):
+        return False, "pi-runtime 未构建（运行 pnpm install && pnpm --filter @harness/pi-runtime build）"
+    return True, f"Pi SDK runtime 就绪（{node}）"
 
 
 def check(
@@ -34,38 +52,40 @@ def check(
     which: WhichFn | None = None,
     runner: Callable[..., Any] | None = None,
     timeout: int = 10,
+    project_root: Path | None = None,
 ) -> tuple[bool, str]:
-    """Locate the CLI and run `--version`. Does not start a live agent turn."""
-    locate = which or shutil.which
-    ok, message = inspect(worker, which=locate)
+    """Ping pi-runtime protocol without starting a billed model turn."""
+    ok, message = inspect(worker, which=which, project_root=project_root)
     if not ok:
         return ok, message
-    name = (worker or "").strip().lower()
-    path = locate(name)
-    if not path:
-        return False, "未安装"
+    root = project_root or PROJECT_ROOT
     run = runner or subprocess.run
+    dist = root / "apps" / "pi-runtime" / "dist" / "main.js"
+    if dist.is_file():
+        argv = ["node", str(dist)]
+    else:
+        argv = [
+            "node",
+            "--import",
+            "tsx",
+            str(root / "apps" / "pi-runtime" / "src" / "main.ts"),
+        ]
+    env = {"PI_RUNTIME_MOCK": "1"}
     try:
-        completed = run(
-            [path, "--version"],
+        proc = run(
+            argv,
+            input='{"type":"req","id":"1","method":"protocol.version","params":{}}\n',
             capture_output=True,
             text=True,
             timeout=timeout,
             check=False,
+            cwd=str(root),
+            env={**os.environ, **env},
         )
-    except FileNotFoundError:
-        return False, "未安装"
     except Exception as exc:
-        text = str(exc).lower()
-        if (
-            "auth" in text
-            or "api key" in text
-            or "login" in text
-            or "credential" in text
-        ):
-            return False, "认证失败"
-        return False, "调用失败"
-    code = getattr(completed, "returncode", 1)
-    if code not in (0, None):
-        return False, "调用失败"
+        return False, f"调用失败: {exc}"
+    if proc.returncode not in (0, None):
+        return False, (proc.stderr or proc.stdout or "调用失败")[:200]
+    if '"ok":true' not in (proc.stdout or ""):
+        return False, "pi-runtime 协议探测失败"
     return True, "可用"

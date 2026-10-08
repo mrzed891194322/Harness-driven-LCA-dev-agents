@@ -55,7 +55,7 @@ def check_project_environment(project_root: Path | None = None) -> tuple[bool, s
 
     found = [name for name in SUPPORTED_HARNESS_CLIS if inspect(name)[0]]
     if not found:
-        return False, "未找到 codex / claude / opencode / pi"
+        return False, "Pi SDK runtime 不可用"
     return True, "可用"
 
 

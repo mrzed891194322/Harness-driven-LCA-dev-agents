@@ -52,3 +52,5 @@ uv.lock
 # Generated caches inside tracked Codex packages
 .codex/skills/**/__pycache__/
 .codex/skills/**/*.py[oc]
+node_modules/
+apps/*/.next/
