@@ -7,5 +7,5 @@ PROJECT_ROOT = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
-SRC_ROOT = PROJECT_ROOT / "src"
+BACKEND_ROOT = PROJECT_ROOT / "src" / "backend"
 WORKSPACE_ROOT = PROJECT_ROOT / "workspace"

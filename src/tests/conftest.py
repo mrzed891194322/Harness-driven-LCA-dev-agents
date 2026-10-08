@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_ROOT = PROJECT_ROOT / "src"
-GUI_ROOT = SRC_ROOT / "gui"
+BACKEND_ROOT = PROJECT_ROOT / "src" / "backend"
+FRONTEND_ROOT = PROJECT_ROOT / "src" / "frontend"
+GUI_ROOT = FRONTEND_ROOT / "legacy" / "gui"
 WORKFLOWS = PROJECT_ROOT / "harness"
 
 MAIN_PLAN_PATH = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "main_plan.md"

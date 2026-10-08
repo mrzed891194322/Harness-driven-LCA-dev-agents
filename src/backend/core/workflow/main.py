@@ -12,11 +12,11 @@ PROJECT_ROOT = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
-SRC_ROOT = PROJECT_ROOT / "src"
+BACKEND_ROOT = PROJECT_ROOT / "src" / "backend"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from core.agents.archive import progress_log_path  # noqa: E402
 from core.agents.config import load_worker_model  # noqa: E402

@@ -13,13 +13,13 @@ from core.contracts.session_launch_spec import (
     SystemSection,
 )
 
-SRC_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA = json.loads(
-    (SRC_ROOT / "contracts" / "session_launch_spec.schema.json").read_text(
-        encoding="utf-8"
-    )
+    (
+        PROJECT_ROOT
+        / "src/backend/contracts/session_launch_spec.schema.json"
+    ).read_text(encoding="utf-8")
 )
-PROJECT_ROOT = SRC_ROOT.parent
 
 
 def test_launch_spec_validates_against_schema() -> None:

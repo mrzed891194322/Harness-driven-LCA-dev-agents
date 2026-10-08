@@ -36,9 +36,9 @@ def _run(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[s
 @pytest.mark.parametrize(
     "script",
     [
-        "src/scripts/workflow.py",
-        "src/scripts/clean.py",
-        "src/scripts/check_status.py",
+        "src/backend/scripts/workflow.py",
+        "src/backend/scripts/clean.py",
+        "src/backend/scripts/check_status.py",
     ],
 )
 def test_cli_help_with_empty_pythonpath(script: str) -> None:
@@ -54,7 +54,7 @@ import runpy
 import sys
 from pathlib import Path
 # Load proj_init.main's bootstrap side effects by executing until imports resolve.
-script = Path("src/scripts/proj_init/main.py").resolve()
+script = Path("src/backend/scripts/proj_init/main.py").resolve()
 ns = runpy.run_path(str(script), run_name="__not_main__")
 import core  # noqa: F401
 print("core-ok", flush=True)
@@ -72,7 +72,7 @@ here = Path(".").resolve()
 root = next(
     p for p in (here, *here.parents) if (p / "pyproject.toml").is_file()
 )
-sys.path.insert(0, str(root / "src"))
+sys.path.insert(0, str(root / "src" / "backend"))
 sys.path.insert(0, str(root))
 from api.app import app
 assert app.title

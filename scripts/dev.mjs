@@ -17,7 +17,7 @@ function run(cmd, args, opts = {}) {
   return child;
 }
 
-run("uv", ["run", "uvicorn", "api.app:app", "--app-dir", "src", "--host", "127.0.0.1", "--port", "8000"]);
+run("uv", ["run", "uvicorn", "api.app:app", "--app-dir", "src/backend", "--host", "127.0.0.1", "--port", "8000"]);
 run("pnpm", ["--filter", "@harness/web", "dev"], { env: { PORT: "3000" } });
 
 process.on("SIGINT", () => {

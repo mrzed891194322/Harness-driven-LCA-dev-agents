@@ -1,38 +1,33 @@
-# `src/` 源码说明
+# `src/` 布局
 
-本目录是仓库的**正式 Python 源码与测试**根。`harness/` 管契约与 YAML；`workspace/` 是运行产物。
-
-验证用单元测试与 mock，不要用跑一遍 whole-lca 代替回归。
-
-## 依赖边界
-
-```text
-scripts / gui
-      ↓
-   core  ←── harness（仅 YAML 装配 + stdio MCP + rules MD；core 永不 import harness Python）
-      ↓
-   utils
+```
+src/
+  frontend/                 # 浏览器与已拆分的旧 GUI
+    web/                    # Next.js 控制面板
+    legacy/gui/             # 原 Gradio GUI（仅遗留参考，不参与运行）
+  backend/                  # Python 编排 + FastAPI + Pi SDK runtime
+    api/                    # FastAPI
+    pi-runtime/             # Node Pi SDK（NDJSON）
+    core/                   # workflow / agents / runtime
+    services/               # 应用服务
+    scripts/                # 薄 CLI
+    config/                 # 模型档案等非敏感配置
+    contracts/              # 跨语言 JSON schema
+    utils/
+  tests/                    # 回归测试
 ```
 
-- `core` **不得**静态或动态 import `harness.tools`
-- 确定性业务检查 / lifecycle action 只能经 stage `spec.yaml` 声明的 stdio MCP 调用
-- 跨语言 JSON 契约在 `src/contracts/`；Python 类型在 `core/contracts/`
-
-## 目录结构
-
-| 路径 | 职责 |
-| --- | --- |
-| [`core/workflow/`](core/workflow/) | YAML 装配、stage spec 解析、执行循环、checkpoint |
-| [`core/runtime/`](core/runtime/) | 知识注入、Host Action、上下文 |
-| [`core/agents/`](core/agents/) | worker 会话 |
-| [`app_settings.py`](app_settings.py) / [`diagnostics.py`](diagnostics.py) / [`workspace_clean.py`](workspace_clean.py) | 应用级设置与清理 |
-| [`gui/`](gui/) / [`scripts/`](scripts/) / [`tests/`](tests/) | GUI、薄 CLI、回归 |
-
-## 常用入口
+## 常用命令
 
 ```bash
-uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
-uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
+# 后端 API
+uv run uvicorn api.app:app --app-dir src/backend --host 127.0.0.1 --port 8000
+
+# 主编排（无浏览器）
+uv run python src/backend/scripts/workflow.py --workflow harness/LCA-main.yaml
+
+# 前端 + API
+pnpm dev
 ```
 
-两张 YAML 彼此独立（无 reuse）。详情见 [`docs/lang_CN/harness.md`](../docs/lang_CN/harness.md)。
+跨语言契约：`backend/contracts/session_launch_spec.schema.json`；Python 类型在 `backend/core/contracts/`。

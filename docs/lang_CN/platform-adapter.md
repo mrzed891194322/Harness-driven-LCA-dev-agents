@@ -1,47 +1,40 @@
 # 运行入口
 
-同一套 Whole-LCA 契约只在 `harness/`。Python 主编排器是唯一运行入口。项目 MCP 由 `harness/LCA-main.yaml` 注册，经 `src/core/agents` 会话接口注入任务会话。当前实现 spawn PATH 上的 CLI；会话 DTO（spec / rule / 工具）与 CLI/SDK 无关。不再使用仓库内 `.codex/` / `.claude/` / `.dsh/` / `.opencode/` 平台 skill。
+同一套 Whole-LCA 契约只在 `harness/`。Python 主编排器是唯一运行入口。项目 MCP 由 `harness/LCA-main.yaml` 注册，经 `src/backend/core/agents` 会话接口注入任务会话。Worker 为项目内 **Pi SDK runtime**（`src/backend/pi-runtime`），不再依赖 PATH 上的 `codex` / `claude` / `opencode` / `pi` CLI。
 
 ## 用户入口
 
 ```bash
-uv run python src/gui/main.py
-uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
-uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
+pnpm dev   # Next.js + FastAPI（见根目录 README）
+uv run python src/backend/scripts/workflow.py --workflow harness/LCA-main.yaml
+uv run python src/backend/scripts/workflow.py --workflow harness/LCA-revise.yaml
 ```
 
-环境引导：读取并执行 `src/scripts/proj_init/PROMPT.md`，或 `uv run python src/scripts/proj_init/main.py`。
+环境引导：读取并执行 `src/backend/scripts/proj_init/PROMPT.md`，或 `uv run python src/backend/scripts/proj_init/main.py`。
 
-whole-lca / revise-lca 前，用户须先手动 `src/scripts/clean.py` 并复制资料（见根目录 `README.md`），或走 GUI 的执行按钮（GUI 会做前置清理与同步）。
+whole-lca / revise-lca 前，用户须先手动 `src/backend/scripts/clean.py` 并复制资料（见根目录 `README.md`）。
 
-## GUI 启动用的一行 CLI
+## Worker 与模型
 
-GUI 按 `.env` 的 `HARNESS_AGENT` 调用 Python 编排器并传入 `--worker`。模型 id 来自同文件的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。
+编排器固定使用 `--worker pi`。模型档案 id 来自 `.env` 的 `PI_MODEL`（见 `src/backend/config/model_profiles.json`）。
 
 ```bash
-uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml --worker <agent>
-uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml --worker <agent>
+uv run python src/backend/scripts/workflow.py --workflow harness/LCA-main.yaml --worker pi
 ```
-
-`agent` 为 `codex` / `claude` / `opencode` / `pi`。
 
 ## MCP 与 Host Action
 
-- **Agent MCP**（`registry.tools.mcp`）：注入 worker 会话的 stdio MCP。项目 `control_openlca` 的唯一配置来源是主工作流 YAML；独立工具在 `harness/tools/mcp/control_openlca/main.py`，LCA YAML 使用 `harness/tools/mcp/control_openlca/workflow_mcp.py`。普通外部 stdio MCP 只需注册 command/args/env 并绑定 assignment；`tool_timeout_sec` 默认 60 秒，openLCA 显式为 7320 秒。
-- **Host Action**（`registry.tools.host_action`）：Core 子进程 JSON stdin/stdout，由 stage `spec.yaml` 的 `acceptance` / `handoff` / `lifecycle` 以逻辑 `action` id 引用。不注入 Agent 会话，也不走 MCP initialize/tools/call。
-
-SDK 不导入具体工具代码。Assignment 只绑 MCP；Host Action 仅来自 stage_spec。
+- **Agent MCP**（`registry.tools.mcp`）：注入 Pi 会话的 stdio MCP。
+- **Host Action**（`registry.tools.host_action`）：Core 子进程 JSON stdin/stdout，由 stage `spec.yaml` 引用；不注入 Agent 工具列表。
 
 ## Agent 分层
 
 | 层 | 位置 |
 | --- | --- |
-| 主编排 | `src/core/workflow/` |
-| 阶段与任务绑定 | `harness/LCA-*.yaml`（各自完整独立） |
-| 机器契约 | `harness/specs/**/spec.yaml` + JSON Schema |
-| 自然语言规则 | `harness/rules/` |
-| Worker 会话 | `src/core/agents/`（当前 CLI provider；接口可换 SDK） |
-| Agent MCP | `harness/tools/mcp/` |
-| Host Action | `harness/tools/host_action/` |
-| 共享实现 | `harness/tools/shared/` |
-| 环境引导 | `src/scripts/proj_init/PROMPT.md` |
+| 主编排 | `src/backend/core/workflow/` |
+| 阶段与任务绑定 | `harness/LCA-*.yaml` |
+| 机器契约 | `harness/specs/**/spec.yaml` |
+| Worker 会话 | `src/backend/core/agents/` + `src/backend/pi-runtime/` |
+| 业务 API | `src/backend/api/` |
+| 前端 | `src/frontend/web/` |
+| 环境引导 | `src/backend/scripts/proj_init/PROMPT.md` |

@@ -10,12 +10,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_pi_runtime_protocol_version_mock() -> None:
-    dist = PROJECT_ROOT / "src" / "pi-runtime" / "dist" / "main.js"
+    rt = PROJECT_ROOT / "src" / "backend" / "pi-runtime"
+    dist = rt / "dist" / "main.js"
     argv = ["node", str(dist)] if dist.is_file() else [
         "node",
         "--import",
         "tsx",
-        str(PROJECT_ROOT / "src" / "pi-runtime" / "src" / "main.ts"),
+        str(rt / "src" / "main.ts"),
     ]
     env = {**os.environ, "PI_RUNTIME_MOCK": "1"}
     proc = subprocess.run(

@@ -405,7 +405,7 @@ def test_cli_busy_workspace_does_not_dispatch_or_write(run_case, resuming, capsy
 
 def test_process_lock_released_on_process_death(tmp_path):
     env = dict(os.environ)
-    env["PYTHONPATH"] = str(PROJECT_ROOT / "src")
+    env["PYTHONPATH"] = str(PROJECT_ROOT / "src" / "backend")
     program = """
 import sys
 from pathlib import Path
