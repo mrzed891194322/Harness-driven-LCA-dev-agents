@@ -11,9 +11,15 @@ import type { ModelProfile, SessionLaunchSpec } from "./types.js";
 import {
   materializeAuthJson,
   materializeModelsJson,
-  providerHasKey,
+  providerHasAuth,
   readPiAuthFile,
 } from "./auth_materialize.js";
+import {
+  cancelAuthPrompt,
+  replyAuthPrompt,
+  runProviderLogin,
+  runProviderLogout,
+} from "./auth_login.js";
 import { emitEvent } from "./protocol.js";
 
 const PROTOCOL_VERSION = 1;
@@ -81,7 +87,11 @@ function prepareAgentDir(spec: SessionLaunchSpec): {
     spec.resource_bindings.credentials_dir,
     agentDir,
   );
-  const modelsPath = materializeModelsJson(spec.model_profile, agentDir);
+  const modelsPath = materializeModelsJson(
+    spec.model_profile,
+    agentDir,
+    spec.resource_bindings.credentials_dir,
+  );
   writeMcpJson(agentDir, spec);
   return { authPath, modelsPath };
 }
@@ -180,10 +190,18 @@ async function testModelConnection(params: Record<string, unknown>): Promise<unk
   } satisfies ModelProfile;
 
   const authPath = materializeAuthJson(credentialsDir || undefined, agentDir);
-  const modelsPath = materializeModelsJson(profile, agentDir);
+  const modelsPath = materializeModelsJson(
+    profile,
+    agentDir,
+    credentialsDir || undefined,
+  );
   const auth = readPiAuthFile(authPath);
-  if (provider && !providerHasKey(auth, provider)) {
-    return { ok: false, message: `未配置 ${provider} API Key（BYOK）` };
+  if (provider && !providerHasAuth(auth, provider)) {
+    // Compatible endpoints may use models.json apiKey (e.g. local Ollama).
+    const hasCustomEndpoint = Boolean(profile.api_type || profile.base_url);
+    if (!hasCustomEndpoint) {
+      return { ok: false, message: `未配置 ${provider} 凭证（API Key 或 OAuth）` };
+    }
   }
 
   const modelRuntime = await ModelRuntime.create({
@@ -308,6 +326,31 @@ export async function handleRuntimeMethod(
   }
   if (method === "models.test_connection") {
     return testModelConnection(params);
+  }
+  if (method === "auth.login") {
+    return runProviderLogin(params);
+  }
+  if (method === "auth.logout") {
+    return runProviderLogout(params);
+  }
+  if (method === "auth.prompt_reply") {
+    const promptId = String(params.prompt_id ?? "").trim();
+    const value = String(params.value ?? "");
+    if (!promptId) {
+      throw new Error("prompt_id required");
+    }
+    if (!replyAuthPrompt(promptId, value)) {
+      throw new Error(`unknown prompt_id: ${promptId}`);
+    }
+    return { ok: true };
+  }
+  if (method === "auth.prompt_cancel") {
+    const promptId = String(params.prompt_id ?? "").trim();
+    if (!promptId) {
+      throw new Error("prompt_id required");
+    }
+    cancelAuthPrompt(promptId);
+    return { ok: true };
   }
   throw new Error(`unknown method: ${method}`);
 }

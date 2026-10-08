@@ -12,7 +12,10 @@ from services.credentials_service import (
     list_provider_catalog,
     load_pi_auth,
     mask_key,
+    provider_overrides_status,
+    save_custom_endpoint,
     save_provider_key,
+    set_provider_base_url,
 )
 
 
@@ -63,10 +66,57 @@ class CredentialsServiceTests(unittest.TestCase):
             self.assertEqual(auth["openai"]["key"], "sk-legacy")
             self.assertTrue(credentials_status(root)["openai"]["set"])
 
+    def test_oauth_credential_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / ".local" / "credentials" / "pi-auth.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                json.dumps(
+                    {
+                        "openai": {
+                            "type": "oauth",
+                            "access": "access-token-value",
+                            "refresh": "refresh-token-value",
+                            "expires": 9999999999999,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            auth = load_pi_auth(root)
+            self.assertEqual(auth["openai"]["type"], "oauth")
+            status = credentials_status(root)
+            self.assertTrue(status["openai"]["set"])
+            self.assertEqual(status["openai"]["type"], "oauth")
+            self.assertNotIn("access-token", status["openai"]["masked"] or "")
+
     def test_catalog_has_popular_providers(self) -> None:
         ids = {item["id"] for item in list_provider_catalog()}
         self.assertIn("anthropic", ids)
         self.assertIn("openrouter", ids)
+        self.assertIn("opencode-go", ids)
+        self.assertIn("openai", ids)
+        openai = next(i for i in list_provider_catalog() if i["id"] == "openai")
+        self.assertTrue(openai.get("supports_oauth"))
+
+    def test_provider_base_url_and_custom_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            set_provider_base_url(root, "anthropic", "https://proxy.example/v1")
+            overrides = provider_overrides_status(root)
+            self.assertEqual(overrides["anthropic"]["base_url"], "https://proxy.example/v1")
+            save_custom_endpoint(
+                root,
+                provider="ollama",
+                base_url="http://localhost:11434/v1",
+                api="openai-completions",
+                model_id="qwen2.5",
+                api_key="ollama",
+            )
+            overrides = provider_overrides_status(root)
+            self.assertEqual(overrides["ollama"]["api"], "openai-completions")
+            self.assertEqual(overrides["ollama"]["model_ids"], ["qwen2.5"])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
-"""BYOK credential storage for Pi ModelRuntime (pi-auth.json).
+"""BYOK credential storage for Pi ModelRuntime (pi-auth.json / pi-models.json).
 
-Pattern aligned with k-dense-byok: status returns masked keys only; saves
-persist to a local credential store without echoing secrets.
+Patterns follow Pi docs:
+- auth.json credentials (api_key | oauth) — pi-ai Auth types / providers.md
+- models.json provider baseUrl / compatible endpoints — models.md
 """
 
 from __future__ import annotations
@@ -11,20 +12,34 @@ from pathlib import Path
 from typing import Any
 
 # Popular Pi built-in providers (subset of Pi catalog) for the Settings UI.
-POPULAR_PROVIDERS: tuple[dict[str, str], ...] = (
+# OAuth providers per pi-ai README § OAuth Providers.
+POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
     {
         "id": "anthropic",
         "name": "Anthropic",
-        "hint": "Claude API key（ANTHROPIC_API_KEY 等价，本仓库写入 pi-auth.json）",
+        "hint": "Claude API key，或 Claude Pro/Max OAuth",
         "placeholder": "sk-ant-…",
         "keys_url": "https://console.anthropic.com/settings/keys",
+        "supports_oauth": True,
+        "supports_base_url": True,
     },
     {
         "id": "openai",
         "name": "OpenAI",
-        "hint": "OpenAI API key",
+        "hint": "API key，或 Sign in with ChatGPT（Pi OAuth）",
         "placeholder": "sk-…",
         "keys_url": "https://platform.openai.com/api-keys",
+        "supports_oauth": True,
+        "supports_base_url": True,
+    },
+    {
+        "id": "opencode-go",
+        "name": "OpenCode Go",
+        "hint": "OPENCODE_API_KEY（Pi 内置 opencode-go）",
+        "placeholder": "opencode-…",
+        "keys_url": "https://opencode.ai",
+        "supports_oauth": False,
+        "supports_base_url": False,
     },
     {
         "id": "google",
@@ -32,13 +47,17 @@ POPULAR_PROVIDERS: tuple[dict[str, str], ...] = (
         "hint": "Google AI Studio / Gemini API key",
         "placeholder": "AIza…",
         "keys_url": "https://aistudio.google.com/apikey",
+        "supports_oauth": False,
+        "supports_base_url": True,
     },
     {
         "id": "openrouter",
         "name": "OpenRouter",
-        "hint": "一份密钥覆盖多家模型",
+        "hint": "一份密钥覆盖多家模型；也支持 OAuth",
         "placeholder": "sk-or-v1-…",
         "keys_url": "https://openrouter.ai/keys",
+        "supports_oauth": True,
+        "supports_base_url": True,
     },
     {
         "id": "groq",
@@ -46,6 +65,8 @@ POPULAR_PROVIDERS: tuple[dict[str, str], ...] = (
         "hint": "Groq Cloud API key",
         "placeholder": "gsk_…",
         "keys_url": "https://console.groq.com/keys",
+        "supports_oauth": False,
+        "supports_base_url": True,
     },
     {
         "id": "deepseek",
@@ -53,6 +74,8 @@ POPULAR_PROVIDERS: tuple[dict[str, str], ...] = (
         "hint": "DeepSeek API key",
         "placeholder": "sk-…",
         "keys_url": "https://platform.deepseek.com/api_keys",
+        "supports_oauth": False,
+        "supports_base_url": True,
     },
 )
 
@@ -65,6 +88,10 @@ def pi_auth_path(project_root: Path) -> Path:
     return credentials_dir(project_root) / "pi-auth.json"
 
 
+def pi_models_path(project_root: Path) -> Path:
+    return credentials_dir(project_root) / "pi-models.json"
+
+
 def mask_key(key: str) -> str:
     """Show only enough to recognize the key, never enough to use it."""
     text = (key or "").strip()
@@ -73,16 +100,28 @@ def mask_key(key: str) -> str:
     return f"{text[:4]}…{text[-4:]}"
 
 
-def _normalize_auth(raw: dict[str, Any]) -> dict[str, dict[str, str]]:
-    """Return Pi auth.json map: provider → {type, key}."""
-    source = raw
+def _normalize_auth(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return Pi auth.json map: provider → credential (api_key or oauth)."""
+    source: dict[str, Any] = raw
     if isinstance(raw.get("providers"), dict):
         source = raw["providers"]
-    out: dict[str, dict[str, str]] = {}
+    out: dict[str, dict[str, Any]] = {}
     for provider, value in source.items():
         if provider == "providers" or not isinstance(value, dict):
             continue
+        cred_type = str(value.get("type") or "").strip()
+        if cred_type == "oauth" or value.get("access") or value.get("refresh"):
+            access = str(value.get("access") or "").strip()
+            refresh = str(value.get("refresh") or "").strip()
+            if not access and not refresh:
+                continue
+            entry = dict(value)
+            entry["type"] = "oauth"
+            out[str(provider)] = entry
+            continue
         key = str(value.get("key") or value.get("apiKey") or "").strip()
+        if not key:
+            continue
         out[str(provider)] = {
             "type": str(value.get("type") or "api_key"),
             "key": key,
@@ -90,7 +129,7 @@ def _normalize_auth(raw: dict[str, Any]) -> dict[str, dict[str, str]]:
     return out
 
 
-def load_pi_auth(project_root: Path) -> dict[str, dict[str, str]]:
+def load_pi_auth(project_root: Path) -> dict[str, dict[str, Any]]:
     path = pi_auth_path(project_root)
     if not path.is_file():
         return {}
@@ -103,7 +142,7 @@ def load_pi_auth(project_root: Path) -> dict[str, dict[str, str]]:
     return _normalize_auth(raw)
 
 
-def _write_auth(project_root: Path, auth: dict[str, dict[str, str]]) -> None:
+def _write_auth(project_root: Path, auth: dict[str, dict[str, Any]]) -> None:
     cred_dir = credentials_dir(project_root)
     cred_dir.mkdir(parents=True, exist_ok=True)
     path = pi_auth_path(project_root)
@@ -114,14 +153,46 @@ def _write_auth(project_root: Path, auth: dict[str, dict[str, str]]) -> None:
         pass
 
 
+def load_pi_models(project_root: Path) -> dict[str, Any]:
+    path = pi_models_path(project_root)
+    if not path.is_file():
+        return {"providers": {}}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"providers": {}}
+    if not isinstance(raw, dict):
+        return {"providers": {}}
+    providers = raw.get("providers")
+    if not isinstance(providers, dict):
+        return {"providers": {}}
+    return {"providers": providers}
+
+
+def save_pi_models(project_root: Path, models: dict[str, Any]) -> None:
+    cred_dir = credentials_dir(project_root)
+    cred_dir.mkdir(parents=True, exist_ok=True)
+    path = pi_models_path(project_root)
+    path.write_text(json.dumps(models, indent=2) + "\n", encoding="utf-8")
+
+
 def credentials_status(project_root: Path) -> dict[str, dict[str, Any]]:
-    """Return provider → {set, masked} (never the raw key)."""
+    """Return provider → {set, type, masked} (never raw secrets)."""
     auth = load_pi_auth(project_root)
     out: dict[str, dict[str, Any]] = {}
     for provider, entry in auth.items():
-        key = entry.get("key") or ""
+        cred_type = str(entry.get("type") or "api_key")
+        if cred_type == "oauth":
+            out[provider] = {
+                "set": True,
+                "type": "oauth",
+                "masked": "OAuth · ChatGPT / subscription",
+            }
+            continue
+        key = str(entry.get("key") or "")
         out[provider] = {
             "set": bool(key),
+            "type": "api_key",
             "masked": mask_key(key) if key else None,
         }
     return out
@@ -171,5 +242,88 @@ def clear_provider_key(project_root: Path, provider: str) -> None:
         marker.unlink()
 
 
-def list_provider_catalog() -> list[dict[str, str]]:
+def get_provider_base_url(project_root: Path, provider: str) -> str:
+    models = load_pi_models(project_root)
+    cfg = models.get("providers", {}).get(provider) or {}
+    if isinstance(cfg, dict):
+        return str(cfg.get("baseUrl") or "").strip()
+    return ""
+
+
+def set_provider_base_url(project_root: Path, provider: str, base_url: str) -> str:
+    """Persist provider baseUrl override in pi-models.json (Pi models.md)."""
+    name = (provider or "").strip()
+    if not name:
+        raise ValueError("provider required")
+    url = (base_url or "").strip()
+    models = load_pi_models(project_root)
+    providers = dict(models.get("providers") or {})
+    cfg = dict(providers.get(name) or {})
+    if url:
+        cfg["baseUrl"] = url
+    else:
+        cfg.pop("baseUrl", None)
+    if cfg:
+        providers[name] = cfg
+    elif name in providers:
+        del providers[name]
+    save_pi_models(project_root, {"providers": providers})
+    return url
+
+
+def save_custom_endpoint(
+    project_root: Path,
+    *,
+    provider: str,
+    base_url: str,
+    api: str,
+    model_id: str,
+    api_key: str = "local",
+    display_name: str = "",
+) -> dict[str, Any]:
+    """Register an OpenAI/Anthropic-compatible endpoint in pi-models.json.
+
+    Shape matches Pi models.md § Configure a compatible endpoint.
+    """
+    name = (provider or "").strip() or "custom"
+    url = (base_url or "").strip()
+    api_type = (api or "").strip() or "openai-completions"
+    mid = (model_id or "").strip()
+    if not url:
+        raise ValueError("base_url required")
+    if not mid:
+        raise ValueError("model_id required")
+    models = load_pi_models(project_root)
+    providers = dict(models.get("providers") or {})
+    providers[name] = {
+        "baseUrl": url,
+        "api": api_type,
+        "apiKey": (api_key or "local").strip() or "local",
+        "models": [{"id": mid, "name": (display_name or mid).strip() or mid}],
+    }
+    save_pi_models(project_root, {"providers": providers})
+    return providers[name]
+
+
+def list_provider_catalog() -> list[dict[str, Any]]:
     return [dict(item) for item in POPULAR_PROVIDERS]
+
+
+def provider_overrides_status(project_root: Path) -> dict[str, dict[str, Any]]:
+    """Non-secret view of pi-models.json provider overrides."""
+    models = load_pi_models(project_root)
+    out: dict[str, dict[str, Any]] = {}
+    for provider, cfg in (models.get("providers") or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        model_ids = []
+        for item in cfg.get("models") or []:
+            if isinstance(item, dict) and item.get("id"):
+                model_ids.append(str(item["id"]))
+        out[str(provider)] = {
+            "base_url": str(cfg.get("baseUrl") or "").strip() or None,
+            "api": str(cfg.get("api") or "").strip() or None,
+            "model_ids": model_ids,
+            "has_api_key": bool(str(cfg.get("apiKey") or "").strip()),
+        }
+    return out
