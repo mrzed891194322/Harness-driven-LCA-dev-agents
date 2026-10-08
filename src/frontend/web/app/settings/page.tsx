@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 type Diagnostics = {
   node: { ok: boolean; message: string };
-  agents_runtime: { ok: boolean; message: string };
+  pi_agents: { ok: boolean; message: string };
   python_agent: { ok: boolean; message: string };
   openlca: { ok: boolean; message: string };
   profiles: Record<string, { display_name?: string; provider: string; model_id: string }>;
@@ -46,7 +46,7 @@ export default function SettingsPage() {
       <h2>设置与初始化</h2>
       {diag ? (
         <ul>
-          <li>Node / runtime: {diag.agents_runtime.ok ? "✓" : "✗"} {diag.agents_runtime.message}</li>
+          <li>Node / runtime: {diag.pi_agents.ok ? "✓" : "✗"} {diag.pi_agents.message}</li>
           <li>Python: {diag.python_agent.ok ? "✓" : "✗"} {diag.python_agent.message}</li>
           <li>openLCA: {diag.openlca.ok ? "✓" : "✗"} {diag.openlca.message}</li>
         </ul>

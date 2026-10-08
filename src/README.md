@@ -6,7 +6,7 @@
 src/
   backend/          # FastAPI（api/ + services/）
   frontend/         # Next.js（web/）
-  agents_runtime/   # Agent worker：Python 客户端 + Node pi-runtime
+  pi_agents/          # Pi Agent worker：Python 客户端 + Node pi-runtime
   shared/           # CLI、编排器、API 共用的 Python（core、utils、config…）
   scripts/          # 开发脚本（dev.mjs）与 Python 薄 CLI（workflow、clean…）
   tests/            # 回归测试

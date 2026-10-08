@@ -44,7 +44,7 @@ class ProviderDispatcher:
 
 def _new_provider(name: str) -> SessionClient:
     if name == "pi":
-        from agents_runtime.client import PiRuntimeSessionClient
+        from pi_agents.client import PiRuntimeSessionClient
 
         return PiRuntimeSessionClient()
     raise SessionError(f"不支持的 Agent：{name}（仅支持 Pi SDK runtime）")

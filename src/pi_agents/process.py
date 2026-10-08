@@ -56,7 +56,7 @@ class PiRuntimeProcess:
         dist = (
             self.project_root
             / "src"
-            / "agents_runtime"
+            / "pi_agents"
             / "pi-runtime"
             / "dist"
             / "main.js"
@@ -66,7 +66,7 @@ class PiRuntimeProcess:
         src = (
             self.project_root
             / "src"
-            / "agents_runtime"
+            / "pi_agents"
             / "pi-runtime"
             / "src"
             / "main.ts"

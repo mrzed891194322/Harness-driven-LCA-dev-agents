@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_pi_runtime_protocol_version_mock() -> None:
-    rt = PROJECT_ROOT / "src" / "agents_runtime" / "pi-runtime"
+    rt = PROJECT_ROOT / "src" / "pi_agents" / "pi-runtime"
     dist = rt / "dist" / "main.js"
     argv = ["node", str(dist)] if dist.is_file() else [
         "node",

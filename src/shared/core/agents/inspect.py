@@ -21,7 +21,7 @@ PROJECT_ROOT = next(
 
 
 def _runtime_built(project_root: Path) -> bool:
-    rt = project_root / "src" / "agents_runtime" / "pi-runtime"
+    rt = project_root / "src" / "pi_agents" / "pi-runtime"
     dist = rt / "dist" / "main.js"
     src = rt / "src" / "main.ts"
     return dist.is_file() or src.is_file()
@@ -63,7 +63,7 @@ def check(
         return ok, message
     root = project_root or PROJECT_ROOT
     run = runner or subprocess.run
-    rt = root / "src" / "agents_runtime" / "pi-runtime"
+    rt = root / "src" / "pi_agents" / "pi-runtime"
     dist = rt / "dist" / "main.js"
     if dist.is_file():
         argv = ["node", str(dist)]
