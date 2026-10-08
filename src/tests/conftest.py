@@ -8,6 +8,7 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "src" / "backend"
+SHARED_ROOT = PROJECT_ROOT / "src" / "shared"
 FRONTEND_ROOT = PROJECT_ROOT / "src" / "frontend"
 GUI_ROOT = FRONTEND_ROOT / "legacy" / "gui"
 WORKFLOWS = PROJECT_ROOT / "harness"

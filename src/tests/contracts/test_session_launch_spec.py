@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA = json.loads(
     (
         PROJECT_ROOT
-        / "src/contracts/session_launch_spec.schema.json"
+        / "src/shared/contracts/session_launch_spec.schema.json"
     ).read_text(encoding="utf-8")
 )
 

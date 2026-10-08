@@ -44,7 +44,7 @@ uv run python src/scripts/proj_init/main.py
 根据 Phase 1 JSON 的 `harness_clis.clis`，逐项汇报每个 CLI「可用」或「未安装」。
 
 - 四个都没有：标明 **GUI 路径不可用**（GUI 必须能在 PATH 上找到所选 CLI）。当前会话仍可完成引导。
-- 可用的 CLI 由主编排器经 `src/core/agents` 会话接口调用；不要再找仓库内平台 skill 目录。
+- 可用的 CLI 由主编排器经 `src/shared/core/agents` 会话接口调用；不要再找仓库内平台 skill 目录。
 
 ## Phase 3：openLCA IPC
 

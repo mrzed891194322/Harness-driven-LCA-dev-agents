@@ -21,8 +21,8 @@ from ..config.models import KnowledgeSource, Workflow
 SCHEMA_VERSION = 1
 
 IMPLEMENTATION_ROOTS = (
-    "src/core",
-    "src/utils",
+    "src/shared/core",
+    "src/shared/utils",
     "harness/tools",
 )
 

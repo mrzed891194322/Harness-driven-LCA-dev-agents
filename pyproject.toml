@@ -24,7 +24,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["src/tests"]
-pythonpath = ["src/backend", "src", "."]
+pythonpath = ["src/backend", "src/shared", "src", "."]
 addopts = "-ra"
 
 [[tool.uv.index]]
@@ -48,7 +48,7 @@ ignore = ["E501"]
 known-first-party = [
   "api",
   "core",
-  "pi_runtime",
+  "agents_runtime",
   "services",
   "utils",
   "harness",
@@ -58,6 +58,6 @@ known-first-party = [
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
-include = ["src/backend", "src/core", "src/pi_runtime", "src/services", "harness"]
-extraPaths = ["src/backend", "src", "."]
+include = ["src/backend", "src/shared", "harness"]
+extraPaths = ["src/backend", "src/shared", "src", "."]
 reportMissingTypeStubs = false

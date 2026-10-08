@@ -1,4 +1,4 @@
-/** Mirrors src/contracts/session_launch_spec.schema.json (schema_version 1). */
+/** Mirrors src/shared/contracts/session_launch_spec.schema.json (schema_version 1). */
 
 export interface SessionLaunchSpec {
   schema_version: 1;

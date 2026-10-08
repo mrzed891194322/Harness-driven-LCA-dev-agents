@@ -429,7 +429,7 @@ class PlatformAdapterTests(unittest.TestCase):
             "UV_CACHE_DIR",
         ):
             self.assertIn(key, text, key)
-        self.assertIn("src/config/model_profiles.json", text)
+        self.assertIn("src/shared/config/model_profiles.json", text)
         self.assertIn("PI_MODEL=", text)
         self.assertIn(".uv-cache", text)
         self.assertNotIn("ANTHROPIC_API_KEY", text)

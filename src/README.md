@@ -2,34 +2,31 @@
 
 ```
 src/
-  frontend/                 # 浏览器与已拆分的旧 GUI
-    web/                    # Next.js 控制面板
-    legacy/gui/             # 原 Gradio GUI（仅遗留参考，不参与运行）
-  backend/                  # 仅 FastAPI（api/）
-  pi-runtime/               # Node Pi SDK（NDJSON）
-  pi_runtime/               # Python Pi runtime 客户端
-  core/                     # workflow / agents / runtime
+  frontend/                 # Next.js + legacy GUI 参考
+    web/
+    legacy/gui/
+  backend/                  # FastAPI 栈
+    api/                      # HTTP 路由与应用
+    services/                 # API / Web 控制台调用的应用服务
+  shared/                   # CLI、编排器、API 共用的 Python
+    core/                     # workflow / agents / runtime
+    agents_runtime/           # Agent worker 子进程客户端（Pi SDK）
+    utils/、config/、contracts/
+    diagnostics.py、workspace_clean.py、app_settings.py
+  pi-runtime/               # Node Pi SDK（NDJSON，与 agents_runtime 配对）
   cli/                      # 薄 CLI（workflow、clean、proj_init）
-  services/                 # API 与 CLI 共用应用服务
-  config/                   # 模型档案等非敏感配置
-  contracts/                # 跨语言 JSON schema
-  utils/
-  diagnostics.py            # 环境探测（CLI / API 共用）
-  scripts/                  # 仓库级开发脚本（如 dev.mjs）
-  tests/                    # 回归测试
+  scripts/                  # dev.mjs 等跨栈脚本
+  tests/
 ```
 
 ## 常用命令
 
 ```bash
-# 后端 API
 uv run uvicorn api.app:app --app-dir src/backend --host 127.0.0.1 --port 8000
-
-# 主编排（无浏览器）
 uv run python src/cli/workflow.py --workflow harness/LCA-main.yaml
-
-# 前端 + API
 pnpm dev
 ```
 
-跨语言契约：`src/contracts/session_launch_spec.schema.json`；Python 类型在 `src/core/contracts/`。
+Python `PYTHONPATH`：`src/backend`（`api`、`services`）+ `src/shared`（`core`、`agents_runtime` 等），见根目录 `pyproject.toml`。
+
+跨语言契约：`src/shared/contracts/session_launch_spec.schema.json`；Python 类型在 `src/shared/core/contracts/`。

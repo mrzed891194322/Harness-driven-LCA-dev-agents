@@ -22,7 +22,7 @@ def environment_report(project_root: Path | None = None) -> dict:
     olca_ok = check_openlca(host=host, port=port)
     return {
         "node": {"ok": bool(node_ok), "message": node_msg},
-        "pi_runtime": {"ok": bool(pi_ok), "message": pi_msg},
+        "agents_runtime": {"ok": bool(pi_ok), "message": pi_msg},
         "python_agent": {"ok": bool(agent_ok), "message": agent_msg},
         "openlca": {"ok": bool(olca_ok), "message": "可用" if olca_ok else "不可用"},
         "profiles": load_profiles(root),

@@ -18,7 +18,7 @@ SDK 使用 `createAgentSession` + `DefaultResourceLoader`（禁用 skills/模板
 - **FastAPI `src/backend/api`**：浏览器唯一业务 API
 - **Next.js `src/frontend/web`**：替代 Gradio GUI
 
-跨语言契约：`src/contracts/session_launch_spec.schema.json` + `src/core/contracts/session_launch_spec.py`。
+跨语言契约：`src/shared/contracts/session_launch_spec.schema.json` + `src/shared/core/contracts/session_launch_spec.py`。
 
 ## 启动
 

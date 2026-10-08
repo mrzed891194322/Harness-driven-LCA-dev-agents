@@ -408,7 +408,7 @@ def test_process_lock_released_on_process_death(tmp_path):
     env["PYTHONPATH"] = os.pathsep.join(
         [
             str(PROJECT_ROOT / "src" / "backend"),
-            str(PROJECT_ROOT / "src"),
+            str(PROJECT_ROOT / "src" / "shared"),
         ]
     )
     program = """
