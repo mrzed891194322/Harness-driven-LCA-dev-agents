@@ -15,14 +15,14 @@
 首次运行前，在所用 AI 工具中打开本仓库，输入：
 
 ```text
-读取并执行 `src/backend/scripts/proj_init/PROMPT.md`
+读取并执行 `src/cli/proj_init/PROMPT.md`
 ```
 
 或直接：
 
 ```bash
 uv sync
-uv run python src/backend/scripts/proj_init/main.py
+uv run python src/cli/proj_init/main.py
 ```
 
 Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制）、`control_openlca` MCP，以及哪些 worker CLI 在 PATH 上。没有 uv 时判定不通过，需按 [环境准备与配置](docs/lang_CN/env_setup.md) 手动安装。不要在引导里启动 whole-lca。`.env` 里要填的 Worker 与模型见 `.env.example`。
@@ -31,7 +31,7 @@ Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制�
 
 ## 启动控制面板 GUI (推荐)
 
-项目提供 **Next.js + FastAPI** 控制面板（`src/frontend/web` + `src/backend/api`），由 Python 编排器监管 **Pi SDK** Node 运行时（`src/backend/pi-runtime`）。
+项目提供 **Next.js + FastAPI** 控制面板（`src/frontend/web` + `src/backend/api`），由 Python 编排器监管 **Pi SDK** Node 运行时（`src/pi-runtime`）。
 
 ```bash
 uv sync
@@ -75,14 +75,14 @@ pnpm dev
 2. 手动清理：
 
 ```bash
-uv run python src/backend/scripts/clean.py -y --preset whole-lca
+uv run python src/cli/clean.py -y --preset whole-lca
 ```
 
 3. 复制参考资料到 `harness/knowledge/inputs/`，编写 `harness/knowledge/plan/main_plan.md`。
 4. 启动：
 
 ```bash
-uv run python src/backend/scripts/workflow.py --workflow harness/LCA-main.yaml
+uv run python src/cli/workflow.py --workflow harness/LCA-main.yaml
 ```
 
 可选 `--worker codex`（或 `claude` / `opencode` / `pi`）。模型 id 读 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。恢复已有运行：`--resume <run_id>`（不执行新运行清理）。
@@ -93,16 +93,16 @@ uv run python src/backend/scripts/workflow.py --workflow harness/LCA-main.yaml
 2. 手动清理（不清理 workspace）：
 
 ```bash
-uv run python src/backend/scripts/clean.py -y --preset revise-lca
+uv run python src/cli/clean.py -y --preset revise-lca
 ```
 
 3. 更新 `harness/knowledge/inputs/` 与 `harness/knowledge/plan/revise_plan.md`（保留既有 main_plan / manifest / 报告）。
 4. 启动：
 
 ```bash
-uv run python src/backend/scripts/workflow.py --workflow harness/LCA-revise.yaml
+uv run python src/cli/workflow.py --workflow harness/LCA-revise.yaml
 ```
 
 revise 走同一套 01–04：01 审查修订门禁，02–04 由 `reviser` 在既有产物上落实 `revise.md`，再由 reviewer 审核（用户意图优先）。
 
-`clean` CLI 见 `src/backend/scripts/clean.py`。Web 控制面板见上文 `pnpm dev`。
+`clean` CLI 见 `src/cli/clean.py`。Web 控制面板见上文 `pnpm dev`。

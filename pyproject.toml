@@ -42,12 +42,13 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "**/main.py" = ["E402"]
 "src/tests/**" = ["E402"]
-"src/backend/scripts/**" = ["E402"]
+"src/cli/**" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
   "api",
   "core",
+  "pi_runtime",
   "services",
   "utils",
   "harness",
@@ -57,6 +58,6 @@ known-first-party = [
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
-include = ["src/backend", "harness"]
+include = ["src/backend", "src/core", "src/pi_runtime", "src/services", "harness"]
 extraPaths = ["src/backend", "src", "."]
 reportMissingTypeStubs = false

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://harness.local/src/backend/contracts/session_launch_spec.schema.json",
+  "$id": "https://harness.local/src/contracts/session_launch_spec.schema.json",
   "title": "SessionLaunchSpec",
   "type": "object",
   "additionalProperties": false,

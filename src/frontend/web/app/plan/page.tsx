@@ -36,7 +36,7 @@ export default function PlanPage() {
         <span style={{ marginLeft: 12 }}>{status}</span>
       </div>
       <p style={{ marginTop: 16, color: "#666" }}>
-        启动 whole-lca / revise-lca 请使用 CLI：<code>uv run python src/backend/scripts/workflow.py --workflow harness/LCA-main.yaml</code>
+        启动 whole-lca / revise-lca 请使用 CLI：<code>uv run python src/cli/workflow.py --workflow harness/LCA-main.yaml</code>
       </p>
     </div>
   );

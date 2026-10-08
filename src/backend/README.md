@@ -1,9 +1,7 @@
 # Backend
 
-- **`api/`**：FastAPI 业务 API（诊断、模型档案、计划、manifest、SSE）。
-- **`pi-runtime/`**：Node Pi SDK 子进程（`@earendil-works/pi-coding-agent`）。
-- **`core/`**：YAML 工作流编排、agent 会话客户端、验收与 checkpoint。
-- **`scripts/`**：`workflow.py`、`clean.py`、`proj_init/` 等薄 CLI。
-- **`services/`**：API 与 CLI 共用的应用服务。
+仅包含 **FastAPI** 业务 API：
 
-Python 包导入根目录为 `src/backend`（见根目录 `pyproject.toml` 的 `pythonpath`）。
+- **`api/`**：诊断、模型档案、计划、manifest、SSE 等 HTTP 端点。
+
+编排内核、Pi SDK 运行时、CLI 与共享服务已移至与 `backend/` 平级的 `src/core`、`src/pi-runtime`、`src/pi_runtime`、`src/cli`、`src/services` 等目录。Python 导入根目录见根目录 `pyproject.toml` 的 `pythonpath`（`src/backend` + `src`）。

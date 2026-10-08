@@ -177,7 +177,7 @@ ORCHESTRATOR_COMMAND = [
     "uv",
     "run",
     "python",
-    "src/backend/scripts/workflow.py",
+    "src/cli/workflow.py",
 ]
 # GUI UX labels → workflow YAML paths (composition lives in harness YAML, not aliases).
 WORKFLOW_YAML_BY_TASK = {
@@ -208,7 +208,7 @@ CLEAN_DIR_SCRIPT = [
     "uv",
     "run",
     "python",
-    "src/backend/scripts/clean.py",
+    "src/cli/clean.py",
     "-y",
 ]
 

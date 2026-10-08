@@ -8,7 +8,7 @@ from pathlib import Path
 
 from tests.conftest import PROJECT_ROOT
 
-SETUP_ENV_DIR = PROJECT_ROOT / "src" / "backend" / "scripts" / "proj_init"
+SETUP_ENV_DIR = PROJECT_ROOT / "src" / "cli" / "proj_init"
 if str(SETUP_ENV_DIR) not in sys.path:
     sys.path.insert(0, str(SETUP_ENV_DIR))
 

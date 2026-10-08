@@ -21,8 +21,8 @@ PROJECT_ROOT = next(
 
 
 def _runtime_built(project_root: Path) -> bool:
-    dist = project_root / "src" / "backend" / "pi-runtime" / "dist" / "main.js"
-    src = project_root / "src" / "backend" / "pi-runtime" / "src" / "main.ts"
+    dist = project_root / "src" / "pi-runtime" / "dist" / "main.js"
+    src = project_root / "src" / "pi-runtime" / "src" / "main.ts"
     return dist.is_file() or src.is_file()
 
 
@@ -62,7 +62,7 @@ def check(
         return ok, message
     root = project_root or PROJECT_ROOT
     run = runner or subprocess.run
-    dist = root / "src" / "backend" / "pi-runtime" / "dist" / "main.js"
+    dist = root / "src" / "pi-runtime" / "dist" / "main.js"
     if dist.is_file():
         argv = ["node", str(dist)]
     else:
@@ -70,7 +70,7 @@ def check(
             "node",
             "--import",
             "tsx",
-            str(root / "src" / "backend" / "pi-runtime" / "src" / "main.ts"),
+            str(root / "src" / "pi-runtime" / "src" / "main.ts"),
         ]
     env = {"PI_RUNTIME_MOCK": "1"}
     try:
