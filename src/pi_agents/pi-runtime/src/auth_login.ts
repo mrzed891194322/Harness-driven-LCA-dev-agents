@@ -1,15 +1,29 @@
 /**
- * Bridge Pi ModelRuntime.login AuthInteraction to our NDJSON protocol.
- * See @earendil-works/pi-ai README § OAuth Providers / Programmatic OAuth.
+ * OpenAI / Anthropic OAuth via Pi's documented programmatic path.
+ *
+ * Pi interactive mode uses LoginDialogComponent (TUI-only) as the AuthInteraction
+ * front-end, then calls the same API we use here:
+ *
+ *   modelRuntime.login(providerId, "oauth", { signal, prompt, notify }, {
+ *     getDeviceId: () => settingsManager.getOrCreateDeviceId(),
+ *   })
+ *
+ * See:
+ * - @earendil-works/pi-ai README § Programmatic OAuth
+ * - openai-chatgpt.js (requires getDeviceId UUID + localhost:1455 callback / paste URL)
+ * - interactive-mode.js loginProvider()
+ *
+ * We intentionally do NOT reimplement PKCE / token exchange — only bridge
+ * AuthInteraction over NDJSON so the Web Settings UI can drive Pi's built-in flow.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { ModelRuntime, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { emitEvent } from "./protocol.js";
 import { materializeModelsJson, readPiAuthFile } from "./auth_materialize.js";
 
-/** Minimal AuthInteraction surface from Pi (pi-ai auth/types). */
+/** AuthInteraction surface from Pi (pi-ai auth/types) — same contract LoginDialog satisfies. */
 type AuthPrompt = {
   signal?: AbortSignal;
   type: "text" | "secret" | "select" | "manual_code";
@@ -43,6 +57,15 @@ type PendingPrompt = {
 
 const pendingPrompts = new Map<string, PendingPrompt>();
 
+/** Providers whose Pi factory registers OAuthAuth (pi-ai README § OAuth Providers). */
+const OAUTH_PROVIDERS = new Set([
+  "openai",
+  "anthropic",
+  "github-copilot",
+  "openrouter",
+  "openai-codex",
+]);
+
 function ensureAuthFile(credentialsDir: string): string {
   fs.mkdirSync(credentialsDir, { recursive: true });
   const authPath = path.join(credentialsDir, "pi-auth.json");
@@ -52,10 +75,20 @@ function ensureAuthFile(credentialsDir: string): string {
   return authPath;
 }
 
+/**
+ * Stable installation device ID for OpenAI Sign in with ChatGPT
+ * (ext_agent_host_id). Mirrors SettingsManager.getOrCreateDeviceId().
+ */
+function createSettingsDeviceId(agentDir: string, cwd: string): () => string {
+  const settings = SettingsManager.create(cwd, agentDir);
+  return () => settings.getOrCreateDeviceId();
+}
+
 function buildInteraction(loginId: string, signal: AbortSignal): AuthInteraction {
   return {
     signal,
     notify(event: AuthEvent) {
+      // Same event types LoginDialogComponent.notifyAuthDialog handles.
       emitEvent("auth.notify", {
         login_id: loginId,
         event: event as unknown as Record<string, unknown>,
@@ -74,9 +107,10 @@ function buildInteraction(loginId: string, signal: AbortSignal): AuthInteraction
         },
       });
       return await new Promise<string>((resolve, reject) => {
+        // Match Pi interactive-mode: reject with exactly "Login cancelled"
         const onAbort = () => {
           pendingPrompts.delete(promptId);
-          reject(new Error("login cancelled"));
+          reject(new Error("Login cancelled"));
         };
         if (signal.aborted) {
           onAbort();
@@ -85,12 +119,17 @@ function buildInteraction(loginId: string, signal: AbortSignal): AuthInteraction
         signal.addEventListener("abort", onAbort, { once: true });
         const promptSignal = prompt.signal;
         if (promptSignal) {
+          if (promptSignal.aborted) {
+            signal.removeEventListener("abort", onAbort);
+            reject(new Error("Login cancelled"));
+            return;
+          }
           promptSignal.addEventListener(
             "abort",
             () => {
               pendingPrompts.delete(promptId);
               signal.removeEventListener("abort", onAbort);
-              reject(new Error("prompt cancelled"));
+              reject(new Error("Login cancelled"));
             },
             { once: true },
           );
@@ -120,7 +159,7 @@ export function replyAuthPrompt(promptId: string, value: string): boolean {
   return true;
 }
 
-export function cancelAuthPrompt(promptId: string, reason = "cancelled"): boolean {
+export function cancelAuthPrompt(promptId: string, reason = "Login cancelled"): boolean {
   const pending = pendingPrompts.get(promptId);
   if (!pending) {
     return false;
@@ -129,8 +168,6 @@ export function cancelAuthPrompt(promptId: string, reason = "cancelled"): boolea
   pending.reject(new Error(reason));
   return true;
 }
-
-const OAUTH_PROVIDERS = new Set(["openai", "anthropic", "github-copilot", "openrouter"]);
 
 export async function runProviderLogin(params: Record<string, unknown>): Promise<unknown> {
   const provider = String(params.provider ?? "").trim();
@@ -150,11 +187,13 @@ export async function runProviderLogin(params: Record<string, unknown>): Promise
 
   const loginId = String(params.login_id ?? randomUUID());
   const authPath = ensureAuthFile(credentialsDir);
+  // Persist SettingsManager deviceId next to credentials (stable across logins).
   const agentDir =
-    String(params.agent_dir ?? "").trim() ||
-    path.join(credentialsDir, "..", "pi-login-tmp");
+    String(params.agent_dir ?? "").trim() || path.join(credentialsDir, "pi-agent");
   fs.mkdirSync(agentDir, { recursive: true });
   const modelsPath = materializeModelsJson(undefined, agentDir, credentialsDir);
+  const cwd = String(params.cwd ?? "").trim() || process.cwd();
+  const getDeviceId = createSettingsDeviceId(agentDir, cwd);
 
   const controller = new AbortController();
   const runtime = await ModelRuntime.create({
@@ -164,14 +203,30 @@ export async function runProviderLogin(params: Record<string, unknown>): Promise
     signal: controller.signal,
   });
 
-  emitEvent("auth.login_started", { login_id: loginId, provider, auth_type: authType });
+  emitEvent("auth.login_started", {
+    login_id: loginId,
+    provider,
+    auth_type: authType,
+    // Help UI: OpenAI uses Pi openaiChatGPTOAuth (callback http://127.0.0.1:1455/auth/callback)
+    flow:
+      provider === "openai"
+        ? "openai-chatgpt"
+        : provider === "openai-codex"
+          ? "openai-codex"
+          : authType,
+  });
+
   try {
+    // Same call shape as interactive-mode loginProvider().
     const credential = await runtime.login(
       provider,
       authType,
       buildInteraction(loginId, controller.signal),
+      {
+        getDeviceId,
+        agentName: "Harness LCA",
+      },
     );
-    // ModelRuntime persists into authPath (pi-auth.json). Re-read for status.
     const auth = readPiAuthFile(authPath);
     return {
       ok: true,

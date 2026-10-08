@@ -28,7 +28,10 @@ type ProviderCatalogItem = {
   placeholder: string;
   keys_url?: string;
   supports_oauth?: boolean;
+  oauth_label?: string;
   supports_base_url?: boolean;
+  default_base_url?: string;
+  base_url_hint?: string;
 };
 
 type OverrideInfo = {
@@ -335,7 +338,7 @@ export default function SettingsPage() {
       setStatusMsg(
         data.base_url
           ? `${providerId} baseUrl 已保存（Pi models.json）`
-          : `${providerId} baseUrl 已清除`,
+          : `${providerId} 已清除自定义 URL，将使用 Pi 默认 baseUrl`,
       );
       await refresh();
     } catch (e) {
@@ -483,14 +486,18 @@ export default function SettingsPage() {
       <section className="settings-card">
         <h3>Providers · API keys / OAuth</h3>
         <p className="settings-help">
-          API Key 写入 Pi <span className="mono">auth.json</span>；OpenAI / Anthropic 等支持 Pi{" "}
-          <span className="mono">ModelRuntime.login(..., &apos;oauth&apos;)</span>（Sign in with
-          ChatGPT 等）。远程环境请按提示粘贴回调 URL / 授权码。
+          API Key 写入 Pi <span className="mono">auth.json</span>。OpenAI Auth 走 Pi 内置{" "}
+          <span className="mono">openaiChatGPTOAuth</span>（与 TUI{" "}
+          <span className="mono">LoginDialogComponent</span> 同一{" "}
+          <span className="mono">ModelRuntime.login(..., &apos;oauth&apos;, AuthInteraction)</span>
+          ）。本机回调 <span className="mono">http://127.0.0.1:1455/auth/callback</span>
+          ；远程请粘贴浏览器最终跳转 URL。
         </p>
         {(loginId || authUrl || pendingPrompt) && (
           <div className="oauth-panel">
             <p className="settings-meta">
-              OAuth 进行中{loginProvider ? `：${loginProvider}` : ""}
+              Pi OAuth 进行中{loginProvider ? `：${loginProvider}` : ""}
+              {loginProvider === "openai" ? "（Sign in with ChatGPT）" : ""}
             </p>
             {authUrl ? (
               <p className="settings-help">
@@ -501,21 +508,71 @@ export default function SettingsPage() {
               </p>
             ) : null}
             {pendingPrompt?.prompt ? (
-              <div className="row" style={{ marginTop: 8 }}>
-                <input
-                  type={pendingPrompt.prompt.type === "secret" ? "password" : "text"}
-                  value={promptValue}
-                  onChange={(e) => setPromptValue(e.target.value)}
-                  placeholder={
-                    pendingPrompt.prompt.placeholder ||
-                    pendingPrompt.prompt.message ||
-                    "粘贴授权码 / 回调 URL"
-                  }
-                  style={{ flex: "1 1 240px" }}
-                />
-                <button type="button" className="primary" disabled={busy} onClick={submitPromptReply}>
-                  提交
-                </button>
+              <div style={{ marginTop: 8 }}>
+                <p className="settings-help">{pendingPrompt.prompt.message}</p>
+                {pendingPrompt.prompt.type === "select" && pendingPrompt.prompt.options?.length ? (
+                  <div className="row">
+                    {pendingPrompt.prompt.options.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setPromptValue(opt.id);
+                          void (async () => {
+                            if (!loginId || !pendingPrompt.prompt_id) return;
+                            setBusy(true);
+                            try {
+                              const r = await fetch("/api/credentials/oauth/reply", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  login_id: loginId,
+                                  prompt_id: pendingPrompt.prompt_id,
+                                  value: opt.id,
+                                }),
+                              });
+                              const data = await r.json().catch(() => ({}));
+                              if (!r.ok) throw new Error(data.detail || "提交失败");
+                              setPendingPrompt(null);
+                              setPromptValue("");
+                            } catch (e) {
+                              setStatusError(true);
+                              setStatusMsg(e instanceof Error ? e.message : "提交失败");
+                            } finally {
+                              setBusy(false);
+                            }
+                          })();
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="row">
+                    <input
+                      type={pendingPrompt.prompt.type === "secret" ? "password" : "text"}
+                      value={promptValue}
+                      onChange={(e) => setPromptValue(e.target.value)}
+                      placeholder={
+                        pendingPrompt.prompt.placeholder ||
+                        (pendingPrompt.prompt.type === "manual_code"
+                          ? "http://127.0.0.1:1455/auth/callback?code=…&state=…"
+                          : "按提示输入")
+                      }
+                      style={{ flex: "1 1 240px" }}
+                    />
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={busy}
+                      onClick={submitPromptReply}
+                    >
+                      提交
+                    </button>
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
@@ -591,7 +648,7 @@ export default function SettingsPage() {
                           disabled={busy || Boolean(loginId)}
                           onClick={() => startOAuth(item.id)}
                         >
-                          Auth 登录
+                          {item.oauth_label || "Auth 登录"}
                         </button>
                       ) : null}
                       {item.keys_url ? (
@@ -601,26 +658,38 @@ export default function SettingsPage() {
                       ) : null}
                     </div>
                     {item.supports_base_url !== false ? (
-                      <div className="row" style={{ marginTop: 10 }}>
-                        <input
-                          type="url"
-                          value={draftBaseUrls[item.id] ?? override?.base_url ?? ""}
-                          onChange={(e) =>
-                            setDraftBaseUrls((prev) => ({
-                              ...prev,
-                              [item.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="自定义 base URL（可选，Pi models.json baseUrl）"
-                          style={{ flex: "1 1 260px" }}
-                        />
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => saveBaseUrl(item.id)}
-                        >
-                          保存 URL
-                        </button>
+                      <div style={{ marginTop: 10 }}>
+                        <div className="row">
+                          <input
+                            type="url"
+                            value={draftBaseUrls[item.id] ?? override?.base_url ?? ""}
+                            onChange={(e) =>
+                              setDraftBaseUrls((prev) => ({
+                                ...prev,
+                                [item.id]: e.target.value,
+                              }))
+                            }
+                            placeholder={
+                              item.default_base_url
+                                ? `留空 = ${item.default_base_url}`
+                                : "留空 = Pi 默认 baseUrl"
+                            }
+                            style={{ flex: "1 1 260px" }}
+                          />
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => saveBaseUrl(item.id)}
+                          >
+                            保存 URL
+                          </button>
+                        </div>
+                        <p className="settings-meta" style={{ marginTop: 6 }}>
+                          {override?.base_url
+                            ? `当前覆盖：${override.base_url}`
+                            : `当前：Pi 默认${item.default_base_url ? `（${item.default_base_url}）` : ""}`}
+                          {item.base_url_hint ? ` · ${item.base_url_hint}` : ""}
+                        </p>
                       </div>
                     ) : null}
                   </div>
@@ -634,9 +703,14 @@ export default function SettingsPage() {
       <section className="settings-card">
         <h3>自定义 API / 本地模型</h3>
         <p className="settings-help">
-          使用 Pi 文档中的 compatible endpoint（Ollama、LM Studio、vLLM、自建网关等）：写入{" "}
-          <span className="mono">pi-models.json</span> 的{" "}
-          <span className="mono">baseUrl + api + models</span>，并生成本地模型档案。
+          使用 Pi 文档 compatible endpoint（Ollama、LM Studio、vLLM、自建网关）：写入{" "}
+          <span className="mono">pi-models.json</span>。
+          <span className="mono">openai-completions</span> /{" "}
+          <span className="mono">openai-responses</span> 通常需要{" "}
+          <span className="mono">/v1</span> 后缀（例{" "}
+          <span className="mono">http://localhost:11434/v1</span>）；
+          <span className="mono">anthropic-messages</span> 一般不加{" "}
+          <span className="mono">/v1</span>。
         </p>
         <div className="custom-grid">
           <label>

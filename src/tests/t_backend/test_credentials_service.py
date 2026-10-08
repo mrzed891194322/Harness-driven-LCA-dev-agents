@@ -99,6 +99,11 @@ class CredentialsServiceTests(unittest.TestCase):
         self.assertIn("openai", ids)
         openai = next(i for i in list_provider_catalog() if i["id"] == "openai")
         self.assertTrue(openai.get("supports_oauth"))
+        self.assertEqual(openai.get("oauth_label"), "Sign in with ChatGPT")
+        self.assertEqual(openai.get("default_base_url"), "https://api.openai.com/v1")
+        anthropic = next(i for i in list_provider_catalog() if i["id"] == "anthropic")
+        self.assertEqual(anthropic.get("default_base_url"), "https://api.anthropic.com")
+        self.assertIn("/v1", anthropic.get("base_url_hint") or "")
 
     def test_provider_base_url_and_custom_endpoint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

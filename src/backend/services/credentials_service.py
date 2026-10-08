@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 # Popular Pi built-in providers (subset of Pi catalog) for the Settings UI.
+# default_base_url / base_url_hint from Pi provider factories (pi-ai dist/providers/*.js).
 # OAuth providers per pi-ai README § OAuth Providers.
 POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
     {
@@ -21,16 +22,22 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "placeholder": "sk-ant-…",
         "keys_url": "https://console.anthropic.com/settings/keys",
         "supports_oauth": True,
+        "oauth_label": "Sign in with Claude",
         "supports_base_url": True,
+        "default_base_url": "https://api.anthropic.com",
+        "base_url_hint": "留空=Pi 默认。官方 Anthropic 不含 /v1；代理若走 Anthropic Messages 协议一般也不加 /v1。",
     },
     {
         "id": "openai",
         "name": "OpenAI",
-        "hint": "API key，或 Sign in with ChatGPT（Pi OAuth）",
+        "hint": "API key，或 Sign in with ChatGPT（Pi 内置 OAuth）",
         "placeholder": "sk-…",
         "keys_url": "https://platform.openai.com/api-keys",
         "supports_oauth": True,
+        "oauth_label": "Sign in with ChatGPT",
         "supports_base_url": True,
+        "default_base_url": "https://api.openai.com/v1",
+        "base_url_hint": "留空=Pi 默认（已含 /v1）。自建/代理通常也要带 /v1，例如 https://host/v1。",
     },
     {
         "id": "opencode-go",
@@ -49,6 +56,8 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "keys_url": "https://aistudio.google.com/apikey",
         "supports_oauth": False,
         "supports_base_url": True,
+        "default_base_url": "https://generativelanguage.googleapis.com/v1beta",
+        "base_url_hint": "留空=Pi 默认（/v1beta）。自定义时按上游文档选择版本路径。",
     },
     {
         "id": "openrouter",
@@ -57,7 +66,10 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "placeholder": "sk-or-v1-…",
         "keys_url": "https://openrouter.ai/keys",
         "supports_oauth": True,
+        "oauth_label": "Sign in with OpenRouter",
         "supports_base_url": True,
+        "default_base_url": "https://openrouter.ai/api/v1",
+        "base_url_hint": "留空=Pi 默认（已含 /api/v1）。代理请对齐上游路径。",
     },
     {
         "id": "groq",
@@ -67,6 +79,8 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "keys_url": "https://console.groq.com/keys",
         "supports_oauth": False,
         "supports_base_url": True,
+        "default_base_url": "https://api.groq.com/openai/v1",
+        "base_url_hint": "留空=Pi 默认（/openai/v1）。OpenAI 兼容代理通常需要 /v1。",
     },
     {
         "id": "deepseek",
@@ -76,6 +90,8 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "keys_url": "https://platform.deepseek.com/api_keys",
         "supports_oauth": False,
         "supports_base_url": True,
+        "default_base_url": "https://api.deepseek.com",
+        "base_url_hint": "留空=Pi 默认（无 /v1）。若走 OpenAI 兼容路径，确认上游是否要求 /v1。",
     },
 )
 
