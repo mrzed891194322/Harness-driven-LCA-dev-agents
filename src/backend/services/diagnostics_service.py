@@ -8,7 +8,7 @@ from diagnostics import check_openlca, check_project_environment
 from core.agents.config import load_worker_model
 from core.agents.inspect import check, inspect
 from core.runtime.model_profiles import load_profiles
-from services.credentials_service import credentials_status
+from services.credentials_service import credentials_status_bool
 from services.project_paths import PROJECT_ROOT
 from utils.env import parse_env_file
 
@@ -29,5 +29,5 @@ def environment_report(project_root: Path | None = None) -> dict:
         "openlca": {"ok": bool(olca_ok), "message": "可用" if olca_ok else "不可用"},
         "profiles": load_profiles(root),
         "selected_profile": load_worker_model("pi", root),
-        "credentials": credentials_status(root),
+        "credentials": credentials_status_bool(root),
     }

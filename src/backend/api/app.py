@@ -14,7 +14,12 @@ from pydantic import BaseModel, Field
 from core.agents.config import load_worker_model
 from core.runtime.model_profiles import load_profiles, resolve_model_profile
 from pi_agents.process import shared_runtime
-from services.credentials_service import credentials_status, save_provider_key
+from services.credentials_service import (
+    clear_provider_key,
+    credentials_status,
+    list_provider_catalog,
+    save_provider_key,
+)
 from services.diagnostics_service import environment_report
 from services.project_paths import PROJECT_ROOT
 from services.workflow_service import WorkflowService
@@ -111,16 +116,33 @@ def test_model_connection(body: ModelTestRequest) -> dict[str, Any]:
 
 @app.get("/api/credentials/status")
 def get_credentials_status() -> dict[str, Any]:
-    return {"providers": credentials_status(PROJECT_ROOT)}
+    return {
+        "providers": credentials_status(PROJECT_ROOT),
+        "catalog": list_provider_catalog(),
+    }
 
 
 @app.post("/api/credentials")
-def write_credentials(body: CredentialUpdate) -> dict[str, str]:
+def write_credentials(body: CredentialUpdate) -> dict[str, Any]:
     try:
-        save_provider_key(PROJECT_ROOT, body.provider, body.api_key)
+        info = save_provider_key(PROJECT_ROOT, body.provider, body.api_key)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"status": "saved", "provider": body.provider.strip()}
+    return {
+        "status": "saved",
+        "provider": body.provider.strip(),
+        "info": info,
+        "providers": credentials_status(PROJECT_ROOT),
+    }
+
+
+@app.delete("/api/credentials/{provider}")
+def delete_credentials(provider: str) -> dict[str, Any]:
+    try:
+        clear_provider_key(PROJECT_ROOT, provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "cleared", "provider": provider.strip(), "providers": credentials_status(PROJECT_ROOT)}
 
 
 @app.get("/api/workflow/manifest")

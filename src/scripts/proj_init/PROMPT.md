@@ -65,7 +65,7 @@ uv run python src/scripts/check_status.py --only openlca
 逐项给出 `通过 / 已修复 / 需你动手`：
 
 1. uv
-2. 项目依赖（`uv sync` / Python / pnpm pi-runtime）
+2. 项目依赖（`uv sync` / Python / npm pi-runtime）
 3. `.env`（已存在，或已从模板创建；提醒核对 `PI_MODEL` 与 BYOK 凭证，不要贴出内容）
 4. MCP 接线（`control_openlca`）
 5. Pi SDK runtime

@@ -1,12 +1,10 @@
-import Link from "next/link";
-
 export default function HomePage() {
   return (
-    <nav style={{ display: "flex", gap: 16 }}>
-      <Link href="/settings">设置与初始化</Link>
-      <Link href="/plan">LCA 计划</Link>
-      <Link href="/runs">运行详情</Link>
-      <Link href="/results">结果与历史</Link>
-    </nav>
+    <section className="settings-card">
+      <h2>开始</h2>
+      <p className="settings-help">
+        先在「设置与初始化」选择模型档案并配置 Provider API Key，完成环境诊断后再执行 LCA 计划。
+      </p>
+    </section>
   );
 }
