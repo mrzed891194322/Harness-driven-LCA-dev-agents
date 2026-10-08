@@ -29,6 +29,8 @@ uv 可用之后，在仓库根目录执行：
 
 ```bash
 uv sync
+npm install
+npm run build -w @harness/pi-runtime
 uv run python src/scripts/proj_init/main.py
 ```
 
@@ -36,15 +38,15 @@ uv run python src/scripts/proj_init/main.py
 
 - 退出码 `1`：必要项失败（无 uv、sync 失败、Python 版本不对、`control_openlca` MCP import 失败）。按脚本输出汇报，不要自行安装软件。
 - 退出码 `0`：必要项通过。脚本若因缺少 `.env` 而从 `.env.example` 复制，只报告「已从模板创建」，不要打开 `.env` 把内容贴进对话。
-- JSON 中的 `harness_clis` 列出 `codex` / `claude` / `opencode` / `pi` 各自的 CLI 是否在 PATH 上。缺某一个不失败；四个都没有也不把本次引导打成退出码 1。
-- 提醒用户检查 `.env`：`HARNESS_AGENT`、对应模型（`CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`）。认证走各 CLI 本机登录。字段说明只指向 `.env.example`，不要打印密钥。
+- JSON 中的 `harness_clis` 表示 **Pi SDK runtime**（Node + `src/pi_agents/pi-runtime`）是否就绪。不可用时不要把本次引导打成退出码 1，但要提醒用户安装 Node 并构建 pi-runtime。
+- 提醒用户检查 `.env` 的 `PI_MODEL`（档案 id，见 `src/shared/config/model_profiles.json`），并在 Web「设置」或 `.local/credentials/pi-auth.json` 配置 Provider API Key（BYOK）。字段说明只指向 `.env.example`，不要打印密钥。
 
-## Phase 2：Worker CLI
+## Phase 2：Pi SDK runtime
 
-根据 Phase 1 JSON 的 `harness_clis.clis`，逐项汇报每个 CLI「可用」或「未安装」。
+根据 Phase 1 JSON 的 `harness_clis.clis`，汇报 Pi SDK runtime「可用」或「不可用」。
 
-- 四个都没有：标明 **GUI 路径不可用**（GUI 必须能在 PATH 上找到所选 CLI）。当前会话仍可完成引导。
-- 可用的 CLI 由主编排器经 `src/shared/core/agents` 会话接口调用；不要再找仓库内平台 skill 目录。
+- 不可用：标明 **Web / 编排 worker 路径不可用**（需要 Node.js 与已构建的 `@harness/pi-runtime`）。当前会话仍可完成引导。
+- 可用时由主编排器经 `src/shared/core/agents` → `pi_agents` 调用；不要再找 PATH 上的 `codex` / `claude` / `opencode` / `pi` CLI。
 
 ## Phase 3：openLCA IPC
 
@@ -63,10 +65,10 @@ uv run python src/scripts/check_status.py --only openlca
 逐项给出 `通过 / 已修复 / 需你动手`：
 
 1. uv
-2. 项目依赖（`uv sync` / Python）
-3. `.env`（已存在，或已从模板创建；提醒核对模型，不要贴出内容）
+2. 项目依赖（`uv sync` / Python / npm pi-runtime）
+3. `.env`（已存在，或已从模板创建；提醒核对 `PI_MODEL` 与 BYOK 凭证，不要贴出内容）
 4. MCP 接线（`control_openlca`）
-5. Worker CLI：分别列出 codex / claude / opencode / pi
+5. Pi SDK runtime
 6. openLCA IPC
 
-最后一句：下一步可启动 GUI（见 `README.md`），或在完成 `src/scripts/clean.py` 并放入资料后执行 `uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml`。不要在本次引导里启动 whole-lca。
+最后一句：下一步可启动 Web（见 `README.md` 的 `npm run dev`），或在完成 `src/scripts/clean.py` 并放入资料后执行 `uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml`。不要在本次引导里启动 whole-lca。

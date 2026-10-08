@@ -141,12 +141,12 @@ class PathContractTests(unittest.TestCase):
                 project_root=root,
                 workspace_root=root / "workspace",
                 session_client=object(),
-                worker="codex",
+                worker="pi",
                 model="test",
             )
             (root / "workspace").mkdir(parents=True, exist_ok=True)
             state = initial_state(
-                run_id="r1", task="t", worker="codex", workflow=workflow
+                run_id="r1", task="t", worker="pi", workflow=workflow
             )
             update = orch.prepare(state)
             self.assertEqual(update["status"], "failed")

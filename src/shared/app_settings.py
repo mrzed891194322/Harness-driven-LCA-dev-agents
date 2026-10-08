@@ -10,7 +10,7 @@ from core.agents.providers.registry import WORKERS
 from utils.env import parse_env_file
 
 HARNESS_AGENTS = WORKERS
-DEFAULT_HARNESS_AGENT = "codex"
+DEFAULT_HARNESS_AGENT = "pi"
 HARNESS_AGENT_KEY = "HARNESS_AGENT"
 GUI_PORT_KEY = "GUI_PORT"
 OPENLCA_IPC_PORT_KEY = "OPENLCA_IPC_PORT"
@@ -58,7 +58,7 @@ def normalize_gui_lang(value: object) -> str:
 
 
 def normalize_harness_agent(value: object) -> str:
-    """Return a supported harness worker name, defaulting to Codex."""
+    """Return a supported harness worker name, defaulting to Pi."""
     agent = str(value or "").strip().lower()
     if agent in HARNESS_AGENTS:
         return agent

@@ -98,7 +98,7 @@ class FrozenModelTests(unittest.TestCase):
                 workflow.bundles[assignment.assignment_id],
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
-                worker="codex",
+                worker="pi",
                 model="frozen-model",
                 stage=stage,
                 assignment=assignment,
@@ -123,18 +123,25 @@ class ImplementationFingerprintTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=PROJECT_ROOT,
-                worker="codex",
+                worker="pi",
                 model="m",
             )
-            with self.assertRaises(ValueError):
-                assert_runtime_config_matches(
-                    workspace,
-                    "run-1",
-                    workflow,
-                    project_root=PROJECT_ROOT,
-                    worker="pi",
-                    model="m",
-                )
+            from unittest.mock import patch
+
+            with patch(
+                "core.workflow.persistence.config_fingerprint.implementation_fingerprint",
+                return_value="changed-implementation",
+            ):
+                with self.assertRaises(ValueError) as ctx:
+                    assert_runtime_config_matches(
+                        workspace,
+                        "run-1",
+                        workflow,
+                        project_root=PROJECT_ROOT,
+                        worker="pi",
+                        model="m",
+                    )
+            self.assertIn("configuration changed", str(ctx.exception))
 
 
 class HappyResumeSmokeTests(unittest.TestCase):
@@ -153,7 +160,7 @@ class HappyResumeSmokeTests(unittest.TestCase):
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -169,7 +176,7 @@ class HappyResumeSmokeTests(unittest.TestCase):
                     initial_state(
                         run_id="r1",
                         task="whole-lca",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,

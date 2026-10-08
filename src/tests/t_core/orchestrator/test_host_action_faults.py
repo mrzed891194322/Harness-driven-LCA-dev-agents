@@ -71,7 +71,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
                 project_root=root,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -87,7 +87,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
                     initial_state(
                         run_id="fault",
                         task="generic",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,
@@ -194,7 +194,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
                 project_root=root,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -210,7 +210,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
                     initial_state(
                         run_id="fault-handoff",
                         task="generic",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,
@@ -253,7 +253,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
                 project_root=root,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -269,7 +269,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
                     initial_state(
                         run_id="fault-handoff-crash",
                         task="generic",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,
@@ -331,7 +331,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
                 project_root=root,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -347,7 +347,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
                     initial_state(
                         run_id="fault-life",
                         task="generic",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,

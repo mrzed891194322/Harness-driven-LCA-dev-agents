@@ -62,7 +62,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             project_root=PROJECT_ROOT,
             workspace_root=self.workspace,
             session_client=client,
-            worker="codex",
+            worker="pi",
             model="test-model",
             capabilities=base_capabilities(),
         )
@@ -115,7 +115,7 @@ class OrchestratorGraphTests(unittest.TestCase):
                     initial_state(
                         run_id=run_id,
                         task="whole-lca",
-                        worker="codex",
+                        worker="pi",
                         workflow=self.workflow,
                     ),
                     store,
@@ -216,7 +216,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             project_root=PROJECT_ROOT,
             workspace_root=self.workspace,
             session_client=client,
-            worker="codex",
+            worker="pi",
             model="test-model",
             capabilities=base_capabilities(),
         )
@@ -225,7 +225,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             state = initial_state(
                 run_id=run_id,
                 task="whole-lca",
-                worker="codex",
+                worker="pi",
                 workflow=self.workflow,
             )
             state["in_flight"] = True
@@ -234,13 +234,13 @@ class OrchestratorGraphTests(unittest.TestCase):
             store.save(state, event="started", action="run_sdk")
             from core.agents.config import load_worker_model
 
-            model = load_worker_model("codex", PROJECT_ROOT)
+            model = load_worker_model("pi", PROJECT_ROOT)
             write_runtime_config(
                 self.workspace,
                 run_id,
                 self.workflow,
                 project_root=PROJECT_ROOT,
-                worker="codex",
+                worker="pi",
                 model=model,
             )
             code = _resume(
@@ -249,7 +249,7 @@ class OrchestratorGraphTests(unittest.TestCase):
                 run_id,
                 self.workspace,
                 project_root=PROJECT_ROOT,
-                worker="codex",
+                worker="pi",
                 model=model,
             )
         self.assertEqual(code, 1)
@@ -325,7 +325,7 @@ class OrchestratorGraphTests(unittest.TestCase):
     def test_worker_transport_retry_exhausted_fails(self, _sleep: Any) -> None:
         transport = {
             "raise_transport": True,
-            "transport_message": "codex 模型连接失败：Connection error.",
+            "transport_message": "pi 模型连接失败：Connection error.",
         }
         script = {
             ("01-intake-gate", "reviewer", 1): {
@@ -625,7 +625,7 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
             project_root=PROJECT_ROOT,
             workspace_root=self.workspace,
             session_client=client,
-            worker="codex",
+            worker="pi",
             model="test-model",
             capabilities=base_capabilities(),
         )
@@ -640,7 +640,7 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
                     initial_state(
                         run_id=run_id,
                         task="revise-lca",
-                        worker="codex",
+                        worker="pi",
                         workflow=self.workflow,
                     ),
                     store,

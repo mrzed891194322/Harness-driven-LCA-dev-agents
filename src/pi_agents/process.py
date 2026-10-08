@@ -7,6 +7,7 @@ import os
 import subprocess
 import threading
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,8 @@ PROJECT_ROOT = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
+
+EventHandler = Callable[[str, dict[str, Any]], None]
 
 
 class PiRuntimeProcess:
@@ -29,6 +32,18 @@ class PiRuntimeProcess:
         self._pending: dict[str, threading.Event] = {}
         self._responses: dict[str, dict[str, Any]] = {}
         self._reader: threading.Thread | None = None
+        self._event_handlers: list[EventHandler] = []
+
+    def add_event_handler(self, handler: EventHandler) -> None:
+        with self._lock:
+            self._event_handlers.append(handler)
+
+    def remove_event_handler(self, handler: EventHandler) -> None:
+        with self._lock:
+            try:
+                self._event_handlers.remove(handler)
+            except ValueError:
+                pass
 
     def start(self) -> None:
         with self._lock:
@@ -53,24 +68,14 @@ class PiRuntimeProcess:
             self._reader.start()
 
     def _runtime_entry(self) -> list[str]:
-        dist = (
-            self.project_root
-            / "src"
-            / "pi_agents"
-            / "pi-runtime"
-            / "dist"
-            / "main.js"
-        )
+        rt = self.project_root / "src" / "pi_agents" / "pi-runtime"
+        dist = rt / "dist" / "main.js"
         if dist.is_file():
             return ["node", str(dist)]
-        src = (
-            self.project_root
-            / "src"
-            / "pi_agents"
-            / "pi-runtime"
-            / "src"
-            / "main.ts"
-        )
+        src = rt / "src" / "main.ts"
+        tsx = rt / "node_modules" / "tsx" / "dist" / "esm" / "index.js"
+        if tsx.is_file():
+            return ["node", "--import", str(tsx), str(src)]
         return ["node", "--import", "tsx", str(src)]
 
     def _read_loop(self) -> None:
@@ -85,14 +90,25 @@ class PiRuntimeProcess:
                 payload = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if payload.get("type") == "res":
+            kind = payload.get("type")
+            if kind == "res":
                 req_id = str(payload.get("id") or "")
                 with self._lock:
                     self._responses[req_id] = payload
                     event = self._pending.pop(req_id, None)
+                    handlers = list(self._event_handlers)
                 if event:
                     event.set()
-            # events are ignored at this layer; progress hooks can be added later
+            elif kind == "event":
+                name = str(payload.get("event") or "")
+                data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+                with self._lock:
+                    handlers = list(self._event_handlers)
+                for handler in handlers:
+                    try:
+                        handler(name, data)
+                    except Exception:
+                        pass
 
     def request(
         self,

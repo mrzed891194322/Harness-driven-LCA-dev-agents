@@ -68,7 +68,7 @@ class EnvTimeoutFingerprintTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=PROJECT_ROOT,
-                worker="codex",
+                worker="pi",
                 model="m1",
             )
             with self.assertRaises(ValueError):
@@ -77,7 +77,7 @@ class EnvTimeoutFingerprintTests(unittest.TestCase):
                     "run-1",
                     workflow,
                     project_root=PROJECT_ROOT,
-                    worker="codex",
+                    worker="pi",
                     model="m2",
                 )
 
@@ -98,7 +98,7 @@ class ReviewNoteGateTests(unittest.TestCase):
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -114,7 +114,7 @@ class ReviewNoteGateTests(unittest.TestCase):
                     initial_state(
                         run_id="r1",
                         task="whole-lca",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,
@@ -159,7 +159,7 @@ class HookFailClosedTests(unittest.TestCase):
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -175,7 +175,7 @@ class HookFailClosedTests(unittest.TestCase):
                     initial_state(
                         run_id="r1",
                         task="whole-lca",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,

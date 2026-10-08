@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,7 +11,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from core.runtime.model_profiles import load_profiles
+from core.agents.config import load_worker_model
+from core.runtime.model_profiles import load_profiles, resolve_model_profile, upsert_local_profile
+from pi_agents.process import shared_runtime
+from services.auth_login_service import (
+    login_status,
+    logout_provider,
+    reply_login_prompt,
+    start_oauth_login,
+)
+from services.credentials_service import (
+    clear_provider_key,
+    credentials_status,
+    list_provider_catalog,
+    provider_overrides_status,
+    save_custom_endpoint,
+    save_provider_key,
+    set_provider_base_url,
+)
 from services.diagnostics_service import environment_report
 from services.project_paths import PROJECT_ROOT
 from services.workflow_service import WorkflowService
@@ -41,6 +57,39 @@ class ModelSelection(BaseModel):
     profile_id: str
 
 
+class ModelTestRequest(BaseModel):
+    profile_id: str | None = None
+    provider: str | None = None
+    model_id: str | None = None
+
+
+class OAuthLoginStart(BaseModel):
+    provider: str
+    auth_type: str = "oauth"
+
+
+class OAuthPromptReply(BaseModel):
+    login_id: str
+    prompt_id: str
+    value: str = ""
+
+
+class ProviderBaseUrlUpdate(BaseModel):
+    provider: str
+    base_url: str = ""
+
+
+class CustomEndpointCreate(BaseModel):
+    profile_id: str
+    provider: str = "custom"
+    base_url: str
+    api_type: str = "openai-completions"
+    model_id: str
+    display_name: str = ""
+    api_key: str = "local"
+    set_as_default: bool = False
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -53,34 +102,175 @@ def diagnostics_environment() -> dict[str, Any]:
 
 @app.get("/api/models/profiles")
 def model_profiles() -> dict[str, Any]:
-    return {"profiles": load_profiles(PROJECT_ROOT)}
+    return {
+        "profiles": load_profiles(PROJECT_ROOT),
+        "selected": load_worker_model("pi", PROJECT_ROOT),
+    }
 
 
 @app.post("/api/models/selection")
 def set_model_selection(body: ModelSelection) -> dict[str, str]:
+    profiles = load_profiles(PROJECT_ROOT)
+    if body.profile_id not in profiles:
+        raise HTTPException(status_code=400, detail=f"未知模型档案：{body.profile_id}")
     upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": body.profile_id})
     return {"profile_id": body.profile_id}
 
 
-@app.post("/api/credentials")
-def write_credentials(body: CredentialUpdate) -> dict[str, str]:
+@app.post("/api/models/test")
+def test_model_connection(body: ModelTestRequest) -> dict[str, Any]:
+    profile_id = (body.profile_id or load_worker_model("pi", PROJECT_ROOT)).strip()
+    profile = resolve_model_profile(profile_id, project_root=PROJECT_ROOT)
+    provider = (body.provider or profile.provider).strip()
+    model_id = (body.model_id or profile.model_id).strip()
     cred_dir = PROJECT_ROOT / ".local" / "credentials"
-    cred_dir.mkdir(parents=True, exist_ok=True)
-    path = cred_dir / f"{body.provider}.json"
-    path.write_text(
-        json.dumps({"provider": body.provider, "api_key_set": True}, indent=2),
-        encoding="utf-8",
-    )
-    # Secrets are written for runtime consumption; never return the key.
-    auth_path = cred_dir / "pi-auth.json"
-    existing: dict[str, Any] = {}
-    if auth_path.is_file():
-        existing = json.loads(auth_path.read_text(encoding="utf-8"))
-    providers = existing.get("providers") or {}
-    providers[body.provider] = {"apiKey": body.api_key}
-    existing["providers"] = providers
-    auth_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
-    return {"status": "saved"}
+    runtime = shared_runtime(PROJECT_ROOT)
+    try:
+        result = runtime.request(
+            "models.test_connection",
+            {
+                "provider": provider,
+                "model_id": model_id,
+                "api_type": profile.api_type,
+                "base_url": profile.base_url,
+                "credentials_dir": str(cred_dir.resolve()),
+            },
+            timeout=60.0,
+        )
+    except Exception as exc:
+        return {"ok": False, "message": str(exc), "provider": provider, "model_id": model_id}
+    if isinstance(result, dict):
+        return {
+            "ok": bool(result.get("ok")),
+            "message": str(result.get("message") or ("连接成功" if result.get("ok") else "失败")),
+            "provider": provider,
+            "model_id": model_id,
+            "mode": result.get("mode"),
+        }
+    return {"ok": False, "message": "unexpected runtime response", "provider": provider}
+
+
+@app.get("/api/credentials/status")
+def get_credentials_status() -> dict[str, Any]:
+    return {
+        "providers": credentials_status(PROJECT_ROOT),
+        "catalog": list_provider_catalog(),
+        "overrides": provider_overrides_status(PROJECT_ROOT),
+    }
+
+
+@app.post("/api/credentials")
+def write_credentials(body: CredentialUpdate) -> dict[str, Any]:
+    try:
+        info = save_provider_key(PROJECT_ROOT, body.provider, body.api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "status": "saved",
+        "provider": body.provider.strip(),
+        "info": info,
+        "providers": credentials_status(PROJECT_ROOT),
+        "overrides": provider_overrides_status(PROJECT_ROOT),
+    }
+
+
+@app.delete("/api/credentials/{provider}")
+def delete_credentials(provider: str) -> dict[str, Any]:
+    try:
+        clear_provider_key(PROJECT_ROOT, provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "status": "cleared",
+        "provider": provider.strip(),
+        "providers": credentials_status(PROJECT_ROOT),
+        "overrides": provider_overrides_status(PROJECT_ROOT),
+    }
+
+
+@app.post("/api/credentials/oauth/start")
+def oauth_login_start(body: OAuthLoginStart) -> dict[str, Any]:
+    try:
+        return start_oauth_login(body.provider, auth_type=body.auth_type or "oauth")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/credentials/oauth/{login_id}")
+def oauth_login_status(login_id: str) -> dict[str, Any]:
+    try:
+        return login_status(login_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/credentials/oauth/reply")
+def oauth_login_reply(body: OAuthPromptReply) -> dict[str, Any]:
+    try:
+        return reply_login_prompt(body.login_id, body.prompt_id, body.value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/credentials/oauth/logout")
+def oauth_logout(body: OAuthLoginStart) -> dict[str, Any]:
+    try:
+        return logout_provider(body.provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.put("/api/credentials/base-url")
+def update_provider_base_url(body: ProviderBaseUrlUpdate) -> dict[str, Any]:
+    try:
+        url = set_provider_base_url(PROJECT_ROOT, body.provider, body.base_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "provider": body.provider.strip(),
+        "base_url": url,
+        "overrides": provider_overrides_status(PROJECT_ROOT),
+    }
+
+
+@app.post("/api/models/custom-endpoint")
+def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
+    try:
+        endpoint = save_custom_endpoint(
+            PROJECT_ROOT,
+            provider=body.provider,
+            base_url=body.base_url,
+            api=body.api_type,
+            model_id=body.model_id,
+            api_key=body.api_key,
+            display_name=body.display_name,
+        )
+        profile = upsert_local_profile(
+            PROJECT_ROOT,
+            body.profile_id,
+            {
+                "display_name": body.display_name or body.profile_id,
+                "provider": body.provider,
+                "model_id": body.model_id,
+                "api_type": body.api_type,
+                "base_url": body.base_url,
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if body.set_as_default:
+        upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": body.profile_id.strip()})
+    return {
+        "status": "saved",
+        "endpoint": endpoint,
+        "profile": profile,
+        "profiles": load_profiles(PROJECT_ROOT),
+        "overrides": provider_overrides_status(PROJECT_ROOT),
+    }
 
 
 @app.get("/api/workflow/manifest")

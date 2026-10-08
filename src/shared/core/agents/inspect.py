@@ -67,8 +67,14 @@ def check(
     dist = rt / "dist" / "main.js"
     if dist.is_file():
         argv = ["node", str(dist)]
+        cwd = str(root)
     else:
-        argv = ["node", "--import", "tsx", str(rt / "src" / "main.ts")]
+        tsx = rt / "node_modules" / "tsx" / "dist" / "esm" / "index.js"
+        if tsx.is_file():
+            argv = ["node", "--import", str(tsx), str(rt / "src" / "main.ts")]
+        else:
+            argv = ["node", "--import", "tsx", str(rt / "src" / "main.ts")]
+        cwd = str(rt)
     env = {"PI_RUNTIME_MOCK": "1"}
     try:
         proc = run(
@@ -78,7 +84,7 @@ def check(
             text=True,
             timeout=timeout,
             check=False,
-            cwd=str(root),
+            cwd=cwd,
             env={**os.environ, **env},
         )
     except Exception as exc:

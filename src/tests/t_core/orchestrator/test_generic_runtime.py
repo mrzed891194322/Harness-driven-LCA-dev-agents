@@ -184,7 +184,7 @@ class GenericRuntimeTests(unittest.TestCase):
                 workflow.bundles["s1.executor"],
                 project_root=root,
                 workspace_root=workspace,
-                worker="codex",
+                worker="pi",
                 model="test-model",
                 stage=workflow.stages[0],
                 assignment=workflow.assignments["s1.executor"],
