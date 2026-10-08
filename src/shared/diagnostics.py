@@ -50,7 +50,12 @@ def check_openlca(host: str = "127.0.0.1", port: int = 8080) -> bool:
     """Check if openLCA IPC Server is started and connectable."""
     endpoint = f"http://{host}:{port}"
     print(f"Attempting to connect to openLCA IPC Server ({endpoint})...")
-    result = get_openlca_health(host=host, port=port)
+    try:
+        result = get_openlca_health(host=host, port=port)
+    except Exception as exc:
+        print(f"\n[Error] Cannot connect to openLCA IPC Server ({endpoint}): {exc}")
+        _print_diagnosis(port)
+        return False
     if result.get("ok"):
         print(
             "Successfully established IPC connection after "

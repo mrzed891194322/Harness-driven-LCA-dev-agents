@@ -15,7 +15,7 @@ src/
 ## 常用命令
 
 ```bash
-uv run uvicorn api.app:app --app-dir src/backend --host 127.0.0.1 --port 8000
+uv run uvicorn api.app:app --app-dir src/backend --host 127.0.0.1 --port 8800
 uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
 npm run dev
 ```

@@ -26,7 +26,7 @@ SDK 使用 `createAgentSession` + `DefaultResourceLoader`（禁用 skills/模板
 uv sync
 npm install
 npm run build -w @harness/pi-runtime
-npm run dev   # Next.js :3000 + uvicorn :8000
+npm run dev   # Next.js :GUI_WEB_PORT（默认 3000）+ uvicorn :GUI_API_PORT（默认 8800）
 ```
 
 CLI 工作流（无浏览器）：

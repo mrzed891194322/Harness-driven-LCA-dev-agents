@@ -47,6 +47,12 @@ type CredentialsPayload = {
   overrides?: Record<string, OverrideInfo>;
 };
 
+function isDiagnostics(value: unknown): value is Diagnostics {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Diagnostics;
+  return Boolean(row.pi_agents && row.python_agent && row.openlca && "ok" in row.pi_agents);
+}
+
 type LoginPrompt = {
   prompt_id?: string;
   prompt?: {
@@ -89,10 +95,13 @@ export default function SettingsPage() {
       fetch("/api/diagnostics/environment"),
       fetch("/api/credentials/status"),
     ]);
-    const env = (await envRes.json()) as Diagnostics;
+    const env = (await envRes.json()) as unknown;
     const credPayload = (await credRes.json()) as CredentialsPayload;
+    if (!envRes.ok || !isDiagnostics(env)) {
+      throw new Error(`环境诊断不可用（HTTP ${envRes.status}）。请确认后端已按 .env 的 GUI_API_PORT 启动。`);
+    }
     setDiag(env);
-    setCreds(credPayload);
+    setCreds(credRes.ok && Array.isArray(credPayload?.catalog) ? credPayload : null);
     const selected = env.selected_profile || "default";
     setProfile(selected);
     const selectedProfile = env.profiles?.[selected];
@@ -100,16 +109,18 @@ export default function SettingsPage() {
       setExpanded((prev) => prev ?? selectedProfile.provider);
     }
     const urls: Record<string, string> = {};
-    for (const [id, ov] of Object.entries(credPayload.overrides ?? {})) {
+    for (const [id, ov] of Object.entries(credPayload?.overrides ?? {})) {
       if (ov.base_url) urls[id] = ov.base_url;
     }
     setDraftBaseUrls((prev) => ({ ...urls, ...prev }));
   }, []);
 
   useEffect(() => {
-    refresh().catch(() => {
+    refresh().catch((error: unknown) => {
       setDiag(null);
       setCreds(null);
+      setStatusError(true);
+      setStatusMsg(error instanceof Error ? error.message : "加载诊断失败");
     });
   }, [refresh]);
 
@@ -416,22 +427,22 @@ export default function SettingsPage() {
         {diag ? (
           <ul className="diag-list">
             <li>
-              <span className={`badge ${diag.pi_agents.ok ? "badge-ok" : "badge-warn"}`}>
-                {diag.pi_agents.ok ? "就绪" : "未就绪"}
+              <span className={`badge ${diag.pi_agents?.ok ? "badge-ok" : "badge-warn"}`}>
+                {diag.pi_agents?.ok ? "就绪" : "未就绪"}
               </span>
-              <span>Pi runtime：{diag.pi_agents.message}</span>
+              <span>Pi runtime：{diag.pi_agents?.message}</span>
             </li>
             <li>
-              <span className={`badge ${diag.python_agent.ok ? "badge-ok" : "badge-warn"}`}>
-                {diag.python_agent.ok ? "就绪" : "未就绪"}
+              <span className={`badge ${diag.python_agent?.ok ? "badge-ok" : "badge-warn"}`}>
+                {diag.python_agent?.ok ? "就绪" : "未就绪"}
               </span>
-              <span>Python：{diag.python_agent.message}</span>
+              <span>Python：{diag.python_agent?.message}</span>
             </li>
             <li>
-              <span className={`badge ${diag.openlca.ok ? "badge-ok" : "badge-warn"}`}>
-                {diag.openlca.ok ? "就绪" : "未就绪"}
+              <span className={`badge ${diag.openlca?.ok ? "badge-ok" : "badge-warn"}`}>
+                {diag.openlca?.ok ? "就绪" : "未就绪"}
               </span>
-              <span>openLCA：{diag.openlca.message}</span>
+              <span>openLCA：{diag.openlca?.message}</span>
             </li>
           </ul>
         ) : (

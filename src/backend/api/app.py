@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,7 +13,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from core.agents.config import load_worker_model
-from core.runtime.model_profiles import load_profiles, resolve_model_profile, upsert_local_profile
+from core.runtime.model_profiles import (
+    load_profiles,
+    resolve_model_profile,
+    upsert_local_profile,
+)
 from pi_agents.process import shared_runtime
 from services.auth_login_service import (
     login_status,
@@ -34,10 +39,19 @@ from services.project_paths import PROJECT_ROOT
 from services.workflow_service import WorkflowService
 from utils.env import parse_env_file, upsert_env_keys
 
+
+def _web_origins() -> list[str]:
+    values = parse_env_file(PROJECT_ROOT / ".env")
+    port = (
+        os.getenv("GUI_WEB_PORT") or values.get("GUI_WEB_PORT") or "3000"
+    ).strip() or "3000"
+    return [f"http://127.0.0.1:{port}", f"http://localhost:{port}"]
+
+
 app = FastAPI(title="Harness LCA API", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:3000", "http://localhost:3000"],
+    allow_origins=_web_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -138,11 +152,18 @@ def test_model_connection(body: ModelTestRequest) -> dict[str, Any]:
             timeout=60.0,
         )
     except Exception as exc:
-        return {"ok": False, "message": str(exc), "provider": provider, "model_id": model_id}
+        return {
+            "ok": False,
+            "message": str(exc),
+            "provider": provider,
+            "model_id": model_id,
+        }
     if isinstance(result, dict):
         return {
             "ok": bool(result.get("ok")),
-            "message": str(result.get("message") or ("连接成功" if result.get("ok") else "失败")),
+            "message": str(
+                result.get("message") or ("连接成功" if result.get("ok") else "失败")
+            ),
             "provider": provider,
             "model_id": model_id,
             "mode": result.get("mode"),
@@ -306,7 +327,10 @@ def read_plan() -> dict[str, str]:
     plan = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "main_plan.md"
     if not plan.is_file():
         raise HTTPException(status_code=404, detail="plan not found")
-    return {"path": str(plan.relative_to(PROJECT_ROOT)), "content": plan.read_text("utf-8")}
+    return {
+        "path": str(plan.relative_to(PROJECT_ROOT)),
+        "content": plan.read_text("utf-8"),
+    }
 
 
 @app.put("/api/plan")
