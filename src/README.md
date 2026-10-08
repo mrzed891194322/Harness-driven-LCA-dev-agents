@@ -14,6 +14,7 @@ src/
     config/                 # 模型档案等非敏感配置
     contracts/              # 跨语言 JSON schema
     utils/
+  scripts/                  # 仓库级开发脚本（如 dev.mjs）
   tests/                    # 回归测试
 ```
 
