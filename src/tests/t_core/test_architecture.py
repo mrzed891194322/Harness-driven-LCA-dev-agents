@@ -199,7 +199,7 @@ assert not loaded, loaded
 
     def test_workflow_cli_requires_workflow_flag_not_task(self) -> None:
         help_result = subprocess.run(
-            [sys.executable, "src/cli/workflow.py", "--help"],
+            [sys.executable, "src/scripts/workflow.py", "--help"],
             cwd=PROJECT_ROOT,
             env=_src_env(),
             capture_output=True,
@@ -210,7 +210,7 @@ assert not loaded, loaded
         self.assertNotIn("--task", help_result.stdout)
 
         missing = subprocess.run(
-            [sys.executable, "src/cli/workflow.py"],
+            [sys.executable, "src/scripts/workflow.py"],
             cwd=PROJECT_ROOT,
             env=_src_env(),
             capture_output=True,

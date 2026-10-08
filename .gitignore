@@ -54,4 +54,4 @@ uv.lock
 .codex/skills/**/*.py[oc]
 node_modules/
 src/frontend/web/.next/
-src/pi-runtime/dist/
+src/agents_runtime/pi-runtime/dist/

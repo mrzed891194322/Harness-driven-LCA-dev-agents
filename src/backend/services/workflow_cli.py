@@ -6,7 +6,7 @@ ORCHESTRATOR_COMMAND = [
     "uv",
     "run",
     "python",
-    "src/cli/workflow.py",
+    "src/scripts/workflow.py",
 ]
 
 WORKFLOW_YAML_BY_TASK = {

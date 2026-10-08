@@ -42,7 +42,7 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "**/main.py" = ["E402"]
 "src/tests/**" = ["E402"]
-"src/cli/**" = ["E402"]
+"src/scripts/**" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
@@ -58,6 +58,6 @@ known-first-party = [
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
-include = ["src/backend", "src/shared", "harness"]
+include = ["src/backend", "src/shared", "src/agents_runtime", "harness"]
 extraPaths = ["src/backend", "src/shared", "src", "."]
 reportMissingTypeStubs = false

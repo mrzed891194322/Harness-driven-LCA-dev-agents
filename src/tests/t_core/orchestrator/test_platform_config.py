@@ -23,7 +23,7 @@ STAGE_PACKAGES = (
     "03-dataset-mapping",
     "04-openlca-reporting",
 )
-ORCHESTRATOR_CMD = "uv run python src/cli/workflow.py"
+ORCHESTRATOR_CMD = "uv run python src/scripts/workflow.py"
 FORBIDDEN_PROMPT_KEYS = ("prompt", "extra_prompt")
 HARDCODED_MODEL_PATTERNS = ("gpt-5.6", "model_reasoning_effort")
 
@@ -469,7 +469,7 @@ class PlatformAdapterTests(unittest.TestCase):
         self.assertNotIn("$improve-whole-lca-workflow", readme)
 
     def test_bootstrap_prompt_only_references_shared_entry(self) -> None:
-        text = (PROJECT_ROOT / "src/cli/proj_init/PROMPT.md").read_text(
+        text = (PROJECT_ROOT / "src/scripts/proj_init/PROMPT.md").read_text(
             encoding="utf-8"
         )
         self.assertIn("不要启动 whole-lca", text)

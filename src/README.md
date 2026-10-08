@@ -1,32 +1,23 @@
 # `src/` 布局
 
+`src/` 下仅保留这些顶层目录（外加本说明文件）：
+
 ```
 src/
-  frontend/                 # Next.js + legacy GUI 参考
-    web/
-    legacy/gui/
-  backend/                  # FastAPI 栈
-    api/                      # HTTP 路由与应用
-    services/                 # API / Web 控制台调用的应用服务
-  shared/                   # CLI、编排器、API 共用的 Python
-    core/                     # workflow / agents / runtime
-    agents_runtime/           # Agent worker 子进程客户端（Pi SDK）
-    utils/、config/、contracts/
-    diagnostics.py、workspace_clean.py、app_settings.py
-  pi-runtime/               # Node Pi SDK（NDJSON，与 agents_runtime 配对）
-  cli/                      # 薄 CLI（workflow、clean、proj_init）
-  scripts/                  # dev.mjs 等跨栈脚本
-  tests/
+  backend/          # FastAPI（api/ + services/）
+  frontend/         # Next.js（web/）与 legacy GUI 参考
+  agents_runtime/   # Agent worker：Python 客户端 + Node pi-runtime
+  shared/           # CLI、编排器、API 共用的 Python（core、utils、config…）
+  scripts/          # 开发脚本（dev.mjs）与 Python 薄 CLI（workflow、clean…）
+  tests/            # 回归测试
 ```
 
 ## 常用命令
 
 ```bash
 uv run uvicorn api.app:app --app-dir src/backend --host 127.0.0.1 --port 8000
-uv run python src/cli/workflow.py --workflow harness/LCA-main.yaml
+uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
 pnpm dev
 ```
 
-Python `PYTHONPATH`：`src/backend`（`api`、`services`）+ `src/shared`（`core`、`agents_runtime` 等），见根目录 `pyproject.toml`。
-
-跨语言契约：`src/shared/contracts/session_launch_spec.schema.json`；Python 类型在 `src/shared/core/contracts/`。
+`PYTHONPATH`：`src/backend` + `src/shared` + `src`（见根目录 `pyproject.toml`）。
