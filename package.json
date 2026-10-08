@@ -1,11 +1,14 @@
 {
   "name": "harness-driven-lca",
   "private": true,
-  "packageManager": "pnpm@10.33.3",
+  "workspaces": [
+    "src/pi_agents/pi-runtime",
+    "src/frontend/web"
+  ],
   "scripts": {
     "dev": "node src/scripts/dev.mjs",
-    "build": "pnpm -r run build",
-    "typecheck": "pnpm -r run typecheck",
-    "test:runtime": "pnpm --filter @harness/pi-runtime test"
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test:runtime": "npm run test -w @harness/pi-runtime"
   }
 }

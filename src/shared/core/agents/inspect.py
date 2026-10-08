@@ -44,7 +44,7 @@ def inspect(
         return False, "未安装 Node.js"
     if not _runtime_built(root):
         return False, (
-            "pi-runtime 未构建（pnpm install && pnpm --filter @harness/pi-runtime build）"
+            "pi-runtime 未构建（npm install && npm run build -w @harness/pi-runtime）"
         )
     return True, f"Pi SDK runtime 就绪（{node}）"
 
