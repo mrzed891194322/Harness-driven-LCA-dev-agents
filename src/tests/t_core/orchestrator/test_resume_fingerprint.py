@@ -60,7 +60,7 @@ class SpecSchemaFingerprintTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=root,
-                worker="codex",
+                worker="pi",
                 model="m",
             )
             (root / schema_rel).write_text(
@@ -79,7 +79,7 @@ class SpecSchemaFingerprintTests(unittest.TestCase):
                     "run-1",
                     workflow,
                     project_root=root,
-                    worker="codex",
+                    worker="pi",
                     model="m",
                 )
             self.assertIn("configuration changed", str(ctx.exception))
@@ -122,7 +122,7 @@ class SpecSchemaFingerprintTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=root,
-                worker="codex",
+                worker="pi",
                 model="m",
             )
             (root / schema_rel).write_text(
@@ -146,7 +146,7 @@ class SpecSchemaFingerprintTests(unittest.TestCase):
                     "run-1",
                     workflow,
                     project_root=root,
-                    worker="codex",
+                    worker="pi",
                     model="m",
                 )
 
@@ -167,7 +167,7 @@ class SpecSchemaFingerprintTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=root,
-                worker="codex",
+                worker="pi",
                 model="m",
             )
             unused.write_text('{"type":"object","required":["x"]}', encoding="utf-8")
@@ -176,7 +176,7 @@ class SpecSchemaFingerprintTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=root,
-                worker="codex",
+                worker="pi",
                 model="m",
             )
 
@@ -204,7 +204,7 @@ class KnowledgeFingerprintTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=root,
-                worker="codex",
+                worker="pi",
                 model="m",
             )
             knowledge.write_text("# changed knowledge\n", encoding="utf-8")
@@ -214,7 +214,7 @@ class KnowledgeFingerprintTests(unittest.TestCase):
                     "run-1",
                     workflow,
                     project_root=root,
-                    worker="codex",
+                    worker="pi",
                     model="m",
                 )
 

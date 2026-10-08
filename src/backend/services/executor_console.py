@@ -5,8 +5,6 @@ import sys
 from collections.abc import Generator
 from pathlib import Path
 
-from pathlib import Path
-
 from services.project_paths import PROJECT_ROOT
 
 
@@ -356,12 +354,9 @@ def run_workflow_command_console(
 ) -> Generator[tuple[str, str], None, None]:
     """
     Run whole-lca or revise-lca via the Python orchestrator.
-    Worker is selected with --worker from .env HARNESS_AGENT.
+    Worker is fixed to the Pi SDK runtime (`--worker pi`).
     """
-    def load_harness_agent() -> str:
-        return "pi"
-
-    agent = load_harness_agent()
+    agent = "pi"
     command = workflow_command_args(task, agent)
     accumulated_output = ""
 

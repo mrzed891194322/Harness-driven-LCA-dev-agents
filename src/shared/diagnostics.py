@@ -1,13 +1,11 @@
-"""Agent / openLCA readiness checks for CLI and GUI."""
+"""Pi SDK runtime / openLCA readiness checks for CLI and Web."""
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from core.agents.inspect import WORKERS, check, inspect
 from harness.tools.shared.control_openlca.health_service import health
-from utils.env import parse_env_file
 
 SUPPORTED_HARNESS_CLIS = WORKERS
 
@@ -19,44 +17,25 @@ PROJECT_ROOT = next(
 
 
 def check_harness_cli(name: str, timeout: int = 10) -> tuple[bool, str]:
-    """Live worker probe (PATH CLI + --version)."""
+    """Live Pi SDK runtime probe (protocol.version, no billed turn)."""
     ok, message = check(name, timeout=timeout)
     if not ok:
         print(f"[Error] {name}: {message}")
         return ok, message
-    print(f"{name} CLI is available.")
+    print(f"Pi SDK runtime ({name}) is available.")
     return True, "可用"
-
-
-def _selected_harness_agent(project_root: Path) -> str | None:
-    values = parse_env_file(project_root / ".env")
-    agent = (
-        (values.get("HARNESS_AGENT") or os.getenv("HARNESS_AGENT", "")).strip().lower()
-    )
-    if agent in SUPPORTED_HARNESS_CLIS:
-        return agent
-    return None
 
 
 def check_project_environment(project_root: Path | None = None) -> tuple[bool, str]:
-    """
-    If `.env` sets `HARNESS_AGENT`, that worker must pass live check().
-    Otherwise any inspect() success is enough.
-    """
-    if project_root is None:
-        project_root = PROJECT_ROOT
-
-    selected = _selected_harness_agent(project_root)
-    if selected:
-        ok, message = check_harness_cli(selected)
-        if not ok:
-            return False, f"{selected} {message}"
-        return True, "可用"
-
-    found = [name for name in SUPPORTED_HARNESS_CLIS if inspect(name)[0]]
-    if not found:
+    """Require Pi SDK runtime inspect + live check."""
+    del project_root
+    name = "pi"
+    if name not in SUPPORTED_HARNESS_CLIS:
         return False, "Pi SDK runtime 不可用"
-    return True, "可用"
+    ok, message = inspect(name)
+    if not ok:
+        return False, message
+    return check_harness_cli(name)
 
 
 def get_openlca_health(
@@ -96,4 +75,4 @@ def _print_diagnosis(port: int) -> None:
     print("\nSuggestions:")
     print("1. Start openLCA")
     print(f"2. Enable IPC Server in openLCA preferences (port {port})")
-    print("3. Confirm the host/port match the GUI settings / .env")
+    print("3. Confirm the host/port match the Web settings / .env")

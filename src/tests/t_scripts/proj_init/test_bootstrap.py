@@ -60,7 +60,7 @@ class SetupEnvBootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / ".env.example").write_text(
-                'HARNESS_AGENT="codex"\nCODEX_MODEL="gpt-5.4"\n',
+                'HARNESS_AGENT="pi"\nPI_MODEL="default"\n',
                 encoding="utf-8",
             )
             code, report = run_bootstrap(
@@ -89,7 +89,7 @@ class SetupEnvBootstrapTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            (root / ".env").write_text('HARNESS_AGENT="codex"\n', encoding="utf-8")
+            (root / ".env").write_text('HARNESS_AGENT="pi"\n', encoding="utf-8")
 
             code, report = run_bootstrap(
                 project_root=root,
@@ -122,7 +122,7 @@ class SetupEnvBootstrapTests(unittest.TestCase):
     def test_missing_all_clis_does_not_fail_bootstrap(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            (root / ".env").write_text('HARNESS_AGENT="codex"\n', encoding="utf-8")
+            (root / ".env").write_text('HARNESS_AGENT="pi"\n', encoding="utf-8")
             code, report = run_bootstrap(
                 project_root=root,
                 which=_which_uv_only,

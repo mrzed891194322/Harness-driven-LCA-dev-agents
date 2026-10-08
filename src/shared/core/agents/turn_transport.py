@@ -1,4 +1,4 @@
-"""Detect model/API transport failures from worker CLI stdout/stderr."""
+"""Detect model/API transport failures from Pi runtime stdout/stderr."""
 
 from __future__ import annotations
 
@@ -104,12 +104,6 @@ def _has_substantive_progress(worker: str, stdout: str) -> bool:
         return False
     if worker == "pi":
         return _pi_has_progress(events)
-    if worker == "codex":
-        return _codex_has_progress(events)
-    if worker == "claude":
-        return _claude_has_progress(events)
-    if worker == "opencode":
-        return _opencode_has_progress(events)
     return _generic_has_progress(events)
 
 
@@ -156,72 +150,6 @@ def _pi_has_progress(events: list[dict[str, Any]]) -> bool:
     return False
 
 
-def _codex_has_progress(events: list[dict[str, Any]]) -> bool:
-    for payload in events:
-        event_type = str(payload.get("type") or "")
-        if event_type == "item.completed":
-            item = payload.get("item")
-            if isinstance(item, dict) and str(item.get("type") or "") == "agent_message":
-                text = item.get("text") or ""
-                if str(text).strip():
-                    return True
-        if event_type in {"item.started", "item.completed"}:
-            item = payload.get("item")
-            if isinstance(item, dict) and str(item.get("type") or "") == "tool_call":
-                return True
-    return False
-
-
-def _claude_has_progress(events: list[dict[str, Any]]) -> bool:
-    for payload in events:
-        if str(payload.get("type") or "") != "assistant":
-            continue
-        message = payload.get("message")
-        if not isinstance(message, dict):
-            continue
-        content = message.get("content")
-        if isinstance(content, list):
-            for block in content:
-                if not isinstance(block, dict):
-                    continue
-                if block.get("type") == "tool_use":
-                    return True
-                if block.get("type") == "text" and str(block.get("text") or "").strip():
-                    return True
-    return False
-
-
-def _opencode_has_progress(events: list[dict[str, Any]]) -> bool:
-    for payload in events:
-        event_type = str(payload.get("type") or "")
-        if event_type == "text":
-            if _part_text_opencode(payload):
-                return True
-        if event_type in {"tool_result", "tool_end", "tool.end", "tool_complete"}:
-            return True
-        if event_type == "tool":
-            part = payload.get("part")
-            if isinstance(part, dict) and str(part.get("type") or "") == "tool":
-                state = part.get("state")
-                if isinstance(state, dict) and str(state.get("status") or "").lower() in {
-                    "completed",
-                    "complete",
-                    "success",
-                }:
-                    return True
-    return False
-
-
-def _part_text_opencode(payload: dict[str, Any]) -> str:
-    part = payload.get("part")
-    if isinstance(part, dict):
-        text = part.get("text")
-        if text:
-            return str(text).strip()
-    text = payload.get("text")
-    return str(text).strip() if text else ""
-
-
 def _generic_has_progress(events: list[dict[str, Any]]) -> bool:
     for payload in events:
         if _assistant_text_from_message(payload.get("message")):
@@ -233,12 +161,6 @@ def _detect_structured(worker: str, stdout: str) -> str | None:
     events = _iter_json_objects(stdout)
     if worker == "pi":
         return _detect_pi(events)
-    if worker == "codex":
-        return _detect_codex(events)
-    if worker == "claude":
-        return _detect_claude(events)
-    if worker == "opencode":
-        return _detect_opencode(events)
     return None
 
 
@@ -253,49 +175,6 @@ def _detect_pi(events: list[dict[str, Any]]) -> str | None:
             if isinstance(message, dict) and str(message.get("stopReason") or "") == "error":
                 detail = message.get("errorMessage") or message.get("error") or "model error"
                 return _clip(str(detail))
-    return None
-
-
-def _detect_codex(events: list[dict[str, Any]]) -> str | None:
-    for payload in events:
-        event_type = str(payload.get("type") or "")
-        if event_type == "error":
-            detail = payload.get("message") or payload.get("error") or payload
-            return _clip(str(detail))
-        if event_type == "turn.failed":
-            detail = payload.get("error") or payload.get("message") or payload
-            return _clip(str(detail))
-    return None
-
-
-def _detect_claude(events: list[dict[str, Any]]) -> str | None:
-    for payload in events:
-        event_type = str(payload.get("type") or "")
-        if event_type == "error":
-            detail = payload.get("error") or payload.get("message") or payload
-            return _clip(str(detail))
-        if event_type == "result" and payload.get("is_error"):
-            detail = payload.get("result") or payload.get("error") or "failed"
-            return _clip(str(detail))
-    return None
-
-
-def _detect_opencode(events: list[dict[str, Any]]) -> str | None:
-    saw_tool_failure = False
-    for payload in events:
-        event_type = str(payload.get("type") or "")
-        if event_type == "error":
-            detail = payload.get("error") or payload.get("message") or "error"
-            return _clip(str(detail))
-        part = payload.get("part")
-        if isinstance(part, dict):
-            state = part.get("state")
-            if isinstance(state, dict):
-                status = str(state.get("status") or "").lower()
-                if status in {"error", "failed"}:
-                    saw_tool_failure = True
-    if saw_tool_failure:
-        return "tool execution failed before model response"
     return None
 
 

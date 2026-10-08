@@ -109,7 +109,7 @@ mcp.run()
         workflow.bundles["writer"],
         project_root=tmp_path,
         workspace_root=tmp_path / "workspace",
-        worker="codex",
+        worker="pi",
         model="test",
         stage=workflow.stages[0],
         assignment=workflow.assignments["writer"],

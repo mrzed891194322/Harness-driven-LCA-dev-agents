@@ -74,6 +74,7 @@ root = next(
 )
 sys.path.insert(0, str(root / "src" / "backend"))
 sys.path.insert(0, str(root / "src" / "shared"))
+sys.path.insert(0, str(root / "src"))
 sys.path.insert(0, str(root))
 from api.app import app
 assert app.title

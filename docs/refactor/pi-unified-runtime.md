@@ -37,6 +37,13 @@ PI_RUNTIME_MOCK=1 uv run python src/scripts/workflow.py --workflow harness/LCA-m
 
 `PI_RUNTIME_MOCK=1` 仅用于无 API 密钥的协议/编排测试；真实模型调用需配置 `.local/credentials/pi-auth.json` 与模型档案。
 
+## 模型与 BYOK
+
+- 非密钥档案：`src/shared/config/model_profiles.json`（`.env` 的 `PI_MODEL` 选档案 id）
+- 密钥：Web「设置」写入 `.local/credentials/pi-auth.json`（Pi `auth.json` 形态：`{ "<provider>": { "type": "api_key", "key": "..." } }`）
+- 会话创建时 `session_host` 物化到 `agent_dir/auth.json`；仅当档案含 `api_type`/`base_url` 时写 `models.json`
+- 使用 `@earendil-works/pi-coding-agent` 的 `ModelRuntime.create` + `getModel(provider, model_id)` 接入 `createAgentSession`
+
 ## 旧运行时
 
 已移除对 PATH 上 `codex` / `claude` / `opencode` / `pi` CLI 的依赖。`HARNESS_AGENT` 保留兼容但固定为 Pi SDK runtime。

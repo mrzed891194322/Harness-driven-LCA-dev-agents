@@ -25,7 +25,7 @@ uv sync
 uv run python src/scripts/proj_init/main.py
 ```
 
-Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制）、`control_openlca` MCP，以及哪些 worker CLI 在 PATH 上。没有 uv 时判定不通过，需按 [环境准备与配置](docs/lang_CN/env_setup.md) 手动安装。不要在引导里启动 whole-lca。`.env` 里要填的 Worker 与模型见 `.env.example`。
+Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制）、`control_openlca` MCP，以及 Pi SDK runtime（Node + pi-runtime）是否就绪。没有 uv 时判定不通过，需按 [环境准备与配置](docs/lang_CN/env_setup.md) 手动安装。不要在引导里启动 whole-lca。`.env` 里的 `PI_MODEL` 与 BYOK 凭证说明见 `.env.example` / Web 设置页。
 
 ---
 
@@ -44,11 +44,11 @@ npm run dev
 
 ### 1. 设置并完成初始化检查
 
-左侧点 **设置&初始化**，再点 **开始初始化检查**。两项全部通过后才会解锁 **执行LCA计划**。未通过时按失败项处理，然后重新检查：
+打开 **设置与初始化**：
 
 | 检查项 | 处理 |
 | --- | --- |
-| AI Agent 工具 | 主页下拉选择当前 `codex` / `claude` / `opencode` / `pi`。点「配置」后用横向卡片切换各后端表单（缺省见 `.env.example` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`）。点「测试连接」用诊断指令验证本机登录，不开启对话。点「开始初始化检查」探测所选 CLI 是否在 PATH 上（`--version`）。 |
+| Pi SDK + 模型 | 选择 `model_profiles.json` 中的模型档案并保存（写入 `.env` 的 `PI_MODEL`）。为对应 Provider 填写自有 API Key（BYOK，写入 `.local/credentials/`，不回显）。点「测试连接」经 Pi `ModelRuntime` 验证凭证与模型，不开启业务对话。环境诊断确认 Node / pi-runtime / Python 就绪。 |
 | OpenLCA | 打开目标数据库并启用 IPC Server。截图见 [环境准备与配置](docs/lang_CN/env_setup.md)。 |
 
 
@@ -85,7 +85,7 @@ uv run python src/scripts/clean.py -y --preset whole-lca
 uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
 ```
 
-可选 `--worker codex`（或 `claude` / `opencode` / `pi`）。模型 id 读 `.env` 的 `CODEX_MODEL` / `CLAUDE_MODEL` / `OPENCODE_MODEL` / `PI_MODEL`。恢复已有运行：`--resume <run_id>`（不执行新运行清理）。
+Worker 固定为 Pi SDK（`--worker pi`）。模型档案 id 读 `.env` 的 `PI_MODEL`（见 `src/shared/config/model_profiles.json`）；API Key 走 `.local/credentials/pi-auth.json`（BYOK）。恢复已有运行：`--resume <run_id>`（不执行新运行清理）。
 
 ### revise-lca
 

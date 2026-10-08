@@ -11,9 +11,9 @@ uv run python src/scripts/proj_init/main.py
 
 也可以在所用 AI 工具中输入「读取并执行 `src/scripts/proj_init/PROMPT.md`」。步骤正文在该文件。没有 uv 时脚本会判定不通过，需要你按下面说明手动安装。
 
-Worker 是 PATH 上的官方 CLI：`codex`、`claude`、`opencode`、`pi`。走 GUI 时，在「设置&初始化」点「AI Agent 工具」卡片上的「配置」，选择其中一个并填写该 CLI 的模型 id。认证使用各 CLI 的本机登录。GUI「初始化检查」探测所选 CLI 能否 `--version`，以及 openLCA IPC，不运行 bootstrap-env。主编排经 `src/shared/core/agents` 的会话接口 spawn CLI；日后换 SDK 只换 provider，不改 YAML 与图。
+Worker 固定为 **Pi SDK runtime**（`src/pi_agents/pi-runtime`，依赖 Node.js）。Web「设置与初始化」选择 `model_profiles.json` 中的模型档案，并为对应 Provider 填入自有 API Key（BYOK，写入 `.local/credentials/pi-auth.json`）。初始化检查探测 Node / pi-runtime 协议与 openLCA IPC，不依赖 PATH 上的 `codex` / `claude` / `opencode` / `pi` CLI。主编排经 `src/shared/core/agents` → `pi_agents` 调用 `ModelRuntime`。
 
-`.env` 要填的全部字段见仓库根目录 `.env.example`（Worker、四个模型 id、端口）。缺失的 `.env` 会从该模板复制。
+`.env` 要填的字段见仓库根目录 `.env.example`（`PI_MODEL`、openLCA 端口等）。缺失的 `.env` 会从该模板复制。
 
 ## 1. 安装 uv
 
@@ -44,7 +44,7 @@ Worker 是 PATH 上的官方 CLI：`codex`、`claude`、`opencode`、`pi`。走 
 uv sync
 ```
 
-该命令会创建虚拟环境并同步依赖（含开发依赖 `pytest`、`ruff`、`pyright`）。Worker CLI 需自行安装到 PATH。
+该命令会创建虚拟环境并同步依赖（含开发依赖 `pytest`、`ruff`、`pyright`）。另需 Node.js 22+ 与 `npm install && npm run build -w @harness/pi-runtime`。
 
 uv 包缓存默认写到仓库根 `.uv-cache/`（见 `.env.example` 的 `UV_CACHE_DIR`）。不要放到 `workspace/tmp/`。
 

@@ -74,7 +74,7 @@ class ReviewerPassGuardTests(unittest.TestCase):
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -89,7 +89,7 @@ class ReviewerPassGuardTests(unittest.TestCase):
                     initial_state(
                         run_id="r1",
                         task="whole-lca",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,
@@ -148,7 +148,7 @@ class HostCheckRetryTests(unittest.TestCase):
                 project_root=PROJECT_ROOT,
                 workspace_root=workspace,
                 session_client=client,
-                worker="codex",
+                worker="pi",
                 model="test",
                 capabilities=base_capabilities(),
             )
@@ -164,7 +164,7 @@ class HostCheckRetryTests(unittest.TestCase):
                     initial_state(
                         run_id="r1",
                         task="whole-lca",
-                        worker="codex",
+                        worker="pi",
                         workflow=workflow,
                     ),
                     store,

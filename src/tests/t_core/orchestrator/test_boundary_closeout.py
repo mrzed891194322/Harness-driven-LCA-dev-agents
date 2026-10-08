@@ -62,7 +62,7 @@ class CapabilitiesAndResumeTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=PROJECT_ROOT,
-                worker="codex",
+                worker="pi",
                 model="m",
             )
             assert_runtime_config_matches(
@@ -70,7 +70,7 @@ class CapabilitiesAndResumeTests(unittest.TestCase):
                 "run-1",
                 workflow,
                 project_root=PROJECT_ROOT,
-                worker="codex",
+                worker="pi",
                 model="m",
             )
 

@@ -30,4 +30,4 @@
 
 ## 终止与自主决策
 
-Worker（`codex` / `claude` / `opencode` / `pi`）模型 API 连接失败时，主编排会单独标记 `worker 模型连接失败` 并对整轮 turn 额外重试（与 handoff 协议返工区分）。`manifest.json` 的 `status` 为 `running` | `failed` | `completed`。不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定；在共同方法规则允许的范围内自主选择并留档。无法满足明确要求、存在关键未解决缺口或缺少必做**硬**工具能力时，以现有失败协议受控停止。解释类要求按阶段契约允许 `llm_inferred` + 出处表 fallback，不得因用户未在 plan 写许可而停止。
+Worker（Pi SDK runtime）模型 API 连接失败时，主编排会单独标记 `worker 模型连接失败` 并对整轮 turn 额外重试（与 handoff 协议返工区分）。`manifest.json` 的 `status` 为 `running` | `failed` | `completed`。不要设 `needs_input` / `awaiting_confirmation`。运行中不征求用户建模决定；在共同方法规则允许的范围内自主选择并留档。无法满足明确要求、存在关键未解决缺口或缺少必做**硬**工具能力时，以现有失败协议受控停止。解释类要求按阶段契约允许 `llm_inferred` + 出处表 fallback，不得因用户未在 plan 写许可而停止。

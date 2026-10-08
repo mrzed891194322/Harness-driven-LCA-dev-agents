@@ -7,7 +7,13 @@ import {
   ModelRuntime,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
-import type { SessionLaunchSpec } from "./types.js";
+import type { ModelProfile, SessionLaunchSpec } from "./types.js";
+import {
+  materializeAuthJson,
+  materializeModelsJson,
+  providerHasKey,
+  readPiAuthFile,
+} from "./auth_materialize.js";
 import { emitEvent } from "./protocol.js";
 
 const PROTOCOL_VERSION = 1;
@@ -65,8 +71,43 @@ function systemPromptFromSpec(spec: SessionLaunchSpec): string {
   return parts.join("\n\n");
 }
 
+function prepareAgentDir(spec: SessionLaunchSpec): {
+  authPath: string;
+  modelsPath: string | null;
+} {
+  const agentDir = spec.session_storage.agent_dir;
+  fs.mkdirSync(agentDir, { recursive: true });
+  const authPath = materializeAuthJson(
+    spec.resource_bindings.credentials_dir,
+    agentDir,
+  );
+  const modelsPath = materializeModelsJson(spec.model_profile, agentDir);
+  writeMcpJson(agentDir, spec);
+  return { authPath, modelsPath };
+}
+
+async function createModelRuntimeForSpec(spec: SessionLaunchSpec): Promise<ModelRuntime> {
+  const { authPath, modelsPath } = prepareAgentDir(spec);
+  return ModelRuntime.create({
+    authPath,
+    modelsPath,
+    allowModelNetwork: false,
+  });
+}
+
+async function resolveModel(
+  modelRuntime: ModelRuntime,
+  profile: ModelProfile | undefined,
+) {
+  if (!profile?.provider || !profile?.model_id) {
+    return undefined;
+  }
+  return modelRuntime.getModel(profile.provider, profile.model_id);
+}
+
 async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
   if (isMockMode()) {
+    prepareAgentDir(spec);
     return {
       spec,
       piSessionId: `mock-${spec.session_key}`,
@@ -76,16 +117,17 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
 
   const agentDir = spec.session_storage.agent_dir;
   const sessionFile = spec.session_storage.session_file;
-  fs.mkdirSync(agentDir, { recursive: true });
   fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
-  writeMcpJson(agentDir, spec);
+
+  const modelRuntime = await createModelRuntimeForSpec(spec);
+  const model = await resolveModel(modelRuntime, spec.model_profile);
+  if (!model) {
+    throw new Error(
+      `模型不可用：${spec.model_profile?.provider}/${spec.model_profile?.model_id}`,
+    );
+  }
 
   const cwd = spec.resource_bindings.project_root ?? process.cwd();
-  const modelRuntime = await ModelRuntime.create({
-    authPath: path.join(agentDir, "auth.json"),
-    modelsPath: path.join(agentDir, "models.json"),
-  });
-
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -102,6 +144,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
   const { session } = await createAgentSession({
     cwd,
     agentDir,
+    model,
     modelRuntime,
     resourceLoader,
     sessionManager: SessionManager.create(cwd),
@@ -114,6 +157,50 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     piSessionId: session.sessionId,
     dispose: () => session.dispose(),
   };
+}
+
+async function testModelConnection(params: Record<string, unknown>): Promise<unknown> {
+  if (isMockMode()) {
+    return { ok: true, mode: "mock" };
+  }
+  const provider = String(params.provider ?? "").trim();
+  const modelId = String(params.model_id ?? "").trim();
+  const credentialsDir = String(params.credentials_dir ?? "").trim();
+  const agentDir =
+    String(params.agent_dir ?? "").trim() ||
+    path.join(process.cwd(), "workspace", "tmp", "pi-sdk", "probe");
+  fs.mkdirSync(agentDir, { recursive: true });
+
+  const profile = {
+    profile_id: "probe",
+    provider,
+    model_id: modelId,
+    api_type: String(params.api_type ?? ""),
+    base_url: String(params.base_url ?? ""),
+  } satisfies ModelProfile;
+
+  const authPath = materializeAuthJson(credentialsDir || undefined, agentDir);
+  const modelsPath = materializeModelsJson(profile, agentDir);
+  const auth = readPiAuthFile(authPath);
+  if (provider && !providerHasKey(auth, provider)) {
+    return { ok: false, message: `未配置 ${provider} API Key（BYOK）` };
+  }
+
+  const modelRuntime = await ModelRuntime.create({
+    authPath,
+    modelsPath,
+    allowModelNetwork: false,
+  });
+  if (provider && modelId) {
+    const model = modelRuntime.getModel(provider, modelId);
+    if (!model) {
+      return { ok: false, message: `模型不在 Pi catalog：${provider}/${modelId}` };
+    }
+  }
+  if (provider && !modelRuntime.hasConfiguredAuth(provider)) {
+    return { ok: false, message: `${provider} 凭证未生效` };
+  }
+  return { ok: true, provider, model_id: modelId };
 }
 
 export async function handleRuntimeMethod(
@@ -164,10 +251,13 @@ export async function handleRuntimeMethod(
     }
     const spec = live.spec;
     const cwd = spec.resource_bindings.project_root ?? process.cwd();
-    const modelRuntime = await ModelRuntime.create({
-      authPath: path.join(spec.session_storage.agent_dir, "auth.json"),
-      modelsPath: path.join(spec.session_storage.agent_dir, "models.json"),
-    });
+    const modelRuntime = await createModelRuntimeForSpec(spec);
+    const model = await resolveModel(modelRuntime, spec.model_profile);
+    if (!model) {
+      throw new Error(
+        `模型不可用：${spec.model_profile?.provider}/${spec.model_profile?.model_id}`,
+      );
+    }
     const resourceLoader = new DefaultResourceLoader({
       cwd,
       agentDir: spec.session_storage.agent_dir,
@@ -182,6 +272,7 @@ export async function handleRuntimeMethod(
     const { session } = await createAgentSession({
       cwd,
       agentDir: spec.session_storage.agent_dir,
+      model,
       modelRuntime,
       resourceLoader,
       sessionManager: SessionManager.create(cwd),
@@ -216,10 +307,7 @@ export async function handleRuntimeMethod(
     return { cancelled: true };
   }
   if (method === "models.test_connection") {
-    if (isMockMode()) {
-      return { ok: true, mode: "mock" };
-    }
-    return { ok: false, message: "configure credentials in agent_dir before live test" };
+    return testModelConnection(params);
   }
   throw new Error(`unknown method: ${method}`);
 }

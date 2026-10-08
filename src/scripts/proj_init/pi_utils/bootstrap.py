@@ -112,7 +112,7 @@ def ensure_env_file(project_root: Path) -> dict[str, Any]:
 def detect_harness_clis(
     inspect_fn: Callable[[str], tuple[bool, str]] | None = None,
 ) -> dict[str, Any]:
-    """Report which worker CLIs are on PATH. Missing CLIs are warnings."""
+    """Report whether the Pi SDK runtime is ready (Node + pi-runtime)."""
     probe = inspect_fn or _inspect_worker
     clis: dict[str, dict[str, bool]] = {}
     found: list[str] = []
@@ -121,16 +121,16 @@ def detect_harness_clis(
         clis[name] = {"available": available}
         if available:
             found.append(name)
-            print(f"[OK] {name} CLI 已安装")
+            print(f"[OK] Pi SDK runtime ({name}) 就绪")
         else:
-            print(f"[WARN] {name} CLI 未安装")
+            print(f"[WARN] Pi SDK runtime ({name}) 不可用")
 
     if found:
-        print(f"[OK] harness CLI: {', '.join(found)}")
+        print(f"[OK] worker runtime: {', '.join(found)}")
     else:
         print(
-            "[WARN] PATH 上未找到 codex / claude / opencode / pi。"
-            "GUI 启动 whole-lca 需要其中之一。"
+            "[WARN] Pi SDK runtime 不可用。"
+            "请安装 Node.js 并执行 npm install && npm run build -w @harness/pi-runtime。"
         )
     return {"found": found, "clis": clis, "ok": bool(found)}
 
