@@ -83,6 +83,22 @@ def upsert_local_profile(
     return entry
 
 
+def delete_local_profile(project_root: Path, profile_id: str) -> None:
+    """Remove one local profile. Built-in profiles are left in place."""
+    pid = (profile_id or "").strip()
+    if not pid:
+        return
+    path = _local_profiles_path(project_root)
+    local = _read_json_map(path)
+    if pid not in local:
+        return
+    del local[pid]
+    if local:
+        path.write_text(json.dumps(local, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    elif path.is_file():
+        path.unlink()
+
+
 def resolve_model_profile(model_ref: str, *, project_root: Path) -> ModelProfile:
     profiles = load_profiles(project_root)
     default = profiles.get("default") or {}

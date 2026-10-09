@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from core.agents.config import load_worker_model
 from core.runtime.model_profiles import (
+    delete_local_profile,
     load_profiles,
     resolve_model_profile,
     upsert_local_profile,
@@ -26,8 +27,10 @@ from services.auth_login_service import (
     start_oauth_login,
 )
 from services.credentials_service import (
+    available_providers,
     clear_provider_key,
     credentials_status,
+    list_custom_endpoints,
     list_provider_catalog,
     provider_overrides_status,
     save_custom_endpoint,
@@ -108,8 +111,11 @@ class CustomEndpointCreate(BaseModel):
     api_type: str = "openai-completions"
     model_id: str
     display_name: str = ""
-    api_key: str = "local"
+    api_key: str = ""
     set_as_default: bool = False
+    previous_profile_id: str = ""
+    previous_provider: str = ""
+    previous_model_id: str = ""
 
 
 @app.get("/api/health")
@@ -192,6 +198,45 @@ def test_model_connection(body: ModelTestRequest) -> dict[str, Any]:
             "mode": result.get("mode"),
         }
     return {"ok": False, "message": "unexpected runtime response", "provider": provider}
+
+
+@app.get("/api/models/providers")
+def read_available_providers() -> dict[str, Any]:
+    return {"providers": available_providers(PROJECT_ROOT)}
+
+
+@app.get("/api/models/providers/{provider}/models")
+def list_provider_models(provider: str) -> dict[str, Any]:
+    name = provider.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="provider required")
+    cred_dir = PROJECT_ROOT / ".local" / "credentials"
+    runtime = shared_runtime(PROJECT_ROOT)
+    try:
+        result = runtime.request(
+            "models.list_available",
+            {
+                "provider": name,
+                "credentials_dir": str(cred_dir.resolve()),
+            },
+            timeout=90.0,
+        )
+    except Exception as exc:
+        return {"ok": False, "provider": name, "models": [], "message": str(exc)}
+    if isinstance(result, dict):
+        models = result.get("models") if isinstance(result.get("models"), list) else []
+        return {
+            "ok": bool(result.get("ok")),
+            "provider": name,
+            "models": models,
+            "message": str(result.get("message") or ""),
+        }
+    return {
+        "ok": False,
+        "provider": name,
+        "models": [],
+        "message": "unexpected runtime response",
+    }
 
 
 @app.get("/api/credentials/status")
@@ -281,6 +326,11 @@ def update_provider_base_url(body: ProviderBaseUrlUpdate) -> dict[str, Any]:
     }
 
 
+@app.get("/api/models/custom-endpoints")
+def read_custom_endpoints() -> dict[str, Any]:
+    return {"endpoints": list_custom_endpoints(PROJECT_ROOT)}
+
+
 @app.post("/api/models/custom-endpoint")
 def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
     try:
@@ -292,6 +342,8 @@ def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
             model_id=body.model_id,
             api_key=body.api_key,
             display_name=body.display_name,
+            previous_provider=body.previous_provider,
+            previous_model_id=body.previous_model_id,
         )
         profile = upsert_local_profile(
             PROJECT_ROOT,
@@ -304,6 +356,9 @@ def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
                 "base_url": body.base_url,
             },
         )
+        previous_profile = body.previous_profile_id.strip()
+        if previous_profile and previous_profile != body.profile_id.strip():
+            delete_local_profile(PROJECT_ROOT, previous_profile)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if body.set_as_default:
@@ -314,6 +369,7 @@ def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
         "profile": profile,
         "profiles": load_profiles(PROJECT_ROOT),
         "overrides": provider_overrides_status(PROJECT_ROOT),
+        "endpoints": list_custom_endpoints(PROJECT_ROOT),
     }
 
 

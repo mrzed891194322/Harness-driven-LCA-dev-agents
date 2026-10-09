@@ -15,13 +15,21 @@ type LcaTool = {
   port?: number;
 };
 
-type ModelStatus = {
-  profile_id: string;
-  display_name: string;
-  provider: string;
-  model_id: string;
-  base_url?: string;
-  credential_set: boolean;
+type AvailableProvider = {
+  id: string;
+  name: string;
+  auth?: string;
+};
+
+type LoadedModel = {
+  id: string;
+  name: string;
+};
+
+type ModelListState = {
+  state: "loading" | "ok" | "fail";
+  models: LoadedModel[];
+  message: string;
 };
 
 type Diagnostics = {
@@ -30,33 +38,13 @@ type Diagnostics = {
   python_agent: Check;
   openlca: Check & { host?: string; port?: number };
   lca_tools?: LcaTool[];
-  model?: ModelStatus;
-  profiles?: Record<string, { display_name?: string; provider: string; model_id: string; base_url?: string }>;
-  selected_profile?: string;
-  credentials?: Record<string, boolean>;
+  available_providers?: AvailableProvider[];
 };
-
-type Probe = { state: "idle" | "ok" | "fail"; message: string };
 
 function isDiagnostics(value: unknown): value is Diagnostics {
   if (!value || typeof value !== "object") return false;
   const row = value as Diagnostics;
   return Boolean(row.pi_agents && row.python_agent && row.openlca && "ok" in row.pi_agents);
-}
-
-function modelFromDiag(diag: Diagnostics): ModelStatus {
-  if (diag.model?.profile_id) return diag.model;
-  const id = diag.selected_profile || "default";
-  const profile = diag.profiles?.[id];
-  const provider = profile?.provider || "";
-  return {
-    profile_id: id,
-    display_name: profile?.display_name || id,
-    provider,
-    model_id: profile?.model_id || "",
-    base_url: profile?.base_url,
-    credential_set: Boolean(provider && diag.credentials?.[provider]),
-  };
 }
 
 function toolsFromDiag(diag: Diagnostics): LcaTool[] {
@@ -78,8 +66,12 @@ export default function StatusPage() {
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [probe, setProbe] = useState<Probe>({ state: "idle", message: "" });
+  const [providers, setProviders] = useState<AvailableProvider[] | null>(null);
+  const [providerError, setProviderError] = useState("");
+  const [modelBusy, setModelBusy] = useState(false);
   const [selectedTool, setSelectedTool] = useState("openlca");
+  const [openProvider, setOpenProvider] = useState<string | null>(null);
+  const [modelLists, setModelLists] = useState<Record<string, ModelListState>>({});
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -101,49 +93,86 @@ export default function StatusPage() {
     }
   }, []);
 
+  const refreshProviders = useCallback(async () => {
+    setModelBusy(true);
+    setProviderError("");
+    try {
+      const response = await fetch("/api/models/providers");
+      const data = (await response.json()) as { providers?: AvailableProvider[]; detail?: string };
+      if (!response.ok || !Array.isArray(data.providers)) {
+        throw new Error(data.detail || "无法读取供应商状态");
+      }
+      setProviders(data.providers);
+    } catch (error: unknown) {
+      setProviderError(error instanceof Error ? error.message : "无法读取供应商状态");
+    } finally {
+      setModelBusy(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (revision > 0) setProbe({ state: "idle", message: "" });
+    if (revision > 0) {
+      setOpenProvider(null);
+      setModelLists({});
+    }
     void refresh();
-  }, [refresh, revision]);
+    void refreshProviders();
+  }, [refresh, refreshProviders, revision]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
     return () => document.documentElement.classList.remove("status-fit");
   }, []);
 
-  const model = diag ? modelFromDiag(diag) : null;
   const tools = diag ? toolsFromDiag(diag) : [];
+  const providerRows = providers ?? [];
   const activeTool = tools.find((tool) => tool.id === selectedTool) ?? tools[0];
 
-  async function checkModel() {
-    if (!model) return;
-    setBusy(true);
-    setProbe({ state: "idle", message: "正在检查模型连接…" });
+  async function toggleProvider(providerId: string) {
+    if (openProvider === providerId) {
+      setOpenProvider(null);
+      return;
+    }
+    setOpenProvider(providerId);
+    if (modelLists[providerId]?.state === "ok") return;
+    setModelLists((prev) => ({
+      ...prev,
+      [providerId]: { state: "loading", models: [], message: "" },
+    }));
     try {
-      const r = await fetch("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile_id: model.profile_id,
-          provider: model.provider,
-        }),
-      });
-      const data = await r.json();
-      if (data.ok) {
-        setProbe({
-          state: "ok",
-          message: `可用：${data.provider}/${data.model_id}${data.mode ? ` (${data.mode})` : ""}`,
-        });
-      } else {
-        setProbe({ state: "fail", message: data.message || "连接失败" });
+      const response = await fetch(
+        `/api/models/providers/${encodeURIComponent(providerId)}/models`,
+      );
+      const data = (await response.json()) as {
+        ok?: boolean;
+        models?: LoadedModel[];
+        message?: string;
+        detail?: string;
+      };
+      if (!response.ok || data.ok === false) {
+        setModelLists((prev) => ({
+          ...prev,
+          [providerId]: {
+            state: "fail",
+            models: [],
+            message: data.message || data.detail || "无法加载模型",
+          },
+        }));
+        return;
       }
+      setModelLists((prev) => ({
+        ...prev,
+        [providerId]: { state: "ok", models: data.models ?? [], message: data.message || "" },
+      }));
     } catch (error: unknown) {
-      setProbe({
-        state: "fail",
-        message: error instanceof Error ? error.message : "检查失败",
-      });
-    } finally {
-      setBusy(false);
+      setModelLists((prev) => ({
+        ...prev,
+        [providerId]: {
+          state: "fail",
+          models: [],
+          message: error instanceof Error ? error.message : "无法加载模型",
+        },
+      }));
     }
   }
 
@@ -180,69 +209,80 @@ export default function StatusPage() {
         )}
       </section>
 
-      <section className="settings-card">
-        <div className="section-head">
-          <h3>模型可用性</h3>
+      <section className="settings-card status-model-card">
+        <h3>模型可用性</h3>
+        {providers === null ? (
+          <p className="settings-help">{providerError || "正在检查供应商…"}</p>
+        ) : providerRows.length === 0 ? (
+          <p className="settings-help">
+            {providerError || "还没有可用供应商。请在设置中配置模型。"}
+          </p>
+        ) : (
+          <ul className="status-model-body diag-list">
+            {providerRows.map((provider) => {
+              const open = openProvider === provider.id;
+              const detail = modelLists[provider.id];
+              return (
+                <li key={provider.id} className="status-provider">
+                  <div className="status-provider-head">
+                    <span className="badge badge-ok">可用</span>
+                    <span>
+                      {provider.name}
+                      <span className="settings-meta"> · {provider.id}</span>
+                    </span>
+                    <button
+                      type="button"
+                      aria-expanded={open}
+                      onClick={() => void toggleProvider(provider.id)}
+                    >
+                      {open ? "收起" : "详情"}
+                    </button>
+                  </div>
+                  {open ? (
+                    <div className="status-provider-detail">
+                      {detail?.state === "loading" || !detail ? (
+                        <p className="settings-help">正在加载模型…</p>
+                      ) : detail.state === "fail" ? (
+                        <p className="settings-help">{detail.message}</p>
+                      ) : detail.models.length === 0 ? (
+                        <p className="settings-help">
+                          {detail.message || "该供应商没有可加载的模型。"}
+                        </p>
+                      ) : (
+                        <ul className="model-detail-list">
+                          {detail.models.map((model) => (
+                            <li key={model.id}>
+                              <span>{model.name}</span>
+                              {model.name !== model.id ? (
+                                <span className="settings-meta"> {model.id}</span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="status-model-actions">
+          <button
+            type="button"
+            onClick={() => {
+              setOpenProvider(null);
+              setModelLists({});
+              void refreshProviders();
+            }}
+            disabled={modelBusy}
+          >
+            {modelBusy ? "刷新中…" : "刷新状态"}
+          </button>
           <button type="button" onClick={() => openSettings("models")}>
             配置模型
           </button>
         </div>
-        {model ? (
-          <>
-            <ul className="diag-list">
-              <li>
-                <span className="badge badge-off">档案</span>
-                <span>
-                  {model.display_name}
-                  <span className="settings-meta"> · {model.profile_id}</span>
-                </span>
-              </li>
-              <li>
-                <span className={`badge ${model.provider && model.model_id ? "badge-ok" : "badge-warn"}`}>
-                  模型
-                </span>
-                <span>
-                  {model.provider && model.model_id
-                    ? `${model.provider}/${model.model_id}`
-                    : "未解析到模型"}
-                  {model.base_url ? ` @ ${model.base_url}` : ""}
-                </span>
-              </li>
-              <li>
-                <span className={`badge ${model.credential_set ? "badge-ok" : "badge-warn"}`}>
-                  {model.credential_set ? "已配置" : "未配置"}
-                </span>
-                <span>
-                  凭证：
-                  {model.credential_set
-                    ? `${model.provider} 已有密钥或 OAuth`
-                    : `${model.provider || "当前 Provider"} 尚未配置`}
-                </span>
-              </li>
-              <li>
-                <span
-                  className={`badge ${
-                    probe.state === "ok"
-                      ? "badge-ok"
-                      : probe.state === "fail"
-                        ? "badge-warn"
-                        : "badge-off"
-                  }`}
-                >
-                  {probe.state === "ok" ? "可用" : probe.state === "fail" ? "不可用" : "未检查"}
-                </span>
-                <span>连接：{probe.message || "尚未探测连接"}</span>
-              </li>
-            </ul>
-            <div className="row">
-              <button type="button" className="primary" onClick={() => void checkModel()} disabled={busy}>
-                检查可用性
-              </button>
-            </div>
-          </>
-        ) : (
-          <p className="settings-help">{loadError ? "诊断未加载" : "正在读取模型档案…"}</p>
-        )}
       </section>
 
       <section className="settings-card">

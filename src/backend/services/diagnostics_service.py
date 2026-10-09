@@ -15,7 +15,7 @@ from diagnostics import check_openlca
 from core.agents.config import load_worker_model
 from core.agents.inspect import check, inspect
 from core.runtime.model_profiles import load_profiles
-from services.credentials_service import credentials_status_bool
+from services.credentials_service import available_providers, credentials_status_bool
 from services.project_paths import PROJECT_ROOT
 from utils.env import parse_env_file, upsert_env_keys
 
@@ -97,6 +97,7 @@ def environment_report(project_root: Path | None = None) -> dict:
         "profiles": profiles,
         "selected_profile": selected,
         "credentials": credentials,
+        "available_providers": available_providers(root),
         "model": {
             "profile_id": selected,
             "display_name": str(profile.get("display_name") or selected),

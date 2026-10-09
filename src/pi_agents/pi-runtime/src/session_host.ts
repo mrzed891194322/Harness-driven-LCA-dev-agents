@@ -15,6 +15,11 @@ import {
   readPiAuthFile,
 } from "./auth_materialize.js";
 import {
+  declaredEndpointFromFile,
+  modelIsServed,
+  probeServedModelIds,
+} from "./live_models.js";
+import {
   cancelAuthPrompt,
   replyAuthPrompt,
   runProviderLogin,
@@ -221,6 +226,66 @@ async function testModelConnection(params: Record<string, unknown>): Promise<unk
   return { ok: true, provider, model_id: modelId };
 }
 
+async function listAvailableModels(params: Record<string, unknown>): Promise<unknown> {
+  const provider = String(params.provider ?? "").trim();
+  if (!provider) {
+    return { ok: false, provider: "", models: [], message: "provider required" };
+  }
+  const credentialsDir = String(params.credentials_dir ?? "").trim();
+  const agentDir =
+    String(params.agent_dir ?? "").trim() ||
+    path.join(process.cwd(), "workspace", "tmp", "pi-sdk", "catalog");
+  fs.mkdirSync(agentDir, { recursive: true });
+  const authPath = materializeAuthJson(credentialsDir || undefined, agentDir);
+  const modelsPath = materializeModelsJson(undefined, agentDir, credentialsDir || undefined);
+  const modelRuntime = await ModelRuntime.create({
+    authPath,
+    modelsPath,
+    allowModelNetwork: false,
+  });
+  if (!modelRuntime.hasConfiguredAuth(provider)) {
+    return { ok: false, provider, models: [], message: `${provider} 凭证未生效` };
+  }
+  const declared = declaredEndpointFromFile(modelsPath, provider);
+  let served: ReadonlySet<string> | null = null;
+  if (declared) {
+    const probe = await probeServedModelIds(declared.baseUrl, declared.apiKey);
+    if (!probe.ok) {
+      return { ok: false, provider, models: [], message: probe.message };
+    }
+    served = probe.ids;
+  }
+  try {
+    const catalog = await modelRuntime.getAvailable(provider);
+    const models = catalog
+      .filter((model) => model.provider === provider && model.id)
+      .flatMap((model) => {
+        const loaded = modelRuntime.getModel(provider, model.id);
+        if (!loaded?.id) return [];
+        if (served && !modelIsServed(served, loaded.id)) return [];
+        return [{ id: loaded.id, name: loaded.name || loaded.id }];
+      })
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const missing =
+      served !== null && models.length === 0
+        ? "端点在线，但没有已配置且实际存在的模型。"
+        : "";
+    return {
+      ok: true,
+      provider,
+      models,
+      message: missing || modelRuntime.getError() || "",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      provider,
+      models: [],
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function handleRuntimeMethod(
   method: string,
   params: Record<string, unknown>,
@@ -326,6 +391,9 @@ export async function handleRuntimeMethod(
   }
   if (method === "models.test_connection") {
     return testModelConnection(params);
+  }
+  if (method === "models.list_available") {
+    return listAvailableModels(params);
   }
   if (method === "auth.login") {
     return runProviderLogin(params);

@@ -5,11 +5,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from core.runtime.model_profiles import delete_local_profile, load_profiles, upsert_local_profile
 from services.credentials_service import (
+    available_providers,
     clear_provider_key,
     credentials_status,
     credentials_status_bool,
+    list_custom_endpoints,
     list_provider_catalog,
+    load_pi_models,
     load_pi_auth,
     mask_key,
     provider_overrides_status,
@@ -92,18 +96,23 @@ class CredentialsServiceTests(unittest.TestCase):
             self.assertNotIn("access-token", status["openai"]["masked"] or "")
 
     def test_catalog_has_popular_providers(self) -> None:
-        ids = {item["id"] for item in list_provider_catalog()}
+        catalog = list_provider_catalog()
+        ids = {item["id"] for item in catalog}
         self.assertIn("anthropic", ids)
         self.assertIn("openrouter", ids)
         self.assertIn("opencode-go", ids)
         self.assertIn("openai", ids)
-        openai = next(i for i in list_provider_catalog() if i["id"] == "openai")
-        self.assertTrue(openai.get("supports_oauth"))
-        self.assertEqual(openai.get("oauth_label"), "Sign in with ChatGPT")
+        self.assertNotIn("groq", ids)
+        openai = next(i for i in catalog if i["id"] == "openai")
+        self.assertNotIn("supports_oauth", openai)
+        self.assertNotIn("oauth_label", openai)
         self.assertEqual(openai.get("default_base_url"), "https://api.openai.com/v1")
-        anthropic = next(i for i in list_provider_catalog() if i["id"] == "anthropic")
+        anthropic = next(i for i in catalog if i["id"] == "anthropic")
+        self.assertNotIn("supports_oauth", anthropic)
         self.assertEqual(anthropic.get("default_base_url"), "https://api.anthropic.com")
         self.assertIn("/v1", anthropic.get("base_url_hint") or "")
+        openrouter = next(i for i in catalog if i["id"] == "openrouter")
+        self.assertTrue(openrouter.get("supports_oauth"))
 
     def test_provider_base_url_and_custom_endpoint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -122,6 +131,124 @@ class CredentialsServiceTests(unittest.TestCase):
             overrides = provider_overrides_status(root)
             self.assertEqual(overrides["ollama"]["api"], "openai-completions")
             self.assertEqual(overrides["ollama"]["model_ids"], ["qwen2.5"])
+            save_custom_endpoint(
+                root,
+                provider="ollama",
+                base_url="http://localhost:11434/v1",
+                api="openai-completions",
+                model_id="qwen2.5-coder:7b",
+                api_key="",
+                display_name="Coder",
+            )
+            save_custom_endpoint(
+                root,
+                provider="lmstudio",
+                base_url="http://localhost:1234/v1",
+                api="openai-completions",
+                model_id="local-model",
+                api_key="lmstudio",
+            )
+            stored = load_pi_models(root)["providers"]
+            self.assertEqual(
+                [item["id"] for item in stored["ollama"]["models"]],
+                ["qwen2.5", "qwen2.5-coder:7b"],
+            )
+            self.assertEqual(stored["ollama"]["apiKey"], "ollama")
+            self.assertIn("lmstudio", stored)
+            self.assertEqual(stored["anthropic"]["baseUrl"], "https://proxy.example/v1")
+            self.assertNotIn("models", stored["anthropic"])
+            listed = {(row["provider"], row["model_id"]) for row in list_custom_endpoints(root)}
+            self.assertIn(("ollama", "qwen2.5"), listed)
+            self.assertIn(("ollama", "qwen2.5-coder:7b"), listed)
+            self.assertIn(("lmstudio", "local-model"), listed)
+            self.assertNotIn("anthropic", {provider for provider, _model in listed})
+            rows = available_providers(root)
+            self.assertEqual([row["id"] for row in rows], ["ollama", "lmstudio"])
+            save_provider_key(root, "openai", "sk-test-openai")
+            rows = available_providers(root)
+            self.assertEqual([row["id"] for row in rows], ["openai", "ollama", "lmstudio"])
+            self.assertEqual(rows[0]["name"], "OpenAI")
+
+    def test_edit_custom_endpoint_replaces_previous_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_custom_endpoint(
+                root,
+                provider="ollama",
+                base_url="http://localhost:11434/v1",
+                api="openai-completions",
+                model_id="qwen2.5",
+                api_key="ollama",
+                display_name="Qwen",
+            )
+            save_custom_endpoint(
+                root,
+                provider="ollama",
+                base_url="http://localhost:11434/v1",
+                api="openai-completions",
+                model_id="qwen2.5-coder:7b",
+                api_key="",
+            )
+            save_custom_endpoint(
+                root,
+                provider="ollama",
+                base_url="http://127.0.0.1:11434/v1",
+                api="openai-completions",
+                model_id="qwen2.5-coder",
+                api_key="",
+                display_name="Coder",
+                previous_provider="ollama",
+                previous_model_id="qwen2.5",
+            )
+            stored = load_pi_models(root)["providers"]["ollama"]
+            self.assertEqual(
+                [item["id"] for item in stored["models"]],
+                ["qwen2.5-coder:7b", "qwen2.5-coder"],
+            )
+            self.assertEqual(stored["baseUrl"], "http://127.0.0.1:11434/v1")
+            self.assertEqual(stored["apiKey"], "ollama")
+            save_custom_endpoint(
+                root,
+                provider="lmstudio",
+                base_url="http://localhost:1234/v1",
+                api="openai-completions",
+                model_id="local-model",
+                api_key="lmstudio",
+                previous_provider="ollama",
+                previous_model_id="qwen2.5-coder",
+            )
+            stored = load_pi_models(root)["providers"]
+            self.assertEqual(
+                [item["id"] for item in stored["ollama"]["models"]],
+                ["qwen2.5-coder:7b"],
+            )
+            self.assertEqual(stored["lmstudio"]["models"][0]["id"], "local-model")
+            upsert_local_profile(
+                root,
+                "local-ollama",
+                {
+                    "provider": "ollama",
+                    "model_id": "qwen2.5",
+                    "display_name": "旧名称",
+                    "base_url": "http://localhost:11434/v1",
+                    "api_type": "openai-completions",
+                },
+            )
+            upsert_local_profile(
+                root,
+                "local-ollama-2",
+                {
+                    "provider": "ollama",
+                    "model_id": "qwen2.5-coder",
+                    "display_name": "新名称",
+                    "base_url": "http://127.0.0.1:11434/v1",
+                    "api_type": "openai-completions",
+                },
+            )
+            delete_local_profile(root, "local-ollama")
+            profiles = load_profiles(root)
+            self.assertNotIn("local-ollama", profiles)
+            self.assertEqual(profiles["local-ollama-2"]["display_name"], "新名称")
 
 
 if __name__ == "__main__":

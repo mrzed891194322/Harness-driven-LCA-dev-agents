@@ -2,19 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type Profile = {
-  display_name?: string;
-  provider: string;
-  model_id: string;
-  api_type?: string;
-  base_url?: string;
-};
-
-type Diagnostics = {
-  profiles: Record<string, Profile>;
-  selected_profile?: string;
-};
-
 type CredInfo = { set: boolean; masked: string | null; type?: string };
 type ProviderCatalogItem = {
   id: string;
@@ -42,6 +29,46 @@ type CredentialsPayload = {
   overrides?: Record<string, OverrideInfo>;
 };
 
+type CustomEndpoint = {
+  profile_id: string;
+  provider: string;
+  base_url: string;
+  api_type: string;
+  model_id: string;
+  display_name: string;
+  has_api_key: boolean;
+};
+
+type CustomForm = {
+  profile_id: string;
+  provider: string;
+  base_url: string;
+  api_type: string;
+  model_id: string;
+  display_name: string;
+  api_key: string;
+  previous_profile_id: string;
+  previous_provider: string;
+  previous_model_id: string;
+};
+
+const EMPTY_CUSTOM_FORM: CustomForm = {
+  profile_id: "",
+  provider: "",
+  base_url: "",
+  api_type: "openai-completions",
+  model_id: "",
+  display_name: "",
+  api_key: "",
+  previous_profile_id: "",
+  previous_provider: "",
+  previous_model_id: "",
+};
+
+function endpointKey(item: CustomEndpoint): string {
+  return item.profile_id || `${item.provider}/${item.model_id}`;
+}
+
 type LoginPrompt = {
   prompt_id?: string;
   prompt?: {
@@ -52,16 +79,8 @@ type LoginPrompt = {
   };
 };
 
-function isDiagnostics(value: unknown): value is Diagnostics {
-  if (!value || typeof value !== "object") return false;
-  const row = value as Diagnostics;
-  return Boolean(row.profiles && typeof row.profiles === "object");
-}
-
 export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
-  const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [creds, setCreds] = useState<CredentialsPayload | null>(null);
-  const [profile, setProfile] = useState("default");
   const [expanded, setExpanded] = useState<string | null>("anthropic");
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
   const [draftBaseUrls, setDraftBaseUrls] = useState<Record<string, string>>({});
@@ -74,38 +93,24 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
   const [authUrl, setAuthUrl] = useState<string | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<LoginPrompt | null>(null);
   const [promptValue, setPromptValue] = useState("");
-
-  const [customForm, setCustomForm] = useState({
-    profile_id: "local-ollama",
-    provider: "ollama",
-    base_url: "http://localhost:11434/v1",
-    api_type: "openai-completions",
-    model_id: "qwen2.5-coder:7b",
-    display_name: "本地 Ollama",
-    api_key: "ollama",
-  });
+  const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([]);
+  const [addingCustom, setAddingCustom] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [customForm, setCustomForm] = useState<CustomForm>(EMPTY_CUSTOM_FORM);
 
   const refresh = useCallback(async () => {
-    const [envRes, credRes] = await Promise.all([
-      fetch("/api/models/profiles"),
+    const [credRes, customRes] = await Promise.all([
       fetch("/api/credentials/status"),
+      fetch("/api/models/custom-endpoints"),
     ]);
-    const env = (await envRes.json()) as { profiles?: Diagnostics["profiles"]; selected?: string };
     const credPayload = (await credRes.json()) as CredentialsPayload;
-    const normalized: Diagnostics = {
-      profiles: env.profiles ?? {},
-      selected_profile: env.selected,
-    };
-    if (!envRes.ok || !isDiagnostics(normalized)) {
-      throw new Error(`模型档案不可用（HTTP ${envRes.status}）。请确认后端已启动。`);
+    if (!credRes.ok || !Array.isArray(credPayload?.catalog)) {
+      throw new Error(`模型配置不可用（HTTP ${credRes.status}）。请确认后端已启动。`);
     }
-    setDiag(normalized);
-    setCreds(credRes.ok && Array.isArray(credPayload?.catalog) ? credPayload : null);
-    const selected = normalized.selected_profile || "default";
-    setProfile(selected);
-    const selectedProfile = normalized.profiles?.[selected];
-    if (selectedProfile?.provider) {
-      setExpanded((prev) => prev ?? selectedProfile.provider);
+    setCreds(credPayload);
+    if (customRes.ok) {
+      const customPayload = (await customRes.json()) as { endpoints?: CustomEndpoint[] };
+      setCustomEndpoints(Array.isArray(customPayload.endpoints) ? customPayload.endpoints : []);
     }
     const urls: Record<string, string> = {};
     for (const [id, ov] of Object.entries(credPayload?.overrides ?? {})) {
@@ -166,11 +171,6 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     };
   }, [loginId, onChanged, refresh]);
 
-  const profiles = diag?.profiles ?? {
-    default: { provider: "anthropic", model_id: "", display_name: "项目默认" },
-  };
-  const currentProfile = profiles[profile];
-
   const catalog = useMemo(() => {
     const base = creds?.catalog ?? [];
     const known = new Set(base.map((p) => p.id));
@@ -185,31 +185,6 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
       }));
     return [...base, ...extras];
   }, [creds]);
-
-  async function saveModel() {
-    setBusy(true);
-    setStatusMsg("");
-    setStatusError(false);
-    try {
-      const r = await fetch("/api/models/selection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile_id: profile }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.detail || "保存失败");
-      }
-      setStatusMsg(`已保存默认模型档案：${profile}（立即生效）`);
-      await refresh();
-      onChanged?.();
-    } catch (e) {
-      setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "保存失败");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function saveCredential(providerId: string) {
     const apiKey = (draftKeys[providerId] || "").trim();
@@ -363,6 +338,15 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
   }
 
   async function saveCustomEndpoint() {
+    const profileId = customForm.profile_id.trim();
+    const provider = customForm.provider.trim();
+    const baseUrl = customForm.base_url.trim();
+    const modelId = customForm.model_id.trim();
+    if (!profileId || !provider || !baseUrl || !modelId) {
+      setStatusError(true);
+      setStatusMsg("请填写端点 id、Provider id、Base URL 和 Model id");
+      return;
+    }
     setBusy(true);
     setStatusMsg("");
     setStatusError(false);
@@ -370,11 +354,15 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
       const r = await fetch("/api/models/custom-endpoint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...customForm, set_as_default: true }),
+        body: JSON.stringify({ ...customForm, profile_id: profileId, provider, base_url: baseUrl, model_id: modelId }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.detail || "保存失败");
-      setStatusMsg(`已保存自定义端点档案 ${customForm.profile_id}（Pi compatible endpoint）`);
+      if (Array.isArray(data.endpoints)) setCustomEndpoints(data.endpoints);
+      setStatusMsg(`已保存自定义端点 ${profileId}`);
+      setCustomForm(EMPTY_CUSTOM_FORM);
+      setAddingCustom(false);
+      setEditingKey(null);
       await refresh();
       onChanged?.();
     } catch (e) {
@@ -385,82 +373,90 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     }
   }
 
-  async function testConnection() {
-    setBusy(true);
-    setStatusMsg("");
-    setStatusError(false);
-    try {
-      const r = await fetch("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile_id: profile,
-          provider: currentProfile?.provider,
-        }),
-      });
-      const data = await r.json();
-      if (data.ok) {
-        setStatusMsg(
-          `连接成功：${data.provider}/${data.model_id}${data.mode ? ` (${data.mode})` : ""}`,
-        );
-        onChanged?.();
-      } else {
-        setStatusError(true);
-        setStatusMsg(`连接失败：${data.message || "未知错误"}`);
-      }
-    } catch (e) {
-      setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "测试失败");
-    } finally {
-      setBusy(false);
-    }
+  function renderCustomForm(onCancel: () => void) {
+    const editing = Boolean(customForm.previous_provider || customForm.previous_profile_id);
+    return (
+      <>
+        <div className="custom-grid">
+          <label>
+            端点 id
+            <input
+              value={customForm.profile_id}
+              placeholder="local-ollama"
+              onChange={(e) => setCustomForm((p) => ({ ...p, profile_id: e.target.value }))}
+            />
+          </label>
+          <label>
+            Provider id
+            <input
+              value={customForm.provider}
+              placeholder="ollama"
+              onChange={(e) => setCustomForm((p) => ({ ...p, provider: e.target.value }))}
+            />
+          </label>
+          <label>
+            Base URL
+            <input
+              value={customForm.base_url}
+              placeholder="http://localhost:11434/v1"
+              onChange={(e) => setCustomForm((p) => ({ ...p, base_url: e.target.value }))}
+            />
+          </label>
+          <label>
+            API 类型
+            <select
+              value={customForm.api_type}
+              onChange={(e) => setCustomForm((p) => ({ ...p, api_type: e.target.value }))}
+            >
+              <option value="openai-completions">openai-completions</option>
+              <option value="openai-responses">openai-responses</option>
+              <option value="anthropic-messages">anthropic-messages</option>
+              <option value="google-generative-ai">google-generative-ai</option>
+            </select>
+          </label>
+          <label>
+            Model id
+            <input
+              value={customForm.model_id}
+              placeholder="qwen2.5-coder:7b"
+              onChange={(e) => setCustomForm((p) => ({ ...p, model_id: e.target.value }))}
+            />
+          </label>
+          <label>
+            显示名
+            <input
+              value={customForm.display_name}
+              placeholder="本地 Ollama"
+              onChange={(e) => setCustomForm((p) => ({ ...p, display_name: e.target.value }))}
+            />
+          </label>
+          <label>
+            apiKey（本地可填占位）
+            <input
+              value={customForm.api_key}
+              placeholder={editing ? "留空则保留已有密钥" : "留空则写入 local"}
+              onChange={(e) => setCustomForm((p) => ({ ...p, api_key: e.target.value }))}
+            />
+          </label>
+        </div>
+        <div className="row">
+          <button type="button" className="primary" disabled={busy} onClick={() => void saveCustomEndpoint()}>
+            保存端点
+          </button>
+          <button type="button" disabled={busy} onClick={onCancel}>
+            取消
+          </button>
+        </div>
+      </>
+    );
   }
 
   return (
     <div className="settings-section">
       <p className="settings-help">
-        选择默认档案，并配置 Provider 密钥、OAuth 与自定义端点。凭证写入{" "}
+        配置 Provider 密钥与自定义端点。已配置的供应商会出现在状态页的模型可用性中。凭证写入{" "}
         <span className="mono">.local/credentials/pi-auth.json</span>，不进 Git。
       </p>
-
-        <section className="settings-card">
-          <h3>默认模型档案</h3>
-          <p className="settings-help">
-            对应 <span className="mono">PI_MODEL</span>。内置档案在{" "}
-            <span className="mono">model_profiles.json</span>；自定义端点档案在{" "}
-            <span className="mono">.local/model_profiles.json</span>。
-          </p>
-          <div className="row">
-            <select
-              value={profile}
-              onChange={(e) => {
-                const id = e.target.value;
-                setProfile(id);
-                const p = profiles[id];
-                if (p?.provider) setExpanded(p.provider);
-              }}
-            >
-              {Object.entries(profiles).map(([id, p]) => (
-                <option key={id} value={id}>
-                  {p.display_name ?? id} ({p.provider}/{p.model_id})
-                </option>
-              ))}
-            </select>
-            <button type="button" className="primary" onClick={saveModel} disabled={busy}>
-              保存默认模型
-            </button>
-            <button type="button" onClick={testConnection} disabled={busy}>
-              测试连接
-            </button>
-          </div>
-          {currentProfile ? (
-            <p className="settings-meta">
-              当前：{currentProfile.provider}/{currentProfile.model_id}
-              {currentProfile.base_url ? ` @ ${currentProfile.base_url}` : ""}
-              {currentProfile.api_type ? ` · ${currentProfile.api_type}` : ""}
-            </p>
-          ) : null}
-        </section>
 
         <section className="settings-card">
           <h3>Providers</h3>
@@ -474,7 +470,6 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
             <div className="oauth-panel">
               <p className="settings-meta">
                 Pi OAuth 进行中{loginProvider ? `：${loginProvider}` : ""}
-                {loginProvider === "openai" ? "（Sign in with ChatGPT）" : ""}
               </p>
               {authUrl ? (
                 <p className="settings-help">
@@ -650,70 +645,87 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         <section className="settings-card">
           <h3>自定义 API / 本地模型</h3>
           <p className="settings-help">
-            使用 Pi compatible endpoint（Ollama、LM Studio、vLLM、自建网关），写入{" "}
-            <span className="mono">pi-models.json</span>。
+            可保存多个兼容端点（Ollama、LM Studio、vLLM、自建网关）。已保存的端点会保留；新端点请使用新的 Provider id。同一 Provider id 下的模型共用 Base URL 和密钥。
           </p>
-          <div className="custom-grid">
-            <label>
-              档案 id
-              <input
-                value={customForm.profile_id}
-                onChange={(e) => setCustomForm((p) => ({ ...p, profile_id: e.target.value }))}
-              />
-            </label>
-            <label>
-              Provider id
-              <input
-                value={customForm.provider}
-                onChange={(e) => setCustomForm((p) => ({ ...p, provider: e.target.value }))}
-              />
-            </label>
-            <label>
-              Base URL
-              <input
-                value={customForm.base_url}
-                onChange={(e) => setCustomForm((p) => ({ ...p, base_url: e.target.value }))}
-              />
-            </label>
-            <label>
-              API 类型
-              <select
-                value={customForm.api_type}
-                onChange={(e) => setCustomForm((p) => ({ ...p, api_type: e.target.value }))}
-              >
-                <option value="openai-completions">openai-completions</option>
-                <option value="openai-responses">openai-responses</option>
-                <option value="anthropic-messages">anthropic-messages</option>
-                <option value="google-generative-ai">google-generative-ai</option>
-              </select>
-            </label>
-            <label>
-              Model id
-              <input
-                value={customForm.model_id}
-                onChange={(e) => setCustomForm((p) => ({ ...p, model_id: e.target.value }))}
-              />
-            </label>
-            <label>
-              显示名
-              <input
-                value={customForm.display_name}
-                onChange={(e) => setCustomForm((p) => ({ ...p, display_name: e.target.value }))}
-              />
-            </label>
-            <label>
-              apiKey（本地可填占位）
-              <input
-                value={customForm.api_key}
-                onChange={(e) => setCustomForm((p) => ({ ...p, api_key: e.target.value }))}
-              />
-            </label>
-          </div>
-          <div className="row" style={{ marginTop: 12 }}>
-            <button type="button" className="primary" disabled={busy} onClick={saveCustomEndpoint}>
-              保存并设为默认
+          {customEndpoints.length ? (
+            <ul className="custom-saved">
+              {customEndpoints.map((item) => {
+                const key = endpointKey(item);
+                const editing = editingKey === key;
+                return (
+                  <li key={key}>
+                    <div className="custom-saved-head">
+                      <strong>{item.display_name || item.model_id}</strong>
+                      <span className="custom-saved-actions">
+                        <span className="badge badge-ok">已保存</span>
+                        <button
+                          type="button"
+                          disabled={busy || editing}
+                          onClick={() => {
+                            setAddingCustom(false);
+                            setEditingKey(key);
+                            setCustomForm({
+                              profile_id: item.profile_id,
+                              provider: item.provider,
+                              base_url: item.base_url,
+                              api_type: item.api_type || "openai-completions",
+                              model_id: item.model_id,
+                              display_name: item.display_name,
+                              api_key: "",
+                              previous_profile_id: item.profile_id,
+                              previous_provider: item.provider,
+                              previous_model_id: item.model_id,
+                            });
+                          }}
+                        >
+                          编辑
+                        </button>
+                      </span>
+                    </div>
+                    {editing ? (
+                      renderCustomForm(() => {
+                        setEditingKey(null);
+                        setCustomForm(EMPTY_CUSTOM_FORM);
+                      })
+                    ) : (
+                      <>
+                        <p className="settings-meta">
+                          {item.profile_id ? `${item.profile_id} · ` : ""}
+                          {item.provider}/{item.model_id}
+                          {item.api_type ? ` · ${item.api_type}` : ""}
+                        </p>
+                        {item.base_url ? <p className="settings-meta">{item.base_url}</p> : null}
+                        <p className="settings-meta">{item.has_api_key ? "密钥已保存" : "未保存密钥"}</p>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="settings-help">还没有自定义模型。</p>
+          )}
+          <div className="row">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingKey(null);
+                setCustomForm(EMPTY_CUSTOM_FORM);
+                setAddingCustom(true);
+              }}
+              disabled={addingCustom}
+            >
+              添加新自定义模型
             </button>
           </div>
+          {addingCustom ? (
+            <div className="custom-panel">
+              {renderCustomForm(() => {
+                setAddingCustom(false);
+                setCustomForm(EMPTY_CUSTOM_FORM);
+              })}
+            </div>
+          ) : null}
         </section>
 
         {statusMsg ? (

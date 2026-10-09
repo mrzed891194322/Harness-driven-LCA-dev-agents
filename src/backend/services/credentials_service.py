@@ -18,11 +18,9 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
     {
         "id": "anthropic",
         "name": "Anthropic",
-        "hint": "Claude API key，或 Claude Pro/Max OAuth",
+        "hint": "Claude API key",
         "placeholder": "sk-ant-…",
         "keys_url": "https://console.anthropic.com/settings/keys",
-        "supports_oauth": True,
-        "oauth_label": "Sign in with Claude",
         "supports_base_url": True,
         "default_base_url": "https://api.anthropic.com",
         "base_url_hint": "留空=Pi 默认。官方 Anthropic 不含 /v1；代理若走 Anthropic Messages 协议一般也不加 /v1。",
@@ -30,11 +28,9 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
     {
         "id": "openai",
         "name": "OpenAI",
-        "hint": "API key，或 Sign in with ChatGPT（Pi 内置 OAuth）",
+        "hint": "API key",
         "placeholder": "sk-…",
         "keys_url": "https://platform.openai.com/api-keys",
-        "supports_oauth": True,
-        "oauth_label": "Sign in with ChatGPT",
         "supports_base_url": True,
         "default_base_url": "https://api.openai.com/v1",
         "base_url_hint": "留空=Pi 默认（已含 /v1）。自建/代理通常也要带 /v1，例如 https://host/v1。",
@@ -70,17 +66,6 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "supports_base_url": True,
         "default_base_url": "https://openrouter.ai/api/v1",
         "base_url_hint": "留空=Pi 默认（已含 /api/v1）。代理请对齐上游路径。",
-    },
-    {
-        "id": "groq",
-        "name": "Groq",
-        "hint": "Groq Cloud API key",
-        "placeholder": "gsk_…",
-        "keys_url": "https://console.groq.com/keys",
-        "supports_oauth": False,
-        "supports_base_url": True,
-        "default_base_url": "https://api.groq.com/openai/v1",
-        "base_url_hint": "留空=Pi 默认（/openai/v1）。OpenAI 兼容代理通常需要 /v1。",
     },
     {
         "id": "deepseek",
@@ -287,6 +272,14 @@ def set_provider_base_url(project_root: Path, provider: str, base_url: str) -> s
     return url
 
 
+def _custom_model_items(cfg: dict[str, Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for item in cfg.get("models") or []:
+        if isinstance(item, dict) and item.get("id"):
+            items.append(dict(item))
+    return items
+
+
 def save_custom_endpoint(
     project_root: Path,
     *,
@@ -296,6 +289,8 @@ def save_custom_endpoint(
     model_id: str,
     api_key: str = "local",
     display_name: str = "",
+    previous_provider: str = "",
+    previous_model_id: str = "",
 ) -> dict[str, Any]:
     """Register an OpenAI/Anthropic-compatible endpoint in pi-models.json.
 
@@ -311,18 +306,143 @@ def save_custom_endpoint(
         raise ValueError("model_id required")
     models = load_pi_models(project_root)
     providers = dict(models.get("providers") or {})
-    providers[name] = {
-        "baseUrl": url,
-        "api": api_type,
-        "apiKey": (api_key or "local").strip() or "local",
-        "models": [{"id": mid, "name": (display_name or mid).strip() or mid}],
-    }
+    prev_provider = (previous_provider or "").strip()
+    prev_model = (previous_model_id or "").strip()
+    if prev_provider and prev_model and prev_provider != name:
+        old = dict(providers.get(prev_provider) or {})
+        kept = [item for item in _custom_model_items(old) if str(item.get("id")) != prev_model]
+        if kept:
+            old["models"] = kept
+            providers[prev_provider] = old
+        elif prev_provider in providers:
+            del providers[prev_provider]
+    existing = dict(providers.get(name) or {})
+    model_items = _custom_model_items(existing)
+    if prev_provider == name and prev_model and prev_model != mid:
+        model_items = [item for item in model_items if str(item.get("id")) != prev_model]
+    display = (display_name or mid).strip() or mid
+    for item in model_items:
+        if str(item.get("id")) == mid:
+            item["name"] = display
+            break
+    else:
+        model_items.append({"id": mid, "name": display})
+    existing["baseUrl"] = url
+    existing["api"] = api_type
+    key = (api_key or "").strip()
+    if key:
+        existing["apiKey"] = key
+    elif not str(existing.get("apiKey") or "").strip():
+        existing["apiKey"] = "local"
+    existing["models"] = model_items
+    providers[name] = existing
     save_pi_models(project_root, {"providers": providers})
     return providers[name]
 
 
+def list_custom_endpoints(project_root: Path) -> list[dict[str, Any]]:
+    """Saved compatible endpoints. Other providers are left untouched."""
+    from core.runtime.model_profiles import load_profiles
+
+    profiles = load_profiles(project_root)
+    stored = load_pi_models(project_root)
+    providers = stored.get("providers") if isinstance(stored.get("providers"), dict) else {}
+    rows: list[dict[str, Any]] = []
+    covered: set[tuple[str, str]] = set()
+
+    for profile_id, profile in profiles.items():
+        if not isinstance(profile, dict):
+            continue
+        base_url = str(profile.get("base_url") or "").strip()
+        api_type = str(profile.get("api_type") or "").strip()
+        if not base_url and not api_type:
+            continue
+        provider = str(profile.get("provider") or "").strip()
+        model_id = str(profile.get("model_id") or "").strip()
+        cfg = providers.get(provider) if isinstance(providers.get(provider), dict) else {}
+        rows.append(
+            {
+                "profile_id": str(profile_id),
+                "provider": provider,
+                "base_url": base_url or str(cfg.get("baseUrl") or "").strip(),
+                "api_type": api_type or str(cfg.get("api") or "").strip(),
+                "model_id": model_id,
+                "display_name": str(profile.get("display_name") or profile_id),
+                "has_api_key": bool(str(cfg.get("apiKey") or "").strip()),
+            }
+        )
+        if provider and model_id:
+            covered.add((provider, model_id))
+
+    for provider, cfg in providers.items():
+        if not isinstance(cfg, dict):
+            continue
+        model_items = cfg.get("models") or []
+        if not isinstance(model_items, list):
+            continue
+        for item in model_items:
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            model_id = str(item["id"])
+            if (str(provider), model_id) in covered:
+                continue
+            rows.append(
+                {
+                    "profile_id": "",
+                    "provider": str(provider),
+                    "base_url": str(cfg.get("baseUrl") or "").strip(),
+                    "api_type": str(cfg.get("api") or "").strip(),
+                    "model_id": model_id,
+                    "display_name": str(item.get("name") or model_id),
+                    "has_api_key": bool(str(cfg.get("apiKey") or "").strip()),
+                }
+            )
+    return rows
+
+
 def list_provider_catalog() -> list[dict[str, Any]]:
     return [dict(item) for item in POPULAR_PROVIDERS]
+
+
+def available_providers(project_root: Path) -> list[dict[str, Any]]:
+    """Providers that have a stored credential or a compatible-endpoint API key.
+
+    Availability is this list. Model catalogs are loaded separately on demand.
+    """
+    creds = credentials_status(project_root)
+    overrides = provider_overrides_status(project_root)
+    catalog = list_provider_catalog()
+    names = {str(item["id"]): str(item.get("name") or item["id"]) for item in catalog}
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def consider(provider: str) -> None:
+        name = (provider or "").strip()
+        if not name or name in seen:
+            return
+        cred = creds.get(name) or {}
+        override = overrides.get(name) or {}
+        if cred.get("set") or override.get("has_api_key"):
+            seen.add(name)
+            ordered.append(name)
+
+    for item in catalog:
+        consider(str(item["id"]))
+    for provider in [*creds, *overrides]:
+        consider(str(provider))
+
+    rows: list[dict[str, Any]] = []
+    for provider in ordered:
+        cred = creds.get(provider) or {}
+        override = overrides.get(provider) or {}
+        if cred.get("set"):
+            auth = str(cred.get("type") or "api_key")
+        elif override.get("has_api_key"):
+            auth = "api_key"
+        else:
+            auth = ""
+        rows.append({"id": provider, "name": names.get(provider, provider), "auth": auth})
+    return rows
 
 
 def provider_overrides_status(project_root: Path) -> dict[str, dict[str, Any]]:
