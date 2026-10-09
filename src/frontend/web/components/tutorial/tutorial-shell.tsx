@@ -53,8 +53,9 @@ export function TutorialShell({
     title || located?.entry.label || (error ? "教程" : catalog ? "教程" : "教程");
 
   useEffect(() => {
-    document.documentElement.classList.add("tutorial-fit");
-    return () => document.documentElement.classList.remove("tutorial-fit");
+    // Reuse status-fit so shell width/height match the status page.
+    document.documentElement.classList.add("status-fit");
+    return () => document.documentElement.classList.remove("status-fit");
   }, []);
 
   return (

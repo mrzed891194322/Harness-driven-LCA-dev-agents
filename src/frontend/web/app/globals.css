@@ -759,44 +759,12 @@ button:disabled {
   padding: 6px 10px;
 }
 
-html.tutorial-fit,
-html.tutorial-fit body {
-  height: 100%;
-  overflow: hidden;
-}
-
-html.tutorial-fit .app-frame {
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
-  max-height: 100dvh;
-  overflow: hidden;
-}
-
-html.tutorial-fit .app-header {
-  flex: none;
-}
-
-html.tutorial-fit .app-shell {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  height: auto;
-  max-height: none;
-  margin-bottom: 0;
-  padding: 0 20px 16px;
-  overflow: hidden;
-}
-
-html.tutorial-fit .nav-row {
-  flex: none;
-  margin: 14px 0 16px;
-}
-
 .tutorial-panel {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
+  height: 100%;
   padding: 0;
   overflow: hidden;
   display: flex;
@@ -807,6 +775,8 @@ html.tutorial-fit .nav-row {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   flex: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
   height: 100%;
   overflow: hidden;
@@ -814,6 +784,7 @@ html.tutorial-fit .nav-row {
 
 .tutorial-nav {
   min-height: 0;
+  height: 100%;
   overflow: auto;
 }
 
@@ -839,7 +810,9 @@ html.tutorial-fit .nav-row {
 }
 
 .tutorial-main {
+  min-width: 0;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -849,6 +822,7 @@ html.tutorial-fit .nav-row {
 
 .tutorial-body {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   max-width: none;
