@@ -5,14 +5,19 @@ import { Fragment, type ReactNode } from "react";
 type MarkdownViewProps = {
   source: string;
   onOpen?: (href: string) => void;
+  resolveAsset?: (href: string) => string | null;
 };
 
-export function MarkdownView({ source, onOpen }: MarkdownViewProps) {
+export function MarkdownView({ source, onOpen, resolveAsset }: MarkdownViewProps) {
   const body = source.replace(/^(?:[ \t]*\r?\n)*#\s+[^\n]*(?:\n|$)/, "");
-  return <div className="harness-doc">{renderBlocks(body, onOpen)}</div>;
+  return <div className="harness-doc">{renderBlocks(body, onOpen, resolveAsset)}</div>;
 }
 
-function renderBlocks(source: string, onOpen?: (href: string) => void) {
+function renderBlocks(
+  source: string,
+  onOpen?: (href: string) => void,
+  resolveAsset?: (href: string) => string | null,
+) {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -20,6 +25,17 @@ function renderBlocks(source: string, onOpen?: (href: string) => void) {
   while (index < lines.length) {
     const line = lines[index];
     if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+    const imageOnly = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/.exec(line.trim());
+    if (imageOnly) {
+      blocks.push(
+        <figure key={blocks.length} className="harness-figure">
+          {renderImage(imageOnly[1], imageOnly[2], resolveAsset)}
+          {imageOnly[1] ? <figcaption>{imageOnly[1]}</figcaption> : null}
+        </figure>,
+      );
       index += 1;
       continue;
     }
@@ -53,7 +69,7 @@ function renderBlocks(source: string, onOpen?: (href: string) => void) {
             <thead>
               <tr>
                 {head.map((cell, cellIndex) => (
-                  <th key={cellIndex}>{renderInline(cell, onOpen)}</th>
+                  <th key={cellIndex}>{renderInline(cell, onOpen, resolveAsset)}</th>
                 ))}
               </tr>
             </thead>
@@ -61,7 +77,7 @@ function renderBlocks(source: string, onOpen?: (href: string) => void) {
               {body.map((row, rowIndex) => (
                 <tr key={rowIndex}>
                   {row.map((cell, cellIndex) => (
-                    <td key={cellIndex}>{renderInline(cell, onOpen)}</td>
+                    <td key={cellIndex}>{renderInline(cell, onOpen, resolveAsset)}</td>
                   ))}
                 </tr>
               ))}
@@ -75,7 +91,9 @@ function renderBlocks(source: string, onOpen?: (href: string) => void) {
     if (heading) {
       const level = heading[1].length;
       const Tag = `h${Math.min(level + 1, 4)}` as "h2" | "h3" | "h4";
-      blocks.push(<Tag key={blocks.length}>{renderInline(heading[2], onOpen)}</Tag>);
+      blocks.push(
+        <Tag key={blocks.length}>{renderInline(heading[2], onOpen, resolveAsset)}</Tag>,
+      );
       index += 1;
       continue;
     }
@@ -85,7 +103,9 @@ function renderBlocks(source: string, onOpen?: (href: string) => void) {
         quote.push(lines[index].replace(/^>\s?/, ""));
         index += 1;
       }
-      blocks.push(<blockquote key={blocks.length}>{renderInline(quote.join(" "), onOpen)}</blockquote>);
+      blocks.push(
+        <blockquote key={blocks.length}>{renderInline(quote.join(" "), onOpen, resolveAsset)}</blockquote>,
+      );
       continue;
     }
     if (/^\s*[-*]\s+/.test(line)) {
@@ -97,7 +117,7 @@ function renderBlocks(source: string, onOpen?: (href: string) => void) {
       blocks.push(
         <ul key={blocks.length}>
           {items.map((item, itemIndex) => (
-            <li key={itemIndex}>{renderInline(item, onOpen)}</li>
+            <li key={itemIndex}>{renderInline(item, onOpen, resolveAsset)}</li>
           ))}
         </ul>,
       );
@@ -112,7 +132,7 @@ function renderBlocks(source: string, onOpen?: (href: string) => void) {
       blocks.push(
         <ol key={blocks.length}>
           {items.map((item, itemIndex) => (
-            <li key={itemIndex}>{renderInline(item, onOpen)}</li>
+            <li key={itemIndex}>{renderInline(item, onOpen, resolveAsset)}</li>
           ))}
         </ol>,
       );
@@ -128,12 +148,15 @@ function renderBlocks(source: string, onOpen?: (href: string) => void) {
       !/^\s*[-*]\s+/.test(lines[index]) &&
       !/^\s*\d+[.)]\s+/.test(lines[index]) &&
       !/^>\s?/.test(lines[index]) &&
-      !isTableRow(lines[index])
+      !isTableRow(lines[index]) &&
+      !/^!\[([^\]]*)\]\(([^)]+)\)\s*$/.test(lines[index].trim())
     ) {
       paragraph.push(lines[index]);
       index += 1;
     }
-    blocks.push(<p key={blocks.length}>{renderInline(paragraph.join(" "), onOpen)}</p>);
+    blocks.push(
+      <p key={blocks.length}>{renderInline(paragraph.join(" "), onOpen, resolveAsset)}</p>,
+    );
   }
   return blocks;
 }
@@ -156,9 +179,13 @@ function splitTable(line: string) {
     .map((cell) => cell.trim());
 }
 
-function renderInline(text: string, onOpen?: (href: string) => void): ReactNode[] {
+function renderInline(
+  text: string,
+  onOpen?: (href: string) => void,
+  resolveAsset?: (href: string) => string | null,
+): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\[[^\]]+\]\([^)]+\))/g;
+  const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*)|(!\[[^\]]*\]\([^)]+\))|(\[[^\]]+\]\([^)]+\))/g;
   let cursor = 0;
   for (const match of text.matchAll(pattern)) {
     const start = match.index ?? 0;
@@ -168,14 +195,40 @@ function renderInline(text: string, onOpen?: (href: string) => void): ReactNode[
       nodes.push(<code key={start}>{token.slice(1, -1)}</code>);
     } else if (token.startsWith("**")) {
       nodes.push(<strong key={start}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("![")) {
+      const image = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(token);
+      if (image) {
+        nodes.push(
+          <Fragment key={start}>{renderImage(image[1], image[2], resolveAsset)}</Fragment>,
+        );
+      }
     } else {
       const linked = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
-      if (linked) nodes.push(<Fragment key={start}>{renderLink(linked[1], linked[2], onOpen)}</Fragment>);
+      if (linked) {
+        nodes.push(<Fragment key={start}>{renderLink(linked[1], linked[2], onOpen)}</Fragment>);
+      }
     }
     cursor = start + token.length;
   }
   if (cursor < text.length) nodes.push(text.slice(cursor));
   return nodes;
+}
+
+function renderImage(
+  alt: string,
+  href: string,
+  resolveAsset?: (href: string) => string | null,
+) {
+  const target = href.trim();
+  let src = target;
+  if (!(target.startsWith("https://") || target.startsWith("http://") || target.startsWith("data:"))) {
+    const resolved = resolveAsset?.(target) ?? null;
+    if (!resolved) {
+      return <span className="harness-status">[图片不可用: {alt || target}]</span>;
+    }
+    src = resolved;
+  }
+  return <img className="harness-image" src={src} alt={alt || ""} loading="lazy" />;
 }
 
 function renderLink(label: string, href: string, onOpen?: (href: string) => void) {

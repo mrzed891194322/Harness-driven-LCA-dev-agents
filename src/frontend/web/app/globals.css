@@ -103,15 +103,29 @@ a {
   height: 36px;
   min-height: 36px;
   padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
   border-color: transparent;
   background: transparent;
   color: var(--ink);
   font-size: 0.92rem;
   line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.settings-launch {
+  color: var(--ink);
 }
 
 .settings-launch:hover,
 .app-header-github:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-launch[data-active="true"],
+.settings-launch[aria-current="page"] {
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -198,9 +212,16 @@ html.status-fit .app-shell {
   display: flex;
   flex-direction: column;
   flex: 1;
+  align-self: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1280px;
+  min-width: 0;
   min-height: 0;
   height: auto;
   max-height: none;
+  margin-left: auto;
+  margin-right: auto;
   margin-bottom: 20px;
   padding: 0 20px 16px;
   overflow: hidden;
@@ -736,12 +757,83 @@ button:disabled {
   font-size: 0.72rem;
 }
 
-.harness-nav button {
+.harness-nav button,
+.tutorial-nav a {
   white-space: normal;
   line-height: 1.35;
   height: auto;
   min-height: 32px;
   padding: 6px 10px;
+}
+
+.tutorial-panel {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tutorial-frame {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tutorial-nav {
+  min-height: 0;
+  overflow: auto;
+}
+
+.tutorial-nav a {
+  display: block;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+  color: var(--ink);
+  border-radius: 8px;
+}
+
+.tutorial-nav a:hover {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--accent);
+}
+
+.tutorial-nav a[aria-current="page"],
+.tutorial-nav a[data-active="true"] {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.tutorial-main {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tutorial-main-head {
+  flex: none;
+}
+
+.tutorial-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  max-width: none;
+}
+
+.tutorial-body .harness-doc {
+  max-width: 52rem;
 }
 
 .harness-path {
@@ -760,6 +852,26 @@ button:disabled {
   gap: 0.8rem;
   line-height: 1.6;
   font-size: 0.95rem;
+}
+
+.harness-figure {
+  margin: 0.4rem 0 0;
+  padding: 0;
+}
+
+.harness-figure figcaption {
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.harness-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
 }
 
 .harness-doc h2,
@@ -883,9 +995,23 @@ button:disabled {
     overflow: auto;
   }
 
-  .harness-nav button {
+  .harness-nav button,
+  .tutorial-nav a {
     width: 100%;
     white-space: normal;
+  }
+
+  .tutorial-frame {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 34vh) minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .tutorial-nav {
+    flex-direction: column;
+    align-items: stretch;
+    max-height: none;
+    overflow: auto;
   }
 }
 

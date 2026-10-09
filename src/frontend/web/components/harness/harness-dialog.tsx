@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SaddleIcon } from "../launch-icons";
-import { MarkdownView } from "./markdown-view";
+import { MarkdownView } from "../markdown-view";
 import { useHarness } from "./harness-context";
 
 type HarnessEntry = {

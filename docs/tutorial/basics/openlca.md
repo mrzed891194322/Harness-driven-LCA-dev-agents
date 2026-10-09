@@ -1,0 +1,11 @@
+# openLCA 连接
+
+每次开始项目前：
+
+1. 打开 openLCA Desktop
+2. 打开目标数据库
+3. 启用 IPC Server（默认 `127.0.0.1:8080`）
+
+![openLCA IPC Server 示意](../images/openlca-ipc.png)
+
+然后在控制面板的「设置 / 项目状态」确认连通性。初始化检查未通过时，执行按钮会保持禁用。

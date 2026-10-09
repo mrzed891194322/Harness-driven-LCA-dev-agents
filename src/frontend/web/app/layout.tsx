@@ -5,6 +5,7 @@ import { HarnessButton, HarnessDialog } from "../components/harness/harness-dial
 import { HarnessProvider } from "../components/harness/harness-context";
 import { SettingsButton, SettingsDialog } from "../components/settings/settings-dialog";
 import { SettingsProvider } from "../components/settings/settings-context";
+import { TutorialButton } from "../components/tutorial-button";
 import "./globals.css";
 
 export const metadata = {
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     </h1>
                   </div>
                   <div className="app-header-actions">
+                    <TutorialButton />
                     <HarnessButton />
                     <SettingsButton />
                     <span className="app-header-divider" aria-hidden="true" />
