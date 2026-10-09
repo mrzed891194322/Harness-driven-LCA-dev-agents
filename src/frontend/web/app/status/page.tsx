@@ -183,13 +183,8 @@ export default function StatusPage() {
 
   return (
     <div className="status-board">
-      <section className="settings-card">
-        <div className="section-head">
-          <h3>运行时</h3>
-          <button type="button" onClick={() => void refresh()} disabled={busy}>
-            {busy ? "检查中…" : "重新检查"}
-          </button>
-        </div>
+      <section className="settings-card status-runtime-card">
+        <h3>运行时</h3>
         {diag && pi && python ? (
           <ul className="diag-list">
             <li>
@@ -208,6 +203,16 @@ export default function StatusPage() {
         ) : (
           <p className="settings-help">{loadError || "正在检查运行时…"}</p>
         )}
+        <div className="status-runtime-actions">
+          <button type="button" onClick={() => void refresh()} disabled={busy}>
+            <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
+            {busy ? "检查中…" : "重新检查"}
+          </button>
+          <button type="button" onClick={() => openSettings("general")}>
+            <Settings size={16} strokeWidth={1.75} aria-hidden="true" />
+            配置项目
+          </button>
+        </div>
       </section>
 
       <section className="settings-card status-model-card">

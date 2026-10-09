@@ -246,8 +246,12 @@ html.status-fit .nav-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
-  gap: 24px;
+  gap: 0;
   overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
 .status-start {
@@ -265,6 +269,7 @@ html.status-fit .nav-row {
 }
 
 .status-model-actions button,
+.status-runtime-actions button,
 .status-tool-actions > button {
   display: inline-flex;
   align-items: center;
@@ -281,12 +286,31 @@ html.status-fit .nav-row {
   min-height: 0;
   height: 100%;
   overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.status-board .settings-card + .settings-card {
+  position: relative;
+}
+
+.status-board .settings-card + .settings-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22px;
+  bottom: 22px;
+  width: 1px;
+  background: var(--line);
 }
 
 .status-board .diag-list li span:last-child {
   min-width: 0;
 }
 
+.status-board .status-runtime-card,
 .status-board .status-model-card,
 .status-board .status-tool-card {
   display: flex;
@@ -319,6 +343,7 @@ html.status-fit .nav-row {
   align-content: start;
 }
 
+.status-runtime-actions,
 .status-model-actions {
   display: flex;
   gap: 8px;
@@ -326,6 +351,7 @@ html.status-fit .nav-row {
   padding-top: 14px;
 }
 
+.status-runtime-actions button,
 .status-model-actions button {
   flex: 1;
   white-space: nowrap;
