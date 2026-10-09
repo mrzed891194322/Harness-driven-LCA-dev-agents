@@ -212,9 +212,16 @@ html.status-fit .app-shell {
   display: flex;
   flex-direction: column;
   flex: 1;
+  align-self: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1280px;
+  min-width: 0;
   min-height: 0;
   height: auto;
   max-height: none;
+  margin-left: auto;
+  margin-right: auto;
   margin-bottom: 20px;
   padding: 0 20px 16px;
   overflow: hidden;
