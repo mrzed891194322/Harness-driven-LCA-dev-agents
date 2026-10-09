@@ -260,11 +260,10 @@ class OrchestratorRuntime:
 
         from .session_bind import build_session_config
 
+        stage, assignment = self._current(state)
         model = model_for_assignment(
             self.project_root, assignment.assignment_id, self.model
         )
-
-        stage, assignment = self._current(state)
         key = session_key(assignment.assignment_id)
         sessions = dict(state.get("sessions") or {})
         bundle = self.bundles[assignment.assignment_id]
@@ -316,6 +315,7 @@ class OrchestratorRuntime:
             run_id=_state_str(state, "run_id"),
             attempt=_attempt(state),
         )
+        config.launch_spec = launch_spec
         ref: SessionRef | None = None
         last_transport = ""
         for transport_try in range(WORKER_TRANSPORT_RETRY_LIMIT):

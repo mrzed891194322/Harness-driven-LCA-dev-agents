@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from api.app import app
 from core.agents.assignment_models import model_for_assignment
+from services.diagnostics_service import _model_status
 
 
 class AssignmentModelTests(unittest.TestCase):
@@ -110,3 +111,13 @@ class AssignmentModelTests(unittest.TestCase):
                     json={"assignments": {"02-inventory-extraction.executor": "nope"}},
                 )
                 self.assertEqual(rejected.status_code, 400)
+
+    def test_provider_model_ref_uses_that_providers_credential(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            status = _model_status(root, "deepseek/deepseek-flash", {"deepseek": True})
+            self.assertEqual(status["provider"], "deepseek")
+            self.assertEqual(status["model_id"], "deepseek-flash")
+            self.assertTrue(status["credential_set"])
+            missing = _model_status(root, "deepseek/deepseek-flash", {})
+            self.assertFalse(missing["credential_set"])

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, List, RefreshCw, Settings } from "lucide-react";
+import { ArrowRight, Bot, Cpu, List, RefreshCw, Settings, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useSettings } from "../../components/settings/settings-context";
 
@@ -189,7 +189,10 @@ export default function StatusPage() {
   return (
     <div className="status-board">
       <section className="settings-card status-runtime-card">
-        <h3>项目环境</h3>
+        <h3>
+          <Cpu size={18} strokeWidth={1.75} aria-hidden="true" />
+          项目环境
+        </h3>
         {diag && pi && python ? (
           <ul className="diag-list">
             <li>
@@ -221,7 +224,10 @@ export default function StatusPage() {
       </section>
 
       <section className="settings-card status-model-card">
-        <h3>模型可用性</h3>
+        <h3>
+          <Bot size={18} strokeWidth={1.75} aria-hidden="true" />
+          模型可用性
+        </h3>
         {providers === null ? (
           <p className="settings-help">{providerError || "正在检查供应商…"}</p>
         ) : providerRows.length === 0 ? (
@@ -295,7 +301,10 @@ export default function StatusPage() {
       </section>
 
       <section className="settings-card status-tool-card">
-        <h3>LCA 工具</h3>
+        <h3>
+          <Wrench size={18} strokeWidth={1.75} aria-hidden="true" />
+          LCA 工具
+        </h3>
         <div className="status-tool-body">
           <h4 className="status-provider-label">当前工具</h4>
           {tools.length ? (

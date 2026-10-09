@@ -301,7 +301,7 @@ function environmentChecks(diag: Diagnostics | null): { label: string; ok: boole
       label: "模型",
       ok: modelOk,
       message: modelOk
-        ? [modelName, model?.model_id].filter(Boolean).join(" · ")
+        ? modelName || "已连接"
         : modelName
           ? `${modelName} 还没有凭证`
           : "还没有可用模型",

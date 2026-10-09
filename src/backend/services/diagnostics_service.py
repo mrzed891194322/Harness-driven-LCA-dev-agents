@@ -14,7 +14,7 @@ from diagnostics import check_openlca
 
 from core.agents.config import load_worker_model
 from core.agents.inspect import check, inspect
-from core.runtime.model_profiles import load_profiles
+from core.runtime.model_profiles import load_profiles, resolve_model_profile
 from services.credentials_service import available_providers, credentials_status_bool
 from services.project_paths import PROJECT_ROOT
 from utils.env import parse_env_file, upsert_env_keys
@@ -79,9 +79,8 @@ def environment_report(project_root: Path | None = None) -> dict:
     python_status = python_runtime_status()
     profiles = load_profiles(root)
     selected = load_worker_model("pi", root)
-    profile = profiles.get(selected) or {}
-    provider = str(profile.get("provider") or "")
     credentials = credentials_status_bool(root)
+    model = _model_status(root, selected, credentials)
     olca = openlca_status(root)
     return {
         "node": {"ok": bool(node_ok), "message": node_msg},
@@ -98,12 +97,23 @@ def environment_report(project_root: Path | None = None) -> dict:
         "selected_profile": selected,
         "credentials": credentials,
         "available_providers": available_providers(root),
-        "model": {
-            "profile_id": selected,
-            "display_name": str(profile.get("display_name") or selected),
-            "provider": provider,
-            "model_id": str(profile.get("model_id") or ""),
-            "base_url": str(profile.get("base_url") or ""),
-            "credential_set": bool(provider and credentials.get(provider)),
-        },
+        "model": model,
+    }
+
+
+def _model_status(project_root: Path, selected: str, credentials: dict[str, bool]) -> dict:
+    """Resolve a profile id or provider/model ref before checking its credential."""
+    profile = resolve_model_profile(selected, project_root=project_root)
+    provider = profile.provider
+    model_id = profile.model_id
+    display = profile.display_name or selected
+    if provider and model_id:
+        display = f"{provider}/{model_id}"
+    return {
+        "profile_id": selected,
+        "display_name": display,
+        "provider": provider,
+        "model_id": model_id,
+        "base_url": profile.base_url,
+        "credential_set": bool(provider and credentials.get(provider)),
     }

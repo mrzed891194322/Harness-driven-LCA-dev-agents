@@ -227,11 +227,14 @@ a.settings-launch {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 12px;
+  gap: 8px 28px;
   margin: 14px 0 24px;
 }
 
 .nav-row a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   text-decoration: none;
   color: var(--muted);
   border-bottom: 1px solid transparent;
@@ -347,7 +350,10 @@ html.status-fit .nav-row {
 }
 
 .status-board .settings-card h3 {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .status-board .settings-card + .settings-card {
