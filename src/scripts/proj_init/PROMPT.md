@@ -73,4 +73,4 @@ uv run python src/scripts/check_status.py --only openlca
 5. Pi SDK runtime
 6. openLCA IPC
 
-最后一句：下一步启动 Web 控制面板（见 `README.md` 的 `npm run dev`），在面板内完成设置、计划与执行。不要在本次引导里启动 whole-lca。
+最后一句：下一步执行 `node src/scripts/start.mjs`（会先同步依赖再启动 Web 控制面板；macOS、Linux、Windows 相同），在面板内完成设置、计划与执行。不要在本次引导里启动 whole-lca。

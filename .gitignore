@@ -12,6 +12,7 @@ docs/test
 # logs
 logs/
 *.log
+*.pid
 
 # Virtual environments
 .venv
@@ -21,9 +22,6 @@ logs/
 
 # .env file
 .env
-
-# uv file
-uv.lock
 
 #
 .cursor/

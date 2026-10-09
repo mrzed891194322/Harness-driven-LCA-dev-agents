@@ -31,7 +31,7 @@ function resolvePort(fileEnv, key, fallback) {
   const raw = (process.env[key] || fileEnv[key] || fallback).trim();
   const port = Number(raw);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    console.error(`${key} 不是有效端口：${raw}`);
+    console.error(`${key} is not a valid port: ${raw}`);
     process.exit(1);
   }
   return port;
@@ -54,20 +54,36 @@ const webPort = resolvePort(fileEnv, "GUI_WEB_PORT", "3000");
 const apiPort = resolvePort(fileEnv, "GUI_API_PORT", "8800");
 
 if (webPort === apiPort) {
-  console.error("GUI_WEB_PORT 与 GUI_API_PORT 不能相同");
+  console.error("GUI_WEB_PORT and GUI_API_PORT must be different.");
   process.exit(1);
 }
 
 const children = [];
 let shuttingDown = false;
 
+const windows = process.platform === "win32";
+
+function killChild(child) {
+  if (child.pid == null) return;
+  if (windows) {
+    spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
+    return;
+  }
+  if (!child.killed) child.kill("SIGTERM");
+}
+
 function run(cmd, args, opts = {}) {
   const child = spawn(cmd, args, {
     cwd: opts.cwd || root,
     stdio: "inherit",
     env: { ...process.env, ...opts.env },
+    shell: windows,
   });
   children.push(child);
+  child.on("error", (error) => {
+    console.error(`Failed to start ${cmd}: ${error.message}`);
+    shutdown(1);
+  });
   child.on("exit", (code, signal) => {
     if (shuttingDown || signal) return;
     if (code && code !== 0) shutdown(code);
@@ -78,9 +94,7 @@ function run(cmd, args, opts = {}) {
 function shutdown(code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
-  for (const child of children) {
-    if (!child.killed) child.kill("SIGTERM");
-  }
+  for (const child of children) killChild(child);
   setTimeout(() => process.exit(code), 300);
 }
 
@@ -98,15 +112,15 @@ const pythonPath = [
   .join(path.delimiter);
 
 if (!(await portFree(apiPort))) {
-  console.error(`后端端口 ${apiPort} 已被占用。请修改 .env 的 GUI_API_PORT。`);
+  console.error(`API port ${apiPort} is already in use. Change GUI_API_PORT in .env.`);
   process.exit(1);
 }
 if (!(await portFree(webPort))) {
-  console.error(`前端端口 ${webPort} 已被占用。请修改 .env 的 GUI_WEB_PORT，或先停掉已有的 npm run dev。`);
+  console.error(`Web port ${webPort} is already in use. Change GUI_WEB_PORT in .env, or stop the existing dev server.`);
   process.exit(1);
 }
 
-console.log(`启动控制面板：前端 http://127.0.0.1:${webPort}  后端 http://127.0.0.1:${apiPort}`);
+console.log(`Control panel: web http://127.0.0.1:${webPort}  api http://127.0.0.1:${apiPort}`);
 
 const sharedEnv = {
   GUI_WEB_PORT: String(webPort),

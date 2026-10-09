@@ -412,14 +412,15 @@ class PlatformAdapterTests(unittest.TestCase):
             self.assertFalse(tracked, f"legacy adapter still tracked: {relative}")
 
     def test_docs_point_at_gui_control_panel(self) -> None:
-        for relative in (
-            "README.md",
-            "docs/lang_CN/platform-adapter.md",
-        ):
-            text = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn(GUI_ENTRY_CMD, text, relative)
-            self.assertNotIn("uv run python src/scripts/workflow.py", text, relative)
-            self.assertNotIn("harness/LCA-main.md", text, relative)
+        readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("src/scripts/start.mjs", readme)
+        adapter = (PROJECT_ROOT / "docs/lang_CN/platform-adapter.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(GUI_ENTRY_CMD, adapter)
+        for text in (readme, adapter):
+            self.assertNotIn("uv run python src/scripts/workflow.py", text)
+            self.assertNotIn("harness/LCA-main.md", text)
 
     def test_env_example_documents_worker_models_and_secrets(self) -> None:
         text = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")

@@ -3,8 +3,10 @@
 启动：
 
 ```bash
-npm run dev
+node src/scripts/start.mjs
 ```
+
+macOS、Linux 与 Windows 使用同一条命令。启动前会同步 uv 与 Node.js 依赖，并在缺少 `.env` 时从模板复制。
 
 浏览器打开前端端口（默认 `http://127.0.0.1:3000`）。顶栏提供：
 

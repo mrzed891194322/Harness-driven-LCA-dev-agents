@@ -6,19 +6,10 @@
 2. **Node.js 22+**（Pi SDK 运行时与控制面板）
 3. **openLCA** 桌面客户端，并启用 IPC Server
 
-首次克隆仓库后，可在 AI 工具中执行：
-
-```text
-读取并执行 `src/scripts/proj_init/PROMPT.md`
-```
-
-或在仓库根目录：
+在仓库根目录执行（macOS、Linux 与 Windows 相同）。脚本会先同步依赖，再启动控制面板；没有 `.env` 时会从 `.env.example` 复制：
 
 ```bash
-uv sync
-npm install
-npm run build -w @harness/pi-runtime
-uv run python src/scripts/proj_init/main.py
+node src/scripts/start.mjs
 ```
 
 更细的安装步骤见仓库文档 `docs/lang_CN/env_setup.md`。
