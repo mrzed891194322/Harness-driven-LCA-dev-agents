@@ -226,17 +226,14 @@ export default function StatusPage() {
               return (
                 <li key={provider.id} className="status-provider">
                   <div className="status-provider-head">
-                    <span className="badge badge-ok">可用</span>
-                    <span>
-                      {provider.name}
-                      <span className="settings-meta"> · {provider.id}</span>
-                    </span>
+                    <span className="badge badge-ok">已连接</span>
+                    <span>{provider.name}</span>
                     <button
                       type="button"
                       aria-expanded={open}
                       onClick={() => void toggleProvider(provider.id)}
                     >
-                      {open ? "收起" : "详情"}
+                      {open ? "收起" : "可用模型"}
                     </button>
                   </div>
                   {open ? (
@@ -252,12 +249,7 @@ export default function StatusPage() {
                       ) : (
                         <ul className="model-detail-list">
                           {detail.models.map((model) => (
-                            <li key={model.id}>
-                              <span>{model.name}</span>
-                              {model.name !== model.id ? (
-                                <span className="settings-meta"> {model.id}</span>
-                              ) : null}
-                            </li>
+                            <li key={model.id}>{model.name}</li>
                           ))}
                         </ul>
                       )}

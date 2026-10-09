@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { FaGithub } from "react-icons/fa6";
+import Link from "next/link";
 import { AppNav } from "../components/app-nav";
 import { HarnessButton, HarnessDialog } from "../components/harness/harness-dialog";
 import { HarnessProvider } from "../components/harness/harness-context";
@@ -27,8 +28,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <div className="app-header-bar">
                   <div className="app-header-title">
                     <h1>
-                      Harness-driven agentic LCA
-                      <img className="title-mark" src="/brand-mark.svg" alt="" />
+                      <Link className="app-header-home" href="/status">
+                        <img className="title-mark" src="/brand-mark.svg" alt="" />
+                        Harness-driven agentic LCA
+                      </Link>
                     </h1>
                   </div>
                   <div className="app-header-actions">
