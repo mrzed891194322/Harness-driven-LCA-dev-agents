@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { AppNav } from "../components/app-nav";
+import { SettingsButton, SettingsDialog } from "../components/settings/settings-dialog";
+import { SettingsProvider } from "../components/settings/settings-context";
 import "./globals.css";
 
 export const metadata = {
@@ -11,19 +13,27 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
       <body>
-        <div className="app-shell">
-          <header className="app-header">
-            <h1>Harness LCA</h1>
-            <p>Pi SDK 唯一运行时 · 自带密钥（BYOK）</p>
-          </header>
-          <nav className="nav-row">
-            <Link href="/settings">设置与初始化</Link>
-            <Link href="/plan">LCA 计划</Link>
-            <Link href="/runs">运行详情</Link>
-            <Link href="/results">结果与历史</Link>
-          </nav>
-          {children}
-        </div>
+        <SettingsProvider>
+          <div className="app-shell">
+            <header className="app-header">
+              <div className="app-header-title">
+                <h1>Harness LCA</h1>
+                <a
+                  className="app-header-repo"
+                  href="https://github.com/mrzed891194322/Harness-driven-LCA-dev-agents"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  github.com/mrzed891194322/Harness-driven-LCA-dev-agents
+                </a>
+              </div>
+              <SettingsButton />
+            </header>
+            <AppNav />
+            {children}
+          </div>
+          <SettingsDialog />
+        </SettingsProvider>
       </body>
     </html>
   );

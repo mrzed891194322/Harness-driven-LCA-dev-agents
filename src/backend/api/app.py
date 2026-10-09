@@ -34,7 +34,11 @@ from services.credentials_service import (
     save_provider_key,
     set_provider_base_url,
 )
-from services.diagnostics_service import environment_report
+from services.diagnostics_service import (
+    environment_report,
+    openlca_endpoint,
+    save_openlca_port,
+)
 from services.project_paths import PROJECT_ROOT
 from services.workflow_service import WorkflowService
 from utils.env import parse_env_file, upsert_env_keys
@@ -93,6 +97,10 @@ class ProviderBaseUrlUpdate(BaseModel):
     base_url: str = ""
 
 
+class OpenLcaPortUpdate(BaseModel):
+    port: int = Field(ge=1, le=65535)
+
+
 class CustomEndpointCreate(BaseModel):
     profile_id: str
     provider: str = "custom"
@@ -112,6 +120,21 @@ def health() -> dict[str, str]:
 @app.get("/api/diagnostics/environment")
 def diagnostics_environment() -> dict[str, Any]:
     return environment_report(PROJECT_ROOT)
+
+
+@app.get("/api/lca/openlca")
+def read_openlca() -> dict[str, Any]:
+    host, port = openlca_endpoint(PROJECT_ROOT)
+    return {"id": "openlca", "host": host, "port": port}
+
+
+@app.put("/api/lca/openlca")
+def update_openlca_port(body: OpenLcaPortUpdate) -> dict[str, Any]:
+    try:
+        tool = save_openlca_port(PROJECT_ROOT, body.port)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"tool": tool}
 
 
 @app.get("/api/models/profiles")
