@@ -17,7 +17,7 @@ REVIEWER_STATUSES = {"passed", "failed"}
 
 def handoff_not_found_error(path: Path) -> FileNotFoundError:
     return FileNotFoundError(
-        f"{path}: handoff 文件不存在（当前角色须在运行上下文 handoff_path 写入 JSON 交卷）"
+        f"{path}: handoff 文件不存在（请调用 submit_handoff 工具交卷）"
     )
 
 

@@ -135,7 +135,8 @@ class OrchestratorGraphTests(unittest.TestCase):
             (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "completed")
-        self.assertEqual(client.configs[0].mcp_servers, {})
+        # 01 reviewer submits its handoff through lca_artifacts.submit_handoff.
+        self.assertEqual(list(client.configs[0].mcp_servers), ["lca_artifacts"])
         self.assertTrue(client.configs[0].spec_paths)
         self.assertTrue(client.configs[0].rule_ids)
         self.assertEqual(set(client.configs[1].mcp_servers), {"lca_artifacts"})

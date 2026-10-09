@@ -170,7 +170,8 @@ assignments:
   01-intake-gate.reviewer:
     role: reviewer
     tools:
-      mcp: []
+      mcp:
+      - lca_artifacts
     rules:
       add:
       - reviewer_readonly

@@ -11,11 +11,11 @@ from ..config.bundle import TaskBundle
 _RUNTIME_PROTOCOL = """\
 # 通用运行协议
 你是主编排器调度的 worker。只完成本 assignment；不要推进阶段、不要改检查点或 manifest。
-必须按 handoff 契约向运行上下文中的 handoff_path 提交结果（无 handoff 文件等于未交卷）。
+必须按 handoff 契约交卷：优先调用 lca_artifacts 的 submit_handoff 工具（主机按运行上下文 handoff_path 落盘）；无 handoff 文件等于未交卷。
 字段：schema_version=1, role, stage, attempt, status, status_reason, fix_instructions, artifacts。
 写者 status：ok / failed / blocked；审查者 status：passed / failed。
-failed/blocked 也必须写入 handoff 并给出非空 status_reason。
-若运行上下文的 fix_instructions 指向 handoff 契约错误：只改写当前 handoff JSON，不要擅自改产物。
+failed/blocked 也必须交卷并给出非空 status_reason。
+若运行上下文的 fix_instructions 指向 handoff 契约错误：重新调用 submit_handoff 提交更正后的 handoff，不要擅自改产物。
 确定性验收由主机根据 stage spec 调用已注册的 stdio MCP 完成；文件存在本身不证明任务完成。
 """
 
@@ -74,9 +74,8 @@ def build_prompt(
             "",
             "# 本轮提交",
             "完成本轮的最后一动作为交卷（无 handoff 文件等于未交卷，主编排会协议返工）：",
-            f"- 将 handoff JSON 写入与下列路径完全一致的位置：{run_context.get('handoff_path') or ''}",
-            "（若已注入工具规则允许通过 MCP 提交 handoff，亦可使用该工具，路径仍由主机决定。）",
-            "路径必须与运行上下文 handoff_path 完全一致。",
+            "- 调用 submit_handoff 工具交卷（MCP 工具名形如 mcp__lca_artifacts__submit_handoff），路径由主机决定。",
+            f"- 仅当该工具不可用时，才把 handoff JSON 写到：{run_context.get('handoff_path') or ''}",
             "不要推进阶段、不要维护会话映射、不要改检查点或 manifest。",
         ]
     )
