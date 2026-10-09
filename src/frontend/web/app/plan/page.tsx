@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
+import { WorkflowBoard } from "../../components/plan/workflow-board";
 
 type PlanFields = {
   subject: string;
@@ -280,7 +281,7 @@ export default function PlanPage() {
             >
               新工作
             </button>
-            <button type="button" role="radio" aria-checked={workMode === "revise"} disabled title="暂不可选">
+            <button type="button" role="radio" aria-checked={workMode === "revise"} onClick={() => setWorkMode("revise")}>
               修改工作
             </button>
           </div>
@@ -431,6 +432,8 @@ export default function PlanPage() {
                 </section>
               </div>
             </div>
+          ) : panel === "workflow" ? (
+            <WorkflowBoard mode={workMode} onModeChange={setWorkMode} />
           ) : (
             <div className="plan-placeholder" />
           )}
