@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SaddleIcon } from "../launch-icons";
+import { Lasso } from "lucide-react";
 import { MarkdownView } from "../markdown-view";
 import { useHarness } from "./harness-context";
 
@@ -71,7 +71,7 @@ export function HarnessButton() {
   const { openHarness } = useHarness();
   return (
     <button type="button" className="settings-launch" aria-label="Harness" title="Harness" onClick={() => openHarness()}>
-      <SaddleIcon />
+      <Lasso size={16} aria-hidden="true" className="launch-icon" />
       <span>Harness</span>
     </button>
   );

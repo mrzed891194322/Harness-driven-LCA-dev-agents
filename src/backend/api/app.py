@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from core.agents.config import load_worker_model
@@ -43,6 +44,19 @@ from services.diagnostics_service import (
     save_openlca_port,
 )
 from services.harness_browser import HarnessPathError, harness_catalog, read_harness_document
+from services.plan_form import (
+    PlanFields,
+    PlanFormError,
+    TEMPLATE_NAME,
+    decode_plan_upload,
+    delete_reference,
+    list_references,
+    read_plan_document,
+    save_plan,
+    save_reference,
+    save_reference_note,
+    template_markdown,
+)
 from services.project_paths import PROJECT_ROOT
 from services.tutorial_browser import (
     TutorialPathError,
@@ -109,6 +123,17 @@ class ProviderBaseUrlUpdate(BaseModel):
 
 class OpenLcaPortUpdate(BaseModel):
     port: int = Field(ge=1, le=65535)
+
+
+class PlanUpdate(BaseModel):
+    subject: str = ""
+    functional_unit: str = ""
+    life_cycle_stages: str = ""
+    conditions: str = ""
+
+
+class ReferenceNoteUpdate(BaseModel):
+    note: str = ""
 
 
 class CustomEndpointCreate(BaseModel):
@@ -450,22 +475,80 @@ def read_tutorial_asset(path: str) -> FileResponse:
 
 
 @app.get("/api/plan")
-def read_plan() -> dict[str, str]:
-    plan = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "main_plan.md"
-    if not plan.is_file():
-        raise HTTPException(status_code=404, detail="plan not found")
-    return {
-        "path": str(plan.relative_to(PROJECT_ROOT)),
-        "content": plan.read_text("utf-8"),
-    }
+def read_plan() -> dict[str, Any]:
+    return read_plan_document(PROJECT_ROOT)
 
 
 @app.put("/api/plan")
-def write_plan(content: str) -> dict[str, str]:
-    plan = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "main_plan.md"
-    plan.parent.mkdir(parents=True, exist_ok=True)
-    plan.write_text(content, encoding="utf-8")
-    return {"status": "saved"}
+def write_plan(body: PlanUpdate) -> dict[str, Any]:
+    save_plan(
+        PROJECT_ROOT,
+        PlanFields(
+            subject=body.subject,
+            functional_unit=body.functional_unit,
+            life_cycle_stages=body.life_cycle_stages,
+            conditions=body.conditions,
+        ),
+    )
+    return {"status": "saved", **read_plan_document(PROJECT_ROOT)}
+
+
+@app.get("/api/plan/template")
+def download_plan_template() -> Response:
+    return Response(
+        content=template_markdown(),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{TEMPLATE_NAME}"'},
+    )
+
+
+@app.post("/api/plan/import")
+async def import_plan(file: UploadFile = File(...)) -> dict[str, Any]:
+    data = await file.read()
+    try:
+        fields = decode_plan_upload(file.filename or "", data)
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"fields": fields.as_dict(), "filename": Path(file.filename or "").name}
+
+
+@app.get("/api/references")
+def read_references() -> dict[str, Any]:
+    return {"files": list_references(PROJECT_ROOT)}
+
+
+@app.post("/api/references")
+async def upload_references(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+    saved: list[dict[str, Any]] = []
+    for item in files:
+        data = await item.read()
+        try:
+            saved.append(save_reference(PROJECT_ROOT, item.filename or "", data))
+        except PlanFormError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "saved", "saved": saved, "files": list_references(PROJECT_ROOT)}
+
+
+@app.put("/api/references/{name}/note")
+def write_reference_note(name: str, body: ReferenceNoteUpdate) -> dict[str, Any]:
+    try:
+        item = save_reference_note(PROJECT_ROOT, name, body.note)
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="file not found") from exc
+    return {"status": "saved", "file": item, "files": list_references(PROJECT_ROOT)}
+
+
+@app.delete("/api/references/{name}")
+def remove_reference(name: str) -> dict[str, Any]:
+    try:
+        delete_reference(PROJECT_ROOT, name)
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="file not found") from exc
+    return {"status": "deleted", "files": list_references(PROJECT_ROOT)}
 
 
 @app.get("/api/settings/env")
