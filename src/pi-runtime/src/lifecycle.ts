@@ -1,10 +1,11 @@
 /**
- * Process lifecycle for pi-runtime: never outlive the host that started it.
+ * Process lifecycle for pi-runtime.
  *
- * The Python host talks to us over stdin/stdout. When stdin closes (host exited,
- * crashed, or called shutdown()), when we get SIGTERM/SIGINT/SIGHUP, or when our
- * parent process disappears (we were re-parented, e.g. to systemd), we dispose
- * every live session -- which closes their MCP servers -- and exit.
+ * Service mode (the project's single runtime, `--listen`): only SIGTERM/SIGINT/
+ * SIGHUP stop it (`npm run stop`); parent polling is disabled.
+ * Stdio mode (private child for tests/probes): also stops when stdin closes or
+ * the parent process disappears (re-parented, e.g. to systemd).
+ * Either way every live session is disposed first, closing its MCP servers.
  */
 
 /** Minimal surface of a Pi AgentSession needed for a clean shutdown. */

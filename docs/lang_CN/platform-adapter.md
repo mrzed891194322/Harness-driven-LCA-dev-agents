@@ -5,7 +5,10 @@
 ## 用户入口
 
 ```bash
-npm run dev   # Next.js + FastAPI 控制面板（见根目录 README）
+npm start         # 同步依赖后启动：FastAPI → 唯一的 pi-runtime → Next.js（见根目录 README）
+npm run dev       # 不同步依赖，按同样顺序直接启动
+npm run stop      # 停止全部（日常用它，不要靠 Ctrl-C）
+npm run restart   # stop + start
 ```
 
 浏览器访问控制面板后完成设置、计划、执行与结果查看。环境引导：读取并执行 `src/scripts/proj_init/PROMPT.md`，或 `uv run python src/scripts/proj_init/main.py`。

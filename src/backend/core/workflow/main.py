@@ -160,13 +160,16 @@ def _main(args: argparse.Namespace) -> int:
 
 
 def _close_session_client(session_client: object) -> None:
-    """Stop the worker runtime so no pi-runtime / MCP child outlives the run (#22/#23)."""
+    """Release this run's sessions and MCP servers at run end (#22/#23).
+
+    Only the run's own sessions go away; the project's single pi-runtime stays up.
+    """
     close = getattr(session_client, "close", None)
     if callable(close):
         try:
             close()
         except Exception as exc:  # cleanup must never mask the run result
-            print_orchestrator(f"worker runtime shutdown failed: {exc}", file=sys.stderr)
+            print_orchestrator(f"worker session release failed: {exc}", file=sys.stderr)
 
 
 def _exit_on_sigterm() -> dict[int, object]:

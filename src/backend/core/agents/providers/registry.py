@@ -33,7 +33,7 @@ class ProviderDispatcher:
         self._provider(ref.platform).release(ref)
 
     def close(self) -> None:
-        """Stop every provider's worker runtime (and its MCP servers)."""
+        """Release every provider's sessions (and their MCP servers); the runtime stays up."""
         providers = list(self._providers.values())
         self._providers.clear()
         for provider in providers:

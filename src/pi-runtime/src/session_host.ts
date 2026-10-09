@@ -25,7 +25,7 @@ import {
   runProviderLogin,
   runProviderLogout,
 } from "./auth_login.js";
-import { emitEvent } from "./protocol.js";
+import { currentPeer, emitEvent, listPeers } from "./protocol.js";
 import { ActivityRelay } from "./activity.js";
 import { shutdownPiSession } from "./lifecycle.js";
 
@@ -36,6 +36,8 @@ type AgentSession = Awaited<ReturnType<typeof createAgentSession>>["session"];
 interface LiveSession {
   spec: SessionLaunchSpec;
   piSessionId: string;
+  /** Peer (connection) that created it; released when that connection closes. */
+  owner: number;
   // One Pi session per assignment per run; reused across turns.
   session: AgentSession | null;
   /** Abort, emit session_shutdown (closes MCP servers), dispose. */
@@ -43,6 +45,21 @@ interface LiveSession {
 }
 
 const sessions = new Map<string, LiveSession>();
+
+const startedAt = new Date();
+let transport: { transport: "stdio" | "socket"; socket: string | null } = {
+  transport: "stdio",
+  socket: null,
+};
+
+/** Recorded by main.ts so runtime.info can report how clients reach us. */
+export function setTransportInfo(info: { transport: "stdio" | "socket"; socket: string | null }): void {
+  transport = info;
+}
+
+function callerId(): number {
+  return currentPeer()?.id ?? 0;
+}
 
 /** Mock is test-only infrastructure and must be requested explicitly. */
 function isMockMode(): boolean {
@@ -63,6 +80,15 @@ async function releaseSession(key: string): Promise<boolean> {
   sessions.delete(key);
   await live.dispose();
   return true;
+}
+
+/** Release the sessions a peer created (its connection closed or it asked to). */
+export async function releaseSessionsOwnedBy(owner: number): Promise<number> {
+  const keys = [...sessions.entries()]
+    .filter(([, live]) => live.owner === owner)
+    .map(([key]) => key);
+  await Promise.all(keys.map((key) => releaseSession(key).catch(() => false)));
+  return keys.length;
 }
 
 /** Release every live session (and so every MCP child). Used on runtime exit. */
@@ -210,6 +236,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     prepareAgentDir(spec);
     return {
       spec,
+      owner: callerId(),
       piSessionId: `mock-${spec.session_key}`,
       session: null,
       dispose: async () => {},
@@ -272,6 +299,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
 
   return {
     spec,
+    owner: callerId(),
     piSessionId: session.sessionId,
     session,
     dispose: () => shutdownPiSession(session),
@@ -390,6 +418,45 @@ async function listAvailableModels(params: Record<string, unknown>): Promise<unk
   }
 }
 
+/**
+ * Register a freshly created session -- unless its connection closed while it was
+ * being created (then nobody would ever release it): dispose it right away.
+ */
+async function adoptSession(key: string, live: LiveSession): Promise<void> {
+  const ownerGone = live.owner !== 0 && !listPeers().some((peer) => peer.id === live.owner);
+  if (ownerGone) {
+    await live.dispose();
+    throw new Error(`connection #${live.owner} closed during session creation; released ${key}`);
+  }
+  sessions.set(key, live);
+}
+
+export function runtimeInfo(): Record<string, unknown> {
+  const live = [...sessions.entries()];
+  return {
+    pid: process.pid,
+    mode: runtimeMode(),
+    transport: transport.transport,
+    socket: transport.socket,
+    started_at: startedAt.toISOString(),
+    uptime_s: Math.round((Date.now() - startedAt.getTime()) / 1000),
+    connection_id: callerId(),
+    connections: listPeers().map((peer) => ({
+      id: peer.id,
+      label: peer.label,
+      connected_at: peer.connectedAt,
+      sessions: live.filter(([, s]) => s.owner === peer.id).length,
+    })),
+    sessions: live.map(([key, s]) => ({
+      session_key: key,
+      owner: s.owner,
+      run_id: s.spec.run_id,
+      stage_id: s.spec.stage_id,
+      role: s.spec.role,
+    })),
+  };
+}
+
 export async function handleRuntimeMethod(
   method: string,
   params: Record<string, unknown>,
@@ -404,7 +471,7 @@ export async function handleRuntimeMethod(
     }
     await releaseSession(spec.session_key);
     const live = await createPiSession(spec);
-    sessions.set(spec.session_key, live);
+    await adoptSession(spec.session_key, live);
     return {
       session_key: spec.session_key,
       pi_session_id: live.piSessionId,
@@ -420,7 +487,7 @@ export async function handleRuntimeMethod(
     }
     await releaseSession(key);
     const live = await createPiSession(spec);
-    sessions.set(key, live);
+    await adoptSession(key, live);
     return {
       session_key: key,
       pi_session_id: live.piSessionId,
@@ -434,9 +501,11 @@ export async function handleRuntimeMethod(
     if (!live) {
       throw new Error(`unknown session ${key}`);
     }
-    const relay = new ActivityRelay(key, (event) => emitEvent("turn.event", { ...event }));
+    // Turn output goes to the connection that asked for the turn.
+    const peer = currentPeer();
+    const relay = new ActivityRelay(key, (event) => emitEvent("turn.event", { ...event }, peer));
     if (isMockMode()) {
-      emitEvent("turn.progress", { session_key: key, line: "[mock] turn complete\n" });
+      emitEvent("turn.progress", { session_key: key, line: "[mock] turn complete\n" }, peer);
       relay.handle({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "[mock] turn complete" } });
       relay.finish("ok");
       return { status: "ok", text: `[mock] received ${prompt.length} chars` };
@@ -450,7 +519,7 @@ export async function handleRuntimeMethod(
       if (ev.type === "message_update" && ev.assistantMessageEvent?.type === "text_delta") {
         const delta = ev.assistantMessageEvent.delta ?? "";
         text += delta;
-        emitEvent("turn.progress", { session_key: key, line: delta });
+        emitEvent("turn.progress", { session_key: key, line: delta }, peer);
       }
       try {
         relay.handle(ev as { type: string });
@@ -475,9 +544,19 @@ export async function handleRuntimeMethod(
     return { released };
   }
   if (method === "session.release_all") {
-    const count = sessions.size;
-    await disposeAllSessions();
-    return { released: count };
+    // Only the caller's own sessions: other clients share this runtime.
+    if (params.all === true) {
+      const count = sessions.size;
+      await disposeAllSessions();
+      return { released: count };
+    }
+    return { released: await releaseSessionsOwnedBy(callerId()) };
+  }
+  if (method === "client.hello") {
+    const peer = currentPeer();
+    const label = String(params.label ?? "").trim().slice(0, 200);
+    if (peer && label) peer.label = label;
+    return { connection_id: peer?.id ?? 0, pid: process.pid, mode: runtimeMode() };
   }
   if (method === "session.cancel") {
     const key = String(params.session_key ?? "");
@@ -489,7 +568,7 @@ export async function handleRuntimeMethod(
     return { cancelled: true };
   }
   if (method === "runtime.info") {
-    return { pid: process.pid, mode: runtimeMode(), sessions: [...sessions.keys()] };
+    return runtimeInfo();
   }
   if (method === "models.test_connection") {
     return testModelConnection(params);

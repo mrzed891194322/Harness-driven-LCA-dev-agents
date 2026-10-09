@@ -14,7 +14,7 @@ SDK 使用 `createAgentSession` + `DefaultResourceLoader`（禁用 skills/模板
 ## 架构
 
 - **Python**：workflow 语义、验收、checkpoint、handoff 校验（不变）
-- **Node `src/pi-runtime`**：Pi SDK session、工具、MCP；stdin/stdout NDJSON 协议
+- **Node `src/pi-runtime`**：Pi SDK session、工具、MCP；NDJSON 协议。项目只有一个 runtime 服务，监听 `.local/run/pi-runtime.sock`（`npm run dev` 启动、`npm run stop` 停止），后端与 `workflow.py` 都连接它；stdin/stdout 模式只用于测试
 - **FastAPI `src/backend/api`**：浏览器唯一业务 API
 - **Next.js `src/frontend/web`**：替代 Gradio GUI
 

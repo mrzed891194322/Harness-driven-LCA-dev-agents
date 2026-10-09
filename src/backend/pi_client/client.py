@@ -158,9 +158,12 @@ class PiRuntimeSessionClient(StoredSessionProvider):
         super().release(ref)
 
     def close(self) -> None:
-        """Stop the runtime: it disposes every session, which stops their MCP servers."""
+        """Release this process's sessions (and their MCP servers) and disconnect.
+
+        The project's single pi-runtime keeps running; only ``npm run stop`` stops it.
+        """
         self._launch_specs.clear()
-        self._runtime.shutdown()
+        self._runtime.close()
 
 
 def activity_progress_line(record: dict[str, Any]) -> str:

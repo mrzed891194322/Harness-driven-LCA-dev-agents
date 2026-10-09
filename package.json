@@ -6,8 +6,10 @@
     "src/frontend/web"
   ],
   "scripts": {
+    "start": "node src/scripts/start.mjs",
     "dev": "node src/scripts/dev.mjs",
     "stop": "node src/scripts/stop.mjs",
+    "restart": "node src/scripts/restart.mjs",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test:runtime": "npm run test -w @harness/pi-runtime"

@@ -14,9 +14,13 @@ src/
 ## 常用命令
 
 ```bash
-npm run dev   # 控制面板：Next.js + FastAPI（唯一用户控制入口；后台常驻，默认真实模型）
-npm run stop  # 停止控制面板及本仓库残留的 pi-runtime / MCP 进程
+npm start        # 正式入口：同步依赖、构建 pi-runtime，再执行 npm run dev
+npm run dev      # 后端 → 唯一的 pi-runtime → 前端，后台常驻，默认真实模型
+npm run stop     # 后端 → pi-runtime → 前端依次停止，并清理本仓库残留的 MCP / 编排进程
+npm run restart  # stop + start，不会叠出第二个 pi-runtime
 ```
+
+日常停止用 `npm run stop`，不要靠 Ctrl-C。整个项目只有一个 pi-runtime（Unix 套接字 `.local/run/pi-runtime.sock`）；后端和 `workflow.py` 只连接它，不会自己起。
 
 单独起 API（开发用）：
 

@@ -24,7 +24,7 @@ from backend.core.runtime.model_profiles import (
     resolve_model_profile,
     upsert_local_profile,
 )
-from backend.pi_client.process import shared_runtime, shutdown_shared_runtime
+from backend.pi_client.process import close_shared_runtime, shared_runtime
 from backend.services.auth_login_service import (
     login_status,
     logout_provider,
@@ -86,8 +86,9 @@ def _web_origins() -> list[str]:
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
-    # Stop this process's pi-runtime (and its MCP servers) with the API (#22).
-    await asyncio.to_thread(shutdown_shared_runtime)
+    # Release this process's sessions (and their MCP servers) and disconnect from
+    # the project's pi-runtime. The runtime itself is stopped by `npm run stop`.
+    await asyncio.to_thread(close_shared_runtime)
 
 
 app = FastAPI(title="Harness LCA API", version="0.2.0", lifespan=_lifespan)

@@ -123,3 +123,17 @@ def runtime_env(
     env["UV_CACHE_DIR"] = str(resolve_uv_cache_dir(project_root, env=source))
     env.setdefault("PYTHONUNBUFFERED", "1")
     return env
+
+
+def _main() -> int:
+    """Print the runtime environment as JSON (dev.mjs starts pi-runtime with it)."""
+    import json
+    import sys
+
+    root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
+    print(json.dumps(runtime_env(root)))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

@@ -25,10 +25,14 @@ class PiRuntimeTests(unittest.TestCase):
         ok, _message = inspect("pi", project_root=root)
         self.assertTrue(ok)
 
-    def test_check_protocol_mock(self) -> None:
+    def test_check_reports_runtime_not_running(self) -> None:
+        # check() probes the project's running runtime and never spawns one;
+        # the live probe is covered in test_pi_runtime_lifecycle.py.
         root = Path(__file__).resolve().parents[3]
-        ok, message = check("pi", project_root=root)
-        self.assertTrue(ok, message)
+        with tempfile.TemporaryDirectory() as tmp:
+            ok, message = check("pi", project_root=root, socket_file=Path(tmp) / "none.sock")
+        self.assertFalse(ok)
+        self.assertIn("npm run dev", message)
 
     def test_normalize_model_default(self) -> None:
         self.assertEqual(normalize_model("", "pi"), DEFAULT_MODELS["pi"])

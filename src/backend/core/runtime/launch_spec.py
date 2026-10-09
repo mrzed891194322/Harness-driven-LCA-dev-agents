@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -25,6 +26,23 @@ from backend.core.workflow.config.models import Assignment, Stage, Workflow
 from backend.core.workflow.execution.handoff import handoff_path
 from backend.core.workflow.execution.prompt_build import build_prompt
 from backend.core.workflow.execution.session_bind import build_session_config
+from backend.settings import parse_env_file
+
+
+def openlca_env(project_root: Path) -> dict[str, str]:
+    """openLCA IPC settings for MCP servers, read at session creation.
+
+    MCP servers are children of the long-lived pi-runtime, whose environment is
+    fixed at `npm run dev`. Passing the current values per session keeps a port
+    changed in the settings page effective for the next run without a restart.
+    """
+    values = parse_env_file(project_root / ".env")
+    env: dict[str, str] = {}
+    for key in ("OPENLCA_IPC_HOST", "OPENLCA_IPC_PORT"):
+        value = (values.get(key) or os.environ.get(key) or "").strip()
+        if value:
+            env[key] = value
+    return env
 
 
 def _sha(text: str) -> str:
@@ -151,7 +169,7 @@ def build_session_launch_spec(
         mcp_bindings[name] = {
             "command": entry.get("command"),
             "args": list(entry.get("args") or []),
-            "env": dict(entry.get("env") or {}),
+            "env": {**openlca_env(project_root), **dict(entry.get("env") or {})},
             "timeout_ms": int(entry.get("tool_timeout_sec", 60)) * 1000,
             "exposure": "direct",
         }

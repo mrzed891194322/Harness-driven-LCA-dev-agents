@@ -12,7 +12,7 @@ FastAPI（src/backend）保存计划、清理上一次运行、拉起编排器
         │  uv run python src/scripts/workflow.py
         ▼
 Python 编排器（src/backend/core/workflow）按 harness YAML 逐阶段派工
-        │  NDJSON：backend/pi_client/client.py → pi-runtime
+        │  NDJSON over .local/run/pi-runtime.sock：backend/pi_client → 项目唯一的 pi-runtime
         ▼
 Pi SDK（src/pi-runtime，createAgentSession）
         │  progress.txt + manifest.json
@@ -37,13 +37,13 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 
 ## 已经接通的部分
 
-- 控制面板页面：`/status` 环境诊断，`/plan` 计划、资料、编排预览，`/runs` 运行详情。开发入口是仓库根目录的 `npm run dev`（Next 默认 3000，API 默认 8800，Next 把 `/api/*` 代理到 FastAPI）。
+- 控制面板页面：`/status` 环境诊断，`/plan` 计划、资料、编排预览，`/runs` 运行详情。正式入口是仓库根目录的 `npm start`（同步依赖、构建 pi-runtime 后执行 `npm run dev`；Next 默认 3000，API 默认 8800，Next 把 `/api/*` 代理到 FastAPI）。
 - 「执行LCA任务」调用 `POST /api/workflow/start`，成功后 `router.push("/runs")`。
 - `workflow_launch.py` 在清理前复制 `harness/knowledge/plan` 与 `inputs`，清理后写回，再用当前表单覆盖 `main_plan.md`（修订任务同时写 `revise_plan.md`），然后启动 `src/scripts/workflow.py`。`npm run dev` 默认使用真实模型并打印一行 `mode=real|mock`；`PI_RUNTIME_MOCK=1` 只给测试显式开启。
-- 进程生命周期：`npm run dev` 用 `setsid`（detached）在后台启动后端和前端，pid 写在 `.local/run/*.pid`，日志在 `.local/logs/{backend,web,pi-runtime}.log`；`npm run stop` 停掉它们以及本仓库残留的 pi-runtime / MCP / 编排子进程（`-- --dry-run` 只列出）。要在前台跑用 `npm run dev -- --foreground`。每个 Python 进程最多一个 pi-runtime（后端一个；运行中编排子进程一个，运行结束即关闭）；pi-runtime 在 stdin 关闭、SIGTERM 或父进程消失时释放全部会话（关闭 MCP 子进程）后退出。
+- 进程生命周期（ISSUES #23）：**整个项目只有一个 pi-runtime**。`npm start` / `npm run dev` 依次启动后端 → 立即启动 pi-runtime（`node src/pi-runtime/dist/main.js --listen .local/run/pi-runtime.sock`，`PI_RUNTIME_SOCKET` 可改路径）→ 前端，各自 `setsid` 常驻，pid 在 `.local/run/{backend,pi-runtime,web}.pid`，日志在 `.local/logs/{backend,pi-runtime,web}.log`。后端和每次运行的 `workflow.py` 都只连接这个套接字，**绝不自己起 runtime**；套接字不在时报 `pi-runtime 未运行，请用 npm run dev 启动`。会话和 MCP 仍按分工创建、按分工释放；运行结束（或 `workflow.py` 崩溃、连接断开）只释放该连接创建的会话，runtime 保持运行。`npm run stop` 的顺序：后端（lifespan 与编排子进程先释放各自会话）→ pi-runtime（SIGTERM，释放剩余会话、关闭 MCP、删除套接字）→ 前端，最后清理本仓库残留进程（`-- --dry-run` 只列出）。`npm run restart` = stop + start，stop 后若还有 runtime 就拒绝启动；`npm run dev` 发现已有 pid / 套接字 / runtime 进程也会拒绝。前台运行用 `npm run dev -- --foreground`，Ctrl-C 与 `npm run stop` 清理同一组进程。日常请用 `npm run stop`，不要靠 Ctrl-C。`PI_RUNTIME_PRIVATE=1` 只给测试，让客户端自起私有 stdio runtime；控制面板会忽略它。
 - `/runs` 轮询 `GET /api/workflow/progress`。启动尚未写出新日志时，返回内存中的准备说明；新的 `workspace/records/logs/<run_id>/progress.txt` 出现后，整段换成该文件并继续按偏移追加。
 - 终端渲染在 `components/runs/agent-stream.tsx`。它解析 `progress.py` 的标签行：编排器说明、`阶段(角色#次数)-pi-时间`、`→ 工具`、`✓` / `✗`、`error:` 和模型正文。历史日志 `workspace/records/logs/*/progress.txt` 就是目标样子。
-- 编排器通过 `src/backend/pi_client/client.py` 的 NDJSON 调用 `src/pi-runtime`。会话契约在 `src/backend/core/contracts/session_launch_spec.py`。
+- 编排器通过 `src/backend/pi_client/client.py`（连接见 `process.py` 的 `PiRuntimeClient`）以 NDJSON 调用项目唯一的 `src/pi-runtime` 服务；`runtime.info` 返回 pid、mode、连接与会话，`/status` 的诊断显示它。会话契约在 `src/backend/core/contracts/session_launch_spec.py`。
 
 ## 还没接通、用户让「走通」时优先补这里
 

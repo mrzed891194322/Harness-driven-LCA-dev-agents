@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-// Prepare the repo, then start the control panel (macOS / Linux / Windows).
+// Official entry (`npm start`): sync dependencies, build pi-runtime, then start the
+// control panel (`npm run dev`: backend -> the single pi-runtime -> web).
+// Extra arguments go to dev.mjs, e.g. `npm start -- --foreground`.
+// Stop with `npm run stop`; `npm run restart` = stop + start.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -103,5 +106,18 @@ await runOrExit("npm", ["install"], {
   timeoutLabel: "npm install",
 });
 
+// npm 11 sometimes prunes the workspaces' devDependencies on every other
+// `npm install` (observed with 11.19); the build needs typescript, so retry once.
+if (!fs.existsSync(path.join(root, "node_modules", "typescript", "bin", "tsc"))) {
+  console.log("typescript missing after npm install; running npm install again...");
+  await runOrExit("npm", ["install"], {
+    timeoutMs: SYNC_TIMEOUT_MS,
+    timeoutLabel: "npm install",
+  });
+}
+
+console.log("Building pi-runtime...");
+await runOrExit("npm", ["run", "build", "-w", "@harness/pi-runtime"]);
+
 console.log("Starting the control panel...");
-await runOrExit("npm", ["run", "dev"]);
+await runOrExit("npm", ["run", "dev", "--", ...process.argv.slice(2)]);
