@@ -53,7 +53,7 @@ from services.plan_form import (
     list_references,
     read_plan_document,
     save_plan,
-    save_reference,
+    save_references,
     save_reference_note,
     template_markdown,
 )
@@ -519,13 +519,13 @@ def read_references() -> dict[str, Any]:
 
 @app.post("/api/references")
 async def upload_references(files: list[UploadFile] = File(...)) -> dict[str, Any]:
-    saved: list[dict[str, Any]] = []
+    uploads: list[tuple[str, bytes]] = []
     for item in files:
-        data = await item.read()
-        try:
-            saved.append(save_reference(PROJECT_ROOT, item.filename or "", data))
-        except PlanFormError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        uploads.append((item.filename or "", await item.read()))
+    try:
+        saved = save_references(PROJECT_ROOT, uploads)
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "saved", "saved": saved, "files": list_references(PROJECT_ROOT)}
 
 

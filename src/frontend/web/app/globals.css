@@ -1290,6 +1290,16 @@ button:disabled {
   margin-top: 0;
 }
 
+.plan-import {
+  justify-content: flex-end;
+}
+
+.plan-import p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .plan-grid {
   flex: 1;
   min-height: 0;
@@ -1306,6 +1316,11 @@ button:disabled {
   flex-direction: column;
   margin-top: 12px;
   overflow: hidden;
+}
+
+.plan-placeholder {
+  flex: 1;
+  min-height: 0;
 }
 
 .plan-field,
@@ -1429,8 +1444,28 @@ button:disabled {
 .plan-file-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #8f9b88 #eef2ea;
+  padding: 12px 8px 12px 12px;
+}
+
+.plan-file-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.plan-file-scroll::-webkit-scrollbar-track {
+  background: #eef2ea;
+  border-radius: 999px;
+}
+
+.plan-file-scroll::-webkit-scrollbar-thumb {
+  background: #8f9b88;
+  border: 2px solid #eef2ea;
+  border-radius: 999px;
 }
 
 .plan-files {
@@ -1465,12 +1500,20 @@ button:disabled {
   background: var(--accent-soft);
 }
 
+.plan-file-index {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--accent);
+}
+
 .plan-file-name {
   font-size: 0.82rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1488,29 +1531,41 @@ button:disabled {
   font-size: 0.78rem;
 }
 
-.plan-note {
-  flex: none;
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px;
+.plan-note-dialog {
+  width: min(520px, calc(100vw - 32px));
+  margin: auto;
+  padding: 0;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  box-shadow: var(--shadow);
 }
 
-.plan-note label {
-  font-size: 0.88rem;
-  font-weight: 600;
+.plan-note-dialog::backdrop {
+  background: rgba(28, 31, 26, 0.45);
+}
+
+.plan-note {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 18px;
+}
+
+.plan-note h2 {
+  margin: 0;
+  font-size: 1.05rem;
 }
 
 .plan-note textarea {
   width: 100%;
-  min-height: 72px;
-  max-height: 120px;
+  min-height: 148px;
+  max-height: 280px;
   resize: vertical;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   font: inherit;
   line-height: 1.5;
   color: var(--ink);
@@ -1522,8 +1577,18 @@ button:disabled {
   border-color: var(--accent);
 }
 
-.plan-note button {
-  justify-self: start;
+.plan-note textarea::placeholder {
+  color: var(--muted);
+}
+
+.plan-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.plan-note .status-banner {
+  margin: 0;
 }
 
 @media (max-width: 800px) {

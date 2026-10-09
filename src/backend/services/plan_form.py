@@ -171,12 +171,33 @@ def list_references(root: Path) -> list[dict[str, object]]:
 
 
 def save_reference(root: Path, filename: str, data: bytes) -> dict[str, object]:
-    path = _reference_path(root, filename)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".uploading")
-    temporary.write_bytes(data)
-    temporary.replace(path)
-    return _reference_record(path, _read_notes(root).get(path.name, ""))
+    saved = save_references(root, [(filename, data)])
+    return saved[0]
+
+
+def save_references(root: Path, uploads: list[tuple[str, bytes]]) -> list[dict[str, object]]:
+    prepared: list[tuple[Path, bytes]] = []
+    seen: set[str] = set()
+    conflicts: list[str] = []
+    for filename, data in uploads:
+        path = _reference_path(root, filename)
+        if path.name in seen or path.is_file():
+            conflicts.append(path.name)
+            continue
+        seen.add(path.name)
+        prepared.append((path, data))
+    if conflicts:
+        names = "、".join(f"「{name}」" for name in dict.fromkeys(conflicts))
+        raise PlanFormError(f"不能上传同名文件：{names}")
+    saved: list[dict[str, object]] = []
+    notes = _read_notes(root)
+    for path, data in prepared:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(path.name + ".uploading")
+        temporary.write_bytes(data)
+        temporary.replace(path)
+        saved.append(_reference_record(path, notes.get(path.name, "")))
+    return saved
 
 
 def save_reference_note(root: Path, filename: str, note: str) -> dict[str, object]:
