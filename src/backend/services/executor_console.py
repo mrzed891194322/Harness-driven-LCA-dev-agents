@@ -96,10 +96,7 @@ def execute_command_stream(
     yield f"[System] Command: {command_str}\n"
     yield "=" * 80 + "\n"
 
-    # 复制当前 environment 并添加 SSL 绕过环境变量，以解决部分网络/代理环境下的证书校验问题 (unknown certificate verification error)
     env = os.environ.copy()
-    env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
-    env["PYTHONHTTPSVERIFY"] = "0"
     env["PYTHONUNBUFFERED"] = "1"
     if env_overrides:
         env.update(env_overrides)
