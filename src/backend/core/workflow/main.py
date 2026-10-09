@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
+import threading
 import uuid
 from pathlib import Path
 
@@ -79,6 +81,14 @@ def main(argv: list[str] | None = None) -> int:
         help=argparse.SUPPRESS,
     )
     args = parser.parse_args(argv)
+    previous_handlers = _exit_on_sigterm()
+    try:
+        return _main(args)
+    finally:
+        _restore_handlers(previous_handlers)
+
+
+def _main(args: argparse.Namespace) -> int:
 
     project_root = args.project_root.resolve()
     workspace_root = (args.workspace or (project_root / "workspace")).resolve()
@@ -146,6 +156,45 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     finally:
         set_progress_log(None)
+        _close_session_client(session_client)
+
+
+def _close_session_client(session_client: object) -> None:
+    """Stop the worker runtime so no pi-runtime / MCP child outlives the run (#22/#23)."""
+    close = getattr(session_client, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception as exc:  # cleanup must never mask the run result
+            print_orchestrator(f"worker runtime shutdown failed: {exc}", file=sys.stderr)
+
+
+def _exit_on_sigterm() -> dict[int, object]:
+    """Turn SIGTERM/SIGHUP into SystemExit so ``finally`` cleanup runs (npm run stop)."""
+    previous: dict[int, object] = {}
+    if threading.current_thread() is not threading.main_thread():
+        return previous
+
+    def _handler(signum: int, _frame: object) -> None:
+        raise SystemExit(128 + signum)
+
+    for name in ("SIGTERM", "SIGHUP"):
+        sig = getattr(signal, name, None)
+        if sig is None:
+            continue
+        try:
+            previous[sig] = signal.signal(sig, _handler)
+        except (ValueError, OSError):
+            pass
+    return previous
+
+
+def _restore_handlers(previous: dict[int, object]) -> None:
+    for sig, handler in previous.items():
+        try:
+            signal.signal(sig, handler)  # type: ignore[arg-type]
+        except (ValueError, OSError, TypeError):
+            pass
 
 
 def peek_tool_ids(path: Path, *, project_root: Path) -> list[str]:

@@ -8,6 +8,7 @@ import {
   type TutorialCatalog,
   type TutorialDocument,
 } from "../../../components/tutorial/tutorial-shell";
+import { apiFetch } from "../../../lib/api";
 
 function slugToPath(slug: string[] | string | undefined) {
   const parts = Array.isArray(slug) ? slug : slug ? [slug] : [];
@@ -43,7 +44,7 @@ export default function TutorialDocPage() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch("/api/tutorial/catalog");
+        const response = await apiFetch("/api/tutorial/catalog");
         const data = (await response.json()) as TutorialCatalog & { detail?: string };
         if (!response.ok) throw new Error(data.detail || "无法加载教程目录");
         if (!cancelled) {
@@ -68,7 +69,7 @@ export default function TutorialDocPage() {
     setDocumentError("");
     (async () => {
       try {
-        const response = await fetch(
+        const response = await apiFetch(
           `/api/tutorial/document?path=${encodeURIComponent(selected)}`,
         );
         const data = (await response.json()) as TutorialDocument & { detail?: string };

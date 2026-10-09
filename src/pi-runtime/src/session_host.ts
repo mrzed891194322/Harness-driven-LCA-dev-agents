@@ -27,6 +27,7 @@ import {
 } from "./auth_login.js";
 import { emitEvent } from "./protocol.js";
 import { ActivityRelay } from "./activity.js";
+import { shutdownPiSession } from "./lifecycle.js";
 
 const PROTOCOL_VERSION = 1;
 
@@ -37,13 +38,37 @@ interface LiveSession {
   piSessionId: string;
   // One Pi session per assignment per run; reused across turns.
   session: AgentSession | null;
-  dispose: () => void;
+  /** Abort, emit session_shutdown (closes MCP servers), dispose. */
+  dispose: () => Promise<void>;
 }
 
 const sessions = new Map<string, LiveSession>();
 
+/** Mock is test-only infrastructure and must be requested explicitly. */
 function isMockMode(): boolean {
   return process.env.PI_RUNTIME_MOCK === "1";
+}
+
+export function runtimeMode(): "real" | "mock" {
+  return isMockMode() ? "mock" : "real";
+}
+
+export function liveSessionCount(): number {
+  return sessions.size;
+}
+
+async function releaseSession(key: string): Promise<boolean> {
+  const live = sessions.get(key);
+  if (!live) return false;
+  sessions.delete(key);
+  await live.dispose();
+  return true;
+}
+
+/** Release every live session (and so every MCP child). Used on runtime exit. */
+export async function disposeAllSessions(): Promise<void> {
+  const keys = [...sessions.keys()];
+  await Promise.all(keys.map((key) => releaseSession(key).catch(() => false)));
 }
 
 function writeMcpJson(agentDir: string, spec: SessionLaunchSpec): void {
@@ -187,7 +212,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
       spec,
       piSessionId: `mock-${spec.session_key}`,
       session: null,
-      dispose: () => {},
+      dispose: async () => {},
     };
   }
 
@@ -237,13 +262,19 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
   // Emits session_start: the MCP extension only connects its servers (and registers
   // mcp__<server>__<tool>) on that event; the first prompt then waits for direct tools.
   await session.bindExtensions({});
-  await assertMcpServersReady(session, spec);
+  try {
+    await assertMcpServersReady(session, spec);
+  } catch (error) {
+    // Do not leave the servers that did start running behind a failed create.
+    await shutdownPiSession(session);
+    throw error;
+  }
 
   return {
     spec,
     piSessionId: session.sessionId,
     session,
-    dispose: () => session.dispose(),
+    dispose: () => shutdownPiSession(session),
   };
 }
 
@@ -371,7 +402,7 @@ export async function handleRuntimeMethod(
     if (!spec || spec.schema_version !== 1) {
       throw new Error("invalid launch_spec");
     }
-    sessions.get(spec.session_key)?.dispose();
+    await releaseSession(spec.session_key);
     const live = await createPiSession(spec);
     sessions.set(spec.session_key, live);
     return {
@@ -387,7 +418,7 @@ export async function handleRuntimeMethod(
     if (!fs.existsSync(sessionFile) && !isMockMode()) {
       throw new Error(`session file missing: ${sessionFile}`);
     }
-    sessions.get(key)?.dispose();
+    await releaseSession(key);
     const live = await createPiSession(spec);
     sessions.set(key, live);
     return {
@@ -440,15 +471,25 @@ export async function handleRuntimeMethod(
   }
   if (method === "session.release") {
     const key = String(params.session_key ?? "");
-    const live = sessions.get(key);
-    if (live) {
-      live.dispose();
-      sessions.delete(key);
-    }
-    return { released: true };
+    const released = await releaseSession(key);
+    return { released };
+  }
+  if (method === "session.release_all") {
+    const count = sessions.size;
+    await disposeAllSessions();
+    return { released: count };
   }
   if (method === "session.cancel") {
+    const key = String(params.session_key ?? "");
+    const session = sessions.get(key)?.session;
+    if (!session) {
+      return { cancelled: false };
+    }
+    await session.abort();
     return { cancelled: true };
+  }
+  if (method === "runtime.info") {
+    return { pid: process.pid, mode: runtimeMode(), sessions: [...sessions.keys()] };
   }
   if (method === "models.test_connection") {
     return testModelConnection(params);

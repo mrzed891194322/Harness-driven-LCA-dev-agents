@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Bot, Cpu, List, RefreshCw, Settings, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useSettings } from "../../components/settings/settings-context";
+import { apiFetch } from "../../lib/api";
 
 type Check = { ok: boolean; message: string };
 
@@ -83,7 +84,7 @@ export default function StatusPage() {
     setBusy(true);
     setLoadError("");
     try {
-      const envRes = await fetch("/api/diagnostics/environment");
+      const envRes = await apiFetch("/api/diagnostics/environment");
       const env = (await envRes.json()) as unknown;
       if (!envRes.ok || !isDiagnostics(env)) {
         throw new Error(
@@ -103,7 +104,7 @@ export default function StatusPage() {
     setModelBusy(true);
     setProviderError("");
     try {
-      const response = await fetch("/api/models/providers");
+      const response = await apiFetch("/api/models/providers");
       const data = (await response.json()) as { providers?: AvailableProvider[]; detail?: string };
       if (!response.ok || !Array.isArray(data.providers)) {
         throw new Error(data.detail || "无法读取供应商状态");
@@ -146,7 +147,7 @@ export default function StatusPage() {
       [providerId]: { state: "loading", models: [], message: "" },
     }));
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/models/providers/${encodeURIComponent(providerId)}/models`,
       );
       const data = (await response.json()) as {

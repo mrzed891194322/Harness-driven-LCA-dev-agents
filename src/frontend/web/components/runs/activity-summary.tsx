@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { apiFetch } from "../../lib/api";
 
 /** One record of /api/workflow/activity (events.jsonl written by the Pi client). */
 export type ActivityEvent = {
@@ -133,7 +134,7 @@ export function ActivitySummary({ runId }: { runId: string }) {
       busy = true;
       try {
         const query = new URLSearchParams({ run_id: runId, offset: String(offset.current) });
-        const response = await fetch(`/api/workflow/activity?${query.toString()}`);
+        const response = await apiFetch(`/api/workflow/activity?${query.toString()}`);
         if (!response.ok) return;
         const data = (await response.json()) as {
           events?: ActivityEvent[];

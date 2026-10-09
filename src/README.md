@@ -14,7 +14,8 @@ src/
 ## 常用命令
 
 ```bash
-npm run dev   # 控制面板：Next.js + FastAPI（唯一用户控制入口）
+npm run dev   # 控制面板：Next.js + FastAPI（唯一用户控制入口；后台常驻，默认真实模型）
+npm run stop  # 停止控制面板及本仓库残留的 pi-runtime / MCP 进程
 ```
 
 单独起 API（开发用）：

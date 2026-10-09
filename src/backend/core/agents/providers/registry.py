@@ -32,6 +32,18 @@ class ProviderDispatcher:
     def release(self, ref: SessionRef) -> None:
         self._provider(ref.platform).release(ref)
 
+    def close(self) -> None:
+        """Stop every provider's worker runtime (and its MCP servers)."""
+        providers = list(self._providers.values())
+        self._providers.clear()
+        for provider in providers:
+            close = getattr(provider, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+
     def _provider(self, worker: str) -> SessionClient:
         name = (worker or "").strip().lower()
         cached = self._providers.get(name)

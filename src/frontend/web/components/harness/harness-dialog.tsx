@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Lasso } from "lucide-react";
 import { MarkdownView } from "../markdown-view";
 import { useHarness } from "./harness-context";
+import { apiFetch } from "../../lib/api";
 
 type HarnessEntry = {
   path: string;
@@ -98,7 +99,7 @@ export function HarnessDialog() {
   useEffect(() => {
     if (!open || catalog) return;
     let cancelled = false;
-    fetch("/api/harness/catalog")
+    apiFetch("/api/harness/catalog")
       .then(async (response) => {
         const data = (await response.json()) as HarnessCatalog & { detail?: string };
         if (!response.ok) throw new Error(data.detail || "无法加载 Harness 目录");
@@ -124,7 +125,7 @@ export function HarnessDialog() {
     let cancelled = false;
     setLoadingDoc(true);
     setDocumentError("");
-    fetch(`/api/harness/document?path=${encodeURIComponent(selected)}`)
+    apiFetch(`/api/harness/document?path=${encodeURIComponent(selected)}`)
       .then(async (response) => {
         const data = (await response.json()) as HarnessDocument & { detail?: string };
         if (!response.ok) throw new Error(data.detail || "无法读取文档");

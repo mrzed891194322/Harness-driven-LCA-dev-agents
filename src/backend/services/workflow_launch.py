@@ -178,7 +178,7 @@ def _consume(stream: Iterator[tuple[str, str]]) -> str:
 def _run_real_workflow(task: str) -> Iterator[tuple[str, str]]:
     from backend.services.executor_console import run_workflow_command_console
 
-    yield from run_workflow_command_console(task, env_overrides={"PI_RUNTIME_MOCK": "0"})
+    yield from run_workflow_command_console(task)
 
 
 launcher = WorkflowLauncher()

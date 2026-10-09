@@ -21,12 +21,15 @@ from backend.services.plan_form import (
     save_reference_note,
     template_markdown,
 )
-from backend.services.project_paths import PROJECT_ROOT
+
+LEGACY_PLAN = Path(__file__).resolve().parents[1] / "support" / "legacy_main_plan.md"
 
 
 class PlanFormParseTests(unittest.TestCase):
     def test_legacy_plan_keeps_subject_unit_stages_and_other_constraints(self) -> None:
-        text = (PROJECT_ROOT / "harness/knowledge/plan/main_plan.md").read_text(encoding="utf-8")
+        # Hermetic copy of the pre-form plan: harness/knowledge/plan/main_plan.md is
+        # rewritten by the GUI, so the test must not depend on its current content.
+        text = LEGACY_PLAN.read_text(encoding="utf-8")
         fields = parse_plan(text)
         self.assertIn("PET", fields.subject)
         self.assertIn("1,000", fields.functional_unit)
@@ -35,6 +38,19 @@ class PlanFormParseTests(unittest.TestCase):
         self.assertIn("ecoinvent", fields.conditions)
         self.assertNotIn("**研究对象**", fields.conditions)
         self.assertNotIn("水瓶案例学习.md", fields.conditions)
+
+    def test_conditions_with_own_headings_survive_round_trip(self) -> None:
+        conditions = (
+            "## 1. 研究目的与范围定义\n- **研究目的**：比较三个情景。\n"
+            "## 2. 生命周期影响评价方法与指标\n- **选用的 LCIA 方法**：`CML v4.8 2016 no LT`。"
+        )
+        fields = PlanFields("PET 瓶", "1,000 个", "Cradle-to-Gate", conditions)
+        again = parse_plan(render_plan(fields, ["水瓶案例学习.md"]))
+        self.assertEqual(again.subject, "PET 瓶")
+        self.assertIn("CML", again.conditions)
+        self.assertIn("## 1. 研究目的与范围定义", again.conditions)
+        self.assertNotIn("水瓶案例学习.md", again.conditions)
+        self.assertEqual(parse_plan(render_plan(again, [])), again)
 
     def test_template_and_round_trip(self) -> None:
         self.assertEqual(parse_plan(template_markdown()), PlanFields("", "", "", ""))

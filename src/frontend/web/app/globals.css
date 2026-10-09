@@ -2769,3 +2769,13 @@ button:disabled {
   color: var(--accent);
   font-weight: 600;
 }
+
+.backend-status-banner {
+  margin: 0;
+  padding: 10px 20px;
+  background: var(--warn-soft);
+  color: var(--danger);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 14px;
+}

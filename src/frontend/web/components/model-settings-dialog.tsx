@@ -2,6 +2,7 @@
 
 import { Copy, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../lib/api";
 
 type CredInfo = { set: boolean; masked: string | null; type?: string };
 type ProviderCatalogItem = {
@@ -112,8 +113,8 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
 
   const refresh = useCallback(async () => {
     const [credRes, customRes] = await Promise.all([
-      fetch("/api/credentials/status"),
-      fetch("/api/models/custom-endpoints"),
+      apiFetch("/api/credentials/status"),
+      apiFetch("/api/models/custom-endpoints"),
     ]);
     const credPayload = (await credRes.json()) as CredentialsPayload;
     if (!credRes.ok || !Array.isArray(credPayload?.catalog)) {
@@ -143,7 +144,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     let cancelled = false;
     const tick = async () => {
       try {
-        const r = await fetch(`/api/credentials/oauth/${encodeURIComponent(loginId)}`);
+        const r = await apiFetch(`/api/credentials/oauth/${encodeURIComponent(loginId)}`);
         const data = await r.json();
         if (!r.ok || cancelled) return;
         for (const ev of data.events ?? []) {
@@ -231,7 +232,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     setStatusMsg("");
     setStatusError(false);
     try {
-      const r = await fetch("/api/credentials", {
+      const r = await apiFetch("/api/credentials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: providerId, api_key: apiKey }),
@@ -270,7 +271,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     try {
       const info = creds?.providers?.[providerId];
       if (info?.type === "oauth") {
-        const r = await fetch("/api/credentials/oauth/logout", {
+        const r = await apiFetch("/api/credentials/oauth/logout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ provider: providerId }),
@@ -278,7 +279,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         const data = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(data.detail || "退出登录失败");
       } else {
-        const r = await fetch(`/api/credentials/${encodeURIComponent(providerId)}`, {
+        const r = await apiFetch(`/api/credentials/${encodeURIComponent(providerId)}`, {
           method: "DELETE",
         });
         const data = await r.json().catch(() => ({}));
@@ -303,7 +304,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     setPendingPrompt(null);
     setPromptValue("");
     try {
-      const r = await fetch("/api/credentials/oauth/start", {
+      const r = await apiFetch("/api/credentials/oauth/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: providerId, auth_type: "oauth" }),
@@ -325,7 +326,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     if (!loginId || !pendingPrompt?.prompt_id) return;
     setBusy(true);
     try {
-      const r = await fetch("/api/credentials/oauth/reply", {
+      const r = await apiFetch("/api/credentials/oauth/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -351,7 +352,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     setStatusMsg("");
     setStatusError(false);
     try {
-      const r = await fetch("/api/credentials/base-url", {
+      const r = await apiFetch("/api/credentials/base-url", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -388,7 +389,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     setStatusMsg("");
     setStatusError(false);
     try {
-      const r = await fetch("/api/models/custom-endpoint", {
+      const r = await apiFetch("/api/models/custom-endpoint", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -429,7 +430,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     setStatusMsg("");
     setStatusError(false);
     try {
-      const r = await fetch("/api/models/custom-endpoint", {
+      const r = await apiFetch("/api/models/custom-endpoint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...customForm, profile_id: profileId, provider, base_url: baseUrl, model_id: modelId }),

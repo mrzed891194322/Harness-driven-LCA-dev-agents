@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import atexit
 import json
-import os
+import re
 import subprocess
 import threading
 import uuid
@@ -11,10 +12,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import re
-
 from backend.core.agents.session import SessionError
 from backend.core.agents.turn_transport import WorkerTransportError
+
+from .env import runtime_env
 
 PROJECT_ROOT = next(
     parent
@@ -42,7 +43,13 @@ def runtime_error(message: str) -> Exception:
 
 
 class PiRuntimeProcess:
-    """Single long-lived pi-runtime child process."""
+    """Single long-lived pi-runtime child process.
+
+    Lifetime: the runtime exits by itself when its stdin closes, so ``shutdown()``
+    closes stdin first (the runtime then disposes every session, which stops its
+    MCP servers) and only escalates to SIGTERM / SIGKILL if it does not exit.
+    After ``shutdown()`` the next ``request()`` starts a fresh runtime.
+    """
 
     def __init__(self, project_root: Path | None = None) -> None:
         self.project_root = project_root or PROJECT_ROOT
@@ -69,9 +76,7 @@ class PiRuntimeProcess:
             if self._proc and self._proc.poll() is None:
                 return
             runtime_js = self._runtime_entry()
-            env = os.environ.copy()
-            if os.getenv("PI_RUNTIME_MOCK", "").strip() in {"1", "true", "yes"}:
-                env["PI_RUNTIME_MOCK"] = "1"
+            env = runtime_env(self.project_root)
             log_dir = self.project_root / ".local" / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
             stderr_log = open(log_dir / "pi-runtime.log", "a", encoding="utf-8")
@@ -86,8 +91,16 @@ class PiRuntimeProcess:
                 bufsize=1,
                 env=env,
             )
-            self._reader = threading.Thread(target=self._read_loop, daemon=True)
+            stderr_log.close()  # the child holds its own descriptor
+            self._reader = threading.Thread(
+                target=self._read_loop, args=(self._proc,), daemon=True
+            )
             self._reader.start()
+
+    @property
+    def pid(self) -> int | None:
+        proc = self._proc
+        return proc.pid if proc is not None and proc.poll() is None else None
 
     def _runtime_entry(self) -> list[str]:
         rt = self.project_root / "src" / "pi-runtime"
@@ -100,10 +113,34 @@ class PiRuntimeProcess:
             return ["node", "--import", str(tsx), str(src)]
         return ["node", "--import", "tsx", str(src)]
 
-    def _read_loop(self) -> None:
-        proc = self._proc
-        if proc is None or proc.stdout is None:
+    def _read_loop(self, proc: subprocess.Popen[str]) -> None:
+        if proc.stdout is None:
             return
+        try:
+            self._pump(proc)
+        except (OSError, ValueError):
+            pass
+        finally:
+            with self._lock:
+                current = self._proc is proc or self._proc is None
+            if current:
+                self._fail_pending("pi-runtime 已退出")
+
+    def _fail_pending(self, message: str) -> None:
+        """Wake every waiter when the runtime goes away instead of letting it time out."""
+        with self._lock:
+            pending = list(self._pending.items())
+            self._pending.clear()
+            for req_id, _event in pending:
+                self._responses[req_id] = {
+                    "ok": False,
+                    "error": {"code": "runtime_exited", "message": message},
+                }
+        for _req_id, event in pending:
+            event.set()
+
+    def _pump(self, proc: subprocess.Popen[str]) -> None:
+        assert proc.stdout is not None
         for line in proc.stdout:
             line = line.strip()
             if not line:
@@ -167,23 +204,50 @@ class PiRuntimeProcess:
             raise runtime_error(str(err.get("message") or "pi-runtime 错误"))
         return payload.get("result")
 
-    def shutdown(self) -> None:
+    def shutdown(self, *, grace: float = 10.0) -> None:
+        """Stop the runtime and, through it, every session's MCP servers."""
         with self._lock:
             proc = self._proc
             self._proc = None
-        if proc and proc.poll() is None:
-            proc.terminate()
+        if proc is None:
+            return
+        if proc.poll() is None:
             try:
-                proc.wait(timeout=5)
+                if proc.stdin is not None:
+                    proc.stdin.close()  # runtime: dispose sessions, then exit(0)
+            except OSError:
+                pass
+            try:
+                proc.wait(timeout=grace)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5)
+        self._fail_pending("pi-runtime 已关闭")
 
 
+# One runtime per Python process. The backend API process and the workflow
+# orchestrator subprocess (src/scripts/workflow.py) are different processes, so
+# each has its own runtime while a run is active; the orchestrator's runtime is
+# shut down when the run ends (ISSUES #23).
 _RUNTIME: PiRuntimeProcess | None = None
+_RUNTIME_LOCK = threading.Lock()
 
 
 def shared_runtime(project_root: Path | None = None) -> PiRuntimeProcess:
     global _RUNTIME
-    if _RUNTIME is None:
-        _RUNTIME = PiRuntimeProcess(project_root)
-    return _RUNTIME
+    with _RUNTIME_LOCK:
+        if _RUNTIME is None:
+            _RUNTIME = PiRuntimeProcess(project_root)
+            atexit.register(shutdown_shared_runtime)
+        return _RUNTIME
+
+
+def shutdown_shared_runtime() -> None:
+    """Stop this process's runtime if one was started (idempotent)."""
+    runtime = _RUNTIME
+    if runtime is not None:
+        runtime.shutdown()

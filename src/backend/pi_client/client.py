@@ -157,6 +157,11 @@ class PiRuntimeSessionClient(StoredSessionProvider):
                 pass
         super().release(ref)
 
+    def close(self) -> None:
+        """Stop the runtime: it disposes every session, which stops their MCP servers."""
+        self._launch_specs.clear()
+        self._runtime.shutdown()
+
 
 def activity_progress_line(record: dict[str, Any]) -> str:
     """Render one activity record in the tagged progress.txt format the run page parses."""

@@ -75,7 +75,7 @@ def check(
         else:
             argv = ["node", "--import", "tsx", str(rt / "src" / "main.ts")]
         cwd = str(rt)
-    env = {"PI_RUNTIME_MOCK": "1"}
+    # protocol.version never creates a session or calls a model, so no mock needed.
     try:
         proc = run(
             argv,
@@ -85,7 +85,7 @@ def check(
             timeout=timeout,
             check=False,
             cwd=cwd,
-            env={**os.environ, **env},
+            env=dict(os.environ),
         )
     except Exception as exc:
         return False, f"调用失败: {exc}"

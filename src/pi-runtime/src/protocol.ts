@@ -19,11 +19,23 @@ export function emitResponse(res: ProtocolResponse): void {
   process.stdout.write(JSON.stringify(res) + "\n");
 }
 
+export interface ProtocolLoopOptions {
+  onHandoffSubmit?: HandoffSubmitHandler;
+  /** Called once when stdin reaches EOF (the host closed the pipe or exited). */
+  onClose?: () => void;
+  input?: NodeJS.ReadableStream;
+}
+
 export function startProtocolLoop(
   onRequest: RequestHandler,
-  onHandoffSubmit?: HandoffSubmitHandler,
+  options: ProtocolLoopOptions = {},
 ): void {
-  const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+  const { onHandoffSubmit, onClose } = options;
+  const rl = readline.createInterface({
+    input: options.input ?? process.stdin,
+    crlfDelay: Infinity,
+  });
+  rl.on("close", () => onClose?.());
   rl.on("line", (line) => {
     void (async () => {
       let parsed: ProtocolRequest;

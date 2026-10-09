@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
 import { PreviewBoard } from "../../components/plan/preview-board";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
+import { apiFetch } from "../../lib/api";
 
 type PlanFields = {
   subject: string;
@@ -109,7 +110,7 @@ export default function PlanPage() {
   const noteDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    fetch("/api/plan")
+    apiFetch("/api/plan")
       .then(async (response) => {
         if (!response.ok) throw new Error(await errorMessage(response));
         return response.json() as Promise<{ fields?: PlanFields; references?: ReferenceFile[] }>;
@@ -143,7 +144,7 @@ export default function PlanPage() {
   async function downloadTemplate() {
     setError("");
     try {
-      const response = await fetch("/api/plan/template");
+      const response = await apiFetch("/api/plan/template");
       if (!response.ok) throw new Error(await errorMessage(response));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -163,7 +164,7 @@ export default function PlanPage() {
     const body = new FormData();
     body.append("file", file);
     try {
-      const response = await fetch("/api/plan/import", { method: "POST", body });
+      const response = await apiFetch("/api/plan/import", { method: "POST", body });
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { fields: PlanFields };
       const next = { ...emptyFields, ...data.fields };
@@ -190,7 +191,7 @@ export default function PlanPage() {
     const body = new FormData();
     for (const file of list) body.append("files", file);
     try {
-      const response = await fetch("/api/references", { method: "POST", body });
+      const response = await apiFetch("/api/references", { method: "POST", body });
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { files?: ReferenceFile[] };
       setReferences(data.files ?? []);
@@ -207,7 +208,7 @@ export default function PlanPage() {
     if (!window.confirm(`确定移除「${name}」？`)) return;
     setError("");
     try {
-      const response = await fetch(`/api/references/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const response = await apiFetch(`/api/references/${encodeURIComponent(name)}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { files?: ReferenceFile[] };
       setReferences(data.files ?? []);
@@ -238,7 +239,7 @@ export default function PlanPage() {
     setNoteSaving(true);
     setError("");
     try {
-      const response = await fetch(`/api/references/${encodeURIComponent(noteTarget)}/note`, {
+      const response = await apiFetch(`/api/references/${encodeURIComponent(noteTarget)}/note`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ note: noteDraft }),

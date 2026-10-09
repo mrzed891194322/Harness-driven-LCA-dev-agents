@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivitySummary } from "../../components/runs/activity-summary";
 import { AgentStream } from "../../components/runs/agent-stream";
+import { apiFetch } from "../../lib/api";
 
 type Progress = {
   run_id?: string | null;
@@ -47,7 +48,7 @@ export default function RunsPage() {
           offset: String(offset.current),
           epoch: epoch.current,
         });
-        const response = await fetch(`/api/workflow/progress?${query.toString()}`);
+        const response = await apiFetch(`/api/workflow/progress?${query.toString()}`);
         const data = (await response.json()) as Progress & { detail?: string };
         if (!response.ok) throw new Error(data.detail || `无法读取运行输出（HTTP ${response.status}）`);
         if (cancelled) return;

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { readWorkflow, type WorkflowGraph } from "./workflow-yaml";
 import type { WorkMode } from "./workflow-board";
+import { apiFetch } from "../../lib/api";
 
 type PlanFields = {
   subject: string;
@@ -113,7 +114,7 @@ export function PreviewBoard({
     let cancelled = false;
     setChecking(true);
     setEnvError("");
-    fetch("/api/diagnostics/environment")
+    apiFetch("/api/diagnostics/environment")
       .then(async (response) => {
         const data = (await response.json()) as unknown;
         if (!response.ok || !isDiagnostics(data)) {
@@ -142,7 +143,7 @@ export function PreviewBoard({
     let cancelled = false;
     setWorkflow(null);
     setWorkflowError("");
-    fetch(`/api/harness/document?path=${encodeURIComponent(file)}`)
+    apiFetch(`/api/harness/document?path=${encodeURIComponent(file)}`)
       .then(async (response) => {
         const data = (await response.json()) as { content?: string; detail?: string };
         if (!response.ok || !data.content) throw new Error(data.detail || "无法读取编排");
@@ -347,7 +348,7 @@ async function executeTask(
   setStarting(true);
   setStartError("");
   try {
-    const response = await fetch("/api/workflow/start", {
+    const response = await apiFetch("/api/workflow/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -383,7 +384,7 @@ async function reloadEnvironment(
   setChecking(true);
   setEnvError("");
   try {
-    const response = await fetch("/api/diagnostics/environment");
+    const response = await apiFetch("/api/diagnostics/environment");
     const data = (await response.json()) as unknown;
     if (!response.ok || !isDiagnostics(data)) {
       throw new Error(`环境诊断不可用（HTTP ${response.status}）`);

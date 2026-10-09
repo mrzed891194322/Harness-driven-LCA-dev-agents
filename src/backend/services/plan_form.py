@@ -305,15 +305,25 @@ def _reference_path(root: Path, filename: str) -> Path:
 
 
 def _h2_sections(text: str) -> dict[str, str]:
+    """Split by the known H2 fields; unknown H2 sections belong to 附加条件.
+
+    Users often write their own ``## 1. 研究目的…`` headings inside 附加条件; those
+    used to end the section, so the conditions were lost on the next load (#18).
+    """
     matches = list(_H2.finditer(text))
     sections: dict[str, str] = {}
+    extra: list[str] = []
     for index, match in enumerate(matches):
         key = _section_key(match.group(1))
-        if key is None:
-            continue
         start = match.end()
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        sections[key] = text[start:end]
+        if key is None:
+            extra.append(match.group(0) + text[start:end])
+        elif key not in sections:
+            sections[key] = text[start:end]
+    if extra and any(key in sections for key in FIELD_KEYS):
+        base = sections.get("附加条件", "").rstrip()
+        sections["附加条件"] = "\n\n".join(part for part in (base, *extra) if part.strip())
     return sections
 
 

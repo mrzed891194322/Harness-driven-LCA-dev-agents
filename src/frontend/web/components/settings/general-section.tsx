@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch } from "../../lib/api";
 
 type PortField = {
   id: string;
@@ -27,7 +28,7 @@ export function GeneralSection({ onChanged }: { onChanged?: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/lca/openlca")
+    apiFetch("/api/lca/openlca")
       .then(async (response) => {
         const data = (await response.json()) as { host?: string; port?: number; detail?: string };
         if (!response.ok) throw new Error(data.detail || "无法读取端口");
@@ -55,7 +56,7 @@ export function GeneralSection({ onChanged }: { onChanged?: () => void }) {
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch("/api/lca/openlca", {
+      const response = await apiFetch("/api/lca/openlca", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ port }),

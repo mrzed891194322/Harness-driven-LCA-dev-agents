@@ -9,6 +9,7 @@ import {
   type SpecSummary,
   type WorkflowGraph,
 } from "./workflow-yaml";
+import { apiFetch } from "../../lib/api";
 
 const FILES = ["LCA-main.yaml", "LCA-revise.yaml"] as const;
 
@@ -196,7 +197,7 @@ function stageNote(current: WorkflowGraph, other: WorkflowGraph, stage: Workflow
 }
 
 async function fetchDoc(path: string): Promise<string> {
-  const response = await fetch(`/api/harness/document?path=${encodeURIComponent(path)}`);
+  const response = await apiFetch(`/api/harness/document?path=${encodeURIComponent(path)}`);
   const data = (await response.json()) as { content?: string; detail?: string };
   if (!response.ok || !data.content) throw new Error(data.detail || "无法读取编排");
   return data.content;
@@ -259,7 +260,7 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/workflow/models")
+    apiFetch("/api/workflow/models")
       .then(async (response) => {
         const data = (await response.json()) as {
           default?: string;
@@ -328,7 +329,7 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
     const previous = defaultModel;
     setDefaultModel(profileId);
     setModelNote("");
-    const response = await fetch("/api/models/selection", {
+    const response = await apiFetch("/api/models/selection", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ profile_id: profileId }),
@@ -347,7 +348,7 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
     else delete next[assignmentId];
     setAssignmentModels(next);
     setModelNote("");
-    const response = await fetch("/api/workflow/models", {
+    const response = await apiFetch("/api/workflow/models", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignments: next }),

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { FaGithub } from "react-icons/fa6";
 import Link from "next/link";
 import { AppNav } from "../components/app-nav";
+import { BackendStatus } from "../components/backend-status";
 import { HarnessButton, HarnessDialog } from "../components/harness/harness-dialog";
 import { HarnessProvider } from "../components/harness/harness-context";
 import { SettingsButton, SettingsDialog } from "../components/settings/settings-dialog";
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               </header>
+              <BackendStatus />
               <div className="app-shell">
                 <AppNav />
                 {children}

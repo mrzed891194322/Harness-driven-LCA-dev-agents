@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TutorialShell, type TutorialCatalog } from "../../components/tutorial/tutorial-shell";
+import { apiFetch } from "../../lib/api";
 
 export default function TutorialIndexPage() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function TutorialIndexPage() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch("/api/tutorial/catalog");
+        const response = await apiFetch("/api/tutorial/catalog");
         const data = (await response.json()) as TutorialCatalog & { detail?: string };
         if (!response.ok) throw new Error(data.detail || "无法加载教程目录");
         if (cancelled) return;

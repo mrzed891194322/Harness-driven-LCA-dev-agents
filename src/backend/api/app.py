@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +24,7 @@ from backend.core.runtime.model_profiles import (
     resolve_model_profile,
     upsert_local_profile,
 )
-from backend.pi_client.process import shared_runtime
+from backend.pi_client.process import shared_runtime, shutdown_shared_runtime
 from backend.services.auth_login_service import (
     login_status,
     logout_provider,
@@ -81,7 +83,14 @@ def _web_origins() -> list[str]:
     return [f"http://127.0.0.1:{port}", f"http://localhost:{port}"]
 
 
-app = FastAPI(title="Harness LCA API", version="0.2.0")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    yield
+    # Stop this process's pi-runtime (and its MCP servers) with the API (#22).
+    await asyncio.to_thread(shutdown_shared_runtime)
+
+
+app = FastAPI(title="Harness LCA API", version="0.2.0", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_web_origins(),

@@ -39,7 +39,8 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 
 - 控制面板页面：`/status` 环境诊断，`/plan` 计划、资料、编排预览，`/runs` 运行详情。开发入口是仓库根目录的 `npm run dev`（Next 默认 3000，API 默认 8800，Next 把 `/api/*` 代理到 FastAPI）。
 - 「执行LCA任务」调用 `POST /api/workflow/start`，成功后 `router.push("/runs")`。
-- `workflow_launch.py` 在清理前复制 `harness/knowledge/plan` 与 `inputs`，清理后写回，再用当前表单覆盖 `main_plan.md`（修订任务同时写 `revise_plan.md`），然后启动 `src/scripts/workflow.py`。编排子进程显式使用真实 Pi runtime（`PI_RUNTIME_MOCK=0`）。`npm run dev` 给 API 进程默认带上 `PI_RUNTIME_MOCK=1`，那只影响控制面板自己的 Pi 进程，不要让它漏进正式 LCA 运行。
+- `workflow_launch.py` 在清理前复制 `harness/knowledge/plan` 与 `inputs`，清理后写回，再用当前表单覆盖 `main_plan.md`（修订任务同时写 `revise_plan.md`），然后启动 `src/scripts/workflow.py`。`npm run dev` 默认使用真实模型并打印一行 `mode=real|mock`；`PI_RUNTIME_MOCK=1` 只给测试显式开启。
+- 进程生命周期：`npm run dev` 用 `setsid`（detached）在后台启动后端和前端，pid 写在 `.local/run/*.pid`，日志在 `.local/logs/{backend,web,pi-runtime}.log`；`npm run stop` 停掉它们以及本仓库残留的 pi-runtime / MCP / 编排子进程（`-- --dry-run` 只列出）。要在前台跑用 `npm run dev -- --foreground`。每个 Python 进程最多一个 pi-runtime（后端一个；运行中编排子进程一个，运行结束即关闭）；pi-runtime 在 stdin 关闭、SIGTERM 或父进程消失时释放全部会话（关闭 MCP 子进程）后退出。
 - `/runs` 轮询 `GET /api/workflow/progress`。启动尚未写出新日志时，返回内存中的准备说明；新的 `workspace/records/logs/<run_id>/progress.txt` 出现后，整段换成该文件并继续按偏移追加。
 - 终端渲染在 `components/runs/agent-stream.tsx`。它解析 `progress.py` 的标签行：编排器说明、`阶段(角色#次数)-pi-时间`、`→ 工具`、`✓` / `✗`、`error:` 和模型正文。历史日志 `workspace/records/logs/*/progress.txt` 就是目标样子。
 - 编排器通过 `src/backend/pi_client/client.py` 的 NDJSON 调用 `src/pi-runtime`。会话契约在 `src/backend/core/contracts/session_launch_spec.py`。
