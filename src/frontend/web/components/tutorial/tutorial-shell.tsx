@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 
 export type TutorialEntry = {
@@ -52,6 +52,11 @@ export function TutorialShell({
   const heading =
     title || located?.entry.label || (error ? "教程" : catalog ? "教程" : "教程");
 
+  useEffect(() => {
+    document.documentElement.classList.add("tutorial-fit");
+    return () => document.documentElement.classList.remove("tutorial-fit");
+  }, []);
+
   return (
     <section className="tutorial-panel settings-card">
       <div className="tutorial-frame">
@@ -77,7 +82,7 @@ export function TutorialShell({
           {!catalog && !error ? <p className="harness-status">加载目录…</p> : null}
         </nav>
         <div className="settings-main tutorial-main">
-          <header className="settings-main-head">
+          <header className="settings-main-head tutorial-main-head">
             <div>
               <p className="settings-crumb">
                 {["教程", located?.group.label, located?.entry.label].filter(Boolean).join(" / ")}

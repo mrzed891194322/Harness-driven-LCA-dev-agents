@@ -759,17 +759,62 @@ button:disabled {
   padding: 6px 10px;
 }
 
+html.tutorial-fit,
+html.tutorial-fit body {
+  height: 100%;
+  overflow: hidden;
+}
+
+html.tutorial-fit .app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+html.tutorial-fit .app-header {
+  flex: none;
+}
+
+html.tutorial-fit .app-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  margin-bottom: 0;
+  padding: 0 20px 16px;
+  overflow: hidden;
+}
+
+html.tutorial-fit .nav-row {
+  flex: none;
+  margin: 14px 0 16px;
+}
+
 .tutorial-panel {
+  flex: 1;
+  min-height: 0;
   padding: 0;
   overflow: hidden;
-  min-height: min(72vh, 760px);
+  display: flex;
+  flex-direction: column;
 }
 
 .tutorial-frame {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
-  min-height: min(72vh, 760px);
+  flex: 1;
+  min-height: 0;
   height: 100%;
+  overflow: hidden;
+}
+
+.tutorial-nav {
+  min-height: 0;
+  overflow: auto;
 }
 
 .tutorial-nav a {
@@ -795,9 +840,21 @@ button:disabled {
 
 .tutorial-main {
   min-height: 0;
+  overflow: hidden;
+}
+
+.tutorial-main-head {
+  flex: none;
 }
 
 .tutorial-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  max-width: none;
+}
+
+.tutorial-body .harness-doc {
   max-width: 52rem;
 }
 
@@ -968,14 +1025,14 @@ button:disabled {
 
   .tutorial-frame {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 34vh) minmax(0, 1fr);
     min-height: 0;
   }
 
   .tutorial-nav {
     flex-direction: column;
     align-items: stretch;
-    max-height: 34vh;
+    max-height: none;
     overflow: auto;
   }
 }
