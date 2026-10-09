@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.agents.activity import activity_log_path, read_activity
 from core.agents.archive import progress_log_path
 from core.workflow.persistence.manifest import manifest_path
 from services.project_paths import PROJECT_ROOT
@@ -48,6 +49,29 @@ class WorkflowService:
             status_reason=recorded["status_reason"],
             run_id=recorded["run_id"] or None,
         )
+
+    def activity(self, run_id: str = "", offset: int = 0) -> dict[str, Any]:
+        """Return structured worker events (events.jsonl) after byte ``offset``.
+
+        ``run_id`` defaults to the run in the current manifest.
+        """
+        manifest = self.manifest()
+        current = str(manifest.get("run_id") or "")
+        target = (run_id or current).strip()
+        payload: dict[str, Any] = {
+            "run_id": target or None,
+            "status": str(manifest.get("status") or "idle")
+            if target == current
+            else "unknown",
+            "events": [],
+            "offset": 0,
+            "reset": offset != 0,
+        }
+        if not target:
+            return payload
+        path = activity_log_path(self.project_root, target)
+        payload.update(read_activity(path, offset))
+        return payload
 
     def _recorded_progress(self) -> dict[str, Any]:
         manifest = self.manifest()

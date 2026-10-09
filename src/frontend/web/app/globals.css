@@ -2709,3 +2709,63 @@ button:disabled {
     transform: rotate(360deg);
   }
 }
+
+.activity-summary {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.activity-chip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.activity-chip-head strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.activity-chip-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activity-chip-err {
+  font-style: normal;
+  color: var(--danger);
+}
+
+.activity-chip-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-tool[data-handoff="true"] .agent-tool-name {
+  color: var(--accent);
+  font-weight: 600;
+}

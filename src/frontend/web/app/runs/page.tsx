@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ActivitySummary } from "../../components/runs/activity-summary";
 import { AgentStream } from "../../components/runs/agent-stream";
 
 type Progress = {
@@ -98,6 +99,7 @@ export default function RunsPage() {
           </p>
         ) : null}
         {error ? <p className="status-banner error">{error}</p> : null}
+        <ActivitySummary runId={String(progress.run_id || "")} />
         <AgentStream text={log} running={status === "running"} />
       </section>
     </div>

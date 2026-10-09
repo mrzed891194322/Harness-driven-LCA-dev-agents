@@ -575,6 +575,58 @@ def workflow_progress(offset: int = 0, epoch: str = "") -> dict[str, Any]:
     return _workflow.progress(offset, epoch)
 
 
+@app.get("/api/workflow/activity")
+def workflow_activity(run_id: str = "", offset: int = 0) -> dict[str, Any]:
+    """Structured Pi worker events (tool calls/results, text, handoff) — polling form."""
+    try:
+        return _workflow.activity(run_id, offset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/workflow/activity/stream")
+async def workflow_activity_stream(
+    request: Request, run_id: str = "", offset: int = 0
+) -> StreamingResponse:
+    """SSE form of /api/workflow/activity. Event ``activity`` carries one record;
+    the SSE id is the byte offset to resume from (Last-Event-ID or ?offset=)."""
+    try:
+        first = _workflow.activity(run_id, offset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    resume = request.headers.get("last-event-id")
+    position = int(resume) if resume and resume.isdigit() else offset
+    target = str(first.get("run_id") or "")
+
+    async def generate():
+        nonlocal position
+        idle = 0
+        while not await request.is_disconnected():
+            batch = await asyncio.to_thread(_workflow.activity, target, position)
+            if batch.get("reset"):
+                yield "event: reset\ndata: {}\n\n"
+            next_offset = int(batch.get("offset") or 0)
+            for item in batch.get("events") or []:
+                yield (
+                    f"id: {next_offset}\nevent: activity\n"
+                    f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+                )
+            if next_offset != position or batch.get("reset"):
+                idle = 0
+            else:
+                idle += 1
+                if idle % 15 == 0:
+                    yield ": keep-alive\n\n"
+            position = next_offset
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.post("/api/workflow/start")
 def start_workflow(body: WorkflowStart) -> dict[str, str]:
     try:

@@ -9,6 +9,7 @@ import {
   Folder,
   PenLine,
   Search,
+  Send,
   Terminal,
   Wrench,
 } from "lucide-react";
@@ -220,14 +221,26 @@ function AgentRow({ item }: { item: AgentItem }) {
 }
 
 function ToolRow({ item }: { item: Extract<AgentItem, { type: "tool" }> }) {
-  const Icon = TOOL_ICON[item.name as keyof typeof TOOL_ICON] ?? Wrench;
+  const handoff = /(^|__|\.)submit_handoff$/.test(item.name);
+  const Icon = handoff ? Send : TOOL_ICON[item.name as keyof typeof TOOL_ICON] ?? Wrench;
   const preview = item.detail.split("\n")[0] || item.message;
-  const stateLabel = item.state === "ok" ? "完成" : item.state === "err" ? "失败" : "进行中";
+  const stateLabel = handoff
+    ? item.state === "ok"
+      ? "已交卷"
+      : item.state === "err"
+        ? "交卷失败"
+        : "交卷中"
+    : item.state === "ok"
+      ? "完成"
+      : item.state === "err"
+        ? "失败"
+        : "进行中";
   const [open, setOpen] = useState(item.detail.length > 0 && item.detail.length < 160);
   return (
     <details
       className="agent-tool"
       data-state={item.state}
+      data-handoff={handoff ? "true" : undefined}
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
