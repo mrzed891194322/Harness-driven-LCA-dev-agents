@@ -255,9 +255,14 @@ class OrchestratorRuntime:
             WorkerTransportError,
         )
 
+        from core.agents.assignment_models import model_for_assignment
         from core.runtime.launch_spec import build_session_launch_spec
 
         from .session_bind import build_session_config
+
+        model = model_for_assignment(
+            self.project_root, assignment.assignment_id, self.model
+        )
 
         stage, assignment = self._current(state)
         key = session_key(assignment.assignment_id)
@@ -287,7 +292,7 @@ class OrchestratorRuntime:
             project_root=self.project_root,
             workspace_root=self.workspace_root,
             worker=self.worker,
-            model=self.model,
+            model=model,
             stage=stage,
             assignment=assignment,
             run_id=_state_str(state, "run_id"),
@@ -305,7 +310,7 @@ class OrchestratorRuntime:
             project_root=self.project_root,
             workspace_root=self.workspace_root,
             worker=self.worker,
-            model=self.model,
+            model=model,
             stage=stage,
             assignment=assignment,
             run_id=_state_str(state, "run_id"),

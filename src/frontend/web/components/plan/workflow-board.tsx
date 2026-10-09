@@ -43,6 +43,33 @@ const PHASE_LABEL: Record<string, string> = {
   report: "报告",
 };
 
+type ModelOption = {
+  id: string;
+  label: string;
+  provider: string;
+  provider_name?: string;
+  model_id: string;
+};
+
+function ModelOptions({ models }: { models: ModelOption[] }) {
+  const groups: { name: string; items: ModelOption[] }[] = [];
+  for (const item of models) {
+    const name = item.provider_name || item.provider || "其他";
+    const group = groups.find((entry) => entry.name === name);
+    if (group) group.items.push(item);
+    else groups.push({ name, items: [item] });
+  }
+  return groups.map((group) => (
+    <optgroup key={group.name} label={group.name}>
+      {group.items.map((item) => (
+        <option key={item.id} value={item.id}>
+          {item.label}
+        </option>
+      ))}
+    </optgroup>
+  ));
+}
+
 type Selection =
   | { kind: "workflow" }
   | { kind: "stage"; id: string }
@@ -187,6 +214,11 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
   const [specs, setSpecs] = useState<Record<string, SpecSummary>>(cachedSpecs ?? {});
   const [selection, setSelection] = useState<Selection>({ kind: "workflow" });
   const [error, setError] = useState("");
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [defaultModel, setDefaultModel] = useState("");
+  const [assignmentModels, setAssignmentModels] = useState<Record<string, string>>({});
+  const [modelNote, setModelNote] = useState("");
   const file = MODE_FILE[mode];
 
   useEffect(() => {
@@ -225,6 +257,40 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/workflow/models")
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          default?: string;
+          default_ref?: string;
+          assignments?: Record<string, string>;
+          models?: ModelOption[];
+          warnings?: string[];
+          detail?: string;
+        };
+        if (!response.ok) throw new Error(data.detail || "无法读取模型");
+        return data;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setModels(data.models ?? []);
+        setDefaultModel(data.default_ref || data.default || "");
+        setAssignmentModels(data.assignments ?? {});
+        setModelNote((data.warnings ?? []).filter(Boolean).join(" "));
+      })
+      .catch((reason: unknown) => {
+        if (cancelled) return;
+        setModelNote(reason instanceof Error ? reason.message : "无法读取模型");
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const workflow = workflows.find((item) => item.file === file) ?? workflows[0];
   const other = workflows.find((item) => item !== workflow);
   const related = useMemo(
@@ -256,6 +322,43 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
     setSelection(next);
   }
 
+  const defaultLabel = models.find((item) => item.id === defaultModel)?.label ?? defaultModel;
+
+  async function changeDefault(profileId: string) {
+    const previous = defaultModel;
+    setDefaultModel(profileId);
+    setModelNote("");
+    const response = await fetch("/api/models/selection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile_id: profileId }),
+    });
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as { detail?: string };
+      setDefaultModel(previous);
+      setModelNote(data.detail || "默认模型没有保存");
+    }
+  }
+
+  async function changeAssignment(assignmentId: string, profileId: string) {
+    const previous = assignmentModels;
+    const next = { ...assignmentModels };
+    if (profileId) next[assignmentId] = profileId;
+    else delete next[assignmentId];
+    setAssignmentModels(next);
+    setModelNote("");
+    const response = await fetch("/api/workflow/models", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignments: next }),
+    });
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as { detail?: string };
+      setAssignmentModels(previous);
+      setModelNote(data.detail || "分工模型没有保存");
+    }
+  }
+
   function openWorkflow(nextFile: string, nextSelection: Selection) {
     const target = workflows.find((item) => item.file === nextFile);
     if (!target) return;
@@ -278,6 +381,21 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
             </li>
           ))}
         </ul>
+        <label className="flow-default-model">
+          默认模型
+          <select
+            aria-label="默认模型"
+            value={models.some((item) => item.id === defaultModel) ? defaultModel : ""}
+            disabled={!models.length}
+            onChange={(event) => void changeDefault(event.target.value)}
+          >
+            {!models.length ? (
+              <option value="">{modelsLoaded ? "尚未连接模型" : "正在读取已连接模型…"}</option>
+            ) : null}
+            <ModelOptions models={models} />
+          </select>
+        </label>
+        {modelNote ? <p className="flow-model-note">{modelNote}</p> : null}
       </div>
 
       <div className="flow-defaults">
@@ -350,19 +468,36 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
                   {stage.steps.map((step) => {
                     const assignment = assignmentOf(workflow, step.assignment);
                     const role = assignment?.role ?? "";
+                    const chosen = assignmentModels[step.assignment] ?? "";
+                    const roleLabel = ROLE_LABEL[role] ?? role;
                     return (
-                      <button
-                        key={step.assignment}
-                        type="button"
-                        className="flow-step"
-                        data-role={role}
-                        data-related={related.assignments.has(step.assignment) ? "true" : "false"}
-                        aria-pressed={selection.kind === "assignment" && selection.id === step.assignment}
-                        onClick={() => choose({ kind: "assignment", id: step.assignment })}
-                      >
-                        <em>{ROLE_LABEL[role] ?? role}</em>
-                        <small>{assignment?.mcp.length ? assignment.mcp.join(" · ") : role}</small>
-                      </button>
+                      <div className="flow-step-block" key={step.assignment}>
+                        <button
+                          type="button"
+                          className="flow-step"
+                          data-role={role}
+                          data-related={related.assignments.has(step.assignment) ? "true" : "false"}
+                          aria-pressed={selection.kind === "assignment" && selection.id === step.assignment}
+                          onClick={() => choose({ kind: "assignment", id: step.assignment })}
+                        >
+                          <em>{roleLabel}</em>
+                          <small>{assignment?.mcp.length ? assignment.mcp.join(" · ") : role}</small>
+                        </button>
+                        <select
+                          className="flow-model"
+                          aria-label={`${roleLabel}的模型`}
+                          value={chosen}
+                          disabled={!models.length}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={(event) => void changeAssignment(step.assignment, event.target.value)}
+                        >
+                          <option value="">{defaultLabel ? `默认 · ${defaultLabel}` : "默认"}</option>
+                          <ModelOptions models={models} />
+                          {chosen && !models.some((item) => item.id === chosen) ? (
+                            <option value={chosen}>{chosen}</option>
+                          ) : null}
+                        </select>
+                      </div>
                     );
                   })}
                 </div>

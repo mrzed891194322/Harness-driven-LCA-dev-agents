@@ -1,6 +1,7 @@
 "use client";
 
 import { Play, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { readWorkflow, type WorkflowGraph } from "./workflow-yaml";
 import type { WorkMode } from "./workflow-board";
@@ -104,7 +105,9 @@ export function PreviewBoard({
   const [checking, setChecking] = useState(true);
   const [workflow, setWorkflow] = useState<WorkflowGraph | null>(null);
   const [workflowError, setWorkflowError] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
@@ -156,16 +159,12 @@ export function PreviewBoard({
     };
   }, [mode]);
 
-  useEffect(() => {
-    setConfirmed(false);
-  }, [mode, fields, references, diag]);
-
   const shown = workflow?.file === MODE_FILE[mode] ? workflow : null;
   const checks = environmentChecks(diag);
   const envReady = Boolean(diag) && checks.every((item) => item.ok);
   const missingFields = requiredFields.filter((item) => !fields[item.key].trim());
   const ready = envReady && missingFields.length === 0 && !envError;
-  const gateText = gateMessage({ checking, envError, checks, missingFields, ready, confirmed });
+  const gateText = startError || gateMessage({ checking, envError, checks, missingFields, ready, starting });
 
   return (
     <div className="preview-board">
@@ -261,9 +260,16 @@ export function PreviewBoard({
       </div>
       <div className="preview-bar">
         <p>{gateText}</p>
-        <button type="button" className="primary" disabled={!ready} onClick={() => setConfirmed(true)}>
+        <button
+          type="button"
+          className="primary"
+          disabled={!ready || starting}
+          onClick={() =>
+            void executeTask(mode, fields, setStarting, setStartError, (href) => router.push(href))
+          }
+        >
           <Play className="launch-icon" aria-hidden="true" />
-          执行LCA任务
+          {starting ? "正在启动…" : "执行LCA任务"}
         </button>
         <button
           type="button"
@@ -309,17 +315,18 @@ function gateMessage({
   checks,
   missingFields,
   ready,
-  confirmed,
+  starting,
 }: {
   checking: boolean;
   envError: string;
   checks: { label: string; ok: boolean }[];
   missingFields: { label: string }[];
   ready: boolean;
-  confirmed: boolean;
+  starting: boolean;
 }): string {
+  if (starting) return "正在启动，即将打开运行详情…";
   if (checking && !checks.length) return "正在检查环境…";
-  if (ready) return confirmed ? "已确认，可以执行 LCA 任务" : "环境和工作内容已齐，可以执行";
+  if (ready) return "环境和工作内容已齐，可以执行";
   const parts: string[] = [];
   if (envError) parts.push(envError);
   else {
@@ -328,6 +335,44 @@ function gateMessage({
   }
   if (missingFields.length) parts.push(`还要填写：${missingFields.map((item) => item.label).join("、")}`);
   return parts.join("。") || "还不能执行";
+}
+
+async function executeTask(
+  mode: WorkMode,
+  fields: PlanFields,
+  setStarting: (value: boolean) => void,
+  setStartError: (value: string) => void,
+  push: (href: string) => void,
+) {
+  setStarting(true);
+  setStartError("");
+  try {
+    const response = await fetch("/api/workflow/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        task: mode === "revise" ? "revise-lca" : "whole-lca",
+        subject: fields.subject,
+        functional_unit: fields.functional_unit,
+        life_cycle_stages: fields.life_cycle_stages,
+        conditions: fields.conditions,
+      }),
+    });
+    if (!response.ok) {
+      let detail = `无法启动（HTTP ${response.status}）`;
+      try {
+        const data = (await response.json()) as { detail?: string };
+        if (data.detail) detail = data.detail;
+      } catch {
+        // Response body is not JSON.
+      }
+      throw new Error(detail);
+    }
+    push("/runs");
+  } catch (reason: unknown) {
+    setStartError(reason instanceof Error ? reason.message : "无法启动工作流");
+    setStarting(false);
+  }
 }
 
 async function reloadEnvironment(

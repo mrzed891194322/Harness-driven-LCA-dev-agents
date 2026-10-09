@@ -351,6 +351,8 @@ def run_pre_workflow_console(
 
 def run_workflow_command_console(
     task: str,
+    *,
+    env_overrides: dict[str, str] | None = None,
 ) -> Generator[tuple[str, str], None, None]:
     """
     Run whole-lca or revise-lca via the Python orchestrator.
@@ -364,7 +366,7 @@ def run_workflow_command_console(
 
     from services.process_manager_stub import should_stop
 
-    for chunk in execute_command_stream(command):
+    for chunk in execute_command_stream(command, env_overrides=env_overrides):
         if should_stop():
             break
         accumulated_output += chunk

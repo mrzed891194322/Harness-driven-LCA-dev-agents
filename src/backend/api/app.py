@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from core.agents.assignment_models import load_assignment_models, save_assignment_models
 from core.agents.config import load_worker_model
 from core.runtime.model_profiles import (
     allocate_profile_id,
@@ -67,6 +68,7 @@ from services.tutorial_browser import (
     resolve_tutorial_asset,
     tutorial_catalog,
 )
+from services.workflow_launch import launcher
 from services.workflow_service import WorkflowService
 from utils.env import parse_env_file, upsert_env_keys
 
@@ -102,6 +104,10 @@ class ModelSelection(BaseModel):
     profile_id: str
 
 
+class WorkflowModelsUpdate(BaseModel):
+    assignments: dict[str, str] = Field(default_factory=dict)
+
+
 class ModelTestRequest(BaseModel):
     profile_id: str | None = None
     provider: str | None = None
@@ -134,6 +140,14 @@ class OpenLcaPortUpdate(BaseModel):
 
 
 class PlanUpdate(BaseModel):
+    subject: str = ""
+    functional_unit: str = ""
+    life_cycle_stages: str = ""
+    conditions: str = ""
+
+
+class WorkflowStart(BaseModel):
+    task: str
     subject: str = ""
     functional_unit: str = ""
     life_cycle_stages: str = ""
@@ -197,11 +211,129 @@ def model_profiles() -> dict[str, Any]:
     }
 
 
+def _provider_catalog(project_root: Path, provider: str) -> dict[str, Any]:
+    """Models a connected provider can actually serve right now."""
+    cred_dir = project_root / ".local" / "credentials"
+    runtime = shared_runtime(project_root)
+    try:
+        result = runtime.request(
+            "models.list_available",
+            {
+                "provider": provider,
+                "credentials_dir": str(cred_dir.resolve()),
+            },
+            timeout=90.0,
+        )
+    except Exception as exc:
+        return {"ok": False, "provider": provider, "models": [], "message": str(exc)}
+    if isinstance(result, dict):
+        models = result.get("models") if isinstance(result.get("models"), list) else []
+        return {
+            "ok": bool(result.get("ok")),
+            "provider": provider,
+            "models": models,
+            "message": str(result.get("message") or ""),
+        }
+    return {
+        "ok": False,
+        "provider": provider,
+        "models": [],
+        "message": "unexpected runtime response",
+    }
+
+
+def _selection_ref(project_root: Path, model_ref: str) -> str:
+    """Map a stored profile alias to the provider/model id the catalog uses."""
+    text = (model_ref or "").strip()
+    if not text:
+        return ""
+    profile = resolve_model_profile(text, project_root=project_root)
+    if profile.provider and profile.model_id:
+        return f"{profile.provider}/{profile.model_id}"
+    return text
+
+
+def _accepts_model_ref(project_root: Path, model_ref: str) -> bool:
+    chosen = model_ref.strip()
+    if not chosen:
+        return True
+    if chosen in load_profiles(project_root):
+        return True
+    provider, model_id = chosen.split("/", 1) if "/" in chosen else ("", "")
+    if not provider.strip() or not model_id.strip():
+        return False
+    connected = {str(item.get("id") or "") for item in available_providers(project_root)}
+    return provider.strip() in connected
+
+
+def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[str]]:
+    """Live models from providers that already have credentials."""
+    rows: list[dict[str, str]] = []
+    warnings: list[str] = []
+    seen: set[str] = set()
+    for item in available_providers(project_root):
+        provider = str(item.get("id") or "").strip()
+        provider_name = str(item.get("name") or provider)
+        if not provider:
+            continue
+        catalog = _provider_catalog(project_root, provider)
+        if not catalog.get("ok"):
+            message = str(catalog.get("message") or "无法读取模型")
+            warnings.append(f"{provider_name}：{message}")
+            continue
+        models = catalog.get("models") if isinstance(catalog.get("models"), list) else []
+        for model in models:
+            if not isinstance(model, dict):
+                continue
+            model_id = str(model.get("id") or "").strip()
+            if not model_id:
+                continue
+            ref = f"{provider}/{model_id}"
+            if ref in seen:
+                continue
+            seen.add(ref)
+            label = str(model.get("name") or model_id).strip() or model_id
+            rows.append(
+                {
+                    "id": ref,
+                    "label": label,
+                    "provider": provider,
+                    "provider_name": provider_name,
+                    "model_id": model_id,
+                }
+            )
+    return rows, warnings
+
+
+@app.get("/api/workflow/models")
+def workflow_models() -> dict[str, Any]:
+    stored = load_worker_model("pi", PROJECT_ROOT)
+    models, warnings = _connected_models(PROJECT_ROOT)
+    return {
+        "default": stored,
+        "default_ref": _selection_ref(PROJECT_ROOT, stored),
+        "assignments": load_assignment_models(PROJECT_ROOT),
+        "models": models,
+        "warnings": warnings,
+    }
+
+
+@app.put("/api/workflow/models")
+def update_workflow_models(body: WorkflowModelsUpdate) -> dict[str, Any]:
+    for profile_id in body.assignments.values():
+        if not _accepts_model_ref(PROJECT_ROOT, profile_id):
+            raise HTTPException(status_code=400, detail=f"未知模型：{profile_id}")
+    try:
+        saved = save_assignment_models(PROJECT_ROOT, body.assignments)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"assignments": saved}
+
+
 @app.post("/api/models/selection")
 def set_model_selection(body: ModelSelection) -> dict[str, str]:
-    profiles = load_profiles(PROJECT_ROOT)
-    if body.profile_id not in profiles:
-        raise HTTPException(status_code=400, detail=f"未知模型档案：{body.profile_id}")
+    if not _accepts_model_ref(PROJECT_ROOT, body.profile_id):
+        raise HTTPException(status_code=400, detail=f"未知模型：{body.profile_id}")
     upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": body.profile_id})
     return {"profile_id": body.profile_id}
 
@@ -256,33 +388,7 @@ def list_provider_models(provider: str) -> dict[str, Any]:
     name = provider.strip()
     if not name:
         raise HTTPException(status_code=400, detail="provider required")
-    cred_dir = PROJECT_ROOT / ".local" / "credentials"
-    runtime = shared_runtime(PROJECT_ROOT)
-    try:
-        result = runtime.request(
-            "models.list_available",
-            {
-                "provider": name,
-                "credentials_dir": str(cred_dir.resolve()),
-            },
-            timeout=90.0,
-        )
-    except Exception as exc:
-        return {"ok": False, "provider": name, "models": [], "message": str(exc)}
-    if isinstance(result, dict):
-        models = result.get("models") if isinstance(result.get("models"), list) else []
-        return {
-            "ok": bool(result.get("ok")),
-            "provider": name,
-            "models": models,
-            "message": str(result.get("message") or ""),
-        }
-    return {
-        "ok": False,
-        "provider": name,
-        "models": [],
-        "message": "unexpected runtime response",
-    }
+    return _provider_catalog(PROJECT_ROOT, name)
 
 
 @app.get("/api/credentials/status")
@@ -462,6 +568,30 @@ def remove_custom_endpoint(body: CustomEndpointDelete) -> dict[str, Any]:
 @app.get("/api/workflow/manifest")
 def workflow_manifest() -> dict[str, Any]:
     return _workflow.manifest()
+
+
+@app.get("/api/workflow/progress")
+def workflow_progress(offset: int = 0, epoch: str = "") -> dict[str, Any]:
+    return _workflow.progress(offset, epoch)
+
+
+@app.post("/api/workflow/start")
+def start_workflow(body: WorkflowStart) -> dict[str, str]:
+    try:
+        return launcher.start(
+            task=body.task,
+            fields=PlanFields(
+                subject=body.subject,
+                functional_unit=body.functional_unit,
+                life_cycle_stages=body.life_cycle_stages,
+                conditions=body.conditions,
+            ),
+            project_root=PROJECT_ROOT,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/api/events")
