@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from core.agents.turn_transport import WorkerTransportError, detect_worker_transport_failure
+from backend.core.agents.turn_transport import WorkerTransportError, detect_worker_transport_failure
 
 
 class TurnTransportTests(unittest.TestCase):

@@ -11,22 +11,22 @@ from unittest.mock import patch
 
 import pytest
 
-from core.agents.progress import set_progress_log
-from core.runtime.capabilities import base_capabilities
-from core.workflow import main as orch_main
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.runner import (
+from backend.core.agents.progress import set_progress_log
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow import main as orch_main
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.runner import (
     OrchestratorRuntime,
     initial_state,
     run_workflow,
 )
-from core.workflow.persistence.checkpoint import (
+from backend.core.workflow.persistence.checkpoint import (
     WorkspaceBusy,
     checkpoint_path,
     open_store,
     workspace_lock,
 )
-from core.workflow.persistence.config_fingerprint import (
+from backend.core.workflow.persistence.config_fingerprint import (
     write_runtime_config,
 )
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
@@ -73,7 +73,7 @@ def run_case(tmp_path):
     with (
         open_store(workspace) as store,
         patch(
-            "core.workflow.execution.runner.run_host_action",
+            "backend.core.workflow.execution.runner.run_host_action",
             side_effect=_passing_run_host_action,
         ),
     ):
@@ -186,13 +186,13 @@ def test_lifecycle_crash_is_not_replayed(run_case):
         return original(action, run_ctx=run_ctx, arguments=arguments)
 
     with (
-        patch("core.workflow.execution.runner.run_host_action", side_effect=selective),
+        patch("backend.core.workflow.execution.runner.run_host_action", side_effect=selective),
         pytest.raises(ProcessCrash),
     ):
         run_workflow(runtime, state, store)
     assert calls["n"] == 1
     turns = len(client.turns)
-    with patch("core.workflow.execution.runner.run_host_action", side_effect=selective):
+    with patch("backend.core.workflow.execution.runner.run_host_action", side_effect=selective):
         assert resume(runtime, store) == 1
     assert calls["n"] == 1
     assert len(client.turns) == turns
@@ -201,7 +201,7 @@ def test_lifecycle_crash_is_not_replayed(run_case):
 
 def test_lifecycle_error_publishes_failure_after_commit(run_case):
     runtime, state, client, store = run_case
-    from core.runtime.host_action import HostActionResult
+    from backend.core.runtime.host_action import HostActionResult
 
     def selective(
         action,
@@ -218,7 +218,7 @@ def test_lifecycle_error_publishes_failure_after_commit(run_case):
             )
         return _passing_run_host_action(action, run_ctx=run_ctx, arguments=arguments)
 
-    with patch("core.workflow.execution.runner.run_host_action", side_effect=selective):
+    with patch("backend.core.workflow.execution.runner.run_host_action", side_effect=selective):
         result = run_workflow(runtime, state, store)
     assert result["status"] == "failed"
     assert (
@@ -256,7 +256,7 @@ def test_actions_run_outside_sqlite_transactions(run_case):
             side_effect=observe("worker", original_turn),
         ),
         patch(
-            "core.workflow.execution.runner.run_host_action",
+            "backend.core.workflow.execution.runner.run_host_action",
             side_effect=observe("check", _passing_run_host_action),
         ),
     ):
@@ -282,7 +282,7 @@ def test_snapshot_and_event_rollback_together(run_case):
 
 def test_manifest_failure_after_commit_does_not_repeat_worker(run_case):
     runtime, state, client, store = run_case
-    from core.workflow.execution import runner
+    from backend.core.workflow.execution import runner
 
     publish = runner.publish_state
 
@@ -407,14 +407,13 @@ def test_process_lock_released_on_process_death(tmp_path):
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(
         [
-            str(PROJECT_ROOT / "src" / "backend"),
-            str(PROJECT_ROOT / "src" / "shared"),
+            str(PROJECT_ROOT / "src"),
         ]
     )
     program = """
 import sys
 from pathlib import Path
-from core.workflow.persistence.checkpoint import workspace_lock
+from backend.core.workflow.persistence.checkpoint import workspace_lock
 with workspace_lock(Path(sys.argv[1])):
     print('locked', flush=True)
     sys.stdin.read()

@@ -136,7 +136,7 @@ def detect_harness_clis(
 
 
 def _inspect_worker(name: str) -> tuple[bool, str]:
-    from core.agents.inspect import inspect as inspect_worker
+    from backend.core.agents.inspect import inspect as inspect_worker
 
     return inspect_worker(name)
 

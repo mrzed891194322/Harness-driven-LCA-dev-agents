@@ -4,10 +4,9 @@
 
 ```
 src/
-  backend/          # FastAPI（api/ + services/）
+  backend/          # 唯一的 Python 包：FastAPI（api/ + services/）、编排器 core/、Pi 客户端 pi_client/、settings.py
   frontend/         # Next.js（web/）
-  pi_agents/        # Pi Agent worker：Python 客户端 + Node pi-runtime
-  shared/           # 编排器与 API 共用的 Python（core、utils、config…）
+  pi-runtime/       # Node Pi SDK 宿主（@harness/pi-runtime）
   scripts/          # 开发启动（dev.mjs）、环境引导与编排器内部入口
   tests/            # 回归测试
 ```
@@ -21,7 +20,7 @@ npm run dev   # 控制面板：Next.js + FastAPI（唯一用户控制入口）
 单独起 API（开发用）：
 
 ```bash
-uv run uvicorn api.app:app --app-dir src/backend --host 127.0.0.1 --port 8800
+uv run uvicorn backend.api.app:app --app-dir src --host 127.0.0.1 --port 8800
 ```
 
-`PYTHONPATH`：`src/backend` + `src/shared` + `src`（见根目录 `pyproject.toml`）。
+`PYTHONPATH`：`src`（加项目根，见根目录 `pyproject.toml`）。Python 导入一律以 `backend.` 开头。

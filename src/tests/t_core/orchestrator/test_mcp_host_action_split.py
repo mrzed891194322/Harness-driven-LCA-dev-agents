@@ -11,11 +11,11 @@ from pathlib import Path
 
 import yaml
 
-from core.runtime.capabilities import base_capabilities
-from core.runtime.context import RunContext
-from core.runtime.host_action import run_host_action
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.session_bind import build_session_config
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.runtime.context import RunContext
+from backend.core.runtime.host_action import run_host_action
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.session_bind import build_session_config
 from tests.conftest import PROJECT_ROOT
 from tests.support.mcp_stdio import invoke_tool
 from tests.support.minimal_workflow import (

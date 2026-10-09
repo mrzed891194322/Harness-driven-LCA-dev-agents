@@ -10,9 +10,9 @@ from pathlib import Path
 
 import yaml
 
-from core.runtime.capabilities import base_capabilities
-from core.workflow.config.loader import load_workflow
-from core.workflow.persistence.config_fingerprint import (
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.persistence.config_fingerprint import (
     assert_runtime_config_matches,
     build_runtime_config,
     write_runtime_config,

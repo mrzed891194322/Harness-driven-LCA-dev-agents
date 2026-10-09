@@ -38,15 +38,15 @@ uv run python src/scripts/proj_init/main.py
 
 - 退出码 `1`：必要项失败（无 uv、sync 失败、Python 版本不对、`control_openlca` MCP import 失败）。按脚本输出汇报，不要自行安装软件。
 - 退出码 `0`：必要项通过。脚本若因缺少 `.env` 而从 `.env.example` 复制，只报告「已从模板创建」，不要打开 `.env` 把内容贴进对话。
-- JSON 中的 `harness_clis` 表示 **Pi SDK runtime**（Node + `src/pi_agents/pi-runtime`）是否就绪。不可用时不要把本次引导打成退出码 1，但要提醒用户安装 Node 并构建 pi-runtime。
-- 提醒用户检查 `.env` 的 `PI_MODEL`（档案 id，见 `src/shared/config/model_profiles.json`），并在 Web「设置」或 `.local/credentials/pi-auth.json` 配置 Provider API Key（BYOK）。字段说明只指向 `.env.example`，不要打印密钥。
+- JSON 中的 `harness_clis` 表示 **Pi SDK runtime**（Node + `src/pi-runtime`）是否就绪。不可用时不要把本次引导打成退出码 1，但要提醒用户安装 Node 并构建 pi-runtime。
+- 提醒用户检查 `.env` 的 `PI_MODEL`（档案 id，见 `src/backend/core/runtime/model_profiles.json`），并在 Web「设置」或 `.local/credentials/pi-auth.json` 配置 Provider API Key（BYOK）。字段说明只指向 `.env.example`，不要打印密钥。
 
 ## Phase 2：Pi SDK runtime
 
 根据 Phase 1 JSON 的 `harness_clis.clis`，汇报 Pi SDK runtime「可用」或「不可用」。
 
 - 不可用：标明 **Web / 编排 worker 路径不可用**（需要 Node.js 与已构建的 `@harness/pi-runtime`）。当前会话仍可完成引导。
-- 可用时由主编排器经 `src/shared/core/agents` → `pi_agents` 调用；不要再找 PATH 上的 `codex` / `claude` / `opencode` / `pi` 可执行文件。
+- 可用时由主编排器经 `src/backend/core/agents` → `backend.pi_client` 调用；不要再找 PATH 上的 `codex` / `claude` / `opencode` / `pi` 可执行文件。
 
 ## Phase 3：openLCA IPC
 

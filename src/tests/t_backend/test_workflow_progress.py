@@ -6,10 +6,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from api.app import app
-from core.agents.archive import progress_log_path
-from core.workflow.persistence.manifest import write_manifest
-from services.workflow_service import WorkflowService
+from backend.api.app import app
+from backend.core.agents.archive import progress_log_path
+from backend.core.workflow.persistence.manifest import write_manifest
+from backend.services.workflow_service import WorkflowService
 
 
 class WorkflowProgressTests(unittest.TestCase):

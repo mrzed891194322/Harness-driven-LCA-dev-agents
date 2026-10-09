@@ -379,7 +379,7 @@ def delete_custom_endpoint(
     profile_id: str = "",
 ) -> None:
     """Remove one saved compatible endpoint and its local profile."""
-    from core.runtime.model_profiles import delete_local_profile, load_profiles
+    from backend.core.runtime.model_profiles import delete_local_profile, load_profiles
 
     name = (provider or "").strip()
     mid = (model_id or "").strip()
@@ -420,7 +420,7 @@ def delete_custom_endpoint(
 
 def list_custom_endpoints(project_root: Path) -> list[dict[str, Any]]:
     """Saved compatible endpoints. Other providers are left untouched."""
-    from core.runtime.model_profiles import load_profiles
+    from backend.core.runtime.model_profiles import load_profiles
 
     profiles = load_profiles(project_root)
     stored = load_pi_models(project_root)

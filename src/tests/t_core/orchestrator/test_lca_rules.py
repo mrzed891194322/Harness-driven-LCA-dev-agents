@@ -6,9 +6,9 @@ import re
 
 import pytest
 
-from core.runtime.capabilities import base_capabilities
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.prompt_build import build_prompt
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.prompt_build import build_prompt
 from harness.tools.shared.lca_artifacts.offline_report import (
     markers,
     render,

@@ -6,14 +6,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.agents.config import (
+from backend.core.agents.config import (
     DEFAULT_MODELS,
     load_worker_model,
     normalize_model,
 )
-from core.agents.inspect import check, inspect
-from core.agents.permissions import pi_tools, pi_tools_flag
-from core.agents.providers.registry import WORKERS, ProviderDispatcher
+from backend.core.agents.inspect import check, inspect
+from backend.core.agents.permissions import pi_tools, pi_tools_flag
+from backend.core.agents.providers.registry import WORKERS, ProviderDispatcher
 
 
 class PiRuntimeTests(unittest.TestCase):
@@ -46,7 +46,7 @@ class PiRuntimeTests(unittest.TestCase):
 
     def test_dispatcher_creates_pi_provider(self) -> None:
         dispatcher = ProviderDispatcher()
-        from core.agents.session import SessionConfig
+        from backend.core.agents.session import SessionConfig
 
         config = SessionConfig(worker="pi", cwd=Path("."), tmp_dir=Path("/tmp"))
         with self.assertRaises(Exception):

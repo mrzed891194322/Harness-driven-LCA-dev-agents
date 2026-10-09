@@ -14,7 +14,7 @@ def write_tree(root: Path) -> None:
     (knowledge / "inputs").mkdir(parents=True, exist_ok=True)
     (knowledge / "plan").mkdir(parents=True, exist_ok=True)
     (knowledge / "README.md").write_text("# k\n", encoding="utf-8")
-    rules = root / "harness" / "rules" / "project"
+    rules = root / "harness" / "rules" / "prompts" / "project"
     rules.mkdir(parents=True, exist_ok=True)
     for name in ("write-boundary.md", "runtime.md", "paths.md", "extra.md"):
         (rules / name).write_text(f"# {name}\n", encoding="utf-8")
@@ -230,10 +230,10 @@ def write_minimal_workflow(
         "id": workflow_id,
         "registry": {
             "rules": {
-                "workspace_boundary": "harness/rules/project/write-boundary.md",
-                "runtime": "harness/rules/project/runtime.md",
-                "paths": "harness/rules/project/paths.md",
-                "extra_rule": "harness/rules/project/extra.md",
+                "workspace_boundary": "harness/rules/prompts/project/write-boundary.md",
+                "runtime": "harness/rules/prompts/project/runtime.md",
+                "paths": "harness/rules/prompts/project/paths.md",
+                "extra_rule": "harness/rules/prompts/project/extra.md",
             },
             "tools": {
                 "mcp": {tool_id: tool_entry},

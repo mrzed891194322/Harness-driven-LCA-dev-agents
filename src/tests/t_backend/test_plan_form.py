@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from api.app import app
-from services.plan_form import (
+from backend.api.app import app
+from backend.services.plan_form import (
     PlanFields,
     PlanFormError,
     decode_plan_upload,
@@ -21,7 +21,7 @@ from services.plan_form import (
     save_reference_note,
     template_markdown,
 )
-from services.project_paths import PROJECT_ROOT
+from backend.services.project_paths import PROJECT_ROOT
 
 
 class PlanFormParseTests(unittest.TestCase):
@@ -84,7 +84,7 @@ class PlanApiTests(unittest.TestCase):
     def test_import_save_and_reference_routes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            with patch("api.app.PROJECT_ROOT", root):
+            with patch("backend.api.app.PROJECT_ROOT", root):
                 client = TestClient(app)
                 imported = client.post(
                     "/api/plan/import",

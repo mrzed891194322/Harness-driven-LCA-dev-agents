@@ -4,9 +4,9 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from api.app import app
-from services.project_paths import PROJECT_ROOT
-from services.tutorial_browser import (
+from backend.api.app import app
+from backend.services.project_paths import PROJECT_ROOT
+from backend.services.tutorial_browser import (
     TutorialPathError,
     first_tutorial_path,
     read_tutorial_document,

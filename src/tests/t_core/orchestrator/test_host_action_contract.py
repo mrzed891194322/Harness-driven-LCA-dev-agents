@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from core.runtime.context import RunContext
-from core.runtime.host_action import (
+from backend.core.runtime.context import RunContext
+from backend.core.runtime.host_action import (
     HostActionExecutionError,
     HostActionProtocolError,
     HostActionResult,
@@ -17,7 +17,7 @@ from core.runtime.host_action import (
     normalize_host_action_result,
     run_host_action,
 )
-from core.workflow.config.models import HostActionSpec
+from backend.core.workflow.config.models import HostActionSpec
 from harness.tools.host_action.protocol import parse_host_request
 
 

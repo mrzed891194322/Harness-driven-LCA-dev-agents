@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from api.app import app
-from core.agents.assignment_models import model_for_assignment
-from services.diagnostics_service import _model_status
+from backend.api.app import app
+from backend.core.agents.assignment_models import model_for_assignment
+from backend.services.diagnostics_service import _model_status
 
 
 class AssignmentModelTests(unittest.TestCase):
@@ -23,8 +23,8 @@ class AssignmentModelTests(unittest.TestCase):
                 json.dumps({"assignments": {"02-inventory-extraction.executor": "missing"}}),
                 encoding="utf-8",
             )
-            (root / "src/shared/config").mkdir(parents=True)
-            (root / "src/shared/config/model_profiles.json").write_text(
+            (root / "src/backend/core/runtime").mkdir(parents=True)
+            (root / "src/backend/core/runtime/model_profiles.json").write_text(
                 json.dumps({"default": {"provider": "anthropic", "model_id": "claude-sonnet-4-5"}}),
                 encoding="utf-8",
             )
@@ -36,8 +36,8 @@ class AssignmentModelTests(unittest.TestCase):
     def test_routes_keep_only_known_profiles(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "src/shared/config").mkdir(parents=True)
-            (root / "src/shared/config/model_profiles.json").write_text(
+            (root / "src/backend/core/runtime").mkdir(parents=True)
+            (root / "src/backend/core/runtime/model_profiles.json").write_text(
                 json.dumps(
                     {
                         "default": {
@@ -68,12 +68,12 @@ class AssignmentModelTests(unittest.TestCase):
                 return {"ok": False, "models": [], "message": "无法连接端点"}
 
             with (
-                patch("api.app.PROJECT_ROOT", root),
+                patch("backend.api.app.PROJECT_ROOT", root),
                 patch(
-                    "api.app.available_providers",
+                    "backend.api.app.available_providers",
                     return_value=[{"id": "anthropic", "name": "Anthropic", "auth": "api_key"}],
                 ),
-                patch("api.app._provider_catalog", side_effect=catalog),
+                patch("backend.api.app._provider_catalog", side_effect=catalog),
             ):
                 client = TestClient(app)
                 listed = client.get("/api/workflow/models")

@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from core.agents.activity import activity_log_path, read_activity
-from core.agents.archive import progress_log_path
-from core.workflow.persistence.manifest import manifest_path
-from services.project_paths import PROJECT_ROOT
+from backend.core.agents.activity import activity_log_path, read_activity
+from backend.core.agents.archive import progress_log_path
+from backend.core.workflow.persistence.manifest import manifest_path
+from backend.services.project_paths import PROJECT_ROOT
 
 
 class WorkflowService:
@@ -23,7 +23,7 @@ class WorkflowService:
 
     def progress(self, offset: int = 0, epoch: str = "") -> dict[str, Any]:
         """Return new bytes of the launch notes or the current run's progress log."""
-        from services.workflow_launch import launch_snapshot
+        from backend.services.workflow_launch import launch_snapshot
 
         recorded = self._recorded_progress()
         launch = launch_snapshot()

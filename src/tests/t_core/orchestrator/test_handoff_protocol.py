@@ -8,10 +8,10 @@ from pathlib import Path
 
 import yaml
 
-from core.runtime.capabilities import base_capabilities
-from core.workflow.config.lists import resolve_list
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.handoff import read_handoff, write_handoff_file
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow.config.lists import resolve_list
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.handoff import read_handoff, write_handoff_file
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.minimal_workflow import write_minimal_workflow
 

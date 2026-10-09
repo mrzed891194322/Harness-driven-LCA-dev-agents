@@ -11,14 +11,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.agents.mcp import rewrite_uv_run_python, tool_entry_to_mcp
-from core.runtime.context import RunContext
-from core.runtime.tool_runtime import (
+from backend.core.agents.mcp import rewrite_uv_run_python, tool_entry_to_mcp
+from backend.core.runtime.context import RunContext
+from backend.core.runtime.tool_runtime import (
     ToolRuntimeSpec,
     apply_tool_runtime,
     write_context_file,
 )
-from core.workflow.config.models import McpToolSpec
+from backend.core.workflow.config.models import McpToolSpec
 
 
 @dataclass

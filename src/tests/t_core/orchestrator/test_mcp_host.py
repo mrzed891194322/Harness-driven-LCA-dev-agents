@@ -9,8 +9,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from core.runtime.context import RunContext
-from core.workflow.config.models import McpToolSpec
+from backend.core.runtime.context import RunContext
+from backend.core.workflow.config.models import McpToolSpec
 from tests.support.mcp_stdio import invoke_tool, normalize_check_result
 
 

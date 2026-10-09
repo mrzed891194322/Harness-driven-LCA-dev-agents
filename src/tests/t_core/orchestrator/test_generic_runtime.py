@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 import yaml
 
-from core.runtime.capabilities import base_capabilities
-from core.runtime.context import RunContext
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.session_bind import build_session_config
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.runtime.context import RunContext
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.session_bind import build_session_config
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.minimal_workflow import (
     write_fake_host_action,
@@ -70,8 +70,8 @@ class GenericRuntimeTests(unittest.TestCase):
                 role="executor",
                 metadata={},
             )
-            from core.runtime import host_action as host_action_mod
-            from core.runtime.host_action import HostActionResult
+            from backend.core.runtime import host_action as host_action_mod
+            from backend.core.runtime.host_action import HostActionResult
 
             with patch.object(
                 host_action_mod,
@@ -105,9 +105,9 @@ class GenericRuntimeTests(unittest.TestCase):
                 "id": "runtime-test",
                 "registry": {
                     "rules": {
-                        "workspace_boundary": "harness/rules/project/write-boundary.md",
-                        "runtime": "harness/rules/project/runtime.md",
-                        "paths": "harness/rules/project/paths.md",
+                        "workspace_boundary": "harness/rules/prompts/project/write-boundary.md",
+                        "runtime": "harness/rules/prompts/project/runtime.md",
+                        "paths": "harness/rules/prompts/project/paths.md",
                     },
                     "tools": {
                         "mcp": {

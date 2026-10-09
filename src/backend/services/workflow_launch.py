@@ -12,8 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from services.plan_form import PlanFields, render_plan, save_plan
-from services.workflow_cli import WORKFLOW_YAML_BY_TASK
+from backend.services.plan_form import PlanFields, render_plan, save_plan
+from backend.services.workflow_cli import WORKFLOW_YAML_BY_TASK
 
 Console = Callable[..., Iterator[tuple[str, str]]]
 _MATERIAL = (
@@ -78,7 +78,7 @@ class WorkflowLauncher:
         prepare: Console | None,
         run: Console | None,
     ) -> None:
-        from services.executor_console import run_pre_workflow_console
+        from backend.services.executor_console import run_pre_workflow_console
 
         prepare_fn = prepare or run_pre_workflow_console
         run_fn = run or _run_real_workflow
@@ -160,7 +160,7 @@ def _write_plan(project_root: Path, fields: PlanFields, task: str) -> None:
     save_plan(project_root, fields)
     if task != "revise-lca":
         return
-    from services.plan_form import list_references
+    from backend.services.plan_form import list_references
 
     names = [str(item["name"]) for item in list_references(project_root)]
     path = project_root / "harness" / "knowledge" / "plan" / "revise_plan.md"
@@ -176,7 +176,7 @@ def _consume(stream: Iterator[tuple[str, str]]) -> str:
 
 
 def _run_real_workflow(task: str) -> Iterator[tuple[str, str]]:
-    from services.executor_console import run_workflow_command_console
+    from backend.services.executor_console import run_workflow_command_console
 
     yield from run_workflow_command_console(task, env_overrides={"PI_RUNTIME_MOCK": "0"})
 

@@ -2,7 +2,7 @@
   "name": "harness-driven-lca",
   "private": true,
   "workspaces": [
-    "src/pi_agents/pi-runtime",
+    "src/pi-runtime",
     "src/frontend/web"
   ],
   "scripts": {

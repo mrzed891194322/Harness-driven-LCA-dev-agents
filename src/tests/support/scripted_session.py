@@ -7,14 +7,14 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from core.agents.session import (
+from backend.core.agents.session import (
     SessionConfig,
     SessionRef,
     SessionResumeError,
     TurnResult,
     WorkerTransportError,
 )
-from core.runtime.host_action import HostActionResult
+from backend.core.runtime.host_action import HostActionResult
 from tests.conftest import PROJECT_ROOT
 from tests.support.mcp_stdio import CheckResult
 

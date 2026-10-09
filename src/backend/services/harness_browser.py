@@ -6,13 +6,15 @@ from pathlib import Path
 
 _TEXT_SUFFIXES = {".md", ".yaml", ".yml", ".json"}
 _SECTION_SPECS: tuple[tuple[str, str, set[str]], ...] = (
-    ("rules", "规则", {".md"}),
+    ("rules", "规则", {".md", ".yaml", ".yml"}),
     ("specs", "规格", {".md", ".yaml", ".yml", ".json"}),
     ("workflows", "工作流", {".yaml", ".yml"}),
     ("knowledge", "知识", {".md", ".yaml", ".yml"}),
 )
 _GROUP_LABELS = {
     "": "概览",
+    "prompts": "提示词规则",
+    "permissions": "权限规则",
     "project": "项目",
     "lca": "LCA",
     "stages": "阶段",
@@ -23,7 +25,7 @@ _GROUP_LABELS = {
     "shared": "共享",
 }
 _GROUP_ORDER = {
-    "rules": ["", "project", "lca", "stages", "assignments", "tools"],
+    "rules": ["", "prompts", "permissions"],
     "workflows": [""],
     "knowledge": ["", "plan", "inputs"],
 }

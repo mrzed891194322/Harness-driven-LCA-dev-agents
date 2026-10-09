@@ -56,7 +56,7 @@ from pathlib import Path
 # Load proj_init.main's bootstrap side effects by executing until imports resolve.
 script = Path("src/scripts/proj_init/main.py").resolve()
 ns = runpy.run_path(str(script), run_name="__not_main__")
-import core  # noqa: F401
+import backend.core  # noqa: F401
 print("core-ok", flush=True)
 """
     result = _run([sys.executable, "-c", probe])
@@ -72,11 +72,9 @@ here = Path(".").resolve()
 root = next(
     p for p in (here, *here.parents) if (p / "pyproject.toml").is_file()
 )
-sys.path.insert(0, str(root / "src" / "backend"))
-sys.path.insert(0, str(root / "src" / "shared"))
 sys.path.insert(0, str(root / "src"))
 sys.path.insert(0, str(root))
-from api.app import app
+from backend.api.app import app
 assert app.title
 print("api-ok", flush=True)
 """

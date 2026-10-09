@@ -14,19 +14,19 @@ _ROOT = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
-for _p in (_ROOT / "src" / "backend", _ROOT / "src" / "shared", _ROOT):
+for _p in (_ROOT / "src", _ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from diagnostics import check_openlca, check_project_environment
-from workspace_clean import run_clean
+from backend.services.diagnostics import check_openlca, check_project_environment
+from backend.services.workspace_clean import run_clean
 
 PROJECT_ROOT = _ROOT
 load_dotenv(PROJECT_ROOT / ".env")
 
 
 def main() -> int:
-    from app_settings import (
+    from backend.settings import (
         DEFAULT_OPENLCA_IPC_PORT,
         load_port_settings,
     )

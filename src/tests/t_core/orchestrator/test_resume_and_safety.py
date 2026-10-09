@@ -7,15 +7,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core.runtime.capabilities import base_capabilities
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.runner import (
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.runner import (
     OrchestratorRuntime,
     initial_state,
     run_workflow,
 )
-from core.workflow.persistence.checkpoint import open_store
-from core.workflow.persistence.config_fingerprint import (
+from backend.core.workflow.persistence.checkpoint import open_store
+from backend.core.workflow.persistence.config_fingerprint import (
     assert_runtime_config_matches,
     write_runtime_config,
 )
@@ -81,7 +81,7 @@ class OutputTrailingSlashTests(unittest.TestCase):
 
 class FrozenModelTests(unittest.TestCase):
     def test_session_config_uses_runtime_model_not_env(self) -> None:
-        from core.workflow.execution.session_bind import build_session_config
+        from backend.core.workflow.execution.session_bind import build_session_config
 
         workflow = load_workflow(
             WORKFLOWS / "LCA-main.yaml",
@@ -129,7 +129,7 @@ class ImplementationFingerprintTests(unittest.TestCase):
             from unittest.mock import patch
 
             with patch(
-                "core.workflow.persistence.config_fingerprint.implementation_fingerprint",
+                "backend.core.workflow.persistence.config_fingerprint.implementation_fingerprint",
                 return_value="changed-implementation",
             ):
                 with self.assertRaises(ValueError) as ctx:
@@ -167,7 +167,7 @@ class HappyResumeSmokeTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.run_host_action",
+                    "backend.core.workflow.execution.runner.run_host_action",
                     side_effect=_passing_run_host_action,
                 ),
             ):

@@ -14,11 +14,11 @@ _ROOT = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
-for _p in (_ROOT / "src" / "backend", _ROOT / "src" / "shared", _ROOT):
+for _p in (_ROOT / "src", _ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from core.workflow.main import main as orchestrator_main  # noqa: E402
+from backend.core.workflow.main import main as orchestrator_main  # noqa: E402
 
 PROJECT_ROOT = _ROOT
 

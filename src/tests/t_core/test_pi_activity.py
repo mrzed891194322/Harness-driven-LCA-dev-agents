@@ -8,17 +8,21 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from core.agents import progress
-from core.agents.activity import activity_log_path, append_activity, read_activity
-from core.agents.session import SessionConfig, SessionRef
-from core.contracts.session_launch_spec import (
+from backend.core.agents import progress
+from backend.core.agents.activity import (
+    activity_log_path,
+    append_activity,
+    read_activity,
+)
+from backend.core.agents.session import SessionConfig, SessionRef
+from backend.core.contracts.session_launch_spec import (
     ModelProfile,
     PermissionPolicy,
     SessionLaunchSpec,
 )
-from core.workflow.persistence.manifest import write_manifest
-from pi_agents.client import PiRuntimeSessionClient, activity_progress_line
-from services.workflow_service import WorkflowService
+from backend.core.workflow.persistence.manifest import write_manifest
+from backend.pi_client.client import PiRuntimeSessionClient, activity_progress_line
+from backend.services.workflow_service import WorkflowService
 
 
 def _spec(root: Path) -> SessionLaunchSpec:
@@ -112,7 +116,7 @@ def test_client_records_turn_events(tmp_path: Path, monkeypatch) -> None:
         ),
     ]
     runtime = _FakeRuntime(events)
-    monkeypatch.setattr("pi_agents.client.shared_runtime", lambda root=None: runtime)
+    monkeypatch.setattr("backend.pi_client.client.shared_runtime", lambda root=None: runtime)
     lines: list[str] = []
     monkeypatch.setattr(progress, "_append_progress_log", lines.append)
     client = PiRuntimeSessionClient(tmp_path)
@@ -162,7 +166,7 @@ def test_activity_service_and_route(tmp_path: Path, monkeypatch) -> None:
     assert [e["tool"] for e in body["events"]] == ["read"]
     assert service.activity(offset=body["offset"])["events"] == []
 
-    import api.app as app_module
+    import backend.api.app as app_module
 
     monkeypatch.setattr(app_module, "_workflow", service)
     client = TestClient(app_module.app)

@@ -9,10 +9,10 @@ from pathlib import Path
 
 import yaml
 
-from core.runtime.capabilities import base_capabilities
-from core.workflow.config.loader import load_workflow
-from core.workflow.spec.models import PathContract, StageSpec
-from core.workflow.spec.outputs import validate_inputs, validate_outputs
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.spec.models import PathContract, StageSpec
+from backend.core.workflow.spec.outputs import validate_inputs, validate_outputs
 from tests.support.minimal_workflow import write_minimal_workflow
 
 
@@ -130,7 +130,7 @@ class PathContractTests(unittest.TestCase):
             workflow = load_workflow(
                 path, project_root=root, capabilities=base_capabilities()
             )
-            from core.workflow.execution.runner import (
+            from backend.core.workflow.execution.runner import (
                 OrchestratorRuntime,
                 initial_state,
             )

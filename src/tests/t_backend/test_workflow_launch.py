@@ -6,9 +6,9 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from api.app import app
-from services.plan_form import PlanFields
-from services.workflow_launch import WorkflowLauncher
+from backend.api.app import app
+from backend.services.plan_form import PlanFields
+from backend.services.workflow_launch import WorkflowLauncher
 
 
 class WorkflowLaunchTests(unittest.TestCase):

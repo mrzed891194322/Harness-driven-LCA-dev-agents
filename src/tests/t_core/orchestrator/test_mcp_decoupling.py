@@ -12,13 +12,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from core.agents.mcp import mcp_servers_for_tools
-from core.agents.mcp_render import write_pi_mcp
-from core.runtime.capabilities import base_capabilities
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.handoff import read_handoff
-from core.workflow.execution.session_bind import build_session_config
-from core.workflow.spec.outputs import validate_handoff_schema
+from backend.core.agents.mcp import mcp_servers_for_tools
+from backend.core.agents.mcp_render import write_pi_mcp
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.handoff import read_handoff
+from backend.core.workflow.execution.session_bind import build_session_config
+from backend.core.workflow.spec.outputs import validate_handoff_schema
 from tests.conftest import PROJECT_ROOT
 
 
@@ -197,8 +197,10 @@ class BlockWorkflow(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
         blocked = (
             "core.workflow",
+            "backend.core.workflow",
             "domains.lca",
             "services",
+            "backend.services",
             "gui",
             "scripts",
         )

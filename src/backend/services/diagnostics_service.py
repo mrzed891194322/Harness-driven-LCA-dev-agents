@@ -5,19 +5,22 @@ import shutil
 import sys
 from pathlib import Path
 
-from app_settings import (
+from backend.core.agents.config import load_worker_model
+from backend.core.agents.inspect import check, inspect
+from backend.core.runtime.model_profiles import load_profiles, resolve_model_profile
+from backend.services.credentials_service import (
+    available_providers,
+    credentials_status_bool,
+)
+from backend.services.diagnostics import check_openlca
+from backend.services.project_paths import PROJECT_ROOT
+from backend.settings import (
     DEFAULT_OPENLCA_IPC_PORT,
     OPENLCA_IPC_PORT_KEY,
+    parse_env_file,
     parse_port,
+    upsert_env_keys,
 )
-from diagnostics import check_openlca
-
-from core.agents.config import load_worker_model
-from core.agents.inspect import check, inspect
-from core.runtime.model_profiles import load_profiles, resolve_model_profile
-from services.credentials_service import available_providers, credentials_status_bool
-from services.project_paths import PROJECT_ROOT
-from utils.env import parse_env_file, upsert_env_keys
 
 REQUIRED_PYTHON = (3, 12)
 

@@ -13,23 +13,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from core.agents.assignment_models import load_assignment_models, save_assignment_models
-from core.agents.config import load_worker_model
-from core.runtime.model_profiles import (
+from backend.core.agents.assignment_models import load_assignment_models, save_assignment_models
+from backend.core.agents.config import load_worker_model
+from backend.core.runtime.model_profiles import (
     allocate_profile_id,
     delete_local_profile,
     load_profiles,
     resolve_model_profile,
     upsert_local_profile,
 )
-from pi_agents.process import shared_runtime
-from services.auth_login_service import (
+from backend.pi_client.process import shared_runtime
+from backend.services.auth_login_service import (
     login_status,
     logout_provider,
     reply_login_prompt,
     start_oauth_login,
 )
-from services.credentials_service import (
+from backend.services.credentials_service import (
     available_providers,
     clear_provider_key,
     credentials_status,
@@ -42,13 +42,13 @@ from services.credentials_service import (
     set_provider_api,
     set_provider_base_url,
 )
-from services.diagnostics_service import (
+from backend.services.diagnostics_service import (
     environment_report,
     openlca_endpoint,
     save_openlca_port,
 )
-from services.harness_browser import HarnessPathError, harness_catalog, read_harness_document
-from services.plan_form import (
+from backend.services.harness_browser import HarnessPathError, harness_catalog, read_harness_document
+from backend.services.plan_form import (
     PlanFields,
     PlanFormError,
     TEMPLATE_NAME,
@@ -61,16 +61,16 @@ from services.plan_form import (
     save_reference_note,
     template_markdown,
 )
-from services.project_paths import PROJECT_ROOT
-from services.tutorial_browser import (
+from backend.services.project_paths import PROJECT_ROOT
+from backend.services.tutorial_browser import (
     TutorialPathError,
     read_tutorial_document,
     resolve_tutorial_asset,
     tutorial_catalog,
 )
-from services.workflow_launch import launcher
-from services.workflow_service import WorkflowService
-from utils.env import parse_env_file, upsert_env_keys
+from backend.services.workflow_launch import launcher
+from backend.services.workflow_service import WorkflowService
+from backend.settings import parse_env_file, upsert_env_keys
 
 
 def _web_origins() -> list[str]:

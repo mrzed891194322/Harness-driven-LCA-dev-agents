@@ -7,16 +7,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core.runtime.capabilities import base_capabilities
-from core.runtime.host_action import HostActionResult
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.runner import (
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.runtime.host_action import HostActionResult
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.runner import (
     OrchestratorRuntime,
     initial_state,
     run_workflow,
 )
-from core.workflow.main import peek_tool_ids
-from core.workflow.persistence.checkpoint import open_store
+from backend.core.workflow.main import peek_tool_ids
+from backend.core.workflow.persistence.checkpoint import open_store
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.minimal_workflow import write_minimal_workflow
 from tests.support.scripted_session import (
@@ -81,7 +81,7 @@ class ReviewerPassGuardTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.run_host_action", side_effect=track
+                    "backend.core.workflow.execution.runner.run_host_action", side_effect=track
                 ),
             ):
                 result = run_workflow(
@@ -155,7 +155,7 @@ class HostCheckRetryTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.run_host_action",
+                    "backend.core.workflow.execution.runner.run_host_action",
                     side_effect=selective,
                 ),
             ):

@@ -7,19 +7,19 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core.runtime.capabilities import base_capabilities
-from core.runtime.host_action import (
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.runtime.host_action import (
     HostActionExecutionError,
     HostActionProtocolError,
     HostActionResult,
 )
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.runner import (
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.runner import (
     OrchestratorRuntime,
     initial_state,
     run_workflow,
 )
-from core.workflow.persistence.checkpoint import open_store
+from backend.core.workflow.persistence.checkpoint import open_store
 from tests.support.minimal_workflow import write_minimal_workflow
 from tests.support.scripted_session import (
     ScriptedSessionClient,
@@ -78,7 +78,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.run_host_action",
+                    "backend.core.workflow.execution.runner.run_host_action",
                     side_effect=side_effect,
                 ),
             ):
@@ -201,7 +201,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.run_host_action",
+                    "backend.core.workflow.execution.runner.run_host_action",
                     side_effect=selective,
                 ),
             ):
@@ -260,7 +260,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.run_host_action",
+                    "backend.core.workflow.execution.runner.run_host_action",
                     side_effect=selective,
                 ),
             ):
@@ -338,7 +338,7 @@ class HostActionFaultInjectionTests(unittest.TestCase):
             with (
                 open_store(workspace) as store,
                 patch(
-                    "core.workflow.execution.runner.run_host_action",
+                    "backend.core.workflow.execution.runner.run_host_action",
                     side_effect=selective,
                 ),
             ):

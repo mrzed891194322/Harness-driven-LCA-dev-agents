@@ -48,7 +48,7 @@ logs/
 .codex/skills/**/*.py[oc]
 node_modules/
 src/frontend/web/.next/
-src/pi_agents/pi-runtime/dist/
+src/pi-runtime/dist/
 *.tsbuildinfo
 
 # Local BYOK credentials (never commit)

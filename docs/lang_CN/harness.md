@@ -15,11 +15,11 @@ specs/
 | --- | --- |
 | `LCA-main.yaml` / `LCA-revise.yaml` | 完整独立装配图（无 reuse / stage_overrides） |
 | `specs/` | 机器契约：`spec.yaml` + JSON Schema + examples（无 Markdown） |
-| `rules/` | Agent 自然语言：project / lca / tools / stages / assignments |
+| `rules/` | `prompts/`：Agent 自然语言提示词规则（project / lca / tools / stages / assignments）；`permissions/`：白名单权限规则（格式见 `rules/permissions/README.md`，规则文件尚未落地） |
 | `tools/` | `mcp/`、`host_action/`、`shared/` 三层 |
 | `knowledge/` | 用户参考资料落点 |
 
-编排引擎在 [`src/shared/core/`](../src/shared/core/)。Agent 能力经 YAML 注册的 stdio MCP 进入会话；Core 验收经 Host Action。core 不 import `harness.tools`。
+编排引擎在 [`src/backend/core/`](../src/backend/core/)。Agent 能力经 YAML 注册的 stdio MCP 进入会话；Core 验收经 Host Action。core 不 import `harness.tools`。
 
 ## 注入链
 

@@ -8,11 +8,11 @@ from pathlib import Path
 
 import yaml
 
-from core.runtime.capabilities import base_capabilities, empty_capabilities
-from core.workflow.config.lists import merge_list_declarations, resolve_list
-from core.workflow.config.loader import load_workflow
-from core.workflow.main import peek_tool_ids
-from core.workflow.persistence.config_fingerprint import (
+from backend.core.runtime.capabilities import base_capabilities, empty_capabilities
+from backend.core.workflow.config.lists import merge_list_declarations, resolve_list
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.main import peek_tool_ids
+from backend.core.workflow.persistence.config_fingerprint import (
     assert_runtime_config_matches,
     write_runtime_config,
 )

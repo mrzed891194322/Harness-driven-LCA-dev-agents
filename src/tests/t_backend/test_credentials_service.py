@@ -5,13 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.runtime.model_profiles import (
+from backend.core.runtime.model_profiles import (
     allocate_profile_id,
     delete_local_profile,
     load_profiles,
     upsert_local_profile,
 )
-from services.credentials_service import (
+from backend.services.credentials_service import (
     available_providers,
     clear_provider_key,
     credentials_status,

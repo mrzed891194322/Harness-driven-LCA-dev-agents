@@ -10,7 +10,7 @@ node src/scripts/start.mjs
 
 该脚本每次启动前同步 uv 与 Node.js 依赖，并在缺少 `.env` 时从 `.env.example` 复制，然后打开控制面板。没有 uv 或 Node.js 22+ 时会直接退出，需要你按下面说明手动安装后再运行。
 
-Worker 固定为 **Pi SDK runtime**（`src/pi_agents/pi-runtime`，依赖 Node.js）。Web「设置与初始化」选择 `model_profiles.json` 中的模型档案，并为对应 Provider 填入自有 API Key（BYOK，写入 `.local/credentials/pi-auth.json`）。初始化检查探测 Node / pi-runtime 协议与 openLCA IPC，不依赖 PATH 上的 `codex` / `claude` / `opencode` / `pi` 可执行文件。主编排经 `src/shared/core/agents` → `pi_agents` 调用 `ModelRuntime`。业务运行只通过控制面板，不提供面向用户的命令行控制。
+Worker 固定为 **Pi SDK runtime**（`src/pi-runtime`，依赖 Node.js）。Web「设置与初始化」选择 `model_profiles.json` 中的模型档案，并为对应 Provider 填入自有 API Key（BYOK，写入 `.local/credentials/pi-auth.json`）。初始化检查探测 Node / pi-runtime 协议与 openLCA IPC，不依赖 PATH 上的 `codex` / `claude` / `opencode` / `pi` 可执行文件。主编排经 `src/backend/core/agents` → `backend.pi_client` 调用 `ModelRuntime`。业务运行只通过控制面板，不提供面向用户的命令行控制。
 
 `.env` 要填的字段见仓库根目录 `.env.example`（`PI_MODEL`、openLCA 端口等）。缺失的 `.env` 会从该模板复制。
 

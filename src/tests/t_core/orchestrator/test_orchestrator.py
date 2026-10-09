@@ -8,19 +8,19 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from core.runtime.capabilities import base_capabilities
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.handoff import read_handoff
-from core.workflow.execution.runner import (
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.handoff import read_handoff
+from backend.core.workflow.execution.runner import (
     PROTOCOL_REPAIR_LIMIT,
     WORKER_TRANSPORT_RETRY_LIMIT,
     OrchestratorRuntime,
     initial_state,
     run_workflow,
 )
-from core.workflow.main import _resume
-from core.workflow.persistence.checkpoint import open_store
-from core.workflow.persistence.config_fingerprint import (
+from backend.core.workflow.main import _resume
+from backend.core.workflow.persistence.checkpoint import open_store
+from backend.core.workflow.persistence.config_fingerprint import (
     write_runtime_config,
 )
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
@@ -45,7 +45,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
-        from core.agents.progress import set_progress_log
+        from backend.core.agents.progress import set_progress_log
 
         set_progress_log(None)
         self._tmp.cleanup()
@@ -85,7 +85,7 @@ class OrchestratorGraphTests(unittest.TestCase):
                     profile = str(action.action_id).removesuffix("_check")
                 checker_id = f"lca.{profile}" if profile else action.action_id
                 payload = validate(run_ctx, checker_id)
-                from core.runtime.host_action import HostActionResult
+                from backend.core.runtime.host_action import HostActionResult
 
                 ok = bool(payload.get("ok"))
                 errors = [str(e) for e in list(payload.get("errors") or [])]
@@ -107,7 +107,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         with open_store(self.workspace) as store:
             run_id = "run-test"
             with patch(
-                "core.workflow.execution.runner.run_host_action",
+                "backend.core.workflow.execution.runner.run_host_action",
                 side_effect=_invoke,
             ):
                 result = run_workflow(
@@ -233,7 +233,7 @@ class OrchestratorGraphTests(unittest.TestCase):
             state["status"] = "running"
             state["next_action"] = "run_sdk"
             store.save(state, event="started", action="run_sdk")
-            from core.agents.config import load_worker_model
+            from backend.core.agents.config import load_worker_model
 
             model = load_worker_model("pi", PROJECT_ROOT)
             write_runtime_config(
@@ -322,7 +322,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertIn("缺一行", note)
         self.assertNotIn("不能为空", note)
 
-    @patch("core.workflow.execution.runner.time.sleep")
+    @patch("backend.core.workflow.execution.runner.time.sleep")
     def test_worker_transport_retry_exhausted_fails(self, _sleep: Any) -> None:
         transport = {
             "raise_transport": True,
@@ -356,7 +356,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         ]
         self.assertEqual(len(review_turns), WORKER_TRANSPORT_RETRY_LIMIT)
 
-    @patch("core.workflow.execution.runner.time.sleep")
+    @patch("backend.core.workflow.execution.runner.time.sleep")
     def test_worker_transport_retry_then_succeeds(self, _sleep: Any) -> None:
         script = {
             ("01-intake-gate", "reviewer", 1): {
@@ -633,7 +633,7 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
         with open_store(self.workspace) as store:
             run_id = "run-revise"
             with patch(
-                "core.workflow.execution.runner.run_host_action",
+                "backend.core.workflow.execution.runner.run_host_action",
                 side_effect=_passing_run_host_action,
             ):
                 result = run_workflow(

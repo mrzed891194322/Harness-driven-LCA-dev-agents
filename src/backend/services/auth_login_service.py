@@ -10,10 +10,10 @@ import threading
 import uuid
 from typing import Any
 
-from core.agents.turn_transport import WorkerTransportError
-from pi_agents.process import shared_runtime
-from services.credentials_service import credentials_dir, credentials_status
-from services.project_paths import PROJECT_ROOT
+from backend.core.agents.turn_transport import WorkerTransportError
+from backend.pi_client.process import shared_runtime
+from backend.services.credentials_service import credentials_dir, credentials_status
+from backend.services.project_paths import PROJECT_ROOT
 
 
 class _LoginSession:
@@ -164,7 +164,7 @@ def logout_provider(provider: str) -> dict[str, Any]:
         timeout=60.0,
     )
     # Keep Python-side file in sync if runtime wrote only via CredentialStore.
-    from services.credentials_service import clear_provider_key, load_pi_auth
+    from backend.services.credentials_service import clear_provider_key, load_pi_auth
 
     # If logout cleared auth.json, status will reflect it; otherwise clear locally.
     auth = load_pi_auth(PROJECT_ROOT)

@@ -5,7 +5,7 @@ import sys
 from collections.abc import Generator
 from pathlib import Path
 
-from services.project_paths import PROJECT_ROOT
+from backend.services.project_paths import PROJECT_ROOT
 
 
 def find_project_root(start: Path | None = None) -> Path:
@@ -101,7 +101,7 @@ def execute_command_stream(
     if env_overrides:
         env.update(env_overrides)
 
-    from services.process_manager_stub import (
+    from backend.services.process_manager_stub import (
         clear_active_process,
         set_active_process,
         should_stop,
@@ -240,7 +240,7 @@ def _stream_subprocess_command(
     accumulated_output = start_message
     yield render_terminal_text(accumulated_output), "Running"
 
-    from services.process_manager_stub import should_stop
+    from backend.services.process_manager_stub import should_stop
 
     for chunk in execute_command_stream(command):
         if should_stop():
@@ -301,7 +301,7 @@ def run_pre_workflow_console(
     ref_upload_file: object,
 ) -> Generator[tuple[str, str], None, None]:
     """Clean, then sync GUI inputs before launching whole-lca or revise-lca."""
-    from services.file_sync import sync_files
+    from backend.services.file_sync import sync_files
 
     preset = task if task in {"whole-lca", "revise-lca"} else None
     if preset is None:
@@ -361,7 +361,7 @@ def run_workflow_command_console(
 
     yield f"[System] Preparing to start {task} ({agent})...\n", "Running"
 
-    from services.process_manager_stub import should_stop
+    from backend.services.process_manager_stub import should_stop
 
     for chunk in execute_command_stream(command, env_overrides=env_overrides):
         if should_stop():

@@ -11,10 +11,10 @@ GUI 里的计划、资料、工作流
 FastAPI（src/backend）保存计划、清理上一次运行、拉起编排器
         │  uv run python src/scripts/workflow.py
         ▼
-Python 编排器（src/shared/core/workflow）按 harness YAML 逐阶段派工
-        │  NDJSON：pi_agents/client.py → pi-runtime
+Python 编排器（src/backend/core/workflow）按 harness YAML 逐阶段派工
+        │  NDJSON：backend/pi_client/client.py → pi-runtime
         ▼
-Pi SDK（src/pi_agents/pi-runtime，createAgentSession）
+Pi SDK（src/pi-runtime，createAgentSession）
         │  progress.txt + manifest.json
         ▼
 GUI「运行详情」流式渲染；「结果与历史」展示产物
@@ -29,7 +29,7 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 | 计划、参考资料、工作流怎么配 | `src/frontend/web/app/plan/page.tsx`，`components/plan/` | 表单和资料写入 `harness/knowledge/plan/main_plan.md` 与 `harness/knowledge/inputs/`；执行时编排器读到的就是这份内容 |
 | 点「执行LCA任务」没有开始，或跳转不对 | `components/plan/preview-board.tsx`，`POST /api/workflow/start`，`services/workflow_launch.py` | 按钮保存当前表单，后台启动 `whole-lca` 或 `revise-lca`，浏览器进入 `/runs` |
 | 运行详情没有字，或清理阶段一直停在一句提示 | `GET /api/workflow/progress`，`services/workflow_service.py`，`workflow_launch.py` 的 `_consume` | 准备阶段的输出逐段出现；编排器写下 `progress.txt` 后，页面改显示该文件并保持追加 |
-| Agent 正文、工具调用没有进终端 | `src/shared/core/agents/progress.py`，`pi_agents/process.py`，`pi-runtime/src/session_host.ts` | Pi 的 `turn.progress`（以及工具起止）写成 `progress.txt` 里已有的带标签文本，由 `/runs` 解析 |
+| Agent 正文、工具调用没有进终端 | `src/backend/core/agents/progress.py`，`src/backend/pi_client/process.py`，`pi-runtime/src/session_host.ts` | Pi 的 `turn.progress`（以及工具起止）写成 `progress.txt` 里已有的带标签文本，由 `/runs` 解析 |
 | 跑完看不到报告或历史 | `src/frontend/web/app/results/page.tsx`，`workspace/outputs/`，`workspace/records/` | 结果页读本轮产物和 handoff，而不是只写死路径说明 |
 | 模型、密钥、openLCA 不可用 | `/status`，`/api/diagnostics/environment`，设置里的模型档案 | 诊断与「预览执行」使用同一套就绪条件；未就绪时不要启动 |
 
@@ -42,7 +42,7 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 - `workflow_launch.py` 在清理前复制 `harness/knowledge/plan` 与 `inputs`，清理后写回，再用当前表单覆盖 `main_plan.md`（修订任务同时写 `revise_plan.md`），然后启动 `src/scripts/workflow.py`。编排子进程显式使用真实 Pi runtime（`PI_RUNTIME_MOCK=0`）。`npm run dev` 给 API 进程默认带上 `PI_RUNTIME_MOCK=1`，那只影响控制面板自己的 Pi 进程，不要让它漏进正式 LCA 运行。
 - `/runs` 轮询 `GET /api/workflow/progress`。启动尚未写出新日志时，返回内存中的准备说明；新的 `workspace/records/logs/<run_id>/progress.txt` 出现后，整段换成该文件并继续按偏移追加。
 - 终端渲染在 `components/runs/agent-stream.tsx`。它解析 `progress.py` 的标签行：编排器说明、`阶段(角色#次数)-pi-时间`、`→ 工具`、`✓` / `✗`、`error:` 和模型正文。历史日志 `workspace/records/logs/*/progress.txt` 就是目标样子。
-- 编排器通过 `src/pi_agents/client.py` 的 NDJSON 调用 `src/pi_agents/pi-runtime`。会话契约在 `src/shared/core/contracts/session_launch_spec.py`。
+- 编排器通过 `src/backend/pi_client/client.py` 的 NDJSON 调用 `src/pi-runtime`。会话契约在 `src/backend/core/contracts/session_launch_spec.py`。
 
 ## 还没接通、用户让「走通」时优先补这里
 
@@ -55,7 +55,7 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 
 ## 改动约束
 
-- 业务入口只放在 `src/backend/api/app.py`。编排逻辑放在 `src/shared`，由 `src/scripts/workflow.py` 作为子进程入口。不要在 Next.js 里直接调 Pi，也不要再加一套并行的启动脚本。
+- 业务入口只放在 `src/backend/api/app.py`。编排逻辑放在 `src/backend/core`，api、services 只做适配，由 `src/scripts/workflow.py` 作为子进程入口。不要在 Next.js 里直接调 Pi，也不要再加一套并行的启动脚本。
 - 清理预设 `whole-lca` 会清 knowledge 暂存、`workspace` 生成物和 openLCA。改启动流程时先复制用户资料再清理，失败也要写回。没有用户明确要求时，不要替用户点「执行LCA任务」。
 - 界面文案用中文。运行详情保持与计划页相同的整页卡片（`status-fit`、`plan-board`、`settings-card`），终端按阶段、工具行和正文渲染，不要退回整段 JSON。
 - 进度文本继续用 `progress.py` 的标签格式。改解析或渲染时，用现有 `progress.txt` 对照，避免页面和日志各说一种方言。

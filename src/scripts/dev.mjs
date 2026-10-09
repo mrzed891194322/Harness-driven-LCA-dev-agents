@@ -102,8 +102,6 @@ process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 
 const pythonPath = [
-  path.join(root, "src", "backend"),
-  path.join(root, "src", "shared"),
   path.join(root, "src"),
   root,
   process.env.PYTHONPATH || "",
@@ -128,7 +126,7 @@ const sharedEnv = {
   PYTHONPATH: pythonPath,
 };
 
-run("uv", ["run", "uvicorn", "api.app:app", "--app-dir", "src/backend", "--host", "127.0.0.1", "--port", String(apiPort)], {
+run("uv", ["run", "uvicorn", "backend.api.app:app", "--app-dir", "src", "--host", "127.0.0.1", "--port", String(apiPort)], {
   env: { ...sharedEnv, PI_RUNTIME_MOCK: process.env.PI_RUNTIME_MOCK || "1" },
 });
 run("npm", ["run", "dev", "-w", "@harness/web"], {

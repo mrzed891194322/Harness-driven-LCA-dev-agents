@@ -12,26 +12,28 @@ from pathlib import Path
 
 import yaml
 
-from core.runtime.capabilities import base_capabilities
-from core.runtime.context import RunContext
-from core.workflow.config.loader import load_workflow
-from core.workflow.main import peek_tool_ids
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.runtime.context import RunContext
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.main import peek_tool_ids
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.mcp_stdio import invoke_tool
 from tests.support.minimal_workflow import write_fake_mcp_server, write_minimal_workflow
 
-CORE_ROOT = PROJECT_ROOT / "src" / "shared" / "core"
+CORE_ROOT = PROJECT_ROOT / "src" / "backend" / "core"
 HARNESS_ROOT = PROJECT_ROOT / "harness"
 HARNESS_TOOLS = HARNESS_ROOT / "tools"
 BANNED_IMPORT_PREFIXES = (
     "domains",
     "services",
+    "backend.services",
+    "backend.api",
     "schema",
     "gui",
     "scripts",
     "harness",
 )
-HARNESS_BANNED_CORE = ("core",)
+HARNESS_BANNED_CORE = ("core", "backend")
 HARNESS_ROOT_ALLOWLIST = frozenset(
     {
         "LCA-main.yaml",
@@ -46,9 +48,7 @@ HARNESS_TOOLS_ALLOWLIST = frozenset({"mcp", "host_action", "shared"})
 
 
 def _src_env() -> dict[str, str]:
-    backend = PROJECT_ROOT / "src" / "backend"
-    shared = PROJECT_ROOT / "src" / "shared"
-    return {**os.environ, "PYTHONPATH": f"{backend}{os.pathsep}{shared}"}
+    return {**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src")}
 
 
 def _root_env() -> dict[str, str]:
@@ -174,14 +174,17 @@ class CoreArchitectureTests(unittest.TestCase):
     def test_importing_core_workflow_does_not_load_harness(self) -> None:
         code = """
 import sys
-from core.workflow.main import main, peek_tool_ids
-from core.runtime.capabilities import base_capabilities
+from backend.core.workflow.main import main, peek_tool_ids
+from backend.core.runtime.capabilities import base_capabilities
 assert callable(main) and callable(peek_tool_ids)
 caps = base_capabilities()
 assert caps is not None
 assert hasattr(caps, "knowledge")
 assert not hasattr(caps, "checkers")
-banned = ("domains", "services", "schema", "harness", "gui", "scripts")
+banned = (
+    "domains", "services", "backend.services", "backend.api",
+    "schema", "harness", "gui", "scripts",
+)
 loaded = [
     name for name in sys.modules
     if any(name == b or name.startswith(b + ".") for b in banned)
@@ -243,6 +246,16 @@ assert not loaded, loaded
             [],
             f"harness/tools may only contain {sorted(HARNESS_TOOLS_ALLOWLIST)}; "
             f"unexpected: {unexpected_tools}",
+        )
+
+    def test_harness_rules_split_into_prompts_and_permissions(self) -> None:
+        names = {p.name for p in (HARNESS_ROOT / "rules").iterdir()}
+        unexpected = sorted(names - {"prompts", "permissions", "README.md"})
+        self.assertEqual(
+            unexpected,
+            [],
+            "harness/rules/ may only contain prompts/, permissions/ and README.md; "
+            f"unexpected: {unexpected}",
         )
 
     def test_main_and_revise_load_independently_without_reuse(self) -> None:
@@ -416,7 +429,7 @@ assert not loaded, loaded
                 "        elif node.module:\n"
                 "            mods = [node.module]\n"
                 "        for mod in mods:\n"
-                "            if mod == 'core' or mod.startswith('core.'):\n"
+                "            if mod in ('core', 'backend') or mod.startswith(('core.', 'backend.')):\n"
                 "                raise SystemExit(f'core import in {path}: {mod}')\n"
                 "print('ok')\n"
             )

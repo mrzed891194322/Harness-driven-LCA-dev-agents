@@ -11,11 +11,11 @@ _ROOT = next(
     for parent in Path(__file__).resolve().parents
     if (parent / "pyproject.toml").is_file()
 )
-for _p in (_ROOT / "src" / "backend", _ROOT / "src" / "shared", _ROOT):
+for _p in (_ROOT / "src", _ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from workspace_clean import cli_main
+from backend.services.workspace_clean import cli_main
 
 if __name__ == "__main__":
     cli_main()

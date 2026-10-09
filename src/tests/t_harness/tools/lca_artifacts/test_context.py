@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core.workflow.execution.handoff import read_handoff
+from backend.core.workflow.execution.handoff import read_handoff
 from harness.tools.mcp.lca_artifacts.main import submit_handoff
 from harness.tools.shared.lca_artifacts import checks
 from harness.tools.shared.lca_artifacts.store import (

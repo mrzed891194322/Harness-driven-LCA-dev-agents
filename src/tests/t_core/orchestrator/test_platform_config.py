@@ -8,10 +8,13 @@ from pathlib import Path
 
 import yaml
 
-from core.runtime.capabilities import base_capabilities
-from core.workflow.config.loader import load_workflow
-from core.workflow.execution.assemble import assemble_prompt, assignment_rule_ids
-from core.workflow.execution.session_bind import (
+from backend.core.runtime.capabilities import base_capabilities
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.execution.assemble import (
+    assemble_prompt,
+    assignment_rule_ids,
+)
+from backend.core.workflow.execution.session_bind import (
     build_session_config,
     mcp_context_path,
 )
@@ -171,7 +174,7 @@ class WorkflowYamlTests(unittest.TestCase):
 
     def test_stage_packages_use_spec_yaml_and_rules(self) -> None:
         spec_root = PROJECT_ROOT / "harness" / "specs"
-        rules_root = PROJECT_ROOT / "harness" / "rules"
+        rules_root = PROJECT_ROOT / "harness" / "rules" / "prompts"
         self.assertTrue((spec_root / "01-intake-gate" / "spec.yaml").is_file())
         self.assertFalse((spec_root / "01-intake-gate" / "executor.md").exists())
         self.assertTrue(
@@ -384,13 +387,13 @@ class WorkflowYamlTests(unittest.TestCase):
         for relative in (
             "harness/specs/01-intake-gate/spec.yaml",
             "harness/specs/02-inventory-extraction/spec.yaml",
-            "harness/rules/stages/02-inventory-extraction.revise.md",
-            "harness/rules/assignments/03-dataset-mapping/reviser.md",
-            "harness/rules/assignments/04-openlca-reporting/reviser.md",
+            "harness/rules/prompts/stages/02-inventory-extraction.revise.md",
+            "harness/rules/prompts/assignments/03-dataset-mapping/reviser.md",
+            "harness/rules/prompts/assignments/04-openlca-reporting/reviser.md",
         ):
             content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            self.assertNotIn("harness/rules/lca/exec/", content, relative)
-            self.assertNotIn("harness/rules/lca/eval/", content, relative)
+            self.assertNotIn("harness/rules/prompts/lca/exec/", content, relative)
+            self.assertNotIn("harness/rules/prompts/lca/eval/", content, relative)
 
 
 class PlatformAdapterTests(unittest.TestCase):
@@ -431,7 +434,7 @@ class PlatformAdapterTests(unittest.TestCase):
             "UV_CACHE_DIR",
         ):
             self.assertIn(key, text, key)
-        self.assertIn("src/shared/config/model_profiles.json", text)
+        self.assertIn("src/backend/core/runtime/model_profiles.json", text)
         self.assertIn("PI_MODEL=", text)
         self.assertIn(".uv-cache", text)
         self.assertNotIn("ANTHROPIC_API_KEY", text)
@@ -460,7 +463,7 @@ class PlatformAdapterTests(unittest.TestCase):
             (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             for relative in (
                 "harness/LCA-main.yaml",
-                "harness/rules/tools/control_openlca.md",
+                "harness/rules/prompts/tools/control_openlca.md",
                 "docs/lang_CN/harness.md",
             )
         )
