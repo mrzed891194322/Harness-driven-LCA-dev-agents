@@ -44,6 +44,11 @@ from services.diagnostics_service import (
 )
 from services.harness_browser import HarnessPathError, harness_catalog, read_harness_document
 from services.project_paths import PROJECT_ROOT
+from services.tutorial_browser import (
+    TutorialPathError,
+    read_tutorial_document,
+    tutorial_catalog,
+)
 from services.workflow_service import WorkflowService
 from utils.env import parse_env_file, upsert_env_keys
 
@@ -412,6 +417,21 @@ def read_harness_file(path: str) -> dict[str, str]:
     try:
         return read_harness_document(PROJECT_ROOT, path)
     except HarnessPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="document not found") from exc
+
+
+@app.get("/api/tutorial/catalog")
+def read_tutorial_catalog() -> dict[str, Any]:
+    return tutorial_catalog(PROJECT_ROOT)
+
+
+@app.get("/api/tutorial/document")
+def read_tutorial_file(path: str) -> dict[str, str]:
+    try:
+        return read_tutorial_document(PROJECT_ROOT, path)
+    except TutorialPathError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="document not found") from exc

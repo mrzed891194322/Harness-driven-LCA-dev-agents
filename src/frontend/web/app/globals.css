@@ -103,15 +103,29 @@ a {
   height: 36px;
   min-height: 36px;
   padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
   border-color: transparent;
   background: transparent;
   color: var(--ink);
   font-size: 0.92rem;
   line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.settings-launch {
+  color: var(--ink);
 }
 
 .settings-launch:hover,
 .app-header-github:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-launch[data-active="true"],
+.settings-launch[aria-current="page"] {
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -736,12 +750,55 @@ button:disabled {
   font-size: 0.72rem;
 }
 
-.harness-nav button {
+.harness-nav button,
+.tutorial-nav a {
   white-space: normal;
   line-height: 1.35;
   height: auto;
   min-height: 32px;
   padding: 6px 10px;
+}
+
+.tutorial-panel {
+  padding: 0;
+  overflow: hidden;
+  min-height: min(72vh, 760px);
+}
+
+.tutorial-frame {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: min(72vh, 760px);
+  height: 100%;
+}
+
+.tutorial-nav a {
+  display: block;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+  color: var(--ink);
+  border-radius: 8px;
+}
+
+.tutorial-nav a:hover {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--accent);
+}
+
+.tutorial-nav a[aria-current="page"],
+.tutorial-nav a[data-active="true"] {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.tutorial-main {
+  min-height: 0;
+}
+
+.tutorial-body {
+  max-width: 52rem;
 }
 
 .harness-path {
@@ -883,9 +940,23 @@ button:disabled {
     overflow: auto;
   }
 
-  .harness-nav button {
+  .harness-nav button,
+  .tutorial-nav a {
     width: 100%;
     white-space: normal;
+  }
+
+  .tutorial-frame {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .tutorial-nav {
+    flex-direction: column;
+    align-items: stretch;
+    max-height: 34vh;
+    overflow: auto;
   }
 }
 

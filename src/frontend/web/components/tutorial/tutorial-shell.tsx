@@ -1,0 +1,103 @@
+"use client";
+
+import type { ReactNode } from "react";
+import Link from "next/link";
+
+export type TutorialEntry = {
+  path: string;
+  label: string;
+};
+
+export type TutorialGroup = {
+  id: string;
+  label: string;
+  entries: TutorialEntry[];
+};
+
+export type TutorialCatalog = {
+  groups: TutorialGroup[];
+};
+
+export type TutorialDocument = {
+  path: string;
+  label: string;
+  title: string;
+  kind: "markdown";
+  content: string;
+};
+
+function hrefFor(path: string) {
+  const bare = path.replace(/\.md$/i, "");
+  return `/tutorial/${bare}`;
+}
+
+type TutorialShellProps = {
+  catalog: TutorialCatalog | null;
+  selected: string;
+  error?: string;
+  title?: string;
+  crumbPath?: string;
+  children: ReactNode;
+};
+
+export function TutorialShell({
+  catalog,
+  selected,
+  error = "",
+  title,
+  crumbPath,
+  children,
+}: TutorialShellProps) {
+  const located = findEntry(catalog, selected);
+  const heading =
+    title || located?.entry.label || (error ? "教程" : catalog ? "教程" : "教程");
+
+  return (
+    <section className="tutorial-panel settings-card">
+      <div className="tutorial-frame">
+        <nav className="settings-nav harness-nav tutorial-nav" aria-label="教程">
+          <p className="settings-nav-label">教程</p>
+          {catalog?.groups.map((group) => (
+            <div key={group.id}>
+              {catalog.groups.length > 1 || group.id !== "overview" ? (
+                <p className="harness-nav-group">{group.label}</p>
+              ) : null}
+              {group.entries.map((entry) => (
+                <Link
+                  key={entry.path}
+                  href={hrefFor(entry.path)}
+                  aria-current={entry.path === selected ? "page" : undefined}
+                  data-active={entry.path === selected ? "true" : undefined}
+                >
+                  {entry.label}
+                </Link>
+              ))}
+            </div>
+          ))}
+          {!catalog && !error ? <p className="harness-status">加载目录…</p> : null}
+        </nav>
+        <div className="settings-main tutorial-main">
+          <header className="settings-main-head">
+            <div>
+              <p className="settings-crumb">
+                {["教程", located?.group.label, located?.entry.label].filter(Boolean).join(" / ")}
+              </p>
+              <h2>{heading}</h2>
+              {crumbPath ? <p className="harness-path mono">{crumbPath}</p> : null}
+            </div>
+          </header>
+          <div className="settings-body tutorial-body">{children}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function findEntry(catalog: TutorialCatalog | null, path: string) {
+  if (!catalog || !path) return null;
+  for (const group of catalog.groups) {
+    const entry = group.entries.find((item) => item.path === path);
+    if (entry) return { group, entry };
+  }
+  return null;
+}
