@@ -8,7 +8,7 @@
 
 - [ ] memory 改名为 state
 
-- [x] 初始化（Bootstrap），在agent中以提示词形式：uv、openLCA、检查CLI、自动模式
+- [x] 初始化（Bootstrap），在agent中以提示词形式：uv、openLCA、检查运行时、自动模式
 
 - [x] 加入DSHagent
 

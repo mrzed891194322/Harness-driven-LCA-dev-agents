@@ -12,7 +12,7 @@
 4. 导入完成后，用 `get_model_graph` 核对每个 Product System、新建前景实体及预期连接。按需要正式回读参考过程与流，核实数量基准。
 5. 写计算计划并调用 `calculate_product_system`，完整结果由工具落盘。最后按模板生成报告，调用 `render_report_tables` 生成三组表格。
 
-导入超时不是服务端取消：用原 request_id 调用 `get_import_operation`，不生成新请求、不盲目重导、不使用 legacy CLI 或直接脚本绕过门禁。running 只继续有界查询；indeterminate、部分失败或无法确认终态则受控停止。reused 只返回同请求日志，不证明数据库当前未被外部修改。长调用使用 MCP 的 timeout_sec，范围以工具签名为准，不使用外层 shell timeout。
+导入超时不是服务端取消：用原 request_id 调用 `get_import_operation`，不生成新请求、不盲目重导、不使用遗留可执行入口或直接脚本绕过门禁。running 只继续有界查询；indeterminate、部分失败或无法确认终态则受控停止。reused 只返回同请求日志，不证明数据库当前未被外部修改。长调用使用 MCP 的 timeout_sec，范围以工具签名为准，不使用外层 shell timeout。
 
 ## 计算计划与报告
 

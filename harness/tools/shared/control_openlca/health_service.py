@@ -1,4 +1,4 @@
-"""V2 entrypoints used by GUI initialization and cleanup CLI (no evidence wrap)."""
+"""V2 entrypoints used by GUI initialization and cleanup (no evidence wrap)."""
 
 from collections.abc import Callable
 from pathlib import Path

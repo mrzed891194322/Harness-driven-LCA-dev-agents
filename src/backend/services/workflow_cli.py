@@ -1,4 +1,4 @@
-"""CLI command assembly for workflow runs (API / executor_console / tests)."""
+"""Orchestrator subprocess argv assembly for workflow runs (API / executor_console / tests)."""
 
 from __future__ import annotations
 

@@ -35,9 +35,4 @@ Workflow YAML
 
 ## 启动
 
-```bash
-uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
-uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
-```
-
-YAML 只引用 path / ID，不内嵌任务正文。自然语言只在 `rules/`。
+经 Web 控制面板启动 whole-lca / revise-lca（根目录 `npm run dev`，见 `README.md`）。YAML 只引用 path / ID，不内嵌任务正文。自然语言只在 `rules/`。

@@ -36,7 +36,7 @@ export default function PlanPage() {
         <span style={{ marginLeft: 12 }}>{status}</span>
       </div>
       <p style={{ marginTop: 16, color: "#666" }}>
-        启动 whole-lca / revise-lca 请使用 CLI：<code>uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml</code>
+        保存计划后，在控制面板完成初始化检查，再执行 whole-lca / revise-lca。运行进度见「运行详情」，报告见「LCA评估结果」。
       </p>
     </div>
   );

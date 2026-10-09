@@ -46,7 +46,7 @@ uv run python src/scripts/proj_init/main.py
 根据 Phase 1 JSON 的 `harness_clis.clis`，汇报 Pi SDK runtime「可用」或「不可用」。
 
 - 不可用：标明 **Web / 编排 worker 路径不可用**（需要 Node.js 与已构建的 `@harness/pi-runtime`）。当前会话仍可完成引导。
-- 可用时由主编排器经 `src/shared/core/agents` → `pi_agents` 调用；不要再找 PATH 上的 `codex` / `claude` / `opencode` / `pi` CLI。
+- 可用时由主编排器经 `src/shared/core/agents` → `pi_agents` 调用；不要再找 PATH 上的 `codex` / `claude` / `opencode` / `pi` 可执行文件。
 
 ## Phase 3：openLCA IPC
 
@@ -55,6 +55,8 @@ uv run python src/scripts/proj_init/main.py
 ```bash
 uv run python src/scripts/check_status.py --only openlca
 ```
+
+（此检查仅供引导自动化；用户日常连通性以 Web 控制面板「设置 / 项目状态」为准。）
 
 - 成功：openLCA 记为通过。
 - 失败：记为「需你动手」——打开 openLCA 桌面客户端、打开目标数据库、启用 IPC Server（默认 `127.0.0.1:8080`），说明见 `docs/lang_CN/env_setup.md`。**不要**因此把 Phase 1 的退出码改写成失败；IPC 失败不是 uv / 依赖 / MCP import 失败。
@@ -71,4 +73,4 @@ uv run python src/scripts/check_status.py --only openlca
 5. Pi SDK runtime
 6. openLCA IPC
 
-最后一句：下一步可启动 Web（见 `README.md` 的 `npm run dev`），或在完成 `src/scripts/clean.py` 并放入资料后执行 `uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml`。不要在本次引导里启动 whole-lca。
+最后一句：下一步启动 Web 控制面板（见 `README.md` 的 `npm run dev`），在面板内完成设置、计划与执行。不要在本次引导里启动 whole-lca。

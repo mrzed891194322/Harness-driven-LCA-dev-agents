@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Workspace / openLCA clean CLI (thin argparse wrapper)."""
+"""Internal clean entry (thin argparse wrapper for GUI backend / tests / bootstrap)."""
 
 from __future__ import annotations
 

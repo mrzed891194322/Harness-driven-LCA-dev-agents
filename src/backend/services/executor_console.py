@@ -140,7 +140,7 @@ def execute_command_stream(
                     break
                 if line:
                     # 同步打印到 API 进程 stdout（便于本地调试）
-                    safe_console_print(f"[CLI Output] {line.rstrip()}")
+                    safe_console_print(f"[Orchestrator] {line.rstrip()}")
 
                     yield line
 
@@ -186,7 +186,7 @@ WORKFLOW_TASKS = tuple(WORKFLOW_YAML_BY_TASK)
 
 
 def workflow_command_args(task: str, agent: str) -> list[str]:
-    """Return the Python orchestrator CLI with an explicit workflow YAML path."""
+    """Return the Python orchestrator subprocess argv with an explicit workflow YAML path."""
     agent_key = (agent or "pi").strip().lower()
     if agent_key != "pi":
         raise ValueError(f"Unsupported harness agent: {agent}")

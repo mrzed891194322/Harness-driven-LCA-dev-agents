@@ -1,4 +1,4 @@
-"""Diagnostic probes for Pi SDK runtime (no PATH CLI workers)."""
+"""Diagnostic probes for Pi SDK runtime (no PATH worker binaries)."""
 
 from __future__ import annotations
 

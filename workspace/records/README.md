@@ -9,4 +9,4 @@ Whole-LCA 运行时在此目录维护固定的运行证据：
 - `logs/<run_id>/`：`progress.txt` 与各 turn 排障快照（prompt、argv、stdout、session-ref、rendered）
 - 编排检查点 SQLite
 
-除本说明文件外，运行产物不纳入版本控制。`src/scripts/clean.py` 会清掉本目录（含 logs）；跨次保留请先拷走。
+除本说明文件外，运行产物不纳入版本控制。控制面板执行前的清理（whole-lca / revise-lca 预设）会清掉本目录（含 logs）；跨次保留请先拷走。

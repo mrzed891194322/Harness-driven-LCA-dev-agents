@@ -28,12 +28,12 @@
 
 > **硬约束**
 > - 严禁为 openLCA 连接检测、描述符遍历、UUID 查询、模型图读取、导入或计算编写临时 Python 脚本。
-> - CLI 中只检查连接时，运行 `src/scripts/check_status.py --only openlca`；MCP 客户端调用 `health_check`。
+> - 连通性：用户侧在 Web 控制面板「设置 / 项目状态」检查；MCP 客户端调用 `health_check`。
 > - 运行任务通过已注册的 `query_descriptors_batch` / `query_descriptors` MCP 查询已有数据库实体。新建前景 UUID 由建模任务创建，导入后正式读回确认。
 > - 按 Process UUID 回读地域和定量参考时，MCP 客户端必须使用 `get_process_details`。
 > - 按 Flow UUID 查询可用 Provider 时，MCP 客户端必须使用 `get_flow_providers`。
 > - 运行任务用已注册的 `get_model_graph` MCP 读回模型图。
-> - whole-lca / revise-lca 启动前清理由 `src/scripts/clean.py `（`--preset whole-lca` 或 `revise-lca`）完成；交互式清理可用 MCP `cleanup_output`（如 `cleanup-lci` 命令）。
+> - whole-lca / revise-lca 启动前清理由控制面板预清理完成；交互式清理可用 MCP `cleanup_output`。
 > - 如果现有工具确实不能满足长期需求，只能扩展正式工具目录并同步 README。
 
 ---
@@ -98,9 +98,9 @@ uv run pytest src/tests/t_harness/tools/control_openlca -v
 未来任何 Agent 在编写连接或操纵 openLCA IPC Server 的代码时，必须引用以下公共模块：
 
 ### 1. IPC 连接模块 (`utils/connection.py`)
-*   **核心函数**：`create_ipc_client(...)`、`probe_ipc(...)`、`close_ipc_client(...)` 和兼容 CLI 的 `connect_ipc(...)`。
+*   **核心函数**：`create_ipc_client(...)`、`probe_ipc(...)`、`close_ipc_client(...)` 以及兼容入口 `connect_ipc(...)`。
 *   **用途**：统一构造带 HTTP timeout 的 `BoundedIPCClient`；探测使用较小的 Currency descriptor 请求，并显式识别 JSON-RPC 错误。
-*   **规范**：每个 MCP 工具在 `IPC_TOOL_PROFILES` 中有唯一档位（`none` / `health` / `short` / `long`）。档位决定 endpoint 锁的会话预算；**省略 timeout 的 `create_ipc_client` 使用当前会话剩余预算作为 HTTP 读超时**。长作业默认会话 **7200 秒**（`OPENLCA_IPC_SESSION_BUDGET_SEC` 或工具 `timeout_sec`）。无会话（CLI 直调）时保底 **600 秒**（`OPENLCA_IPC_LONG_READ_SEC`）。`OPENLCA_IPC_READ_SEC`（30 秒）不再是 MCP 工具的实际上限。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 超时由 YAML 的 `tool_timeout_sec` 显式配置（本项目默认 7320 秒）；修改 IPC 会话预算时应同步配置为至少 budget+120 秒。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。新增 MCP 工具必须登记档位，否则测试失败。
+*   **规范**：每个 MCP 工具在 `IPC_TOOL_PROFILES` 中有唯一档位（`none` / `health` / `short` / `long`）。档位决定 endpoint 锁的会话预算；**省略 timeout 的 `create_ipc_client` 使用当前会话剩余预算作为 HTTP 读超时**。长作业默认会话 **7200 秒**（`OPENLCA_IPC_SESSION_BUDGET_SEC` 或工具 `timeout_sec`）。无会话上下文时保底 **600 秒**（`OPENLCA_IPC_LONG_READ_SEC`）。`OPENLCA_IPC_READ_SEC`（30 秒）不再是 MCP 工具的实际上限。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 超时由 YAML 的 `tool_timeout_sec` 显式配置（本项目默认 7320 秒）；修改 IPC 会话预算时应同步配置为至少 budget+120 秒。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。新增 MCP 工具必须登记档位，否则测试失败。
 
 ### 2. 实体检索模块 (`utils/entity.py`)
 *   **核心函数**：`find_entity(client, model_type, name_or_uuid)`
@@ -113,7 +113,7 @@ uv run pytest src/tests/t_harness/tools/control_openlca -v
 ### 3. 参数校验与 Fail-Fast 模块 (`utils/validation.py`)
 *   **核心函数**：
     *   `resolve_allocation(allocation_str)`：将字符串（如 `physical`、`economic`）映射到 openLCA 的 `AllocationType` 枚举，并校验其合法性。
-    *   `resolve_parameters(parameter_list)`：将命令行传入的 `name=value` 参数定义列表解析为 `olca_schema.ParameterRedef` 列表，校验值是否为有效浮点数。
+    *   `resolve_parameters(parameter_list)`：将 `name=value` 参数定义列表解析为 `olca_schema.ParameterRedef` 列表，校验值是否为有效浮点数。
 *   **规范**：输入参数的合规性校验应优先在建立 IPC 连接前执行，避免无效网络请求导致延迟。
 
 ### 4. 结果提取与数据写出模块 (`utils/export.py`)

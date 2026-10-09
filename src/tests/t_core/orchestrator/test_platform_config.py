@@ -23,7 +23,7 @@ STAGE_PACKAGES = (
     "03-dataset-mapping",
     "04-openlca-reporting",
 )
-ORCHESTRATOR_CMD = "uv run python src/scripts/workflow.py"
+GUI_ENTRY_CMD = "npm run dev"
 FORBIDDEN_PROMPT_KEYS = ("prompt", "extra_prompt")
 HARDCODED_MODEL_PATTERNS = ("gpt-5.6", "model_reasoning_effort")
 
@@ -411,13 +411,14 @@ class PlatformAdapterTests(unittest.TestCase):
             ).strip()
             self.assertFalse(tracked, f"legacy adapter still tracked: {relative}")
 
-    def test_docs_point_at_python_orchestrator(self) -> None:
+    def test_docs_point_at_gui_control_panel(self) -> None:
         for relative in (
             "README.md",
             "docs/lang_CN/platform-adapter.md",
         ):
             text = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn(ORCHESTRATOR_CMD, text, relative)
+            self.assertIn(GUI_ENTRY_CMD, text, relative)
+            self.assertNotIn("uv run python src/scripts/workflow.py", text, relative)
             self.assertNotIn("harness/LCA-main.md", text, relative)
 
     def test_env_example_documents_worker_models_and_secrets(self) -> None:
