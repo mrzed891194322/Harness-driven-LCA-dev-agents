@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 _TEXT_SUFFIXES = {".md"}
+_ASSET_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+_SKIP_DIRS = {"images", "assets", "media"}
 _GROUP_LABELS = {
     "": "概览",
     "basics": "入门",
@@ -54,6 +56,13 @@ def tutorial_catalog(project: Path) -> dict:
     return {"groups": groups}
 
 
+def resolve_tutorial_asset(project: Path, relative: str) -> Path:
+    path = _resolve_path(project, relative, allowed_suffixes=_ASSET_SUFFIXES)
+    if not path.is_file():
+        raise FileNotFoundError(relative)
+    return path
+
+
 def read_tutorial_document(project: Path, relative: str) -> dict:
     path = _resolve_document(project, relative)
     try:
@@ -93,6 +102,8 @@ def _collect(root: Path) -> list[Path]:
         relative = path.relative_to(root)
         if any(part.startswith(".") for part in relative.parts):
             continue
+        if relative.parts and relative.parts[0] in _SKIP_DIRS:
+            continue
         if not path.resolve().is_relative_to(resolved_root):
             continue
         found.append(path)
@@ -100,16 +111,21 @@ def _collect(root: Path) -> list[Path]:
 
 
 def _resolve_document(project: Path, relative: str) -> Path:
+    path = _resolve_path(project, relative, allowed_suffixes=_TEXT_SUFFIXES)
+    if not path.is_file():
+        raise FileNotFoundError(relative)
+    return path
+
+
+def _resolve_path(project: Path, relative: str, *, allowed_suffixes: set[str]) -> Path:
     root = _tutorial_root(project).resolve()
     if not relative or relative.startswith(("/", "\\")) or "\\" in relative:
         raise TutorialPathError("invalid tutorial path")
     candidate = (root / relative).resolve()
     if not candidate.is_relative_to(root):
         raise TutorialPathError("invalid tutorial path")
-    if candidate.suffix.lower() not in _TEXT_SUFFIXES:
+    if candidate.suffix.lower() not in allowed_suffixes:
         raise TutorialPathError("unsupported tutorial document")
-    if not candidate.is_file():
-        raise FileNotFoundError(relative)
     return candidate
 
 

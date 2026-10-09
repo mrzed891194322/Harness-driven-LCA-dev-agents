@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { MarkdownView } from "../../../components/harness/markdown-view";
+import { MarkdownView } from "../../../components/markdown-view";
 import {
   TutorialShell,
   type TutorialCatalog,
@@ -14,6 +14,20 @@ function slugToPath(slug: string[] | string | undefined) {
   if (!parts.length) return "";
   const joined = parts.map(decodeURIComponent).join("/");
   return joined.toLowerCase().endsWith(".md") ? joined : `${joined}.md`;
+}
+
+function resolveTutorialAsset(docPath: string, href: string) {
+  const clean = href.split("#")[0].split("?")[0].trim();
+  if (!clean) return null;
+  const baseParts = docPath.split("/").slice(0, -1);
+  for (const part of clean.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") baseParts.pop();
+    else baseParts.push(part);
+  }
+  const assetPath = baseParts.join("/");
+  if (!assetPath || assetPath.startsWith("..")) return null;
+  return `/api/tutorial/asset?path=${encodeURIComponent(assetPath)}`;
 }
 
 export default function TutorialDocPage() {
@@ -85,7 +99,12 @@ export default function TutorialDocPage() {
       {catalogError ? <p className="harness-status">{catalogError}</p> : null}
       {documentError ? <p className="harness-status">{documentError}</p> : null}
       {loadingDoc && doc?.path !== selected ? <p className="harness-status">正在读取…</p> : null}
-      {doc && doc.path === selected ? <MarkdownView source={doc.content} /> : null}
+      {doc && doc.path === selected ? (
+        <MarkdownView
+          source={doc.content}
+          resolveAsset={(href) => resolveTutorialAsset(selected, href)}
+        />
+      ) : null}
     </TutorialShell>
   );
 }

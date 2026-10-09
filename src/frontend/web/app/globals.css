@@ -819,6 +819,26 @@ button:disabled {
   font-size: 0.95rem;
 }
 
+.harness-figure {
+  margin: 0.4rem 0 0;
+  padding: 0;
+}
+
+.harness-figure figcaption {
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.harness-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
 .harness-doc h2,
 .harness-doc h3,
 .harness-doc h4 {

@@ -10,6 +10,7 @@ from services.tutorial_browser import (
     TutorialPathError,
     first_tutorial_path,
     read_tutorial_document,
+    resolve_tutorial_asset,
     tutorial_catalog,
 )
 
@@ -47,6 +48,13 @@ class TutorialBrowserTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             read_tutorial_document(PROJECT_ROOT, "missing.md")
 
+    def test_resolve_image_asset(self) -> None:
+        asset = resolve_tutorial_asset(PROJECT_ROOT, "images/openlca-ipc.png")
+        self.assertTrue(asset.is_file())
+        self.assertEqual(asset.suffix.lower(), ".png")
+        with self.assertRaises(TutorialPathError):
+            resolve_tutorial_asset(PROJECT_ROOT, "../README.md")
+
 
 class TutorialBrowserApiTests(unittest.TestCase):
     def test_catalog_and_document_routes(self) -> None:
@@ -64,3 +72,10 @@ class TutorialBrowserApiTests(unittest.TestCase):
         document = client.get("/api/tutorial/document", params={"path": "README.md"})
         self.assertEqual(document.status_code, 200)
         self.assertIn("教程", document.json()["content"])
+
+        asset = client.get(
+            "/api/tutorial/asset", params={"path": "images/openlca-ipc.png"}
+        )
+        self.assertEqual(asset.status_code, 200)
+        self.assertIn("image", asset.headers.get("content-type", ""))
+        self.assertGreater(len(asset.content), 1000)
