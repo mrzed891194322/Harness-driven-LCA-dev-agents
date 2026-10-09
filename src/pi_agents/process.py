@@ -11,6 +11,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import re
+
+from core.agents.session import SessionError
 from core.agents.turn_transport import WorkerTransportError
 
 PROJECT_ROOT = next(
@@ -20,6 +23,22 @@ PROJECT_ROOT = next(
 )
 
 EventHandler = Callable[[str, dict[str, Any]], None]
+
+# Runtime errors whose message looks like a network/model-endpoint outage are
+# retryable; everything else (bad params, unknown session, model refusal,
+# missing files) is surfaced as-is so it is not misreported as a connection issue.
+_TRANSIENT_RUNTIME_ERROR = re.compile(
+    r"ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|EPIPE|socket hang up"
+    r"|fetch failed|network|timed? ?out|\b(429|500|502|503|504)\b|overloaded"
+    r"|rate.?limit",
+    re.IGNORECASE,
+)
+
+
+def runtime_error(message: str) -> Exception:
+    if _TRANSIENT_RUNTIME_ERROR.search(message):
+        return WorkerTransportError(message)
+    return SessionError(message)
 
 
 class PiRuntimeProcess:
@@ -53,12 +72,15 @@ class PiRuntimeProcess:
             env = os.environ.copy()
             if os.getenv("PI_RUNTIME_MOCK", "").strip() in {"1", "true", "yes"}:
                 env["PI_RUNTIME_MOCK"] = "1"
+            log_dir = self.project_root / ".local" / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            stderr_log = open(log_dir / "pi-runtime.log", "a", encoding="utf-8")
             self._proc = subprocess.Popen(
                 runtime_js,
                 cwd=str(self.project_root),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=stderr_log,
                 text=True,
                 encoding="utf-8",
                 bufsize=1,
@@ -142,7 +164,7 @@ class PiRuntimeProcess:
             payload = self._responses.pop(req_id, {})
         if not payload.get("ok"):
             err = payload.get("error") or {}
-            raise WorkerTransportError(str(err.get("message") or "pi-runtime 错误"))
+            raise runtime_error(str(err.get("message") or "pi-runtime 错误"))
         return payload.get("result")
 
     def shutdown(self) -> None:

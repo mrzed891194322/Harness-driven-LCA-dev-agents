@@ -741,8 +741,8 @@ class OrchestratorRuntime:
         return {
             "protocol_repairs": repairs + 1,
             "fix_instructions": (
-                f"handoff 契约不接受，请原地改写 {path}：{exc}。"
-                "只修正当前 handoff JSON，不要改检查点或 manifest，不要推进阶段，"
+                f"handoff 契约不接受（{path}）：{exc}。"
+                "请重新调用 submit_handoff 提交更正后的 handoff，不要改检查点或 manifest，不要推进阶段，"
                 "也不要当成审查意见去擅自改产物。"
             ),
             "status": "running",

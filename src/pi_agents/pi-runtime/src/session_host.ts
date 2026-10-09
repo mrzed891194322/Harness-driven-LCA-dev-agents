@@ -26,12 +26,17 @@ import {
   runProviderLogout,
 } from "./auth_login.js";
 import { emitEvent } from "./protocol.js";
+import { ActivityRelay } from "./activity.js";
 
 const PROTOCOL_VERSION = 1;
+
+type AgentSession = Awaited<ReturnType<typeof createAgentSession>>["session"];
 
 interface LiveSession {
   spec: SessionLaunchSpec;
   piSessionId: string;
+  // One Pi session per assignment per run; reused across turns.
+  session: AgentSession | null;
   dispose: () => void;
 }
 
@@ -51,7 +56,10 @@ function writeMcpJson(agentDir: string, spec: SessionLaunchSpec): void {
       command: binding.command,
       args: binding.args ?? [],
       env: binding.env ?? {},
-      timeout: binding.timeout_ms,
+      // Pi's MCP config takes `timeout` in SECONDS (runtime multiplies by 1000).
+      // Passing ms overflowed Node's timer max and became a 1 ms init timeout.
+      timeout:
+        binding.timeout_ms === undefined ? undefined : Math.max(1, Math.ceil(binding.timeout_ms / 1000)),
       exposure: binding.exposure ?? "direct",
     };
   }
@@ -64,6 +72,33 @@ function writeMcpJson(agentDir: string, spec: SessionLaunchSpec): void {
     JSON.stringify({ mcpServers: servers }, null, 2),
     "utf8",
   );
+}
+
+/** Load MCP servers from this session's own mcp.json (not the process-wide agent dir). */
+function loadSessionMcpConfig(agentDir: string) {
+  const file = path.join(agentDir, "mcp.json");
+  const servers: Array<{ name: string; config: any; source: string; scope: "project" }> = [];
+  const errors: string[] = [];
+  if (fs.existsSync(file)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as {
+        mcpServers?: Record<string, unknown>;
+      };
+      for (const [name, config] of Object.entries(parsed.mcpServers ?? {})) {
+        servers.push({ name, config, source: file, scope: "project" });
+      }
+    } catch (error) {
+      errors.push(`${file}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return { servers, errors, autoEnableCodemode: false };
+}
+
+function mcpLogPath(spec: SessionLaunchSpec): string {
+  const root = spec.resource_bindings.project_root ?? process.cwd();
+  const dir = path.join(root, ".local", "runs", spec.run_id || "adhoc", "pi");
+  fs.mkdirSync(dir, { recursive: true });
+  return path.join(dir, `${spec.session_key}.mcp.log`);
 }
 
 function systemPromptFromSpec(spec: SessionLaunchSpec): string {
@@ -120,12 +155,38 @@ async function resolveModel(
   return modelRuntime.getModel(profile.provider, profile.model_id);
 }
 
+const MCP_READY_TIMEOUT_MS = 90_000;
+
+/** Fail session creation when a bound MCP server registered no tools (connection failed). */
+async function assertMcpServersReady(
+  session: { getAllTools(): Array<{ name: string }> },
+  spec: SessionLaunchSpec,
+): Promise<void> {
+  const wanted = Object.entries(spec.mcp_bindings)
+    .filter(([, binding]) => binding.command && (binding.exposure ?? "direct") === "direct")
+    .map(([name]) => name);
+  if (!wanted.length) return;
+  const deadline = Date.now() + MCP_READY_TIMEOUT_MS;
+  let missing = wanted;
+  while (true) {
+    const names = session.getAllTools().map((t) => t.name);
+    missing = wanted.filter((server) => !names.some((n) => n.startsWith(`mcp__${server}__`)));
+    if (!missing.length) return;
+    if (Date.now() > deadline) break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(
+    `MCP 服务未就绪（未注册任何工具）：${missing.join(", ")}；详见 ${mcpLogPath(spec)}`,
+  );
+}
+
 async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
   if (isMockMode()) {
     prepareAgentDir(spec);
     return {
       spec,
       piSessionId: `mock-${spec.session_key}`,
+      session: null,
       dispose: () => {},
     };
   }
@@ -151,7 +212,12 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     noThemes: true,
     noContextFiles: true,
     systemPrompt: systemPromptFromSpec(spec),
-    extensionFactories: [createMcpExtension()],
+    extensionFactories: [
+      createMcpExtension({
+        loadConfig: () => loadSessionMcpConfig(agentDir) as any,
+        logPath: mcpLogPath(spec),
+      }),
+    ],
   });
   await resourceLoader.reload();
 
@@ -162,14 +228,21 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     model,
     modelRuntime,
     resourceLoader,
-    sessionManager: SessionManager.create(cwd),
+    // Persist to the launch spec's session_file so resume can reopen it.
+    // open() starts a fresh session at that path when the file does not exist yet.
+    sessionManager: SessionManager.open(sessionFile, path.dirname(sessionFile), cwd),
     tools: tools.length ? tools : undefined,
     noTools: tools.length === 0 ? "all" : undefined,
   });
+  // Emits session_start: the MCP extension only connects its servers (and registers
+  // mcp__<server>__<tool>) on that event; the first prompt then waits for direct tools.
+  await session.bindExtensions({});
+  await assertMcpServersReady(session, spec);
 
   return {
     spec,
     piSessionId: session.sessionId,
+    session,
     dispose: () => session.dispose(),
   };
 }
@@ -298,6 +371,7 @@ export async function handleRuntimeMethod(
     if (!spec || spec.schema_version !== 1) {
       throw new Error("invalid launch_spec");
     }
+    sessions.get(spec.session_key)?.dispose();
     const live = await createPiSession(spec);
     sessions.set(spec.session_key, live);
     return {
@@ -313,6 +387,7 @@ export async function handleRuntimeMethod(
     if (!fs.existsSync(sessionFile) && !isMockMode()) {
       throw new Error(`session file missing: ${sessionFile}`);
     }
+    sessions.get(key)?.dispose();
     const live = await createPiSession(spec);
     sessions.set(key, live);
     return {
@@ -328,39 +403,17 @@ export async function handleRuntimeMethod(
     if (!live) {
       throw new Error(`unknown session ${key}`);
     }
+    const relay = new ActivityRelay(key, (event) => emitEvent("turn.event", { ...event }));
     if (isMockMode()) {
       emitEvent("turn.progress", { session_key: key, line: "[mock] turn complete\n" });
+      relay.handle({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "[mock] turn complete" } });
+      relay.finish("ok");
       return { status: "ok", text: `[mock] received ${prompt.length} chars` };
     }
-    const spec = live.spec;
-    const cwd = spec.resource_bindings.project_root ?? process.cwd();
-    const modelRuntime = await createModelRuntimeForSpec(spec);
-    const model = await resolveModel(modelRuntime, spec.model_profile);
-    if (!model) {
-      throw new Error(
-        `模型不可用：${spec.model_profile?.provider}/${spec.model_profile?.model_id}`,
-      );
+    const session = live.session;
+    if (!session) {
+      throw new Error(`session ${key} has no live Pi session`);
     }
-    const resourceLoader = new DefaultResourceLoader({
-      cwd,
-      agentDir: spec.session_storage.agent_dir,
-      noSkills: true,
-      noPromptTemplates: true,
-      noThemes: true,
-      noContextFiles: true,
-      systemPrompt: systemPromptFromSpec(spec),
-      extensionFactories: [createMcpExtension()],
-    });
-    await resourceLoader.reload();
-    const { session } = await createAgentSession({
-      cwd,
-      agentDir: spec.session_storage.agent_dir,
-      model,
-      modelRuntime,
-      resourceLoader,
-      sessionManager: SessionManager.create(cwd),
-      tools: spec.permission_policy.allowed_tools,
-    });
     let text = "";
     const unsub = session.subscribe((ev) => {
       if (ev.type === "message_update" && ev.assistantMessageEvent?.type === "text_delta") {
@@ -368,12 +421,20 @@ export async function handleRuntimeMethod(
         text += delta;
         emitEvent("turn.progress", { session_key: key, line: delta });
       }
+      try {
+        relay.handle(ev as { type: string });
+      } catch {
+        // Activity is best-effort UI telemetry; never break the turn over it.
+      }
     });
     try {
       await session.prompt(prompt);
+      relay.finish("ok");
+    } catch (error) {
+      relay.finish("error", error instanceof Error ? error.message : String(error));
+      throw error;
     } finally {
       unsub();
-      session.dispose();
     }
     return { status: "ok", text };
   }

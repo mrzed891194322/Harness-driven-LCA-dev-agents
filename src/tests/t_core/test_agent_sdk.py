@@ -39,9 +39,10 @@ class PiRuntimeTests(unittest.TestCase):
             (root / ".env").write_text('PI_MODEL="fast"\n', encoding="utf-8")
             self.assertEqual(load_worker_model("pi", root), "fast")
 
-    def test_pi_tools_include_mcp_proxy(self) -> None:
-        self.assertIn("mcp", pi_tools({"x": {}}))
-        self.assertIn("mcp", pi_tools_flag({"x": {}}))
+    def test_pi_tools_allow_bound_mcp_server_tools(self) -> None:
+        self.assertIn("mcp__x__*", pi_tools({"x": {}}))
+        self.assertIn("mcp__x__*", pi_tools_flag({"x": {}}))
+        self.assertNotIn("mcp", pi_tools({"x": {}}))
 
     def test_dispatcher_creates_pi_provider(self) -> None:
         dispatcher = ProviderDispatcher()

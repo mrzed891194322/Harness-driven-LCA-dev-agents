@@ -60,6 +60,9 @@ class SessionConfig:
     run_id: str = ""
     mcp_render_dir: Path | None = None
     archive_dir: Path | None = None
+    # SessionLaunchSpec for runtimes that need it (Pi SDK). Carried explicitly so
+    # wrappers such as ProviderDispatcher pass it through unchanged.
+    launch_spec: Any = None
 
 
 @dataclass

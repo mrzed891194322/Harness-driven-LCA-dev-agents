@@ -22,8 +22,9 @@ PI_BUILTIN_TOOLS: tuple[str, ...] = (
 def pi_tools(
     mcp_servers: Mapping[str, Any] | None = None,
 ) -> tuple[str, ...]:
-    # pi-mcp-adapter exposes proxy tools mcp / mcpScript, not mcp__<server>.
-    extras = ("mcp", "mcpScript") if mcp_servers else ()
+    # Pi SDK registers MCP tools as mcp__<server>__<tool> and the allowlist is
+    # matched by name (``*`` patterns allowed), so allow each bound server's tools.
+    extras = tuple(f"mcp__{name}__*" for name in (mcp_servers or {}))
     return PI_BUILTIN_TOOLS + extras
 
 

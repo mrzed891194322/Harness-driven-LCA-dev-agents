@@ -68,7 +68,11 @@ def compile_permission_policy(
             str(workspace_root.resolve()) + "/**",
             str(project_root.resolve()) + "/harness/**",
         ]
-        tools = [t for t in tools if t in {"read", "grep", "find", "ls", "mcp", "mcpScript"}]
+        tools = [
+            t
+            for t in tools
+            if t in {"read", "grep", "find", "ls"} or t.startswith("mcp__")
+        ]
     else:
         write_globs = [str(workspace_root.resolve()) + "/**"]
         read_globs = [
