@@ -5,12 +5,18 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.runtime.model_profiles import delete_local_profile, load_profiles, upsert_local_profile
+from core.runtime.model_profiles import (
+    allocate_profile_id,
+    delete_local_profile,
+    load_profiles,
+    upsert_local_profile,
+)
 from services.credentials_service import (
     available_providers,
     clear_provider_key,
     credentials_status,
     credentials_status_bool,
+    delete_custom_endpoint,
     list_custom_endpoints,
     list_provider_catalog,
     load_pi_models,
@@ -19,6 +25,7 @@ from services.credentials_service import (
     provider_overrides_status,
     save_custom_endpoint,
     save_provider_key,
+    set_provider_api,
     set_provider_base_url,
 )
 
@@ -94,18 +101,23 @@ class CredentialsServiceTests(unittest.TestCase):
             self.assertTrue(status["openai"]["set"])
             self.assertEqual(status["openai"]["type"], "oauth")
             self.assertNotIn("access-token", status["openai"]["masked"] or "")
+            rows = available_providers(root)
+            self.assertEqual(rows[0]["name"], "OpenAI")
+            self.assertEqual(rows[0]["auth"], "oauth")
 
     def test_catalog_has_popular_providers(self) -> None:
         catalog = list_provider_catalog()
         ids = {item["id"] for item in catalog}
+        self.assertEqual([item["id"] for item in catalog[:3]], ["openai", "anthropic", "deepseek"])
+        self.assertEqual(catalog[-1]["id"], "opencode-go")
         self.assertIn("anthropic", ids)
         self.assertIn("openrouter", ids)
         self.assertIn("opencode-go", ids)
         self.assertIn("openai", ids)
         self.assertNotIn("groq", ids)
         openai = next(i for i in catalog if i["id"] == "openai")
-        self.assertNotIn("supports_oauth", openai)
-        self.assertNotIn("oauth_label", openai)
+        self.assertTrue(openai.get("supports_oauth"))
+        self.assertEqual(openai.get("oauth_label"), "Sign in with ChatGPT")
         self.assertEqual(openai.get("default_base_url"), "https://api.openai.com/v1")
         anthropic = next(i for i in catalog if i["id"] == "anthropic")
         self.assertNotIn("supports_oauth", anthropic)
@@ -113,6 +125,10 @@ class CredentialsServiceTests(unittest.TestCase):
         self.assertIn("/v1", anthropic.get("base_url_hint") or "")
         openrouter = next(i for i in catalog if i["id"] == "openrouter")
         self.assertTrue(openrouter.get("supports_oauth"))
+        deepseek = next(i for i in catalog if i["id"] == "deepseek")
+        google = next(i for i in catalog if i["id"] == "google")
+        self.assertFalse(deepseek.get("supports_base_url"))
+        self.assertFalse(google.get("supports_base_url"))
 
     def test_provider_base_url_and_custom_endpoint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -120,6 +136,17 @@ class CredentialsServiceTests(unittest.TestCase):
             set_provider_base_url(root, "anthropic", "https://proxy.example/v1")
             overrides = provider_overrides_status(root)
             self.assertEqual(overrides["anthropic"]["base_url"], "https://proxy.example/v1")
+            set_provider_base_url(root, "openai", "https://proxy.example/v1")
+            self.assertEqual(set_provider_api(root, "openai", "openai-completions"), "openai-completions")
+            overrides = provider_overrides_status(root)
+            self.assertEqual(overrides["openai"]["api"], "openai-completions")
+            self.assertEqual(overrides["openai"]["base_url"], "https://proxy.example/v1")
+            self.assertEqual(set_provider_api(root, "openai", ""), "")
+            overrides = provider_overrides_status(root)
+            self.assertIsNone(overrides["openai"]["api"])
+            self.assertEqual(overrides["openai"]["base_url"], "https://proxy.example/v1")
+            with self.assertRaises(ValueError):
+                set_provider_api(root, "openai", "not-an-api")
             save_custom_endpoint(
                 root,
                 provider="ollama",
@@ -168,6 +195,7 @@ class CredentialsServiceTests(unittest.TestCase):
             rows = available_providers(root)
             self.assertEqual([row["id"] for row in rows], ["openai", "ollama", "lmstudio"])
             self.assertEqual(rows[0]["name"], "OpenAI")
+            self.assertEqual(rows[0]["auth"], "api_key")
 
     def test_edit_custom_endpoint_replaces_previous_identity(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -249,6 +277,75 @@ class CredentialsServiceTests(unittest.TestCase):
             profiles = load_profiles(root)
             self.assertNotIn("local-ollama", profiles)
             self.assertEqual(profiles["local-ollama-2"]["display_name"], "新名称")
+
+    def test_delete_custom_endpoint_removes_profile_and_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_custom_endpoint(
+                root,
+                provider="ollama",
+                base_url="http://localhost:11434/v1",
+                api="openai-completions",
+                model_id="qwen2.5",
+                api_key="ollama",
+            )
+            save_custom_endpoint(
+                root,
+                provider="ollama",
+                base_url="http://localhost:11434/v1",
+                api="openai-completions",
+                model_id="qwen2.5-coder:7b",
+                api_key="",
+            )
+            upsert_local_profile(
+                root,
+                "local-ollama",
+                {
+                    "provider": "ollama",
+                    "model_id": "qwen2.5-coder:7b",
+                    "display_name": "本地 Ollama",
+                    "base_url": "http://localhost:11434/v1",
+                    "api_type": "openai-completions",
+                },
+            )
+            delete_custom_endpoint(
+                root,
+                provider="ollama",
+                model_id="qwen2.5-coder:7b",
+                profile_id="local-ollama",
+            )
+            stored = load_pi_models(root)["providers"]["ollama"]
+            self.assertEqual([item["id"] for item in stored["models"]], ["qwen2.5"])
+            self.assertEqual(stored["apiKey"], "ollama")
+            self.assertNotIn("local-ollama", load_profiles(root))
+            delete_custom_endpoint(root, provider="ollama", model_id="qwen2.5")
+            self.assertNotIn("ollama", load_pi_models(root)["providers"])
+
+    def test_allocate_profile_id_from_provider_and_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = allocate_profile_id(root, "ollama", "qwen2.5-coder:7b")
+            self.assertEqual(first, "ollama-qwen2.5-coder-7b")
+            upsert_local_profile(
+                root,
+                first,
+                {"provider": "ollama", "model_id": "qwen2.5-coder:7b"},
+            )
+            second = allocate_profile_id(root, "ollama", "qwen2.5-coder:7b")
+            self.assertEqual(second, "ollama-qwen2.5-coder-7b-2")
+            kept = allocate_profile_id(
+                root,
+                "ollama",
+                "other",
+                keep="local-ollama",
+            )
+            self.assertEqual(kept, "local-ollama")
+            self.assertEqual(
+                allocate_profile_id(root, "ollama", "x", preferred="local-ollama"),
+                "local-ollama",
+            )
+            with self.assertRaises(ValueError):
+                allocate_profile_id(root, "ollama", "x", preferred="bad id")
 
 
 if __name__ == "__main__":

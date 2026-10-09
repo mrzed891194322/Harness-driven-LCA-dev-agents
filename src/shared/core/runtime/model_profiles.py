@@ -52,6 +52,49 @@ def load_profiles(project_root: Path) -> dict[str, dict[str, Any]]:
     return merged
 
 
+def allocate_profile_id(
+    project_root: Path,
+    provider: str,
+    model_id: str,
+    *,
+    preferred: str = "",
+    keep: str = "",
+) -> str:
+    """Use an explicit id, else keep the profile being edited, else slug provider and model."""
+    chosen = (preferred or "").strip()
+    if chosen:
+        if not _PROFILE_ID_RE.match(chosen):
+            raise ValueError("profile_id 须为字母数字开头，可含 ._-，最长 64")
+        return chosen
+    kept = (keep or "").strip()
+    if kept and _PROFILE_ID_RE.match(kept):
+        return kept
+    provider_slug = _slug_piece(provider) or "model"
+    model_slug = _slug_piece(model_id) or "custom"
+    base = f"{provider_slug}-{model_slug}"
+    if not base[0].isalnum():
+        base = f"m{base}"
+    base = base[:64].strip("-._") or "model"
+    taken = set(load_profiles(project_root))
+    if kept:
+        taken.discard(kept)
+    candidate = base
+    suffix_n = 2
+    while candidate in taken:
+        suffix = f"-{suffix_n}"
+        candidate = f"{base[: 64 - len(suffix)].strip('-._')}{suffix}"
+        suffix_n += 1
+        if suffix_n > 1000:
+            raise ValueError("无法分配端点 id")
+    return candidate
+
+
+def _slug_piece(value: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9._-]+", "-", (value or "").strip())
+    cleaned = re.sub(r"-{2,}", "-", cleaned).strip("-._")
+    return cleaned
+
+
 def upsert_local_profile(
     project_root: Path,
     profile_id: str,

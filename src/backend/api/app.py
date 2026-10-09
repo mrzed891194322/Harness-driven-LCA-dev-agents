@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from core.agents.config import load_worker_model
 from core.runtime.model_profiles import (
+    allocate_profile_id,
     delete_local_profile,
     load_profiles,
     resolve_model_profile,
@@ -31,11 +32,13 @@ from services.credentials_service import (
     available_providers,
     clear_provider_key,
     credentials_status,
+    delete_custom_endpoint,
     list_custom_endpoints,
     list_provider_catalog,
     provider_overrides_status,
     save_custom_endpoint,
     save_provider_key,
+    set_provider_api,
     set_provider_base_url,
 )
 from services.diagnostics_service import (
@@ -121,6 +124,11 @@ class ProviderBaseUrlUpdate(BaseModel):
     base_url: str = ""
 
 
+class ProviderApiUpdate(BaseModel):
+    provider: str
+    api: str = ""
+
+
 class OpenLcaPortUpdate(BaseModel):
     port: int = Field(ge=1, le=65535)
 
@@ -136,8 +144,14 @@ class ReferenceNoteUpdate(BaseModel):
     note: str = ""
 
 
+class CustomEndpointDelete(BaseModel):
+    profile_id: str = ""
+    provider: str
+    model_id: str
+
+
 class CustomEndpointCreate(BaseModel):
-    profile_id: str
+    profile_id: str = ""
     provider: str = "custom"
     base_url: str
     api_type: str = "openai-completions"
@@ -358,6 +372,19 @@ def update_provider_base_url(body: ProviderBaseUrlUpdate) -> dict[str, Any]:
     }
 
 
+@app.put("/api/credentials/api-type")
+def update_provider_api(body: ProviderApiUpdate) -> dict[str, Any]:
+    try:
+        api = set_provider_api(PROJECT_ROOT, body.provider, body.api)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "provider": body.provider.strip(),
+        "api": api,
+        "overrides": provider_overrides_status(PROJECT_ROOT),
+    }
+
+
 @app.get("/api/models/custom-endpoints")
 def read_custom_endpoints() -> dict[str, Any]:
     return {"endpoints": list_custom_endpoints(PROJECT_ROOT)}
@@ -377,11 +404,18 @@ def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
             previous_provider=body.previous_provider,
             previous_model_id=body.previous_model_id,
         )
+        profile_id = allocate_profile_id(
+            PROJECT_ROOT,
+            body.provider,
+            body.model_id,
+            preferred=body.profile_id,
+            keep=body.previous_profile_id,
+        )
         profile = upsert_local_profile(
             PROJECT_ROOT,
-            body.profile_id,
+            profile_id,
             {
-                "display_name": body.display_name or body.profile_id,
+                "display_name": body.display_name or profile_id,
                 "provider": body.provider,
                 "model_id": body.model_id,
                 "api_type": body.api_type,
@@ -389,16 +423,36 @@ def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
             },
         )
         previous_profile = body.previous_profile_id.strip()
-        if previous_profile and previous_profile != body.profile_id.strip():
+        if previous_profile and previous_profile != profile_id:
             delete_local_profile(PROJECT_ROOT, previous_profile)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if body.set_as_default:
-        upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": body.profile_id.strip()})
+        upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": profile_id})
     return {
         "status": "saved",
+        "profile_id": profile_id,
         "endpoint": endpoint,
         "profile": profile,
+        "profiles": load_profiles(PROJECT_ROOT),
+        "overrides": provider_overrides_status(PROJECT_ROOT),
+        "endpoints": list_custom_endpoints(PROJECT_ROOT),
+    }
+
+
+@app.delete("/api/models/custom-endpoint")
+def remove_custom_endpoint(body: CustomEndpointDelete) -> dict[str, Any]:
+    try:
+        delete_custom_endpoint(
+            PROJECT_ROOT,
+            provider=body.provider,
+            model_id=body.model_id,
+            profile_id=body.profile_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "status": "deleted",
         "profiles": load_profiles(PROJECT_ROOT),
         "overrides": provider_overrides_status(PROJECT_ROOT),
         "endpoints": list_custom_endpoints(PROJECT_ROOT),

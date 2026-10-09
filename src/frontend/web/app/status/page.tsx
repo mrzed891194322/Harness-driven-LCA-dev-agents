@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, RefreshCw, Settings } from "lucide-react";
+import { ArrowRight, List, RefreshCw, Settings } from "lucide-react";
 import Link from "next/link";
 import { useSettings } from "../../components/settings/settings-context";
 
@@ -46,6 +46,11 @@ function isDiagnostics(value: unknown): value is Diagnostics {
   if (!value || typeof value !== "object") return false;
   const row = value as Diagnostics;
   return Boolean(row.pi_agents && row.python_agent && row.openlca && "ok" in row.pi_agents);
+}
+
+function statusProviderName(provider: AvailableProvider): string {
+  if (provider.id === "openai") return "OpenAI";
+  return provider.name;
 }
 
 function toolsFromDiag(diag: Diagnostics): LcaTool[] {
@@ -184,7 +189,7 @@ export default function StatusPage() {
   return (
     <div className="status-board">
       <section className="settings-card status-runtime-card">
-        <h3>运行时</h3>
+        <h3>项目环境</h3>
         {diag && pi && python ? (
           <ul className="diag-list">
             <li>
@@ -224,21 +229,24 @@ export default function StatusPage() {
             {providerError || "还没有可用供应商。请在设置中配置模型。"}
           </p>
         ) : (
-          <ul className="status-model-body diag-list">
+          <>
+            <h4 className="status-provider-label">已配置供应商</h4>
+            <ul className="status-model-body diag-list">
             {providerRows.map((provider) => {
               const open = openProvider === provider.id;
               const detail = modelLists[provider.id];
               return (
                 <li key={provider.id} className="status-provider">
                   <div className="status-provider-head">
-                    <span className="badge badge-ok">已连接</span>
-                    <span>{provider.name}</span>
+                    <span className="status-provider-dot" role="img" aria-label="已连接" />
+                    <span>{statusProviderName(provider)}</span>
                     <button
                       type="button"
                       aria-expanded={open}
                       onClick={() => void toggleProvider(provider.id)}
                     >
-                      {open ? "收起" : "可用模型"}
+                      <List size={14} strokeWidth={1.75} aria-hidden="true" />
+                      {open ? "收起" : "模型列表"}
                     </button>
                   </div>
                   {open ? (
@@ -263,7 +271,8 @@ export default function StatusPage() {
                 </li>
               );
             })}
-          </ul>
+            </ul>
+          </>
         )}
         <div className="status-model-actions">
           <button
@@ -288,9 +297,7 @@ export default function StatusPage() {
       <section className="settings-card status-tool-card">
         <h3>LCA 工具</h3>
         <div className="status-tool-body">
-          <p className="settings-help">
-            当前接入 openLCA。之后可以在同一列表切换其他 LCA 工具。
-          </p>
+          <h4 className="status-provider-label">当前工具</h4>
           {tools.length ? (
             <>
               <div className="tool-switch" role="tablist" aria-label="LCA 工具">

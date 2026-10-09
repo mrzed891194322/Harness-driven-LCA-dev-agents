@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
+import { PreviewBoard } from "../../components/plan/preview-board";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 
 type PlanFields = {
@@ -435,7 +436,7 @@ export default function PlanPage() {
           ) : panel === "workflow" ? (
             <WorkflowBoard mode={workMode} onModeChange={setWorkMode} />
           ) : (
-            <div className="plan-placeholder" />
+            <PreviewBoard mode={workMode} fields={form} references={references} />
           )}
         </div>
 

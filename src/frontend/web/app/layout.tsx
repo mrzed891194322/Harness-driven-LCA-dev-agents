@@ -6,6 +6,7 @@ import { HarnessButton, HarnessDialog } from "../components/harness/harness-dial
 import { HarnessProvider } from "../components/harness/harness-context";
 import { SettingsButton, SettingsDialog } from "../components/settings/settings-dialog";
 import { SettingsProvider } from "../components/settings/settings-context";
+import { LanguageButton } from "../components/language-button";
 import { TutorialButton } from "../components/tutorial-button";
 import "./globals.css";
 
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     </h1>
                   </div>
                   <div className="app-header-actions">
+                    <LanguageButton />
                     <TutorialButton />
                     <HarnessButton />
                     <SettingsButton />

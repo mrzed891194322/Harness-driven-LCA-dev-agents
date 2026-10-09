@@ -16,6 +16,18 @@ from typing import Any
 # OAuth providers per pi-ai README § OAuth Providers.
 POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
     {
+        "id": "openai",
+        "name": "OpenAI",
+        "hint": "API key 或 OAuth",
+        "placeholder": "sk-…",
+        "keys_url": "https://platform.openai.com/api-keys",
+        "supports_oauth": True,
+        "oauth_label": "Sign in with ChatGPT",
+        "supports_base_url": True,
+        "default_base_url": "https://api.openai.com/v1",
+        "base_url_hint": "要带 /v1。Pi 原样使用这段地址，路径接在后面。例如 https://host/v1。",
+    },
+    {
         "id": "anthropic",
         "name": "Anthropic",
         "hint": "Claude API key",
@@ -23,24 +35,14 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "keys_url": "https://console.anthropic.com/settings/keys",
         "supports_base_url": True,
         "default_base_url": "https://api.anthropic.com",
-        "base_url_hint": "留空=Pi 默认。官方 Anthropic 不含 /v1；代理若走 Anthropic Messages 协议一般也不加 /v1。",
+        "base_url_hint": "写到主机即可。Pi 会在这段地址后面接 /v1/messages。例如 https://host。",
     },
     {
-        "id": "openai",
-        "name": "OpenAI",
-        "hint": "API key",
+        "id": "deepseek",
+        "name": "DeepSeek",
+        "hint": "DeepSeek API key",
         "placeholder": "sk-…",
-        "keys_url": "https://platform.openai.com/api-keys",
-        "supports_base_url": True,
-        "default_base_url": "https://api.openai.com/v1",
-        "base_url_hint": "留空=Pi 默认（已含 /v1）。自建/代理通常也要带 /v1，例如 https://host/v1。",
-    },
-    {
-        "id": "opencode-go",
-        "name": "OpenCode Go",
-        "hint": "OPENCODE_API_KEY（Pi 内置 opencode-go）",
-        "placeholder": "opencode-…",
-        "keys_url": "https://opencode.ai",
+        "keys_url": "https://platform.deepseek.com/api_keys",
         "supports_oauth": False,
         "supports_base_url": False,
     },
@@ -51,9 +53,7 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "placeholder": "AIza…",
         "keys_url": "https://aistudio.google.com/apikey",
         "supports_oauth": False,
-        "supports_base_url": True,
-        "default_base_url": "https://generativelanguage.googleapis.com/v1beta",
-        "base_url_hint": "留空=Pi 默认（/v1beta）。自定义时按上游文档选择版本路径。",
+        "supports_base_url": False,
     },
     {
         "id": "openrouter",
@@ -68,15 +68,13 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "base_url_hint": "留空=Pi 默认（已含 /api/v1）。代理请对齐上游路径。",
     },
     {
-        "id": "deepseek",
-        "name": "DeepSeek",
-        "hint": "DeepSeek API key",
-        "placeholder": "sk-…",
-        "keys_url": "https://platform.deepseek.com/api_keys",
+        "id": "opencode-go",
+        "name": "OpenCode Go",
+        "hint": "OPENCODE_API_KEY（Pi 内置 opencode-go）",
+        "placeholder": "opencode-…",
+        "keys_url": "https://opencode.ai",
         "supports_oauth": False,
-        "supports_base_url": True,
-        "default_base_url": "https://api.deepseek.com",
-        "base_url_hint": "留空=Pi 默认（无 /v1）。若走 OpenAI 兼容路径，确认上游是否要求 /v1。",
+        "supports_base_url": False,
     },
 )
 
@@ -251,6 +249,15 @@ def get_provider_base_url(project_root: Path, provider: str) -> str:
     return ""
 
 
+# Pi models.json `api` values used by compatible endpoints (models.md).
+PI_PROVIDER_APIS: tuple[str, ...] = (
+    "openai-completions",
+    "openai-responses",
+    "anthropic-messages",
+    "google-generative-ai",
+)
+
+
 def set_provider_base_url(project_root: Path, provider: str, base_url: str) -> str:
     """Persist provider baseUrl override in pi-models.json (Pi models.md)."""
     name = (provider or "").strip()
@@ -270,6 +277,30 @@ def set_provider_base_url(project_root: Path, provider: str, base_url: str) -> s
         del providers[name]
     save_pi_models(project_root, {"providers": providers})
     return url
+
+
+def set_provider_api(project_root: Path, provider: str, api: str) -> str:
+    """Persist provider-level api in pi-models.json without touching baseUrl or models."""
+    name = (provider or "").strip()
+    if not name:
+        raise ValueError("provider required")
+    api_type = (api or "").strip()
+    if api_type and api_type not in PI_PROVIDER_APIS:
+        allowed = ", ".join(PI_PROVIDER_APIS)
+        raise ValueError(f"api 必须是 {allowed}")
+    models = load_pi_models(project_root)
+    providers = dict(models.get("providers") or {})
+    cfg = dict(providers.get(name) or {})
+    if api_type:
+        cfg["api"] = api_type
+    else:
+        cfg.pop("api", None)
+    if cfg:
+        providers[name] = cfg
+    elif name in providers:
+        del providers[name]
+    save_pi_models(project_root, {"providers": providers})
+    return api_type
 
 
 def _custom_model_items(cfg: dict[str, Any]) -> list[dict[str, Any]]:
@@ -338,6 +369,53 @@ def save_custom_endpoint(
     providers[name] = existing
     save_pi_models(project_root, {"providers": providers})
     return providers[name]
+
+
+def delete_custom_endpoint(
+    project_root: Path,
+    *,
+    provider: str,
+    model_id: str,
+    profile_id: str = "",
+) -> None:
+    """Remove one saved compatible endpoint and its local profile."""
+    from core.runtime.model_profiles import delete_local_profile, load_profiles
+
+    name = (provider or "").strip()
+    mid = (model_id or "").strip()
+    pid = (profile_id or "").strip()
+    if not name or not mid:
+        raise ValueError("provider 与 model_id 必填")
+    if pid:
+        delete_local_profile(project_root, pid)
+
+    profiles = load_profiles(project_root)
+    still_used = any(
+        isinstance(profile, dict)
+        and str(profile.get("provider") or "").strip() == name
+        and str(profile.get("model_id") or "").strip() == mid
+        and (
+            str(profile.get("base_url") or "").strip()
+            or str(profile.get("api_type") or "").strip()
+        )
+        for profile in profiles.values()
+    )
+    if still_used:
+        return
+
+    models = load_pi_models(project_root)
+    providers = dict(models.get("providers") or {})
+    existing = dict(providers.get(name) or {})
+    model_items = _custom_model_items(existing)
+    if not any(str(item.get("id")) == mid for item in model_items):
+        return
+    kept = [item for item in model_items if str(item.get("id")) != mid]
+    if kept:
+        existing["models"] = kept
+        providers[name] = existing
+    else:
+        del providers[name]
+    save_pi_models(project_root, {"providers": providers})
 
 
 def list_custom_endpoints(project_root: Path) -> list[dict[str, Any]]:

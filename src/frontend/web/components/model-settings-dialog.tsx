@@ -1,5 +1,6 @@
 "use client";
 
+import { Copy, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type CredInfo = { set: boolean; masked: string | null; type?: string };
@@ -52,6 +53,16 @@ type CustomForm = {
   previous_model_id: string;
 };
 
+const PROVIDER_RANK = ["openai", "anthropic", "deepseek"];
+const NO_BASE_URL = new Set(["deepseek", "google"]);
+
+function providerRank(id: string): number {
+  const index = PROVIDER_RANK.indexOf(id);
+  if (index !== -1) return index;
+  if (id === "opencode-go") return 1000;
+  return PROVIDER_RANK.length;
+}
+
 const EMPTY_CUSTOM_FORM: CustomForm = {
   profile_id: "",
   provider: "",
@@ -96,6 +107,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
   const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([]);
   const [addingCustom, setAddingCustom] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [customForm, setCustomForm] = useState<CustomForm>(EMPTY_CUSTOM_FORM);
 
   const refresh = useCallback(async () => {
@@ -183,7 +195,29 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         placeholder: "API key",
         supports_base_url: true,
       }));
-    return [...base, ...extras];
+    const items = [...base, ...extras].map((item) => {
+      if (NO_BASE_URL.has(item.id)) return { ...item, supports_base_url: false };
+      if (item.id === "anthropic") {
+        return {
+          ...item,
+          base_url_hint: "写到主机即可。Pi 会在这段地址后面接 /v1/messages。例如 https://host。",
+        };
+      }
+      if (item.id === "openai") {
+        return {
+          ...item,
+          name: "OpenAI",
+          hint: "API key 或 OAuth",
+          base_url_hint: "要带 /v1。Pi 原样使用这段地址，路径接在后面。例如 https://host/v1。",
+        };
+      }
+      return item;
+    });
+    const original = new Map(items.map((item, index) => [item.id, index]));
+    items.sort(
+      (a, b) => providerRank(a.id) - providerRank(b.id) || (original.get(a.id) ?? 0) - (original.get(b.id) ?? 0),
+    );
+    return items;
   }, [creds]);
 
   async function saveCredential(providerId: string) {
@@ -212,7 +246,12 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         }));
       }
       setDraftKeys((prev) => ({ ...prev, [providerId]: "" }));
-      setStatusMsg(`${providerId} 已保存。新运行立即使用，无需重启。`);
+      const replacedOAuth = creds?.providers?.[providerId]?.type === "oauth";
+      setStatusMsg(
+        replacedOAuth && providerId === "openai"
+          ? "OpenAI API Key 已保存，并替换了原先的 ChatGPT 登录。"
+          : `${providerId} 已保存。新运行立即使用，无需重启。`,
+      );
       await refresh();
       onChanged?.();
     } catch (e) {
@@ -337,14 +376,53 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     }
   }
 
+  async function deleteCustomEndpoint(item: CustomEndpoint) {
+    const key = endpointKey(item);
+    const label = item.display_name || item.model_id || item.profile_id;
+    if (pendingDelete !== key) {
+      setPendingDelete(key);
+      return;
+    }
+    setPendingDelete(null);
+    setBusy(true);
+    setStatusMsg("");
+    setStatusError(false);
+    try {
+      const r = await fetch("/api/models/custom-endpoint", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile_id: item.profile_id,
+          provider: item.provider,
+          model_id: item.model_id,
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || "删除失败");
+      if (Array.isArray(data.endpoints)) setCustomEndpoints(data.endpoints);
+      if (editingKey === endpointKey(item)) {
+        setEditingKey(null);
+        setCustomForm(EMPTY_CUSTOM_FORM);
+      }
+      setStatusMsg(`已删除 ${label}`);
+      await refresh();
+      onChanged?.();
+    } catch (e) {
+      setStatusError(true);
+      setStatusMsg(e instanceof Error ? e.message : "删除失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveCustomEndpoint() {
     const profileId = customForm.profile_id.trim();
     const provider = customForm.provider.trim();
     const baseUrl = customForm.base_url.trim();
     const modelId = customForm.model_id.trim();
-    if (!profileId || !provider || !baseUrl || !modelId) {
+    if (!provider || !baseUrl || !modelId) {
       setStatusError(true);
-      setStatusMsg("请填写端点 id、Provider id、Base URL 和 Model id");
+      setStatusMsg("请填写 Provider id、Base URL 和 Model id");
       return;
     }
     setBusy(true);
@@ -359,7 +437,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.detail || "保存失败");
       if (Array.isArray(data.endpoints)) setCustomEndpoints(data.endpoints);
-      setStatusMsg(`已保存自定义端点 ${profileId}`);
+      setStatusMsg(`已保存自定义端点 ${data.profile_id || profileId || modelId}`);
       setCustomForm(EMPTY_CUSTOM_FORM);
       setAddingCustom(false);
       setEditingKey(null);
@@ -373,19 +451,27 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     }
   }
 
+  function copyCustomEndpoint(item: CustomEndpoint) {
+    setPendingDelete(null);
+    setEditingKey(null);
+    setCustomForm({
+      ...EMPTY_CUSTOM_FORM,
+      provider: item.provider,
+      base_url: item.base_url,
+      api_type: item.api_type || "openai-completions",
+    });
+    setAddingCustom(true);
+    setStatusError(false);
+    setStatusMsg(
+      `已复制 ${item.provider} 的配置。请填写新的 Model id；端点 id 会自动生成，密钥留空则沿用已保存的密钥。`,
+    );
+  }
+
   function renderCustomForm(onCancel: () => void) {
     const editing = Boolean(customForm.previous_provider || customForm.previous_profile_id);
     return (
       <>
         <div className="custom-grid">
-          <label>
-            端点 id
-            <input
-              value={customForm.profile_id}
-              placeholder="local-ollama"
-              onChange={(e) => setCustomForm((p) => ({ ...p, profile_id: e.target.value }))}
-            />
-          </label>
           <label>
             Provider id
             <input
@@ -460,12 +546,6 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
 
         <section className="settings-card">
           <h3>Providers</h3>
-          <p className="settings-help">
-            API Key 写入 Pi <span className="mono">auth.json</span>。OpenAI Auth 走 Pi 内置{" "}
-            <span className="mono">openaiChatGPTOAuth</span>。本机回调{" "}
-            <span className="mono">http://127.0.0.1:1455/auth/callback</span>
-            ；远程请粘贴浏览器最终跳转 URL。
-          </p>
           {(loginId || authUrl || pendingPrompt) && (
             <div className="oauth-panel">
               <p className="settings-meta">
@@ -634,6 +714,11 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                           </p>
                         </div>
                       ) : null}
+                      {item.id === "openai" ? (
+                        <p className="settings-meta" style={{ marginTop: 10 }}>
+                          OAuth 和 API Key 会相互覆盖。保存其中一种会替换另一种。
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -645,23 +730,58 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         <section className="settings-card">
           <h3>自定义 API / 本地模型</h3>
           <p className="settings-help">
-            可保存多个兼容端点（Ollama、LM Studio、vLLM、自建网关）。已保存的端点会保留；新端点请使用新的 Provider id。同一 Provider id 下的模型共用 Base URL 和密钥。
+            同一个 Provider id 可以保存多个模型，它们共用 Base URL、API 类型和密钥。每个模型使用自己的 Model id，端点 id 会按这两项自动生成。
           </p>
           {customEndpoints.length ? (
             <ul className="custom-saved">
               {customEndpoints.map((item) => {
                 const key = endpointKey(item);
                 const editing = editingKey === key;
+                const label = item.display_name || item.model_id || item.profile_id;
                 return (
                   <li key={key}>
                     <div className="custom-saved-head">
-                      <strong>{item.display_name || item.model_id}</strong>
+                      <div className="custom-saved-copy">
+                        <div className="custom-saved-title">
+                          <strong>{item.display_name || item.model_id}</strong>
+                          <span className="badge badge-ok">已保存</span>
+                        </div>
+                        {editing ? null : (
+                          <>
+                            <p className="settings-meta">
+                              {item.profile_id ? `${item.profile_id} · ` : ""}
+                              {item.provider}/{item.model_id}
+                              {item.api_type ? ` · ${item.api_type}` : ""}
+                            </p>
+                            {item.base_url ? <p className="settings-meta">{item.base_url}</p> : null}
+                            <p className="settings-meta">{item.has_api_key ? "密钥已保存" : "未保存密钥"}</p>
+                          </>
+                        )}
+                      </div>
                       <span className="custom-saved-actions">
-                        <span className="badge badge-ok">已保存</span>
+                        <button
+                          type="button"
+                          className="danger"
+                          disabled={busy}
+                          aria-label={pendingDelete === key ? `确认删除${label}` : `删除${label}`}
+                          onClick={() => void deleteCustomEndpoint(item)}
+                        >
+                          <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
+                          {pendingDelete === key ? "确认删除" : "删除"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => copyCustomEndpoint(item)}
+                        >
+                          <Copy size={14} strokeWidth={1.75} aria-hidden="true" />
+                          复制
+                        </button>
                         <button
                           type="button"
                           disabled={busy || editing}
                           onClick={() => {
+                            setPendingDelete(null);
                             setAddingCustom(false);
                             setEditingKey(key);
                             setCustomForm({
@@ -678,26 +798,17 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                             });
                           }}
                         >
+                          <Pencil size={14} strokeWidth={1.75} aria-hidden="true" />
                           编辑
                         </button>
                       </span>
                     </div>
-                    {editing ? (
-                      renderCustomForm(() => {
-                        setEditingKey(null);
-                        setCustomForm(EMPTY_CUSTOM_FORM);
-                      })
-                    ) : (
-                      <>
-                        <p className="settings-meta">
-                          {item.profile_id ? `${item.profile_id} · ` : ""}
-                          {item.provider}/{item.model_id}
-                          {item.api_type ? ` · ${item.api_type}` : ""}
-                        </p>
-                        {item.base_url ? <p className="settings-meta">{item.base_url}</p> : null}
-                        <p className="settings-meta">{item.has_api_key ? "密钥已保存" : "未保存密钥"}</p>
-                      </>
-                    )}
+                    {editing
+                      ? renderCustomForm(() => {
+                          setEditingKey(null);
+                          setCustomForm(EMPTY_CUSTOM_FORM);
+                        })
+                      : null}
                   </li>
                 );
               })}
