@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-"""Thin CLI: forward argv to the core workflow engine (``--workflow`` required)."""
+"""Internal orchestrator entry: forward argv to the core workflow engine (``--workflow`` required).
+
+Used by the control-panel backend / tests as a subprocess; not a user-facing control surface.
+"""
 
 from __future__ import annotations
 

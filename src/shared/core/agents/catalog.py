@@ -1,4 +1,4 @@
-"""List project model profiles for Pi (no PATH CLI catalog)."""
+"""List project model profiles for Pi (no PATH worker catalog)."""
 
 from __future__ import annotations
 

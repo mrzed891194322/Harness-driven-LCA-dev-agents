@@ -2,12 +2,14 @@
 
 这是一个使用多智能体（Multi-agent）在 harness 框架下进行合规化 **LCA（Life Cycle Assessment，生命周期评价）** 输出的项目。
 
+**控制方式**：业务运行与清理一律通过 **Web 控制面板**完成，不提供面向用户的命令行控制入口。
+
 ## 前置要求
 
 运行本仓库前请先安装：
 
 1. **uv** - Python 包和项目管理工具（[下载&安装链接](https://docs.astral.sh/uv/getting-started/installation/)）
-2. **Node.js 22+**（自带 npm；Pi SDK 运行时与 Next.js GUI）。模型凭证与档案在 Web 设置页或 `.local/credentials/` 配置，不再依赖全局 `codex` / `claude` / `opencode` / `pi` CLI。
+2. **Node.js 22+**（自带 npm；Pi SDK 运行时与 Next.js GUI）。模型凭证与档案在 Web 设置页或 `.local/credentials/` 配置，不再依赖全局 `codex` / `claude` / `opencode` / `pi` 可执行文件。
 3. **[openLCA](https://www.openlca.org/download/)** 桌面客户端。**每次开始项目前**必须打开 openLCA、打开目标数据库，并启用 IPC Server（默认 `127.0.0.1:8080`），否则后续导入与计算无法进行。
 
 ## 环境配置
@@ -29,9 +31,9 @@ Agent 会检查 uv、项目依赖、`.env`（缺失则从 `.env.example` 复制�
 
 ---
 
-## 启动控制面板 GUI (推荐)
+## 启动控制面板
 
-项目提供 **Next.js + FastAPI** 控制面板（`src/frontend/web` + `src/backend/api`），由 Python 编排器监管 **Pi SDK** Node 运行时（`src/pi_agents/pi-runtime`）。
+项目提供 **Next.js + FastAPI** 控制面板（`src/frontend/web` + `src/backend/api`），由 Python 编排器监管 **Pi SDK** Node 运行时（`src/pi_agents/pi-runtime`）。这是启动、清理与查看结果的**唯一**用户入口。
 
 ```bash
 uv sync
@@ -61,48 +63,6 @@ npm run dev
 3. 初始化检查已通过、计划非空后，点 **执行LCA计划**。
 4. 完成后在 **LCA评估结果** 查看报告。
 
+whole-lca 与 revise-lca 均在控制面板内选择并执行；执行前的工作区清理由面板接管。revise 走同一套 01–04：01 审查修订门禁，02–04 由 `reviser` 在既有产物上落实 `revise.md`，再由 reviewer 审核（用户意图优先）。
+
 ![start LCA](docs/assets/images/readme/start-lca.png)
-
----
-
-## 用 Python 主编排器运行
-
-不使用 GUI 时，在项目根目录执行。不要把 IDE 会话当成主编排。
-
-### whole-lca
-
-1. 已完成上方环境引导。
-2. 手动清理：
-
-```bash
-uv run python src/scripts/clean.py -y --preset whole-lca
-```
-
-3. 复制参考资料到 `harness/knowledge/inputs/`，编写 `harness/knowledge/plan/main_plan.md`。
-4. 启动：
-
-```bash
-uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
-```
-
-Worker 固定为 Pi SDK（`--worker pi`）。模型档案 id 读 `.env` 的 `PI_MODEL`（见 `src/shared/config/model_profiles.json`）；API Key 走 `.local/credentials/pi-auth.json`（BYOK）。恢复已有运行：`--resume <run_id>`（不执行新运行清理）。
-
-### revise-lca
-
-1. 已完成上方环境引导。
-2. 手动清理（不清理 workspace）：
-
-```bash
-uv run python src/scripts/clean.py -y --preset revise-lca
-```
-
-3. 更新 `harness/knowledge/inputs/` 与 `harness/knowledge/plan/revise_plan.md`（保留既有 main_plan / manifest / 报告）。
-4. 启动：
-
-```bash
-uv run python src/scripts/workflow.py --workflow harness/LCA-revise.yaml
-```
-
-revise 走同一套 01–04：01 审查修订门禁，02–04 由 `reviser` 在既有产物上落实 `revise.md`，再由 reviewer 审核（用户意图优先）。
-
-`clean` CLI 见 `src/scripts/clean.py`。Web 控制面板见上文 `npm run dev`。

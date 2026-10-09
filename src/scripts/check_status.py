@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Ready-status CLI: clean + agents + openLCA."""
+"""Ready-status probe used by env bootstrap (not a user control surface; prefer Web diagnostics)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def main() -> int:
     )
 
     parser = argparse.ArgumentParser(
-        description="就绪检查：Agent CLI + openLCA IPC 连接"
+        description="就绪检查：Pi runtime + openLCA IPC 连接（引导/内部用）"
     )
     parser.add_argument(
         "--only",

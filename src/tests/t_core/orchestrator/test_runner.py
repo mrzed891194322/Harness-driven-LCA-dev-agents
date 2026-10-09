@@ -1,4 +1,4 @@
-"""Crash boundaries and persistence for the Python workflow runner (no real CLI/IPC)."""
+"""Crash boundaries and persistence for the Python workflow runner (no real worker/IPC)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Worker availability probes (Pi SDK runtime, not global CLI)."""
+"""Worker availability probes (Pi SDK runtime, not global worker binaries)."""
 
 from __future__ import annotations
 

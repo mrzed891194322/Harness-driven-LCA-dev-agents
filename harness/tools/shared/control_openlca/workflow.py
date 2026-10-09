@@ -1328,7 +1328,7 @@ def legacy_import_lci(
     target_category: str,
     emit: Callable[[str], None] = print,
 ) -> dict[str, Any]:
-    """Run the historical CLI import behavior through the shared service."""
+    """Run the historical import behavior through the shared service."""
     inventory, errors = load_lci_inventory(json_dir)
     for error in errors:
         prefix = "[警告]" if error.startswith("No JSON files") else "[错误]"

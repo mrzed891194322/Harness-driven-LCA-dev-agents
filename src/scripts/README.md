@@ -1,6 +1,8 @@
 # scripts
 
-- **`dev.mjs`**：`npm run dev` 同时启动 FastAPI 与 Next.js。
-- **Python 薄 CLI**：`workflow.py`、`clean.py`、`check_status.py`、`proj_init/`、`gitee_upload/`（均依赖 `src/shared` + `src/backend` 的 path 引导）。
+- **`dev.mjs`**：`npm run dev` 同时启动 FastAPI 与 Next.js 控制面板。
+- **环境引导**：`proj_init/`（首次仓库准备）。
+- **编排器内部入口**：`workflow.py`、`clean.py`、`check_status.py` 供控制面板后端 / 测试 / 引导子进程调用，**不是**面向用户的控制方式。
+- **`gitee_upload/`**：发布辅助，与 LCA 控制无关。
 
-业务 HTTP 在 `src/backend/api/`；共用逻辑在 `src/shared/`。
+业务 HTTP 在 `src/backend/api/`；共用逻辑在 `src/shared/`。用户操作一律走 Web 控制面板。

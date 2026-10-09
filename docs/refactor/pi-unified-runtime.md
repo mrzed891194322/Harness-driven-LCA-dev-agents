@@ -29,13 +29,7 @@ npm run build -w @harness/pi-runtime
 npm run dev   # Next.js :GUI_WEB_PORT（默认 3000）+ uvicorn :GUI_API_PORT（默认 8800）
 ```
 
-CLI 工作流（无浏览器）：
-
-```bash
-PI_RUNTIME_MOCK=1 uv run python src/scripts/workflow.py --workflow harness/LCA-main.yaml
-```
-
-`PI_RUNTIME_MOCK=1` 仅用于无 API 密钥的协议/编排测试；真实模型调用需配置 `.local/credentials/pi-auth.json` 与模型档案。
+业务执行只经控制面板。`PI_RUNTIME_MOCK=1` 仅用于无 API 密钥的协议/编排测试；真实模型调用需配置 `.local/credentials/pi-auth.json` 与模型档案。
 
 ## 模型与 BYOK
 
@@ -46,4 +40,4 @@ PI_RUNTIME_MOCK=1 uv run python src/scripts/workflow.py --workflow harness/LCA-m
 
 ## 旧运行时
 
-已移除对 PATH 上 `codex` / `claude` / `opencode` / `pi` CLI 的依赖。`HARNESS_AGENT` 保留兼容但固定为 Pi SDK runtime。
+已移除对 PATH 上 `codex` / `claude` / `opencode` / `pi` 可执行文件的依赖。`HARNESS_AGENT` 保留兼容但固定为 Pi SDK runtime。

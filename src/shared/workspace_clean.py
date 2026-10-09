@@ -340,7 +340,7 @@ def run_clean(
 
 
 def cli_main(argv: list[str] | None = None) -> None:
-    """Console entry for ``lca-clean`` / ``src/scripts/clean.py``."""
+    """Argparse entry for ``src/scripts/clean.py`` (GUI backend / bootstrap subprocess)."""
     import argparse
 
     parser = argparse.ArgumentParser(

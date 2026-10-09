@@ -1,4 +1,4 @@
-"""Pi SDK runtime / openLCA readiness checks for CLI and Web."""
+"""Pi SDK runtime / openLCA readiness checks for Web diagnostics and bootstrap."""
 
 from __future__ import annotations
 
