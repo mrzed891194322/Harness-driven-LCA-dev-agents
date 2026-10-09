@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { ComponentType } from "react";
+import { GearIcon } from "../launch-icons";
 import { ModelsSection } from "../model-settings-dialog";
 import { GeneralSection } from "./general-section";
 import { SETTINGS_SECTIONS, settingsSection, type SettingsSectionId } from "./sections";
@@ -31,8 +32,8 @@ function dialogContainsPoint(dialog: HTMLDialogElement, x: number, y: number) {
 export function SettingsButton() {
   const { openSettings } = useSettings();
   return (
-    <button type="button" className="settings-launch" onClick={() => openSettings()}>
-      设置
+    <button type="button" className="settings-launch" aria-label="设置" title="设置" onClick={() => openSettings()}>
+      <GearIcon />
     </button>
   );
 }

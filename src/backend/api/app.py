@@ -42,6 +42,7 @@ from services.diagnostics_service import (
     openlca_endpoint,
     save_openlca_port,
 )
+from services.harness_browser import HarnessPathError, harness_catalog, read_harness_document
 from services.project_paths import PROJECT_ROOT
 from services.workflow_service import WorkflowService
 from utils.env import parse_env_file, upsert_env_keys
@@ -399,6 +400,21 @@ def push_event(event: str, data: dict[str, Any]) -> None:
     global _event_id
     _event_id += 1
     _run_events.append({"id": _event_id, "event": event, "data": data})
+
+
+@app.get("/api/harness/catalog")
+def read_harness_catalog() -> dict[str, Any]:
+    return harness_catalog(PROJECT_ROOT)
+
+
+@app.get("/api/harness/document")
+def read_harness_file(path: str) -> dict[str, str]:
+    try:
+        return read_harness_document(PROJECT_ROOT, path)
+    except HarnessPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="document not found") from exc
 
 
 @app.get("/api/plan")
