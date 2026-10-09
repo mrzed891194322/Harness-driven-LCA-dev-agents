@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ArrowRight, RefreshCw, Settings } from "lucide-react";
 import Link from "next/link";
 import { useSettings } from "../../components/settings/settings-context";
 
@@ -277,75 +278,83 @@ export default function StatusPage() {
             }}
             disabled={modelBusy}
           >
+            <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
             {modelBusy ? "刷新中…" : "刷新状态"}
           </button>
           <button type="button" onClick={() => openSettings("models")}>
+            <Settings size={16} strokeWidth={1.75} aria-hidden="true" />
             配置模型
           </button>
         </div>
       </section>
 
-      <section className="settings-card">
+      <section className="settings-card status-tool-card">
         <h3>LCA 工具</h3>
-        <p className="settings-help">
-          当前接入 openLCA。之后可以在同一列表切换其他 LCA 工具。
-        </p>
-        {tools.length ? (
-          <>
-            <div className="tool-switch" role="tablist" aria-label="LCA 工具">
-              {tools.map((tool) => (
-                <button
-                  key={tool.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tool.id === activeTool?.id}
-                  onClick={() => setSelectedTool(tool.id)}
-                >
-                  {tool.name}
-                </button>
-              ))}
-            </div>
-            {activeTool?.id === "openlca" ? (
-              <div className="tool-panel">
-                <ul className="diag-list">
-                  <li>
-                    <span className={`badge ${activeTool.ok ? "badge-ok" : "badge-warn"}`}>
-                      {activeTool.ok ? "可用" : "不可用"}
-                    </span>
-                    <span>openLCA：{activeTool.message}</span>
-                  </li>
-                </ul>
-                <div className="row">
-                  <button type="button" onClick={() => openSettings("general")}>
-                    端口设置
+        <div className="status-tool-body">
+          <p className="settings-help">
+            当前接入 openLCA。之后可以在同一列表切换其他 LCA 工具。
+          </p>
+          {tools.length ? (
+            <>
+              <div className="tool-switch" role="tablist" aria-label="LCA 工具">
+                {tools.map((tool) => (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tool.id === activeTool?.id}
+                    onClick={() => setSelectedTool(tool.id)}
+                  >
+                    {tool.name}
                   </button>
+                ))}
+              </div>
+              {activeTool?.id === "openlca" ? (
+                <div className="tool-panel">
+                  <ul className="diag-list">
+                    <li>
+                      <span className={`badge ${activeTool.ok ? "badge-ok" : "badge-warn"}`}>
+                        {activeTool.ok ? "可用" : "不可用"}
+                      </span>
+                      <span>openLCA：{activeTool.message}</span>
+                    </li>
+                  </ul>
+                  <div className="row">
+                    <button type="button" onClick={() => openSettings("general")}>
+                      端口设置
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : activeTool ? (
-              <div className="tool-panel">
-                <ul className="diag-list">
-                  <li>
-                    <span className={`badge ${activeTool.ok ? "badge-ok" : "badge-warn"}`}>
-                      {activeTool.ok ? "可用" : "不可用"}
-                    </span>
-                    <span>
-                      {activeTool.name}：{activeTool.message}
-                    </span>
-                  </li>
-                </ul>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <p className="settings-help">{loadError ? "诊断未加载" : "正在检查 LCA 工具…"}</p>
-        )}
+              ) : activeTool ? (
+                <div className="tool-panel">
+                  <ul className="diag-list">
+                    <li>
+                      <span className={`badge ${activeTool.ok ? "badge-ok" : "badge-warn"}`}>
+                        {activeTool.ok ? "可用" : "不可用"}
+                      </span>
+                      <span>
+                        {activeTool.name}：{activeTool.message}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p className="settings-help">{loadError ? "诊断未加载" : "正在检查 LCA 工具…"}</p>
+          )}
+        </div>
+        <div className="status-tool-actions">
+          <button type="button" onClick={() => void refresh()} disabled={busy}>
+            <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
+            {busy ? "刷新中…" : "刷新状态"}
+          </button>
+          <Link href="/plan" className="status-start">
+            开始LCA
+            <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
+          </Link>
+        </div>
       </section>
-
-      <div className="status-board-action">
-        <Link href="/plan" className="status-start">
-          开始LCA
-        </Link>
-      </div>
     </div>
   );
 }

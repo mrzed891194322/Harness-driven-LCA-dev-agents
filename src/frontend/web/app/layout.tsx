@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { FaGithub } from "react-icons/fa6";
 import { AppNav } from "../components/app-nav";
 import { HarnessButton, HarnessDialog } from "../components/harness/harness-dialog";
 import { HarnessProvider } from "../components/harness/harness-context";
@@ -7,8 +8,11 @@ import { SettingsProvider } from "../components/settings/settings-context";
 import "./globals.css";
 
 export const metadata = {
-  title: "Harness LCA",
+  title: "Harness-driven agentic LCA",
   description: "Pi SDK unified runtime control panel",
+  icons: {
+    icon: "/brand-mark.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -17,26 +21,36 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <SettingsProvider>
           <HarnessProvider>
-            <div className="app-shell">
+            <div className="app-frame">
               <header className="app-header">
-                <div className="app-header-title">
-                  <h1>Harness LCA</h1>
-                  <a
-                    className="app-header-repo"
-                    href="https://github.com/mrzed891194322/Harness-driven-LCA-dev-agents"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    github.com/mrzed891194322/Harness-driven-LCA-dev-agents
-                  </a>
-                </div>
-                <div className="app-header-actions">
-                  <HarnessButton />
-                  <SettingsButton />
+                <div className="app-header-bar">
+                  <div className="app-header-title">
+                    <h1>
+                      Harness-driven agentic LCA
+                      <img className="title-mark" src="/brand-mark.svg" alt="" />
+                    </h1>
+                  </div>
+                  <div className="app-header-actions">
+                    <HarnessButton />
+                    <SettingsButton />
+                    <span className="app-header-divider" aria-hidden="true" />
+                    <a
+                      className="app-header-github"
+                      href="https://github.com/mrzed891194322/Harness-driven-LCA-dev-agents"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="GitHub"
+                      title="github.com/mrzed891194322/Harness-driven-LCA-dev-agents"
+                    >
+                      <FaGithub size={18} aria-hidden="true" />
+                    </a>
+                  </div>
                 </div>
               </header>
-              <AppNav />
-              {children}
+              <div className="app-shell">
+                <AppNav />
+                {children}
+              </div>
             </div>
             <HarnessDialog />
             <SettingsDialog />

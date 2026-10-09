@@ -34,6 +34,7 @@ export function SettingsButton() {
   return (
     <button type="button" className="settings-launch" aria-label="设置" title="设置" onClick={() => openSettings()}>
       <GearIcon />
+      <span>设置</span>
     </button>
   );
 }

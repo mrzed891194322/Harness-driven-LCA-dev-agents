@@ -35,64 +35,110 @@ a {
   color: var(--accent);
 }
 
+.app-frame {
+  min-height: 100%;
+}
+
 .app-shell {
-  max-width: 1180px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 28px 20px 64px;
+  padding: 8px 20px 64px;
 }
 
 .app-header {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f5f6f3;
+  border-bottom: 1px solid #e3e7de;
+}
+
+.app-header-bar {
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 20px;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-inline: 112px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .app-header-title {
-  text-align: center;
+  min-width: 0;
+  text-align: left;
 }
 
 .app-header h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
-  font-family: var(--font);
-  font-size: 2rem;
+  font-family: var(--font-ui);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.2;
   letter-spacing: -0.02em;
-}
-
-.app-header-repo {
-  display: inline-block;
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 0.92rem;
-  text-decoration: none;
-}
-
-.app-header-repo:hover {
   color: var(--accent);
 }
 
+.app-header h1 .title-mark {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+
 .app-header-actions {
-  position: absolute;
-  top: 0;
-  right: 0;
+  flex: none;
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
 }
 
 .settings-launch {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
-  padding: 0;
+  gap: 6px;
+  width: auto;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+.settings-launch:hover,
+.app-header-github:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.app-header-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--line);
+  flex: none;
+}
+
+.app-header-github {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
 }
 
 .launch-icon {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
+  flex: none;
   display: block;
 }
 
@@ -109,7 +155,7 @@ a {
   flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
-  margin: 20px 0 28px;
+  margin: 14px 0 24px;
 }
 
 .nav-row a {
@@ -136,16 +182,30 @@ html.status-fit body {
   overflow: hidden;
 }
 
-html.status-fit .app-shell {
+html.status-fit .app-frame {
   display: flex;
   flex-direction: column;
   height: 100dvh;
   max-height: 100dvh;
-  padding: 20px 20px 24px;
   overflow: hidden;
 }
 
-html.status-fit .app-header,
+html.status-fit .app-header {
+  flex: none;
+}
+
+html.status-fit .app-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  margin-bottom: 20px;
+  padding: 0 20px 16px;
+  overflow: hidden;
+}
+
 html.status-fit .nav-row {
   flex: none;
 }
@@ -159,23 +219,16 @@ html.status-fit .nav-row {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 16px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 24px;
   overflow: hidden;
-}
-
-.status-board-action {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding-top: 8px;
 }
 
 .status-start {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   min-height: 40px;
   padding: 8px 18px;
   border-radius: 8px;
@@ -183,6 +236,14 @@ html.status-fit .nav-row {
   color: #fff;
   text-decoration: none;
   font-weight: 600;
+}
+
+.status-model-actions button,
+.status-tool-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .status-start:hover {
@@ -200,9 +261,29 @@ html.status-fit .nav-row {
   min-width: 0;
 }
 
-.status-board .status-model-card {
+.status-board .status-model-card,
+.status-board .status-tool-card {
   display: flex;
   flex-direction: column;
+}
+
+.status-tool-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.status-tool-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.status-tool-actions > button,
+.status-tool-actions > .status-start {
+  flex: 1;
+  white-space: nowrap;
 }
 
 .status-model-body {
@@ -805,17 +886,6 @@ button:disabled {
   .harness-nav button {
     width: 100%;
     white-space: normal;
-  }
-
-  .app-header {
-    padding-inline: 0;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .app-header-actions {
-    position: static;
   }
 }
 

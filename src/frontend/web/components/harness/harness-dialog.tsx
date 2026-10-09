@@ -72,6 +72,7 @@ export function HarnessButton() {
   return (
     <button type="button" className="settings-launch" aria-label="Harness" title="Harness" onClick={() => openHarness()}>
       <SaddleIcon />
+      <span>Harness</span>
     </button>
   );
 }
