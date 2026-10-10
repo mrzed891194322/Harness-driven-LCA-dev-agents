@@ -2,6 +2,9 @@
 
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
+import { readTutorialReturn } from "../return-to";
 
 export type TutorialEntry = {
   path: string;
@@ -48,6 +51,7 @@ export function TutorialShell({
   crumbPath,
   children,
 }: TutorialShellProps) {
+  const router = useRouter();
   const located = findEntry(catalog, selected);
   const heading =
     title || located?.entry.label || (error ? "教程" : catalog ? "教程" : "教程");
@@ -91,6 +95,15 @@ export function TutorialShell({
               <h2>{heading}</h2>
               {crumbPath ? <p className="harness-path mono">{crumbPath}</p> : null}
             </div>
+            <button
+              type="button"
+              className="tutorial-close"
+              aria-label="关闭教程"
+              title="返回上一页"
+              onClick={() => router.push(readTutorialReturn())}
+            >
+              <X size={18} aria-hidden="true" />
+            </button>
           </header>
           <div className="settings-body tutorial-body">{children}</div>
         </div>

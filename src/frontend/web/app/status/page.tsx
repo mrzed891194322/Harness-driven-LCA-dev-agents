@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Bot, Cpu, List, RefreshCw, Settings, Wrench } from "lucide-react";
+import { ArrowRight, Bot, Cpu, List, RefreshCw, Save, Settings, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useSettings } from "../../components/settings/settings-context";
 import { apiFetch } from "../../lib/api";
@@ -52,6 +52,82 @@ function isDiagnostics(value: unknown): value is Diagnostics {
 function statusProviderName(provider: AvailableProvider): string {
   if (provider.id === "openai") return "OpenAI";
   return provider.name;
+}
+
+function OpenLcaToolPanel({ tool, onSaved }: { tool: LcaTool; onSaved: () => Promise<void> }) {
+  const [portDraft, setPortDraft] = useState(tool.port != null ? String(tool.port) : "");
+  const [portBusy, setPortBusy] = useState(false);
+  const [portError, setPortError] = useState("");
+
+  useEffect(() => {
+    if (tool.port != null) setPortDraft(String(tool.port));
+  }, [tool.port]);
+
+  async function savePort() {
+    const port = Number(portDraft);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setPortError("端口须为 1–65535 的整数");
+      return;
+    }
+    setPortBusy(true);
+    setPortError("");
+    try {
+      const response = await apiFetch("/api/lca/openlca", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ port }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { detail?: string };
+      if (!response.ok) throw new Error(data.detail || "保存端口失败");
+      await onSaved();
+    } catch (error: unknown) {
+      setPortError(error instanceof Error ? error.message : "保存端口失败");
+    } finally {
+      setPortBusy(false);
+    }
+  }
+
+  return (
+    <div className="tool-panel">
+      <div className="tool-port-row">
+        <label htmlFor="openlca-port">IPC端口</label>
+        <input
+          id="openlca-port"
+          type="number"
+          min={1}
+          max={65535}
+          inputMode="numeric"
+          value={portDraft}
+          onChange={(event) => setPortDraft(event.target.value)}
+        />
+        <button type="button" onClick={() => void savePort()} disabled={portBusy}>
+          <Save size={16} strokeWidth={1.75} aria-hidden="true" />
+          {portBusy ? "保存中…" : "保存"}
+        </button>
+      </div>
+      {portError ? <p className="settings-help">{portError}</p> : null}
+      <div className="tool-status-row">
+        <span>当前状态</span>
+        <span className={`badge ${tool.ok ? "badge-ok" : "badge-warn"}`}>
+          {tool.ok ? "可用" : "不可用"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ToolConnectionPanel({ tool, onOpenLcaSaved }: { tool: LcaTool; onOpenLcaSaved: () => Promise<void> }) {
+  if (tool.id === "openlca") return <OpenLcaToolPanel tool={tool} onSaved={onOpenLcaSaved} />;
+  return (
+    <div className="tool-panel">
+      <div className="tool-status-row">
+        <span>当前状态</span>
+        <span className={`badge ${tool.ok ? "badge-ok" : "badge-warn"}`}>
+          {tool.ok ? "可用" : "不可用"}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function toolsFromDiag(diag: Diagnostics): LcaTool[] {
@@ -183,9 +259,32 @@ export default function StatusPage() {
     }
   }
 
-  const pi = diag?.pi_agents;
-  const python = diag?.python_agent;
-  const piText = pi?.ok ? diag?.node?.message || pi.message : pi?.message;
+  const typescriptReady = Boolean(diag?.node.ok);
+  const pythonReady = Boolean(diag?.python_agent.ok);
+  const environments = [
+    {
+      id: "typescript",
+      title: "TypeScript",
+      ready: typescriptReady,
+      message: diag?.node.message || "",
+      tools: [
+        { name: "TypeScript", version: "5.9.3", note: "前端与运行时语言", src: "/toolchain/typescript.svg" },
+        { name: "npm", version: "11.19.1", note: "安装依赖并启动", src: "/toolchain/npm.svg" },
+        { name: "Pi SDK", version: "1.1.0", note: "代理运行时", src: "/toolchain/pi.svg" },
+        { name: "Next.js", version: "15.5.27", note: "控制面板页面", src: "/toolchain/next.svg" },
+      ],
+    },
+    {
+      id: "python",
+      title: "Python",
+      ready: pythonReady,
+      message: diag?.python_agent.message || "",
+      tools: [
+        { name: "Python", version: "3.12.12", note: "后端解释器", src: "/toolchain/python.svg" },
+        { name: "uv", version: "0.9.26", note: "管理 Python 依赖", src: "/toolchain/uv.svg" },
+      ],
+    },
+  ];
 
   return (
     <div className="status-board">
@@ -194,21 +293,33 @@ export default function StatusPage() {
           <Cpu size={18} strokeWidth={1.75} aria-hidden="true" />
           项目环境
         </h3>
-        {diag && pi && python ? (
-          <ul className="diag-list">
-            <li>
-              <span className={`badge ${pi.ok ? "badge-ok" : "badge-warn"}`}>
-                {pi.ok ? "就绪" : "未就绪"}
-              </span>
-              <span>Pi：{piText}</span>
-            </li>
-            <li>
-              <span className={`badge ${python.ok ? "badge-ok" : "badge-warn"}`}>
-                {python.ok ? "就绪" : "未就绪"}
-              </span>
-              <span>Python：{python.message}</span>
-            </li>
-          </ul>
+        {diag ? (
+          <div className="status-env-list">
+            {environments.map((env) => (
+              <section key={env.id} className="status-env">
+                <header className="status-env-head">
+                  <strong>{env.title}</strong>
+                  <span className={`badge ${env.ready ? "badge-ok" : "badge-warn"}`}>
+                    {env.ready ? "就绪" : "未就绪"}
+                  </span>
+                </header>
+                {env.ready ? (
+                  <ul className="status-toolchain">
+                    {env.tools.map((tool) => (
+                      <li key={tool.name}>
+                        <img src={tool.src} alt="" />
+                        <strong>{tool.name}</strong>
+                        <span className="status-tool-version">{tool.version}</span>
+                        <span className="status-tool-note">{tool.note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="settings-help">{env.message || "环境未就绪"}</p>
+                )}
+              </section>
+            ))}
+          </div>
         ) : (
           <p className="settings-help">{loadError || "正在检查运行时…"}</p>
         )}
@@ -310,48 +421,32 @@ export default function StatusPage() {
           <h4 className="status-provider-label">当前工具</h4>
           {tools.length ? (
             <>
-              <div className="tool-switch" role="tablist" aria-label="LCA 工具">
-                {tools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={tool.id === activeTool?.id}
-                    onClick={() => setSelectedTool(tool.id)}
-                  >
-                    {tool.name}
-                  </button>
-                ))}
-              </div>
-              {activeTool?.id === "openlca" ? (
-                <div className="tool-panel">
-                  <ul className="diag-list">
-                    <li>
-                      <span className={`badge ${activeTool.ok ? "badge-ok" : "badge-warn"}`}>
-                        {activeTool.ok ? "可用" : "不可用"}
-                      </span>
-                      <span>openLCA：{activeTool.message}</span>
-                    </li>
-                  </ul>
-                  <div className="row">
-                    <button type="button" onClick={() => openSettings("general")}>
-                      端口设置
+              <div className="tool-switch-row">
+                <div className="tool-switch" role="tablist" aria-label="LCA 工具">
+                  {tools.map((tool) => (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={tool.id === activeTool?.id}
+                      onClick={() => setSelectedTool(tool.id)}
+                    >
+                      {tool.id === "openlca" ? (
+                        <>
+                          <img src="/toolchain/openlca.svg" alt="" />
+                          <strong>openLCA</strong>
+                          <span>生命周期建模与计算</span>
+                        </>
+                      ) : (
+                        tool.name
+                      )}
                     </button>
-                  </div>
+                  ))}
                 </div>
-              ) : activeTool ? (
-                <div className="tool-panel">
-                  <ul className="diag-list">
-                    <li>
-                      <span className={`badge ${activeTool.ok ? "badge-ok" : "badge-warn"}`}>
-                        {activeTool.ok ? "可用" : "不可用"}
-                      </span>
-                      <span>
-                        {activeTool.name}：{activeTool.message}
-                      </span>
-                    </li>
-                  </ul>
-                </div>
+                <p className="tool-switch-pending">其他 LCA 工具集成开发中</p>
+              </div>
+              {activeTool ? (
+                <ToolConnectionPanel key={activeTool.id} tool={activeTool} onOpenLcaSaved={refresh} />
               ) : null}
             </>
           ) : (
