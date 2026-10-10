@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, ChevronRight } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   readSpec,
@@ -194,12 +194,14 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   const [workflows, setWorkflows] = useState<WorkflowGraph[]>(cachedWorkflows ?? []);
   const [specs, setSpecs] = useState<Record<string, SpecSummary>>(cachedSpecs ?? {});
   const [selection, setSelection] = useState<Selection>({ kind: "workflow" });
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [error, setError] = useState("");
   const [models, setModels] = useState<ModelOption[]>([]);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [defaultModel, setDefaultModel] = useState("");
   const [assignmentModels, setAssignmentModels] = useState<Record<string, string>>({});
   const [modelNote, setModelNote] = useState("");
+  const [assignmentNote, setAssignmentNote] = useState("");
   const file = MODE_FILE[mode];
 
   useEffect(() => {
@@ -247,7 +249,6 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           default_ref?: string;
           assignments?: Record<string, string>;
           models?: ModelOption[];
-          warnings?: string[];
           detail?: string;
         };
         if (!response.ok) throw new Error(data.detail || "无法读取模型");
@@ -258,7 +259,6 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
         setModels(data.models ?? []);
         setDefaultModel(data.default_ref || data.default || "");
         setAssignmentModels(data.assignments ?? {});
-        setModelNote((data.warnings ?? []).filter(Boolean).join(" "));
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
@@ -301,6 +301,12 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
   function choose(next: Selection) {
     setSelection(next);
+    setInspectorOpen(true);
+  }
+
+  function openGlobal() {
+    setSelection({ kind: "workflow" });
+    setInspectorOpen(true);
   }
 
   const defaultLabel = models.find((item) => item.id === defaultModel)?.label ?? defaultModel;
@@ -327,7 +333,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
     if (profileId) next[assignmentId] = profileId;
     else delete next[assignmentId];
     setAssignmentModels(next);
-    setModelNote("");
+    setAssignmentNote("");
     const response = await apiFetch("/api/workflow/models", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -336,25 +342,17 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as { detail?: string };
       setAssignmentModels(previous);
-      setModelNote(data.detail || "分工模型没有保存");
+      setAssignmentNote(data.detail || "分工模型没有保存");
     }
   }
 
   return (
-    <div className="flow-board">
+    <div className="flow-board" data-inspector={inspectorOpen ? "true" : "false"}>
       <div className="flow-toolbar">
-        <p className="flow-meta">
-          {workflow.id}
-          <span>最多 {workflow.maxAttempts} 次</span>
-        </p>
-        <ul className="flow-legend" aria-label="分工角色">
-          {Object.entries(ROLE_LABEL).map(([role, label]) => (
-            <li key={role} data-role={role}>
-              <Bot size={12} strokeWidth={1.75} aria-hidden="true" />
-              {label}
-            </li>
-          ))}
-        </ul>
+        <button type="button" className="flow-config" onClick={openGlobal}>
+          <SlidersHorizontal size={16} strokeWidth={1.75} aria-hidden="true" />
+          配置面板
+        </button>
       </div>
 
       <div className="flow-stages">
@@ -399,36 +397,27 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                     const chosen = assignmentModels[step.assignment] ?? "";
                     const roleLabel = ROLE_LABEL[role] ?? role;
                     return (
-                      <div className="flow-step-block" key={step.assignment}>
-                        <button
-                          type="button"
-                          className="flow-step"
-                          data-role={role}
-                          data-related={related.assignments.has(step.assignment) ? "true" : "false"}
-                          aria-pressed={selection.kind === "assignment" && selection.id === step.assignment}
-                          onClick={() => choose({ kind: "assignment", id: step.assignment })}
-                        >
+                      <button
+                        key={step.assignment}
+                        type="button"
+                        className="flow-step"
+                        data-role={role}
+                        data-related={related.assignments.has(step.assignment) ? "true" : "false"}
+                        aria-pressed={selection.kind === "assignment" && selection.id === step.assignment}
+                        onClick={() => choose({ kind: "assignment", id: step.assignment })}
+                      >
+                        <span className="flow-step-role">
                           <Bot className="flow-step-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
-                          <span className="flow-step-copy">
-                            <em>{roleLabel}</em>
-                            <small>{assignment?.mcp.length ? assignment.mcp.join(" · ") : role}</small>
-                          </span>
-                        </button>
-                        <select
-                          className="flow-model"
-                          aria-label={`${roleLabel}的模型`}
-                          value={chosen}
-                          disabled={!models.length}
-                          onClick={(event) => event.stopPropagation()}
-                          onChange={(event) => void changeAssignment(step.assignment, event.target.value)}
-                        >
-                          <option value="">{defaultLabel ? `默认 · ${defaultLabel}` : "默认"}</option>
-                          <ModelOptions models={models} />
-                          {chosen && !models.some((item) => item.id === chosen) ? (
-                            <option value={chosen}>{chosen}</option>
-                          ) : null}
-                        </select>
-                      </div>
+                          <em>{roleLabel}</em>
+                        </span>
+                        <small>
+                            {chosen
+                              ? models.find((item) => item.id === chosen)?.label ?? chosen
+                              : defaultLabel
+                                ? `默认 · ${defaultLabel}`
+                                : "默认"}
+                          </small>
+                      </button>
                     );
                   })}
                 </div>
@@ -438,18 +427,24 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
         })}
       </div>
 
-      <Inspector
-        workflow={workflow}
-        other={other}
-        specs={specs}
-        selection={selection}
-        models={models}
-        modelsLoaded={modelsLoaded}
-        defaultModel={defaultModel}
-        modelNote={modelNote}
-        onSelect={choose}
-        onChangeDefault={(profileId) => void changeDefault(profileId)}
-      />
+      {inspectorOpen ? (
+        <Inspector
+          workflow={workflow}
+          other={other}
+          specs={specs}
+          selection={selection}
+          models={models}
+          modelsLoaded={modelsLoaded}
+          defaultModel={defaultModel}
+          assignmentModels={assignmentModels}
+          modelNote={modelNote}
+          assignmentNote={assignmentNote}
+          onSelect={choose}
+          onClose={() => setInspectorOpen(false)}
+          onChangeDefault={(profileId) => void changeDefault(profileId)}
+          onChangeAssignment={(assignmentId, profileId) => void changeAssignment(assignmentId, profileId)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -462,9 +457,13 @@ function Inspector({
   models,
   modelsLoaded,
   defaultModel,
+  assignmentModels,
   modelNote,
+  assignmentNote,
   onSelect,
+  onClose,
   onChangeDefault,
+  onChangeAssignment,
 }: {
   workflow: WorkflowGraph;
   other?: WorkflowGraph;
@@ -473,17 +472,25 @@ function Inspector({
   models: ModelOption[];
   modelsLoaded: boolean;
   defaultModel: string;
+  assignmentModels: Record<string, string>;
   modelNote: string;
+  assignmentNote: string;
   onSelect: (selection: Selection) => void;
+  onClose: () => void;
   onChangeDefault: (profileId: string) => void;
+  onChangeAssignment: (assignmentId: string, profileId: string) => void;
 }) {
   return (
     <aside className="flow-inspector" aria-live="polite">
       {selection.kind !== "workflow" ? (
         <button type="button" className="flow-back" onClick={() => onSelect({ kind: "workflow" })}>
+          <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
           回到全局规则
         </button>
       ) : null}
+      <button type="button" className="flow-close" aria-label="关闭" onClick={onClose}>
+        <X size={16} strokeWidth={1.75} aria-hidden="true" />
+      </button>
       {selection.kind === "workflow" ? (
         <GlobalRules
           workflow={workflow}
@@ -505,7 +512,16 @@ function Inspector({
         />
       ) : null}
       {selection.kind === "assignment" ? (
-        <AssignmentDetail workflow={workflow} assignmentId={selection.id} onSelect={onSelect} />
+        <AssignmentDetail
+          workflow={workflow}
+          assignmentId={selection.id}
+          models={models}
+          defaultModel={defaultModel}
+          chosen={assignmentModels[selection.id] ?? ""}
+          modelNote={assignmentNote}
+          onSelect={onSelect}
+          onChangeModel={(profileId) => onChangeAssignment(selection.id, profileId)}
+        />
       ) : null}
       {selection.kind === "rule" ? <RuleDetail workflow={workflow} ruleId={selection.id} onSelect={onSelect} /> : null}
       {selection.kind === "mcp" ? <McpDetail workflow={workflow} toolId={selection.id} onSelect={onSelect} /> : null}
@@ -696,20 +712,46 @@ function StageDetail({
 function AssignmentDetail({
   workflow,
   assignmentId,
+  models,
+  defaultModel,
+  chosen,
+  modelNote,
   onSelect,
+  onChangeModel,
 }: {
   workflow: WorkflowGraph;
   assignmentId: string;
+  models: ModelOption[];
+  defaultModel: string;
+  chosen: string;
+  modelNote: string;
   onSelect: (selection: Selection) => void;
+  onChangeModel: (profileId: string) => void;
 }) {
   const assignment = assignmentOf(workflow, assignmentId);
   if (!assignment) return null;
   const stageId = stageIdOf(assignment.id);
+  const defaultLabel = models.find((item) => item.id === defaultModel)?.label ?? defaultModel;
   return (
     <>
       <Kicker>分工</Kicker>
       <h3>{ROLE_LABEL[assignment.role] ?? assignment.role}</h3>
       <p className="flow-lead">{assignment.id}</p>
+      <div className="flow-block">
+        <h3>模型</h3>
+        <select
+          className="flow-model"
+          aria-label="分工模型"
+          value={chosen}
+          disabled={!models.length}
+          onChange={(event) => onChangeModel(event.target.value)}
+        >
+          <option value="">{defaultLabel ? `默认 · ${defaultLabel}` : "默认"}</option>
+          <ModelOptions models={models} />
+          {chosen && !models.some((item) => item.id === chosen) ? <option value={chosen}>{chosen}</option> : null}
+        </select>
+        {modelNote ? <p className="flow-model-note">{modelNote}</p> : null}
+      </div>
       <JumpList
         label="所在阶段"
         items={[{ id: stageId, text: STAGE_TITLE[stageId] ?? stageId }]}
