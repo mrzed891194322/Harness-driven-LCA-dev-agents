@@ -678,9 +678,15 @@ def _match_saved_input_exchange(
         ex_provider = getattr(getattr(exchange, "default_provider", None), "id", None)
         if ex_flow != flow_id or ex_provider != provider_id:
             continue
-        if not _amounts_match(getattr(exchange, "amount", None), amount):
-            continue
         matches.append(exchange)
+    # Amount is only a tie-breaker: import may convert units (e.g. kg*km -> t*km),
+    # so the stored amount can legitimately differ from the source JSON.
+    if len(matches) > 1:
+        narrowed = [
+            ex for ex in matches if _amounts_match(getattr(ex, "amount", None), amount)
+        ]
+        if narrowed:
+            matches = narrowed
     if len(matches) == 1:
         return matches[0]
     if not matches:
