@@ -2756,23 +2756,45 @@ button:disabled {
 }
 
 .run-live-dot {
+  position: relative;
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent);
+  animation: run-live-breathe 1.4s ease-in-out infinite;
+}
+
+.run-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 72%, transparent);
   animation: run-live-pulse 1.4s ease-out infinite;
 }
 
-@keyframes run-live-pulse {
-  70% {
-    box-shadow: 0 0 0 5px transparent;
+@keyframes run-live-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(0.72);
+    opacity: 0.45;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .run-live-dot {
-    animation: none;
+@keyframes run-live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 72%, transparent);
+  }
+
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px transparent;
   }
 }
 
