@@ -34,8 +34,8 @@
 | `refactor/p5-inject-specs` | `p4-path-whitelist` | `bb1604b` | 早先“把 spec 全文注入提示词”的方案，和 P5 的 `spec_mcp` 设计冲突 | **废弃，不合并**；其中 `contract_files.py` 的文件清单逻辑可参考 |
 | `refactor/p5-spec-channels` | `master`（`ee78fc0`） | `5e7a092`（代码）+ 文档提交 | 自动测试：Python 448、pi-runtime 37 全过，`npm run -s build` 通过；**还没在真实 LCA 里跑过** | 未合并；下一步真实运行 + 带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归 |
 | `refactor/p5-injection` | `refactor/p5-spec-channels`（`2313c1d`） | `c08256b` | 自动测试：Python、pi-runtime 全过，`npm run -s build` 通过；`npm run doctor` 通过（模板渲染、注入自检 level=ok）；**还没在真实 LCA 里跑过** | 已于 2026-10-10 快进合入 `refactor/p5-spec-channels`（`2313c1d..c08256b`）；已带 `HARNESS_FAULT_INJECT=lci_unit_missing` 重启，待回归 |
-| `refactor/p5-small-fixes` | `refactor/p5-spec-channels`（`29e772b`） | `f2ae7b1` | `inspect`/`session` 支持短 run id；SSE 每条事件独立 id；自动测试全过 | 未合并（与主仓库未提交的“停止工作流”改动在 `app.py`、`workflow_launch.py`、`runs/page.tsx` 有重叠，待 Du Yuan 提交后再合） |
-| `refactor/p5-openlca-timeouts` | `refactor/p5-small-fixes`（`f2ae7b1`） | `a2e1a26` + 文档提交 | openLCA IPC 按请求读超时、超时后 `openlca_unresponsive` 事件与诊断、预清理同步超时；**已去掉 product system 读超时自动重试**（超时立即失败）；自动测试 Python 486、pi-runtime 41 全过，前端 build 通过；未连真实 openLCA 验证 | 未合并，原因同上 |
+| `refactor/p5-small-fixes` | `refactor/p5-spec-channels`（rebase 到 `d4b86e1`） | `83b0551` | `inspect`/`session` 支持短 run id；SSE 每条事件独立 id；自动测试全过 | 2026-10-10 已随 p5-openlca-timeouts 快进合入 `refactor/p5-spec-channels` |
+| `refactor/p5-openlca-timeouts` | `refactor/p5-small-fixes`（`83b0551`） | `7cd25ee` | openLCA IPC 按请求读超时、`openlca_unresponsive` 事件与诊断、预清理同步超时与进度、去掉 product system 自动重试；rebase 到 `d4b86e1` 后解决 `workflow_launch.py`/`runs/page.tsx` 冲突；Python 490、pi-runtime 41 全过，前端 build 通过；未连真实 openLCA 验证 | 2026-10-10 已快进合入 `refactor/p5-spec-channels` 并重启（故障注入关闭） |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 
