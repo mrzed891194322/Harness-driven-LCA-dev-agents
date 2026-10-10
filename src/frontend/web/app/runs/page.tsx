@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivitySummary } from "../../components/runs/activity-summary";
 import { AgentStream } from "../../components/runs/agent-stream";
+import { SessionInspector } from "../../components/runs/session-inspector";
 import { apiFetch } from "../../lib/api";
 
 type Progress = {
@@ -102,6 +103,7 @@ export default function RunsPage() {
         {error ? <p className="status-banner error">{error}</p> : null}
         <ActivitySummary runId={String(progress.run_id || "")} />
         <AgentStream text={log} running={status === "running"} />
+        <SessionInspector currentRunId={String(progress.run_id || "")} />
       </section>
     </div>
   );

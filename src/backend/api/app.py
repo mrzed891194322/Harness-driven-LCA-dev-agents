@@ -47,6 +47,7 @@ from backend.services.credentials_service import (
     set_provider_api,
     set_provider_base_url,
 )
+from backend.services.session_snapshots import SessionSnapshots
 from backend.services.diagnostics_service import (
     environment_report,
     openlca_endpoint,
@@ -116,6 +117,7 @@ app.add_middleware(
 )
 
 _workflow = WorkflowService()
+_snapshots = SessionSnapshots()
 _run_events: list[dict[str, Any]] = []
 _event_id = 0
 
@@ -621,6 +623,41 @@ def workflow_result_archive() -> Response:
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="lca-outputs.zip"'},
     )
+
+
+@app.get("/api/runs")
+def runs_list() -> dict[str, Any]:
+    """Runs with session snapshots; ``anomaly`` flags any injection warn/mismatch."""
+    return {"runs": _snapshots.runs()}
+
+
+@app.get("/api/runs/{run_id}/sessions")
+def run_sessions(run_id: str) -> dict[str, Any]:
+    try:
+        return _snapshots.run(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/runs/{run_id}/sessions/{session}/injection")
+def run_session_injection(run_id: str, session: str) -> dict[str, Any]:
+    try:
+        return _snapshots.injection(run_id, session)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/runs/{run_id}/sessions/{session}/file")
+def run_session_file(run_id: str, session: str, name: str, download: bool = False) -> Any:
+    try:
+        if download:
+            path = _snapshots.file_path(run_id, session, name)
+            return FileResponse(path, filename=f"{run_id}.{session}.{name.replace('/', '_')}")
+        return _snapshots.read_text(run_id, session, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="文件不存在") from exc
 
 
 @app.get("/api/workflow/progress")

@@ -25,7 +25,7 @@ from backend.core.runtime.model_profiles import resolve_model_profile
 from backend.core.workflow.config.bundle import TaskBundle
 from backend.core.workflow.config.models import Assignment, Stage, Workflow
 from backend.core.workflow.execution.handoff import handoff_path
-from backend.core.workflow.execution.prompt_build import build_prompt
+from backend.core.workflow.execution.prompt_build import build_prompt, prompt_segments
 from backend.core.workflow.execution.session_bind import build_session_config
 from backend.core.workflow.spec.loader import load_stage_spec
 from backend.core.workflow.spec.models import StageSpec
@@ -233,7 +233,10 @@ def build_session_launch_spec(
         else str(handoff),
         "schema_path": bundle.stage_spec.handoff_schema or "",
     }
-    return SessionLaunchSpec(
+    segments = prompt_segments(
+        bundle, project_root=project_root, rules=workflow.rules, run_context=run_context
+    )
+    launch = SessionLaunchSpec(
         run_id=run_id,
         stage_id=bundle.stage_id,
         assignment_id=bundle.assignment_id,
@@ -268,6 +271,11 @@ def build_session_launch_spec(
         },
         handoff_binding=handoff_binding,
     )
+    launch.prompt_segments = segments
+    launch.spec_view = view
+    launch.spec_view_hash = view_hash
+    launch.spec_sources = dict(stage_spec.sources) if stage_spec is not None else {}
+    return launch
 
 
 def launch_spec_from_session_config(
