@@ -215,6 +215,24 @@ def model_fingerprint(ctx):
     return stable_hash(scoped_fingerprints(ctx, upstream_files(ctx)))
 
 
+def lci_fingerprint(ctx):
+    """Fingerprint of the LCI files only.
+
+    Provider–Flow pairs come solely from LCI exchanges, so provider evidence is
+    matched on this fingerprint. Writing or editing process-mapping.json (e.g.
+    spec_mcp staging it during submit) must not invalidate provider evidence.
+    """
+    lci_root = ctx.workspace / "outputs" / "LCI"
+    return stable_hash(scoped_fingerprints(ctx, _safe_lci_files(lci_root)))
+
+
+def _provider_evidence_matches(ctx, call, model_fp=None, lci_fp=None) -> bool:
+    recorded_lci = call.get("lci_fingerprint")
+    if recorded_lci:
+        return recorded_lci == (lci_fp or lci_fingerprint(ctx))
+    return call.get("model_fingerprint") == (model_fp or model_fingerprint(ctx))
+
+
 def model_inputs_snapshot(ctx) -> dict:
     return {
         "files": scoped_fingerprints(ctx, upstream_files(ctx)),
@@ -727,10 +745,11 @@ def mapping_errors(ctx):
     # Preflight and exact-pair batch checks are accepted formal provider evidence.
     found = set()
     fingerprint = model_fingerprint(ctx)
+    lci_fp = lci_fingerprint(ctx)
     for call in ctx.load_manifest()["calls"]:
         if call["tool"] not in {"preflight_import_lci", "validate_providers_batch"}:
             continue
-        if call.get("model_fingerprint") != fingerprint:
+        if not _provider_evidence_matches(ctx, call, fingerprint, lci_fp):
             continue
         raw = load(ctx.resolve_ref(call["artifact"]))
         if call["status"] != "success":
@@ -1028,13 +1047,14 @@ def current_provider_units(ctx) -> dict[tuple[str, str], dict]:
     units: dict[tuple[str, str], dict] = {}
     try:
         fingerprint = model_fingerprint(ctx)
+        lci_fp = lci_fingerprint(ctx)
         calls = ctx.load_manifest()["calls"]
     except (OSError, ValueError, KeyError, TypeError):
         return units
     for call in calls:
         if call.get("tool") not in {"preflight_import_lci", "validate_providers_batch"}:
             continue
-        if call.get("model_fingerprint") != fingerprint:
+        if not _provider_evidence_matches(ctx, call, fingerprint, lci_fp):
             continue
         try:
             raw = load(ctx.resolve_ref(call["artifact"]))

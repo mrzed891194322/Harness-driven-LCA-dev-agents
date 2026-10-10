@@ -852,3 +852,34 @@ def test_prior_handoff_none_keeps_fingerprint_result(context):
     handoff.write_text(json.dumps({"status": "failed", "rework_scope": "report_only"}))
     status = checks.reuse_status(retry)
     assert status["eligible"] and status["rework_scope"] == "report_only"
+
+
+def test_provider_evidence_survives_mapping_write(context):
+    """Provider–Flow evidence is keyed on the LCI only; writing mapping must not void it."""
+    mapping_ctx = Context(
+        context.project,
+        context.workspace,
+        context.run_id,
+        "03-dataset-mapping",
+        1,
+        metadata={"lca": {"phase": "mapping"}},
+    )
+    root = context.workspace / "outputs"
+    write_product_system_fixture(root / "LCI")
+    lci_before = checks.lci_fingerprint(mapping_ctx)
+    model_before = checks.model_fingerprint(mapping_ctx)
+    call = {"lci_fingerprint": lci_before, "model_fingerprint": model_before}
+    write_json(
+        root / "inventory" / "process-mapping.json", {"items": [{"item_id": "b1"}]}
+    )
+    assert checks.model_fingerprint(mapping_ctx) != model_before
+    assert checks.lci_fingerprint(mapping_ctx) == lci_before
+    assert checks._provider_evidence_matches(mapping_ctx, call)
+    # Editing the LCI does invalidate the evidence.
+    extra = root / "LCI" / "processes" / "zz_extra.json"
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text('{"@id": "zz"}', encoding="utf-8")
+    assert not checks._provider_evidence_matches(mapping_ctx, call)
+    # Legacy records without lci_fingerprint fall back to the model fingerprint.
+    legacy = {"model_fingerprint": checks.model_fingerprint(mapping_ctx)}
+    assert checks._provider_evidence_matches(mapping_ctx, legacy)

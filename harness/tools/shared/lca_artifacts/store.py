@@ -298,13 +298,18 @@ class Context:
             "status": result_status(result),
             "artifact": ref,
         }
-        from .checks import calculation_fingerprint, evidence_model_fingerprint
+        from .checks import (
+            calculation_fingerprint,
+            evidence_model_fingerprint,
+            lci_fingerprint,
+        )
 
         entry.update(
             snapshots
             or {
                 "model_fingerprint": evidence_model_fingerprint(self),
                 "calculation_fingerprint": calculation_fingerprint(self),
+                "lci_fingerprint": lci_fingerprint(self),
             }
         )
         if (
@@ -460,11 +465,16 @@ def invoke(tool, function, *, arguments=None, ctx=None):
     started = time.monotonic()
     try:
         ctx = ctx or Context.environment()
-        from .checks import calculation_fingerprint, evidence_model_fingerprint
+        from .checks import (
+            calculation_fingerprint,
+            evidence_model_fingerprint,
+            lci_fingerprint,
+        )
 
         snapshots = {
             "model_fingerprint": evidence_model_fingerprint(ctx),
             "calculation_fingerprint": calculation_fingerprint(ctx),
+            "lci_fingerprint": lci_fingerprint(ctx),
         }
         raw = function()
         return envelope(
