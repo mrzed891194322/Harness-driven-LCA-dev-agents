@@ -2951,12 +2951,15 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.results-card .run-meta button:not(:first-child) {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
 
-.results-card .run-meta button:hover {
+.results-card .run-meta button:not(:first-child):hover {
   filter: brightness(1.08);
 }
 
