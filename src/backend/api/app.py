@@ -595,6 +595,34 @@ def workflow_manifest() -> dict[str, Any]:
     return _workflow.manifest()
 
 
+@app.get("/api/results")
+def workflow_results() -> dict[str, Any]:
+    return _workflow.results()
+
+
+@app.get("/api/results/file")
+def workflow_result_file(path: str) -> dict[str, Any]:
+    try:
+        return _workflow.read_result_file(path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="文件不存在") from exc
+
+
+@app.get("/api/results/archive")
+def workflow_result_archive() -> Response:
+    try:
+        payload = _workflow.archive_outputs()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="lca-outputs.zip"'},
+    )
+
+
 @app.get("/api/workflow/progress")
 def workflow_progress(offset: int = 0, epoch: str = "") -> dict[str, Any]:
     return _workflow.progress(offset, epoch)

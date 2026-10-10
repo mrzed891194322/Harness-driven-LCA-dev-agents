@@ -130,6 +130,12 @@ export default function PlanPage() {
   }, []);
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("mode") === "revise") {
+      setWorkMode("revise");
+    }
+  }, []);
+
+  useEffect(() => {
     const dialog = noteDialog.current;
     if (!dialog) return;
     if (noteTarget && !dialog.open) dialog.showModal();

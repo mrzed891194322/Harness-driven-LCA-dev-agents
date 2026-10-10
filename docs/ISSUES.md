@@ -64,3 +64,7 @@
 - **HMAC 密钥**：`.local/run/spec_mcp.key` 不在任何 agent 的读取范围内，但 bash 仍有可能读到。要确认 reviewer 和 worker 的 bash 策略不能访问 `.local/`。
 - **旧运行的续跑**：spec 文件哈希和 `get_spec` 视图都进了指纹，P5 之前开始的运行不能在 P5 代码上续跑，只能重开。
 
+
+## database_identity_verified 一直为 false
+
+没有设置 `OPENLCA_DATABASE_NAME` 时，`database_identity_verified` 一直是 false，不影响运行。之后要么在 `.env` 里写明数据库名，要么让诊断里明确提示这一项。

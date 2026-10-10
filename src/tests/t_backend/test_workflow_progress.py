@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -55,3 +57,64 @@ class WorkflowProgressTests(unittest.TestCase):
         self.assertIn("offset", body)
         self.assertIn("status", body)
         self.assertIn("reset", body)
+
+    def test_results_lists_handoffs_and_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / "workspace"
+            write_manifest(
+                workspace,
+                status="completed",
+                current_stage="report",
+                status_reason="done",
+                run_id="run-9",
+            )
+            handoff = workspace / "records" / "handoffs" / "report-executor-1.json"
+            handoff.parent.mkdir(parents=True, exist_ok=True)
+            handoff.write_text(
+                '{"stage":"report","role":"executor","attempt":1,"status":"ok",'
+                '"status_reason":"已交卷","artifacts":["workspace/outputs/reports/lca.md"]}',
+                encoding="utf-8",
+            )
+            report = workspace / "outputs" / "reports" / "lca.md"
+            report.parent.mkdir(parents=True, exist_ok=True)
+            report.write_text("# LCA\n", encoding="utf-8")
+            (workspace / "outputs" / "reports" / "README.md").write_text("skip\n", encoding="utf-8")
+            dump = (
+                workspace
+                / "outputs"
+                / "reports"
+                / "runs"
+                / "run-9"
+                / "03-dataset-mapping"
+                / "1"
+                / "abc"
+                / "raw.json"
+            )
+            dump.parent.mkdir(parents=True, exist_ok=True)
+            dump.write_text("{}", encoding="utf-8")
+
+            service = WorkflowService(root)
+            body = service.results()
+            opened = service.read_result_file("workspace/outputs/reports/lca.md")
+            self.assertEqual(opened["kind"], "markdown")
+            self.assertIn("LCA", opened["text"])
+            with self.assertRaises(ValueError):
+                service.read_result_file("workspace/records/manifest.json")
+            with self.assertRaises(ValueError):
+                service.read_result_file("workspace/outputs/../../.env")
+            names = zipfile.ZipFile(io.BytesIO(service.archive_outputs())).namelist()
+
+        self.assertEqual(body["manifest"]["run_id"], "run-9")
+        self.assertIn("outputs/reports/lca.md", names)
+        self.assertIn("outputs/reports/runs/run-9/03-dataset-mapping/1/abc/raw.json", names)
+        self.assertFalse(any(name.endswith("README.md") for name in names))
+        self.assertEqual(body["handoffs"][0]["stage"], "report")
+        self.assertEqual(body["handoffs"][0]["artifacts"], ["workspace/outputs/reports/lca.md"])
+        self.assertEqual(
+            [(item["path"], item["count"]) for item in body["artifacts"]],
+            [
+                ("workspace/outputs/reports/lca.md", 1),
+                ("workspace/outputs/reports/runs/run-9/03-dataset-mapping/1", 1),
+            ],
+        )
