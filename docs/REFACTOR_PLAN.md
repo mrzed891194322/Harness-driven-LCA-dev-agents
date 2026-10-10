@@ -36,7 +36,7 @@
 | `refactor/p5-injection` | `refactor/p5-spec-channels`（`2313c1d`） | `c08256b` | 自动测试：Python、pi-runtime 全过，`npm run -s build` 通过；`npm run doctor` 通过（模板渲染、注入自检 level=ok）；**还没在真实 LCA 里跑过** | 已于 2026-10-10 快进合入 `refactor/p5-spec-channels`（`2313c1d..c08256b`）；已带 `HARNESS_FAULT_INJECT=lci_unit_missing` 重启，待回归 |
 | `refactor/p5-small-fixes` | `refactor/p5-spec-channels`（rebase 到 `d4b86e1`） | `83b0551` | `inspect`/`session` 支持短 run id；SSE 每条事件独立 id；自动测试全过 | 2026-10-10 已随 p5-openlca-timeouts 快进合入 `refactor/p5-spec-channels` |
 | `refactor/p5-openlca-timeouts` | `refactor/p5-small-fixes`（`83b0551`） | `7cd25ee` | openLCA IPC 按请求读超时、`openlca_unresponsive` 事件与诊断、预清理同步超时与进度、去掉 product system 自动重试；rebase 到 `d4b86e1` 后解决 `workflow_launch.py`/`runs/page.tsx` 冲突；Python 490、pi-runtime 41 全过，前端 build 通过；未连真实 openLCA 验证 | 2026-10-10 已快进合入 `refactor/p5-spec-channels` 并重启（故障注入关闭） |
-| `refactor/p5-import-resume` | `refactor/p5-spec-channels`（`7cd25ee`） | （进行中） | 可恢复 import（entity_plan + reconcile/resume MCP）、显式 ProductSystem put、timeout_sec=min(agent,host)；假客户端测试；未连真实 openLCA | 未合并 |
+| `refactor/p5-import-resume` | `refactor/p5-spec-channels`（rebase 到 `baa1853`） | `b5811b2` | 可恢复 import（entity_plan + reconcile/resume MCP）、显式 ProductSystem 连接（provider inputs、内部 exchange id、system-process 守卫）、保存后按 flow+provider 匹配交换、timeout_sec=min(agent,host)；产物页签稳定、注入哈希说明；Python 495、pi-runtime 全过，前端 build 通过；未连真实 openLCA 验证 | 2026-10-10 已快进合入 `refactor/p5-spec-channels` 并重启（故障注入关闭） |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 
