@@ -29,6 +29,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", default=str(_ROOT))
     a = ap.parse_args(argv)
     root = Path(a.root)
+    try:
+        a.run = injection.resolve_run_id(root, a.run)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     if not a.session:
         for s in injection.list_sessions(root, a.run):
             print(f"{s['session']}  [{s['level']}]")

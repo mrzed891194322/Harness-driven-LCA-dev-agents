@@ -37,6 +37,11 @@ def main(argv: list[str] | None = None) -> int:
             s = injection.run_summary(root, d.name)
             print(f"{MARK[s['level']]} {d.name}  sessions={s['sessions']}  mismatches={len(s['mismatches'])}")
         return 0
+    try:
+        a.run = injection.resolve_run_id(root, a.run)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     sessions = injection.list_sessions(root, a.run)
     if a.session:
         sessions = [s for s in sessions if s["session"] == a.session]

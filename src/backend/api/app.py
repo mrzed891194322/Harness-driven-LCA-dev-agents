@@ -735,7 +735,9 @@ async def workflow_activity_stream(
     request: Request, run_id: str = "", offset: int = 0
 ) -> StreamingResponse:
     """SSE form of /api/workflow/activity. Event ``activity`` carries one record;
-    the SSE id is the byte offset to resume from (Last-Event-ID or ?offset=)."""
+    each event's SSE id is the byte offset just past its line in events.jsonl, so
+    ids are unique and increasing, and Last-Event-ID (or ?offset=) resumes right
+    after the last event the client saw. A Last-Event-ID header wins over ?offset=."""
     try:
         first = _workflow.activity(run_id, offset)
     except ValueError as exc:
@@ -752,9 +754,11 @@ async def workflow_activity_stream(
             if batch.get("reset"):
                 yield "event: reset\ndata: {}\n\n"
             next_offset = int(batch.get("offset") or 0)
-            for item in batch.get("events") or []:
+            events = batch.get("events") or []
+            offsets = batch.get("offsets") or [next_offset] * len(events)
+            for item, event_offset in zip(events, offsets):
                 yield (
-                    f"id: {next_offset}\nevent: activity\n"
+                    f"id: {event_offset}\nevent: activity\n"
                     f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
                 )
             if next_offset != position or batch.get("reset"):

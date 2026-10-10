@@ -145,6 +145,24 @@ def runs_root(project_root: Path) -> Path:
     return project_root / ".local" / "runs"
 
 
+def resolve_run_id(project_root: Path, run: str) -> str:
+    """Resolve a full run id or a unique prefix of one under .local/runs.
+
+    Raises ValueError (message lists candidates when ambiguous)."""
+    run = (run or "").strip()
+    if not run or _SAFE.sub("_", run) != run or run in {".", ".."}:
+        raise ValueError(f"invalid run id: {run!r}")
+    base = runs_root(project_root)
+    if (base / run).is_dir():
+        return run
+    candidates = sorted(p.name for p in base.iterdir() if p.is_dir() and p.name.startswith(run)) if base.is_dir() else []
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates:
+        raise ValueError(f"no run matches {run!r} under {base}")
+    raise ValueError(f"ambiguous run id prefix {run!r}; candidates: " + ", ".join(candidates))
+
+
 def session_snapshot_dir(project_root: Path, run_id: str, stage: str, role: str, attempt: int) -> Path:
     run = _SAFE.sub("_", run_id or "adhoc")
     return runs_root(project_root) / run / "sessions" / session_name(stage, role, attempt)
