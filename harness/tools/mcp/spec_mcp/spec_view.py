@@ -21,6 +21,12 @@ SUBMIT_RULE = (
 )
 
 
+HOST_CHECKS_RULE = (
+    "host_checks 由编排器在 submit_handoff 交卷后自动执行，不通过会把本轮退回；"
+    "review_points 是审查员必须逐条核对的要点，reviewer 的 handoff 应逐条给出结论。"
+)
+
+
 class SpecError(ValueError):
     pass
 
@@ -43,6 +49,8 @@ class StageSpec:
     spec_id: str
     deliverables: list[Deliverable]
     sources: dict[str, str]  # harness-relative -> default|user
+    host_checks: list[dict] = field(default_factory=list)
+    review_points: list[str] = field(default_factory=list)
 
     def deliverable(self, name: str) -> Deliverable | None:
         return next((d for d in self.deliverables if d.name == name), None)
@@ -64,6 +72,12 @@ class StageSpec:
                 }
                 for d in self.deliverables
             ],
+            "host_checks": [
+                {"id": str(c["id"]), "action": str(c["action"]), "summary": str(c.get("summary") or "").strip() or str(c["action"])}
+                for c in self.host_checks
+            ],
+            "review_points": list(self.review_points),
+            "host_checks_rule": HOST_CHECKS_RULE,
             "submit_rule": SUBMIT_RULE,
             "sources": dict(sorted(self.sources.items())),
         }
@@ -160,4 +174,10 @@ def read_spec(project_root: Path, manifest: str) -> StageSpec:
                 checks=[dict(c) for c in checks_by_name.get(item["name"]) or []],
             )
         )
-    return StageSpec(spec_id=str(raw.get("id") or ""), deliverables=out, sources=r.sources)
+    return StageSpec(
+        spec_id=str(raw.get("id") or ""),
+        deliverables=out,
+        sources=r.sources,
+        host_checks=[dict(c) for c in acceptance.get("host_checks") or []],
+        review_points=[str(p).strip() for p in acceptance.get("review_points") or []],
+    )

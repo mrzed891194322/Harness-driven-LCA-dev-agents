@@ -2,6 +2,7 @@ version: 1
 host_checks:
 - id: mapping
   action: mapping_check
+  summary: 交卷后编排器重新核对 mapping 覆盖、LCI 合法与 provider 正式验证记录。
 deliverables:
   LCI:
   - check: lci_directory
@@ -11,3 +12,10 @@ deliverables:
   process-mapping:
   - check: mapping
     summary: mapping 覆盖全部 BOM item_id；LCI 合法；每个背景 provider/flow 对在当前最终模型上有 validate_providers_batch 正式验证记录。
+# 审查员逐条核对的要点（get_spec 返回给所有角色；reviewer 的 handoff 应逐条给出结论）
+review_points:
+- mapping 覆盖全部 BOM item_id，必做模型情景与需求都已建模。
+- 背景 provider 的功能与前景需求相适配；前景实体有来源，数量换算链可复算（复算功能单位所需参考流数量）。
+- 聚合过程确实承接负荷；排除项获计划允许；市场/显式运输、原料/加工没有重复计算。
+- 数据库未返回的细节不得声称已验证；地理名称别名不单独构成失败。
+- 机器 mapping 检查不代替上述判断；失败意见定位到要求、item_id、JSON-LD 实体、公式或证据缺口。

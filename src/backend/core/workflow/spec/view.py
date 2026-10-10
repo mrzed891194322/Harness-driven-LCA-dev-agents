@@ -21,6 +21,11 @@ SUBMIT_RULE = (
     "status=ok 的 submit_handoff 要求全部 required 交付物已 passed。"
 )
 
+HOST_CHECKS_RULE = (
+    "host_checks 由编排器在 submit_handoff 交卷后自动执行，不通过会把本轮退回；"
+    "review_points 是审查员必须逐条核对的要点，reviewer 的 handoff 应逐条给出结论。"
+)
+
 
 def _load(project_root: Path, rel: str | None, fmt: str | None) -> Any:
     if not rel:
@@ -52,6 +57,12 @@ def spec_view(spec: StageSpec, project_root: Path) -> dict[str, Any]:
     return {
         "spec_id": spec.spec_id,
         "deliverables": deliverables,
+        "host_checks": [
+            {"id": c.id, "action": c.action, "summary": c.summary or c.action}
+            for c in spec.acceptance_checks
+        ],
+        "review_points": list(spec.review_points),
+        "host_checks_rule": HOST_CHECKS_RULE,
         "submit_rule": SUBMIT_RULE,
         "sources": {k: v["source"] for k, v in spec.sources.items()},
     }

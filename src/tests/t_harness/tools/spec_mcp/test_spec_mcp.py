@@ -333,3 +333,19 @@ def test_unit_group_acceptance(monkeypatch, tmp_path):
     units.clear()
     errors, _ = checks.exchange_unit_errors(None, tmp_path)
     assert errors and "validate_providers_batch" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "stage", ["01-intake-gate", "02-inventory-extraction", "03-dataset-mapping", "04-openlca-reporting"]
+)
+def test_get_spec_carries_host_checks_and_review_points(stage):
+    """Reviewers get review criteria and orchestrator checks from get_spec, not from files."""
+    rel = f"harness/specs/{stage}/spec.yaml"
+    core = load_stage_spec(REPO / rel, project_root=REPO, relative=rel)
+    tool_view = read_spec(REPO, f"specs/{stage}/spec.yaml").view()
+    view = spec_view(core, REPO)
+    assert view == tool_view
+    assert view["review_points"], f"{stage} has no review_points"
+    assert view["host_checks_rule"]
+    for c in view["host_checks"]:
+        assert c["summary"] and c["summary"] != c["action"]

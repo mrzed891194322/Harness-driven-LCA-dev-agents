@@ -49,13 +49,13 @@ DELIVERABLE_KEYS = frozenset(
     {"name", "path", "kind", "format", "required", "writer", "schema", "example"}
 )
 WRITERS = frozenset({"spec_mcp", "agent"})
-ACCEPTANCE_KEYS = frozenset({"version", "host_checks", "deliverables"})
+ACCEPTANCE_KEYS = frozenset({"version", "host_checks", "deliverables", "review_points"})
 SUBMIT_CHECK_KEYS = frozenset({"check", "params", "summary"})
 PERMISSIONS_KEYS = frozenset({"version", "roles"})
 ROLES = frozenset({"executor", "reviser", "reviewer"})
 LIFECYCLE_KEYS = frozenset({"on_reviewer_passed"})
 HANDOFF_KEYS = frozenset({"schema", "checks"})
-HOST_ACTION_REF_KEYS = frozenset({"id", "action", "arguments"})
+HOST_ACTION_REF_KEYS = frozenset({"id", "action", "arguments", "summary"})
 
 
 def spec_relative_for(value: str) -> str:
@@ -179,6 +179,9 @@ def load_stage_spec(path: Path, *, project_root: Path, relative: str) -> StageSp
         ),
         deliverables=deliverables,
         submit_checks=submit_checks,
+        review_points=_parse_review_points(
+            acceptance.get("review_points"), f"harness/{acc_rel}: review_points"
+        ),
         role_permissions=role_permissions,
         sources=dict(sorted(reader.sources.items())),
     )
@@ -377,7 +380,12 @@ def _parse_action_refs(items: Any, label: str) -> list[HostActionRef]:
         arguments = item.get("arguments") or {}
         if not isinstance(arguments, dict):
             raise ValueError(f"{label}[{index}]: arguments must be a mapping")
-        out.append(HostActionRef(id=call_id, action=action, arguments=dict(arguments)))
+        summary = item.get("summary") or ""
+        if not isinstance(summary, str):
+            raise ValueError(f"{label}[{index}]: summary must be a string")
+        out.append(
+            HostActionRef(id=call_id, action=action, arguments=dict(arguments), summary=summary.strip())
+        )
     return out
 
 
@@ -413,3 +421,11 @@ __all__ = [
     "schema_errors",
     "spec_relative_for",
 ]
+
+
+def _parse_review_points(items: Any, label: str) -> list[str]:
+    if items is None:
+        return []
+    if not isinstance(items, list) or not all(isinstance(i, str) and i.strip() for i in items):
+        raise ValueError(f"{label}: must be a list of non-empty strings")
+    return [i.strip() for i in items]

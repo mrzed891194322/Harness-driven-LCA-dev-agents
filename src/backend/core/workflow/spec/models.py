@@ -22,6 +22,7 @@ class HostActionRef:
     id: str
     action: str
     arguments: dict[str, Any] = field(default_factory=dict)
+    summary: str = ""  # human summary shown to agents via get_spec (not executed)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -81,6 +82,8 @@ class StageSpec:
     handoff_checks: list[HostActionRef] = field(default_factory=list)
     deliverables: list[Deliverable] = field(default_factory=list)
     submit_checks: dict[str, list[SubmitCheck]] = field(default_factory=dict)
+    # acceptance.yaml review_points: what the reviewer must verify (via get_spec)
+    review_points: list[str] = field(default_factory=list)
     # role -> permission rule ids (harness/specs/shared/permissions/<id>.yaml)
     role_permissions: dict[str, list[str]] = field(default_factory=dict)
     # harness-relative file -> {"source": "default"|"user", "sha256": ...}

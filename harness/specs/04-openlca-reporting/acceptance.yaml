@@ -2,7 +2,15 @@ version: 1
 host_checks:
 - id: report
   action: report_check
+  summary: 交卷后编排器重新核对报告引用的计算证据与表格一致性。
 deliverables:
   lca_report:
   - check: report
     summary: 报告引用的计算结果都有当前模型下的计算证据；表格由 render_report_tables 生成且与证据一致。
+# 审查员逐条核对的要点（get_spec 返回给所有角色；reviewer 的 handoff 应逐条给出结论）
+review_points:
+- 独立回读有效计划/修订，逐条核对报告是否落实每条必做要求和情景，不只看写者的落实表。
+- 报告功能单位与已审换算说明、calculation-plan、实际 raw 中的 amount 一致；三者同错也不通过。
+- 情景可比、必做敏感性结果齐全，结论有依据并在出处表中回链。
+- provenance 只能是 tool_backed 或 llm_inferred，依据路径存在且相关；只有 LCIA 总量时不得标 tool_backed 的过程贡献。
+- 明确未执行的硬计算不得因已写限制而通过；正文额外数字需回链或可离线复算。

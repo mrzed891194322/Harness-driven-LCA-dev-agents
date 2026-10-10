@@ -2,6 +2,7 @@ version: 1
 host_checks:
 - id: inventory
   action: inventory_check
+  summary: 交卷后编排器重新跑清单检查（item_id 唯一、必填字段、数量、来源格式）。
 deliverables:
   extracted-bom:
   - check: inventory
@@ -10,3 +11,9 @@ deliverables:
   - check: nonempty_text
     params: {min_chars: 20}
     summary: 清单说明不少于 20 个字符。
+# 审查员逐条核对的要点（get_spec 返回给所有角色；reviewer 的 handoff 应逐条给出结论）
+review_points:
+- 全部必做情景都有对应清单行，范围覆盖完整，缺口写进说明而不是静默省略。
+- 数量基准与推导可复算：逐行核对数值、单位和公式，不能因每行有来源链接就认定数值正确。
+- 来源写成“已声明文件#定位符”且定位到的原文确实支持该数值。
+- 复审时核对原问题及关联行、合计和说明；机器 inventory 检查只作其覆盖范围内的证据。
