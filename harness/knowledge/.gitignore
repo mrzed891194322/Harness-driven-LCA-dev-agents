@@ -4,6 +4,7 @@
 !README.md
 !inputs/
 !inputs/**
+inputs/.reference-notes.json
 !plan/
 !plan/**
 !inputs/README.md

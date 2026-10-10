@@ -47,6 +47,7 @@ logs/
 .codex/skills/**/__pycache__/
 .codex/skills/**/*.py[oc]
 node_modules/
+.next/
 src/frontend/web/.next/
 src/pi-runtime/dist/
 *.tsbuildinfo
