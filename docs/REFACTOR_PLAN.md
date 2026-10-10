@@ -33,6 +33,7 @@
 | `refactor/upstream-rework` | `p4-path-whitelist` | 见 `master` 最新提交 | 运行 `d18bc463` 四个阶段全部通过；04→03 的退回上游在真实运行中自然触发并走通 | 已合并进 `master` |
 | `refactor/p5-inject-specs` | `p4-path-whitelist` | `bb1604b` | 早先“把 spec 全文注入提示词”的方案，和 P5 的 `spec_mcp` 设计冲突 | **废弃，不合并**；其中 `contract_files.py` 的文件清单逻辑可参考 |
 | `refactor/p5-spec-channels` | `master`（`ee78fc0`） | `5e7a092`（代码）+ 文档提交 | 自动测试：Python 448、pi-runtime 37 全过，`npm run -s build` 通过；**还没在真实 LCA 里跑过** | 未合并；下一步真实运行 + 带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归 |
+| `refactor/p5-injection` | `refactor/p5-spec-channels`（`2313c1d`） | 见分支最新提交 | 自动测试：Python、pi-runtime 全过，`npm run -s build` 通过；含不调模型的真实 runtime 空会话自检；**还没在真实 LCA 里跑过** | 未合并；回归跑完后快进合进 `refactor/p5-spec-channels`，重启，`npm run doctor` |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 
@@ -1247,6 +1248,19 @@ Skill 和知识目录有用户版本时，`compile_turn` 会把合并结果物�
 **验收**：03 新增 `exchange_unit_groups`，要求每条有 provider 的输入交换，单位和 provider 参考流属于同一单位组；运输类复用 `control_openlca` 的 `_transport_unit_pass`。如果当前模型上没有 provider 记录，就提示对最终模型重跑 `validate_providers_batch`。编排器交卷后的检查（`host_checks`）保持不变。
 
 **GUI 接口**：`GET /api/specs`、`GET|PUT|DELETE /api/specs/{stage}/part?path=`、`POST /api/specs/{stage}/validate`。保存只写用户版本；保存后整个 spec 校验不过就回滚。diagnostics 新增 `harness_specs` 检查，同时报告旧路径（`rules/prompts`、`rules/permissions`）是否残留。
+
+**审查要点**（分支 `refactor/p5-injection`）：`acceptance.yaml` 新增 `review_points`（审查员逐条核对的要点）和 `host_checks[].summary`；`get_spec()` 返回 `host_checks`、`review_points` 和一行说明，审查员不必再去翻 spec 文件。
+
+**注入清单与会话记录**（分支 `refactor/p5-injection`，设计与文件见 `docs/ARTIFACTS.md`）：
+- 每个会话在 `.local/runs/<run>/sessions/<stage>.<role>.<attempt>/` 写 `prompt.md`、`spec.json`、`tools.json`、`permissions.json`、`launch.json`、`transcript.jsonl` 和 `injection/{intended,effective,diff,first_request}.json`，全部脱敏。
+- 宿主写计划注入，pi-runtime 从 SDK 真实状态反报实际生效，逐项比对，结果按 ok/warn/mismatch 写进 `events.jsonl` 的 `injection_check`。默认只记录不中断；`HARNESS_INJECTION_STRICT=1` 时关键项（模型、spec_mcp 工具、守卫钩子）不一致才让会话失败。运行结束写 `injection-summary.json`。
+- `build_prompt` 直接按段组装并记录每段来源，注入清单用同一份结果（不再有第二份组装逻辑）。
+- 暂停期间配置指纹变化：默认记 warn 并继续，严格模式才拒绝恢复。
+- 查看：GUI 运行详情的“注入”“会话”标签页；`npm run inspect`、`npm run session`、`npm run doctor`。
+
+**生成式提示词**（分支 `refactor/p5-injection`）：`harness/rules/generated/*.md.tmpl` + `harness/settings.yaml`，每次建会话按本会话生效的 spec 权限和用户偏好现场渲染，计入运行指纹；预览接口只支持 `LCA-main.yaml`。
+
+**目录补充**：`harness/rules/generated/`（模板，只放 `.md.tmpl`）、`harness/settings.yaml`（用户偏好，用户版在 `harness/.user/`）、`.local/runs/<run>/sessions/`（会话快照，按运行保留，不随 workspace 清理）。
 
 **未解决**：见 `docs/ISSUES.md`“P5 Spec 三通道（长期关注）”。
 

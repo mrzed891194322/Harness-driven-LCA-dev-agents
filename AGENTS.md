@@ -54,6 +54,17 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 5. **结果页是占位。** `app/results/page.tsx` 只提示目录。报告在 `workspace/outputs/`，交接在 `workspace/records/handoffs/`，运行摘要在 `workspace/records/manifest.json`。
 6. **计划表单没有逐字自动保存。** 只有点击执行时，启动流程才把表单写入 `main_plan.md`。执行前进程若中断，磁盘上的计划可能仍是旧的。
 
+## 调试：agent 实际收到了什么、做了什么
+
+每个 Pi 会话在 `.local/runs/<run_id>/sessions/<stage>.<role>.<attempt>/` 下留完整记录，详见 [docs/ARTIFACTS.md](docs/ARTIFACTS.md)。排查顺序：
+
+1. `npm run inspect -- <run> --only-anomalies`：先看哪些会话的注入有 warn / mismatch（模型、spec_mcp 工具、路径守卫钩子是关键项）。`events.jsonl` 里对应 `kind: injection_check`；运行结束的 `injection-summary.json` 列出全部 mismatch。
+2. `npm run inspect -- <run> <stage.role.attempt>`：看计划注入（`injection/intended.json`）与实际生效（`injection/effective.json`）的逐项比对；第一次模型请求的实际 payload 在 `injection/first_request.json`。
+3. `npm run session -- <run> <stage.role.attempt> -o /tmp/s.md`：导出可读的完整对话（system prompt、每条消息、每次工具调用的完整参数和结果、模型、token、耗时、停止原因、交卷结果），交给接手的 agent。
+4. `npm run doctor`：不调模型的空会话自检，确认 runtime 当前的注入链路正常。
+
+默认只记录、不中断；`HARNESS_INJECTION_STRICT=1` 才让关键项不一致的会话启动失败（以及暂停期间配置变化时拒绝恢复），只在测试或自检时开。这些文件都已脱敏，但仍不要把它们贴进提交。
+
 ## 改动约束
 
 - 业务入口只放在 `src/backend/api/app.py`。编排逻辑放在 `src/backend/core`，api、services 只做适配，由 `src/scripts/workflow.py` 作为子进程入口。不要在 Next.js 里直接调 Pi，也不要再加一套并行的启动脚本。
