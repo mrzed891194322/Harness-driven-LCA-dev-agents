@@ -58,7 +58,7 @@ KNOWLEDGE_KEYS = frozenset({"kind", "path", "provider"})
 STAGE_KEYS = frozenset(
     {"id", "spec", "max_attempts", "steps", "knowledge", "rules", "tools", "context"}
 )
-ASSIGNMENT_KEYS = frozenset({"role", "tools", "rules", "knowledge"})
+ASSIGNMENT_KEYS = frozenset({"role", "tools", "rules", "knowledge", "permissions"})
 ASSIGNMENT_TOOLS_KEYS = frozenset({"mcp"})
 
 
@@ -326,6 +326,11 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             knowledge_decl=parse_optional_list_field(spec["knowledge"])
             if "knowledge" in spec
             else None,
+            permissions_decl=_parse_permission_refs(
+                spec.get("permissions"), label=f"{source_path}: assignment {aid} permissions"
+            )
+            if "permissions" in spec
+            else None,
         )
 
     if "max_attempts" in raw:
@@ -477,3 +482,13 @@ def _require_python_script(arg: str, *, label: str, project_root: Path) -> None:
     resolved = resolve_project_path(project_root, arg, label=label)
     if not resolved.is_file():
         raise ValueError(f"{label}: script not found: {arg}")
+
+
+def _parse_permission_refs(value: Any, *, label: str) -> list[str]:
+    """``permissions: <id>`` or ``permissions: [<id>, ...]`` (union)."""
+    items = [value] if isinstance(value, str) else value
+    if not isinstance(items, list) or not items or not all(
+        isinstance(v, str) and v.strip() for v in items
+    ):
+        raise ValueError(f"{label} must be a rule id or a non-empty list of rule ids")
+    return [v.strip() for v in items]

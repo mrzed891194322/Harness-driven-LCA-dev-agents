@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import hashlib
 import json
 import os
@@ -11,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.agents.mcp import tool_entry_to_mcp
-from backend.core.agents.permissions import pi_tools
+from backend.core.agents.permission_rules import resolve_permissions
 from backend.core.agents.session import SessionConfig
 from backend.core.contracts.session_launch_spec import (
     KnowledgeBinding,
@@ -28,6 +30,8 @@ from backend.core.workflow.execution.prompt_build import build_prompt
 from backend.core.workflow.execution.session_bind import build_session_config
 from backend.settings import parse_env_file
 
+
+logger = logging.getLogger(__name__)
 
 def openlca_env(project_root: Path) -> dict[str, str]:
     """openLCA IPC settings for MCP servers, read at session creation.
@@ -75,36 +79,24 @@ def compile_permission_policy(
     role: str,
     mcp_servers: dict[str, dict[str, Any]],
     project_root: Path,
-    workspace_root: Path,
+    workspace_root: Path | None = None,
+    rule_refs: list[str] | None = None,
 ) -> PermissionPolicy:
-    tools = list(pi_tools(mcp_servers))
-    if role == "reviewer":
-        write_globs: list[str] = [
-            str((workspace_root / "records" / "reviews").resolve()) + "/**",
-        ]
-        read_globs = [
-            str(workspace_root.resolve()) + "/**",
-            str(project_root.resolve()) + "/harness/**",
-        ]
-        tools = [
-            t
-            for t in tools
-            if t in {"read", "grep", "find", "ls"} or t.startswith("mcp__")
-        ]
-    else:
-        write_globs = [str(workspace_root.resolve()) + "/**"]
-        read_globs = [
-            str(project_root.resolve()) + "/**",
-            str(workspace_root.resolve()) + "/**",
-        ]
-    deny_shell = role == "reviewer"
-    if deny_shell:
-        tools = [t for t in tools if t != "bash"]
+    """Tools + path scopes come from harness/rules/permissions (fail closed)."""
+    del workspace_root  # scopes are rule-driven, relative to the project root
+    resolved = resolve_permissions(
+        project_root=project_root,
+        role=role,
+        rule_refs=rule_refs,
+        mcp_servers=mcp_servers,
+    )
+    if resolved.error:
+        logger.error("permission rules: %s; session gets no tools (fail closed)", resolved.error)
     return PermissionPolicy(
-        allowed_tools=tools,
-        allowed_read_globs=read_globs,
-        allowed_write_globs=write_globs,
-        deny_shell=deny_shell,
+        allowed_tools=list(resolved.tools),
+        allowed_read_globs=list(resolved.read_globs),
+        allowed_write_globs=list(resolved.write_globs),
+        deny_shell=resolved.deny_shell,
     )
 
 
@@ -206,6 +198,7 @@ def build_session_launch_spec(
             mcp_servers=config.mcp_servers,
             project_root=project_root,
             workspace_root=workspace_root,
+            rule_refs=assignment.permissions_decl,
         ),
         session_storage={
             "agent_dir": str(agent_dir.resolve()),

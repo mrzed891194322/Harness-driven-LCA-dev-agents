@@ -1,0 +1,11 @@
+id: reviewer
+description: 审查角色：只读 workspace 和知识库，没有 write/edit/bash；交卷经 MCP
+default_for_roles: [reviewer]
+applies_to:
+  roles: [reviewer]
+tools:
+  builtin: [read, grep, find, ls]
+  mcp: ["mcp__lca_artifacts__*", "mcp__control_openlca__*"]
+paths:
+  read: ["workspace/**", "harness/knowledge/**"]
+  write: []

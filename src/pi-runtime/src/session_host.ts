@@ -28,6 +28,7 @@ import {
 import { currentPeer, emitEvent, listPeers } from "./protocol.js";
 import { ActivityRelay } from "./activity.js";
 import { shutdownPiSession } from "./lifecycle.js";
+import { PathGuard, type GuardRecord } from "./path_guard.js";
 
 const PROTOCOL_VERSION = 1;
 
@@ -42,6 +43,8 @@ interface LiveSession {
   session: AgentSession | null;
   /** Abort, emit session_shutdown (closes MCP servers), dispose. */
   dispose: () => Promise<void>;
+  /** Live sink for path-guard records; set while a turn is running. */
+  guardSink?: { emit: ((record: GuardRecord) => void) | null };
 }
 
 const sessions = new Map<string, LiveSession>();
@@ -152,6 +155,11 @@ function mcpLogPath(spec: SessionLaunchSpec): string {
   return path.join(dir, `${spec.session_key}.mcp.log`);
 }
 
+function guardLogPath(spec: SessionLaunchSpec): string {
+  const root = spec.resource_bindings.project_root ?? process.cwd();
+  return path.join(root, ".local", "runs", spec.run_id || "adhoc", "pi", `${spec.session_key}.guard.jsonl`);
+}
+
 function systemPromptFromSpec(spec: SessionLaunchSpec): string {
   const parts = spec.system_sections.map((s) => s.content);
   if (spec.knowledge_bindings.length) {
@@ -256,6 +264,15 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
   }
 
   const cwd = spec.resource_bindings.project_root ?? process.cwd();
+  const guardSink: { emit: ((record: GuardRecord) => void) | null } = { emit: null };
+  const guard = new PathGuard({
+    sessionKey: spec.session_key,
+    cwd,
+    readGlobs: spec.permission_policy.allowed_read_globs ?? [],
+    writeGlobs: spec.permission_policy.allowed_write_globs ?? [],
+    logFile: guardLogPath(spec),
+    notify: (record) => guardSink.emit?.(record),
+  });
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -265,6 +282,9 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     noContextFiles: true,
     systemPrompt: systemPromptFromSpec(spec),
     extensionFactories: [
+      (pi) => {
+        pi.on("tool_call", (event) => guard.onToolCall(event.toolName, event.input as Record<string, unknown>));
+      },
       createMcpExtension({
         loadConfig: () => loadSessionMcpConfig(agentDir) as any,
         logPath: mcpLogPath(spec),
@@ -303,6 +323,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     piSessionId: session.sessionId,
     session,
     dispose: () => shutdownPiSession(session),
+    guardSink,
   };
 }
 
@@ -515,6 +536,27 @@ export async function handleRuntimeMethod(
       throw new Error(`session ${key} has no live Pi session`);
     }
     let text = "";
+    if (live.guardSink) {
+      live.guardSink.emit = (record) => {
+        if (record.action === "bash_command" && !record.out_of_scope) return;
+        emitEvent(
+          "turn.event",
+          {
+            session_key: key,
+            kind: "permission",
+            ts: record.ts,
+            tool: record.tool,
+            summary:
+              record.action === "denied"
+                ? `拒绝 ${record.tool} ${record.requested_path} -> ${record.resolved_path}`
+                : `bash 越界路径：${(record.out_of_scope ?? []).map((f) => f.resolved).join(", ")}`,
+            is_error: record.action === "denied",
+            args: { ...record },
+          },
+          peer,
+        );
+      };
+    }
     const unsub = session.subscribe((ev) => {
       if (ev.type === "message_update" && ev.assistantMessageEvent?.type === "text_delta") {
         const delta = ev.assistantMessageEvent.delta ?? "";
@@ -535,6 +577,7 @@ export async function handleRuntimeMethod(
       throw error;
     } finally {
       unsub();
+      if (live.guardSink) live.guardSink.emit = null;
     }
     return { status: "ok", text };
   }

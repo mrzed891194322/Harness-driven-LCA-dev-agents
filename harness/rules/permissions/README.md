@@ -1,33 +1,28 @@
 # 权限规则
 
-本目录存放**白名单权限规则**，每条规则一个文件：`harness/rules/permissions/<id>.yaml`。目前只有格式说明，规则文件尚未落地，现阶段的实际权限仍由 core 代码决定。
+每条规则一个文件：`harness/rules/permissions/<id>.yaml`。core（`src/backend/core/agents/permission_rules.py`）解析规则，把工具白名单和读写路径注入 Pi 会话的 launch spec；pi-runtime 的路径守卫（`src/pi-runtime/src/path_guard.ts`）只执行注入进来的规则，代码里不写死任何路径。
 
 ## 格式
 
 ```yaml
-id: reviewer_readonly
-description: 审查角色：只读，经 MCP 交卷
-default_for_roles: [reviewer]        # 作为这些角色的默认规则（某个角色最多只能有一条默认规则）
-applies_to:                          # 可选：限制只能被哪些角色或 assignment 引用（校验用）
-  roles: [reviewer]
-  assignments: []
-builtin_tools: [read, grep, find, ls]
-mcp_tools:                           # 支持通配符，也支持引用 MCP 清单里的工具组
-  - mcp__lca_artifacts__*
-  - mcp__control_openlca__@read_only # = 该服务 mcp.yaml 的 tools.agent.read_only
+id: worker-default
+description: 执行 / 修订角色
+default_for_roles: [executor, reviser]   # 作为这些角色的默认规则（每个角色恰好一条）
+applies_to:
+  roles: [executor, reviser]              # 只能被这些角色引用
+tools:
+  builtin: [read, bash, grep, find, ls, write, edit]
+  mcp: ["mcp__lca_artifacts__*", "mcp__control_openlca__*"]   # 只保留本次绑定了的服务
 paths:
-  read:  ["harness/**", "workspace/**"]
-  write: []                          # 没有写权限；handoff 经 submit_handoff
-bash:                                # 可选；不写即禁止
-  allowed: false
-handoff_via: mcp                     # mcp | file
+  read:  ["workspace/**", "harness/knowledge/**"]   # 相对项目根，不能用绝对路径或 ..
+  write: ["workspace/**"]
 ```
 
 ## 语义
 
-- **纯白名单**：没列出的就禁止。
-- 一个 assignment 引用多条权限规则时，取**并集**。
-- 路径相对项目根，按 glob 匹配，必须落在项目根内。
-- `@<group>` 只能引用该服务 `mcp.yaml` 里声明过的工具组；`tools.host` 下的工具不能出现在任何权限规则里。
-- assignment 没有指定权限规则时，使用 `default_for_roles` 包含其角色的规则；角色没有默认规则时，工作流加载失败。
-- 每个 assignment 的白名单里必须有一种交卷途径（`handoff_via: mcp` 时 `submit_handoff` 可见；`file` 时 handoff 路径可写）。
+- 纯白名单：没列出的就禁止。写范围内的路径也可读。
+- 工作流 YAML 的 assignment 可以写 `permissions: <id>` 或 `permissions: [<id>, ...]`（取并集）；不写就用 `default_for_roles` 含该角色的规则。
+- **失败即关闭**：规则缺失、引用不存在、角色不匹配、YAML 解析失败或字段非法时，会话没有任何工具、任何路径（并记 error 日志）。
+- 执行方式：`read/grep/find/ls` 检查读范围，`write/edit` 检查写范围；路径先解析成绝对真实路径（跟随符号链接，不存在的目标按最近的存在祖先解析）再比对，`../` 和符号链接绕不出去。越权直接拒绝，模型收到错误，记录写到 `.local/runs/<run>/pi/<session>.guard.jsonl`，并作为 `kind: permission` 的 turn.event 发给宿主。
+- `grep/find/ls` 不带路径时默认指向第一个读根（workspace），不再默认搜项目根。
+- `bash` 不拦截：每条命令都记日志，命令里越界的路径会被标出。真正封死要等系统级沙箱。
