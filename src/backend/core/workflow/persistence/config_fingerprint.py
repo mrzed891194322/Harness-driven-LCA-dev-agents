@@ -19,6 +19,7 @@ from backend.core.workflow.spec.view import spec_view, spec_view_hash
 from backend.settings import records_root
 
 from ..config.models import KnowledgeSource, Workflow
+from ..execution import generated_prompts
 
 SCHEMA_VERSION = 1
 
@@ -152,6 +153,7 @@ def build_runtime_config(
                 for action_id, spec in sorted(workflow.host_actions.items())
             },
         },
+        "generated_prompts": generated_prompts.fingerprint_refs(project_root),
         "knowledge": {
             kid: knowledge_source_payload(source, project_root)
             for kid, source in sorted(workflow.knowledge.items())

@@ -47,6 +47,7 @@ from backend.services.credentials_service import (
     set_provider_api,
     set_provider_base_url,
 )
+from backend.services.prompt_templates import PromptTemplates
 from backend.services.session_snapshots import SessionSnapshots
 from backend.services.diagnostics_service import (
     environment_report,
@@ -118,6 +119,7 @@ app.add_middleware(
 
 _workflow = WorkflowService()
 _snapshots = SessionSnapshots()
+_prompt_templates = PromptTemplates()
 _run_events: list[dict[str, Any]] = []
 _event_id = 0
 
@@ -623,6 +625,42 @@ def workflow_result_archive() -> Response:
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="lca-outputs.zip"'},
     )
+
+
+class GeneratedPromptUpdate(BaseModel):
+    rel: str
+    text: str
+
+
+@app.get("/api/prompts/generated")
+def generated_prompts_list() -> dict[str, Any]:
+    """Generated-prompt templates and the user preferences file (default + user version)."""
+    return _prompt_templates.list()
+
+
+@app.put("/api/prompts/generated")
+def generated_prompts_save(body: GeneratedPromptUpdate) -> dict[str, Any]:
+    try:
+        return _prompt_templates.save(body.rel, body.text)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/prompts/generated")
+def generated_prompts_reset(rel: str) -> dict[str, Any]:
+    try:
+        return _prompt_templates.reset(rel)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/prompts/generated/preview")
+def generated_prompts_preview(stage: str, role: str) -> dict[str, Any]:
+    """What a new session for stage+role would get right now (no session is created)."""
+    try:
+        return _prompt_templates.preview(stage, role)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/runs")

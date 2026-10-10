@@ -202,8 +202,9 @@ def build_intended(launch: Any) -> dict[str, Any]:
     segments: list[dict[str, Any]] = []
     meta = getattr(launch, "prompt_segments", None) or []
     for section in launch.system_sections:
-        if section.id == "assignment_prompt" and meta:
-            for seg in meta:
+        parts = [seg for seg in meta if seg.get("section", "assignment_prompt") == section.id]
+        if parts:
+            for seg in parts:
                 segments.append({**{k: v for k, v in seg.items() if k != "content"},
                                  "section": section.id,
                                  "content_sha256": sha256(seg.get("content", "")),
@@ -383,8 +384,10 @@ def _prompt_md(intended: dict[str, Any], launch: Any) -> str:
     texts = intended.get("segment_texts") or {}
     by_id = {s["id"]: s for s in intended["segments"]}
     for section in launch.system_sections:
-        if section.id == "assignment_prompt" and texts:
-            for seg_id, text in texts.items():
+        own = [s["id"] for s in intended["segments"] if s.get("section") == section.id and s["id"] in texts]
+        if own:
+            for seg_id in own:
+                text = texts[seg_id]
                 s = by_id.get(seg_id, {})
                 out.append(f"<!-- segment {seg_id} · source={s.get('source')} · origin={s.get('origin')}"
                            f" · file_sha256={s.get('file_sha256', '-')} · sha256={s.get('content_sha256')} -->")

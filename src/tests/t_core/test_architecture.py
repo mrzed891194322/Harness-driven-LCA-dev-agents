@@ -42,6 +42,7 @@ HARNESS_ROOT_ALLOWLIST = frozenset(
         "tools",
         "rules",
         "specs",
+        "settings.yaml",  # user preferences for generated prompts (P5)
         ".user",  # gitignored user overrides (GUI edits), REFACTOR_PLAN §8.5
     }
 )
@@ -252,12 +253,16 @@ assert not loaded, loaded
     def test_harness_rules_hold_only_prompts(self) -> None:
         """P5: rules/ is natural-language prompts only; permissions live in specs."""
         names = {p.name for p in (HARNESS_ROOT / "rules").iterdir()}
-        unexpected = sorted(names - {"project", "lca", "tools", "stages", "README.md"})
+        unexpected = sorted(names - {"project", "lca", "tools", "stages", "generated", "README.md"})
         self.assertEqual(unexpected, [], f"unexpected in harness/rules/: {unexpected}")
         non_md = sorted(
-            str(p) for p in (HARNESS_ROOT / "rules").rglob("*") if p.is_file() and p.suffix != ".md"
+            str(p)
+            for p in (HARNESS_ROOT / "rules").rglob("*")
+            if p.is_file()
+            and p.suffix != ".md"
+            and not (p.parent.name == "generated" and p.name.endswith(".md.tmpl"))
         )
-        self.assertEqual(non_md, [], "harness/rules/ may only hold .md prompt files")
+        self.assertEqual(non_md, [], "harness/rules/ may only hold .md prompts (.md.tmpl in generated/)")
         self.assertTrue((HARNESS_ROOT / "specs" / "shared" / "permissions").is_dir())
 
     def test_main_and_revise_load_independently_without_reuse(self) -> None:

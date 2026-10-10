@@ -25,6 +25,7 @@ from backend.core.runtime.model_profiles import resolve_model_profile
 from backend.core.workflow.config.bundle import TaskBundle
 from backend.core.workflow.config.models import Assignment, Stage, Workflow
 from backend.core.workflow.execution.handoff import handoff_path
+from backend.core.workflow.execution import generated_prompts
 from backend.core.workflow.execution.prompt_build import build_prompt, prompt_segments
 from backend.core.workflow.execution.session_bind import build_session_config
 from backend.core.workflow.spec.loader import load_stage_spec
@@ -200,14 +201,35 @@ def build_session_launch_spec(
         run_context=run_context,
     )
     spec_text = spec_context_section(view, spec_error)
+    policy = compile_permission_policy(
+        role=bundle.role,
+        mcp_servers=session_servers if stage_spec is not None else {},
+        project_root=project_root,
+        workspace_root=workspace_root,
+        rule_refs=assignment.permissions_decl,
+        stage_spec=stage_spec,
+    )
+    # Rendered fresh for every session (fixed order); a missing variable raises.
+    generated = generated_prompts.render_session(project_root, policy)
+    for seg in generated:
+        seg["section"] = "generated_prompts"
+    generated_text = "\n\n".join(seg["content"] for seg in generated)
     sections = [
         SystemSection(id="spec_context", content=spec_text, source_hash=_sha(spec_text)),
         SystemSection(
             id="assignment_prompt",
             content=prompt_text,
             source_hash=_sha(prompt_text),
-        )
+        ),
     ]
+    if generated_text:
+        sections.append(
+            SystemSection(
+                id="generated_prompts",
+                content=generated_text,
+                source_hash=_sha(generated_text),
+            )
+        )
     knowledge = [
         KnowledgeBinding(
             id=item.knowledge_id,
@@ -257,21 +279,16 @@ def build_session_launch_spec(
             "credentials_dir": str((project_root / ".local" / "credentials").resolve()),
         },
         mcp_bindings=mcp_bindings,
-        permission_policy=compile_permission_policy(
-            role=bundle.role,
-            mcp_servers=session_servers if stage_spec is not None else {},
-            project_root=project_root,
-            workspace_root=workspace_root,
-            rule_refs=assignment.permissions_decl,
-            stage_spec=stage_spec,
-        ),
+        permission_policy=policy,
         session_storage={
             "agent_dir": str(agent_dir.resolve()),
             "session_file": str(session_file.resolve()),
         },
         handoff_binding=handoff_binding,
     )
-    launch.prompt_segments = segments
+    for seg in segments:
+        seg["section"] = "assignment_prompt"
+    launch.prompt_segments = [*segments, *generated]
     launch.spec_view = view
     launch.spec_view_hash = view_hash
     launch.spec_sources = dict(stage_spec.sources) if stage_spec is not None else {}
