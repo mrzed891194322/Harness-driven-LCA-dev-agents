@@ -792,6 +792,14 @@ def start_workflow(body: WorkflowStart) -> dict[str, str]:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@app.post("/api/workflow/stop")
+def stop_workflow() -> dict[str, str]:
+    try:
+        return launcher.stop()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @app.get("/api/events")
 async def event_stream(request: Request) -> StreamingResponse:
     async def generate():

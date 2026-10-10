@@ -29,6 +29,7 @@ class WorkflowService:
 
         recorded = self._recorded_progress()
         launch = launch_snapshot()
+        model = self._model_label(str(recorded["run_id"] or ""))
         if _prefer_launch(launch, recorded["mtime"]):
             status = "failed" if launch["status"] == "failed" else "running"
             return _window(
@@ -40,6 +41,7 @@ class WorkflowService:
                 current_stage=None,
                 status_reason=launch.get("reason") or None,
                 run_id=None,
+                model=model,
             )
         return _window(
             text=recorded["text"],
@@ -50,6 +52,7 @@ class WorkflowService:
             current_stage=recorded["current_stage"],
             status_reason=recorded["status_reason"],
             run_id=recorded["run_id"] or None,
+            model=model,
         )
 
     def activity(self, run_id: str = "", offset: int = 0) -> dict[str, Any]:
@@ -94,6 +97,29 @@ class WorkflowService:
         recorded["text"] = path.read_text(encoding="utf-8", errors="replace")
         recorded["mtime"] = path.stat().st_mtime
         return recorded
+
+    def _model_label(self, run_id: str) -> str:
+        """Model id for this run, so the terminal can show it instead of the worker name."""
+        from backend.core.agents.config import load_worker_model
+        from backend.core.runtime.model_profiles import resolve_model_profile
+        from backend.core.workflow.persistence.config_fingerprint import runtime_config_path
+
+        model_ref = ""
+        if run_id:
+            path = runtime_config_path(self.workspace_root, run_id)
+            if path.is_file():
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    payload = None
+                if isinstance(payload, dict):
+                    execution = payload.get("execution")
+                    if isinstance(execution, dict):
+                        model_ref = str(execution.get("model") or "").strip()
+        if not model_ref:
+            model_ref = load_worker_model("pi", self.project_root)
+        profile = resolve_model_profile(model_ref, project_root=self.project_root)
+        return (profile.model_id or profile.display_name or model_ref).strip()
 
     def results(self) -> dict[str, Any]:
         """Current run summary, handoff records, and files under workspace/outputs."""
@@ -253,6 +279,7 @@ def _window(
     current_stage: Any,
     status_reason: Any,
     run_id: str | None,
+    model: str = "",
 ) -> dict[str, Any]:
     data = text.encode("utf-8")
     size = len(data)
@@ -268,6 +295,7 @@ def _window(
         "status": status,
         "current_stage": current_stage,
         "status_reason": status_reason,
+        "model": model,
         "text": chunk.decode("utf-8", errors="replace"),
         "offset": size,
         "reset": reset,

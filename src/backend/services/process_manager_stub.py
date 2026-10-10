@@ -19,3 +19,22 @@ def clear_active_process() -> None:
 
 def should_stop() -> bool:
     return _stop
+
+
+def clear_stop() -> None:
+    global _stop
+    _stop = False
+
+
+def request_stop() -> bool:
+    """Ask the active command to stop. Only that process is signalled."""
+    global _stop
+    _stop = True
+    proc = _active
+    if proc is None or proc.poll() is not None:
+        return False
+    try:
+        proc.terminate()
+    except ProcessLookupError:
+        return False
+    return True

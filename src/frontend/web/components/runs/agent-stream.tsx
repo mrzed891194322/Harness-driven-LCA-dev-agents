@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
+  Bot,
   Check,
   ChevronRight,
   FileText,
@@ -130,9 +131,11 @@ export function parseAgentLog(raw: string): AgentItem[] {
 export function AgentStream({
   text,
   running,
+  model = "",
 }: {
   text: string;
   running: boolean;
+  model?: string;
 }) {
   const items = parseAgentLog(text);
   const scroller = useRef<HTMLDivElement>(null);
@@ -162,7 +165,9 @@ export function AgentStream({
           {running ? "正在等待 agent 输出…" : "还没有运行记录。工作流开始后，这里会按 agent 的输出逐段出现。"}
         </p>
       ) : (
-        items.map((item, index) => <AgentRow key={`${item.type}-${index}`} item={item} />)
+        items.map((item, index) => (
+          <AgentRow key={`${item.type}-${index}`} item={item} model={model} />
+        ))
       )}
       {running ? (
         <p className="agent-live">
@@ -174,13 +179,16 @@ export function AgentStream({
   );
 }
 
-function AgentRow({ item }: { item: AgentItem }) {
+function AgentRow({ item, model }: { item: AgentItem; model: string }) {
   if (item.type === "system") {
     return (
       <p className="agent-system">
+        <span className="agent-system-mark" aria-hidden="true">
+          <Terminal size={13} strokeWidth={1.75} />
+        </span>
         <time>{item.time}</time>
-        <span>
-          {item.text}
+        <span className="agent-system-text">
+          <SystemText text={item.text} />
           {item.count > 1 ? <em> ×{item.count}</em> : null}
         </span>
       </p>
@@ -190,13 +198,21 @@ function AgentRow({ item }: { item: AgentItem }) {
     const role = ROLE_LABEL[item.role] || item.role;
     const attempt = item.attempt ? `第 ${item.attempt} 次` : "";
     return (
-      <h3 className="agent-turn">
-        <span>{item.stage}</span>
-        <small>
-          {role}
-          {attempt ? ` · ${attempt}` : ""}
-          {item.worker ? ` · ${item.worker}` : ""}
-        </small>
+      <h3 className="agent-turn" data-role={item.role}>
+        <span className="agent-turn-mark" aria-hidden="true">
+          <Bot size={16} strokeWidth={1.75} />
+        </span>
+        <span className="agent-turn-stage">{item.stage}</span>
+        {role ? <span className="agent-turn-role">{role}</span> : null}
+        {attempt ? <span className="agent-turn-attempt">{attempt}</span> : null}
+        <span className="agent-turn-side">
+          {model || item.worker ? (
+            <span className="agent-turn-model" title={model || item.worker}>
+              {model || item.worker}
+            </span>
+          ) : null}
+          {item.time ? <time>{item.time}</time> : null}
+        </span>
       </h3>
     );
   }
@@ -263,6 +279,34 @@ function ToolRow({ item }: { item: Extract<AgentItem, { type: "tool" }> }) {
   );
 }
 
+function SystemText({ text }: { text: string }) {
+  const prepare = /^准备 (\S+) · (第 \d+ 次)$/.exec(text);
+  if (prepare) {
+    return (
+      <>
+        准备 <code>{prepare[1]}</code> · {prepare[2]}
+      </>
+    );
+  }
+  const start = /^开始运行 · (\S+)$/.exec(text);
+  if (start) {
+    return (
+      <>
+        开始运行 · <code>{start[1]}</code>
+      </>
+    );
+  }
+  const ended = /^运行结束 · ([\s\S]+)$/.exec(text);
+  if (ended) {
+    return (
+      <>
+        运行结束 · <code>{ended[1]}</code>
+      </>
+    );
+  }
+  return text;
+}
+
 function AgentProse({ text }: { text: string }) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
@@ -278,6 +322,45 @@ function AgentProse({ text }: { text: string }) {
       const Tag = heading[1].length === 1 ? "h4" : "h5";
       blocks.push(<Tag key={blocks.length}>{inline(heading[2])}</Tag>);
       index += 1;
+      continue;
+    }
+    if (isTableRow(line)) {
+      let header: string[] | null = null;
+      if (isTableStart(lines, index)) {
+        header = splitCells(lines[index]);
+        index += 2;
+      }
+      const rows: string[][] = [];
+      while (index < lines.length && isTableRow(lines[index]) && !isTableSep(lines[index])) {
+        rows.push(splitCells(lines[index]));
+        index += 1;
+      }
+      if (index < lines.length && /^\|?\s*…+\s*\|?$/.test(lines[index].trim())) index += 1;
+      const width = Math.max(header?.length ?? 0, ...rows.map((row) => row.length), 1);
+      blocks.push(
+        <div className="agent-table" key={blocks.length}>
+          <table>
+            {header ? (
+              <thead>
+                <tr>
+                  {padCells(header, width).map((cell, cellIndex) => (
+                    <th key={cellIndex}>{inline(cell)}</th>
+                  ))}
+                </tr>
+              </thead>
+            ) : null}
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {padCells(row, width).map((cell, cellIndex) => (
+                    <td key={cellIndex}>{inline(cell)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
       continue;
     }
     if (/^\d+\.\s+/.test(line)) {
@@ -316,7 +399,8 @@ function AgentProse({ text }: { text: string }) {
       lines[index].trim() &&
       !/^(#{1,3})\s+/.test(lines[index]) &&
       !/^\d+\.\s+/.test(lines[index]) &&
-      !/^[-*]\s+/.test(lines[index])
+      !/^[-*]\s+/.test(lines[index]) &&
+      !isTableRow(lines[index])
     ) {
       paragraph.push(lines[index]);
       index += 1;
@@ -324,6 +408,31 @@ function AgentProse({ text }: { text: string }) {
     blocks.push(<p key={blocks.length}>{inline(paragraph.join(" "))}</p>);
   }
   return <Fragment>{blocks}</Fragment>;
+}
+
+function isTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.slice(1).includes("|");
+}
+
+function isTableSep(line: string): boolean {
+  const cells = splitCells(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function isTableStart(lines: string[], index: number): boolean {
+  return index + 1 < lines.length && isTableRow(lines[index]) && isTableSep(lines[index + 1]);
+}
+
+function splitCells(line: string): string[] {
+  let raw = line.trim();
+  if (raw.startsWith("|")) raw = raw.slice(1);
+  if (raw.endsWith("|")) raw = raw.slice(0, -1);
+  return raw.split("|").map((cell) => cell.trim());
+}
+
+function padCells(cells: string[], width: number): string[] {
+  return Array.from({ length: width }, (_, index) => cells[index] ?? "");
 }
 
 function inline(text: string): ReactNode[] {

@@ -49,6 +49,30 @@ class WorkflowProgressTests(unittest.TestCase):
             self.assertIn("start", reset["text"])
             self.assertIn("next", reset["text"])
 
+    def test_progress_reports_the_run_model(self) -> None:
+        import json
+
+        from backend.core.workflow.persistence.config_fingerprint import runtime_config_path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_id = "run-1"
+            write_manifest(
+                root / "workspace",
+                status="completed",
+                current_stage="01-intake-gate",
+                status_reason="",
+                run_id=run_id,
+            )
+            config = runtime_config_path(root / "workspace", run_id)
+            config.parent.mkdir(parents=True, exist_ok=True)
+            config.write_text(
+                json.dumps({"execution": {"model": "anthropic/claude-sonnet-4-5"}}),
+                encoding="utf-8",
+            )
+            body = WorkflowService(root).progress(0)
+            self.assertEqual(body["model"], "claude-sonnet-4-5")
+
     def test_progress_route_shape(self) -> None:
         response = TestClient(app).get("/api/workflow/progress")
         self.assertEqual(response.status_code, 200)
