@@ -77,7 +77,14 @@ function InjectionDetail({ runId, session }: { runId: string; session: string })
         <tbody>
           {rows.map(([k, a, b]) => (
             <tr key={k}>
-              <td>{k}</td>
+              <td>
+                {k}
+                {k === "system prompt 哈希" ? (
+                  <p className="settings-help" style={{ margin: "4px 0 0", fontWeight: 400 }}>
+                    Pi SDK 会在实际请求中追加运行协议等内容（effective 侧常见 sdk_added），因此哈希与计划值不一致通常属于预期差异，不代表注入失败。
+                  </p>
+                ) : null}
+              </td>
               <td style={{ wordBreak: "break-all" }}>{String(a ?? "")}</td>
               <td style={{ wordBreak: "break-all" }}>{String(b ?? "")}</td>
             </tr>

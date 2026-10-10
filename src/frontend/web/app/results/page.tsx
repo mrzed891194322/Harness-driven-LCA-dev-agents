@@ -54,34 +54,59 @@ export default function ResultsPage() {
   const requestRef = useRef(0);
   const selectedRunRef = useRef("");
 
-  const openPath = useCallback(async (filePath: string, artifacts: Artifact[]) => {
-    const request = ++requestRef.current;
-    selectedRef.current = filePath;
-    setSelected(filePath);
-    setFileError("");
-    const group = artifacts.find((item) => item.path === filePath && (item.count || 1) > 1);
-    if (group) {
-      setPreview({ path: group.path, kind: "group", size: group.size, text: "", count: group.count || 0 });
-      return;
-    }
-    try {
-      const response = await apiFetch(`/api/results/file?path=${encodeURIComponent(filePath)}`);
-      const body = (await response.json()) as ResultFile & { detail?: string };
-      if (request !== requestRef.current) return;
-      if (response.status === 404 && body.detail === "Not Found") {
-        const file = await readResultFile(filePath);
-        if (request !== requestRef.current) return;
-        setPreview(file);
+  const previewCacheRef = useRef<Map<string, Preview>>(new Map());
+
+  const openPath = useCallback(
+    async (filePath: string, artifacts: Artifact[], signal?: AbortSignal) => {
+      const request = ++requestRef.current;
+      selectedRef.current = filePath;
+      setSelected(filePath);
+      setFileError("");
+      const cached = previewCacheRef.current.get(filePath);
+      if (cached) {
+        setPreview(cached);
         return;
       }
-      if (!response.ok) throw new Error(body.detail || `无法读取文件（HTTP ${response.status}）`);
-      setPreview(body);
-    } catch (reason: unknown) {
-      if (request !== requestRef.current) return;
-      setPreview(null);
-      setFileError(reason instanceof Error ? reason.message : "无法读取文件");
-    }
-  }, []);
+      const group = artifacts.find((item) => item.path === filePath && (item.count || 1) > 1);
+      if (group) {
+        const entry: Preview = {
+          path: group.path,
+          kind: "group",
+          size: group.size,
+          text: "",
+          count: group.count || 0,
+        };
+        previewCacheRef.current.set(filePath, entry);
+        setPreview(entry);
+        return;
+      }
+      try {
+        const response = await apiFetch(`/api/results/file?path=${encodeURIComponent(filePath)}`, {
+          signal,
+        });
+        const body = (await response.json()) as ResultFile & { detail?: string };
+        if (signal?.aborted || request !== requestRef.current) return;
+        if (response.status === 404 && body.detail === "Not Found") {
+          const file = await readResultFile(filePath);
+          if (signal?.aborted || request !== requestRef.current) return;
+          previewCacheRef.current.set(filePath, file);
+          setPreview(file);
+          return;
+        }
+        if (!response.ok) throw new Error(body.detail || `无法读取文件（HTTP ${response.status}）`);
+        previewCacheRef.current.set(filePath, body);
+        setPreview(body);
+      } catch (reason: unknown) {
+        if (signal?.aborted || request !== requestRef.current) return;
+        setPreview(null);
+        setFileError(reason instanceof Error ? reason.message : "无法读取文件");
+      }
+    },
+    [],
+  );
+
+  const detailTabRef = useRef<DetailTab>(detailTab);
+  detailTabRef.current = detailTab;
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
@@ -97,18 +122,22 @@ export default function ResultsPage() {
       }
       setData(next);
       setError("");
+      const manifestRun = String(next.manifest.run_id || "").trim();
+      if (!selectedRunRef.current && manifestRun) {
+        selectedRunRef.current = manifestRun;
+        setSelectedRunId(manifestRun);
+      }
+      if (detailTabRef.current !== "artifacts") {
+        return;
+      }
       const current = selectedRef.current;
       const known = new Set([
         ...next.handoffs.map((h) => `workspace/records/handoffs/${h.name}`),
         ...next.artifacts.map((item) => item.path),
       ]);
       const target = current && known.has(current) ? current : firstArtifactPath(next.handoffs, next.artifacts);
-      if (target && (!silent || target !== current)) void openPath(target, next.artifacts);
-
-      const manifestRun = String(next.manifest.run_id || "").trim();
-      if (!selectedRunRef.current && manifestRun) {
-        selectedRunRef.current = manifestRun;
-        setSelectedRunId(manifestRun);
+      if (target && !silent && !current) {
+        void openPath(target, next.artifacts);
       }
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "无法读取结果");
@@ -154,9 +183,23 @@ export default function ResultsPage() {
     selectedRunRef.current = selectedRunId;
   }, [selectedRunId]);
 
-  const empty = Boolean(data) && !data?.handoffs.length && !data?.artifacts.length;
   const manifestRunId = String(data?.manifest.run_id || "").trim();
-  const artifactsForRun = selectedRunId && manifestRunId && selectedRunId === manifestRunId;
+  const artifactsForRun = Boolean(
+    selectedRunId && manifestRunId && selectedRunId === manifestRunId,
+  );
+
+  useEffect(() => {
+    if (detailTab !== "artifacts" || !data || !artifactsForRun) return;
+    const controller = new AbortController();
+    const target =
+      selectedRef.current && data.artifacts.some((a) => a.path === selectedRef.current)
+        ? selectedRef.current
+        : firstArtifactPath(data.handoffs, data.artifacts);
+    if (target) void openPath(target, data.artifacts, controller.signal);
+    return () => controller.abort();
+  }, [detailTab, data, artifactsForRun, openPath]);
+
+  const empty = Boolean(data) && !data?.handoffs.length && !data?.artifacts.length;
 
   async function downloadOutputs() {
     setPacking(true);
@@ -212,7 +255,13 @@ export default function ResultsPage() {
 
         <nav className="results-run-history" aria-label="历史运行">
           <h3>历史运行</h3>
-          {runs.length === 0 ? <p className="settings-help">还没有带会话快照的运行记录。</p> : null}
+          {runs.length === 0 ? (
+            <p className="settings-help">
+              仅列出在 .local/runs 下保留了会话快照的运行；更早的运行请直接查看 workspace 产物目录。
+            </p>
+          ) : (
+            <p className="settings-help">列表仅包含带会话快照的运行（用于注入与会话核对）。</p>
+          )}
           <ul className="results-run-list">
             {runs.map((run) => (
               <li key={run.run_id}>

@@ -1,6 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { MarkdownView } from "../markdown-view";
+
+const MAX_ARTIFACT_ROWS = 200;
 import type { ResultFile } from "../../app/results/load-files";
 
 export type Handoff = {
@@ -82,6 +85,12 @@ export function ArtifactsBrowser({
   formatSize,
   onOpen,
 }: Props) {
+  const visibleArtifacts = useMemo(
+    () => artifacts.slice(0, MAX_ARTIFACT_ROWS),
+    [artifacts],
+  );
+  const omittedArtifacts = Math.max(0, artifacts.length - visibleArtifacts.length);
+
   return (
     <div className="results-columns">
       <nav className="results-pane results-nav" aria-label="文件">
@@ -115,8 +124,13 @@ export function ArtifactsBrowser({
         {artifacts.length ? (
           <section>
             <h3>产物</h3>
+            {omittedArtifacts ? (
+              <p className="settings-help">
+                仅显示前 {MAX_ARTIFACT_ROWS} 项，另有 {omittedArtifacts} 项未列出；请用下载产出或在磁盘浏览。
+              </p>
+            ) : null}
             <ul>
-              {artifacts.map((item) => (
+              {visibleArtifacts.map((item) => (
                 <li key={item.path}>
                   <button
                     type="button"
