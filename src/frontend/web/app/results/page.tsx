@@ -3,8 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, PenLine, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { MarkdownView } from "../../components/markdown-view";
+import {
+  ArtifactsBrowser,
+  firstArtifactPath,
+  type Artifact,
+  type Handoff,
+  type Preview,
+} from "../../components/results/artifacts-browser";
+import { InjectionCheckPanel } from "../../components/results/injection-check-panel";
+import { getRunJson, INJECTION_TONE, type RunRow } from "../../components/results/run-api";
+import { SessionRecordsPanel } from "../../components/results/session-records-panel";
 import { apiFetch } from "../../lib/api";
+import { filterVisibleRuns } from "../../lib/run-filters";
 import { loadResultFiles, readResultFile, type ResultFile } from "./load-files";
 
 type Manifest = {
@@ -14,79 +24,18 @@ type Manifest = {
   run_id?: string | null;
 };
 
-type Handoff = {
-  name: string;
-  stage: string;
-  role: string;
-  attempt: number | null;
-  status: string;
-  status_reason: string;
-  artifacts: string[];
-};
-
-type Artifact = {
-  path: string;
-  size: number;
-  count?: number;
-};
-
 type Results = {
   manifest: Manifest;
   handoffs: Handoff[];
   artifacts: Artifact[];
 };
 
-type Preview =
-  | ResultFile
-  | { path: string; kind: "group"; size: number; text: ""; count: number };
-
-const HANDOFF_STATUS: Record<string, string> = {
-  ok: "完成",
-  failed: "失败",
-  blocked: "受阻",
-  passed: "通过",
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  executor: "执行",
-  reviser: "修订",
-  reviewer: "审查",
-};
+type DetailTab = "injection" | "sessions" | "artifacts";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function handoffPath(item: Handoff): string {
-  return `workspace/records/handoffs/${item.name}`;
-}
-
-function baseName(filePath: string): string {
-  const parts = filePath.split("/");
-  return parts[parts.length - 1] || filePath;
-}
-
-function navTitle(item: Artifact): string {
-  if ((item.count || 1) > 1) {
-    const parts = item.path.split("/");
-    return parts.slice(-2).join("/");
-  }
-  return baseName(item.path);
-}
-
-function parentName(filePath: string): string {
-  const trimmed = filePath
-    .replace(/^workspace\/outputs\//, "")
-    .replace(/^workspace\/records\/handoffs\//, "");
-  const slash = trimmed.lastIndexOf("/");
-  return slash >= 0 ? trimmed.slice(0, slash) : "";
-}
-
-function firstPath(data: Results): string {
-  if (data.handoffs[0]) return handoffPath(data.handoffs[0]);
-  return data.artifacts[0]?.path || "";
 }
 
 export default function ResultsPage() {
@@ -98,8 +47,12 @@ export default function ResultsPage() {
   const [selected, setSelected] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [fileError, setFileError] = useState("");
+  const [runs, setRuns] = useState<RunRow[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState("");
+  const [detailTab, setDetailTab] = useState<DetailTab>("artifacts");
   const selectedRef = useRef("");
   const requestRef = useRef(0);
+  const selectedRunRef = useRef("");
 
   const openPath = useCallback(async (filePath: string, artifacts: Artifact[]) => {
     const request = ++requestRef.current;
@@ -146,17 +99,39 @@ export default function ResultsPage() {
       setError("");
       const current = selectedRef.current;
       const known = new Set([
-        ...next.handoffs.map(handoffPath),
+        ...next.handoffs.map((h) => `workspace/records/handoffs/${h.name}`),
         ...next.artifacts.map((item) => item.path),
       ]);
-      const target = current && known.has(current) ? current : firstPath(next);
+      const target = current && known.has(current) ? current : firstArtifactPath(next.handoffs, next.artifacts);
       if (target && (!silent || target !== current)) void openPath(target, next.artifacts);
+
+      const manifestRun = String(next.manifest.run_id || "").trim();
+      if (!selectedRunRef.current && manifestRun) {
+        selectedRunRef.current = manifestRun;
+        setSelectedRunId(manifestRun);
+      }
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "无法读取结果");
     } finally {
       if (!silent) setBusy(false);
     }
   }, [openPath]);
+
+  const loadRuns = useCallback(async () => {
+    try {
+      const body = await getRunJson<{ runs: RunRow[] }>("/api/runs");
+      const visible = filterVisibleRuns(body.runs);
+      setRuns(visible);
+      setSelectedRunId((cur) => {
+        if (cur && visible.some((r) => r.run_id === cur)) return cur;
+        const manifestRun = String(data?.manifest.run_id || "").trim();
+        if (manifestRun && visible.some((r) => r.run_id === manifestRun)) return manifestRun;
+        return visible[0]?.run_id || "";
+      });
+    } catch {
+      setRuns([]);
+    }
+  }, [data?.manifest.run_id]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -169,7 +144,19 @@ export default function ResultsPage() {
     return () => clearInterval(timer);
   }, [refresh]);
 
+  useEffect(() => {
+    void loadRuns();
+    const timer = setInterval(() => void loadRuns(), 8000);
+    return () => clearInterval(timer);
+  }, [loadRuns]);
+
+  useEffect(() => {
+    selectedRunRef.current = selectedRunId;
+  }, [selectedRunId]);
+
   const empty = Boolean(data) && !data?.handoffs.length && !data?.artifacts.length;
+  const manifestRunId = String(data?.manifest.run_id || "").trim();
+  const artifactsForRun = selectedRunId && manifestRunId && selectedRunId === manifestRunId;
 
   async function downloadOutputs() {
     setPacking(true);
@@ -222,89 +209,89 @@ export default function ResultsPage() {
           </div>
         </div>
         {error ? <p className="status-banner error">{error}</p> : null}
-        <div className="results-columns">
-          <nav className="results-pane results-nav" aria-label="文件">
-            {empty ? <p className="settings-help">还没有文件。</p> : null}
-            {data?.handoffs.length ? (
-              <section>
-                <h3>工作记录</h3>
-                <ul>
-                  {data.handoffs.map((item) => {
-                    const filePath = handoffPath(item);
-                    return (
-                      <li key={filePath}>
-                        <button
-                          type="button"
-                          aria-current={selected === filePath ? "page" : undefined}
-                          onClick={() => void openPath(filePath, data.artifacts)}
-                        >
-                          <strong>{item.stage || item.name}</strong>
-                          <span>
-                            {ROLE_LABEL[item.role] || item.role || "交接"}
-                            {item.attempt != null ? ` · 第 ${item.attempt} 次` : ""}
-                            {item.status ? ` · ${HANDOFF_STATUS[item.status] || item.status}` : ""}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
+
+        <nav className="results-run-history" aria-label="历史运行">
+          <h3>历史运行</h3>
+          {runs.length === 0 ? <p className="settings-help">还没有带会话快照的运行记录。</p> : null}
+          <ul className="results-run-list">
+            {runs.map((run) => (
+              <li key={run.run_id}>
+                <button
+                  type="button"
+                  className={selectedRunId === run.run_id ? "is-active" : ""}
+                  aria-current={selectedRunId === run.run_id ? "true" : undefined}
+                  onClick={() => setSelectedRunId(run.run_id)}
+                >
+                  <strong>{run.run_id}</strong>
+                  <span>
+                    {run.sessions} 个会话
+                    {run.anomaly ? (
+                      <span className={`badge badge-${INJECTION_TONE[run.level] || "warn"}`} style={{ marginLeft: 6 }}>
+                        注入异常
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {selectedRunId ? (
+          <>
+            <div className="results-detail-tabs" role="tablist" aria-label="运行详情">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={detailTab === "injection"}
+                className={detailTab === "injection" ? "is-active" : ""}
+                onClick={() => setDetailTab("injection")}
+              >
+                注入核对
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={detailTab === "sessions"}
+                className={detailTab === "sessions" ? "is-active" : ""}
+                onClick={() => setDetailTab("sessions")}
+              >
+                会话记录
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={detailTab === "artifacts"}
+                className={detailTab === "artifacts" ? "is-active" : ""}
+                onClick={() => setDetailTab("artifacts")}
+              >
+                产物
+              </button>
+            </div>
+            {detailTab === "injection" ? <InjectionCheckPanel runId={selectedRunId} /> : null}
+            {detailTab === "sessions" ? <SessionRecordsPanel runId={selectedRunId} /> : null}
+            {detailTab === "artifacts" ? (
+              artifactsForRun ? (
+                <ArtifactsBrowser
+                  handoffs={data?.handoffs || []}
+                  artifacts={data?.artifacts || []}
+                  empty={empty}
+                  selected={selected}
+                  preview={preview}
+                  fileError={fileError}
+                  formatSize={formatSize}
+                  onOpen={(path) => void openPath(path, data?.artifacts || [])}
+                />
+              ) : (
+                <p className="settings-help" style={{ marginTop: 12 }}>
+                  工作区产物只对当前一轮运行（{manifestRunId || "未知"}）保留。请选择该运行，或到 workspace/outputs 查看磁盘上的文件。
+                </p>
+              )
             ) : null}
-            {data?.artifacts.length ? (
-              <section>
-                <h3>产物</h3>
-                <ul>
-                  {data.artifacts.map((item) => (
-                    <li key={item.path}>
-                      <button
-                        type="button"
-                        aria-current={selected === item.path ? "page" : undefined}
-                        onClick={() => void openPath(item.path, data.artifacts)}
-                      >
-                        <strong>{navTitle(item)}</strong>
-                        <span>
-                          {item.count && item.count > 1
-                            ? `${item.count} 个中间文件`
-                            : parentName(item.path) || formatSize(item.size)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-          </nav>
-          <section className="results-pane results-view" aria-label="文件内容">
-            {preview ? (
-              <>
-                <header className="results-view-head">
-                  <strong className="results-path">{preview.path}</strong>
-                  {preview.kind !== "group" ? <span>{formatSize(preview.size)}</span> : null}
-                </header>
-                <div className="results-view-body">
-                  {preview.kind === "group" ? (
-                    <p className="settings-help">
-                      这是中间调用记录，共 {preview.count} 个文件，{formatSize(preview.size)}。
-                    </p>
-                  ) : preview.kind === "too-large" ? (
-                    <p className="settings-help">文件较大（{formatSize(preview.size)}），这里不展开。</p>
-                  ) : preview.kind === "markdown" ? (
-                    <MarkdownView source={preview.text} />
-                  ) : preview.text ? (
-                    <pre className="results-source">
-                      <code>{preview.text}</code>
-                    </pre>
-                  ) : (
-                    <p className="settings-help">文件是空的。</p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <p className="settings-help">{fileError || "选择左侧文件查看内容。"}</p>
-            )}
-          </section>
-        </div>
+          </>
+        ) : (
+          <p className="settings-help" style={{ marginTop: 12 }}>选择一次运行以查看注入核对、会话记录或产物。</p>
+        )}
       </section>
     </div>
   );
