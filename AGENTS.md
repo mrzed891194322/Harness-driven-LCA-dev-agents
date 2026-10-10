@@ -33,6 +33,8 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 | 跑完看不到报告或历史 | `src/frontend/web/app/results/page.tsx`，`workspace/outputs/`，`workspace/records/` | 结果页读本轮产物和 handoff，而不是只写死路径说明 |
 | 模型、密钥、openLCA 不可用 | `/status`，`/api/diagnostics/environment`，设置里的模型档案 | 诊断与「预览执行」使用同一套就绪条件；未就绪时不要启动 |
 
+产物地图（每个阶段产出什么、放在哪、谁写谁读、GUI 怎么显示）见 `docs/ARTIFACTS.md`，改动产物时同步更新。
+
 工作流文件固定为 `harness/LCA-main.yaml`（新工作）和 `harness/LCA-revise.yaml`（修改工作），见 `services/workflow_cli.py` 的 `WORKFLOW_YAML_BY_TASK`。
 
 ## 已经接通的部分
