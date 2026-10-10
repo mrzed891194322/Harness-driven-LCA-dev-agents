@@ -22,19 +22,19 @@
 
 ## 0. 分支台账（每次新开分支或合并都要更新）
 
-都是本地分支，没有 push。主分支是 `master`（`2e42ba4`）。这是一条线性的分支链，从上往下一个接一个；`p5-inject-specs` 是单独岔出去的旁支。
+都是本地分支，没有 push。2026-10-10 11:5x（UTC+8），下面这一串已经按顺序快进合进 `master`。
 
 | 分支 | 基于 | 最新提交 | 验证情况 | 合并 |
 |---|---|---|---|---|
-| `refactor/p-1-layout` | `master` | `bdd2dac` | 已在真实 LCA 运行中验证 | 未合并 |
-| `refactor/p1-stabilize` | `p-1-layout` | `3ec2824` | 真实运行通过（00:32–00:52，四个阶段都是一次通过） | 未合并 |
-| `refactor/p1-single-runtime` | `p1-stabilize` | `751f235` | 自动测试通过；真实运行时始终只有一个 pi-runtime | 未合并 |
-| `refactor/p4-path-whitelist` | `p1-single-runtime` | `e244d48` | 真实运行 `764361c2` 跑到 04 因运输单位错误失败，白名单本身没有造成卡顿 | 未合并 |
-| `refactor/upstream-rework` | `p4-path-whitelist` | `d2130ed` | 自动测试 431 + 34 通过；还没跑真实运行 | 未合并 |
-| `refactor/p5-inject-specs` | `p4-path-whitelist` | `bb1604b` | 和 P5 的新设计冲突，不再使用（其中的文件清单逻辑可复用） | 不合并 |
-| `refactor/p5-spec-channels` | 待定 | 未开 | 计划在前面这一串分支合进 `master` 之后再开 | 未开始 |
+| `refactor/p-1-layout` | `master` | `bdd2dac` | 真实运行 | 已合并进 `master` |
+| `refactor/p1-stabilize` | `p-1-layout` | `3ec2824` | 真实运行通过 | 已合并进 `master` |
+| `refactor/p1-single-runtime` | `p1-stabilize` | `751f235` | 真实运行时始终只有一个 pi-runtime | 已合并进 `master` |
+| `refactor/p4-path-whitelist` | `p1-single-runtime` | `e244d48` | 真实运行，白名单没有造成卡顿 | 已合并进 `master` |
+| `refactor/upstream-rework` | `p4-path-whitelist` | 见 `master` 最新提交 | 运行 `d18bc463` 四个阶段全部通过；04→03 的退回上游在真实运行中自然触发并走通 | 已合并进 `master` |
+| `refactor/p5-inject-specs` | `p4-path-whitelist` | `bb1604b` | 早先“把 spec 全文注入提示词”的方案，和 P5 的 `spec_mcp` 设计冲突 | **废弃，不合并**；其中 `contract_files.py` 的文件清单逻辑可参考 |
+| `refactor/p5-spec-channels` | `master` | 未开 | — | 未开始 |
 
-合并规则：`upstream-rework` 先正常跑一遍真实运行，再打开故障注入开关跑一遍，两次都通过后，把从 `p-1-layout` 到 `upstream-rework` 这一串按顺序快进合并进 `master`，然后再从 `master` 开 P5。
+待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 
 ## 0. 指导原则（Du Yuan 的架构思想）
 
