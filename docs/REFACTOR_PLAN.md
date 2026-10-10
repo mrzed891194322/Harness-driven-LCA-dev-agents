@@ -20,6 +20,22 @@
 
 ---
 
+## 0. 分支台账（每次新开分支或合并都要更新）
+
+都是本地分支，没有 push。主分支是 `master`（`2e42ba4`）。这是一条线性的分支链，从上往下一个接一个；`p5-inject-specs` 是单独岔出去的旁支。
+
+| 分支 | 基于 | 最新提交 | 验证情况 | 合并 |
+|---|---|---|---|---|
+| `refactor/p-1-layout` | `master` | `bdd2dac` | 已在真实 LCA 运行中验证 | 未合并 |
+| `refactor/p1-stabilize` | `p-1-layout` | `3ec2824` | 真实运行通过（00:32–00:52，四个阶段都是一次通过） | 未合并 |
+| `refactor/p1-single-runtime` | `p1-stabilize` | `751f235` | 自动测试通过；真实运行时始终只有一个 pi-runtime | 未合并 |
+| `refactor/p4-path-whitelist` | `p1-single-runtime` | `e244d48` | 真实运行 `764361c2` 跑到 04 因运输单位错误失败，白名单本身没有造成卡顿 | 未合并 |
+| `refactor/upstream-rework` | `p4-path-whitelist` | `d2130ed` | 自动测试 431 + 34 通过；还没跑真实运行 | 未合并 |
+| `refactor/p5-inject-specs` | `p4-path-whitelist` | `bb1604b` | 和 P5 的新设计冲突，不再使用（其中的文件清单逻辑可复用） | 不合并 |
+| `refactor/p5-spec-channels` | 待定 | 未开 | 计划在前面这一串分支合进 `master` 之后再开 | 未开始 |
+
+合并规则：`upstream-rework` 先正常跑一遍真实运行，再打开故障注入开关跑一遍，两次都通过后，把从 `p-1-layout` 到 `upstream-rework` 这一串按顺序快进合并进 `master`，然后再从 `master` 开 P5。
+
 ## 0. 指导原则（Du Yuan 的架构思想）
 
 > **所有规则、工具（只有 Skill 和 MCP）和知识都放在 harness 里，把它们拼起来就是一条工作流。Python core 负责组装工作流要素，把它们注入 Pi agent，让 agent 多步交接、产出结果。GUI 负责展示当前的工作流 YAML 和 harness 里已有的组件，让用户编辑、组合这些组件，并把修改保存回组件本身。GUI 调用 FastAPI，FastAPI 再调用 core 的工作流函数完成校验、注入和运行。**

@@ -1,7 +1,7 @@
 # 问题清单（LCA 跑通阶段）
 
 状态：🔴 未修 / 🟡 进行中 / 🟢 已修（未提交）/ ✅ 已提交
-维护：Grok Bot；群内报的问题都收在这里。更新于 2026-10-10 00:31（P-1 验证：01–03 通过，04 因 #24 失败；P1 待上线）
+维护：Grok Bot；群内报的问题都收在这里。更新于 2026-10-10 09:08（P1 验证全部通过；已切到 `refactor/p1-single-runtime` 重跑中）
 
 ## 执行链路（后端 / pi-runtime）
 
@@ -32,15 +32,19 @@
 | 24 | 🔴 | 同一粒料流同时是 `granulate_rer` 和 `granulate_row` 的参考输出；`components_*` 先于 `granulate_*` 导入，openLCA `PREFER_DEFAULTS` 未采用 exchange 的 defaultProvider，Case 2/3（`e3e3dde3`、`2173ad5b`、`cff02c8b`）全部连到 RER 粒料 `a11da816`，缺中国代理粒料 `650ffb1c` | 03 LCI 设计 / 导入顺序 / 建产品系统的 provider 链接策略 | 每个情景用不同产品流或显式 provider 链接；导入后校验关键节点 |
 | 25 | 🔴 | 04 发现上游 LCI 问题时无法退回 03：未写 `calculation-plan.json`，`get_rework_status` 返回 eligible=false | 返工判定逻辑 / `control_openlca` | 返工资格不应依赖下游计划文件；支持跨阶段回退并带原因 |
 | 26 | 🔴 | 01 reviewer 读取 `workspace/records/handoffs` 和 evidence 下 `manifest.json` 时路径不存在（2 个工具报错） | 01 提示词 / 工作区初始化 | 预建目录或在提示中说明首阶段无历史 |
+| 27 | 🔴 | worker 读取范围过宽：会去读 `docs/`（如 `docs/dev/history/.../bottle_filling_case1.json`）。要求只能读 `workspace/` 和 `harness/knowledge/`，其余 harness 内容由宿主提前注入 | 当前白名单只限工具名不限路径；`read`/`bash` 无路径约束 | 权限规则加读写路径范围，由 Pi 拦截扩展执行；bash 可绕过，reviewer 不给 bash |
 | 18 | 🟢 P1 `5b89231` | `test_plan_form` 失败（解析 `main_plan.md` 的 CML 条件） | `src/tests` | 与 plan 文件内容有关 |
 
 ## 前端（GUI）
 
 | # | 状态 | 问题 | 备注 |
 |---|---|---|---|
-| F1 | 🟢 P1 `5b89231` | 后端挂掉时页面显示 `Unexpected token 'I'... is not valid JSON` | 识别 500/连不上，提示“后端未连接” |
+| F1 | ✅ 已验证 | 后端挂掉时页面显示 `Unexpected token 'I'... is not valid JSON` | 识别 500/连不上，提示“后端未连接” |
 | F2 | 🔴 | 后端重启后计划和参考资料丢失 | 计划状态需持久化 |
 | F3 | 🔴 | 编排页各阶段显示“快速模型 · 本地 Ollama”，与预览页默认模型不一致 | 需显示实际生效的模型 |
 | F4 | 🔴 | 运行失败后预览页不提示 | 预览页显示上次运行结果 |
 | F5 | 🟢 | 看不到 agent 的流式输出（工具调用、完成了什么） | Pi 会话事件需经后端推到 `/runs`，见方案 P1 |
 | F6 | 🔴 | 失败原因整段原文直接铺在页面上，没有排版 | 按错误码/摘要/详情折叠展示 |
+| F7 | 🔴 | “后端未连接”提示里写 `npm run dev`，应改为 `npm start` / `node src/scripts/start.mjs` | |
+| F8 | 🔴 | 同一条“后端未连接”提示在一个页面重复多遍（状态页 3 遍，计划、运行页各 2 遍） | 只保留顶部横幅 |
+| F9 | 🔴 | 后端断开时状态页“LCA 工具”显示“诊断未加载”，说法不统一；“开始LCA”按钮仍可点击 | 统一文案；断开时禁用按钮 |
