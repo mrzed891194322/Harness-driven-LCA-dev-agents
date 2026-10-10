@@ -270,6 +270,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     cwd,
     readGlobs: spec.permission_policy.allowed_read_globs ?? [],
     writeGlobs: spec.permission_policy.allowed_write_globs ?? [],
+    deniedWriteGlobs: spec.permission_policy.denied_write_globs ?? [],
     logFile: guardLogPath(spec),
     notify: (record) => guardSink.emit?.(record),
   });

@@ -69,6 +69,8 @@ class PermissionPolicy:
     allowed_read_globs: list[str]
     allowed_write_globs: list[str]
     deny_shell: bool = True
+    # Official deliverable paths only spec_mcp may write (beats allowed_write_globs).
+    denied_write_globs: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -76,6 +78,7 @@ class PermissionPolicy:
             "allowed_read_globs": list(self.allowed_read_globs),
             "allowed_write_globs": list(self.allowed_write_globs),
             "deny_shell": self.deny_shell,
+            "denied_write_globs": list(self.denied_write_globs),
         }
 
 

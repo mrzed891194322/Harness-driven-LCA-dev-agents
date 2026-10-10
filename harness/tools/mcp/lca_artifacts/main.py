@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,9 +17,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from mcp_types import ToolAnnotations
 
-from harness.tools.shared.control_openlca.workflow import _write_json_atomic
 from harness.tools.shared.lca_artifacts import checks, report
-from harness.tools.shared.lca_artifacts.path_safety import require_relative_path
 from harness.tools.shared.lca_artifacts.store import (
     Context,
     bind_context_argv,
@@ -46,18 +43,6 @@ WRITE = ToolAnnotations(
 )
 
 
-def _resolve_handoff_path(ctx: Context) -> Path:
-    raw = str(ctx.handoff_path or os.getenv("LCA_HANDOFF_PATH") or "").strip()
-    if not raw:
-        raise ValueError("handoff_path missing from host context")
-    if Path(raw).is_absolute():
-        path = Path(raw)
-    else:
-        require_relative_path(raw, label="handoff_path")
-        path = ctx.workspace / raw
-    return ctx.safe(path)
-
-
 @mcp.tool(
     description="Determine whether same-run stage-04 retry can reuse raw evidence without any IPC calls.",
     annotations=AUDIT,
@@ -66,60 +51,6 @@ def _resolve_handoff_path(ctx: Context) -> Path:
 def get_rework_status() -> dict[str, Any]:
     return invoke(
         "get_rework_status", lambda: checks.reuse_status(Context.environment())
-    )
-
-
-@mcp.tool(
-    description="Submit the current assignment handoff JSON; host picks path. Core validates protocol.",
-    annotations=WRITE,
-    structured_output=True,
-)
-def submit_handoff(
-    status: str,
-    status_reason: str,
-    fix_instructions: str = "",
-    artifacts: list[str] | None = None,
-    checks_ref: str | None = None,
-    evidence_manifest_ref: str | None = None,
-    rework_scope: str = "none",
-    rework_target_stage: str | None = None,
-    rework_artifacts: list[str] | None = None,
-) -> dict[str, Any]:
-    def execute() -> dict[str, Any]:
-        ctx = Context.environment()
-        path = _resolve_handoff_path(ctx)
-        body: dict[str, Any] = {
-            "schema_version": 1,
-            "role": ctx.role,
-            "stage": ctx.stage,
-            "attempt": ctx.attempt,
-            "status": status,
-            "status_reason": status_reason,
-            "fix_instructions": fix_instructions,
-            "artifacts": list(artifacts or []),
-            "rework_scope": rework_scope,
-        }
-        if rework_target_stage:
-            body["rework_target_stage"] = rework_target_stage
-        if rework_artifacts:
-            body["rework_artifacts"] = list(rework_artifacts)
-        if checks_ref is not None:
-            body["checks_ref"] = checks_ref
-        if evidence_manifest_ref is not None:
-            body["evidence_manifest_ref"] = evidence_manifest_ref
-        path.parent.mkdir(parents=True, exist_ok=True)
-        _write_json_atomic(path, body)
-        rel = path.relative_to(ctx.workspace)
-        return {"ok": True, "path": rel.as_posix()}
-
-    return invoke(
-        "submit_handoff",
-        execute,
-        arguments={
-            "status": status,
-            "status_reason": status_reason,
-            "artifacts": artifacts,
-        },
     )
 
 

@@ -1,0 +1,11 @@
+# spec_mcp: the stage's single delivery channel (P5 "Spec 三通道").
+# Core binds one child process per Pi session (released with the session) and
+# adds mcp__spec_mcp__* to the session whitelist automatically. Workflow YAML
+# does not register it. Identity (run/stage/role/attempt) is bound by the host
+# through SPEC_MCP_BINDING + an HMAC token; tools take no stage arguments.
+id: spec_mcp
+transport: stdio
+command: uv
+args: [run, python, harness/tools/mcp/spec_mcp/main.py]
+tool_timeout_sec: 300
+tools: [get_spec, submit, status, submit_handoff]

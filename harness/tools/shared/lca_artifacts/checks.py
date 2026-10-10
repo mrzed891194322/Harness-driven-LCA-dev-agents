@@ -988,3 +988,123 @@ def validate_for_run(ctx, profile):
         "warnings": warnings,
         "checks_ref": ctx.ref(path),
     }
+
+
+# --- spec_mcp acceptance: exchange units vs provider reference unit group ----------
+
+# Small unit-group table for non-transport units (normalized names). Transport
+# (mass*distance) reuses control_openlca's reconciliation logic.
+_UNIT_GROUPS = {
+    "mass": {"kg", "g", "mg", "t", "kt", "lb"},
+    "energy": {"mj", "kwh", "gj", "j", "kj", "wh", "mwh"},
+    "volume": {"m3", "l", "ml", "dm3"},
+    "area": {"m2", "ha", "km2"},
+    "items": {"item(s)", "item", "items", "p", "pcs", "unit"},
+    "length": {"m", "km", "cm", "mm"},
+}
+
+
+def _unit_group(name) -> str | None:
+    from harness.tools.shared.control_openlca.workflow import (
+        _MASS_TRANSPORT_FACTORS,
+        _norm_unit,
+    )
+
+    norm = _norm_unit(name)
+    if norm is None:
+        return None
+    if norm in _MASS_TRANSPORT_FACTORS:
+        return "mass*distance"
+    norm = norm.replace("³", "3").replace("²", "2")
+    for group, names in _UNIT_GROUPS.items():
+        if norm in names:
+            return group
+    return None
+
+
+def current_provider_units(ctx) -> dict[tuple[str, str], dict]:
+    """provider/flow -> provider reference unit, from formal validation evidence
+    recorded on the current model fingerprint (validate_providers_batch / preflight)."""
+    units: dict[tuple[str, str], dict] = {}
+    try:
+        fingerprint = model_fingerprint(ctx)
+        calls = ctx.load_manifest()["calls"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return units
+    for call in calls:
+        if call.get("tool") not in {"preflight_import_lci", "validate_providers_batch"}:
+            continue
+        if call.get("model_fingerprint") != fingerprint:
+            continue
+        try:
+            raw = load(ctx.resolve_ref(call["artifact"]))
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        for check in raw.get("checks", raw.get("background_provider_checks", [])) or []:
+            unit = check.get("provider_unit")
+            provider = check.get("process_id", check.get("provider_id"))
+            if unit and provider and check.get("flow_id"):
+                units[(provider, check["flow_id"])] = unit
+    return units
+
+
+def exchange_unit_errors(ctx, lci_dir: Path | None = None) -> tuple[list[str], list[str]]:
+    """Each input exchange with a background provider must use a unit from the
+    provider reference flow's unit group. Returns (errors, notes)."""
+    import copy
+
+    from harness.tools.shared.control_openlca.workflow import (
+        _transport_unit_pass,
+        load_lci_inventory,
+    )
+
+    lci_dir = lci_dir or (ctx.workspace / "outputs" / "LCI")
+    inventory, load_errors = load_lci_inventory(lci_dir)
+    if load_errors:
+        return list(load_errors), []
+    units = current_provider_units(ctx)
+    provider_checks = [
+        {"provider_id": p, "flow_id": f, "provider_unit": u} for (p, f), u in units.items()
+    ]
+    conversions, errors = _transport_unit_pass(copy.deepcopy(inventory), provider_checks)
+    notes = [c["note"] for c in conversions]
+    foreground = {item["id"] for item in inventory if item["entity_type"] == "Process"}
+    unverified: list[str] = []
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            provider = (exchange.get("defaultProvider") or {}).get("@id")
+            flow = (exchange.get("flow") or {}).get("@id")
+            if not provider or provider in foreground:
+                continue
+            where = f"{item['path']}: exchange {index} ({(exchange.get('flow') or {}).get('name') or flow})"
+            unit_ref = exchange.get("unit")
+            raw_name = unit_ref.get("name") if isinstance(unit_ref, dict) else None
+            target = units.get((provider, flow))
+            if target is None:
+                unverified.append(f"{provider}/{flow}")
+                continue
+            p_group = _unit_group(target.get("name"))
+            if p_group == "mass*distance":
+                continue  # handled by _transport_unit_pass above
+            if raw_name is None:
+                errors.append(
+                    f"{where}: unit missing; provider reference unit is {target.get('name')!r}"
+                )
+                continue
+            l_group = _unit_group(raw_name)
+            if p_group and l_group and p_group != l_group:
+                errors.append(
+                    f"{where}: unit {raw_name!r} ({l_group}) is not in the provider "
+                    f"reference unit group of {target.get('name')!r} ({p_group})"
+                )
+    if unverified:
+        errors.append(
+            "修法：以下 provider/flow 对还没有在【当前最终模型】上的 provider 单位记录，"
+            "无法核对单位组。请在 LCI 定稿后对最终模型调用 validate_providers_batch，再提交。"
+            f"共 {len(unverified)} 对：" + ", ".join(sorted(set(unverified))[:10])
+        )
+    return errors, notes
