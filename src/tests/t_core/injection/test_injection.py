@@ -205,3 +205,36 @@ def test_snapshot_api(tmp_path, monkeypatch):
     assert c.get("/api/runs/r1/sessions/03-x.executor.2/file", params={"name": "prompt.md"}).json()["text"]
     assert c.get("/api/runs/r1/sessions/03-x.executor.2/file", params={"name": "../x"}).status_code == 400
     assert c.get("/api/runs/r1/sessions/03-x.executor.2/file", params={"name": "launch.json", "download": True}).status_code == 200
+
+
+@pytest.mark.parametrize("stage,role", [("01-intake-gate", "reviewer"), ("03-dataset-mapping", "executor")])
+def test_intended_segments_join_to_the_prompt_actually_sent(tmp_path, monkeypatch, stage, role):
+    """No second assembly: the manifest's segments ARE the prompt sent to pi-runtime."""
+    import sys
+
+    sys.path.insert(0, str(REPO / "src/tests/t_harness/tools/spec_mcp"))
+    from test_spec_mcp import _launch as real_launch  # noqa: E402
+
+    from backend.core.workflow.execution.prompt_build import join_segments
+
+    launch = real_launch(tmp_path, monkeypatch, stage, role)
+    sent = {s.id: s.content for s in launch.system_sections}  # what to_dict() ships to the runtime
+    by_section: dict[str, list[dict]] = {}
+    for seg in launch.prompt_segments:
+        by_section.setdefault(seg["section"], []).append(seg)
+    assert join_segments(by_section["assignment_prompt"]) == sent["assignment_prompt"]
+    assert "\n\n".join(s["content"] for s in by_section["generated_prompts"]) == sent["generated_prompts"]
+    intended = injection.build_intended(launch)
+    texts = intended["segment_texts"]
+    assert [s["id"] for s in launch.prompt_segments] == list(texts)
+    rebuilt = "\n\n".join([
+        sent["spec_context"],
+        join_segments([{"content": texts[s["id"]]} for s in by_section["assignment_prompt"]]),
+        "\n\n".join(texts[s["id"]] for s in by_section["generated_prompts"]),
+        *(["# 知识资料（受控读取）\n" + "\n".join(
+            f"- {k.id}: {k.root_path} (hash={k.content_hash})" + (f" — {k.summary}" if k.summary else "")
+            for k in launch.knowledge_bindings)] if launch.knowledge_bindings else []),
+    ])
+    assert rebuilt == intended["system_prompt"] == injection.runtime_system_prompt(launch)
+    rules = [s for s in intended["segments"] if s["kind"] == "rule"]
+    assert rules and all(s["origin"] in ("default", "user") and s["file_sha256"] for s in rules)

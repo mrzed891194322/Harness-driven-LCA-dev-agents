@@ -37,62 +37,52 @@ def build_prompt(
     rules: dict[str, str],
     run_context: dict[str, Any],
 ) -> str:
-    context = dict(run_context)
-    if bundle.knowledge_sources:
-        context["knowledge_sources"] = [
-            item.to_dict() for item in bundle.knowledge_sources
-        ]
-    parts: list[str] = [
-        _RUNTIME_PROTOCOL.strip(),
-        "",
-        "# 运行上下文",
-        json.dumps(context, ensure_ascii=False, indent=2),
-    ]
-    general = [r for r in bundle.rule_ids if not rules[r].startswith(STAGE_RULES_PREFIX)]
-    stage = [r for r in bundle.rule_ids if rules[r].startswith(STAGE_RULES_PREFIX)]
-    for rule_id in [*general, *stage]:
-        parts.extend(["", f"# 规则 {rule_id}", _read(project_root, rules[rule_id])])
-    parts.extend(["", "# 本轮提交", SUBMISSION_NOTE])
-    return "\n".join(parts).strip() + "\n"
+    return join_segments(
+        build_prompt_segments(bundle, project_root=project_root, rules=rules, run_context=run_context)
+    )
 
 
-def prompt_segments(
+def join_segments(segments: list[dict[str, Any]]) -> str:
+    """The prompt text is exactly the segments joined by a blank line."""
+    return "\n\n".join(seg["content"] for seg in segments).strip() + "\n"
+
+
+def build_prompt_segments(
     bundle: TaskBundle,
     *,
     project_root: Path,
     rules: dict[str, str],
     run_context: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """The pieces of ``build_prompt`` with their origin (injection manifest).
+    """Assemble the worker prompt as segments, recording where each came from.
 
-    Each ``content`` is an exact substring of the built prompt; ``origin`` is
-    ``builtin`` (code), ``runtime`` (per-session context), ``default`` or ``user``.
+    ``origin``: ``builtin`` (code), ``runtime`` (per-session context), ``default`` or
+    ``user`` (harness overlay). The injection manifest uses these same segments, so
+    what it reports is what ``build_prompt`` sent (see ``join_segments``).
     """
     context = dict(run_context)
     if bundle.knowledge_sources:
         context["knowledge_sources"] = [item.to_dict() for item in bundle.knowledge_sources]
     segs: list[dict[str, Any]] = [
-        {"id": "runtime_protocol", "kind": "builtin", "source": "src/backend/core/workflow/execution/prompt_build.py",
-         "origin": "builtin", "content": _RUNTIME_PROTOCOL.strip()},
-        {"id": "run_context", "kind": "runtime", "source": "orchestrator run context", "origin": "runtime",
-         "content": "# 运行上下文\n" + json.dumps(context, ensure_ascii=False, indent=2)},
+        _seg("runtime_protocol", "builtin", __file__, "builtin", _RUNTIME_PROTOCOL.strip()),
+        _seg("run_context", "runtime", "orchestrator run context", "runtime",
+             "# 运行上下文\n" + json.dumps(context, ensure_ascii=False, indent=2)),
     ]
     general = [r for r in bundle.rule_ids if not rules[r].startswith(STAGE_RULES_PREFIX)]
     stage = [r for r in bundle.rule_ids if rules[r].startswith(STAGE_RULES_PREFIX)]
     for rule_id in [*general, *stage]:
         found = harness_fs.resolve(project_root, rules[rule_id])
-        segs.append({
-            "id": f"rule:{rule_id}", "kind": "rule", "source": rules[rule_id],
-            "origin": found.source if found is not None else "missing",
-            "file_sha256": found.sha256 if found is not None else None,
-            "content": f"# 规则 {rule_id}\n" + _read(project_root, rules[rule_id]),
-        })
-    segs.append({"id": "submission_note", "kind": "builtin", "source": "src/backend/core/workflow/execution/prompt_build.py",
-                 "origin": "builtin", "content": "# 本轮提交\n" + SUBMISSION_NOTE})
+        path = found.path if found is not None else project_root / rules[rule_id]
+        seg = _seg(f"rule:{rule_id}", "rule", rules[rule_id],
+                   found.source if found is not None else "missing",
+                   f"# 规则 {rule_id}\n" + path.read_text(encoding="utf-8").strip())
+        seg["file_sha256"] = found.sha256 if found is not None else None
+        segs.append(seg)
+    segs.append(_seg("submission_note", "builtin", __file__, "builtin", "# 本轮提交\n" + SUBMISSION_NOTE))
     return segs
 
 
-def _read(project_root: Path, relative: str) -> str:
-    found = harness_fs.resolve(project_root, relative)
-    path = found.path if found is not None else project_root / relative
-    return path.read_text(encoding="utf-8").strip()
+def _seg(seg_id: str, kind: str, source: str, origin: str, content: str) -> dict[str, Any]:
+    if source == __file__:
+        source = "src/backend/core/workflow/execution/prompt_build.py"
+    return {"id": seg_id, "kind": kind, "source": source, "origin": origin, "content": content}
