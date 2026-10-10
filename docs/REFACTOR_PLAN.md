@@ -36,6 +36,7 @@
 | `refactor/p5-injection` | `refactor/p5-spec-channels`（`2313c1d`） | `c08256b` | 自动测试：Python、pi-runtime 全过，`npm run -s build` 通过；`npm run doctor` 通过（模板渲染、注入自检 level=ok）；**还没在真实 LCA 里跑过** | 已于 2026-10-10 快进合入 `refactor/p5-spec-channels`（`2313c1d..c08256b`）；已带 `HARNESS_FAULT_INJECT=lci_unit_missing` 重启，待回归 |
 | `refactor/p5-small-fixes` | `refactor/p5-spec-channels`（rebase 到 `d4b86e1`） | `83b0551` | `inspect`/`session` 支持短 run id；SSE 每条事件独立 id；自动测试全过 | 2026-10-10 已随 p5-openlca-timeouts 快进合入 `refactor/p5-spec-channels` |
 | `refactor/p5-openlca-timeouts` | `refactor/p5-small-fixes`（`83b0551`） | `7cd25ee` | openLCA IPC 按请求读超时、`openlca_unresponsive` 事件与诊断、预清理同步超时与进度、去掉 product system 自动重试；rebase 到 `d4b86e1` 后解决 `workflow_launch.py`/`runs/page.tsx` 冲突；Python 490、pi-runtime 41 全过，前端 build 通过；未连真实 openLCA 验证 | 2026-10-10 已快进合入 `refactor/p5-spec-channels` 并重启（故障注入关闭） |
+| `refactor/p5-import-resume` | `refactor/p5-spec-channels`（`7cd25ee`） | （进行中） | 可恢复 import（entity_plan + reconcile/resume MCP）、显式 ProductSystem put、timeout_sec=min(agent,host)；假客户端测试；未连真实 openLCA | 未合并 |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 
@@ -1266,17 +1267,17 @@ Skill 和知识目录有用户版本时，`compile_turn` 会把合并结果物�
 
 **未解决**：见 `docs/ISSUES.md`“P5 Spec 三通道（长期关注）”。
 
-## 8C. openLCA MCP 重构（待用户确认）
+## 8C. openLCA MCP 重构
 
-> 背景：运行 `6db89e85`（2026-10-10）04 的 `import_lci` 用光 1800 秒总预算卡在 product system，之后 IPC 门禁一直是 uncertain。下面 5 条待 Du Yuan 确认后再动手。
+> 背景：运行 `6db89e85` / `775710e3`（2026-10-10）04 的 `import_lci` 在 Product System（`data/create/system`）上挂死或读超时，后续 attempt 被 `previous import requires reconciliation` 挡住。
 
-1. **按阶段收窄工具**：由 spec 的 `permissions.yaml` 决定。03 只拿只读的查询/验证/预检（`query_descriptors_batch`、`validate_providers_batch`、`preflight_import_lci`）；04 只拿导入、读回模型图、计算。
-2. **`import_lci` 改为后台任务**：立即返回 `job_id`；逐实体提交并记录状态；`job_status` 查进度；失败后从失败实体续做；uncertain 时先核对数据库实际实体再决定如何续。
-3. **确定性重活交给宿主**：导入、读回、计算由 `spec_mcp` 的 `submit` 在宿主端触发，或做成编排好的批量工具；agent 只准备计算计划、写报告。
-4. **统一带锁 IPC 客户端**：所有 openLCA 调用（含开跑前清理和 doctor 自检）走同一个客户端，超时、探活、uncertain 标记、诊断集中处理；标记按 endpoint 区分（如 `openlca.internal:9090` 这类测试残留不影响 `127.0.0.1:8080`）。
-5. **openLCA 健康状态**：doctor 和 GUI 显示 IPC 是否在线、有无 uncertain 标记、最后一次操作；GUI 可查看并手动清除 uncertain 标记。
+1. **按阶段收窄工具**：由 spec 的 `permissions.yaml` 决定。03 只拿只读的查询/验证/预检；04 拿导入、读回、计算。**已文档化**（`harness/specs/04-openlca-reporting/permissions.yaml` 注释 + 阶段规则）。
+2. **可恢复导入（分支 `refactor/p5-import-resume`，已实施）**：`entity_plan`（pending/done/failed/uncertain + content_hash）；`reconcile_import` 只读核对；`resume_import` / `import_lci(resume_operation_id=...)` 跳过 done 实体；`import_status` 别名。同 run 内 attempt 2/3 可 reconcile+resume，不再要求 `cleanup_output` 清 journal。
+3. **确定性重活交给宿主**：**部分**：Product System 在全部 technosphere 输入有 `defaultProvider` 时由宿主 `data/put` 显式链接（避免 `create/system` 挂死）；其余导入/计算仍由 MCP。spec_mcp 批量 submit 仍待做。
+4. **统一带锁 IPC 客户端**：**已实施**（`refactor/p5-openlca-timeouts`）：按请求读超时、预算 fail-fast、uncertain 标记与诊断。
+5. **openLCA 健康状态**：doctor/GUI uncertain 展示仍待加强（见 ISSUES #28 后续）。
 
-**顺序**：1、4、5 改动小，先做；2、3 改动大，等当前验证完成后另开新分支。
+**timeout_sec**：agent 值仅降低 `OPENLCA_IPC_SESSION_BUDGET_SEC`（`min(agent, host)`）；`OPENLCA_TIMEOUT_REQUEST_S` / `OPENLCA_TIMEOUT_PRODUCT_SYSTEM_S` 为宿主 per-request 配置，工具结果返回 `effective_session_budget_sec`。
 
 ## 8A. 上游返工（#25 类问题，分支 `refactor/upstream-rework`，Du Yuan 2026-10-10 同意）
 

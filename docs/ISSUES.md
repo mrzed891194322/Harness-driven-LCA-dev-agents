@@ -34,6 +34,7 @@
 | 26 | 🔴 | 01 reviewer 读取 `workspace/records/handoffs` 和 evidence 下 `manifest.json` 时路径不存在（2 个工具报错） | 01 提示词 / 工作区初始化 | 预建目录或在提示中说明首阶段无历史 |
 | 27 | 🔴 | worker 读取范围过宽：会去读 `docs/`（如 `docs/dev/history/.../bottle_filling_case1.json`）。要求只能读 `workspace/` 和 `harness/knowledge/`，其余 harness 内容由宿主提前注入 | 当前白名单只限工具名不限路径；`read`/`bash` 无路径约束 | 权限规则加读写路径范围，由 Pi 拦截扩展执行；bash 可绕过，reviewer 不给 bash |
 | 28 | 🟢 | `import_lci` 共享 1800s 会话预算，末次 Product System 请求读超时塌缩到亚秒（budget collapse）；超时后 IPC 挂死、预清理 openLCA 无超时 | `connection._TimeoutHTTPAdapter`、`guard.endpoint_guard`、`cleanup_service` | 分支 `refactor/p5-openlca-timeouts`：按请求读超时 + 预算不足 fail-fast；超时后健康探测、`openlca_unresponsive` 事件与诊断；清理同步超时；不确定状态下拒绝同名实体导入 |
+| 29 | 🟡 | `partial_failure` 后同阶段重试被 `previous import requires reconciliation` 挡住，attempt 2/3 无法续导 Product System（`775710e3`） | `operations.import_request`、`workflow._execute_import` | 分支 `refactor/p5-import-resume`：`entity_plan` + `reconcile_import` / `resume_import` / `import_lci(resume_operation_id=...)`；显式 ProductSystem put 规避 `create/system` 挂死 |
 | 18 | 🟢 P1 `5b89231` | `test_plan_form` 失败（解析 `main_plan.md` 的 CML 条件） | `src/tests` | 与 plan 文件内容有关 |
 
 ## 前端（GUI）
