@@ -107,7 +107,8 @@ class WorkflowLauncher:
                     document_values=[],
                     source_text="",
                     ref_upload_file=None,
-                )
+                ),
+                on_chunk=self._append_prepare,
             )
         except Exception as exc:
             self._fail(str(exc))
@@ -147,6 +148,10 @@ class WorkflowLauncher:
         reason = "用户中止了本次工作"
         self._fail(reason)
         _mark_manifest_aborted(project_root, reason)
+
+    def _append_prepare(self, chunk: str) -> None:
+        with self._lock:
+            self.text += chunk
 
     def _fail(self, reason: str) -> None:
         self._note(reason)
@@ -216,10 +221,22 @@ def _write_plan(project_root: Path, fields: PlanFields, task: str) -> None:
     path.write_text(render_plan(fields, names), encoding="utf-8")
 
 
-def _consume(stream: Iterator[tuple[str, str]]) -> str:
+def _consume(
+    stream: Iterator[tuple[str, str]],
+    *,
+    on_chunk: Callable[[str], None] | None = None,
+) -> str:
     status = "Finished"
-    for _text, status in stream:
-        pass
+    previous = ""
+    for text, status in stream:
+        if on_chunk and text:
+            if text.startswith(previous):
+                delta = text[len(previous) :]
+            else:
+                delta = text
+            if delta:
+                on_chunk(delta)
+            previous = text
     return status
 
 

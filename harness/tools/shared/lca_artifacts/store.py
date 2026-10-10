@@ -424,6 +424,12 @@ def envelope(ctx, tool, raw, arguments, duration_ms, snapshots=None):
         "attempt_count",
         "lock_wait_ms",
         "applied_timeout_sec",
+        "retryable",
+        "agent_action",
+        "agent_message",
+        "timed_out_entity",
+        "diagnostics_path",
+        "leftover_entities",
     ):
         if key in raw:
             payload[key] = raw[key]

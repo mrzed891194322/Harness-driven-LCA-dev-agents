@@ -38,6 +38,25 @@ def remaining_budget():
     return remaining
 
 
+def endpoint_lock_root() -> Path:
+    user = hashlib.sha256(getpass.getuser().encode()).hexdigest()[:16]
+    return Path(
+        os.getenv(
+            "LCA_IPC_LOCK_ROOT", str(Path(tempfile.gettempdir()) / f"lca-ipc-{user}")
+        )
+    )
+
+
+def endpoint_uncertain_marker(host: str, port: int) -> Path:
+    endpoint = build_endpoint(host, port)
+    key = hashlib.sha256(endpoint.encode()).hexdigest()
+    return endpoint_lock_root() / f"{key}.uncertain"
+
+
+def endpoint_is_uncertain(host: str, port: int) -> bool:
+    return endpoint_uncertain_marker(host, port).is_file()
+
+
 @contextmanager
 def cleanup_budget():
     """Reserve a bounded disposal attempt after the main request budget expires."""
@@ -107,12 +126,7 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
     if endpoint in held:
         yield
         return
-    user = hashlib.sha256(getpass.getuser().encode()).hexdigest()[:16]
-    root = Path(
-        os.getenv(
-            "LCA_IPC_LOCK_ROOT", str(Path(tempfile.gettempdir()) / f"lca-ipc-{user}")
-        )
-    )
+    root = endpoint_lock_root()
     key = hashlib.sha256(endpoint.encode()).hexdigest()
     uncertain = root / f"{key}.uncertain"
     waiting_at = time.monotonic()
@@ -143,6 +157,8 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
         except BaseException as exc:
             if isinstance(exc, Exception) and not _transport_failure(exc):
                 uncertain.unlink(missing_ok=True)
+            if isinstance(exc, Exception) and _transport_failure(exc):
+                mark_uncertain()
             raise
         else:
             if not getattr(_local, "uncertain", False):

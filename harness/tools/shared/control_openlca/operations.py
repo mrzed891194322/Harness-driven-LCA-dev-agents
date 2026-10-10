@@ -15,7 +15,8 @@ from .connection import (
     create_ipc_client,
     is_transport_error,
 )
-from .guard import mark_uncertain
+from .guard import endpoint_is_uncertain, mark_uncertain
+from .ipc_failure import NON_RETRYABLE_KIND, on_ipc_transport_failure
 
 
 def identifier(value: str) -> str:
@@ -269,6 +270,29 @@ def import_request(
                 "errors": ["preflight_stale", *current["errors"]],
                 "execution_mode": "not_executed",
             }
+        if endpoint_is_uncertain(host, port):
+            leftovers = w.find_uncertain_leftover_entities(
+                ipc, inventory, target_category
+            )
+            if leftovers:
+                return {
+                    "status": "rejected",
+                    "errors": [
+                        "uncertain_ipc_leftover_entities: database still contains "
+                        "entities matching this import after a prior timeout; "
+                        "manual openLCA check/restart required before retry",
+                        *[
+                            f"leftover {item['entity_type']} {item['name']} "
+                            f"({item['id']}) from {item['path']}"
+                            for item in leftovers
+                        ],
+                    ],
+                    "leftover_entities": leftovers,
+                    "execution_mode": "not_executed",
+                    "retryable": False,
+                    "error_kind": NON_RETRYABLE_KIND,
+                    "agent_action": "stop_and_submit_failed",
+                }
         # Recheck local bytes after IPC reads, before the first write.
         if (
             request_identity(
@@ -318,7 +342,13 @@ def import_request(
             w._write_json_atomic(path, report)
 
         records, imported, failed, deleted, errors = w._execute_import(
-            ipc, inventory, targets, target_category, on_progress=progress
+            ipc,
+            inventory,
+            targets,
+            target_category,
+            on_progress=progress,
+            host=host,
+            port=port,
         )
         progress(records, imported, failed, deleted, errors)
         report.update(
@@ -327,6 +357,15 @@ def import_request(
             else "partial_failure",
             ended_at=w.utc_now(),
         )
+        if errors and any(
+            "timeout" in str(item).lower() or "timed out" in str(item).lower()
+            for item in errors
+        ):
+            report.update(
+                retryable=False,
+                error_kind=NON_RETRYABLE_KIND,
+                agent_action="stop_and_submit_failed",
+            )
         w._write_json_atomic(path, report)
         return report
     except Exception as exc:
@@ -334,7 +373,14 @@ def import_request(
             report.update(status="indeterminate", errors=[*report["errors"], str(exc)])
             w._write_json_atomic(path, report)
         if is_transport_error(exc):
-            mark_uncertain()
+            failure = on_ipc_transport_failure(
+                host,
+                port,
+                exc,
+                operation="import_request",
+                run_id=run_id,
+            )
+            return {**report, **failure} if report is not None else failure
         raise
     finally:
         if client is None:

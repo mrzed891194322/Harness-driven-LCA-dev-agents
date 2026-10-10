@@ -19,6 +19,8 @@ from .connection import (
     create_ipc_client,
     is_transport_error,
 )
+from .ipc_failure import on_ipc_transport_failure
+from .timeout_policy import ipc_read_scope, product_system_read_sec
 from .entity import find_entity
 from .protocols import CalculationResult, OlcaDescriptor, OpenLcaClient
 
@@ -996,6 +998,42 @@ def _apply_generated_product_system_fields(
             setattr(entity, field, value)
 
 
+def find_uncertain_leftover_entities(
+    client: OpenLcaClient,
+    inventory: list[dict[str, Any]],
+    target_category: str,
+) -> list[dict[str, Any]]:
+    """When IPC state is uncertain, report DB entities that match planned import ids."""
+    leftovers: list[dict[str, Any]] = []
+    for item in inventory:
+        entity_type = item.get("entity_type")
+        model_type = ENTITY_TYPES.get(str(entity_type))
+        entity_id = str(item.get("id") or "")
+        if model_type is None or not entity_id:
+            continue
+        try:
+            existing = client.get(model_type, entity_id)
+        except Exception:
+            continue
+        if existing is None:
+            continue
+        category = getattr(existing, "category", None)
+        if category and category != target_category and not str(category).startswith(
+            f"{target_category}/"
+        ):
+            continue
+        leftovers.append(
+            {
+                "path": item.get("path"),
+                "entity_type": entity_type,
+                "id": entity_id,
+                "name": item.get("name") or getattr(existing, "name", None),
+                "database_category": category,
+            }
+        )
+    return leftovers
+
+
 def _put_product_system(
     client: OpenLcaClient,
     entity: olca_schema.ProductSystem,
@@ -1030,10 +1068,12 @@ def _put_product_system(
     generated_id: str | None = None
     generated: olca_schema.ProductSystem | None = None
 
+    ps_read = product_system_read_sec()
     try:
-        generated_ref = _retry_on_read_timeout(
-            lambda: client.create_product_system(ref_process, config)
-        )
+        with ipc_read_scope(ps_read):
+            generated_ref = _retry_on_read_timeout(
+                lambda: client.create_product_system(ref_process, config)
+            )
         generated_id = getattr(generated_ref, "id", None)
     except requests.Timeout:
         generated = _load_product_system_with_retries(client, declared_id)
@@ -1044,9 +1084,10 @@ def _put_product_system(
         if not generated_id:
             raise RuntimeError("IPC Server did not create an auto-linked ProductSystem")
         try:
-            generated = _retry_on_read_timeout(
-                lambda: client.get(olca_schema.ProductSystem, generated_id)
-            )
+            with ipc_read_scope(ps_read):
+                generated = _retry_on_read_timeout(
+                    lambda: client.get(olca_schema.ProductSystem, generated_id)
+                )
         except requests.Timeout:
             generated = _load_product_system_with_retries(client, declared_id)
             if generated is not None:
@@ -1065,7 +1106,8 @@ def _put_product_system(
     _apply_generated_product_system_fields(entity, generated)
 
     try:
-        reference = _retry_on_read_timeout(lambda: client.put(entity))
+        with ipc_read_scope(ps_read):
+            reference = _retry_on_read_timeout(lambda: client.put(entity))
         if reference is None:
             raise RuntimeError("IPC Server did not return an entity reference")
     except Exception as exc:
@@ -1100,6 +1142,9 @@ def _execute_import(
     on_progress: (
         Callable[[list[dict[str, Any]], int, int, int, list[str]], None] | None
     ) = None,
+    *,
+    host: str | None = None,
+    port: int | None = None,
 ) -> tuple[list[dict[str, Any]], int, int, int, list[str]]:
     records: list[dict[str, Any]] = []
     imported = 0
@@ -1137,6 +1182,19 @@ def _execute_import(
                 message = f"delete {entity_type} {entity_id}: {exc}"
                 errors.append(message)
                 output(f"  [错误] {message}")
+                if transport_failed and host is not None and port is not None:
+                    on_ipc_transport_failure(
+                        host,
+                        port,
+                        exc,
+                        operation="delete",
+                        entity={
+                            "path": "openlca://active-database",
+                            "entity_type": entity_type,
+                            "id": entity_id,
+                            "name": entity_name,
+                        },
+                    )
                 records.append(
                     {
                         "path": "openlca://active-database",
@@ -1183,10 +1241,23 @@ def _execute_import(
             )
         except Exception as exc:
             failed += 1
-            transport_failed = isinstance(exc, requests.ConnectionError)
+            transport_failed = is_transport_error(exc)
             message = f"import {item['path']}: {exc}"
             errors.append(message)
             output(f"[错误] {message}")
+            if transport_failed and host is not None and port is not None:
+                on_ipc_transport_failure(
+                    host,
+                    port,
+                    exc,
+                    operation="import",
+                    entity={
+                        "path": item["path"],
+                        "entity_type": item["entity_type"],
+                        "id": item["id"],
+                        "name": item["name"],
+                    },
+                )
             records.append(
                 {
                     "path": item["path"],

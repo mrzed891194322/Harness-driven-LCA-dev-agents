@@ -737,27 +737,25 @@ def test_long_tool_reports_applied_timeout_sec(context, monkeypatch):
     assert result["applied_timeout_sec"] == 3600
 
 
-def test_session_request_timeout_follows_remaining_budget(tmp_path, monkeypatch):
+def test_session_request_timeout_uses_per_request_read_not_shrinking_budget(
+    tmp_path, monkeypatch
+):
     monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
+    monkeypatch.setenv("OPENLCA_TIMEOUT_REQUEST_S", "120")
     from harness.tools.shared.control_openlca.connection import (
-        LONG_REQUEST_TIMEOUT,
         session_request_timeout,
     )
 
-    assert session_request_timeout() == LONG_REQUEST_TIMEOUT
+    assert session_request_timeout() == (2.0, 120.0)
     with guard.endpoint_guard("localhost", 8080, budget_sec=3600):
         timeout = session_request_timeout()
-    assert isinstance(timeout, tuple)
-    assert timeout[0] == 2.0
-    assert 3500 < timeout[1] <= 3600
+    assert timeout == (2.0, 120.0)
 
 
-def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
+def test_create_ipc_client_defaults_to_per_request_read(tmp_path, monkeypatch):
     monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
-    from harness.tools.shared.control_openlca.connection import (
-        LONG_REQUEST_TIMEOUT,
-        create_ipc_client,
-    )
+    monkeypatch.setenv("OPENLCA_TIMEOUT_REQUEST_S", "120")
+    from harness.tools.shared.control_openlca.connection import create_ipc_client
 
     dummy = FakeClient()
     with patch(
@@ -767,18 +765,8 @@ def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
         create_ipc_client("localhost", 8080)
     factory.assert_called_once_with(
         "http://localhost:8080",
-        timeout=LONG_REQUEST_TIMEOUT,
+        timeout=(2.0, 120.0),
     )
-
-    with guard.endpoint_guard("localhost", 8080, budget_sec=3600):
-        with patch(
-            "harness.tools.shared.control_openlca.connection.BoundedIPCClient",
-            return_value=dummy,
-        ) as factory:
-            create_ipc_client("localhost", 8080)
-        timeout = factory.call_args.kwargs["timeout"]
-    assert timeout[0] == 2.0
-    assert 3500 < timeout[1] <= 3600
 
 
 def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):

@@ -11,6 +11,7 @@ from harness.tools.shared.control_openlca.connection import (
     create_ipc_client,
     is_transport_error,
 )
+from harness.tools.shared.control_openlca.ipc_failure import on_ipc_transport_failure
 from harness.tools.shared.control_openlca.protocols import (
     OlcaDescriptor,
     OpenLcaClient,
@@ -56,6 +57,9 @@ def delete_entities(
     client: OpenLcaClient,
     entities: list[tuple[type, OlcaDescriptor]],
     model_types: list[type],
+    *,
+    host: str | None = None,
+    port: int | None = None,
 ) -> tuple[int, list[str]]:
     deleted_count = 0
     errors: list[str] = []
@@ -69,7 +73,18 @@ def delete_entities(
                 errors.append(
                     f"Failed to delete {descriptor.name} ({descriptor.id}): {exc}"
                 )
-                if is_transport_error(exc):
+                if is_transport_error(exc) and host is not None and port is not None:
+                    on_ipc_transport_failure(
+                        host,
+                        port,
+                        exc,
+                        operation="cleanup_delete",
+                        entity={
+                            "entity_type": model_type.__name__,
+                            "id": descriptor.id,
+                            "name": descriptor.name,
+                        },
+                    )
                     return deleted_count, errors
     return deleted_count, errors
 
@@ -140,8 +155,10 @@ def run_cleanup_output(
                 "errors": [],
             }
 
-        deleted_count, errors = delete_entities(client, entities, model_types)
-        return {
+        deleted_count, errors = delete_entities(
+            client, entities, model_types, host=host, port=port
+        )
+        payload = {
             "ok": not errors,
             "target_category": project_name,
             "confirm": True,
@@ -150,6 +167,16 @@ def run_cleanup_output(
             "entities": serialized,
             "errors": errors,
         }
+        if errors and any(
+            "timeout" in str(item).lower() or "timed out" in str(item).lower()
+            for item in errors
+        ):
+            payload.update(
+                retryable=False,
+                error_kind="openlca_unresponsive",
+                agent_action="stop_and_submit_failed",
+            )
+        return payload
     except RuntimeError as exc:
         return {
             "ok": False,
@@ -160,5 +187,22 @@ def run_cleanup_output(
             "entities": [],
             "errors": [str(exc)],
         }
+    except Exception as exc:
+        if is_transport_error(exc):
+            on_ipc_transport_failure(host, port, exc, operation="cleanup_output")
+            failure = {
+                "ok": False,
+                "target_category": project_name,
+                "confirm": confirm,
+                "entity_count": 0,
+                "deleted_count": 0,
+                "entities": [],
+                "errors": [str(exc)],
+                "retryable": False,
+                "error_kind": "openlca_unresponsive",
+                "agent_action": "stop_and_submit_failed",
+            }
+            return failure
+        raise
     finally:
         close_ipc_client(client)

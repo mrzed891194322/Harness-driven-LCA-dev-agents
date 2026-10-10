@@ -31,9 +31,11 @@ export default function RunsPage() {
   const [error, setError] = useState("");
   const [reasonOpen, setReasonOpen] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [openlcaDown, setOpenlcaDown] = useState(false);
   const offset = useRef(0);
   const runId = useRef("");
   const epoch = useRef("");
+  const activityOffset = useRef(0);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -104,6 +106,43 @@ export default function RunsPage() {
     }
   }
 
+  useEffect(() => {
+    const run = String(progress.run_id || "");
+    if (!run) {
+      setOpenlcaDown(false);
+      activityOffset.current = 0;
+      return;
+    }
+    let cancelled = false;
+    async function check() {
+      try {
+        const query = new URLSearchParams({
+          run_id: run,
+          offset: String(activityOffset.current),
+        });
+        const response = await apiFetch(`/api/workflow/activity?${query.toString()}`);
+        if (!response.ok || cancelled) return;
+        const data = (await response.json()) as {
+          events?: { kind?: string }[];
+          offset?: number;
+          reset?: boolean;
+        };
+        if (data.reset) activityOffset.current = 0;
+        activityOffset.current = Number(data.offset) || activityOffset.current;
+        const hit = (data.events || []).some((event) => event.kind === "openlca_unresponsive");
+        if (!cancelled) setOpenlcaDown((current) => current || hit);
+      } catch {
+        // ignore
+      }
+    }
+    void check();
+    const timer = setInterval(() => void check(), 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [progress.run_id]);
+
   return (
     <div className="plan-board">
       <section className="settings-card plan-card run-card">
@@ -112,6 +151,9 @@ export default function RunsPage() {
             <h2>实时终端</h2>
           </div>
         </div>
+        {openlcaDown ? (
+          <p className="status-banner error">openLCA 无响应，请检查界面或重启 IPC</p>
+        ) : null}
         {error ? <p className="status-banner error">{error}</p> : null}
         <div className="run-body">
           <div className="run-terminal">

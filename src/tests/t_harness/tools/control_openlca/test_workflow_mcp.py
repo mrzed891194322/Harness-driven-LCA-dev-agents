@@ -549,7 +549,7 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual((imported, failed, deleted), (0, 1, 0))
         self.assertIn("connection lost", errors[0])
 
-    def test_import_continues_after_read_timeout_on_single_entity(self) -> None:
+    def test_import_stops_after_read_timeout_on_single_entity(self) -> None:
         client = FakeImportClient()
         attempts = {"count": 0}
         original_put = client.put
@@ -583,9 +583,9 @@ class ImportWorkflowTests(unittest.TestCase):
             "project-a",
         )
 
-        self.assertEqual(attempts["count"], 2)
-        self.assertEqual(len(records), 2)
-        self.assertEqual((imported, failed, deleted), (1, 1, 0))
+        self.assertEqual(attempts["count"], 1)
+        self.assertEqual(len(records), 1)
+        self.assertEqual((imported, failed, deleted), (0, 1, 0))
         self.assertIn("slow openlca", errors[0])
 
     def test_product_system_uses_official_auto_linking_and_preserves_uuid(self) -> None:

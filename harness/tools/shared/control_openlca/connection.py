@@ -121,13 +121,10 @@ def ipc_tool_is_long_running(name: str) -> bool:
 
 
 def session_request_timeout() -> TimeoutValue:
-    """HTTP timeout for a new IPC client: remaining session budget, else LONG."""
-    from .guard import remaining_budget
+    """HTTP timeout for a new IPC client: per-request read, not shrinking budget."""
+    from .timeout_policy import active_read_sec, resolve_http_read_timeout
 
-    remaining = remaining_budget()
-    if remaining is None:
-        return LONG_REQUEST_TIMEOUT
-    return (2.0, remaining)
+    return resolve_http_read_timeout(read_sec=active_read_sec())
 
 
 def read_request_timeout() -> TimeoutValue:
@@ -163,19 +160,16 @@ class _TimeoutHTTPAdapter(HTTPAdapter):
     def send(self, request, **kwargs):
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self.timeout
-        from .guard import remaining_budget
+        from .timeout_policy import resolve_http_read_timeout
 
-        remaining = remaining_budget()
-        if remaining is not None:
-            value = kwargs["timeout"]
-            if isinstance(value, tuple):
-                connect = min(value[0], max(0.001, remaining / 2))
-                kwargs["timeout"] = (
-                    connect,
-                    min(value[1], max(0.001, remaining - connect)),
-                )
-            else:
-                kwargs["timeout"] = min(value, remaining)
+        value = kwargs["timeout"]
+        if isinstance(value, tuple):
+            connect, read = value[0], value[1]
+            kwargs["timeout"] = resolve_http_read_timeout(
+                read_sec=read, connect_sec=connect
+            )
+        else:
+            kwargs["timeout"] = resolve_http_read_timeout(read_sec=float(value))
         return super().send(request, **kwargs)
 
 
