@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -38,6 +39,7 @@ import {
   sessionSnapshotDir,
   writeJson,
 } from "./injection.js";
+import { exportTranscript, type TranscriptState } from "./transcript.js";
 
 const PROTOCOL_VERSION = 1;
 
@@ -58,6 +60,24 @@ interface LiveSession {
   effective: Record<string, unknown>;
   /** Live sink for the first-request injection check; set while a turn is running. */
   injectionSink?: { emit: ((record: Record<string, unknown>) => void) | null };
+  /** Turn timing / retries only the live stream knows; merged into transcript.jsonl. */
+  transcript?: TranscriptState;
+}
+
+/** Re-export transcript.jsonl from the SDK session file (best effort, never throws). */
+function writeTranscript(live: LiveSession, final = false): void {
+  if (!live.session || !live.transcript) return;
+  try {
+    exportTranscript(
+      live.spec,
+      live.session.sessionFile ?? live.spec.session_storage.session_file,
+      live.session.systemPrompt ?? "",
+      live.transcript,
+      final,
+    );
+  } catch {
+    // Diagnostics only.
+  }
 }
 
 const sessions = new Map<string, LiveSession>();
@@ -94,6 +114,7 @@ async function releaseSession(key: string): Promise<boolean> {
   const live = sessions.get(key);
   if (!live) return false;
   sessions.delete(key);
+  writeTranscript(live, true);
   await live.dispose();
   return true;
 }
@@ -389,6 +410,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     guardSink,
     effective,
     injectionSink,
+    transcript: { createdAt: Date.now(), turns: [], retries: [] },
   };
 }
 
@@ -641,7 +663,31 @@ export async function handleRuntimeMethod(
           peer,
         );
     }
+    const turn = live.transcript
+      ? {
+          type: "turn" as const,
+          index: live.transcript.turns.length + 1,
+          started_at: new Date().toISOString(),
+          status: "running" as const,
+          prompt_sha256: crypto.createHash("sha256").update(prompt, "utf8").digest("hex"),
+        }
+      : null;
+    if (turn && live.transcript) live.transcript.turns.push(turn as any);
+    const turnStart = Date.now();
     const unsub = session.subscribe((ev) => {
+      const anyEv = ev as any;
+      if (live.transcript && (anyEv.type === "auto_retry_start" || anyEv.type === "auto_retry_end")) {
+        live.transcript.retries.push({
+          type: "retry",
+          ts: new Date().toISOString(),
+          phase: anyEv.type === "auto_retry_start" ? "start" : "end",
+          attempt: anyEv.attempt,
+          max_attempts: anyEv.maxAttempts,
+          delay_ms: anyEv.delayMs,
+          error: anyEv.errorMessage ?? anyEv.finalError,
+          success: anyEv.success,
+        });
+      }
       if (ev.type === "message_update" && ev.assistantMessageEvent?.type === "text_delta") {
         const delta = ev.assistantMessageEvent.delta ?? "";
         text += delta;
@@ -656,10 +702,14 @@ export async function handleRuntimeMethod(
     try {
       await session.prompt(prompt);
       relay.finish("ok");
+      if (turn) Object.assign(turn, { status: "ok" });
     } catch (error) {
       relay.finish("error", error instanceof Error ? error.message : String(error));
+      if (turn) Object.assign(turn, { status: "error", error: error instanceof Error ? error.message : String(error) });
       throw error;
     } finally {
+      if (turn) Object.assign(turn, { ended_at: new Date().toISOString(), latency_ms: Date.now() - turnStart });
+      writeTranscript(live);
       unsub();
       if (live.guardSink) live.guardSink.emit = null;
       if (live.injectionSink) live.injectionSink.emit = null;

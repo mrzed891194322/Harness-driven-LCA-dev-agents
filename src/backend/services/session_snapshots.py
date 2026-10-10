@@ -59,3 +59,11 @@ class SessionSnapshots:
         size = path.stat().st_size
         data = path.read_bytes()[:MAX_INLINE].decode("utf-8", errors="replace")
         return {"name": name, "size": size, "truncated": size > MAX_INLINE, "text": data}
+
+    def markdown(self, run_id: str, session: str) -> str:
+        from backend.core.agents.transcript_md import render_session_markdown
+
+        d = injection.snapshot_file(self.root, run_id, session, "prompt.md").parent
+        if not d.is_dir():
+            raise FileNotFoundError(session)
+        return render_session_markdown(d)

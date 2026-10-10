@@ -111,6 +111,12 @@ function FilesView({ run, row }: { run: string; row: SessionRow }) {
   useEffect(() => {
     if (!name) return;
     setText("加载中…");
+    if (name === "__markdown__") {
+      getJson<{ text: string }>(`/api/runs/${encodeURIComponent(run)}/sessions/${encodeURIComponent(row.session)}/markdown`)
+        .then((d) => setText(d.text))
+        .catch((e) => setText(String(e?.message || e)));
+      return;
+    }
     getJson<{ text: string; truncated: boolean }>(fileUrl(run, row.session, name))
       .then((d) => setText(d.text + (d.truncated ? "\n…（已截断，请下载完整文件）" : "")))
       .catch((e) => setText(String(e?.message || e)));
@@ -119,6 +125,10 @@ function FilesView({ run, row }: { run: string; row: SessionRow }) {
     <div>
       <p style={{ fontSize: 13 }}>
         模型：{row.model?.provider}/{row.model?.model_id}
+      </p>
+      <p style={{ fontSize: 13 }}>
+        <button type="button" onClick={() => setName("__markdown__")}>查看完整对话（Markdown）</button>{" "}
+        <a href={`/api/runs/${encodeURIComponent(run)}/sessions/${encodeURIComponent(row.session)}/markdown?download=true`}>下载 Markdown</a>
       </p>
       <ul style={{ fontSize: 13 }}>
         {row.files.map((f) => (

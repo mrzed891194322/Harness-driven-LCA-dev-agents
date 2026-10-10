@@ -685,6 +685,24 @@ def run_session_injection(run_id: str, session: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/api/runs/{run_id}/sessions/{session}/markdown")
+def run_session_markdown(run_id: str, session: str, download: bool = False) -> Any:
+    """Readable Markdown of one session: injection, model, full transcript."""
+    try:
+        text = _snapshots.markdown(run_id, session)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="会话不存在") from exc
+    if download:
+        return Response(
+            content=text.encode("utf-8"),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{run_id}.{session}.md"'},
+        )
+    return {"text": text}
+
+
 @app.get("/api/runs/{run_id}/sessions/{session}/file")
 def run_session_file(run_id: str, session: str, name: str, download: bool = False) -> Any:
     try:

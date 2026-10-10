@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { redact, knownSecrets, REDACTED } from "./injection.js";
 import { disposeAllSessions, handleRuntimeMethod } from "./session_host.js";
+import { exportTranscript } from "./transcript.js";
 import type { SessionLaunchSpec } from "./types.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -109,11 +110,54 @@ test("first provider request payload is captured (dead endpoint, no real model)"
     await Promise.race([run, new Promise((r) => setTimeout(r, 5_000))]);
     const rec = JSON.parse(fs.readFileSync(file, "utf8"));
     assert.equal(rec.captured, true);
+    const tfile = path.join(path.dirname(path.dirname(file)), "transcript.jsonl");
+    assert.ok(await (async () => { const d = Date.now() + 10_000; while (!fs.existsSync(tfile) && Date.now() < d) await new Promise((r) => setTimeout(r, 100)); return fs.existsSync(tfile); })(), "transcript.jsonl written");
+    const recs = fs.readFileSync(tfile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    const types = recs.map((r) => r.type);
+    assert.ok(types.includes("system") && types.includes("turn") && types.at(-1) === "summary", types.join(","));
+    assert.ok(recs.some((r) => r.type === "message" && r.role === "user" && r.text === "hi"));
+    assert.ok(!fs.readFileSync(tfile, "utf8").includes(FAKE_SIGNING));
     assert.equal(rec.system_prompt_found, true);
     assert.ok(rec.tool_names.some((n: string) => n.startsWith("mcp__fake__")));
     assert.ok(!JSON.stringify(rec).includes(FAKE_SIGNING));
   } finally {
     await disposeAllSessions();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("transcript: >1MB records go to a blob file, tool calls/results/usage kept", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-rt-tr-"));
+  try {
+    const s = spec(dir, "tr");
+    const file = path.join(dir, "s.jsonl");
+    const big = "x".repeat(1_200_000);
+    const ts = new Date().toISOString();
+    const lines = [
+      { type: "session", version: 3, id: "sid", timestamp: ts, cwd: dir },
+      { type: "message", id: "1", parentId: null, timestamp: ts, message: { role: "user", content: "go", timestamp: 1 } },
+      { type: "message", id: "2", parentId: "1", timestamp: ts, message: { role: "assistant", provider: "p", model: "m", api: "a", stopReason: "toolUse", durationMs: 12, timestamp: 1,
+        usage: { input: 10, output: 5, cacheRead: 2, cacheWrite: 0, totalTokens: 17, cost: { total: 0 } },
+        content: [{ type: "thinking", thinking: "hmm" }, { type: "text", text: "calling" }, { type: "toolCall", id: "c1", name: "read", arguments: { path: "a" } }] } },
+      { type: "message", id: "3", parentId: "2", timestamp: ts, message: { role: "toolResult", toolCallId: "c1", toolName: "read", isError: false, durationMs: 3, timestamp: 1, content: [{ type: "text", text: big }] } },
+    ];
+    fs.writeFileSync(file, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    const out = exportTranscript(s, file, "SYS", { createdAt: 0, turns: [], retries: [] }, true);
+    const recs = fs.readFileSync(out, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    const a = recs.find((r) => r.role === "assistant");
+    assert.deepEqual(a.thinking, [{ text: "hmm" }]);
+    assert.equal(a.tool_calls[0].name, "read");
+    assert.equal(a.usage.total, 17);
+    assert.equal(a.latency_ms, 12);
+    const stub = recs.find((r) => r.type === "tool_result");
+    assert.ok(stub.blob && stub.bytes > 1_000_000);
+    const blob = JSON.parse(fs.readFileSync(path.join(path.dirname(out), stub.blob), "utf8"));
+    assert.equal(blob.text.length, big.length);
+    const sum = recs.at(-1);
+    assert.equal(sum.type, "summary");
+    assert.equal(sum.tokens_total.total, 17);
+    assert.equal(sum.tool_calls, 1);
+  } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
