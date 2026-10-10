@@ -137,7 +137,8 @@ class ScriptedSessionClient:
         self.turns.append((ref.session_id, f"{stage}:{role}:{attempt}"))
         if payload.get("raise_transport"):
             message = str(
-                payload.get("transport_message") or "test 模型连接失败：Connection error."
+                payload.get("transport_message")
+                or "test 模型连接失败：Connection error."
             )
             raise WorkerTransportError(message)
         self._write_outputs(payload)
@@ -166,7 +167,13 @@ class ScriptedSessionClient:
                 "fix_instructions": payload.get("fix_instructions") or "",
                 "artifacts": payload.get("artifacts") or [],
             }
-            for extra in ("checks_ref", "evidence_manifest_ref", "rework_scope"):
+            for extra in (
+                "checks_ref",
+                "evidence_manifest_ref",
+                "rework_scope",
+                "rework_target_stage",
+                "rework_artifacts",
+            ):
                 if extra in payload:
                     body[extra] = payload[extra]
         handoff_path.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")

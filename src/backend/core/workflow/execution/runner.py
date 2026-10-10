@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import json
+import os
 import time
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
 
+from backend.core.agents.activity import activity_log_path, append_activity
 from backend.core.agents.progress import print_orchestrator
 from backend.core.runtime.capabilities import HarnessCapabilities
 from backend.core.runtime.context import RunContext
 from backend.core.runtime.host_action import HostActionError, run_host_action
+from backend.core.runtime.tool_runtime import write_json_atomic
 from backend.core.workflow.spec.outputs import (
     validate_handoff_schema,
     validate_inputs,
     validate_outputs,
 )
+from backend.settings import records_root
 
 from ..config.bundle import TaskBundle
 from ..config.models import Assignment, Stage, Workflow
@@ -33,6 +38,10 @@ RUNTIME_VERSION = 4
 PROTOCOL_REPAIR_LIMIT = 3
 WORKER_TRANSPORT_RETRY_LIMIT = 5
 _WORKER_TRANSPORT_BACKOFF_SEC = (2, 4, 8, 16, 32)
+# Upstream rework (writer asks orchestrator to send work back to an earlier stage).
+UPSTREAM_REWORK_LIMIT_DEFAULT = 2
+UPSTREAM_REWORK_LIMIT_ENV = "HARNESS_UPSTREAM_REWORK_LIMIT"
+UPSTREAM_REWORK_SCOPES = frozenset({"model_changed"})
 Action = Literal["prepare", "run_sdk", "advance", "done"]
 
 
@@ -56,6 +65,11 @@ class WorkflowState(TypedDict):
     fix_instructions: str
     sessions: dict[str, dict[str, Any]]
     last_handoff: dict[str, Any]
+    # Optional (absent in pre-rework checkpoints): see _attempt_base / upstream rework.
+    upstream_reworks: int
+    stage_attempt_base: dict[str, int]
+    stale_stages: list[str]
+    attempt_high_water: dict[str, int]
 
 
 def publish_state(workspace_root: Path, state: WorkflowState) -> None:
@@ -249,13 +263,12 @@ class OrchestratorRuntime:
         }
 
     def run_sdk(self, state: WorkflowState) -> dict[str, Any]:
+        from backend.core.agents.assignment_models import model_for_assignment
         from backend.core.agents.session import (
             SessionRef,
             SessionResumeError,
             WorkerTransportError,
         )
-
-        from backend.core.agents.assignment_models import model_for_assignment
         from backend.core.runtime.launch_spec import build_session_launch_spec
 
         from .session_bind import build_session_config
@@ -461,6 +474,8 @@ class OrchestratorRuntime:
         )
         status = handoff["status"]
         failed = status in {"failed", "blocked"} or bool(missing)
+        if status in {"failed", "blocked"} and _requests_upstream(handoff):
+            return self._upstream_rework_or_retry(state, stage, assignment, handoff)
         if failed:
             reason = handoff.get("status_reason") or ""
             if missing:
@@ -759,10 +774,26 @@ class OrchestratorRuntime:
         assignment: Assignment,
         reason: str,
         fix_instructions: str = "",
+        extra_event: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         attempt = _attempt(state)
-        if attempt >= stage.max_attempts:
+        used = attempt - _attempt_base(state, stage.stage_id)
+        if used >= stage.max_attempts:
             print_orchestrator(f"failed {assignment.assignment_id}: {reason}")
+            self._emit(
+                state,
+                {
+                    "kind": "retry",
+                    "stage": stage.stage_id,
+                    "assignment": assignment.assignment_id,
+                    "attempt": attempt,
+                    "next_attempt": None,
+                    "outcome": "failed",
+                    "reason": reason,
+                    "errors": _split_errors(reason),
+                    **(extra_event or {}),
+                },
+            )
             return {
                 "status": "failed",
                 "status_reason": reason,
@@ -770,6 +801,20 @@ class OrchestratorRuntime:
             }
         print_orchestrator(
             f"retry {assignment.assignment_id} attempt={attempt + 1}: {reason}"
+        )
+        self._emit(
+            state,
+            {
+                "kind": "retry",
+                "stage": stage.stage_id,
+                "assignment": assignment.assignment_id,
+                "attempt": attempt,
+                "next_attempt": attempt + 1,
+                "outcome": "retry",
+                "reason": reason,
+                "errors": _split_errors(reason),
+                **(extra_event or {}),
+            },
         )
         writer_index = _first_writer_index(self.workflow, stage)
         return {
@@ -780,6 +825,265 @@ class OrchestratorRuntime:
             "last_handoff": {"status": "failed", "status_reason": reason},
         }
 
+    # ------------------------------------------------------------------
+    # Upstream rework
+    # ------------------------------------------------------------------
+    def _upstream_rework_limit(self) -> int:
+        configured = getattr(self.workflow, "max_upstream_reworks", None)
+        if configured is not None:
+            return int(configured)
+        raw = os.environ.get(UPSTREAM_REWORK_LIMIT_ENV, "").strip()
+        if raw:
+            try:
+                return max(0, int(raw))
+            except ValueError:
+                pass
+        return UPSTREAM_REWORK_LIMIT_DEFAULT
+
+    def _stage_outputs(self, stage: Stage) -> list[str]:
+        for assignment_id in stage.steps:
+            bundle = self.bundles.get(assignment_id)
+            if bundle is not None:
+                return [item.path for item in bundle.stage_spec.outputs]
+        return []
+
+    def validate_upstream_request(
+        self, stage_index: int, handoff: dict[str, Any]
+    ) -> tuple[int | None, list[str]]:
+        """Return (target stage index, rejection reasons). Index None = rejected."""
+        problems: list[str] = []
+        stage_ids = [s.stage_id for s in self.workflow.stages]
+        artifacts = [str(a) for a in (handoff.get("rework_artifacts") or [])]
+        target_id = str(handoff.get("rework_target_stage") or "").strip()
+        if not artifacts:
+            problems.append(
+                "未给出 rework_artifacts（出问题的上游产物路径），无法核对退回目标"
+            )
+        producers: dict[str, list[int]] = {}
+        for artifact in artifacts:
+            producers[artifact] = [
+                i
+                for i in range(stage_index)
+                if any(
+                    _path_covers(out, artifact)
+                    for out in self._stage_outputs(self.workflow.stages[i])
+                )
+            ]
+        if target_id:
+            if target_id not in stage_ids:
+                problems.append(f"rework_target_stage {target_id!r} 不是本工作流的阶段")
+                return None, problems
+            target = stage_ids.index(target_id)
+            if target >= stage_index:
+                problems.append(
+                    f"rework_target_stage {target_id} 不在当前阶段 "
+                    f"{stage_ids[stage_index]} 的上游"
+                )
+            for artifact, idx in producers.items():
+                if target not in idx:
+                    problems.append(
+                        f"{target_id} 的 spec outputs 未声明产出 {artifact}"
+                    )
+        else:
+            target = None
+            for artifact, idx in producers.items():
+                if not idx:
+                    problems.append(f"没有上游阶段的 spec outputs 声明产出 {artifact}")
+                else:
+                    target = idx[0] if target is None else min(target, idx[0])
+            if target is None and not problems:
+                problems.append("无法推断退回目标阶段")
+        if problems:
+            return None, problems
+        return target, []
+
+    def _upstream_rework_or_retry(
+        self,
+        state: WorkflowState,
+        stage: Stage,
+        assignment: Assignment,
+        handoff: dict[str, Any],
+    ) -> dict[str, Any]:
+        stage_index = _state_int(state, "stage_index")
+        reason = str(handoff.get("status_reason") or "").strip()
+        fix = str(handoff.get("fix_instructions") or "").strip() or reason
+        target, problems = self.validate_upstream_request(stage_index, handoff)
+        base_event = {
+            "kind": "rework_upstream",
+            "from": stage.stage_id,
+            "assignment": assignment.assignment_id,
+            "attempt": _attempt(state),
+            "requested_target": handoff.get("rework_target_stage"),
+            "rework_scope": handoff.get("rework_scope"),
+            "artifacts": list(handoff.get("rework_artifacts") or []),
+            "reason": reason,
+        }
+        if target is None:
+            self._emit(
+                state,
+                {
+                    **base_event,
+                    "to": None,
+                    "validated": False,
+                    "rejected": problems,
+                    "invalidated_stages": [],
+                },
+            )
+            note = "上游返工请求未被采纳：" + "; ".join(problems)
+            print_orchestrator(f"{assignment.assignment_id}: {note}")
+            return self._retry_or_fail(
+                state,
+                stage,
+                assignment,
+                f"{reason} （{note}）".strip(),
+                fix_instructions=f"{fix}\n\n{note}；本阶段内继续修复。",
+                extra_event={"cause": "upstream_rework_rejected"},
+            )
+        target_stage = self.workflow.stages[target]
+        done = int(state.get("upstream_reworks") or 0)
+        limit = self._upstream_rework_limit()
+        invalidated = [
+            s.stage_id for s in self.workflow.stages[target : stage_index + 1]
+        ]
+        if done >= limit:
+            fail_reason = (
+                f"上游返工次数已达上限（{done}/{limit}）："
+                f"{stage.stage_id} 再次请求退回 {target_stage.stage_id}：{reason}"
+            )
+            self._emit(
+                state,
+                {
+                    **base_event,
+                    "to": target_stage.stage_id,
+                    "validated": True,
+                    "rejected": [],
+                    "invalidated_stages": [],
+                    "outcome": "failed",
+                    "limit": limit,
+                },
+            )
+            print_orchestrator(fail_reason)
+            return {
+                "status": "failed",
+                "status_reason": fail_reason,
+                "last_handoff": {"status": "failed", "status_reason": fail_reason},
+            }
+        self._release_stage_sessions(state, stage)
+        sessions = dict(state.get("sessions") or {})
+        for stage_id in invalidated:
+            for assignment_id in self.workflow.stage_by_id(stage_id).steps:
+                sessions.pop(session_key(assignment_id), None)
+        high = _record_high_water(state, stage.stage_id)
+        high_water = int(high.get(target_stage.stage_id, 0))
+        bases = dict(state.get("stage_attempt_base") or {})
+        bases[target_stage.stage_id] = high_water
+        removed = self._invalidate_stages(state, invalidated, done + 1, reason)
+        self._emit(
+            state,
+            {
+                **base_event,
+                "to": target_stage.stage_id,
+                "validated": True,
+                "rejected": [],
+                "invalidated_stages": invalidated,
+                "dropped_acceptances": removed,
+                "outcome": "rework",
+                "upstream_rework": done + 1,
+                "limit": limit,
+            },
+        )
+        print_orchestrator(
+            f"upstream rework {stage.stage_id} -> {target_stage.stage_id} "
+            f"({done + 1}/{limit}); invalidated={invalidated}"
+        )
+        instructions = (
+            f"下游阶段 {stage.stage_id} 请求上游返工（{done + 1}/{limit}）。\n"
+            f"原因：{reason}\n"
+            f"涉及产物：{', '.join(base_event['artifacts'])}\n"
+            f"修改说明：{fix}"
+        )
+        return {
+            "stage_index": target,
+            "step_index": _first_writer_index(self.workflow, target_stage),
+            "attempt": high_water + 1,
+            "stage_attempt_base": bases,
+            "attempt_high_water": high,
+            "upstream_reworks": done + 1,
+            "stale_stages": invalidated,
+            "sessions": sessions,
+            "current_stage": target_stage.stage_id,
+            "fix_instructions": instructions,
+            "status": "running",
+            "status_reason": (f"上游返工：{stage.stage_id} → {target_stage.stage_id}"),
+            "last_handoff": handoff,
+        }
+
+    def _invalidate_stages(
+        self,
+        state: WorkflowState,
+        stage_ids: list[str],
+        rework_no: int,
+        reason: str,
+    ) -> list[str]:
+        """Mark stages stale; drop host acceptances they recorded.
+
+        Outputs stay in place (the target writer revises them); every invalidated
+        stage must pass writer + host checks + review again before the run can
+        advance past it, and acceptances recorded by those stages are removed so
+        downstream tools (e.g. lca_artifacts require_approved_model / reuse_status)
+        cannot treat the old model as approved.
+        """
+        run_id = _state_str(state, "run_id")
+        records = records_root(self.workspace_root)
+        write_json_atomic(
+            records / "rework" / f"upstream-{rework_no}.json",
+            {
+                "run_id": run_id,
+                "rework": rework_no,
+                "stale_stages": stage_ids,
+                "reason": reason,
+                "at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            },
+        )
+        removed: list[str] = []
+        manifest = records / "evidence" / run_id / "manifest.json"
+        if manifest.is_file():
+            try:
+                value = json.loads(manifest.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                value = None
+            if isinstance(value, dict) and isinstance(value.get("accepted"), dict):
+                keep = {}
+                for key, entry in value["accepted"].items():
+                    if isinstance(entry, dict) and entry.get("stage") in stage_ids:
+                        removed.append(key)
+                    else:
+                        keep[key] = entry
+                if removed:
+                    value["accepted"] = keep
+                    value.setdefault("invalidations", []).append(
+                        {"rework": rework_no, "stages": stage_ids, "removed": removed}
+                    )
+                    write_json_atomic(manifest, value)
+        return removed
+
+    def _emit(self, state: WorkflowState, record: dict[str, Any]) -> None:
+        """Append an orchestrator event to the run's events.jsonl (best effort)."""
+        try:
+            path = activity_log_path(self.project_root, _state_str(state, "run_id"))
+        except (ValueError, KeyError):
+            return
+        payload = {
+            "source": "orchestrator",
+            "run_id": state.get("run_id"),
+            "ts": time.time(),
+            **record,
+        }
+        try:
+            append_activity(path, payload)
+        except OSError:
+            pass
+
     def _complete_or_next_stage(
         self, state: WorkflowState, stage: Stage
     ) -> dict[str, Any]:
@@ -787,16 +1091,26 @@ class OrchestratorRuntime:
         if next_stage >= len(self.workflow.stages):
             self._release_stage_sessions(state, stage)
             return {
+                "stale_stages": [],
                 "status": "completed",
                 "status_reason": "全部阶段已通过",
                 "current_stage": None,
             }
         self._release_stage_sessions(state, stage)
         nxt = self.workflow.stages[next_stage]
+        high = _record_high_water(state, stage.stage_id)
+        base = int(high.get(nxt.stage_id, 0))
+        stale = [s for s in (state.get("stale_stages") or []) if s != stage.stage_id]
+        bases = dict(state.get("stage_attempt_base") or {})
+        if base:
+            bases[nxt.stage_id] = base
         return {
             "stage_index": next_stage,
             "step_index": 0,
-            "attempt": 1,
+            "attempt": base + 1,
+            "stage_attempt_base": bases,
+            "attempt_high_water": high,
+            "stale_stages": stale,
             "fix_instructions": "",
             "status": "running",
             "current_stage": nxt.stage_id,
@@ -838,6 +1152,43 @@ class OrchestratorRuntime:
             role=assignment.role,
             metadata=dict(bundle.context),
         )
+
+
+def _attempt_base(state: WorkflowState, stage_id: str) -> int:
+    """Attempts used by this stage before its current visit (upstream rework)."""
+    return int((state.get("stage_attempt_base") or {}).get(stage_id, 0))
+
+
+def _record_high_water(state: WorkflowState, stage_id: str) -> dict[str, int]:
+    high = {k: int(v) for k, v in (state.get("attempt_high_water") or {}).items()}
+    high[stage_id] = max(high.get(stage_id, 0), _attempt(state))
+    return high
+
+
+def _requests_upstream(handoff: dict[str, Any]) -> bool:
+    return bool(
+        handoff.get("rework_scope") in UPSTREAM_REWORK_SCOPES
+        or str(handoff.get("rework_target_stage") or "").strip()
+    )
+
+
+def _norm_rel(path: str) -> str:
+    text = path.strip().replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    if not text.startswith("workspace/"):
+        text = "workspace/" + text.lstrip("/")
+    return text.rstrip("/")
+
+
+def _path_covers(declared: str, artifact: str) -> bool:
+    d, a = _norm_rel(declared), _norm_rel(artifact)
+    return a == d or a.startswith(d + "/")
+
+
+def _split_errors(reason: str) -> list[str]:
+    body = reason.split("：", 1)[1] if "：" in reason else reason
+    return [part.strip() for part in body.split("; ") if part.strip()][:50]
 
 
 def _first_writer_index(workflow: Workflow, stage: Stage) -> int:

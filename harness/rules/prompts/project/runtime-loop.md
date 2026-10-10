@@ -26,6 +26,8 @@
 
 可选 handoff 字段 `checks_ref` / `evidence_manifest_ref` 为路径字符串；`rework_scope` 为 none / report_only / calculation_changed / model_changed。不可自行伪造工具检查状态。
 
+**请求上游返工**：执行者发现问题出在上游阶段的产物（本阶段只能写自己的产物，改不了）时，以 `status=failed` 交卷，并给出 `rework_scope=model_changed`、`rework_artifacts`（出问题的上游产物路径列表，如 `workspace/outputs/inventory/extracted-bom.json`）和可选的 `rework_target_stage`（建议退回的阶段 id）；`status_reason` 写问题，`fix_instructions` 写上游要怎么改。主编排会核对：目标必须在本阶段上游，且其 spec 声明产出这些文件；核对不通过就仍在本阶段重做。退回后目标阶段及其后所有阶段作废重跑，上游返工次数有上限，超出即 failed。不要用上游返工逃避本阶段能修的问题。
+
 审查 `passed` 后执行的 lifecycle actions（如 mapping 阶段 `record_acceptance`）应尽量幂等；运行器在异常时 fail-closed。openLCA 访问遵守绑定的工具规则。新 revise 仍完整执行工作流 YAML 中的全部阶段，不复用跨 run 的通过状态。
 
 ## 终止与自主决策

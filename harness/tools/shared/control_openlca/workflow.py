@@ -518,6 +518,7 @@ def _provider_checks(
             for flow_id in [getattr(getattr(exchange, "flow", None), "id", None)]
             if flow_id is not None
         )
+        check["provider_unit"] = _provider_output_unit(provider, requirement["flow_id"])
         check["output_flow_count"] = len(output_flow_ids)
         check["output_flow_match"] = requirement["flow_id"] in output_flow_ids
         check["matched_flow_id"] = (
@@ -546,6 +547,137 @@ def _provider_checks(
             )
         checks.append(check)
     return checks, errors
+
+
+# Mass transport unit group (openLCA "Units of mass*distance"), factor in kg*km.
+_MASS_TRANSPORT_FACTORS = {
+    "kg*km": 1.0,
+    "t*km": 1000.0,
+    "kt*km": 1_000_000.0,
+    "g*km": 0.001,
+    "kg*m": 0.001,
+    "t*m": 1.0,
+}
+_UNIT_ALIASES = {"tkm": "t*km", "kgkm": "kg*km", "ton*km": "t*km", "tonne*km": "t*km"}
+
+
+def _norm_unit(name: Any) -> str | None:
+    if not isinstance(name, str) or not name.strip():
+        return None
+    text = name.strip().casefold()
+    for sep in ("·", "⋅", "×", " x ", " ", "-"):
+        text = text.replace(sep, "*" if sep not in {" "} else "")
+    text = text.replace("**", "*")
+    return _UNIT_ALIASES.get(text, text)
+
+
+def _provider_output_unit(provider: Any, flow_id: str) -> dict[str, Any] | None:
+    for exchange in list(getattr(provider, "exchanges", None) or []):
+        if getattr(exchange, "is_input", None) is True:
+            continue
+        if getattr(getattr(exchange, "flow", None), "id", None) != flow_id:
+            continue
+        unit = getattr(exchange, "unit", None)
+        prop = getattr(exchange, "flow_property", None)
+        return {
+            "id": getattr(unit, "id", None),
+            "name": getattr(unit, "name", None),
+            "flow_property": getattr(prop, "name", None),
+        }
+    return None
+
+
+def _transport_unit_pass(
+    inventory: list[dict[str, Any]],
+    provider_checks: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Reconcile foreground exchange units with mass-transport providers.
+
+    For providers whose reference unit is in the mass*distance group (t*km ...),
+    an LCI amount in another unit of that group (e.g. kg*km) is converted
+    explicitly in the import payload and reported; an unknown or incompatible
+    unit is an error. Amounts are never passed through silently.
+    """
+    units = {
+        (c["provider_id"], c["flow_id"]): c.get("provider_unit")
+        for c in provider_checks
+        if c.get("provider_unit")
+    }
+    conversions: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            provider = exchange.get("defaultProvider")
+            flow = exchange.get("flow")
+            if not isinstance(provider, dict) or not isinstance(flow, dict):
+                continue
+            target = units.get((provider.get("@id"), flow.get("@id")))
+            if not target:
+                continue
+            p_unit = _norm_unit(target.get("name"))
+            unit_ref = exchange.get("unit")
+            raw_name = unit_ref.get("name") if isinstance(unit_ref, dict) else None
+            l_unit = _norm_unit(raw_name)
+            where = f"{item['path']}: exchange {index} ({flow.get('name') or flow.get('@id')})"
+            p_transport = p_unit in _MASS_TRANSPORT_FACTORS
+            l_transport = l_unit in _MASS_TRANSPORT_FACTORS
+            if not p_transport:
+                if l_transport:
+                    errors.append(
+                        f"{where}: unit {raw_name!r} is mass*distance but provider "
+                        f"reference unit is {target.get('name')!r}"
+                    )
+                continue
+            if l_unit is None:
+                errors.append(
+                    f"{where}: unit missing; provider {provider.get('@id')} is in "
+                    f"mass transport unit group ({target.get('name')}); state the unit "
+                    "explicitly (e.g. t*km)"
+                )
+                continue
+            if not l_transport:
+                errors.append(
+                    f"{where}: unit {raw_name!r} incompatible with provider reference "
+                    f"unit {target.get('name')!r} (mass transport)"
+                )
+                continue
+            if l_unit == p_unit:
+                continue
+            amount = exchange.get("amount")
+            if not isinstance(amount, (int, float)) or isinstance(amount, bool):
+                errors.append(f"{where}: amount must be numeric for unit conversion")
+                continue
+            factor = _MASS_TRANSPORT_FACTORS[l_unit] / _MASS_TRANSPORT_FACTORS[p_unit]
+            converted = amount * factor
+            exchange["amount"] = converted
+            new_ref: dict[str, Any] = {"@type": "Unit", "name": target.get("name")}
+            if target.get("id"):
+                new_ref["@id"] = target["id"]
+            exchange["unit"] = new_ref
+            conversions.append(
+                {
+                    "path": item["path"],
+                    "process_id": item["id"],
+                    "exchange": index,
+                    "flow_id": flow.get("@id"),
+                    "provider_id": provider.get("@id"),
+                    "from_unit": raw_name,
+                    "to_unit": target.get("name"),
+                    "factor": factor,
+                    "original_amount": amount,
+                    "converted_amount": converted,
+                    "note": (
+                        f"{where}: {amount} {raw_name} converted to "
+                        f"{converted} {target.get('name')} (x{factor:g}) to match "
+                        "provider reference unit"
+                    ),
+                }
+            )
+    return conversions, errors
 
 
 def _database_snapshot(
@@ -670,6 +802,8 @@ def _inspect_import(
     )
     if owns_client:
         close_ipc_client(ipc_client)
+    unit_conversions, unit_errors = _transport_unit_pass(inventory, provider_checks)
+    provider_errors = [*provider_errors, *unit_errors]
     lci_fingerprint = stable_hash(planned_entities)
     target_scope_fingerprint = stable_hash(overwrite_scope)
     background_provider_fingerprint = stable_hash(provider_checks)
@@ -681,6 +815,7 @@ def _inspect_import(
         "lci_fingerprint": lci_fingerprint,
         "target_scope_fingerprint": target_scope_fingerprint,
         "background_provider_fingerprint": background_provider_fingerprint,
+        "unit_conversions": unit_conversions,
     }
     preflight_hash = stable_hash(hash_payload)
     ok = not provider_errors
@@ -713,6 +848,8 @@ def _inspect_import(
                 "overwrite_or_delete": len(overwrite_scope),
             },
             "errors": provider_errors,
+            "unit_conversions": unit_conversions,
+            "warnings": [c["note"] for c in unit_conversions],
             "preflight_hash": preflight_hash,
             "timestamp": utc_now(),
         },
@@ -1265,6 +1402,8 @@ def import_lci(
             "deleted_count": deleted,
             "entities": list(records),
             "errors": list(errors),
+            "unit_conversions": list(current.get("unit_conversions") or []),
+            "warnings": list(current.get("warnings") or []),
         }
 
     if operation_path is not None:

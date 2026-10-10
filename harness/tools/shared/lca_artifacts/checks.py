@@ -610,7 +610,64 @@ def report_evidence_errors(ctx):
     return errors
 
 
+_SCOPE_RANK = {
+    "none": 0,
+    "report_only": 1,
+    "calculation_changed": 2,
+    "model_changed": 3,
+}
+
+
+def prior_handoff_report(ctx):
+    """Rework scope declared by this stage's previous writer handoff (attempt-1).
+
+    Returns ``{"rework_scope": str, "path": str, "status_reason": str}`` or None.
+    """
+    if ctx.attempt < 2:
+        return None
+    root = ctx.workspace / "records" / "handoffs"
+    for role in ("executor", "reviser"):
+        path = root / f"{ctx.stage}-{role}-{ctx.attempt - 1}.json"
+        if not path.is_file():
+            continue
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(value, dict):
+            continue
+        scope = str(value.get("rework_scope") or "none")
+        if scope not in _SCOPE_RANK:
+            scope = "none"
+        return {
+            "rework_scope": scope,
+            "path": str(path.relative_to(ctx.workspace)),
+            "status_reason": str(value.get("status_reason") or ""),
+        }
+    return None
+
+
 def reuse_status(ctx):
+    result = _reuse_status_from_fingerprints(ctx)
+    prior = prior_handoff_report(ctx)
+    if prior is None:
+        return result
+    declared = prior["rework_scope"]
+    result["prior_handoff"] = prior
+    if declared in {"model_changed", "calculation_changed"}:
+        # A defect report from the previous attempt is never downgraded by
+        # fingerprints alone: no report_only reuse.
+        if _SCOPE_RANK[declared] > _SCOPE_RANK.get(result["rework_scope"], 0):
+            result["rework_scope"] = declared
+        result["eligible"] = False
+        result["changes"] = list(result.get("changes") or []) + [
+            f"previous attempt handoff ({prior['path']}) declared "
+            f"rework_scope={declared}: {prior['status_reason']}".strip()
+        ]
+    return result
+
+
+def _reuse_status_from_fingerprints(ctx):
     if ctx.attempt < 2:
         return {
             "eligible": False,

@@ -35,7 +35,7 @@ product_system 使用导入后正式确认的 UUID，impact_method 必须正式�
 
 主编排在合法 ok 和产物齐全后运行 report 检查，再由 reviewer 判断需求覆盖、量纲和结论依据。机器检查不证明这些方法条件。
 
-attempt>1 先调用 `get_rework_status`：eligible=true 且 rework_scope=report_only 时只修正文/生成表格，不调用 health/preflight/import/graph/calculate。已审模型未变而计算计划变化时，核对基准并重算相关目标；证据丢失按具体缺口补做。模型、BOM、mapping、计划或来源相对已审核快照变化则需上游审查，不在 04 强行重导。必做模型情景遗漏也不能在 04 直接补模型。
+attempt>1 先调用 `get_rework_status`：eligible=true 且 rework_scope=report_only 时只修正文/生成表格，不调用 health/preflight/import/graph/calculate。已审模型未变而计算计划变化时，核对基准并重算相关目标；证据丢失按具体缺口补做。模型、BOM、mapping、计划或来源相对已审核快照变化则需上游审查，不在 04 强行重导。必做模型情景遗漏也不能在 04 直接补模型。这类问题（如 BOM 数量/单位错、mapping 错）按运行协议请求上游返工：`status=failed`、`rework_scope=model_changed`、`rework_artifacts` 列出要改的 02/03 产物（`rework_target_stage` 可选），`fix_instructions` 写清怎么改。
 
 新 revise run 首次完整执行上述流程，不跨 run 沿用通过状态。范围变化、不可恢复失败或三次审查未过则 failed；reviewer 通过且编排验收成功后完成。
 

@@ -7,8 +7,26 @@
   "properties": {
     "rework_scope": {
       "type": "string",
-      "enum": ["none", "report_only", "calculation_changed", "model_changed"],
+      "enum": [
+        "none",
+        "report_only",
+        "calculation_changed",
+        "model_changed"
+      ],
       "default": "none"
+    },
+    "rework_target_stage": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Writer only: suggested upstream stage id to send work back to. The orchestrator validates it (must be upstream and must declare the offending artifacts as outputs)."
+    },
+    "rework_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Workspace-relative paths of the upstream artifacts that must change (e.g. workspace/outputs/inventory/extracted-bom.json). Required for upstream rework."
     }
   }
 }

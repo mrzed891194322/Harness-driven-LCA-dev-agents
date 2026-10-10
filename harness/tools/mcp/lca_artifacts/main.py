@@ -82,6 +82,8 @@ def submit_handoff(
     checks_ref: str | None = None,
     evidence_manifest_ref: str | None = None,
     rework_scope: str = "none",
+    rework_target_stage: str | None = None,
+    rework_artifacts: list[str] | None = None,
 ) -> dict[str, Any]:
     def execute() -> dict[str, Any]:
         ctx = Context.environment()
@@ -97,6 +99,10 @@ def submit_handoff(
             "artifacts": list(artifacts or []),
             "rework_scope": rework_scope,
         }
+        if rework_target_stage:
+            body["rework_target_stage"] = rework_target_stage
+        if rework_artifacts:
+            body["rework_artifacts"] = list(rework_artifacts)
         if checks_ref is not None:
             body["checks_ref"] = checks_ref
         if evidence_manifest_ref is not None:

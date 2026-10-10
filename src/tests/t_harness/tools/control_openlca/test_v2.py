@@ -800,3 +800,55 @@ def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):
         result = main.query_descriptors("Process", timeout_sec=3600)
     assert result["status"] == "success"
     assert result["applied_timeout_sec"] == 3600
+
+
+@pytest.mark.parametrize("declared", ["model_changed", "calculation_changed"])
+def test_prior_handoff_defect_blocks_report_only(context, declared):
+    seed_report(context)
+    retry = Context(
+        context.project,
+        context.workspace,
+        context.run_id,
+        context.stage,
+        2,
+        metadata=dict(context.metadata),
+    )
+    assert checks.reuse_status(retry)["rework_scope"] == "report_only"
+    handoff = (
+        context.workspace / "records" / "handoffs" / f"{context.stage}-executor-1.json"
+    )
+    handoff.parent.mkdir(parents=True, exist_ok=True)
+    handoff.write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "status_reason": "运输量 kg*km 被当成 t*km",
+                "rework_scope": declared,
+            }
+        ),
+        encoding="utf-8",
+    )
+    status = checks.reuse_status(retry)
+    assert status["eligible"] is False
+    assert status["rework_scope"] == declared
+    assert status["prior_handoff"]["rework_scope"] == declared
+    assert any("kg*km" in c for c in status["changes"])
+
+
+def test_prior_handoff_none_keeps_fingerprint_result(context):
+    seed_report(context)
+    retry = Context(
+        context.project,
+        context.workspace,
+        context.run_id,
+        context.stage,
+        2,
+        metadata=dict(context.metadata),
+    )
+    handoff = (
+        context.workspace / "records" / "handoffs" / f"{context.stage}-executor-1.json"
+    )
+    handoff.parent.mkdir(parents=True, exist_ok=True)
+    handoff.write_text(json.dumps({"status": "failed", "rework_scope": "report_only"}))
+    status = checks.reuse_status(retry)
+    assert status["eligible"] and status["rework_scope"] == "report_only"

@@ -1203,6 +1203,21 @@ Skill 和知识目录有用户版本时，`compile_turn` 会把合并结果物�
 
 ---
 
+## 8A. 上游返工（#25 类问题，分支 `refactor/upstream-rework`，Du Yuan 2026-10-10 同意）
+
+问题：`runner.py` 不读 handoff 的 `rework_scope`，执行者交 failed 后一律在本阶段 `_retry_or_fail` 重排，04 发现 02/03 产物错（如运输单位 kg·km/t·km）也只能自己重跑；重排原因只打在 `backend.log`。
+
+规则：
+
+1. **请求**：执行者（executor/reviser）以 `status=failed|blocked` 交卷，并带 `rework_scope=model_changed` 或 `rework_target_stage`，即视为请求上游返工。新增可选字段 `rework_target_stage`（建议退回的阶段 id）与 `rework_artifacts`（出问题的上游产物路径列表），写入 `harness/specs/shared/lca-handoff-extension.schema.json`，`submit_handoff` 同步支持；旧 handoff 不受影响。审查者暂不能发起上游返工。
+2. **核对**（编排器说了算，执行者只给建议）：必须给出 `rework_artifacts`；目标阶段必须在当前阶段上游；目标阶段 spec 的 `outputs` 必须声明产出每个出问题的文件（路径相等或在声明目录之下）。未给目标时取声明产出这些文件的最早上游阶段。核对不通过：记一条 `rework_upstream`（validated=false，含拒绝原因），然后按普通重排在本阶段重做（占用本阶段次数），并把拒绝原因写进 fix_instructions。
+3. **退回**：跳到目标阶段的第一个写者，`fix_instructions` 带上来源阶段、原因、涉及产物和修改说明。目标阶段到当前阶段全部作废（`state.stale_stages`），释放并丢弃这些阶段的会话；写 `workspace/records/rework/upstream-<n>.json`；从 `records/evidence/<run>/manifest.json` 的 `accepted` 里删掉这些阶段记录的验收（如 03 的 `lca.model`），使 04 的 `require_approved_model` / `reuse_status` 不能沿用旧模型。产物文件原地保留，由目标写者修改；之后每个作废阶段都必须重新经过写者、宿主检查和审查才能往后走。
+4. **次数**：attempt 编号在每个阶段内单调递增（不复用旧 handoff/raw 路径），`stage_attempt_base` 记录本次进入前已用的次数，`max_attempts` 按本次进入重新计数。上游返工每个 run 上限默认 2（workflow `max_upstream_reworks` 或环境变量 `HARNESS_UPSTREAM_REWORK_LIMIT` 可改），超出即 failed 并写明原因。
+5. **事件**：编排器往 `.local/runs/<run>/events.jsonl` 写 `source=orchestrator` 的结构化事件：每次重排/重排耗尽写 `kind=retry`（stage、attempt、next_attempt、outcome、reason、errors）；每次上游返工请求写 `kind=rework_upstream`（from、to、requested_target、artifacts、reason、validated、rejected、invalidated_stages、dropped_acceptances、outcome、upstream_rework/limit）。
+6. 提示词：`runtime-loop.md` 写明如何请求，04 阶段规则指向它。
+
+待定：是否在退回时把下游产物挪到 `records/stale/`（现在原地保留）；审查者是否也可以发起上游返工；`reuse_status` 只看 attempt≥2，退回后 04 的 attempt 继续递增，目前依赖模型指纹变化让复用失效。
+
 ## 9. 遗留清理清单（P8，部分可提前）
 
 - （`src/core/`、`src/gui/`、`src/utils/` 已在 P-1 删除。）
