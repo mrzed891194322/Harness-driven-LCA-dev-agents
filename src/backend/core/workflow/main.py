@@ -50,9 +50,10 @@ from backend.core.workflow.persistence.checkpoint import (  # noqa: E402
     workspace_lock,
 )
 from backend.core.workflow.persistence.config_fingerprint import (  # noqa: E402
-    assert_runtime_config_matches,
+    check_runtime_config,
     write_runtime_config,
 )
+from backend.core.agents.injection import strict_mode as injection_strict_mode  # noqa: E402
 from backend.settings import parse_env_file  # noqa: E402
 
 
@@ -211,6 +212,33 @@ def peek_tool_ids(path: Path, *, project_root: Path) -> list[str]:
     return sorted(str(key) for key in mcp)
 
 
+def _record_resume_config_change(project_root: Path, run_id: str, changes: list[dict]) -> None:
+    """Paused run resumed after config edits: warn (record only) and continue."""
+    from backend.core.agents.activity import activity_log_path, append_activity
+    from backend.core.agents.injection import now
+
+    paths = [c["path"] for c in changes]
+    print_orchestrator(
+        f"injection_check warn: configuration changed during pause ({len(paths)} items): "
+        + ", ".join(paths[:10])
+    )
+    try:
+        append_activity(activity_log_path(project_root, run_id), {
+            "source": "orchestrator",
+            "kind": "injection_check",
+            "phase": "resume",
+            "ts": now(),
+            "run_id": run_id,
+            "level": "warn",
+            "critical_mismatch": False,
+            "items": [{"item": f"config:{c['path']}", "level": "warn", "kind": "changed_during_pause",
+                       "critical": False, "old": c["old"], "new": c["new"]} for c in changes],
+            "summary": f"暂停期间配置有变化（{len(paths)} 项），按新配置继续：" + ", ".join(paths[:10]),
+        })
+    except (OSError, ValueError):
+        pass
+
+
 def _resume(
     store: CheckpointStore,
     runtime: OrchestratorRuntime,
@@ -244,17 +272,20 @@ def _resume(
     if state.get("status") in {"completed", "failed"} or state.get("in_flight"):
         return _exit_code(run_workflow(runtime, state, store))
     try:
-        assert_runtime_config_matches(
+        changes = check_runtime_config(
             workspace_root,
             run_id,
             runtime.workflow,
             project_root=project_root,
             worker=worker,
             model=model,
+            strict=injection_strict_mode(),
         )
     except ValueError as exc:
         print_orchestrator(str(exc), file=sys.stderr)
         return _exit_code(fail_run(runtime, state, store, str(exc)))
+    if changes:
+        _record_resume_config_change(project_root, run_id, changes)
     print_orchestrator(f"resume run_id={run_id}")
     return _exit_code(run_workflow(runtime, state, store))
 

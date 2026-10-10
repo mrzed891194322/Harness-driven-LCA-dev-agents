@@ -256,6 +256,79 @@ def assert_runtime_config_matches(
         raise ValueError("runtime execution configuration changed; start a new run")
 
 
+def _flatten(value: Any, prefix: str = "") -> dict[str, Any]:
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            out.update(_flatten(v, f"{prefix}.{k}" if prefix else str(k)))
+        return out
+    if isinstance(value, list):
+        if value and all(isinstance(v, dict) and "id" in v for v in value):
+            out = {}
+            for v in value:
+                out.update(_flatten(v, f"{prefix}[{v['id']}]"))
+            return out
+        return {prefix: value}
+    return {prefix: value}
+
+
+def config_changes(stored: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
+    """Leaf-level differences between two runtime configs (old vs new)."""
+    a = _flatten(stored.get("config") or {})
+    b = _flatten(current.get("config") or {})
+    changes = []
+    for key in sorted(set(a) | set(b)):
+        if a.get(key) != b.get(key):
+            changes.append({"path": key, "old": a.get(key, "<absent>"), "new": b.get(key, "<absent>")})
+    return changes
+
+
+def check_runtime_config(
+    workspace_root: Path,
+    run_id: str,
+    workflow: Workflow,
+    *,
+    project_root: Path,
+    worker: str,
+    model: str,
+    strict: bool = False,
+) -> list[dict[str, Any]]:
+    """Resume check. Returns config changes (empty when unchanged).
+
+    Missing config or a changed worker/model still refuses. A changed configuration
+    fingerprint (rules, templates, preferences, specs, implementation) refuses only
+    when ``strict``; otherwise the caller records a warning and continues, and the
+    stored runtime-config.json is updated (previous kept as ``runtime-config.prev-<n>.json``).
+    """
+    path = runtime_config_path(workspace_root, run_id)
+    if not path.is_file():
+        raise ValueError("missing runtime configuration; start a new run")
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    current = build_runtime_config(workflow, project_root=project_root, worker=worker, model=model)
+    stored_exec = stored.get("execution") or {}
+    if (
+        stored_exec.get("worker") != current["execution"]["worker"]
+        or stored_exec.get("model") != current["execution"]["model"]
+    ):
+        raise ValueError("runtime execution configuration changed; start a new run")
+    if stored.get("fingerprint") == current["fingerprint"]:
+        return []
+    changes = config_changes(stored, current) or [
+        {"path": "fingerprint", "old": stored.get("fingerprint"), "new": current["fingerprint"]}
+    ]
+    if strict:
+        raise ValueError(
+            "workflow configuration changed; start a new run (strict mode): "
+            + ", ".join(c["path"] for c in changes[:20])
+        )
+    n = 1
+    while path.with_name(f"runtime-config.prev-{n}.json").exists():
+        n += 1
+    path.rename(path.with_name(f"runtime-config.prev-{n}.json"))
+    write_json_atomic(path, current)
+    return changes
+
+
 def _stage_specs_by_id(workflow: Workflow) -> dict[str, StageSpec]:
     specs: dict[str, StageSpec] = {}
     for bundle in workflow.bundles.values():

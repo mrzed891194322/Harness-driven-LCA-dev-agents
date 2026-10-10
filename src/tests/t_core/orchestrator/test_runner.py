@@ -451,3 +451,43 @@ with workspace_lock(Path(sys.argv[1])):
             child.communicate(timeout=5)
         except Exception:
             pass
+
+
+def _edit_stored_config(runtime, state):
+    config = runtime.workspace_root / "records" / "evidence" / state["run_id"] / "runtime-config.json"
+    stored = json.loads(config.read_text())
+    stored["fingerprint"] = "old-fingerprint"
+    stored["config"]["generated_prompts"] = {"harness/settings.yaml": {"source": "default", "sha256": "old"}}
+    config.write_text(json.dumps(stored))
+    return config
+
+
+def test_config_change_during_pause_warns_and_continues(run_case, monkeypatch, tmp_path):
+    from backend.core.agents import activity
+
+    runtime, state, client, store = run_case
+    store.save(state, event="ready")
+    config = _edit_stored_config(runtime, state)
+    log = tmp_path / "events.jsonl"
+    monkeypatch.setattr(activity, "activity_log_path", lambda _root, _run: log)
+    monkeypatch.delenv("HARNESS_INJECTION_STRICT", raising=False)
+    assert resume(runtime, store) == 0
+    assert manifest(runtime)["status"] == "completed" and client.turns
+    events = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
+    check = next(e for e in events if e["kind"] == "injection_check" and e["phase"] == "resume")
+    assert check["level"] == "warn"
+    item = next(i for i in check["items"] if i["item"] == "config:generated_prompts.harness/settings.yaml.sha256")
+    assert item["old"] == "old" and item["new"] != "old"
+    assert config.with_name("runtime-config.prev-1.json").is_file()
+    assert json.loads(config.read_text())["fingerprint"] != "old-fingerprint"
+
+
+def test_config_change_during_pause_refused_in_strict_mode(run_case, monkeypatch):
+    runtime, state, client, store = run_case
+    store.save(state, event="ready")
+    _edit_stored_config(runtime, state)
+    monkeypatch.setenv("HARNESS_INJECTION_STRICT", "1")
+    assert resume(runtime, store) == 1
+    saved = store.load(state["run_id"])
+    assert saved["status"] == "failed" and "strict" in saved["status_reason"]
+    assert client.turns == []
