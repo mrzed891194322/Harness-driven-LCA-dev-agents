@@ -24,7 +24,6 @@ from .timeout_policy import ipc_read_scope, product_system_read_sec
 from .entity import find_entity
 from .protocols import CalculationResult, OlcaDescriptor, OpenLcaClient
 
-PRODUCT_SYSTEM_SLOW_RETRIES = 3
 
 ENTITY_IMPORT_ORDER: tuple[str, ...] = (
     "UnitGroup",
@@ -951,31 +950,6 @@ def _deserialize_entity(item: dict[str, Any], target_category: str) -> object:
     return entity
 
 
-def _retry_on_read_timeout(callable_fn):
-    last: requests.Timeout | None = None
-    for attempt in range(PRODUCT_SYSTEM_SLOW_RETRIES):
-        try:
-            return callable_fn()
-        except requests.Timeout as exc:
-            last = exc
-            if attempt + 1 >= PRODUCT_SYSTEM_SLOW_RETRIES:
-                raise
-    if last is not None:
-        raise last
-    raise RuntimeError("Product System retry loop exhausted without result")
-
-
-def _load_product_system_with_retries(
-    client: OpenLcaClient, system_id: str
-) -> olca_schema.ProductSystem | None:
-    try:
-        return _retry_on_read_timeout(
-            lambda: client.get(olca_schema.ProductSystem, system_id)
-        )
-    except requests.Timeout:
-        return None
-
-
 def _apply_generated_product_system_fields(
     entity: olca_schema.ProductSystem,
     generated: olca_schema.ProductSystem,
@@ -1068,46 +1042,27 @@ def _put_product_system(
     generated_id: str | None = None
     generated: olca_schema.ProductSystem | None = None
 
+    # No automatic retry: a read timeout on create/readback propagates at once so the
+    # caller's unresponsive probe can mark openLCA down instead of waiting again.
     ps_read = product_system_read_sec()
-    try:
-        with ipc_read_scope(ps_read):
-            generated_ref = _retry_on_read_timeout(
-                lambda: client.create_product_system(ref_process, config)
-            )
-        generated_id = getattr(generated_ref, "id", None)
-    except requests.Timeout:
-        generated = _load_product_system_with_retries(client, declared_id)
-        if generated is None or not list(getattr(generated, "processes", None) or []):
-            raise
-        generated_id = declared_id
-    else:
-        if not generated_id:
-            raise RuntimeError("IPC Server did not create an auto-linked ProductSystem")
-        try:
-            with ipc_read_scope(ps_read):
-                generated = _retry_on_read_timeout(
-                    lambda: client.get(olca_schema.ProductSystem, generated_id)
-                )
-        except requests.Timeout:
-            generated = _load_product_system_with_retries(client, declared_id)
-            if generated is not None:
-                generated_id = declared_id
-        if generated is None:
-            recovered = _load_product_system_with_retries(client, declared_id)
-            if recovered is not None:
-                generated = recovered
-                generated_id = declared_id
-            else:
-                raise RuntimeError(
-                    f"IPC Server could not read generated ProductSystem {generated_id}"
-                )
+    with ipc_read_scope(ps_read):
+        generated_ref = client.create_product_system(ref_process, config)
+    generated_id = getattr(generated_ref, "id", None)
+    if not generated_id:
+        raise RuntimeError("IPC Server did not create an auto-linked ProductSystem")
+    with ipc_read_scope(ps_read):
+        generated = client.get(olca_schema.ProductSystem, generated_id)
+    if generated is None:
+        raise RuntimeError(
+            f"IPC Server could not read generated ProductSystem {generated_id}"
+        )
 
     assert generated is not None
     _apply_generated_product_system_fields(entity, generated)
 
     try:
         with ipc_read_scope(ps_read):
-            reference = _retry_on_read_timeout(lambda: client.put(entity))
+            reference = client.put(entity)
         if reference is None:
             raise RuntimeError("IPC Server did not return an entity reference")
     except Exception as exc:

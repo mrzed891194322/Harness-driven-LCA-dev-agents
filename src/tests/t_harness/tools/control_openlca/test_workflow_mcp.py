@@ -628,7 +628,7 @@ class ImportWorkflowTests(unittest.TestCase):
             )
         )
 
-    def test_product_system_create_timeout_recovers_declared_system(self) -> None:
+    def test_product_system_create_timeout_raises_without_retry(self) -> None:
         client = FakeImportClient()
         recovered = olca_schema.ProductSystem(
             id=PRODUCT_SYSTEM_ID,
@@ -647,12 +647,20 @@ class ImportWorkflowTests(unittest.TestCase):
             name="Recovered system",
         )
         entity.ref_process = olca_schema.Ref(id=PROVIDER_ID)
-        reference = workflow._put_product_system(
-            client,
-            entity,
-            {"linkingMode": "auto", "preferDefaultProviders": True},
-        )
-        self.assertEqual(getattr(reference, "id", None), PRODUCT_SYSTEM_ID)
+        calls = {"n": 0}
+
+        def counting_timeout(process: object, config: object) -> SimpleNamespace:
+            calls["n"] += 1
+            return timeout_create(process, config)
+
+        client.create_product_system = counting_timeout
+        with self.assertRaises(requests.Timeout):
+            workflow._put_product_system(
+                client,
+                entity,
+                {"linkingMode": "auto", "preferDefaultProviders": True},
+            )
+        self.assertEqual(calls["n"], 1)
 
     def test_product_system_uses_defaults_for_foreground_auto_linking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
