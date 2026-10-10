@@ -28,6 +28,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 from harness.tools.shared.control_openlca import operations, readonly
 from harness.tools.shared.control_openlca.cleanup import run_cleanup_output
 from harness.tools.shared.control_openlca.connection import (
+    describe_ipc_session_budget,
     ipc_budget_scope,
     ipc_tool_is_long_running,
     ipc_tool_profile,
@@ -76,7 +77,12 @@ def ipc_tool(name):
                 budget = resolve_ipc_tool_timeout_sec(timeout)
                 with ipc_budget_scope(budget):
                     result = runner(host, port)
-                result["applied_timeout_sec"] = int(budget)
+                if isinstance(result, dict):
+                    meta = describe_ipc_session_budget(timeout)
+                    result["applied_timeout_sec"] = int(
+                        meta["effective_session_budget_sec"]
+                    )
+                    result.update(meta)
                 return result
             return runner(host, port)
 
@@ -287,6 +293,7 @@ def import_lci(
     operation_dir: str,
     scope_id: str,
     database_name: str | None = None,
+    resume_operation_id: str | None = None,
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Import only after a matching fresh preflight; persist request identity."""
@@ -301,6 +308,7 @@ def import_lci(
         run_id=scope_id,
         request_id=request_id,
         preflight_id=preflight_id,
+        resume_operation_id=resume_operation_id,
     )
 
 

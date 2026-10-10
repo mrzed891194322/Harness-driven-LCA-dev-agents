@@ -180,6 +180,247 @@ def reconcile_cleanup(operation_dir, host, port, category):
     current_path.unlink()
 
 
+def _finalize_import_report(
+    report: dict,
+    path,
+    inventory,
+    records,
+    imported,
+    failed,
+    deleted,
+    errors,
+    started: float,
+) -> dict:
+    report.update(
+        entities=list(records),
+        success_count=imported,
+        failed_count=failed,
+        deleted_count=deleted,
+        errors=list(errors),
+        duration_ms=round((time.monotonic() - started) * 1000),
+    )
+    planned = len(inventory)
+    done = sum(
+        1 for entry in report.get("entity_plan") or [] if entry.get("status") == "done"
+    )
+    if not failed and done >= planned:
+        status = "success"
+    elif failed:
+        status = "partial_failure"
+    elif done < planned:
+        status = "partial_failure"
+    else:
+        status = "success"
+    if imported == 0 and failed and done == 0 and planned <= 1:
+        status = "failed"
+    report.update(status=status, ended_at=w.utc_now())
+    if status == "partial_failure" and not report.get("error_kind"):
+        report.update(
+            agent_action="reconcile_and_resume",
+            agent_message=(
+                "Import incomplete. Call reconcile_import(operation_id) then "
+                "resume_import(operation_id) or import_lci(resume_operation_id=...) "
+                "with a new request_id and preflight_id; do not start a fresh import."
+            ),
+        )
+    w._write_json_atomic(path, report)
+    return report
+
+
+def reconcile_import(
+    host,
+    port,
+    operation_dir,
+    *,
+    run_id,
+    operation_id,
+    client=None,
+):
+    identifier(run_id)
+    identifier(operation_id)
+    root = journal_root(operation_dir)
+    path = root / "operations" / f"{identifier(operation_id)}.json"
+    if not path.exists():
+        return {"status": "not_found", "errors": ["operation_not_found"]}
+    report = read(path)
+    if report.get("identity", {}).get("run_id") != run_id:
+        return {"status": "not_found", "errors": ["operation_not_found"]}
+    identity = report["identity"]
+    lci_dir = identity["lci_dir"]
+    target_category = identity["category"]
+    ipc = client or create_ipc_client(host, port)
+    try:
+        current, inventory, _ = w._inspect_import(
+            host,
+            port,
+            lci_dir,
+            target_category,
+            identity.get("database_name"),
+            ipc,
+        )
+        if not current["ok"]:
+            return {
+                "status": "rejected",
+                "errors": ["preflight_stale", *current["errors"]],
+            }
+        plan = list(
+            report.get("entity_plan") or w.build_entity_plan(inventory)
+        )
+        updated, issues = w.reconcile_entity_plan(
+            ipc, plan, inventory, target_category
+        )
+        report["entity_plan"] = updated
+        report["reconciled_at"] = w.utc_now()
+        report["reconciliation_issues"] = issues
+        if issues:
+            report["status"] = "partial_failure"
+        elif all(entry.get("status") == "done" for entry in updated):
+            report["status"] = "success"
+        w._write_json_atomic(path, report)
+        return report
+    finally:
+        if client is None:
+            close_ipc_client(ipc)
+
+
+def resume_import_request(
+    host,
+    port,
+    lci_dir,
+    target_category,
+    database_name,
+    *,
+    run_id,
+    request_id,
+    preflight_id,
+    operation_id,
+    operation_dir,
+    client=None,
+):
+    identifier(request_id)
+    identifier(preflight_id)
+    identifier(operation_id)
+    root = journal_root(operation_dir)
+    identity = request_identity(
+        host, port, run_id, database_name, target_category, lci_dir
+    )
+    path = root / "operations" / f"{identifier(operation_id)}.json"
+    if not path.exists():
+        return {
+            "status": "rejected",
+            "errors": ["operation_not_found"],
+            "execution_mode": "not_executed",
+        }
+    report = read(path)
+    if report.get("identity") != identity:
+        return {
+            "status": "rejected",
+            "errors": ["resume_identity_mismatch"],
+            "execution_mode": "not_executed",
+        }
+    if report.get("status") not in {"partial_failure", "failed", "indeterminate"}:
+        return {
+            "status": "rejected",
+            "errors": [f"operation_not_resumable:{report.get('status')}"],
+            "execution_mode": "not_executed",
+        }
+    saved = read(root / "preflights" / f"{preflight_id}.json")
+    if saved.get("identity") != identity:
+        return {
+            "status": "rejected",
+            "errors": ["preflight_identity_mismatch"],
+            "execution_mode": "not_executed",
+        }
+    consumed = root / "consumed" / f"{preflight_id}.json"
+    if consumed.exists():
+        return {
+            "status": "rejected",
+            "errors": ["preflight_already_consumed"],
+            "execution_mode": "not_executed",
+        }
+    ipc = client or create_ipc_client(host, port)
+    started = time.monotonic()
+    try:
+        current, inventory, targets = w._inspect_import(
+            host, port, lci_dir, target_category, database_name, ipc
+        )
+        if not current["ok"] or current["preflight_hash"] != saved["preflight_hash"]:
+            return {
+                "status": "rejected",
+                "errors": ["preflight_stale", *current["errors"]],
+                "execution_mode": "not_executed",
+            }
+        plan = list(report.get("entity_plan") or w.build_entity_plan(inventory))
+        report.update(
+            status="running",
+            owner_pid=os.getpid(),
+            request_id=request_id,
+            preflight_id=preflight_id,
+            execution_mode="resumed",
+            resumed_at=w.utc_now(),
+            entity_plan=plan,
+            errors=[],
+        )
+        w._write_json_atomic(path, report)
+        w._write_json_atomic(
+            root / "requests" / run_id / f"{request_id}.json",
+            {"operation_id": operation_id},
+        )
+        w._write_json_atomic(root / "current.json", {"operation_id": operation_id})
+        w._write_json_atomic(consumed, {"operation_id": operation_id})
+
+        def progress(records, imported, failed, deleted, errors):
+            report.update(
+                entities=list(records),
+                entity_plan=plan,
+                success_count=imported,
+                failed_count=failed,
+                deleted_count=deleted,
+                errors=list(errors),
+                duration_ms=round((time.monotonic() - started) * 1000),
+            )
+            w._write_json_atomic(path, report)
+
+        records, imported, failed, deleted, errors = w._execute_import(
+            ipc,
+            inventory,
+            targets,
+            target_category,
+            on_progress=progress,
+            host=host,
+            port=port,
+            resume=True,
+            entity_plan=plan,
+        )
+        return _finalize_import_report(
+            report,
+            path,
+            inventory,
+            records,
+            imported,
+            failed,
+            deleted,
+            errors,
+            started,
+        )
+    except Exception as exc:
+        report.update(status="indeterminate", errors=[*report.get("errors", []), str(exc)])
+        w._write_json_atomic(path, report)
+        if is_transport_error(exc):
+            failure = on_ipc_transport_failure(
+                host,
+                port,
+                exc,
+                operation="resume_import_request",
+                run_id=run_id,
+            )
+            return {**report, **failure}
+        raise
+    finally:
+        if client is None:
+            close_ipc_client(ipc)
+
+
 def import_request(
     host,
     port,
@@ -192,7 +433,22 @@ def import_request(
     preflight_id,
     operation_dir,
     client=None,
+    resume_operation_id: str | None = None,
 ):
+    if resume_operation_id:
+        return resume_import_request(
+            host,
+            port,
+            lci_dir,
+            target_category,
+            database_name,
+            run_id=run_id,
+            request_id=request_id,
+            preflight_id=preflight_id,
+            operation_id=resume_operation_id,
+            operation_dir=operation_dir,
+            client=client,
+        )
     identifier(request_id)
     identifier(preflight_id)
     root = journal_root(operation_dir)
@@ -239,16 +495,23 @@ def import_request(
                 "errors": ["legacy journal must be resolved before v2 import"],
             }
         current = read(root / "operations" / f"{identifier(current_id)}.json")
-        if current["status"] in {
-            "running",
-            "indeterminate",
-            "partial_failure",
-            "failed",
-        }:
+        if current["status"] in {"running", "indeterminate"}:
+            return {
+                "status": "indeterminate",
+                "errors": ["previous import still running or indeterminate"],
+                "operation_id": current_id,
+            }
+        if current["status"] in {"partial_failure", "failed"}:
             return {
                 "status": "indeterminate",
                 "errors": ["previous import requires reconciliation"],
                 "operation_id": current_id,
+                "agent_action": "reconcile_and_resume",
+                "agent_message": (
+                    "Call reconcile_import(operation_id) then resume_import(operation_id) "
+                    "or import_lci(resume_operation_id=...) with a new request_id and "
+                    "preflight_id. Do not start a fresh import while this operation is open."
+                ),
             }
     run_scope = root / "scopes" / f"{identifier(run_id)}.json"
     scope = {
@@ -302,6 +565,7 @@ def import_request(
         ):
             return {"status": "rejected", "errors": ["lci_changed_during_preflight"]}
         operation_id = str(uuid.uuid4())
+        entity_plan = w.build_entity_plan(inventory)
         report = {
             "schema_version": 2,
             "status": "running",
@@ -317,6 +581,7 @@ def import_request(
             "failed_count": 0,
             "deleted_count": 0,
             "entities": [],
+            "entity_plan": entity_plan,
             "errors": [],
         }
         path = root / "operations" / f"{operation_id}.json"
@@ -333,6 +598,7 @@ def import_request(
         def progress(records, imported, failed, deleted, errors):
             report.update(
                 entities=list(records),
+                entity_plan=entity_plan,
                 success_count=imported,
                 failed_count=failed,
                 deleted_count=deleted,
@@ -349,25 +615,19 @@ def import_request(
             on_progress=progress,
             host=host,
             port=port,
+            entity_plan=entity_plan,
         )
-        progress(records, imported, failed, deleted, errors)
-        report.update(
-            status="success"
-            if not failed and imported == len(inventory)
-            else "partial_failure",
-            ended_at=w.utc_now(),
+        return _finalize_import_report(
+            report,
+            path,
+            inventory,
+            records,
+            imported,
+            failed,
+            deleted,
+            errors,
+            started,
         )
-        if errors and any(
-            "timeout" in str(item).lower() or "timed out" in str(item).lower()
-            for item in errors
-        ):
-            report.update(
-                retryable=False,
-                error_kind=NON_RETRYABLE_KIND,
-                agent_action="stop_and_submit_failed",
-            )
-        w._write_json_atomic(path, report)
-        return report
     except Exception as exc:
         if report is not None:
             report.update(status="indeterminate", errors=[*report["errors"], str(exc)])

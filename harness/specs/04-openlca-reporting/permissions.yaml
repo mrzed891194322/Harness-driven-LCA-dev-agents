@@ -1,5 +1,7 @@
 # 本阶段各角色使用的权限规则（规则定义在 harness/specs/shared/permissions/<id>.yaml）。
 # spec_mcp 的工具由 core 自动加入白名单；spec_mcp 写入的正式交付路径对 agent 自动只读。
+# 04 导入恢复流（control_openlca MCP）：preflight_import_lci → import_lci；partial_failure 时
+# import_status/get_import_operation → reconcile_import → resume_import 或 import_lci(resume_operation_id=...)。
 version: 1
 roles:
   executor: [worker-default]

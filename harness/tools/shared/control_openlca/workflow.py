@@ -348,10 +348,12 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
         if item["entity_type"] != "ProductSystem":
             continue
         data = item["data"]
-        if data.get("linkingMode") != "auto":
+        linking_mode = data.get("linkingMode")
+        if linking_mode not in {"auto", "explicit"}:
             errors.append(
-                f"{item['path']}: linkingMode must be explicitly set to 'auto'"
+                f"{item['path']}: linkingMode must be 'auto' or 'explicit'"
             )
+            continue
         if data.get("preferDefaultProviders") is not True:
             errors.append(f"{item['path']}: preferDefaultProviders must be true")
         ref_process = data.get("refProcess")
@@ -385,11 +387,282 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                 errors.append(
                     f"{item['path']}: expectedProcessIds must include refProcess"
                 )
-        if "processes" in data:
-            errors.append(f"{item['path']}: auto linking must not provide processes")
-        if "processLinks" in data:
-            errors.append(f"{item['path']}: auto linking must not provide processLinks")
+        if linking_mode == "auto":
+            if "processes" in data:
+                errors.append(f"{item['path']}: auto linking must not provide processes")
+            if "processLinks" in data:
+                errors.append(
+                    f"{item['path']}: auto linking must not provide processLinks"
+                )
+        else:
+            if "processes" in data or "processLinks" in data:
+                errors.append(
+                    f"{item['path']}: explicit linking must not provide processes "
+                    "or processLinks; the host builds them from defaultProvider"
+                )
+            missing_providers = _foreground_technosphere_missing_providers(
+                inventory, ref_process_id
+            )
+            if missing_providers:
+                errors.append(
+                    f"{item['path']}: explicit linking requires defaultProvider on "
+                    f"every technosphere product input of foreground processes: "
+                    f"{missing_providers}"
+                )
     return errors
+
+
+def _foreground_technosphere_missing_providers(
+    inventory: list[dict[str, Any]],
+    ref_process_id: str | None,
+) -> list[str]:
+    """Paths of foreground technosphere inputs that lack defaultProvider."""
+    foreground_process_ids = {
+        item["id"] for item in inventory if item["entity_type"] == "Process"
+    }
+    foreground_flow_ids = {
+        item["id"] for item in inventory if item["entity_type"] == "Flow"
+    }
+    missing: list[str] = []
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        if ref_process_id and item["id"] != ref_process_id:
+            continue
+        path = item["path"]
+        for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            flow = exchange.get("flow")
+            flow_id = flow.get("@id") if isinstance(flow, dict) else None
+            if flow_id not in foreground_flow_ids:
+                continue
+            provider = exchange.get("defaultProvider")
+            provider_id = provider.get("@id") if isinstance(provider, dict) else None
+            if not provider_id:
+                missing.append(f"{path}: exchanges[{index}]")
+    return missing
+
+
+def build_entity_plan(inventory: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per-entity import plan persisted on the operation record."""
+    return [
+        {
+            "path": item["path"],
+            "entity_type": item["entity_type"],
+            "id": item["id"],
+            "name": item["name"],
+            "content_hash": item.get("sha256", ""),
+            "status": "pending",
+        }
+        for item in inventory
+    ]
+
+
+def _plan_by_id(plan: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {str(entry["id"]): entry for entry in plan}
+
+
+def _entity_openlca_fingerprint(
+    entity: object, entity_type: str, content_hash: str
+) -> str:
+    """Stable fingerprint for reconcile: prefer source hash when entity matches."""
+    name = getattr(entity, "name", None)
+    entity_id = getattr(entity, "id", None)
+    payload: dict[str, Any] = {
+        "entity_type": entity_type,
+        "id": entity_id,
+        "name": name,
+        "content_hash": content_hash,
+    }
+    if entity_type == "ProductSystem":
+        payload["ref_process"] = getattr(
+            getattr(entity, "ref_process", None), "id", None
+        )
+        payload["process_count"] = len(getattr(entity, "processes", None) or [])
+        payload["link_count"] = len(getattr(entity, "process_links", None) or [])
+    return stable_hash(payload)
+
+
+def reconcile_entity_plan(
+    client: OpenLcaClient,
+    plan: list[dict[str, Any]],
+    inventory: list[dict[str, Any]],
+    target_category: str,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Read-only openLCA checks; mark plan entries done when id and fingerprint match."""
+    inventory_by_id = {item["id"]: item for item in inventory}
+    issues: list[str] = []
+    updated: list[dict[str, Any]] = []
+    for entry in plan:
+        current = dict(entry)
+        entity_type = str(entry.get("entity_type") or "")
+        entity_id = str(entry.get("id") or "")
+        model_type = ENTITY_TYPES.get(entity_type)
+        source = inventory_by_id.get(entity_id)
+        if model_type is None or not entity_id or source is None:
+            issues.append(f"unknown plan entity {entity_type} {entity_id}")
+            current["status"] = "uncertain"
+            updated.append(current)
+            continue
+        try:
+            existing = client.get(model_type, entity_id)
+        except Exception as exc:
+            issues.append(f"get {entity_type} {entity_id}: {exc}")
+            current["status"] = "uncertain"
+            updated.append(current)
+            continue
+        if existing is None:
+            if current.get("status") == "failed":
+                current["status"] = "pending"
+            updated.append(current)
+            continue
+        category = getattr(existing, "category", None)
+        if category and category != target_category and not str(category).startswith(
+            f"{target_category}/"
+        ):
+            issues.append(
+                f"{entity_type} {entity_id} exists outside target category "
+                f"({category!r} vs {target_category!r})"
+            )
+            current["status"] = "failed"
+            updated.append(current)
+            continue
+        if getattr(existing, "name", None) != source.get("name"):
+            issues.append(
+                f"{entity_type} {entity_id} exists but does not match planned "
+                f"content (name/hash mismatch)"
+            )
+            current["status"] = "failed"
+            updated.append(current)
+            continue
+        if entity_type == "ProductSystem":
+            links = getattr(existing, "process_links", None) or []
+            processes = getattr(existing, "processes", None) or []
+            if not processes or (source["data"].get("linkingMode") != "auto" and not links):
+                issues.append(
+                    f"ProductSystem {entity_id} exists but looks incomplete "
+                    f"(processes={len(processes)}, links={len(links)})"
+                )
+                current["status"] = "uncertain"
+                updated.append(current)
+                continue
+        current["status"] = "done"
+        updated.append(current)
+    return updated, issues
+
+
+def _foreground_process_data(
+    inventory: list[dict[str, Any]], process_id: str
+) -> dict[str, Any] | None:
+    for item in inventory:
+        if item["entity_type"] == "Process" and item["id"] == process_id:
+            return item["data"]
+    return None
+
+
+def _all_foreground_technosphere_have_providers(
+    inventory: list[dict[str, Any]], ref_process_id: str
+) -> bool:
+    return not _foreground_technosphere_missing_providers(inventory, ref_process_id)
+
+
+def _foreground_has_technosphere_inputs(
+    inventory: list[dict[str, Any]], ref_process_id: str
+) -> bool:
+    foreground_flow_ids = {
+        item["id"] for item in inventory if item["entity_type"] == "Flow"
+    }
+    for item in inventory:
+        if item["entity_type"] != "Process" or item["id"] != ref_process_id:
+            continue
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            flow = exchange.get("flow")
+            flow_id = flow.get("@id") if isinstance(flow, dict) else None
+            if flow_id in foreground_flow_ids:
+                return True
+    return False
+
+
+def _build_explicit_product_system(
+    entity: olca_schema.ProductSystem,
+    source_data: dict[str, Any],
+    inventory: list[dict[str, Any]],
+) -> olca_schema.ProductSystem:
+    ref_process = source_data.get("refProcess") or {}
+    ref_process_id = ref_process.get("@id") if isinstance(ref_process, dict) else None
+    if not isinstance(ref_process_id, str):
+        raise ValueError("ProductSystem requires refProcess for explicit linking")
+    process_data = _foreground_process_data(inventory, ref_process_id)
+    if process_data is None:
+        raise ValueError(f"refProcess {ref_process_id} not found in LCI inventory")
+
+    foreground_flow_ids = {
+        item["id"] for item in inventory if item["entity_type"] == "Flow"
+    }
+    process_refs: dict[str, olca_schema.Ref] = {}
+    links: list[olca_schema.ProcessLink] = []
+    ref_exchange: olca_schema.Exchange | None = None
+
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        if item["id"] not in set(source_data.get("expectedProcessIds") or []):
+            continue
+        process_refs[item["id"]] = olca_schema.Ref(id=item["id"], name=item["name"])
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict):
+                continue
+            if exchange.get("isInput") is not True:
+                if (
+                    item["id"] == ref_process_id
+                    and exchange.get("isQuantitativeReference") is True
+                ):
+                    flow = exchange.get("flow") or {}
+                    ref_exchange = olca_schema.Exchange(
+                        flow=olca_schema.Ref(
+                            id=flow.get("@id"),
+                            name=flow.get("name"),
+                        ),
+                        is_input=False,
+                        amount=exchange.get("amount", 1.0),
+                    )
+                continue
+            flow = exchange.get("flow") or {}
+            flow_id = flow.get("@id")
+            if flow_id not in foreground_flow_ids:
+                continue
+            provider = exchange.get("defaultProvider") or {}
+            provider_id = provider.get("@id")
+            if not isinstance(provider_id, str) or not provider_id:
+                raise ValueError(
+                    f"foreground input {flow_id} on {item['id']} lacks defaultProvider"
+                )
+            if provider_id not in process_refs:
+                process_refs[provider_id] = olca_schema.Ref(
+                    id=provider_id,
+                    name=provider.get("name"),
+                )
+            links.append(
+                olca_schema.ProcessLink(
+                    provider=olca_schema.Ref(id=provider_id),
+                    process=olca_schema.Ref(id=item["id"]),
+                    flow=olca_schema.Ref(id=flow_id, name=flow.get("name")),
+                )
+            )
+
+    if ref_exchange is None:
+        raise ValueError("refProcess has no quantitative reference output exchange")
+
+    entity.processes = list(process_refs.values())
+    entity.process_links = links
+    entity.ref_process = olca_schema.Ref(id=ref_process_id)
+    entity.ref_exchange = ref_exchange
+    if entity.target_amount is None and source_data.get("targetAmount") is not None:
+        entity.target_amount = source_data["targetAmount"]
+    return entity
 
 
 def _descriptor_record(entity_type: str, descriptor: object) -> dict[str, Any]:
@@ -1008,16 +1281,72 @@ def find_uncertain_leftover_entities(
     return leftovers
 
 
+def _put_product_system_explicit(
+    client: OpenLcaClient,
+    entity: olca_schema.ProductSystem,
+    source_data: dict[str, Any],
+    inventory: list[dict[str, Any]],
+) -> tuple[object, dict[str, Any]]:
+    """Save a Product System with host-built links (no data/create/system)."""
+    if source_data.get("preferDefaultProviders") is not True:
+        raise ValueError("ProductSystem preferDefaultProviders must be true")
+    built = _build_explicit_product_system(entity, source_data, inventory)
+    ps_read = product_system_read_sec()
+    with ipc_read_scope(ps_read):
+        reference = client.put(built)
+    if reference is None:
+        raise RuntimeError("IPC Server did not return an entity reference")
+    with ipc_read_scope(ps_read):
+        read_back = client.get(olca_schema.ProductSystem, str(getattr(built, "id", "")))
+    if read_back is None:
+        raise RuntimeError(
+            f"IPC Server could not read back ProductSystem {getattr(built, 'id', None)}"
+        )
+    meta = {"linking_mode_applied": "explicit", "linking_mode_declared": "explicit"}
+    return reference, meta
+
+
 def _put_product_system(
     client: OpenLcaClient,
     entity: olca_schema.ProductSystem,
     source_data: dict[str, Any],
-) -> object:
-    """Create a Product System through openLCA's official auto-linking API."""
-    if source_data.get("linkingMode") != "auto":
-        raise ValueError("ProductSystem linkingMode must be 'auto'")
+    *,
+    inventory: list[dict[str, Any]] | None = None,
+) -> tuple[object, dict[str, Any]]:
+    """Create a Product System (explicit put or openLCA auto-linking API)."""
+    linking_mode = source_data.get("linkingMode")
+    if linking_mode not in {"auto", "explicit"}:
+        raise ValueError("ProductSystem linkingMode must be 'auto' or 'explicit'")
     if source_data.get("preferDefaultProviders") is not True:
         raise ValueError("ProductSystem preferDefaultProviders must be true")
+
+    ref_process = source_data.get("refProcess") or {}
+    ref_process_id = ref_process.get("@id") if isinstance(ref_process, dict) else None
+    use_explicit = linking_mode == "explicit"
+    if (
+        linking_mode == "auto"
+        and isinstance(ref_process_id, str)
+        and inventory is not None
+        and _foreground_has_technosphere_inputs(inventory, ref_process_id)
+        and _all_foreground_technosphere_have_providers(inventory, ref_process_id)
+    ):
+        use_explicit = True
+
+    if use_explicit:
+        if inventory is None:
+            raise ValueError("explicit ProductSystem import requires LCI inventory")
+        reference, meta = _put_product_system_explicit(
+            client, entity, source_data, inventory
+        )
+        declared = str(source_data.get("linkingMode") or "auto")
+        meta["linking_mode_declared"] = declared
+        if declared == "auto":
+            meta["linking_mode_applied"] = "explicit"
+            meta["linking_mode_note"] = (
+                "auto requested but all technosphere inputs have defaultProvider; "
+                "used explicit host linking to avoid data/create/system hang risk"
+            )
+        return reference, meta
 
     ref_process = getattr(entity, "ref_process", None)
     if ref_process is None or not getattr(ref_process, "id", None):
@@ -1085,7 +1414,10 @@ def _put_product_system(
                 f"{generated_id}: {exc}"
             ) from exc
 
-    return reference
+    return reference, {
+        "linking_mode_applied": "auto",
+        "linking_mode_declared": "auto",
+    }
 
 
 def _execute_import(
@@ -1100,6 +1432,8 @@ def _execute_import(
     *,
     host: str | None = None,
     port: int | None = None,
+    resume: bool = False,
+    entity_plan: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], int, int, int, list[str]]:
     records: list[dict[str, Any]] = []
     imported = 0
@@ -1107,78 +1441,101 @@ def _execute_import(
     deleted = 0
     errors: list[str] = []
     output = emit or (lambda _message: None)
+    plan = list(entity_plan or build_entity_plan(inventory))
+    plan_lookup = _plan_by_id(plan)
 
-    for entity_type in ENTITY_DELETE_ORDER:
-        for current_type, descriptor in target_descriptors:
-            if current_type != entity_type:
-                continue
-            entity_id = getattr(descriptor, "id", None)
-            entity_name = getattr(descriptor, "name", None)
-            transport_failed = False
-            try:
-                reference = descriptor.to_ref()
-                client.delete(reference)
-                deleted += 1
-                output(f"  [已删除] {entity_type}: {entity_name} (UUID: {entity_id})")
-                records.append(
-                    {
-                        "path": "openlca://active-database",
-                        "entity_type": entity_type,
-                        "id": entity_id,
-                        "name": entity_name,
-                        "action": "delete",
-                        "status": "success",
-                        "error": None,
-                    }
-                )
-            except Exception as exc:
-                failed += 1
-                transport_failed = is_transport_error(exc)
-                message = f"delete {entity_type} {entity_id}: {exc}"
-                errors.append(message)
-                output(f"  [错误] {message}")
-                if transport_failed and host is not None and port is not None:
-                    on_ipc_transport_failure(
-                        host,
-                        port,
-                        exc,
-                        operation="delete",
-                        entity={
+    if not resume:
+
+        def progress(*extra: object) -> None:
+            if on_progress is not None:
+                on_progress(records, imported, failed, deleted, errors)
+
+        for entity_type in ENTITY_DELETE_ORDER:
+            for current_type, descriptor in target_descriptors:
+                if current_type != entity_type:
+                    continue
+                entity_id = getattr(descriptor, "id", None)
+                entity_name = getattr(descriptor, "name", None)
+                transport_failed = False
+                try:
+                    reference = descriptor.to_ref()
+                    client.delete(reference)
+                    deleted += 1
+                    output(
+                        f"  [已删除] {entity_type}: {entity_name} (UUID: {entity_id})"
+                    )
+                    records.append(
+                        {
                             "path": "openlca://active-database",
                             "entity_type": entity_type,
                             "id": entity_id,
                             "name": entity_name,
-                        },
+                            "action": "delete",
+                            "status": "success",
+                            "error": None,
+                        }
                     )
-                records.append(
-                    {
-                        "path": "openlca://active-database",
-                        "entity_type": entity_type,
-                        "id": entity_id,
-                        "name": entity_name,
-                        "action": "delete",
-                        "status": "failed",
-                        "error": str(exc),
-                    }
-                )
-            if on_progress is not None:
-                on_progress(records, imported, failed, deleted, errors)
-            if transport_failed:
-                return records, imported, failed, deleted, errors
+                except Exception as exc:
+                    failed += 1
+                    transport_failed = is_transport_error(exc)
+                    message = f"delete {entity_type} {entity_id}: {exc}"
+                    errors.append(message)
+                    output(f"  [错误] {message}")
+                    if transport_failed and host is not None and port is not None:
+                        on_ipc_transport_failure(
+                            host,
+                            port,
+                            exc,
+                            operation="delete",
+                            entity={
+                                "path": "openlca://active-database",
+                                "entity_type": entity_type,
+                                "id": entity_id,
+                                "name": entity_name,
+                            },
+                        )
+                    records.append(
+                        {
+                            "path": "openlca://active-database",
+                            "entity_type": entity_type,
+                            "id": entity_id,
+                            "name": entity_name,
+                            "action": "delete",
+                            "status": "failed",
+                            "error": str(exc),
+                        }
+                    )
+                progress()
+                if transport_failed:
+                    return records, imported, failed, deleted, errors
 
     for item in inventory:
+        plan_entry = plan_lookup.get(item["id"])
+        if plan_entry and plan_entry.get("status") == "done":
+            output(f"跳过已完成实体: {item['path']} ({item['id']})")
+            if on_progress is not None:
+                on_progress(records, imported, failed, deleted, errors)
+            continue
         output(f"正在处理文件: {item['path']}...")
         transport_failed = False
+        linking_meta: dict[str, Any] = {}
         try:
             entity = _deserialize_entity(item, target_category)
             if isinstance(entity, olca_schema.ProductSystem):
-                reference = _put_product_system(client, entity, item["data"])
+                reference, linking_meta = _put_product_system(
+                    client,
+                    entity,
+                    item["data"],
+                    inventory=inventory,
+                )
             else:
                 reference = client.put(entity)
             if reference is None:
                 raise RuntimeError("IPC Server did not return an entity reference")
             imported += 1
             returned_id = getattr(reference, "id", None) or item["id"]
+            if plan_entry is not None:
+                plan_entry["status"] = "done"
             output(
                 f"[成功] 成功导入 {item['entity_type']}: "
                 f"'{item['name']}' (ID: {returned_id})"
@@ -1189,14 +1546,20 @@ def _execute_import(
                     "entity_type": item["entity_type"],
                     "id": returned_id,
                     "name": item["name"],
+                    "content_hash": item.get("sha256", ""),
+                    "entity_status": "done",
                     "action": "create_or_update",
                     "status": "success",
                     "error": None,
+                    **linking_meta,
                 }
             )
         except Exception as exc:
             failed += 1
             transport_failed = is_transport_error(exc)
+            entity_status = "uncertain" if transport_failed else "failed"
+            if plan_entry is not None:
+                plan_entry["status"] = entity_status
             message = f"import {item['path']}: {exc}"
             errors.append(message)
             output(f"[错误] {message}")
@@ -1219,6 +1582,8 @@ def _execute_import(
                     "entity_type": item["entity_type"],
                     "id": item["id"],
                     "name": item["name"],
+                    "content_hash": item.get("sha256", ""),
+                    "entity_status": entity_status,
                     "action": "create_or_update",
                     "status": "failed",
                     "error": str(exc),

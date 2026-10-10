@@ -4,7 +4,7 @@
 - 本角色首次访问 IPC 前调用 `health_check`，探测失败如实报告。只读离线证据或 report_only 返工不需要探测。不得调用 `cleanup_output` 作为工作流启动或故障恢复措施。
 - 查询已有实体使用正式工具；描述符优先 `query_descriptors_batch`，有确切 Provider UUID 时用 `validate_providers_batch`，发现候选用确切 Flow 的 `get_flow_providers`，核对定量参考用 `get_process_details`。处理分页，不能把一页无匹配当作全库不存在。
 - Provider 验证须确认目标 Flow 对应关系，不仅是 UUID 存在。地域别名只作诊断；功能和代表性由 LCA 规则判断。新建前景实体按建模规则管理，不要求在创建前从数据库查询到。
-- 查询批次和长调用使用工具暴露的 `timeout_sec` 及其合法范围，不用外层 shell timeout。busy 表示锁等待，不代表空库；超时不表示服务端取消，不自动重扫。导入后的状态查询和重试边界遵守 04 共有契约。
+- 查询批次和长调用使用工具暴露的 `timeout_sec`（仅用于**降低**宿主 `OPENLCA_IPC_SESSION_BUDGET_SEC` 会话总预算，取 min(agent, host)；单次 HTTP 读超时由 `OPENLCA_TIMEOUT_*` 决定，与 agent 值无关），不用外层 shell timeout。busy 表示锁等待，不代表空库；超时不表示服务端取消，不自动重扫。`partial_failure` 时用 `reconcile_import` + `resume_import`（或 `import_lci(resume_operation_id=...)`），不要盲开新导入。
 - 工具结果含 `retryable: false` 或 `error_kind: openlca_unresponsive` 时，**禁止**再次调用 `import_lci`、`cleanup_output`、`calculate_product_system`；应停止并 `submit_handoff` 失败。此时 openLCA 可能处于不确定状态（`*.uncertain` 锁文件），需人工检查桌面或重启 IPC 后再开新运行。
 - 先读摘要、错误和 artifacts，详情按页或 `read_artifact` 读取。保留工具生成的 raw 路径、SHA-256 和调用身份，不手工复制响应造档，不全量塞入对话。
 - `database_identity_verified=false` 不得写成已验证数据库名称/版本；`execution_mode=reused` 仅表示复用请求日志，不能证明当前数据库未被外部修改。

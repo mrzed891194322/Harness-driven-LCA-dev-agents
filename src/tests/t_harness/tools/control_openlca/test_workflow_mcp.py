@@ -659,7 +659,7 @@ class ImportWorkflowTests(unittest.TestCase):
                 client,
                 entity,
                 {"linkingMode": "auto", "preferDefaultProviders": True},
-            )
+            )[0]
         self.assertEqual(calls["n"], 1)
 
     def test_product_system_uses_defaults_for_foreground_auto_linking(self) -> None:
@@ -676,32 +676,37 @@ class ImportWorkflowTests(unittest.TestCase):
 
         self.assertTrue(validation["ok"], validation["errors"])
         self.assertEqual(report["status"], "success")
-        self.assertEqual(len(client.create_product_system_calls), 1)
+        self.assertEqual(len(client.create_product_system_calls), 0)
         saved_raw = client.entities[(olca_schema.ProductSystem, PRODUCT_SYSTEM_ID)]
         assert isinstance(saved_raw, olca_schema.ProductSystem)
         saved = saved_raw
         self.assertEqual(len(saved.processes or []), 2)
         self.assertEqual(len(saved.process_links or []), 1)
 
-    def test_lci_validation_rejects_explicit_product_system(self) -> None:
+    def test_lci_validation_rejects_explicit_without_providers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            write_product_system_fixture(root)
+            write_linked_auto_product_system_fixture(root)
             (root / "human_readable_mapping.md").write_text(
                 "# LCI mapping\n",
                 encoding="utf-8",
             )
+            consumer_path = root / "processes" / "p01-test.json"
+            consumer = json.loads(consumer_path.read_text(encoding="utf-8"))
+            for exchange in consumer["exchanges"]:
+                if exchange.get("isInput") is True:
+                    exchange.pop("defaultProvider", None)
+            consumer_path.write_text(json.dumps(consumer), encoding="utf-8")
             path = root / "product_systems" / "ps01-test.json"
             product_system = json.loads(path.read_text(encoding="utf-8"))
             product_system["linkingMode"] = "explicit"
-            product_system["processLinks"] = [{"provider": {"@id": PROVIDER_ID}}]
             path.write_text(json.dumps(product_system), encoding="utf-8")
             result = workflow.validate_lci_directory(root)
 
         self.assertFalse(result["ok"])
         self.assertTrue(
             any(
-                "linkingMode must be explicitly set to 'auto'" in error
+                "explicit linking requires defaultProvider" in error
                 for error in result["errors"]
             )
         )

@@ -26,6 +26,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 from harness.tools.shared.control_openlca import operations, readonly
 from harness.tools.shared.control_openlca.cleanup import run_cleanup_output
 from harness.tools.shared.control_openlca.connection import (
+    describe_ipc_session_budget,
     ipc_budget_scope,
     ipc_tool_is_long_running,
     ipc_tool_profile,
@@ -102,7 +103,13 @@ def v2_tool(name):
                         )
                         result = runner(host, port)
                     if applied_budget is not None and isinstance(result, dict):
-                        result["applied_timeout_sec"] = int(applied_budget)
+                        budget = describe_ipc_session_budget(
+                            None if timeout_raw is None else int(timeout_raw)
+                        )
+                        result["applied_timeout_sec"] = int(
+                            budget["effective_session_budget_sec"]
+                        )
+                        result.update(budget)
                     return result
 
                 if applied_budget is not None:
@@ -129,8 +136,10 @@ mcp = MCPServer(
         "Query and gated workflow access to the openLCA IPC Server configured "
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci and cleanup_output "
         "are destructive; import_lci requires a matching current import scope. "
-        "Long-running tools accept optional timeout_sec (300-7200) for IPC session "
-        "budget and per-request HTTP reads; do not wrap tools in shell timeout."
+        "Long-running tools accept optional timeout_sec (300-7200) to lower the host "
+        "IPC session budget (min(agent, OPENLCA_IPC_SESSION_BUDGET_SEC)); per-request "
+        "HTTP read timeouts are host-only (OPENLCA_TIMEOUT_*). Do not wrap tools in "
+        "shell timeout. After partial_failure use reconcile_import then resume_import."
     ),
 )
 
@@ -331,8 +340,10 @@ def preflight_import_lci(
         "Destructively import canonical workspace/outputs/LCI or a compatibility LCI "
         "under workspace/tmp after rerunning preflight. Rejects the write when the "
         "database name, target category, or LCI directory does not match the last "
-        "successful preflight scope. Optional timeout_sec (300-7200) extends the IPC "
-        "session budget; do not wrap this tool in shell timeout."
+        "successful preflight scope. After partial_failure, pass resume_operation_id "
+        "from get_import_operation/import_status together with a new request_id and "
+        "preflight_id (do not start a fresh import). Optional timeout_sec (300-7200) "
+        "lowers the host session budget only; per-request reads use OPENLCA_TIMEOUT_*."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,
@@ -344,6 +355,7 @@ def import_lci(
     lci_dir: str = "workspace/outputs/LCI",
     target_category: str = "",
     database_name: str | None = None,
+    resume_operation_id: str | None = None,
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Import LCI under a precise, current preflight scope."""
@@ -366,6 +378,92 @@ def import_lci(
         run_id=context.run_id,
         request_id=request_id,
         preflight_id=preflight_id,
+        resume_operation_id=resume_operation_id,
+    )
+
+
+@mcp.tool(
+    description=(
+        "Read-only reconcile of a partial import: query openLCA for each planned "
+        "entity id and update entity_plan statuses (done/failed/uncertain)."
+    ),
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+@v2_tool("reconcile_import")
+def reconcile_import(operation_id: str, timeout_sec: int | None = None) -> dict[str, Any]:
+    """Reconcile journal entity_plan against the active database."""
+    host, port = _endpoint_config()
+    context = Context.environment()
+    return operations.reconcile_import(
+        host,
+        port,
+        context.safe(context.workspace / "records" / "import-operations"),
+        run_id=context.run_id,
+        operation_id=operation_id,
+    )
+
+
+@mcp.tool(
+    description=(
+        "Resume a partial import operation after reconcile_import. Requires a new "
+        "request_id and unconsumed preflight_id; skips entities marked done."
+    ),
+    annotations=DESTRUCTIVE_ANNOTATIONS,
+    structured_output=True,
+)
+@v2_tool("resume_import")
+def resume_import(
+    operation_id: str,
+    request_id: str,
+    preflight_id: str,
+    lci_dir: str = "workspace/outputs/LCI",
+    target_category: str = "",
+    database_name: str | None = None,
+    timeout_sec: int | None = None,
+) -> dict[str, Any]:
+    """Continue importing from the first non-done entity in entity_plan."""
+    host, port = _endpoint_config()
+    context = Context.environment()
+    from harness.tools.shared.lca_artifacts.checks import (
+        require_approved_model,
+        require_import_directory,
+    )
+
+    require_approved_model(context)
+    require_import_directory(context, _workflow_lci_dir(lci_dir))
+    return operations.resume_import_request(
+        host=host,
+        port=port,
+        lci_dir=_workflow_lci_dir(lci_dir),
+        target_category=_target_category(target_category),
+        database_name=database_name,
+        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
+        run_id=context.run_id,
+        request_id=request_id,
+        preflight_id=preflight_id,
+        operation_id=operation_id,
+    )
+
+
+@mcp.tool(
+    description=(
+        "Alias for get_import_operation: read import journal status and entity_plan."
+    ),
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+@v2_tool("import_status")
+def import_status(
+    request_id: str | None = None, operation_id: str | None = None
+) -> dict[str, Any]:
+    """Job-style status for the current or specified import operation."""
+    context = Context.environment()
+    return operations.get_operation(
+        context.safe(context.workspace / "records" / "import-operations"),
+        run_id=context.run_id,
+        request_id=request_id,
+        operation_id=operation_id,
     )
 
 

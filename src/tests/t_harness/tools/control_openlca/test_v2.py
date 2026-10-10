@@ -115,6 +115,94 @@ def test_stale_preflight_and_consumption(context):
     assert not client.put_calls
 
 
+def test_resume_after_partial_product_system_failure(context):
+    client = FakeImportClient()
+    root = context.workspace / "outputs" / "LCI"
+    write_product_system_fixture(root)
+    operation_dir = context.workspace / "records" / "import-operations"
+    preflight = operations.preflight(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        operation_dir=operation_dir,
+        client=client,
+    )
+    kwargs = {
+        "run_id": context.run_id,
+        "request_id": "request-one",
+        "preflight_id": preflight["preflight_id"],
+        "operation_dir": operation_dir,
+        "client": client,
+    }
+    client.fail_create_product_system = True
+    first = operations.import_request(
+        "localhost", 8080, root, "project-a", "isolated-db", **kwargs
+    )
+    assert first["status"] == "partial_failure"
+    assert first["entity_plan"][0]["status"] == "done"
+    preflight2_early = operations.preflight(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        operation_dir=operation_dir,
+        client=client,
+    )
+    blocked = operations.import_request(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        request_id="request-two",
+        preflight_id=preflight2_early["preflight_id"],
+        operation_dir=operation_dir,
+        client=client,
+    )
+    assert blocked.get("agent_action") == "reconcile_and_resume"
+    client.fail_create_product_system = False
+    preflight2 = operations.preflight(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        operation_dir=operation_dir,
+        client=client,
+    )
+    operations.reconcile_import(
+        "localhost",
+        8080,
+        operation_dir,
+        run_id=context.run_id,
+        operation_id=first["operation_id"],
+        client=client,
+    )
+    resumed = operations.resume_import_request(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        request_id="request-two",
+        preflight_id=preflight2["preflight_id"],
+        operation_id=first["operation_id"],
+        operation_dir=operation_dir,
+        client=client,
+    )
+    assert resumed["status"] == "success"
+    assert resumed["execution_mode"] == "resumed"
+    assert len(client.create_product_system_calls) == 2
+
+
 def test_failed_import_never_retries(context):
     client = FakeImportClient()
     client.put_error = requests.Timeout("read timed out")
@@ -122,7 +210,7 @@ def test_failed_import_never_retries(context):
     first = operations.import_request(
         "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
     )
-    assert first["status"] == "partial_failure"
+    assert first["status"] in {"partial_failure", "failed"}
     with patch.object(guard, "probe_ipc", return_value=client):
         again = operations.import_request(
             "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
@@ -579,17 +667,14 @@ def test_clean_reconciles_active_pointer_without_rewriting_old_receipt(context):
     first = operations.import_request(
         "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
     )
-    assert first["status"] == "partial_failure"
+    assert first["status"] in {"partial_failure", "failed"}
     operations.reconcile_cleanup(
         kwargs["operation_dir"], "localhost", 8080, "project-a"
     )
     assert not (kwargs["operation_dir"] / "current.json").exists()
-    assert (
-        operations.get_operation(
-            kwargs["operation_dir"], run_id=context.run_id, request_id="request-one"
-        )["status"]
-        == "partial_failure"
-    )
+    assert operations.get_operation(
+        kwargs["operation_dir"], run_id=context.run_id, request_id="request-one"
+    )["status"] in {"partial_failure", "failed"}
 
 
 def test_mapping_checks_coverage_and_lci_semantics(context):

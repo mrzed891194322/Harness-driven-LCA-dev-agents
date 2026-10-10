@@ -33,6 +33,9 @@ IPC_TOOL_PROFILES: dict[str, IpcToolProfile] = {
     "validate_providers_batch": "long",
     "preflight_import_lci": "long",
     "import_lci": "long",
+    "reconcile_import": "long",
+    "resume_import": "long",
+    "import_status": "none",
     "get_model_graph": "long",
     "calculate_product_system": "long",
     "cleanup_output": "long",
@@ -85,15 +88,44 @@ def ipc_tool_timeout_max_sec() -> float:
     return min(env_cap, IPC_TOOL_TIMEOUT_MAX_SEC)
 
 
+def host_session_budget_sec() -> float:
+    """Configured maximum IPC session budget for one long-running tool call."""
+    return session_budget_sec(long_running=True)
+
+
 def resolve_ipc_tool_timeout_sec(requested: int | None) -> float:
-    """MCP optional timeout_sec → IPC session budget for one tool call."""
+    """Map optional agent timeout_sec to the effective session budget (min with host cap)."""
+    host_cap = host_session_budget_sec()
     if requested is None:
-        return session_budget_sec(long_running=True)
-    clamped = max(
-        IPC_TOOL_TIMEOUT_MIN_SEC,
-        min(float(requested), ipc_tool_timeout_max_sec()),
-    )
-    return max(clamped, long_read_sec() + 1.0)
+        effective = host_cap
+    else:
+        agent = max(
+            IPC_TOOL_TIMEOUT_MIN_SEC,
+            min(float(requested), IPC_TOOL_TIMEOUT_MAX_SEC),
+        )
+        effective = min(agent, host_cap)
+    return max(effective, long_read_sec() + 1.0)
+
+
+def describe_ipc_session_budget(requested: int | None) -> dict[str, float | None]:
+    """Return host cap, agent request, and effective session budget for tool results."""
+    host_cap = host_session_budget_sec()
+    agent: float | None
+    if requested is None:
+        agent = None
+        effective = host_cap
+    else:
+        agent = max(
+            IPC_TOOL_TIMEOUT_MIN_SEC,
+            min(float(requested), IPC_TOOL_TIMEOUT_MAX_SEC),
+        )
+        effective = min(agent, host_cap)
+    effective = max(effective, long_read_sec() + 1.0)
+    return {
+        "host_session_budget_sec": host_cap,
+        "agent_timeout_sec": agent,
+        "effective_session_budget_sec": effective,
+    }
 
 
 @contextmanager

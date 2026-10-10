@@ -8,7 +8,7 @@
 
 1. 核对全部必做情景和分析：缺模型需上游审查。导入、计算、LCIA 类别总量等硬工具交付缺能力则失败；解释类要求（贡献/热点等）无分解工具时按规则 `llm_inferred` + 出处表落实，不用限制段冒充已完成、也不因 plan 未写 fallback 许可而失败。首次访问 IPC 按工具规则做 health_check。
 2. 调用 `preflight_import_lci`，保留 preflight_id、库名声明及身份来源、目标分类、LCI 目录和模型内容。whole-lca/revise-lca 只导入规范的 `workspace/outputs/LCI`。
-3. 调用 `import_lci(request_id=本次稳定请求ID, preflight_id=本次预检ID)`。启动工作流已授权导入同一已审、已预检范围，不额外请求确认；模型或范围变化必须停止。仅旧预检失效而已审模型和范围未变时可重新预检，不能越过 03 审查。
+3. 调用 `import_lci(request_id=本次稳定请求ID, preflight_id=本次预检ID)`。启动工作流已授权导入同一已审、已预检范围，不额外请求确认；模型或范围变化必须停止。仅旧预检失效而已审模型和范围未变时可重新预检，不能越过 03 审查。若返回 `partial_failure` 或 `previous import requires reconciliation`，**不要**重新开一轮全新导入：先用 `import_status`/`get_import_operation` 读取 `operation_id` 与 `entity_plan`，再 `reconcile_import(operation_id)`，最后用新的 `request_id`+`preflight_id` 调用 `resume_import` 或 `import_lci(resume_operation_id=...)`。
 4. 导入完成后，用 `get_model_graph` 核对每个 Product System、新建前景实体及预期连接。按需要正式回读参考过程与流，核实数量基准。
 5. 写计算计划并调用 `calculate_product_system`，完整结果由工具落盘。最后按模板生成报告，调用 `render_report_tables` 生成三组表格。
 
