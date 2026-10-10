@@ -34,7 +34,8 @@
 | `refactor/p5-inject-specs` | `p4-path-whitelist` | `bb1604b` | 早先“把 spec 全文注入提示词”的方案，和 P5 的 `spec_mcp` 设计冲突 | **废弃，不合并**；其中 `contract_files.py` 的文件清单逻辑可参考 |
 | `refactor/p5-spec-channels` | `master`（`ee78fc0`） | `5e7a092`（代码）+ 文档提交 | 自动测试：Python 448、pi-runtime 37 全过，`npm run -s build` 通过；**还没在真实 LCA 里跑过** | 未合并；下一步真实运行 + 带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归 |
 | `refactor/p5-injection` | `refactor/p5-spec-channels`（`2313c1d`） | `c08256b` | 自动测试：Python、pi-runtime 全过，`npm run -s build` 通过；`npm run doctor` 通过（模板渲染、注入自检 level=ok）；**还没在真实 LCA 里跑过** | 已于 2026-10-10 快进合入 `refactor/p5-spec-channels`（`2313c1d..c08256b`）；已带 `HARNESS_FAULT_INJECT=lci_unit_missing` 重启，待回归 |
-| `refactor/p5-openlca-timeouts` | `refactor/p5-small-fixes`（`f2ae7b1`） | 见 git log | openLCA IPC 按请求读超时、超时后 `openlca_unresponsive` 事件与诊断、预清理同步超时；自动测试 Python 486、pi-runtime 41 全过，前端 build 通过；未连真实 openLCA 验证 | 未合并，待 `6db89e85` 跑完后合入 |
+| `refactor/p5-small-fixes` | `refactor/p5-spec-channels`（`29e772b`） | `f2ae7b1` | `inspect`/`session` 支持短 run id；SSE 每条事件独立 id；自动测试全过 | 未合并（与主仓库未提交的“停止工作流”改动在 `app.py`、`workflow_launch.py`、`runs/page.tsx` 有重叠，待 Du Yuan 提交后再合） |
+| `refactor/p5-openlca-timeouts` | `refactor/p5-small-fixes`（`f2ae7b1`） | `a2e1a26` + 文档提交 | openLCA IPC 按请求读超时、超时后 `openlca_unresponsive` 事件与诊断、预清理同步超时；**已去掉 product system 读超时自动重试**（超时立即失败）；自动测试 Python 486、pi-runtime 41 全过，前端 build 通过；未连真实 openLCA 验证 | 未合并，原因同上 |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 
@@ -1264,6 +1265,18 @@ Skill 和知识目录有用户版本时，`compile_turn` 会把合并结果物�
 **目录补充**：`harness/rules/generated/`（模板，只放 `.md.tmpl`）、`harness/settings.yaml`（用户偏好，用户版在 `harness/.user/`）、`.local/runs/<run>/sessions/`（会话快照，按运行保留，不随 workspace 清理）。
 
 **未解决**：见 `docs/ISSUES.md`“P5 Spec 三通道（长期关注）”。
+
+## 8C. openLCA MCP 重构（待用户确认）
+
+> 背景：运行 `6db89e85`（2026-10-10）04 的 `import_lci` 用光 1800 秒总预算卡在 product system，之后 IPC 门禁一直是 uncertain。下面 5 条待 Du Yuan 确认后再动手。
+
+1. **按阶段收窄工具**：由 spec 的 `permissions.yaml` 决定。03 只拿只读的查询/验证/预检（`query_descriptors_batch`、`validate_providers_batch`、`preflight_import_lci`）；04 只拿导入、读回模型图、计算。
+2. **`import_lci` 改为后台任务**：立即返回 `job_id`；逐实体提交并记录状态；`job_status` 查进度；失败后从失败实体续做；uncertain 时先核对数据库实际实体再决定如何续。
+3. **确定性重活交给宿主**：导入、读回、计算由 `spec_mcp` 的 `submit` 在宿主端触发，或做成编排好的批量工具；agent 只准备计算计划、写报告。
+4. **统一带锁 IPC 客户端**：所有 openLCA 调用（含开跑前清理和 doctor 自检）走同一个客户端，超时、探活、uncertain 标记、诊断集中处理；标记按 endpoint 区分（如 `openlca.internal:9090` 这类测试残留不影响 `127.0.0.1:8080`）。
+5. **openLCA 健康状态**：doctor 和 GUI 显示 IPC 是否在线、有无 uncertain 标记、最后一次操作；GUI 可查看并手动清除 uncertain 标记。
+
+**顺序**：1、4、5 改动小，先做；2、3 改动大，等当前验证完成后另开新分支。
 
 ## 8A. 上游返工（#25 类问题，分支 `refactor/upstream-rework`，Du Yuan 2026-10-10 同意）
 
