@@ -53,3 +53,14 @@
 
 运行 `d18bc463`（2026-10-10）中，案例 3 主情景是 764.47 kg CO2-Eq，原文是 686。运输单位修正之前，反推的结果约 739，已经偏高 7.7%，所以不是单位换算的 bug。可能的原因有：背景数据库版本（这里用的是 ecoinvent 3.11）、provider 的选取、LCIA 方法版本。下一步按贡献逐段拆开，和原文 Figure 23 对比（运输段原文是 474 kg）。这件事不阻塞分支合并。
 
+## P5 Spec 三通道（长期关注：harness 核心问题）
+
+分支 `refactor/p5-spec-channels`，设计见 `docs/REFACTOR_PLAN.md` §8B。自动测试通过，但还没在真实 LCA 里跑过。要持续跟踪的问题：
+
+- **bash 绕过写保护**：path guard 只拦 write/edit。agent 用 bash 重定向（`cat > workspace/outputs/...`）还是能写正式路径。目前的兜底是：spec_mcp 用哈希把被改过的交付物标成 stale，`submit_handoff(ok)` 会被拒，编排器交卷后的检查也会拦下。要彻底堵住，需要在 bash 策略里解析重定向目标，或者把正式路径设成只读挂载。
+- **writer=agent 的交付物**：03 的 LCI 目录、04 报告仍由 agent 直接写在正式位置，只做原位验收，因为它们是目录或多文件，并且由 MCP 工具生成。以后可以考虑改成先写草稿目录，由 spec_mcp 整体搬过去。
+- **03 单位组检查依赖 provider 记录**：必须先在当前模型指纹上调用 `validate_providers_batch`，否则只能给出修法提示。以后可以让 spec_mcp 在 submit 时自己调用 openLCA 做验证，不再依赖 agent 攒证据。
+- **spec_mcp 和 core 各有一份 spec 解析**：spec_mcp 不能 import core，所以 `spec_view.py` 是 core `view.py` 的镜像，靠测试保证两边输出一致。将来随 lca-tools 自包含项目一起收敛。
+- **HMAC 密钥**：`.local/run/spec_mcp.key` 不在任何 agent 的读取范围内，但 bash 仍有可能读到。要确认 reviewer 和 worker 的 bash 策略不能访问 `.local/`。
+- **旧运行的续跑**：spec 文件哈希和 `get_spec` 视图都进了指纹，P5 之前开始的运行不能在 P5 代码上续跑，只能重开。
+

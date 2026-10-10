@@ -32,7 +32,7 @@
 | `refactor/p4-path-whitelist` | `p1-single-runtime` | `e244d48` | 真实运行，白名单没有造成卡顿 | 已合并进 `master` |
 | `refactor/upstream-rework` | `p4-path-whitelist` | 见 `master` 最新提交 | 运行 `d18bc463` 四个阶段全部通过；04→03 的退回上游在真实运行中自然触发并走通 | 已合并进 `master` |
 | `refactor/p5-inject-specs` | `p4-path-whitelist` | `bb1604b` | 早先“把 spec 全文注入提示词”的方案，和 P5 的 `spec_mcp` 设计冲突 | **废弃，不合并**；其中 `contract_files.py` 的文件清单逻辑可参考 |
-| `refactor/p5-spec-channels` | `master` | 未开 | — | 未开始 |
+| `refactor/p5-spec-channels` | `master`（`ee78fc0`） | `5e7a092`（代码）+ 文档提交 | 自动测试：Python 448、pi-runtime 37 全过，`npm run -s build` 通过；**还没在真实 LCA 里跑过** | 未合并；下一步真实运行 + 带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归 |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 
@@ -478,7 +478,9 @@ src/
 **风险**：中。权限 extension 可能误拦合法操作（先 audit 再 enforce）；只要允许 bash，路径限制就可以被绕过（§7.6）。
 **验证**：扩展 `test_architecture.py` 和 `test_platform_config.py`；用一个合成的非 LCA 工作流验证组件可以拼装；`permission_guard` 的单元测试覆盖白名单、通配符、工具组和路径 glob；完整跑一次 whole-lca，`permission.denied` 为 0；再用一个故意越权的脚本化 reviewer 验证确实被拦截并记录。
 
-### P5 工具区收敛：`harness/tools` 只剩 Skill 和 MCP
+> 本分支的 P5 是 “Spec 三通道”（§8B，长期关注：harness 核心问题）。下面原定的“工具区收敛”顺延到之后的阶段。
+
+### P5′ 工具区收敛：`harness/tools` 只剩 Skill 和 MCP（顺延）
 
 **范围**：§6 的 T1–T7（已定：删除重复服务、检查走 MCP；**待定：`lca_tools` 代码放在哪里（Q6）**）。
 1. T1 删除重复服务和死模块（可以马上做）。
@@ -982,7 +984,9 @@ Skill 和 MCP 清单的检查已经并入 §5.3（错误码）、§5.4（doctor�
 | `harness/rules/stages/*.md`、`lca/*.md`、`project/runtime-loop.md` | 只引用 `harness/knowledge/…`、`workspace/…`，**不引用其他规则文件** | 不用改 |
 | `harness/specs/**` | 不引用规则路径 | 不用改 |
 
-### 7.2 权限规则格式：`harness/rules/permissions/<id>.yaml`
+> **P5 更新（2026-10-10）**：权限规则已从 `harness/rules/permissions/` 移到 `harness/specs/shared/permissions/<id>.yaml`，由各阶段的 `harness/specs/<stage>/permissions.yaml` 按角色引用，`default_for_roles` 字段取消。下面 §7.2–§7.5 的格式说明仍然有效，路径以 §8B 为准。
+
+### 7.2 权限规则格式（P5 后在 `harness/specs/shared/permissions/<id>.yaml`）
 
 ```yaml
 id: reviewer_readonly
@@ -1218,6 +1222,33 @@ Skill 和知识目录有用户版本时，`compile_turn` 会把合并结果物�
 - 新增 `DELETE /api/harness/components/{kind}/{id}/user`（恢复默认）和 `GET …/{id}/diff`（与默认版本的差异）。
 
 ---
+
+## 8B. P5 Spec 三通道（长期关注：harness 核心问题；分支 `refactor/p5-spec-channels`）
+
+> 已定（Du Yuan + Grok Bot，2026-10-10）。这一节取代 §7 的“rules 拆 prompts/permissions”方案；§4 里原来叫 P5 的“工具区收敛”顺延，不在本分支。
+
+**边界**
+- `harness/rules/`：只放给模型看的自然语言提示词：`project/`、`lca/`、`tools/`、`stages/<stage>.md`、`stages/<stage>.revise.md`、`stages/<stage>.<role>.md`。
+- `harness/specs/`：凡是机器注入或机器检查的都在这里，不放 `.md`。`<stage>/spec.yaml`（v2 清单）指向 `deliverables/*.schema.json`、`examples/`、`acceptance.yaml`、`permissions.yaml`；跨阶段默认权限在 `specs/shared/permissions/`；交卷 schema 在 `specs/shared/handoff.schema.json`。
+- 冲突时 spec（机器约束）优先于 rules（提示词）。spec、权限缺失或无效一律 fail closed：权限为空，spec_mcp 拒绝执行。
+- 用户版本：`harness/.user/<相对路径>`，不进 git，用户版本优先、默认版本兜底（§8.5）。每次建会话都重新编译，改动从下一个会话开始生效，不用重启。
+
+**三条通道**
+1. 提示词：运行协议 → 规则 → 阶段规则 → 一行提交说明（`以 spec_mcp 为准，用 submit 交付`）。提示词里不出现 schema 全文，也不出现需要去读的 `harness/specs` 路径。
+2. 首段上下文：宿主把 `get_spec()` 的结果作为会话第一个 system section 注入；其哈希进 `bundle_hash`（运行指纹）。
+3. spec_mcp（`harness/tools/mcp/spec_mcp/`）：每个会话一个子进程，随会话释放。run_id/stage/role/attempt 由宿主写进环境变量，并用 `.local/run/spec_mcp.key` 做 HMAC 签名；工具不收阶段参数，签名不符就拒绝。四个工具：
+   - `get_spec()`：交付物清单、schema、示例、验收要点，每次调用都重新读盘。
+   - `submit(name, data)`：`writer=spec_mcp` 的交付物先做 jsonschema 校验，再跑 `acceptance.yaml` 里的检查；通过才写正式路径，失败就回滚，并返回可操作的错误清单。`writer=agent` 的交付物（03 的 LCI 目录、04 报告）在原位验收。
+   - `status()`：每个交付物的状态，包括 missing、not_submitted、failed、passed、stale（通过后又被改过）。
+   - `submit_handoff(...)`：从 `lca_artifacts` 移过来。写者 `status=ok` 要求全部 required 交付物 passed；`failed/blocked` 随时可交，退回上游的字段照旧。
+
+**权限**：权限从阶段 spec 解析（`permissions.yaml` 按角色挑 `shared/permissions/` 里的规则；assignment 的 `permissions:` 仍可覆盖）。只要绑定了 spec_mcp，就自动把 `mcp__spec_mcp__*` 加进白名单。`writer=spec_mcp` 的正式路径进 `denied_write_globs`，path guard 拒绝 agent 用 write/edit 写这些路径，只有 spec_mcp 能写。
+
+**验收**：03 新增 `exchange_unit_groups`，要求每条有 provider 的输入交换，单位和 provider 参考流属于同一单位组；运输类复用 `control_openlca` 的 `_transport_unit_pass`。如果当前模型上没有 provider 记录，就提示对最终模型重跑 `validate_providers_batch`。编排器交卷后的检查（`host_checks`）保持不变。
+
+**GUI 接口**：`GET /api/specs`、`GET|PUT|DELETE /api/specs/{stage}/part?path=`、`POST /api/specs/{stage}/validate`。保存只写用户版本；保存后整个 spec 校验不过就回滚。diagnostics 新增 `harness_specs` 检查，同时报告旧路径（`rules/prompts`、`rules/permissions`）是否残留。
+
+**未解决**：见 `docs/ISSUES.md`“P5 Spec 三通道（长期关注）”。
 
 ## 8A. 上游返工（#25 类问题，分支 `refactor/upstream-rework`，Du Yuan 2026-10-10 同意）
 
