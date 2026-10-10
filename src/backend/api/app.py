@@ -15,7 +15,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from backend.core.agents.assignment_models import load_assignment_models, save_assignment_models
+from backend.core.agents.assignment_models import (
+    load_assignment_models,
+    save_assignment_models,
+)
 from backend.core.agents.config import load_worker_model
 from backend.core.runtime.model_profiles import (
     allocate_profile_id,
@@ -49,21 +52,33 @@ from backend.services.diagnostics_service import (
     openlca_endpoint,
     save_openlca_port,
 )
-from backend.services.harness_browser import HarnessPathError, harness_catalog, read_harness_document
+from backend.services.harness_browser import (
+    HarnessPathError,
+    harness_catalog,
+    read_harness_document,
+)
 from backend.services.plan_form import (
+    TEMPLATE_NAME,
     PlanFields,
     PlanFormError,
-    TEMPLATE_NAME,
     decode_plan_upload,
     delete_reference,
     list_references,
     read_plan_document,
     save_plan,
-    save_references,
     save_reference_note,
+    save_references,
     template_markdown,
 )
 from backend.services.project_paths import PROJECT_ROOT
+from backend.services.spec_service import (
+    SpecPartError,
+    list_specs,
+    read_part,
+    reset_override,
+    save_override,
+    validate_spec,
+)
 from backend.services.tutorial_browser import (
     TutorialPathError,
     read_tutorial_document,
@@ -692,6 +707,50 @@ def read_harness_file(path: str) -> dict[str, str]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="document not found") from exc
+
+
+class SpecPartBody(BaseModel):
+    path: str
+    content: str
+
+
+@app.get("/api/specs")
+def read_specs() -> dict[str, Any]:
+    return list_specs(PROJECT_ROOT)
+
+
+@app.get("/api/specs/{stage}/part")
+def read_spec_part(stage: str, path: str) -> dict[str, Any]:
+    try:
+        return read_part(PROJECT_ROOT, stage, path)
+    except SpecPartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="spec part not found") from exc
+
+
+@app.put("/api/specs/{stage}/part")
+def save_spec_part(stage: str, body: SpecPartBody) -> dict[str, Any]:
+    try:
+        return save_override(PROJECT_ROOT, stage, body.path, body.content)
+    except SpecPartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/specs/{stage}/part")
+def reset_spec_part(stage: str, path: str) -> dict[str, Any]:
+    try:
+        return reset_override(PROJECT_ROOT, stage, path)
+    except SpecPartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/specs/{stage}/validate")
+def validate_spec_endpoint(stage: str) -> dict[str, Any]:
+    try:
+        return validate_spec(PROJECT_ROOT, stage)
+    except SpecPartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/tutorial/catalog")

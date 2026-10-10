@@ -14,6 +14,7 @@ from backend.services.credentials_service import (
 )
 from backend.services.diagnostics import check_openlca
 from backend.services.project_paths import PROJECT_ROOT
+from backend.services.spec_service import specs_health
 from backend.settings import (
     DEFAULT_OPENLCA_IPC_PORT,
     OPENLCA_IPC_PORT_KEY,
@@ -101,6 +102,7 @@ def environment_report(project_root: Path | None = None) -> dict:
         "credentials": credentials,
         "available_providers": available_providers(root),
         "model": model,
+        "harness_specs": specs_health(root),
     }
 
 
