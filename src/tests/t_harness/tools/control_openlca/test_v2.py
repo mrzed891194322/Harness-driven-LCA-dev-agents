@@ -785,6 +785,20 @@ def test_mcp_channel_gate_rejects_without_env(monkeypatch):
     assert "MCP" in blocked["errors"][0]["message"]
 
 
+def test_resolve_ipc_tool_timeout_sec_agent_vs_host_cap(monkeypatch):
+    from harness.tools.shared.control_openlca.connection import (
+        reload_ipc_timeout_settings,
+        resolve_ipc_tool_timeout_sec,
+    )
+
+    monkeypatch.setenv("OPENLCA_IPC_LONG_READ_SEC", "30")
+    monkeypatch.setenv("OPENLCA_IPC_SESSION_BUDGET_SEC", "1800")
+    reload_ipc_timeout_settings()
+    assert resolve_ipc_tool_timeout_sec(7200) == 1800.0
+    assert resolve_ipc_tool_timeout_sec(600) == 600.0
+    reload_ipc_timeout_settings()
+
+
 def test_resolve_ipc_tool_timeout_sec_clamps(monkeypatch):
     from harness.tools.shared.control_openlca.connection import (
         IPC_TOOL_TIMEOUT_MAX_SEC,

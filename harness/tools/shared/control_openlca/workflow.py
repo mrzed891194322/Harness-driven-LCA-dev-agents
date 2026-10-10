@@ -400,8 +400,13 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                     f"{item['path']}: explicit linking must not provide processes "
                     "or processLinks; the host builds them from defaultProvider"
                 )
+            expected_ids = [
+                process_id
+                for process_id in (expected or [])
+                if isinstance(process_id, str)
+            ]
             missing_providers = _foreground_technosphere_missing_providers(
-                inventory, ref_process_id
+                inventory, expected_ids
             )
             if missing_providers:
                 errors.append(
@@ -412,34 +417,80 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
     return errors
 
 
+def _exchange_flow_id(exchange: dict[str, Any]) -> str | None:
+    flow = exchange.get("flow")
+    return flow.get("@id") if isinstance(flow, dict) else None
+
+
+def _exchange_provider_id(exchange: dict[str, Any]) -> str | None:
+    provider = exchange.get("defaultProvider")
+    return provider.get("@id") if isinstance(provider, dict) else None
+
+
+def _foreground_flow_ids(inventory: list[dict[str, Any]]) -> set[str]:
+    return {item["id"] for item in inventory if item["entity_type"] == "Flow"}
+
+
+def _is_technosphere_input(
+    exchange: dict[str, Any], foreground_flow_ids: set[str]
+) -> bool:
+    if exchange.get("isInput") is not True:
+        return False
+    if _exchange_provider_id(exchange):
+        return True
+    flow_id = _exchange_flow_id(exchange)
+    return bool(flow_id and flow_id in foreground_flow_ids)
+
+
+def _collect_unlinked_inputs(
+    inventory: list[dict[str, Any]],
+    process_ids: list[str],
+) -> list[dict[str, Any]]:
+    """Elementary inputs without defaultProvider (non-foreground flows)."""
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    allowed = set(process_ids)
+    unlinked: list[dict[str, Any]] = []
+    for item in inventory:
+        if item["entity_type"] != "Process" or item["id"] not in allowed:
+            continue
+        for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            if _exchange_provider_id(exchange):
+                continue
+            flow_id = _exchange_flow_id(exchange)
+            if flow_id and flow_id in foreground_flow_ids:
+                continue
+            unlinked.append(
+                {
+                    "path": item["path"],
+                    "process_id": item["id"],
+                    "exchange_index": index,
+                    "flow_id": flow_id,
+                }
+            )
+    return unlinked
+
+
 def _foreground_technosphere_missing_providers(
     inventory: list[dict[str, Any]],
-    ref_process_id: str | None,
+    process_ids: list[str],
 ) -> list[str]:
-    """Paths of foreground technosphere inputs that lack defaultProvider."""
-    foreground_process_ids = {
-        item["id"] for item in inventory if item["entity_type"] == "Process"
-    }
-    foreground_flow_ids = {
-        item["id"] for item in inventory if item["entity_type"] == "Flow"
-    }
+    """Foreground-flow technosphere inputs that lack defaultProvider."""
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    allowed = set(process_ids)
     missing: list[str] = []
     for item in inventory:
-        if item["entity_type"] != "Process":
-            continue
-        if ref_process_id and item["id"] != ref_process_id:
+        if item["entity_type"] != "Process" or item["id"] not in allowed:
             continue
         path = item["path"]
         for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
             if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
                 continue
-            flow = exchange.get("flow")
-            flow_id = flow.get("@id") if isinstance(flow, dict) else None
+            flow_id = _exchange_flow_id(exchange)
             if flow_id not in foreground_flow_ids:
                 continue
-            provider = exchange.get("defaultProvider")
-            provider_id = provider.get("@id") if isinstance(provider, dict) else None
-            if not provider_id:
+            if not _exchange_provider_id(exchange):
                 missing.append(f"{path}: exchanges[{index}]")
     return missing
 
@@ -562,56 +613,173 @@ def _foreground_process_data(
 
 
 def _all_foreground_technosphere_have_providers(
-    inventory: list[dict[str, Any]], ref_process_id: str
+    inventory: list[dict[str, Any]], process_ids: list[str]
 ) -> bool:
-    return not _foreground_technosphere_missing_providers(inventory, ref_process_id)
+    return not _foreground_technosphere_missing_providers(inventory, process_ids)
 
 
 def _foreground_has_technosphere_inputs(
-    inventory: list[dict[str, Any]], ref_process_id: str
+    inventory: list[dict[str, Any]], process_ids: list[str]
 ) -> bool:
-    foreground_flow_ids = {
-        item["id"] for item in inventory if item["entity_type"] == "Flow"
-    }
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    allowed = set(process_ids)
     for item in inventory:
-        if item["entity_type"] != "Process" or item["id"] != ref_process_id:
+        if item["entity_type"] != "Process" or item["id"] not in allowed:
             continue
         for exchange in item["data"].get("exchanges", []):
-            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
-                continue
-            flow = exchange.get("flow")
-            flow_id = flow.get("@id") if isinstance(flow, dict) else None
-            if flow_id in foreground_flow_ids:
+            if isinstance(exchange, dict) and _is_technosphere_input(
+                exchange, foreground_flow_ids
+            ):
                 return True
     return False
 
 
+def _amounts_match(stored: object, expected: object) -> bool:
+    if isinstance(stored, bool) or isinstance(expected, bool):
+        return False
+    if not isinstance(stored, (int, float)) or not isinstance(expected, (int, float)):
+        return stored == expected
+    return abs(float(stored) - float(expected)) <= 1e-9 * max(
+        1.0, abs(float(stored)), abs(float(expected))
+    )
+
+
+def _process_type_label(process: object) -> str | None:
+    process_type = getattr(process, "process_type", None)
+    if process_type is None:
+        return None
+    return getattr(process_type, "value", str(process_type))
+
+
+def _read_saved_process(
+    client: OpenLcaClient, process_id: str
+) -> olca_schema.Process:
+    saved = client.get(olca_schema.Process, process_id)
+    if saved is None:
+        raise ValueError(
+            f"foreground Process {process_id} must be imported before ProductSystem"
+        )
+    return saved
+
+
+def _match_saved_input_exchange(
+    saved: olca_schema.Process,
+    *,
+    process_id: str,
+    flow_id: str,
+    provider_id: str,
+    amount: object,
+) -> olca_schema.Exchange:
+    matches: list[olca_schema.Exchange] = []
+    for exchange in list(getattr(saved, "exchanges", None) or []):
+        if getattr(exchange, "is_input", None) is not True:
+            continue
+        ex_flow = getattr(getattr(exchange, "flow", None), "id", None)
+        ex_provider = getattr(getattr(exchange, "default_provider", None), "id", None)
+        if ex_flow != flow_id or ex_provider != provider_id:
+            continue
+        if not _amounts_match(getattr(exchange, "amount", None), amount):
+            continue
+        matches.append(exchange)
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise ValueError(
+            f"no imported exchange on Process {process_id} matches technosphere "
+            f"input flow={flow_id} provider={provider_id} amount={amount!r}"
+        )
+    raise ValueError(
+        f"ambiguous imported exchanges on Process {process_id} for "
+        f"flow={flow_id} provider={provider_id} amount={amount!r}"
+    )
+
+
+def _match_saved_output_exchange(
+    saved: olca_schema.Process,
+    *,
+    process_id: str,
+    flow_id: str,
+    amount: object,
+) -> olca_schema.Exchange:
+    matches: list[olca_schema.Exchange] = []
+    for exchange in list(getattr(saved, "exchanges", None) or []):
+        if getattr(exchange, "is_quantitative_reference", None) is not True:
+            continue
+        ex_flow = getattr(getattr(exchange, "flow", None), "id", None)
+        if ex_flow != flow_id:
+            continue
+        if amount is not None and not _amounts_match(
+            getattr(exchange, "amount", None), amount
+        ):
+            continue
+        matches.append(exchange)
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise ValueError(
+            f"no quantitative-reference output on Process {process_id} "
+            f"for flow={flow_id}"
+        )
+    raise ValueError(
+        f"ambiguous quantitative-reference outputs on Process {process_id} "
+        f"for flow={flow_id}"
+    )
+
+
+def _provider_types_for_ids(
+    client: OpenLcaClient, provider_ids: set[str]
+) -> dict[str, str | None]:
+    types: dict[str, str | None] = {}
+    for provider_id in sorted(provider_ids):
+        try:
+            provider = client.get(olca_schema.Process, provider_id)
+        except Exception as exc:
+            raise ValueError(f"cannot read provider Process {provider_id}: {exc}") from exc
+        if provider is None:
+            raise ValueError(f"provider Process {provider_id} was not found in database")
+        types[provider_id] = _process_type_label(provider)
+    return types
+
+
+def _unit_process_providers(provider_types: dict[str, str | None]) -> list[str]:
+    return sorted(
+        provider_id
+        for provider_id, label in provider_types.items()
+        if label == olca_schema.ProcessType.UNIT_PROCESS.value
+    )
+
+
 def _build_explicit_product_system(
+    client: OpenLcaClient,
     entity: olca_schema.ProductSystem,
     source_data: dict[str, Any],
     inventory: list[dict[str, Any]],
-) -> olca_schema.ProductSystem:
+) -> tuple[olca_schema.ProductSystem, dict[str, Any]]:
     ref_process = source_data.get("refProcess") or {}
     ref_process_id = ref_process.get("@id") if isinstance(ref_process, dict) else None
     if not isinstance(ref_process_id, str):
         raise ValueError("ProductSystem requires refProcess for explicit linking")
-    process_data = _foreground_process_data(inventory, ref_process_id)
-    if process_data is None:
+    if _foreground_process_data(inventory, ref_process_id) is None:
         raise ValueError(f"refProcess {ref_process_id} not found in LCI inventory")
 
-    foreground_flow_ids = {
-        item["id"] for item in inventory if item["entity_type"] == "Flow"
-    }
+    expected_raw = source_data.get("expectedProcessIds") or []
+    expected_ids = [
+        process_id for process_id in expected_raw if isinstance(process_id, str)
+    ]
+    if not expected_ids:
+        raise ValueError("ProductSystem expectedProcessIds must be non-empty")
+
+    foreground_flow_ids = _foreground_flow_ids(inventory)
     process_refs: dict[str, olca_schema.Ref] = {}
     links: list[olca_schema.ProcessLink] = []
     ref_exchange: olca_schema.Exchange | None = None
+    unlinked_inputs = _collect_unlinked_inputs(inventory, expected_ids)
 
     for item in inventory:
-        if item["entity_type"] != "Process":
-            continue
-        if item["id"] not in set(source_data.get("expectedProcessIds") or []):
+        if item["entity_type"] != "Process" or item["id"] not in set(expected_ids):
             continue
         process_refs[item["id"]] = olca_schema.Ref(id=item["id"], name=item["name"])
+        saved_process = _read_saved_process(client, item["id"])
         for exchange in item["data"].get("exchanges", []):
             if not isinstance(exchange, dict):
                 continue
@@ -621,24 +789,55 @@ def _build_explicit_product_system(
                     and exchange.get("isQuantitativeReference") is True
                 ):
                     flow = exchange.get("flow") or {}
+                    flow_id = flow.get("@id")
+                    saved_out = _match_saved_output_exchange(
+                        saved_process,
+                        process_id=item["id"],
+                        flow_id=flow_id,
+                        amount=exchange.get("amount", 1.0),
+                    )
+                    internal_id = getattr(saved_out, "internal_id", None)
+                    if internal_id is None:
+                        raise ValueError(
+                            f"quantitative-reference on {item['id']} lacks internal_id"
+                        )
                     ref_exchange = olca_schema.Exchange(
+                        internal_id=internal_id,
                         flow=olca_schema.Ref(
-                            id=flow.get("@id"),
+                            id=flow_id,
                             name=flow.get("name"),
                         ),
                         is_input=False,
                         amount=exchange.get("amount", 1.0),
+                        flow_property=getattr(saved_out, "flow_property", None),
+                        unit=getattr(saved_out, "unit", None),
                     )
+                continue
+            if not _is_technosphere_input(exchange, foreground_flow_ids):
                 continue
             flow = exchange.get("flow") or {}
             flow_id = flow.get("@id")
-            if flow_id not in foreground_flow_ids:
-                continue
             provider = exchange.get("defaultProvider") or {}
             provider_id = provider.get("@id")
+            if not isinstance(flow_id, str) or not flow_id:
+                raise ValueError(f"technosphere input on {item['id']} lacks flow @id")
             if not isinstance(provider_id, str) or not provider_id:
                 raise ValueError(
-                    f"foreground input {flow_id} on {item['id']} lacks defaultProvider"
+                    f"technosphere input flow {flow_id} on {item['id']} "
+                    "requires defaultProvider"
+                )
+            amount = exchange.get("amount", 1.0)
+            saved_in = _match_saved_input_exchange(
+                saved_process,
+                process_id=item["id"],
+                flow_id=flow_id,
+                provider_id=provider_id,
+                amount=amount,
+            )
+            internal_id = getattr(saved_in, "internal_id", None)
+            if internal_id is None:
+                raise ValueError(
+                    f"matched input on {item['id']} flow={flow_id} lacks internal_id"
                 )
             if provider_id not in process_refs:
                 process_refs[provider_id] = olca_schema.Ref(
@@ -650,11 +849,15 @@ def _build_explicit_product_system(
                     provider=olca_schema.Ref(id=provider_id),
                     process=olca_schema.Ref(id=item["id"]),
                     flow=olca_schema.Ref(id=flow_id, name=flow.get("name")),
+                    exchange=olca_schema.ExchangeRef(internal_id=internal_id),
                 )
             )
 
     if ref_exchange is None:
         raise ValueError("refProcess has no quantitative reference output exchange")
+
+    provider_ids = {link.provider.id for link in links if link.provider and link.provider.id}
+    provider_types = _provider_types_for_ids(client, provider_ids)
 
     entity.processes = list(process_refs.values())
     entity.process_links = links
@@ -662,7 +865,18 @@ def _build_explicit_product_system(
     entity.ref_exchange = ref_exchange
     if entity.target_amount is None and source_data.get("targetAmount") is not None:
         entity.target_amount = source_data["targetAmount"]
-    return entity
+    if (
+        entity.target_flow_property is None
+        and getattr(ref_exchange, "flow_property", None) is not None
+    ):
+        entity.target_flow_property = ref_exchange.flow_property
+    if entity.target_unit is None and getattr(ref_exchange, "unit", None) is not None:
+        entity.target_unit = ref_exchange.unit
+    meta = {
+        "unlinked_inputs": unlinked_inputs,
+        "provider_types": provider_types,
+    }
+    return entity, meta
 
 
 def _descriptor_record(entity_type: str, descriptor: object) -> dict[str, Any]:
@@ -1078,6 +1292,19 @@ def _inspect_import(
         close_ipc_client(ipc_client)
     unit_conversions, unit_errors = _transport_unit_pass(inventory, provider_checks)
     provider_errors = [*provider_errors, *unit_errors]
+    unlinked_warnings: list[str] = []
+    for item in inventory:
+        if item["entity_type"] != "ProductSystem":
+            continue
+        expected = item["data"].get("expectedProcessIds") or []
+        expected_ids = [
+            process_id for process_id in expected if isinstance(process_id, str)
+        ]
+        for entry in _collect_unlinked_inputs(inventory, expected_ids):
+            unlinked_warnings.append(
+                f"{entry['path']}: exchanges[{entry['exchange_index']}] "
+                f"elementary input flow={entry.get('flow_id')} has no defaultProvider"
+            )
     lci_fingerprint = stable_hash(planned_entities)
     target_scope_fingerprint = stable_hash(overwrite_scope)
     background_provider_fingerprint = stable_hash(provider_checks)
@@ -1123,7 +1350,10 @@ def _inspect_import(
             },
             "errors": provider_errors,
             "unit_conversions": unit_conversions,
-            "warnings": [c["note"] for c in unit_conversions],
+            "warnings": [
+                *[c["note"] for c in unit_conversions],
+                *unlinked_warnings,
+            ],
             "preflight_hash": preflight_hash,
             "timestamp": utc_now(),
         },
@@ -1290,7 +1520,9 @@ def _put_product_system_explicit(
     """Save a Product System with host-built links (no data/create/system)."""
     if source_data.get("preferDefaultProviders") is not True:
         raise ValueError("ProductSystem preferDefaultProviders must be true")
-    built = _build_explicit_product_system(entity, source_data, inventory)
+    built, build_meta = _build_explicit_product_system(
+        client, entity, source_data, inventory
+    )
     ps_read = product_system_read_sec()
     with ipc_read_scope(ps_read):
         reference = client.put(built)
@@ -1302,8 +1534,49 @@ def _put_product_system_explicit(
         raise RuntimeError(
             f"IPC Server could not read back ProductSystem {getattr(built, 'id', None)}"
         )
-    meta = {"linking_mode_applied": "explicit", "linking_mode_declared": "explicit"}
+    meta = {
+        "linking_mode_applied": "explicit",
+        "linking_mode_declared": "explicit",
+        **build_meta,
+    }
     return reference, meta
+
+
+def _explicit_link_provider_ids(
+    inventory: list[dict[str, Any]], source_data: dict[str, Any]
+) -> set[str]:
+    expected_ids = [
+        process_id
+        for process_id in (source_data.get("expectedProcessIds") or [])
+        if isinstance(process_id, str)
+    ]
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    provider_ids: set[str] = set()
+    for item in inventory:
+        if item["entity_type"] != "Process" or item["id"] not in set(expected_ids):
+            continue
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict) or not _is_technosphere_input(
+                exchange, foreground_flow_ids
+            ):
+                continue
+            provider_id = _exchange_provider_id(exchange)
+            if provider_id:
+                provider_ids.add(provider_id)
+    return provider_ids
+
+
+def _explicit_link_blocked_by_unit_process_providers(
+    client: OpenLcaClient,
+    inventory: list[dict[str, Any]],
+    source_data: dict[str, Any],
+) -> tuple[bool, list[str], dict[str, str | None]]:
+    provider_ids = _explicit_link_provider_ids(inventory, source_data)
+    if not provider_ids:
+        return False, [], {}
+    provider_types = _provider_types_for_ids(client, provider_ids)
+    unit_ids = _unit_process_providers(provider_types)
+    return bool(unit_ids), unit_ids, provider_types
 
 
 def _put_product_system(
@@ -1322,15 +1595,38 @@ def _put_product_system(
 
     ref_process = source_data.get("refProcess") or {}
     ref_process_id = ref_process.get("@id") if isinstance(ref_process, dict) else None
+    expected_ids = [
+        process_id
+        for process_id in (source_data.get("expectedProcessIds") or [])
+        if isinstance(process_id, str)
+    ]
     use_explicit = linking_mode == "explicit"
     if (
         linking_mode == "auto"
-        and isinstance(ref_process_id, str)
         and inventory is not None
-        and _foreground_has_technosphere_inputs(inventory, ref_process_id)
-        and _all_foreground_technosphere_have_providers(inventory, ref_process_id)
+        and expected_ids
+        and _foreground_has_technosphere_inputs(inventory, expected_ids)
+        and _all_foreground_technosphere_have_providers(inventory, expected_ids)
     ):
         use_explicit = True
+
+    unit_block_note: str | None = None
+    if use_explicit and inventory is not None:
+        blocked, unit_ids, provider_types = _explicit_link_blocked_by_unit_process_providers(
+            client, inventory, source_data
+        )
+        if blocked:
+            if linking_mode == "explicit":
+                raise ValueError(
+                    "explicit ProductSystem linking cannot use UNIT_PROCESS providers "
+                    f"(truncates supply chain): {unit_ids}"
+                )
+            use_explicit = False
+            unit_block_note = (
+                "auto preferred explicit host linking but UNIT_PROCESS providers "
+                f"would truncate the supply chain: {unit_ids}; "
+                f"provider_types={provider_types}"
+            )
 
     if use_explicit:
         if inventory is None:
@@ -1414,10 +1710,13 @@ def _put_product_system(
                 f"{generated_id}: {exc}"
             ) from exc
 
-    return reference, {
+    auto_meta: dict[str, Any] = {
         "linking_mode_applied": "auto",
-        "linking_mode_declared": "auto",
+        "linking_mode_declared": linking_mode,
     }
+    if unit_block_note:
+        auto_meta["linking_mode_note"] = unit_block_note
+    return reference, auto_meta
 
 
 def _execute_import(

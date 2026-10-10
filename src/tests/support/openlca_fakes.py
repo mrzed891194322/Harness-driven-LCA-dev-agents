@@ -59,6 +59,8 @@ PROCESS_ID = "22222222-2222-4222-8222-222222222222"
 PRODUCT_SYSTEM_ID = "33333333-3333-4333-8333-333333333333"
 GENERATED_SYSTEM_ID = "44444444-4444-4444-8444-444444444444"
 PROVIDER_ID = "55555555-5555-4555-8555-555555555555"
+BACKGROUND_FLOW_ID = "66666666-6666-4666-8666-666666666666"
+BACKGROUND_PROVIDER_ID = "77777777-7777-4777-8777-777777777777"
 
 
 def run_import(
@@ -112,7 +114,21 @@ class FakeImportClient:
             raise self.query_error
         return list(self.descriptors.get(model_type.__name__, []))
 
+    def _finalize_process(self, process: olca_schema.Process) -> olca_schema.Process:
+        if getattr(process, "process_type", None) is None:
+            process.process_type = olca_schema.ProcessType.UNIT_PROCESS
+        next_id = 1
+        exchanges = list(getattr(process, "exchanges", None) or [])
+        for exchange in exchanges:
+            if getattr(exchange, "internal_id", None) is None:
+                exchange.internal_id = next_id
+                next_id += 1
+        process.exchanges = exchanges
+        return process
+
     def put(self, entity: object) -> SimpleNamespace | None:
+        if isinstance(entity, olca_schema.Process):
+            entity = self._finalize_process(entity)
         self.put_calls.append(entity)
         if self.put_error is not None:
             raise self.put_error
@@ -301,6 +317,92 @@ def write_linked_auto_product_system_fixture(root: Path) -> None:
                 "linkingMode": "auto",
                 "preferDefaultProviders": True,
                 "expectedProcessIds": [PROCESS_ID, PROVIDER_ID],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def seed_background_provider(
+    client: FakeImportClient,
+    *,
+    provider_id: str = BACKGROUND_PROVIDER_ID,
+    flow_id: str = BACKGROUND_FLOW_ID,
+    process_type: olca_schema.ProcessType = olca_schema.ProcessType.LCI_RESULT,
+    name: str = "Background LCI result provider",
+) -> None:
+    process = olca_schema.Process(
+        id=provider_id,
+        name=name,
+        process_type=process_type,
+    )
+    process.exchanges = [
+        olca_schema.Exchange(
+            flow=olca_schema.Ref(id=flow_id, name="Background product"),
+            is_input=False,
+            is_quantitative_reference=True,
+            amount=1.0,
+        )
+    ]
+    client._finalize_process(process)
+    client.entities[(olca_schema.Process, provider_id)] = process
+    client.descriptors.setdefault("Process", []).append(
+        FakeDescriptor(provider_id, name, "background/ecoinvent")
+    )
+
+
+def write_background_linked_product_system_fixture(root: Path) -> None:
+    write_flow(root)
+    processes = root / "processes"
+    product_systems = root / "product_systems"
+    processes.mkdir(parents=True, exist_ok=True)
+    product_systems.mkdir(parents=True, exist_ok=True)
+    (processes / "p01-test.json").write_text(
+        json.dumps(
+            {
+                "@context": workflow.JSON_LD_CONTEXT,
+                "@type": "Process",
+                "@id": PROCESS_ID,
+                "name": "P01 Foreground process",
+                "exchanges": [
+                    {
+                        "@type": "Exchange",
+                        "flow": {"@type": "Flow", "@id": FLOW_ID},
+                        "isInput": False,
+                        "isQuantitativeReference": True,
+                        "amount": 1.0,
+                    },
+                    {
+                        "@type": "Exchange",
+                        "flow": {
+                            "@type": "Flow",
+                            "@id": BACKGROUND_FLOW_ID,
+                            "name": "Background steel",
+                        },
+                        "isInput": True,
+                        "amount": 2.5,
+                        "defaultProvider": {
+                            "@type": "Process",
+                            "@id": BACKGROUND_PROVIDER_ID,
+                            "name": "Background LCI result provider",
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (product_systems / "ps01-test.json").write_text(
+        json.dumps(
+            {
+                "@context": workflow.JSON_LD_CONTEXT,
+                "@type": "ProductSystem",
+                "@id": PRODUCT_SYSTEM_ID,
+                "name": "PS01 Background-linked product system",
+                "refProcess": {"@type": "Process", "@id": PROCESS_ID},
+                "linkingMode": "auto",
+                "preferDefaultProviders": True,
+                "expectedProcessIds": [PROCESS_ID],
             }
         ),
         encoding="utf-8",

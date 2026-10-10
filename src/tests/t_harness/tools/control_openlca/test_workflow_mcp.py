@@ -13,13 +13,18 @@ import requests
 
 from harness.tools.shared.control_openlca import workflow
 from tests.support.openlca_fakes import (
+    BACKGROUND_FLOW_ID,
+    BACKGROUND_PROVIDER_ID,
     FLOW_ID,
     GENERATED_SYSTEM_ID,
+    PROCESS_ID,
     PRODUCT_SYSTEM_ID,
     PROVIDER_ID,
     FakeDescriptor,
     FakeImportClient,
     run_import,
+    seed_background_provider,
+    write_background_linked_product_system_fixture,
     write_flow,
     write_linked_auto_product_system_fixture,
     write_product_system_fixture,
@@ -662,7 +667,7 @@ class ImportWorkflowTests(unittest.TestCase):
             )[0]
         self.assertEqual(calls["n"], 1)
 
-    def test_product_system_uses_defaults_for_foreground_auto_linking(self) -> None:
+    def test_product_system_unit_process_provider_falls_back_to_auto_linking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_linked_auto_product_system_fixture(root)
@@ -676,12 +681,101 @@ class ImportWorkflowTests(unittest.TestCase):
 
         self.assertTrue(validation["ok"], validation["errors"])
         self.assertEqual(report["status"], "success")
+        self.assertEqual(len(client.create_product_system_calls), 1)
+        ps_record = next(
+            record
+            for record in report["entities"]
+            if record["entity_type"] == "ProductSystem"
+        )
+        self.assertEqual(ps_record.get("linking_mode_applied"), "auto")
+        self.assertIn("UNIT_PROCESS", ps_record.get("linking_mode_note", ""))
+
+    def test_product_system_explicit_with_background_provider_uses_host_linking(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_background_linked_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# LCI mapping\n",
+                encoding="utf-8",
+            )
+            client = FakeImportClient()
+            seed_background_provider(client)
+            report = run_import(root, client)
+
+        self.assertEqual(report["status"], "success")
         self.assertEqual(len(client.create_product_system_calls), 0)
+        ps_record = next(
+            record
+            for record in report["entities"]
+            if record["entity_type"] == "ProductSystem"
+        )
+        self.assertEqual(ps_record.get("linking_mode_applied"), "explicit")
         saved_raw = client.entities[(olca_schema.ProductSystem, PRODUCT_SYSTEM_ID)]
         assert isinstance(saved_raw, olca_schema.ProductSystem)
         saved = saved_raw
-        self.assertEqual(len(saved.processes or []), 2)
+        process_ids = {ref.id for ref in saved.processes or []}
+        self.assertIn(PROCESS_ID, process_ids)
+        self.assertIn(BACKGROUND_PROVIDER_ID, process_ids)
         self.assertEqual(len(saved.process_links or []), 1)
+        link = saved.process_links[0]
+        self.assertEqual(link.provider.id, BACKGROUND_PROVIDER_ID)
+        self.assertEqual(link.process.id, PROCESS_ID)
+        self.assertEqual(link.flow.id, BACKGROUND_FLOW_ID)
+        self.assertIsNotNone(link.exchange)
+        self.assertEqual(link.exchange.internal_id, 2)
+        self.assertIsNotNone(saved.ref_exchange)
+        self.assertEqual(saved.ref_exchange.internal_id, 1)
+        self.assertEqual(
+            ps_record.get("provider_types", {}).get(BACKGROUND_PROVIDER_ID),
+            olca_schema.ProcessType.LCI_RESULT.value,
+        )
+
+    def test_product_system_explicit_rejects_unit_process_providers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# LCI mapping\n",
+                encoding="utf-8",
+            )
+            path = root / "product_systems" / "ps01-test.json"
+            product_system = json.loads(path.read_text(encoding="utf-8"))
+            product_system["linkingMode"] = "explicit"
+            path.write_text(json.dumps(product_system), encoding="utf-8")
+            client = FakeImportClient()
+            report = run_import(root, client)
+
+        self.assertEqual(report["status"], "partial_failure")
+        self.assertTrue(
+            any("UNIT_PROCESS providers" in error for error in report["errors"])
+        )
+
+    def test_product_system_explicit_errors_on_missing_foreground_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# LCI mapping\n",
+                encoding="utf-8",
+            )
+            consumer_path = root / "processes" / "p01-test.json"
+            consumer = json.loads(consumer_path.read_text(encoding="utf-8"))
+            for exchange in consumer["exchanges"]:
+                if exchange.get("isInput") is True:
+                    exchange.pop("defaultProvider", None)
+            consumer_path.write_text(json.dumps(consumer), encoding="utf-8")
+            path = root / "product_systems" / "ps01-test.json"
+            product_system = json.loads(path.read_text(encoding="utf-8"))
+            product_system["linkingMode"] = "explicit"
+            path.write_text(json.dumps(product_system), encoding="utf-8")
+            validation = workflow.validate_lci_directory(root)
+            client = FakeImportClient()
+            report = run_import(root, client)
+
+        self.assertFalse(validation["ok"])
+        self.assertEqual(report["status"], "rejected")
 
     def test_lci_validation_rejects_explicit_without_providers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
