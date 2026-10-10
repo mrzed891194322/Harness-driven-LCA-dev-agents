@@ -223,3 +223,59 @@ def test_retry_events_and_attempt_budget_per_visit(tmp_path, monkeypatch):
     assert retry[0]["next_attempt"] == 3 and retry[0]["outcome"] == "retry"
     assert retry[0]["reason"] and retry[0]["errors"]
     assert retry[0]["source"] == "orchestrator"
+
+
+def _seed_lci(tmp_path):
+    proc = tmp_path / "workspace" / "outputs" / "LCI" / "processes" / "p01.json"
+    proc.parent.mkdir(parents=True, exist_ok=True)
+    proc.write_text(
+        json.dumps(
+            {
+                "exchanges": [
+                    {"isInput": False, "unit": {"name": "kg"}},
+                    {
+                        "isInput": True,
+                        "amount": 19.5,
+                        "flow": {"@id": "f-tr", "name": "transport, lorry"},
+                        "unit": {"name": "t*km"},
+                    },
+                ]
+            }
+        )
+    )
+    return proc
+
+
+def test_fault_inject_lci_unit_missing_fires_once(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_FAULT_INJECT", "lci_unit_missing")
+    proc = _seed_lci(tmp_path)
+    script = dict(_happy_script())
+    script[(S4, "executor", 1)] = _ask_upstream(
+        rework_target_stage=S3,
+        rework_artifacts=["workspace/outputs/LCI/processes/p01.json"],
+        status_reason="preflight: unit missing on transport exchange",
+    )
+    script.update(_ok(S3, 2))
+    script.update(_ok(S4, 2))
+    final, _c, recs, _m = _run(tmp_path, script, monkeypatch)
+    assert final["status"] == "completed", final["status_reason"]
+    faults = [r for r in recs if r["kind"] == "fault_injected"]
+    assert len(faults) == 1
+    f = faults[0]
+    assert f["what"] == "lci_unit_missing" and f["fired"] is True
+    assert f["file"] == "workspace/outputs/LCI/processes/p01.json"
+    assert f["exchange"]["index"] == 2 and f["exchange"]["removed_unit"] == "t*km"
+    assert "unit" not in json.loads(proc.read_text())["exchanges"][1]
+    assert final["faults_fired"] == ["lci_unit_missing"]
+    assert [r["to"] for r in recs if r["kind"] == "rework_upstream"] == [S3]
+
+
+def test_fault_inject_unset_has_no_effect(tmp_path, monkeypatch):
+    monkeypatch.delenv("HARNESS_FAULT_INJECT", raising=False)
+    proc = _seed_lci(tmp_path)
+    before = proc.read_text()
+    final, _c, recs, _m = _run(tmp_path, dict(_happy_script()), monkeypatch)
+    assert final["status"] == "completed"
+    assert not [r for r in recs if r["kind"] == "fault_injected"]
+    assert proc.read_text() == before
+    assert "faults_fired" not in final

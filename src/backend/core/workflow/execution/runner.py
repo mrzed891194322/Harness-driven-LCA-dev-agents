@@ -42,6 +42,9 @@ _WORKER_TRANSPORT_BACKOFF_SEC = (2, 4, 8, 16, 32)
 UPSTREAM_REWORK_LIMIT_DEFAULT = 2
 UPSTREAM_REWORK_LIMIT_ENV = "HARNESS_UPSTREAM_REWORK_LIMIT"
 UPSTREAM_REWORK_SCOPES = frozenset({"model_changed"})
+# Test-only fault injection (unset = no effect).
+FAULT_INJECT_ENV = "HARNESS_FAULT_INJECT"
+FAULT_LCI_UNIT_MISSING = "lci_unit_missing"
 Action = Literal["prepare", "run_sdk", "advance", "done"]
 
 
@@ -70,6 +73,7 @@ class WorkflowState(TypedDict):
     stage_attempt_base: dict[str, int]
     stale_stages: list[str]
     attempt_high_water: dict[str, int]
+    faults_fired: list[str]
 
 
 def publish_state(workspace_root: Path, state: WorkflowState) -> None:
@@ -1067,6 +1071,55 @@ class OrchestratorRuntime:
                     write_json_atomic(manifest, value)
         return removed
 
+    def _maybe_inject_fault(
+        self, state: WorkflowState, stage: Stage
+    ) -> list[str] | None:
+        """Test-only: HARNESS_FAULT_INJECT=lci_unit_missing, once per run.
+
+        After the stage that produces the LCI directory passes, delete the
+        ``unit`` of one transport exchange so 04's import preflight fails.
+        Returns the new faults_fired list when it fired, else None.
+        """
+        wanted = {
+            item.strip()
+            for item in os.environ.get(FAULT_INJECT_ENV, "").split(",")
+            if item.strip()
+        }
+        if FAULT_LCI_UNIT_MISSING not in wanted:
+            return None
+        done = list(state.get("faults_fired") or [])
+        if FAULT_LCI_UNIT_MISSING in done:
+            return None
+        lci = next(
+            (
+                out
+                for out in self._stage_outputs(stage)
+                if _norm_rel(out).rsplit("/", 1)[-1] == "LCI"
+            ),
+            None,
+        )
+        if lci is None:
+            return None
+        root = _resolve_workspace_output(self.workspace_root, lci)
+        hit = _strip_transport_unit(root)
+        self._emit(
+            state,
+            {
+                "kind": "fault_injected",
+                "what": FAULT_LCI_UNIT_MISSING,
+                "stage": stage.stage_id,
+                "file": hit[0] if hit else None,
+                "exchange": hit[1] if hit else None,
+                "fired": hit is not None,
+            },
+        )
+        print_orchestrator(
+            f"FAULT INJECTED {FAULT_LCI_UNIT_MISSING}: {hit}"
+            if hit
+            else f"fault {FAULT_LCI_UNIT_MISSING}: no transport exchange found"
+        )
+        return [*done, FAULT_LCI_UNIT_MISSING]
+
     def _emit(self, state: WorkflowState, record: dict[str, Any]) -> None:
         """Append an orchestrator event to the run's events.jsonl (best effort)."""
         try:
@@ -1098,6 +1151,7 @@ class OrchestratorRuntime:
             }
         self._release_stage_sessions(state, stage)
         nxt = self.workflow.stages[next_stage]
+        fired = self._maybe_inject_fault(state, stage)
         high = _record_high_water(state, stage.stage_id)
         base = int(high.get(nxt.stage_id, 0))
         stale = [s for s in (state.get("stale_stages") or []) if s != stage.stage_id]
@@ -1111,6 +1165,7 @@ class OrchestratorRuntime:
             "stage_attempt_base": bases,
             "attempt_high_water": high,
             "stale_stages": stale,
+            **({"faults_fired": fired} if fired is not None else {}),
             "fix_instructions": "",
             "status": "running",
             "current_stage": nxt.stage_id,
@@ -1184,6 +1239,36 @@ def _norm_rel(path: str) -> str:
 def _path_covers(declared: str, artifact: str) -> bool:
     d, a = _norm_rel(declared), _norm_rel(artifact)
     return a == d or a.startswith(d + "/")
+
+
+def _strip_transport_unit(root: Path) -> tuple[str, dict[str, Any]] | None:
+    """Delete ``unit`` from the first transport (x*km) input exchange under root."""
+    if not root.is_dir():
+        return None
+    for path in sorted(root.rglob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        for index, exchange in enumerate(data.get("exchanges") or [], start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            unit = exchange.get("unit")
+            name = unit.get("name") if isinstance(unit, dict) else None
+            if not isinstance(name, str) or "km" not in name.replace(" ", "").lower():
+                continue
+            del exchange["unit"]
+            write_json_atomic(path, data)
+            flow = exchange.get("flow") or {}
+            return "workspace/" + path.relative_to(root.parent.parent).as_posix(), {
+                "index": index,
+                "flow_id": flow.get("@id"),
+                "flow_name": flow.get("name"),
+                "removed_unit": name,
+            }
+    return None
 
 
 def _split_errors(reason: str) -> list[str]:
