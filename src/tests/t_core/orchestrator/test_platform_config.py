@@ -174,28 +174,21 @@ class WorkflowYamlTests(unittest.TestCase):
 
     def test_stage_packages_use_spec_yaml_and_rules(self) -> None:
         spec_root = PROJECT_ROOT / "harness" / "specs"
-        rules_root = PROJECT_ROOT / "harness" / "rules" / "prompts"
+        rules_root = PROJECT_ROOT / "harness" / "rules"
         self.assertTrue((spec_root / "01-intake-gate" / "spec.yaml").is_file())
         self.assertFalse((spec_root / "01-intake-gate" / "executor.md").exists())
-        self.assertTrue(
-            (rules_root / "assignments" / "01-intake-gate" / "reviewer.md").is_file()
-        )
+        self.assertTrue((rules_root / "stages" / "01-intake-gate.reviewer.md").is_file())
         self.assertTrue((rules_root / "stages" / "01-intake-gate.revise.md").is_file())
         self.assertFalse((spec_root / "08-lca-revise-workflow").exists())
         for package in STAGE_PACKAGES[1:]:
             self.assertTrue((spec_root / package / "spec.yaml").is_file(), package)
-            self.assertTrue(
-                (rules_root / "assignments" / package / "executor.md").is_file(),
-                package,
-            )
-            self.assertTrue(
-                (rules_root / "assignments" / package / "reviser.md").is_file(),
-                package,
-            )
-            self.assertTrue(
-                (rules_root / "assignments" / package / "reviewer.md").is_file(),
-                package,
-            )
+            for role in ("executor", "reviser", "reviewer"):
+                self.assertTrue(
+                    (rules_root / "stages" / f"{package}.{role}.md").is_file(),
+                    (package, role),
+                )
+            for part in ("acceptance.yaml", "permissions.yaml"):
+                self.assertTrue((spec_root / package / part).is_file(), (package, part))
             self.assertTrue(
                 (rules_root / "stages" / f"{package}.revise.md").is_file(), package
             )
@@ -225,8 +218,11 @@ class WorkflowYamlTests(unittest.TestCase):
             assignment=reviewer,
             run_context={"run_id": "r", "role": "reviewer"},
         )
-        self.assertIn('"id": "03-dataset-mapping"', exec_prompt)
-        self.assertIn('"id": "03-dataset-mapping"', review_prompt)
+        # P5: the machine contract is no longer in the prompt (get_spec context instead)
+        for prompt in (exec_prompt, review_prompt):
+            self.assertNotIn("harness/specs/", prompt)
+            self.assertNotIn('"$schema"', prompt)
+            self.assertTrue(prompt.rstrip().endswith("以 spec_mcp 为准，用 submit 交付"))
         self.assertIn(
             (PROJECT_ROOT / workflow.rules["openlca_usage"])
             .read_text(encoding="utf-8")
@@ -387,13 +383,13 @@ class WorkflowYamlTests(unittest.TestCase):
         for relative in (
             "harness/specs/01-intake-gate/spec.yaml",
             "harness/specs/02-inventory-extraction/spec.yaml",
-            "harness/rules/prompts/stages/02-inventory-extraction.revise.md",
-            "harness/rules/prompts/assignments/03-dataset-mapping/reviser.md",
-            "harness/rules/prompts/assignments/04-openlca-reporting/reviser.md",
+            "harness/rules/stages/02-inventory-extraction.revise.md",
+            "harness/rules/stages/03-dataset-mapping.reviser.md",
+            "harness/rules/stages/04-openlca-reporting.reviser.md",
         ):
             content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            self.assertNotIn("harness/rules/prompts/lca/exec/", content, relative)
-            self.assertNotIn("harness/rules/prompts/lca/eval/", content, relative)
+            self.assertNotIn("harness/rules/lca/exec/", content, relative)
+            self.assertNotIn("harness/rules/lca/eval/", content, relative)
 
 
 class PlatformAdapterTests(unittest.TestCase):
@@ -463,7 +459,7 @@ class PlatformAdapterTests(unittest.TestCase):
             (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             for relative in (
                 "harness/LCA-main.yaml",
-                "harness/rules/prompts/tools/control_openlca.md",
+                "harness/rules/tools/control_openlca.md",
                 "docs/lang_CN/harness.md",
             )
         )

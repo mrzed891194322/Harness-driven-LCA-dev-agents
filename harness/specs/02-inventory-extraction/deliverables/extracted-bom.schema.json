@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "harness/specs/02-inventory-extraction/extracted-bom.schema.json",
+  "$id": "urn:harness:spec:02-inventory-extraction:extracted-bom",
   "title": "Extracted BOM",
   "type": "object",
   "additionalProperties": false,

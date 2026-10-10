@@ -1,0 +1,12 @@
+version: 1
+host_checks:
+- id: inventory
+  action: inventory_check
+deliverables:
+  extracted-bom:
+  - check: inventory
+    summary: 每行 item_id 唯一；必填字段齐全；extracted 行必须有数量；来源写成“已声明文件#定位符”。
+  extracted-bom-notes:
+  - check: nonempty_text
+    params: {min_chars: 20}
+    summary: 清单说明不少于 20 个字符。

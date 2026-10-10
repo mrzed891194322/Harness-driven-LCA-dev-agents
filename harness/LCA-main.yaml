@@ -2,29 +2,29 @@ id: whole-lca
 max_attempts: 3
 registry:
   rules:
-    workspace_boundary: harness/rules/prompts/project/write-boundary.md
-    runtime: harness/rules/prompts/project/runtime.md
-    runtime_loop: harness/rules/prompts/project/runtime-loop.md
-    paths: harness/rules/prompts/project/paths.md
-    lca_method: harness/rules/prompts/lca/method.md
-    knowledge_files: harness/rules/prompts/lca/knowledge-files.md
-    lca_inventory: harness/rules/prompts/lca/inventory.md
-    lca_mapping: harness/rules/prompts/lca/mapping.md
-    lca_interpretation: harness/rules/prompts/lca/interpretation.md
-    artifact_usage: harness/rules/prompts/tools/lca_artifacts.md
-    openlca_usage: harness/rules/prompts/tools/control_openlca.md
-    reviewer_readonly: harness/rules/prompts/project/reviewer-readonly.md
-    stage_01: harness/rules/prompts/stages/01-intake-gate.md
-    stage_02: harness/rules/prompts/stages/02-inventory-extraction.md
-    stage_03: harness/rules/prompts/stages/03-dataset-mapping.md
-    stage_04: harness/rules/prompts/stages/04-openlca-reporting.md
-    assign_01_reviewer: harness/rules/prompts/assignments/01-intake-gate/reviewer.md
-    assign_02_executor: harness/rules/prompts/assignments/02-inventory-extraction/executor.md
-    assign_02_reviewer: harness/rules/prompts/assignments/02-inventory-extraction/reviewer.md
-    assign_03_executor: harness/rules/prompts/assignments/03-dataset-mapping/executor.md
-    assign_03_reviewer: harness/rules/prompts/assignments/03-dataset-mapping/reviewer.md
-    assign_04_executor: harness/rules/prompts/assignments/04-openlca-reporting/executor.md
-    assign_04_reviewer: harness/rules/prompts/assignments/04-openlca-reporting/reviewer.md
+    workspace_boundary: harness/rules/project/write-boundary.md
+    runtime: harness/rules/project/runtime.md
+    runtime_loop: harness/rules/project/runtime-loop.md
+    paths: harness/rules/project/paths.md
+    lca_method: harness/rules/lca/method.md
+    knowledge_files: harness/rules/lca/knowledge-files.md
+    lca_inventory: harness/rules/lca/inventory.md
+    lca_mapping: harness/rules/lca/mapping.md
+    lca_interpretation: harness/rules/lca/interpretation.md
+    artifact_usage: harness/rules/tools/lca_artifacts.md
+    openlca_usage: harness/rules/tools/control_openlca.md
+    reviewer_readonly: harness/rules/project/reviewer-readonly.md
+    stage_01: harness/rules/stages/01-intake-gate.md
+    stage_02: harness/rules/stages/02-inventory-extraction.md
+    stage_03: harness/rules/stages/03-dataset-mapping.md
+    stage_04: harness/rules/stages/04-openlca-reporting.md
+    assign_01_reviewer: harness/rules/stages/01-intake-gate.reviewer.md
+    assign_02_executor: harness/rules/stages/02-inventory-extraction.executor.md
+    assign_02_reviewer: harness/rules/stages/02-inventory-extraction.reviewer.md
+    assign_03_executor: harness/rules/stages/03-dataset-mapping.executor.md
+    assign_03_reviewer: harness/rules/stages/03-dataset-mapping.reviewer.md
+    assign_04_executor: harness/rules/stages/04-openlca-reporting.executor.md
+    assign_04_reviewer: harness/rules/stages/04-openlca-reporting.reviewer.md
   tools:
     mcp:
       lca_artifacts:
@@ -111,7 +111,7 @@ defaults:
   - workflow_plan
 stages:
 - id: 01-intake-gate
-  spec: harness/specs/01-intake-gate/spec.yaml
+  spec: 01-intake-gate
   max_attempts: 1
   rules:
     add:
@@ -119,7 +119,7 @@ stages:
   steps:
   - assignment: 01-intake-gate.reviewer
 - id: 02-inventory-extraction
-  spec: harness/specs/02-inventory-extraction/spec.yaml
+  spec: 02-inventory-extraction
   max_attempts: 3
   rules:
     add:
@@ -132,7 +132,7 @@ stages:
   - assignment: 02-inventory-extraction.executor
   - assignment: 02-inventory-extraction.reviewer
 - id: 03-dataset-mapping
-  spec: harness/specs/03-dataset-mapping/spec.yaml
+  spec: 03-dataset-mapping
   max_attempts: 3
   rules:
     add:
@@ -146,7 +146,7 @@ stages:
   - assignment: 03-dataset-mapping.executor
   - assignment: 03-dataset-mapping.reviewer
 - id: 04-openlca-reporting
-  spec: harness/specs/04-openlca-reporting/spec.yaml
+  spec: 04-openlca-reporting
   max_attempts: 3
   rules:
     add:

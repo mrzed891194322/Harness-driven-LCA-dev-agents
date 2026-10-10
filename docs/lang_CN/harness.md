@@ -15,7 +15,7 @@ specs/
 | --- | --- |
 | `LCA-main.yaml` / `LCA-revise.yaml` | 完整独立装配图（无 reuse / stage_overrides） |
 | `specs/` | 机器契约：`spec.yaml` + JSON Schema + examples（无 Markdown） |
-| `rules/` | `prompts/`：Agent 自然语言提示词规则（project / lca / tools / stages / assignments）；`permissions/`：白名单权限规则（格式见 `rules/permissions/README.md`，规则文件尚未落地） |
+| `rules/` | `prompts/`：Agent 自然语言提示词规则（project / lca / tools / stages / assignments）；`permissions/`：白名单权限规则（格式见 `specs/shared/permissions/README.md`，规则文件尚未落地） |
 | `tools/` | `mcp/`、`host_action/`、`shared/` 三层 |
 | `knowledge/` | 用户参考资料落点 |
 

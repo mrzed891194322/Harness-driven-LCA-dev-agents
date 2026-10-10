@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "harness/specs/03-dataset-mapping/process-mapping.schema.json",
+  "$id": "urn:harness:spec:03-dataset-mapping:process-mapping",
   "title": "Process mapping",
   "type": "object",
   "additionalProperties": false,

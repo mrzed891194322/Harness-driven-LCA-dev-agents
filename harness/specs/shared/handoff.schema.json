@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "harness/specs/shared/lca-handoff-extension.schema.json",
+  "$id": "urn:harness:spec:shared:handoff",
   "title": "LCA handoff extension fields",
   "type": "object",
   "additionalProperties": true,

@@ -4,4 +4,4 @@
 
 计算计划中的 amount 由功能单位换算得到；实际调用和 raw 应与之相符。完成需求落实表、情景比较、解释与出处表；按规则自主推断每条关键主张的 provenance，解释类主张不得漏行。使用正式工具生成表格。硬工具交付缺失如实失败；解释类无分解工具时标 `llm_inferred` 并写局限，不能把硬计算缺失藏在限制中，也不能把 `llm_inferred` 写成工具测得结果。
 
-本轮最后一动作为交卷：优先 `submit_handoff`，或写入运行上下文 `handoff_path` 的 JSON。提交 `role=executor` 的 handoff，列出完整报告、计算计划和正式 raw 引用；硬工具能力缺口、部分失败或无法恢复的证据缺失如实失败，不代替上游改已审模型。
+报告写好并用 `render_report_tables` 生成表格后，用 `submit("lca_report")` 原位验收。需要退回上游时用 `status=failed` 交卷，不要求交付物已通过。本轮最后一动作为 spec_mcp 的 `submit_handoff` 交卷。提交 `role=executor` 的 handoff，列出完整报告、计算计划和正式 raw 引用；硬工具能力缺口、部分失败或无法恢复的证据缺失如实失败，不代替上游改已审模型。

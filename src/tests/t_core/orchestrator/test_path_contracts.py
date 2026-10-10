@@ -122,8 +122,7 @@ class PathContractTests(unittest.TestCase):
             payload["inputs"] = [
                 {"path": "harness/knowledge/plan/main_plan.md", "required": True}
             ]
-            payload["outputs"] = []
-            payload["acceptance"] = {"checks": []}
+            payload["deliverables"] = []
             spec_path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )

@@ -1,8 +1,15 @@
-"""Permission rules from ``harness/rules/permissions/*.yaml`` (issue #27, REFACTOR_PLAN §7).
+"""Permission rules come from the stage spec (P5 spec channels).
 
-Core parses the rules and injects tools + path scopes into the Pi launch spec; the
-pi-runtime path guard only enforces what it is given. The only code fallback is
-fail-closed: a missing or unparsable rule yields a policy with no tools and no paths.
+- Cross-stage rule definitions: ``harness/specs/shared/permissions/<id>.yaml``.
+- Per stage: ``harness/specs/<stage>/permissions.yaml`` maps role -> rule ids.
+- An assignment may still name ``permissions: [<id>, ...]`` in workflow YAML; the
+  ids must exist under ``shared/permissions``.
+
+Spec (machine constraints) beats rules (prompts): prompts never grant anything.
+Core injects tools + path scopes into the Pi launch spec; spec_mcp tools are added
+automatically and the official paths of ``writer: spec_mcp`` deliverables become
+write-denied for the agent. Any missing or invalid piece fails closed: no tools,
+no paths.
 """
 
 from __future__ import annotations
@@ -10,12 +17,19 @@ from __future__ import annotations
 import fnmatch
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
-PERMISSIONS_DIR = Path("harness") / "rules" / "permissions"
+from backend.core.runtime import harness_fs
+
+if TYPE_CHECKING:
+    from backend.core.workflow.spec.models import StageSpec
+
+SHARED_PERMISSIONS_DIR = "specs/shared/permissions"
 BUILTIN_TOOLS = frozenset({"read", "bash", "edit", "write", "grep", "find", "ls"})
+SPEC_MCP_SERVER = "spec_mcp"
+SPEC_MCP_TOOLS_PATTERN = f"mcp__{SPEC_MCP_SERVER}__*"
 
 
 class PermissionRuleError(ValueError):
@@ -26,7 +40,6 @@ class PermissionRuleError(ValueError):
 class PermissionRule:
     rule_id: str
     roles: tuple[str, ...] = ()
-    default_for_roles: tuple[str, ...] = ()
     builtin: tuple[str, ...] = ()
     mcp: tuple[str, ...] = ()
     read: tuple[str, ...] = ()
@@ -39,6 +52,7 @@ class ResolvedPermissions:
     tools: list[str]
     read_globs: list[str]
     write_globs: list[str]
+    deny_write_globs: list[str] = field(default_factory=list)
     error: str | None = None
     notes: list[str] = field(default_factory=list)
 
@@ -67,7 +81,7 @@ def _rel_glob(glob: str, label: str) -> str:
 def parse_rule(raw: Any, *, source: str) -> PermissionRule:
     if not isinstance(raw, dict):
         raise PermissionRuleError(f"{source}: rule must be a mapping")
-    allowed = {"id", "description", "default_for_roles", "applies_to", "tools", "paths"}
+    allowed = {"id", "description", "applies_to", "tools", "paths"}
     unknown = set(raw) - allowed
     if unknown:
         raise PermissionRuleError(f"{source}: unknown keys {sorted(unknown)}")
@@ -90,7 +104,6 @@ def parse_rule(raw: Any, *, source: str) -> PermissionRule:
     return PermissionRule(
         rule_id=rule_id,
         roles=_str_list(applies.get("roles"), f"{source}: applies_to.roles"),
-        default_for_roles=_str_list(raw.get("default_for_roles"), f"{source}: default_for_roles"),
         builtin=builtin,
         mcp=mcp,
         read=tuple(_rel_glob(g, source) for g in _str_list(paths.get("read"), f"{source}: paths.read")),
@@ -99,16 +112,19 @@ def parse_rule(raw: Any, *, source: str) -> PermissionRule:
 
 
 def load_rules(project_root: Path) -> dict[str, PermissionRule]:
-    directory = project_root / PERMISSIONS_DIR
+    """Shared rule definitions (user version of a file overrides the default)."""
     rules: dict[str, PermissionRule] = {}
-    for path in sorted(directory.glob("*.yaml")):
+    for rel in harness_fs.list_dir(project_root, SHARED_PERMISSIONS_DIR, (".yaml",)):
+        found = harness_fs.resolve(project_root, rel)
+        if found is None:  # pragma: no cover - listed above
+            continue
         try:
-            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+            raw = yaml.safe_load(found.path.read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError) as exc:
-            raise PermissionRuleError(f"{path}: {exc}") from exc
-        rule = parse_rule(raw, source=str(path))
+            raise PermissionRuleError(f"harness/{rel}: {exc}") from exc
+        rule = parse_rule(raw, source=f"harness/{rel}")
         if rule.rule_id in rules:
-            raise PermissionRuleError(f"{path}: duplicate rule id {rule.rule_id!r}")
+            raise PermissionRuleError(f"harness/{rel}: duplicate rule id {rule.rule_id!r}")
         rules[rule.rule_id] = rule
     return rules
 
@@ -127,26 +143,31 @@ def resolve_permissions(
     role: str,
     rule_refs: list[str] | None,
     mcp_servers: dict[str, Any] | None,
+    stage_spec: StageSpec | None,
 ) -> ResolvedPermissions:
-    """Pick the referenced rules (union) or the role default; fail closed on any error."""
+    """Rules named by the assignment, else by the stage spec for this role.
+
+    Fails closed when the spec is missing, the role has no rule, or any rule is
+    missing / invalid / not applicable to the role.
+    """
+    if stage_spec is None:
+        return _deny_all("stage spec missing or invalid; permissions come from the spec")
+    refs = list(rule_refs or stage_spec.role_permissions.get(role) or [])
+    if not refs:
+        return _deny_all(
+            f"spec {stage_spec.spec_id!r} permissions.yaml declares no rule for role {role!r}"
+        )
     try:
         rules = load_rules(project_root)
-        if rule_refs:
-            missing = [r for r in rule_refs if r not in rules]
-            if missing:
-                return _deny_all(f"permission rule(s) not found: {missing}")
-            chosen = [rules[r] for r in rule_refs]
-            for rule in chosen:
-                if rule.roles and role not in rule.roles:
-                    return _deny_all(f"permission rule {rule.rule_id!r} does not apply to role {role!r}")
-        else:
-            chosen = [r for r in rules.values() if role in r.default_for_roles]
-            if len(chosen) != 1:
-                return _deny_all(
-                    f"role {role!r} needs exactly one default permission rule, found {len(chosen)}"
-                )
     except PermissionRuleError as exc:
         return _deny_all(str(exc))
+    missing = [r for r in refs if r not in rules]
+    if missing:
+        return _deny_all(f"permission rule(s) not found: {missing}")
+    chosen = [rules[r] for r in refs]
+    for rule in chosen:
+        if rule.roles and role not in rule.roles:
+            return _deny_all(f"permission rule {rule.rule_id!r} does not apply to role {role!r}")
 
     bound = set(mcp_servers or {})
     tools: list[str] = []
@@ -157,7 +178,6 @@ def resolve_permissions(
             if t not in tools:
                 tools.append(t)
         for pattern in rule.mcp:
-            # keep only patterns that can match a bound server's tools
             server = pattern[len("mcp__"):].split("__", 1)[0]
             if any(fnmatch.fnmatchcase(b, server) for b in bound) and pattern not in tools:
                 tools.append(pattern)
@@ -169,6 +189,17 @@ def resolve_permissions(
             a = _abs_glob(project_root, g)
             if a not in write:
                 write.append(a)
+    if SPEC_MCP_SERVER in bound and SPEC_MCP_TOOLS_PATTERN not in tools:
+        tools.append(SPEC_MCP_TOOLS_PATTERN)
+    deny = [
+        _abs_glob(project_root, d.path)
+        for d in stage_spec.deliverables
+        if d.writer == "spec_mcp"
+    ]
     return ResolvedPermissions(
-        rule_ids=[r.rule_id for r in chosen], tools=tools, read_globs=read, write_globs=write
+        rule_ids=[r.rule_id for r in chosen],
+        tools=tools,
+        read_globs=read,
+        write_globs=write,
+        deny_write_globs=deny,
     )

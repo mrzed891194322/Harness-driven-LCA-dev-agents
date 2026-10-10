@@ -1,0 +1,13 @@
+version: 1
+host_checks:
+- id: mapping
+  action: mapping_check
+deliverables:
+  LCI:
+  - check: lci_directory
+    summary: LCI 目录结构合法（processes/ 等 JSON-LD 文件可解析）。
+  - check: exchange_unit_groups
+    summary: 每条有 provider 的输入交换，单位必须与 provider 参考流同一单位组（如运输 kg*km 与 t*km）；单位缺失或不兼容即不通过。
+  process-mapping:
+  - check: mapping
+    summary: mapping 覆盖全部 BOM item_id；LCI 合法；每个背景 provider/flow 对在当前最终模型上有 validate_providers_batch 正式验证记录。

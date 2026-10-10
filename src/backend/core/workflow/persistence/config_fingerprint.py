@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from backend.core.runtime import harness_fs
 from backend.core.runtime.hashing import sha256_file, stable_hash
 from backend.core.runtime.identifiers import resolve_project_path
 from backend.core.runtime.knowledge_providers.local_files import (
@@ -14,6 +15,7 @@ from backend.core.runtime.knowledge_providers.local_files import (
 from backend.core.runtime.knowledge_providers.local_files import discover_files_at
 from backend.core.runtime.tool_runtime import write_json_atomic
 from backend.core.workflow.spec.models import StageSpec
+from backend.core.workflow.spec.view import spec_view, spec_view_hash
 from backend.settings import records_root
 
 from ..config.models import KnowledgeSource, Workflow
@@ -55,18 +57,22 @@ def implementation_fingerprint(project_root: Path) -> str:
 
 
 def stage_contract_refs(stage_spec: StageSpec, project_root: Path) -> dict[str, Any]:
-    """Fingerprint the stage spec.yaml and every JSON Schema it references."""
-    schemas: list[dict[str, str]] = []
-    seen: set[str] = set()
-    for contract in (*stage_spec.inputs, *stage_spec.outputs):
-        if contract.schema and contract.schema not in seen:
-            seen.add(contract.schema)
-            schemas.append(_file_ref(project_root, contract.schema))
-    if stage_spec.handoff_schema and stage_spec.handoff_schema not in seen:
-        schemas.append(_file_ref(project_root, stage_spec.handoff_schema))
+    """Fingerprint every spec file (content + default/user) and the get_spec view."""
+    files: dict[str, dict[str, str]] = {}
+    for rel in sorted(stage_spec.sources):
+        try:
+            found = harness_fs.resolve(project_root, rel)
+        except ValueError:
+            found = None
+        files[rel] = (
+            {"source": found.source, "sha256": found.sha256}
+            if found is not None
+            else {"source": "missing", "sha256": "missing"}
+        )
     return {
-        "spec": _file_ref(project_root, stage_spec.source_path),
-        "schemas": schemas,
+        "spec": stage_spec.source_path,
+        "files": files,
+        "spec_view": spec_view_hash(spec_view(stage_spec, project_root)),
     }
 
 

@@ -13,9 +13,10 @@ _SECTION_SPECS: tuple[tuple[str, str, set[str]], ...] = (
 )
 _GROUP_LABELS = {
     "": "概览",
-    "prompts": "提示词规则",
-    "permissions": "权限规则",
     "project": "项目",
+    "permissions": "权限规则",
+    "deliverables": "交付物 schema",
+    "examples": "示例",
     "lca": "LCA",
     "stages": "阶段",
     "assignments": "角色",
@@ -25,7 +26,7 @@ _GROUP_LABELS = {
     "shared": "共享",
 }
 _GROUP_ORDER = {
-    "rules": ["", "prompts", "permissions"],
+    "rules": ["", "project", "lca", "tools", "stages"],
     "workflows": [""],
     "knowledge": ["", "plan", "inputs"],
 }

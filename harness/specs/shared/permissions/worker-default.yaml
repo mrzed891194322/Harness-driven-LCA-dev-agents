@@ -1,6 +1,5 @@
 id: worker-default
 description: 执行 / 修订角色：读 workspace 和知识库，只写 workspace；不给 bash（命令可绕过路径限制）
-default_for_roles: [executor, reviser]
 applies_to:
   roles: [executor, reviser]
 tools:

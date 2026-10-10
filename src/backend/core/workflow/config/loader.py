@@ -13,6 +13,7 @@ from backend.core.runtime.identifiers import (
     resolve_project_path,
 )
 from backend.core.runtime.tool_runtime import ToolRuntimeSpec
+from backend.core.workflow.spec.loader import spec_relative_for
 
 from .lists import parse_optional_list_field, reject_user_seq_declaration, resolve_list
 from .models import (
@@ -371,9 +372,7 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         stages.append(
             Stage(
                 stage_id=stage_id,
-                spec=require_relative_path(
-                    str(spec.get("spec") or ""), label=f"{stage_id} spec"
-                ),
+                spec=spec_relative_for(str(spec.get("spec") or "")),
                 max_attempts=stage_attempts,
                 steps=steps,
                 knowledge_decl=parse_optional_list_field(spec["knowledge"])

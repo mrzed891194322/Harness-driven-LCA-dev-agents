@@ -53,3 +53,6 @@ src/pi-runtime/dist/
 
 # Local BYOK credentials (never commit)
 .local/
+
+# Harness user overrides (GUI edits; never committed)
+harness/.user/

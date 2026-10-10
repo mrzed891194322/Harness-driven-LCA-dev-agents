@@ -1,0 +1,8 @@
+version: 1
+host_checks:
+- id: report
+  action: report_check
+deliverables:
+  lca_report:
+  - check: report
+    summary: 报告引用的计算结果都有当前模型下的计算证据；表格由 render_report_tables 生成且与证据一致。

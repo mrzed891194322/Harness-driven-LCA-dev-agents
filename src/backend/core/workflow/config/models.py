@@ -75,7 +75,7 @@ class Assignment:
     tools_decl: Any | None = None  # {"mcp": list|patch} or None
     rules_decl: Any | None = None
     knowledge_decl: Any | None = None
-    # ids under harness/rules/permissions; None => role default rule
+    # ids under harness/specs/<stage>/permissions.yaml; None => role default rule
     permissions_decl: list[str] | None = None
 
 

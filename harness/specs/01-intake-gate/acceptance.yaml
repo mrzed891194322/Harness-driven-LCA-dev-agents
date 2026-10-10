@@ -1,0 +1,5 @@
+version: 1
+# 交卷后编排器执行的 Host Action 检查
+host_checks: []
+# submit 时 spec_mcp 执行的检查（按交付物名）
+deliverables: {}

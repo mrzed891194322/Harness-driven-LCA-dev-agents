@@ -14,13 +14,13 @@
 - 03 审核通过快照由编排器记录；04 导入/计算只接受未变化的已审模型。计算请求须与 calculation-plan.json 一致。
 - 工具身份由编排器写入 `--context-file`（每轮覆盖 attempt/role）；MCP 每次调用重读。`LCA_*` 环境变量仅为冗余。无该参数时（GUI/探测）才用独立 standalone run，其产物不进入正式运行复用。
 
-离线回归：`uv run pytest src/tests/t_harness/tools/control_openlca -q`。行为规则见 `harness/rules/prompts/tools/control_openlca.md`，证据与返工约定见 `harness/rules/prompts/project/runtime-loop.md`。
+离线回归：`uv run pytest src/tests/t_harness/tools/control_openlca -q`。行为规则见 `harness/rules/tools/control_openlca.md`，证据与返工约定见 `harness/rules/project/runtime-loop.md`。
 
 ---
 
 # openLCA 控制脚本说明及公共工具规范 (README.md)
 
-本目录为 `control-openlca` 技能的脚本目录。Agent 在调用 openLCA MCP 时的行为约束见 [`harness/rules/prompts/tools/control_openlca.md`](../../../rules/prompts/tools/control_openlca.md)。
+本目录为 `control-openlca` 技能的脚本目录。Agent 在调用 openLCA MCP 时的行为约束见 [`harness/rules/tools/control_openlca.md`](../../../rules/tools/control_openlca.md)。
 
 为了保证代码复用性、降低维护成本，本技能采用了“**共享公共工具包 + 专属私有任务包**”的架构设计。
 
@@ -142,7 +142,7 @@ uv run pytest src/tests/t_harness/tools/control_openlca -v
 
 ## Agent 开发与扩展规范
 
-1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。完整 Agent 纪律见 [`harness/rules/prompts/tools/control_openlca.md`](../../../rules/prompts/tools/control_openlca.md)。
+1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。完整 Agent 纪律见 [`harness/rules/tools/control_openlca.md`](../../../rules/tools/control_openlca.md)。
 2.  **首选复用**：当开发正式新脚本时，主程序顶部必须通过追加 `sys.path` 导入 `src/scripts/utils/` 下的对应功能。
 3.  **单一职责**：请勿在新脚本主文件中编写关于连接、查找、导出等繁琐实现。`main.py` 应当只负责顶层流程编排。
 4.  **升级与扩展**：
