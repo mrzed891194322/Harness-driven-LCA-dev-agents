@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import json
 import os
 import time
@@ -1129,7 +1131,7 @@ class OrchestratorRuntime:
         payload = {
             "source": "orchestrator",
             "run_id": state.get("run_id"),
-            "ts": time.time(),
+            "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
             **record,
         }
         try:
