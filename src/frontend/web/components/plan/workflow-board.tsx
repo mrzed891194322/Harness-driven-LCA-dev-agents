@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { Bot, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   readSpec,
@@ -176,26 +176,6 @@ function relatedOf(workflow: WorkflowGraph, selection: Selection, specs: Record<
   return related;
 }
 
-function roleLine(workflow: WorkflowGraph, stage: WorkflowGraph["stages"][number]): string {
-  return stage.steps
-    .map((step) => {
-      const role = assignmentOf(workflow, step.assignment)?.role ?? "";
-      return ROLE_LABEL[role] ?? role;
-    })
-    .join(" → ");
-}
-
-function stageNote(current: WorkflowGraph, other: WorkflowGraph, stage: WorkflowGraph["stages"][number]) {
-  const otherLabel = FILE_LABEL[other.file] ?? other.id;
-  const otherStage = other.stages.find((item) => item.id === stage.id);
-  if (!otherStage) return { same: false, text: `${otherLabel}里没有这一阶段` };
-  const sameRules = stage.rules.join("|") === otherStage.rules.join("|");
-  const sameSteps = stage.steps.map((step) => step.assignment).join("|") === otherStage.steps.map((step) => step.assignment).join("|");
-  if (sameRules && sameSteps) return { same: true, text: `与${otherLabel}相同` };
-  if (!sameSteps) return { same: false, text: `${otherLabel}：${roleLine(other, otherStage)}` };
-  return { same: false, text: `${otherLabel}的附加规则不同` };
-}
-
 async function fetchDoc(path: string): Promise<string> {
   const response = await apiFetch(`/api/harness/document?path=${encodeURIComponent(path)}`);
   const data = (await response.json()) as { content?: string; detail?: string };
@@ -210,7 +190,7 @@ function harnessPath(path: string): string {
 let cachedWorkflows: WorkflowGraph[] | null = null;
 let cachedSpecs: Record<string, SpecSummary> | null = null;
 
-export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeChange: (mode: WorkMode) => void }) {
+export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   const [workflows, setWorkflows] = useState<WorkflowGraph[]>(cachedWorkflows ?? []);
   const [specs, setSpecs] = useState<Record<string, SpecSummary>>(cachedSpecs ?? {});
   const [selection, setSelection] = useState<Selection>({ kind: "workflow" });
@@ -360,14 +340,6 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
     }
   }
 
-  function openWorkflow(nextFile: string, nextSelection: Selection) {
-    const target = workflows.find((item) => item.file === nextFile);
-    if (!target) return;
-    setSelection(remap(nextSelection, target));
-    const nextMode = (Object.entries(MODE_FILE).find(([, name]) => name === nextFile)?.[0] ?? "new") as WorkMode;
-    if (nextMode !== mode) onModeChange(nextMode);
-  }
-
   return (
     <div className="flow-board">
       <div className="flow-toolbar">
@@ -378,60 +350,15 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
         <ul className="flow-legend" aria-label="分工角色">
           {Object.entries(ROLE_LABEL).map(([role, label]) => (
             <li key={role} data-role={role}>
+              <Bot size={12} strokeWidth={1.75} aria-hidden="true" />
               {label}
             </li>
           ))}
         </ul>
-        <label className="flow-default-model">
-          默认模型
-          <select
-            aria-label="默认模型"
-            value={models.some((item) => item.id === defaultModel) ? defaultModel : ""}
-            disabled={!models.length}
-            onChange={(event) => void changeDefault(event.target.value)}
-          >
-            {!models.length ? (
-              <option value="">{modelsLoaded ? "尚未连接模型" : "正在读取已连接模型…"}</option>
-            ) : null}
-            <ModelOptions models={models} />
-          </select>
-        </label>
-        {modelNote ? <p className="flow-model-note">{modelNote}</p> : null}
-      </div>
-
-      <div className="flow-defaults">
-        <span>默认规则</span>
-        {workflow.defaults.rules.map((id) => (
-          <button
-            key={id}
-            type="button"
-            className="flow-chip"
-            title={rulePath(workflow, id)}
-            aria-pressed={selection.kind === "rule" && selection.id === id}
-            data-related={related.rules.has(id) ? "true" : "false"}
-            onClick={() => choose({ kind: "rule", id })}
-          >
-            {id}
-          </button>
-        ))}
-        <span>知识</span>
-        {workflow.defaults.knowledge.map((id) => (
-          <button
-            key={id}
-            type="button"
-            className="flow-chip"
-            aria-pressed={selection.kind === "knowledge" && selection.id === id}
-            data-related={related.knowledge.has(id) ? "true" : "false"}
-            onClick={() => choose({ kind: "knowledge", id })}
-          >
-            {id}
-          </button>
-        ))}
       </div>
 
       <div className="flow-stages">
         {workflow.stages.map((stage, index) => {
-          const note = other ? stageNote(workflow, other, stage) : null;
           const active = selection.kind === "stage" && selection.id === stage.id;
           return (
             <div className="flow-stage-wrap" key={stage.id}>
@@ -481,8 +408,11 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
                           aria-pressed={selection.kind === "assignment" && selection.id === step.assignment}
                           onClick={() => choose({ kind: "assignment", id: step.assignment })}
                         >
-                          <em>{roleLabel}</em>
-                          <small>{assignment?.mcp.length ? assignment.mcp.join(" · ") : role}</small>
+                          <Bot className="flow-step-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
+                          <span className="flow-step-copy">
+                            <em>{roleLabel}</em>
+                            <small>{assignment?.mcp.length ? assignment.mcp.join(" · ") : role}</small>
+                          </span>
                         </button>
                         <select
                           className="flow-model"
@@ -502,52 +432,10 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
                     );
                   })}
                 </div>
-                {note && other ? (
-                  <button
-                    type="button"
-                    className="flow-stage-note"
-                    data-same={note.same ? "true" : "false"}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openWorkflow(other.file, { kind: "stage", id: stage.id });
-                    }}
-                  >
-                    {note.text}
-                  </button>
-                ) : null}
               </article>
             </div>
           );
         })}
-      </div>
-
-      <div className="flow-tools">
-        <span>MCP</span>
-        {workflow.mcp.map((tool) => (
-          <button
-            key={tool.id}
-            type="button"
-            className="flow-chip"
-            aria-pressed={selection.kind === "mcp" && selection.id === tool.id}
-            data-related={related.mcp.has(tool.id) ? "true" : "false"}
-            onClick={() => choose({ kind: "mcp", id: tool.id })}
-          >
-            {tool.id}
-          </button>
-        ))}
-        <span>检查</span>
-        {workflow.hostActions.map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            className="flow-chip"
-            aria-pressed={selection.kind === "host" && selection.id === action.id}
-            data-related={related.host.has(action.id) ? "true" : "false"}
-            onClick={() => choose({ kind: "host", id: action.id })}
-          >
-            {action.id}
-          </button>
-        ))}
       </div>
 
       <Inspector
@@ -555,8 +443,12 @@ export function WorkflowBoard({ mode, onModeChange }: { mode: WorkMode; onModeCh
         other={other}
         specs={specs}
         selection={selection}
+        models={models}
+        modelsLoaded={modelsLoaded}
+        defaultModel={defaultModel}
+        modelNote={modelNote}
         onSelect={choose}
-        onOpen={openWorkflow}
+        onChangeDefault={(profileId) => void changeDefault(profileId)}
       />
     </div>
   );
@@ -567,24 +459,42 @@ function Inspector({
   other,
   specs,
   selection,
+  models,
+  modelsLoaded,
+  defaultModel,
+  modelNote,
   onSelect,
-  onOpen,
+  onChangeDefault,
 }: {
   workflow: WorkflowGraph;
   other?: WorkflowGraph;
   specs: Record<string, SpecSummary>;
   selection: Selection;
+  models: ModelOption[];
+  modelsLoaded: boolean;
+  defaultModel: string;
+  modelNote: string;
   onSelect: (selection: Selection) => void;
-  onOpen: (file: string, selection: Selection) => void;
+  onChangeDefault: (profileId: string) => void;
 }) {
   return (
     <aside className="flow-inspector" aria-live="polite">
       {selection.kind !== "workflow" ? (
         <button type="button" className="flow-back" onClick={() => onSelect({ kind: "workflow" })}>
-          回到总览
+          回到全局规则
         </button>
       ) : null}
-      {selection.kind === "workflow" ? <WorkflowDetail workflow={workflow} onSelect={onSelect} /> : null}
+      {selection.kind === "workflow" ? (
+        <GlobalRules
+          workflow={workflow}
+          models={models}
+          modelsLoaded={modelsLoaded}
+          defaultModel={defaultModel}
+          modelNote={modelNote}
+          onSelect={onSelect}
+          onChangeDefault={onChangeDefault}
+        />
+      ) : null}
       {selection.kind === "stage" ? (
         <StageDetail
           workflow={workflow}
@@ -592,7 +502,6 @@ function Inspector({
           stageId={selection.id}
           specs={specs}
           onSelect={onSelect}
-          onOpen={onOpen}
         />
       ) : null}
       {selection.kind === "assignment" ? (
@@ -645,38 +554,65 @@ function JumpList({
   );
 }
 
-function WorkflowDetail({
+function GlobalRules({
   workflow,
+  models,
+  modelsLoaded,
+  defaultModel,
+  modelNote,
   onSelect,
+  onChangeDefault,
 }: {
   workflow: WorkflowGraph;
+  models: ModelOption[];
+  modelsLoaded: boolean;
+  defaultModel: string;
+  modelNote: string;
   onSelect: (selection: Selection) => void;
+  onChangeDefault: (profileId: string) => void;
 }) {
   return (
     <>
-      <Kicker>工作流</Kicker>
-      <h3>{FILE_LABEL[workflow.file] ?? workflow.id}</h3>
-      <p className="flow-lead">
-        {workflow.file} · {workflow.stages.length} 个阶段 · {workflow.assignments.length} 个分工
-      </p>
+      <Kicker>编排</Kicker>
+      <h3>全局规则</h3>
+      <p className="flow-lead">对所有阶段生效。没有单独指定模型的分工使用这里的默认模型。</p>
       <JumpList
-        label="MCP"
-        items={workflow.mcp.map((tool) => ({ id: tool.id, text: tool.id }))}
-        onPick={(id) => onSelect({ kind: "mcp", id })}
+        label="规则"
+        items={workflow.defaults.rules.map((id) => ({ id, text: id, title: rulePath(workflow, id) }))}
+        onPick={(id) => onSelect({ kind: "rule", id })}
       />
       <JumpList
-        label="宿主动作"
-        items={workflow.hostActions.map((action) => ({ id: action.id, text: action.id }))}
-        onPick={(id) => onSelect({ kind: "host", id })}
+        label="工具"
+        items={[
+          ...workflow.mcp.map((tool) => ({ id: tool.id, text: `MCP · ${tool.id}` })),
+          ...workflow.hostActions.map((action) => ({ id: action.id, text: `检查 · ${action.id}` })),
+        ]}
+        onPick={(id) => {
+          const tool = workflow.mcp.some((item) => item.id === id);
+          onSelect(tool ? { kind: "mcp", id } : { kind: "host", id });
+        }}
       />
       <JumpList
-        label="阶段"
-        items={workflow.stages.map((stage) => ({
-          id: stage.id,
-          text: `${stage.id.slice(0, 2)} ${STAGE_TITLE[stage.id] ?? stage.id}`,
-        }))}
-        onPick={(id) => onSelect({ kind: "stage", id })}
+        label="知识"
+        items={workflow.defaults.knowledge.map((id) => ({ id, text: id }))}
+        onPick={(id) => onSelect({ kind: "knowledge", id })}
       />
+      <div className="flow-block">
+        <h3>默认模型</h3>
+        <select
+          className="flow-model"
+          aria-label="默认模型"
+          value={models.some((item) => item.id === defaultModel) ? defaultModel : ""}
+          disabled={!models.length}
+          onChange={(event) => onChangeDefault(event.target.value)}
+        >
+          {!models.length ? (
+            <option value="">{modelsLoaded ? "尚未连接模型" : "正在读取已连接模型…"}</option>
+          ) : null}
+          <ModelOptions models={models} />
+        </select>
+        {modelNote ? <p className="flow-model-note">{modelNote}</p> : null}
+      </div>
     </>
   );
 }
@@ -687,14 +623,12 @@ function StageDetail({
   stageId,
   specs,
   onSelect,
-  onOpen,
 }: {
   workflow: WorkflowGraph;
   other?: WorkflowGraph;
   stageId: string;
   specs: Record<string, SpecSummary>;
   onSelect: (selection: Selection) => void;
-  onOpen: (file: string, selection: Selection) => void;
 }) {
   const stage = workflow.stages.find((item) => item.id === stageId);
   if (!stage) return null;
@@ -737,11 +671,7 @@ function StageDetail({
         onPick={(id) => onSelect({ kind: "rule", id })}
       />
       {other && otherStage && extraRules.length ? (
-        <JumpList
-          label={`${otherLabel}另外附带`}
-          items={extraRules.map((id) => ({ id, text: id }))}
-          onPick={(id) => onOpen(other.file, { kind: "rule", id })}
-        />
+        <PathList label={`${otherLabel}另外附带`} paths={extraRules} />
       ) : null}
       {spec ? (
         <>

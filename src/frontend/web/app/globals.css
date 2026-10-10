@@ -1709,6 +1709,9 @@ button:disabled {
 }
 
 .flow-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.75rem;
@@ -1739,7 +1742,6 @@ button:disabled {
 .flow-jump,
 .flow-back,
 .flow-stage-head,
-.flow-stage-note,
 .flow-step {
   min-height: 0;
 }
@@ -1839,11 +1841,23 @@ button:disabled {
 .flow-step {
   width: 100%;
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.flow-step-icon {
+  flex: none;
+}
+
+.flow-step-copy {
+  min-width: 0;
+  display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 1px;
-  padding: 6px 8px;
-  text-align: left;
 }
 
 .flow-step em {
@@ -1866,22 +1880,6 @@ button:disabled {
 
 .flow-step[data-related="true"]:not([aria-pressed="true"]) {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, white);
-}
-
-.flow-stage-note {
-  width: 100%;
-  padding: 6px 8px;
-  text-align: left;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  background: #f7f8f5;
-  color: var(--muted);
-}
-
-.flow-stage-note[data-same="false"] {
-  color: var(--warn);
-  background: var(--warn-soft);
-  border-color: color-mix(in srgb, var(--warn) 30%, white);
 }
 
 .flow-inspector {
@@ -2645,6 +2643,9 @@ button:disabled {
   margin-top: 2px;
   padding: 1px 8px;
   border-radius: 999px;
+  border-color: var(--line);
+  background: #fff;
+  color: var(--ink);
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1.5;
@@ -2695,17 +2696,45 @@ button:disabled {
   font-size: 0.8rem;
 }
 
-.run-reason-panel pre {
+.run-reason-body {
   flex: 1;
   min-height: 0;
-  margin: 0;
   overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: var(--font-ui);
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--ink);
+  padding-right: 4px;
+}
+
+.run-reason-body.agent-prose > :first-child {
+  margin-top: 0;
+}
+
+.run-reason-body.agent-prose p {
+  margin: 0.75em 0;
+}
+
+.run-reason-body.agent-prose ol {
+  margin: 0.35em 0 0.9em;
+  padding-left: 1.35rem;
+}
+
+.run-reason-body.agent-prose li + li {
+  margin-top: 0.55em;
+}
+
+.run-reason-foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+  border-top: 1px solid var(--line);
+}
+
+.run-reason-foot button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 6px 12px;
+  font-size: 0.84rem;
 }
 
 .badge.is-live {
@@ -2761,12 +2790,19 @@ button:disabled {
   border-radius: 10px;
 }
 
+.agent-stream > * {
+  flex-shrink: 0;
+}
+
 .agent-system {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   margin: 0;
+  min-width: 0;
   min-height: 40px;
   padding: 6px 12px;
   border: 1px solid var(--line);
@@ -2775,6 +2811,22 @@ button:disabled {
   color: var(--ink);
   font-size: 0.86rem;
   line-height: 1.45;
+}
+
+.agent-system.is-long {
+  align-items: flex-start;
+}
+
+.agent-system.is-long .agent-system-mark,
+.agent-system.is-long > time {
+  margin-top: 2px;
+}
+
+.agent-system.is-long .agent-system-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 .agent-system-mark {
@@ -2793,6 +2845,42 @@ button:disabled {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.agent-system-clip,
+.agent-system-full {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agent-system-clip {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.agent-system-full {
+  max-height: 8.5em;
+  overflow: auto;
+}
+
+.agent-system-more {
+  display: inline-flex;
+  min-height: 0;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.agent-system-more:hover {
+  color: var(--ink);
 }
 
 .agent-system code {
@@ -3196,8 +3284,19 @@ button:disabled {
 .activity-chip-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
+}
+
+.activity-chip-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--muted);
+}
+
+.activity-chip.is-live .activity-chip-mark {
+  color: var(--accent);
 }
 
 .activity-chip-head strong {

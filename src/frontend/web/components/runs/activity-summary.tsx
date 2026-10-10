@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { History, Play } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
 /** One record of /api/workflow/activity (events.jsonl written by the Pi client). */
@@ -112,7 +113,7 @@ export function summarizeActivity(events: ActivityEvent[]): AssignmentActivity[]
   return [...byKey.values()];
 }
 
-export function ActivitySummary({ runId }: { runId: string }) {
+export function ActivitySummary({ runId, running = false }: { runId: string; running?: boolean }) {
   const [items, setItems] = useState<AssignmentActivity[]>([]);
   const events = useRef<ActivityEvent[]>([]);
   const offset = useRef(0);
@@ -178,9 +179,22 @@ export function ActivitySummary({ runId }: { runId: string }) {
                 ? "warn"
                 : "off";
         const note = item.handoff === "err" ? item.handoffNote : "";
+        const active =
+          running &&
+          Boolean(item.stage) &&
+          (Boolean(item.running) ||
+            item.handoff === "pending" ||
+            (!item.turnEnded && item.handoff === "none"));
         return (
-          <li key={item.key} className="activity-chip" title={note || item.lastDetail || undefined}>
+          <li
+            key={item.key}
+            className={active ? "activity-chip is-live" : "activity-chip"}
+            title={note || item.lastDetail || undefined}
+          >
             <span className="activity-chip-head">
+              <span className="activity-chip-mark" role="img" aria-label={active ? "正在执行" : "历史记录"}>
+                {active ? <Play size={13} strokeWidth={1.75} /> : <History size={13} strokeWidth={1.75} />}
+              </span>
               <strong>{item.stage}</strong>
               <small>
                 {role}

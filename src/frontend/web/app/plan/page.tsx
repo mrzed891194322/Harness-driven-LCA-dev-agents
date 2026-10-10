@@ -441,7 +441,7 @@ export default function PlanPage() {
               </div>
             </div>
           ) : panel === "workflow" ? (
-            <WorkflowBoard mode={workMode} onModeChange={setWorkMode} />
+            <WorkflowBoard mode={workMode} />
           ) : (
             <PreviewBoard mode={workMode} fields={form} references={references} />
           )}

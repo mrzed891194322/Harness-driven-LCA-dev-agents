@@ -180,20 +180,7 @@ export function AgentStream({
 }
 
 function AgentRow({ item, model }: { item: AgentItem; model: string }) {
-  if (item.type === "system") {
-    return (
-      <p className="agent-system">
-        <span className="agent-system-mark" aria-hidden="true">
-          <Terminal size={13} strokeWidth={1.75} />
-        </span>
-        <time>{item.time}</time>
-        <span className="agent-system-text">
-          <SystemText text={item.text} />
-          {item.count > 1 ? <em> ×{item.count}</em> : null}
-        </span>
-      </p>
-    );
-  }
+  if (item.type === "system") return <SystemRow item={item} />;
   if (item.type === "turn") {
     const role = ROLE_LABEL[item.role] || item.role;
     const attempt = item.attempt ? `第 ${item.attempt} 次` : "";
@@ -279,6 +266,40 @@ function ToolRow({ item }: { item: Extract<AgentItem, { type: "tool" }> }) {
   );
 }
 
+function systemLines(text: string): string[] {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function SystemRow({ item }: { item: Extract<AgentItem, { type: "system" }> }) {
+  const lines = systemLines(item.text);
+  const long = lines.length > 2 || item.text.length > 240;
+  const [open, setOpen] = useState(false);
+  const hidden = Math.max(lines.length - 2, 0);
+  return (
+    <div className={long ? "agent-system is-long" : "agent-system"}>
+      <span className="agent-system-mark" aria-hidden="true">
+        <Terminal size={13} strokeWidth={1.75} />
+      </span>
+      <time>{item.time}</time>
+      <span className="agent-system-text">
+        <span className={long ? (open ? "agent-system-full" : "agent-system-clip") : undefined}>
+          {long ? (open ? lines : lines.slice(0, 2)).join("\n") : <SystemText text={item.text} />}
+          {item.count > 1 ? <em> ×{item.count}</em> : null}
+        </span>
+        {long ? (
+          <button type="button" className="agent-system-more" onClick={() => setOpen((value) => !value)}>
+            {open ? "收起" : hidden > 0 ? `还有 ${hidden} 行` : "展开"}
+          </button>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
 function SystemText({ text }: { text: string }) {
   const prepare = /^准备 (\S+) · (第 \d+ 次)$/.exec(text);
   if (prepare) {
@@ -307,7 +328,7 @@ function SystemText({ text }: { text: string }) {
   return text;
 }
 
-function AgentProse({ text }: { text: string }) {
+export function AgentProse({ text }: { text: string }) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -363,10 +384,10 @@ function AgentProse({ text }: { text: string }) {
       );
       continue;
     }
-    if (/^\d+\.\s+/.test(line)) {
+    if (isOrderedItem(line)) {
       const list: string[] = [];
-      while (index < lines.length && /^\d+\.\s+/.test(lines[index])) {
-        list.push(lines[index].replace(/^\d+\.\s+/, ""));
+      while (index < lines.length && isOrderedItem(lines[index])) {
+        list.push(orderedText(lines[index]));
         index += 1;
       }
       blocks.push(
@@ -398,7 +419,7 @@ function AgentProse({ text }: { text: string }) {
       index < lines.length &&
       lines[index].trim() &&
       !/^(#{1,3})\s+/.test(lines[index]) &&
-      !/^\d+\.\s+/.test(lines[index]) &&
+      !isOrderedItem(lines[index]) &&
       !/^[-*]\s+/.test(lines[index]) &&
       !isTableRow(lines[index])
     ) {
@@ -408,6 +429,14 @@ function AgentProse({ text }: { text: string }) {
     blocks.push(<p key={blocks.length}>{inline(paragraph.join(" "))}</p>);
   }
   return <Fragment>{blocks}</Fragment>;
+}
+
+function isOrderedItem(line: string): boolean {
+  return /^\d+[.)）、]\s+/.test(line);
+}
+
+function orderedText(line: string): string {
+  return line.replace(/^\d+[.)）、]\s+/, "");
 }
 
 function isTableRow(line: string): boolean {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, RefreshCw } from "lucide-react";
+import { Bot, Play, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { readWorkflow, type WorkflowGraph } from "./workflow-yaml";
@@ -247,6 +247,7 @@ export function PreviewBoard({
                       const role = assignment?.role ?? "";
                       return (
                         <li key={step.assignment} data-role={role}>
+                          <Bot size={13} strokeWidth={1.75} aria-hidden="true" />
                           <em>{ROLE_LABEL[role] ?? role}</em>
                           <span>{assignment?.mcp.length ? assignment.mcp.join(" · ") : role}</span>
                         </li>

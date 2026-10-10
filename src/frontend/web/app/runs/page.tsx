@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, CircleStop } from "lucide-react";
+import { AlertCircle, CircleStop, RefreshCw } from "lucide-react";
 import { ActivitySummary } from "../../components/runs/activity-summary";
-import { AgentStream } from "../../components/runs/agent-stream";
+import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { apiFetch } from "../../lib/api";
 
 type Progress = {
@@ -166,7 +166,15 @@ export default function RunsPage() {
                     关闭
                   </button>
                 </div>
-                <pre>{reason || "没有记录到这次失败的原因。"}</pre>
+                <div className="run-reason-body agent-prose">
+                  {reason ? <AgentProse text={reason} /> : <p>没有记录到这次失败的原因。</p>}
+                </div>
+                <div className="run-reason-foot">
+                  <button type="button" disabled title="计划从检查点续跑本阶段，尚未接入">
+                    <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
+                    重跑本轮
+                  </button>
+                </div>
               </div>
             ) : null}
           </div>
@@ -179,11 +187,11 @@ export default function RunsPage() {
                   {label}
                 </span>
               </div>
-              <strong>{progress.current_stage || "尚未开始"}</strong>
+              <strong>{progress.current_stage || "准备开始"}</strong>
               {status === "running" ? (
                 <button
                   type="button"
-                  className="run-stage-action danger"
+                  className="run-stage-action"
                   onClick={() => void stopWork()}
                   disabled={stopping}
                 >
@@ -203,7 +211,7 @@ export default function RunsPage() {
                 </button>
               ) : null}
             </div>
-            <ActivitySummary runId={String(progress.run_id || "")} />
+            <ActivitySummary runId={String(progress.run_id || "")} running={status === "running"} />
           </aside>
         </div>
       </section>
