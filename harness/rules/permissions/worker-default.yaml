@@ -1,10 +1,10 @@
 id: worker-default
-description: 执行 / 修订角色：读 workspace 和知识库，只写 workspace；bash 保留但逐条记录（越界只标记，不拦截）
+description: 执行 / 修订角色：读 workspace 和知识库，只写 workspace；不给 bash（命令可绕过路径限制）
 default_for_roles: [executor, reviser]
 applies_to:
   roles: [executor, reviser]
 tools:
-  builtin: [read, bash, grep, find, ls, write, edit]
+  builtin: [read, grep, find, ls, write, edit]
   mcp: ["mcp__lca_artifacts__*", "mcp__control_openlca__*"]
 paths:
   read: ["workspace/**", "harness/knowledge/**"]
