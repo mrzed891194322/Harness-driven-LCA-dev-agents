@@ -24,7 +24,7 @@ JSON-LD 保持现有导入契约：exchange 显式布尔 isInput；每个 Proces
 
 - 每个 BOM item_id 的处理可追溯，功能适配、代表性、负荷覆盖和排除有依据，无关键未解决的错配或重复计算。
 - 所有必做模型情景齐全；数量换算链完整、可复算且与实际实体一致，不能把 targetAmount 文字当作计算依据的全部。
-- 背景实体有正式证据，新建前景 UUID 稳定一致；Provider–Flow 关系验证针对最终模型，后续修改后刷新失效证据。
+- 背景实体有正式证据，新建前景 UUID 稳定一致；Provider–Flow 关系验证针对最终模型，后续修改后刷新失效证据。交卷前最后一步：LCI 和 mapping 定稿后，对最终模型调用一次 `validate_providers_batch` 覆盖全部背景 provider/flow 对；这之后不要再改 LCI 或 mapping，改了就必须重新验证。
 - 未导入；需要修改上游 BOM/计划时停止并交回上游审查，不在本阶段静默改已审输入。
 
 ## 机器检查与返工

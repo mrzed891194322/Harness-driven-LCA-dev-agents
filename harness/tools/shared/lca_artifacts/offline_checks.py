@@ -100,6 +100,7 @@ def mapping_errors(
         if not path.is_symlink()
     ]
     foreground = {process["@id"] for process in processes}
+    missing: list[str] = []
     for process in processes:
         for exchange in process.get("exchanges", []):
             provider = (exchange.get("defaultProvider") or {}).get("@id")
@@ -109,5 +110,16 @@ def mapping_errors(
                 and provider not in foreground
                 and (provider, flow) not in provider_pairs
             ):
-                errors.append(f"formal provider evidence missing: {provider}/{flow}")
+                pair = f"formal provider evidence missing: {provider}/{flow}"
+                if pair not in missing:
+                    missing.append(pair)
+    if missing:
+        errors.append(
+            "修法：缺少的是针对【当前最终模型】的 Provider–Flow 正式验证记录。"
+            "模型指纹在你修改 LCI 或 mapping 后已变化，之前的验证记录随之作废。"
+            "请在 LCI 和 mapping 定稿后，对最终模型重新调用 validate_providers_batch"
+            "（或 preflight_import_lci），覆盖下列全部 provider/flow 对，之后不要再改 LCI，再交卷。"
+            f"共 {len(missing)} 对："
+        )
+        errors.extend(missing)
     return errors
