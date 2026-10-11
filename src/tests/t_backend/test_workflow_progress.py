@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 import tempfile
 import unittest
 import zipfile
@@ -10,8 +11,13 @@ from fastapi.testclient import TestClient
 
 from backend.api.app import app
 from backend.core.agents.archive import progress_log_path
+from backend.core.workflow.persistence.heartbeat import write_heartbeat
 from backend.core.workflow.persistence.manifest import write_manifest
 from backend.services.workflow_service import WorkflowService
+
+
+def _live_orchestrator(workspace: Path, run_id: str) -> None:
+    write_heartbeat(workspace, run_id=run_id, pid=os.getpid())
 
 
 class WorkflowProgressTests(unittest.TestCase):
@@ -26,6 +32,7 @@ class WorkflowProgressTests(unittest.TestCase):
                 status_reason="",
                 run_id=run_id,
             )
+            _live_orchestrator(root / "workspace", run_id)
             log = progress_log_path(root / "workspace", run_id)
             log.parent.mkdir(parents=True, exist_ok=True)
             log.write_text("[orchestrator-00:00:01]\nstart\n\n", encoding="utf-8")
@@ -91,6 +98,7 @@ class WorkflowProgressTests(unittest.TestCase):
                 run_id=run_id,
                 attempt=2,
             )
+            _live_orchestrator(root / "workspace", run_id)
             body = WorkflowService(root).progress(0)
             self.assertEqual(body["attempt"], 2)
             self.assertEqual(body["current_stage"], "03-dataset-mapping")
@@ -102,6 +110,7 @@ class WorkflowProgressTests(unittest.TestCase):
                 status_reason="",
                 run_id=run_id,
             )
+            _live_orchestrator(root / "workspace", run_id)
             path = checkpoint_path(root / "workspace")
             path.parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(path) as conn:

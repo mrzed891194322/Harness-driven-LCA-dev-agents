@@ -103,6 +103,9 @@ def _web_origins() -> list[str]:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    from backend.services.run_reconcile import reconcile_project
+
+    await asyncio.to_thread(reconcile_project, PROJECT_ROOT)
     yield
     # Release this process's sessions (and their MCP servers) and disconnect from
     # the project's pi-runtime. The runtime itself is stopped by `npm run stop`.

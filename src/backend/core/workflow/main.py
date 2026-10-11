@@ -49,6 +49,7 @@ from backend.core.workflow.persistence.checkpoint import (  # noqa: E402
     open_store,
     workspace_lock,
 )
+from backend.core.workflow.persistence.heartbeat import orchestrator_heartbeat  # noqa: E402
 from backend.core.workflow.persistence.config_fingerprint import (  # noqa: E402
     check_runtime_config,
     write_runtime_config,
@@ -151,7 +152,8 @@ def _main(args: argparse.Namespace) -> int:
                 worker=worker,
                 workflow=workflow,
             )
-            return _exit_code(run_workflow(runtime, state, store))
+            with orchestrator_heartbeat(workspace_root, run_id):
+                return _exit_code(run_workflow(runtime, state, store))
     except WorkspaceBusy as exc:
         print_orchestrator(str(exc), file=sys.stderr)
         return 1
@@ -269,8 +271,9 @@ def _resume(
             file=sys.stderr,
         )
         return 1
-    if state.get("status") in {"completed", "failed"} or state.get("in_flight"):
-        return _exit_code(run_workflow(runtime, state, store))
+    if state.get("status") in {"completed", "failed", "interrupted"} or state.get("in_flight"):
+        with orchestrator_heartbeat(workspace_root, run_id):
+            return _exit_code(run_workflow(runtime, state, store))
     try:
         changes = check_runtime_config(
             workspace_root,
@@ -287,7 +290,8 @@ def _resume(
     if changes:
         _record_resume_config_change(project_root, run_id, changes)
     print_orchestrator(f"resume run_id={run_id}")
-    return _exit_code(run_workflow(runtime, state, store))
+    with orchestrator_heartbeat(workspace_root, run_id):
+        return _exit_code(run_workflow(runtime, state, store))
 
 
 def _exit_code(result: WorkflowState | None) -> int:

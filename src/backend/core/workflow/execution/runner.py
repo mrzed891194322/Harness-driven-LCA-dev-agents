@@ -110,7 +110,7 @@ def run_workflow(
     runtime: OrchestratorRuntime, state: WorkflowState, store: CheckpointStore
 ) -> WorkflowState:
     """Run from a saved action boundary. The caller owns the workspace lock."""
-    if state.get("status") in {"completed", "failed"}:
+    if state.get("status") in {"completed", "failed", "interrupted"}:
         publish_state(runtime.workspace_root, state)
         return state
     if state.get("in_flight"):

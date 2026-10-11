@@ -17,17 +17,35 @@ class SessionSnapshots:
         self.root = project_root or PROJECT_ROOT
 
     def runs(self) -> list[dict[str, Any]]:
+        from backend.services.run_reconcile import reconcile_project, workflow_status_for_run
+
+        reconcile_project(self.root)
+        workspace = self.root / "workspace"
         base = injection.runs_root(self.root)
         if not base.is_dir():
             return []
         dirs = [p for p in base.iterdir() if p.is_dir() and (p / "sessions").is_dir()]
         dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        return [{**injection.run_summary(self.root, p.name), "mtime": p.stat().st_mtime} for p in dirs]
+        rows: list[dict[str, Any]] = []
+        for path in dirs:
+            row = {**injection.run_summary(self.root, path.name), "mtime": path.stat().st_mtime}
+            status = workflow_status_for_run(workspace, path.name)
+            if status:
+                row["workflow_status"] = status
+            rows.append(row)
+        return rows
 
     def run(self, run_id: str) -> dict[str, Any]:
+        from backend.services.run_reconcile import reconcile_project, workflow_status_for_run
+
+        reconcile_project(self.root)
         injection.snapshot_file(self.root, run_id, "x", "prompt.md")  # validates run id
+        summary = injection.run_summary(self.root, run_id)
+        status = workflow_status_for_run(self.root / "workspace", run_id)
+        if status:
+            summary["workflow_status"] = status
         return {
-            "summary": injection.run_summary(self.root, run_id),
+            "summary": summary,
             "sessions": injection.list_sessions(self.root, run_id),
         }
 
