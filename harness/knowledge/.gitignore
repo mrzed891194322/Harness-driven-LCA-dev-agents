@@ -1,11 +1,3 @@
 # Ignore user-uploaded files; keep tracked docs.
 *
-!.gitignore
-!README.md
-!inputs/
-!inputs/**
-inputs/.reference-notes.json
-!plan/
-!plan/**
-!inputs/README.md
-!plan/README.md
+

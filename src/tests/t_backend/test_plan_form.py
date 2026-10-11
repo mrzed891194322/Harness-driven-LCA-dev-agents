@@ -106,6 +106,23 @@ class PlanReferenceTests(unittest.TestCase):
             self.assertNotIn(".reference-notes.json", listed)
             delete_reference(root, "script.exe")
             self.assertNotIn("script.exe", {item["name"] for item in list_references(root)})
+            save_reference(root, "案例/证据.md", b"# nested\n")
+            save_reference(root, "其他/证据.md", b"# other\n")
+            nested = {item["name"]: item["path"] for item in list_references(root)}
+            self.assertEqual(
+                nested["案例/证据.md"],
+                "harness/knowledge/inputs/案例/证据.md",
+            )
+            self.assertIn("其他/证据.md", nested)
+            noted_nested = save_reference_note(root, "案例/证据.md", "只读运输表")
+            self.assertEqual(noted_nested["note"], "只读运输表")
+            delete_reference(root, "案例/证据.md")
+            self.assertFalse((root / "harness/knowledge/inputs/案例").exists())
+            self.assertIn("其他/证据.md", {item["name"] for item in list_references(root)})
+            with self.assertRaises(PlanFormError):
+                save_reference(root, "../escape.md", b"x")
+            with self.assertRaises(PlanFormError):
+                save_reference(root, "案例/../escape.md", b"x")
             with self.assertRaises(PlanFormError):
                 decode_plan_upload("plan.pdf", b"not markdown")
 
@@ -169,6 +186,36 @@ class PlanApiTests(unittest.TestCase):
                 removed = client.delete("/api/references/证据.md")
                 self.assertEqual(removed.status_code, 200)
                 self.assertEqual(removed.json()["files"], [])
+
+                nested = client.post(
+                    "/api/references",
+                    data={"paths": ["案例/证据.md", "其他/说明.txt"]},
+                    files=[
+                        ("files", ("证据.md", b"# nested\n", "text/markdown")),
+                        ("files", ("说明.txt", b"note", "text/plain")),
+                    ],
+                )
+                self.assertEqual(nested.status_code, 200)
+                self.assertEqual(
+                    [item["name"] for item in nested.json()["files"]],
+                    ["其他/说明.txt", "案例/证据.md"],
+                )
+                noted = client.put(
+                    "/api/references/案例/证据.md/note",
+                    json={"note": "文件夹里的表"},
+                )
+                self.assertEqual(noted.status_code, 200)
+                self.assertEqual(noted.json()["file"]["note"], "文件夹里的表")
+                escaped = client.post(
+                    "/api/references",
+                    data={"paths": "../escape.md"},
+                    files={"files": ("escape.md", b"x", "text/plain")},
+                )
+                self.assertEqual(escaped.status_code, 400)
+                removed_nested = client.delete("/api/references/案例/证据.md")
+                self.assertEqual(removed_nested.status_code, 200)
+                self.assertFalse((root / "harness/knowledge/inputs/案例").exists())
+                self.assertTrue((root / "harness/knowledge/inputs/其他/说明.txt").is_file())
 
 
 class PlanFormV2StructuredTests(unittest.TestCase):

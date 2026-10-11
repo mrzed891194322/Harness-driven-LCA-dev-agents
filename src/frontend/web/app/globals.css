@@ -2158,18 +2158,51 @@ button:disabled {
   grid-row: 1;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  gap: 8px;
   min-width: 0;
+}
+
+.flow-toolbar-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.flow-toolbar-model > span:first-child {
+  flex: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.flow-toolbar .flow-model {
+  width: min(280px, 100%);
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 0.88rem;
+}
+
+.flow-toolbar .flow-model-note {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .flow-config {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
   min-height: 36px;
   padding: 8px 14px;
   font-size: 0.95rem;
   font-weight: 700;
+  flex: none;
 }
 
 .flow-model {
@@ -2603,6 +2636,14 @@ button:disabled {
 .plan-drop strong {
   color: var(--ink);
   font-size: 0.95rem;
+}
+
+.plan-drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .plan-drop[data-active="true"] {

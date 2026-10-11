@@ -21,7 +21,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from backend.core.agents.archive import progress_log_path  # noqa: E402
-from backend.core.agents.config import load_worker_model  # noqa: E402
+from backend.core.agents.assignment_models import load_default_model  # noqa: E402
 from backend.core.agents.inspect import WORKERS  # noqa: E402
 from backend.core.agents.progress import (  # noqa: E402
     print_orchestrator,
@@ -110,7 +110,7 @@ def _main(args: argparse.Namespace) -> int:
         document=document,
     )
     session_client = default_client()
-    model = load_worker_model(worker, project_root)
+    model = load_default_model(project_root)
     runtime = OrchestratorRuntime(
         workflow,
         project_root=project_root,

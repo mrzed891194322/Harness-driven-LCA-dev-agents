@@ -52,6 +52,35 @@ type ModelOption = {
   model_id: string;
 };
 
+function DefaultModelSelect({
+  models,
+  modelsLoaded,
+  defaultModel,
+  onChange,
+}: {
+  models: ModelOption[];
+  modelsLoaded: boolean;
+  defaultModel: string;
+  onChange: (profileId: string) => void;
+}) {
+  return (
+    <select
+      className="flow-model"
+      aria-label="默认模型"
+      value={models.some((item) => item.id === defaultModel) ? defaultModel : ""}
+      disabled={!models.length}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {!models.length ? (
+        <option value="">{modelsLoaded ? "尚未连接模型" : "正在读取已连接模型…"}</option>
+      ) : (
+        <option value="">未选择</option>
+      )}
+      <ModelOptions models={models} />
+    </select>
+  );
+}
+
 function ModelOptions({ models }: { models: ModelOption[] }) {
   const groups: { name: string; items: ModelOption[] }[] = [];
   for (const item of models) {
@@ -349,6 +378,16 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   return (
     <div className="flow-board" data-inspector={inspectorOpen ? "true" : "false"}>
       <div className="flow-toolbar">
+        <label className="flow-toolbar-model">
+          <span>默认模型</span>
+          <DefaultModelSelect
+            models={models}
+            modelsLoaded={modelsLoaded}
+            defaultModel={defaultModel}
+            onChange={(profileId) => void changeDefault(profileId)}
+          />
+          {modelNote ? <span className="flow-model-note">{modelNote}</span> : null}
+        </label>
         <button type="button" className="flow-config" onClick={openGlobal}>
           <SlidersHorizontal size={16} strokeWidth={1.75} aria-hidden="true" />
           配置面板
@@ -415,7 +454,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                               ? models.find((item) => item.id === chosen)?.label ?? chosen
                               : defaultLabel
                                 ? `默认 · ${defaultLabel}`
-                                : "默认"}
+                                : "未选择"}
                           </small>
                       </button>
                     );
@@ -592,6 +631,16 @@ function GlobalRules({
       <Kicker>编排</Kicker>
       <h3>全局规则</h3>
       <p className="flow-lead">对所有阶段生效。没有单独指定模型的分工使用这里的默认模型。</p>
+      <div className="flow-block">
+        <h3>默认模型</h3>
+        <DefaultModelSelect
+          models={models}
+          modelsLoaded={modelsLoaded}
+          defaultModel={defaultModel}
+          onChange={onChangeDefault}
+        />
+        {modelNote ? <p className="flow-model-note">{modelNote}</p> : null}
+      </div>
       <JumpList
         label="规则"
         items={workflow.defaults.rules.map((id) => ({ id, text: id, title: rulePath(workflow, id) }))}
@@ -613,22 +662,6 @@ function GlobalRules({
         items={workflow.defaults.knowledge.map((id) => ({ id, text: id }))}
         onPick={(id) => onSelect({ kind: "knowledge", id })}
       />
-      <div className="flow-block">
-        <h3>默认模型</h3>
-        <select
-          className="flow-model"
-          aria-label="默认模型"
-          value={models.some((item) => item.id === defaultModel) ? defaultModel : ""}
-          disabled={!models.length}
-          onChange={(event) => onChangeDefault(event.target.value)}
-        >
-          {!models.length ? (
-            <option value="">{modelsLoaded ? "尚未连接模型" : "正在读取已连接模型…"}</option>
-          ) : null}
-          <ModelOptions models={models} />
-        </select>
-        {modelNote ? <p className="flow-model-note">{modelNote}</p> : null}
-      </div>
     </>
   );
 }
@@ -746,7 +779,7 @@ function AssignmentDetail({
           disabled={!models.length}
           onChange={(event) => onChangeModel(event.target.value)}
         >
-          <option value="">{defaultLabel ? `默认 · ${defaultLabel}` : "默认"}</option>
+          <option value="">{defaultLabel ? `默认 · ${defaultLabel}` : "未选择"}</option>
           <ModelOptions models={models} />
           {chosen && !models.some((item) => item.id === chosen) ? <option value={chosen}>{chosen}</option> : null}
         </select>

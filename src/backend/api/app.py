@@ -10,16 +10,17 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.core.agents.assignment_models import (
     load_assignment_models,
+    load_default_model,
     save_assignment_models,
+    save_default_model,
 )
-from backend.core.agents.config import load_worker_model
 from backend.core.runtime.model_profiles import (
     allocate_profile_id,
     delete_local_profile,
@@ -89,7 +90,7 @@ from backend.services.tutorial_browser import (
 )
 from backend.services.workflow_launch import launcher
 from backend.services.workflow_service import WorkflowService
-from backend.settings import parse_env_file, upsert_env_keys
+from backend.settings import parse_env_file
 
 
 def _web_origins() -> list[str]:
@@ -236,7 +237,7 @@ def update_openlca_port(body: OpenLcaPortUpdate) -> dict[str, Any]:
 def model_profiles() -> dict[str, Any]:
     return {
         "profiles": load_profiles(PROJECT_ROOT),
-        "selected": load_worker_model("pi", PROJECT_ROOT),
+        "selected": load_default_model(PROJECT_ROOT),
     }
 
 
@@ -336,7 +337,7 @@ def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[st
 
 @app.get("/api/workflow/models")
 def workflow_models() -> dict[str, Any]:
-    stored = load_worker_model("pi", PROJECT_ROOT)
+    stored = load_default_model(PROJECT_ROOT)
     models, warnings = _connected_models(PROJECT_ROOT)
     return {
         "default": stored,
@@ -363,13 +364,15 @@ def update_workflow_models(body: WorkflowModelsUpdate) -> dict[str, Any]:
 def set_model_selection(body: ModelSelection) -> dict[str, str]:
     if not _accepts_model_ref(PROJECT_ROOT, body.profile_id):
         raise HTTPException(status_code=400, detail=f"未知模型：{body.profile_id}")
-    upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": body.profile_id})
-    return {"profile_id": body.profile_id}
+    saved = save_default_model(PROJECT_ROOT, body.profile_id)
+    return {"profile_id": saved}
 
 
 @app.post("/api/models/test")
 def test_model_connection(body: ModelTestRequest) -> dict[str, Any]:
-    profile_id = (body.profile_id or load_worker_model("pi", PROJECT_ROOT)).strip()
+    profile_id = (body.profile_id or load_default_model(PROJECT_ROOT)).strip()
+    if not profile_id:
+        raise HTTPException(status_code=400, detail="尚未选择默认模型")
     profile = resolve_model_profile(profile_id, project_root=PROJECT_ROOT)
     provider = (body.provider or profile.provider).strip()
     model_id = (body.model_id or profile.model_id).strip()
@@ -563,7 +566,7 @@ def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if body.set_as_default:
-        upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": profile_id})
+        save_default_model(PROJECT_ROOT, profile_id)
     return {
         "status": "saved",
         "profile_id": profile_id,
@@ -956,10 +959,17 @@ def read_references() -> dict[str, Any]:
 
 
 @app.post("/api/references")
-async def upload_references(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+async def upload_references(
+    files: list[UploadFile] = File(...),
+    paths: list[str] | None = Form(default=None),
+) -> dict[str, Any]:
+    supplied = [item for item in (paths or []) if item is not None]
+    if supplied and len(supplied) != len(files):
+        raise HTTPException(status_code=400, detail="文件路径数量不匹配")
     uploads: list[tuple[str, bytes]] = []
-    for item in files:
-        uploads.append((item.filename or "", await item.read()))
+    for index, item in enumerate(files):
+        name = supplied[index] if supplied else (item.filename or "")
+        uploads.append((name, await item.read()))
     try:
         saved = save_references(PROJECT_ROOT, uploads)
     except PlanFormError as exc:
@@ -967,7 +977,7 @@ async def upload_references(files: list[UploadFile] = File(...)) -> dict[str, An
     return {"status": "saved", "saved": saved, "files": list_references(PROJECT_ROOT)}
 
 
-@app.put("/api/references/{name}/note")
+@app.put("/api/references/{name:path}/note")
 def write_reference_note(name: str, body: ReferenceNoteUpdate) -> dict[str, Any]:
     try:
         item = save_reference_note(PROJECT_ROOT, name, body.note)
@@ -978,7 +988,7 @@ def write_reference_note(name: str, body: ReferenceNoteUpdate) -> dict[str, Any]
     return {"status": "saved", "file": item, "files": list_references(PROJECT_ROOT)}
 
 
-@app.delete("/api/references/{name}")
+@app.delete("/api/references/{name:path}")
 def remove_reference(name: str) -> dict[str, Any]:
     try:
         delete_reference(PROJECT_ROOT, name)

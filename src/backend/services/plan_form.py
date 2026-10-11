@@ -211,10 +211,11 @@ def list_references(root: Path) -> list[dict[str, object]]:
         return []
     notes = _read_notes(root)
     rows: list[dict[str, object]] = []
-    for path in sorted(folder.iterdir(), key=lambda item: item.name.lower()):
-        if not _is_reference_file(path):
+    for path in sorted(folder.rglob("*"), key=lambda item: item.as_posix().lower()):
+        if not _is_reference_file(folder, path):
             continue
-        rows.append(_reference_record(path, notes.get(path.name, "")))
+        relative = path.relative_to(folder).as_posix()
+        rows.append(_reference_record(path, relative, notes.get(relative, "")))
     return rows
 
 
@@ -224,27 +225,29 @@ def save_reference(root: Path, filename: str, data: bytes) -> dict[str, object]:
 
 
 def save_references(root: Path, uploads: list[tuple[str, bytes]]) -> list[dict[str, object]]:
-    prepared: list[tuple[Path, bytes]] = []
+    folder = inputs_dir(root).resolve()
+    prepared: list[tuple[Path, str, bytes]] = []
     seen: set[str] = set()
     conflicts: list[str] = []
     for filename, data in uploads:
         path = _reference_path(root, filename)
-        if path.name in seen or path.is_file():
-            conflicts.append(path.name)
+        relative = path.relative_to(folder).as_posix()
+        if relative in seen or path.exists():
+            conflicts.append(relative)
             continue
-        seen.add(path.name)
-        prepared.append((path, data))
+        seen.add(relative)
+        prepared.append((path, relative, data))
     if conflicts:
         names = "、".join(f"「{name}」" for name in dict.fromkeys(conflicts))
         raise PlanFormError(f"不能上传同名文件：{names}")
     saved: list[dict[str, object]] = []
     notes = _read_notes(root)
-    for path, data in prepared:
+    for path, relative, data in prepared:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(path.name + ".uploading")
         temporary.write_bytes(data)
         temporary.replace(path)
-        saved.append(_reference_record(path, notes.get(path.name, "")))
+        saved.append(_reference_record(path, relative, notes.get(relative, "")))
     return saved
 
 
@@ -252,24 +255,28 @@ def save_reference_note(root: Path, filename: str, note: str) -> dict[str, objec
     path = _reference_path(root, filename)
     if not path.is_file():
         raise FileNotFoundError(filename)
+    relative = path.relative_to(inputs_dir(root).resolve()).as_posix()
     notes = _read_notes(root)
     text = note.strip()
     if text:
-        notes[path.name] = text
+        notes[relative] = text
     else:
-        notes.pop(path.name, None)
+        notes.pop(relative, None)
     _write_notes(root, notes)
-    return _reference_record(path, notes.get(path.name, ""))
+    return _reference_record(path, relative, notes.get(relative, ""))
 
 
 def delete_reference(root: Path, filename: str) -> None:
+    folder = inputs_dir(root).resolve()
     path = _reference_path(root, filename)
     if not path.is_file():
         raise FileNotFoundError(filename)
+    relative = path.relative_to(folder).as_posix()
     path.unlink()
+    _prune_empty_dirs(folder, path.parent)
     notes = _read_notes(root)
-    if path.name in notes:
-        notes.pop(path.name, None)
+    if relative in notes:
+        notes.pop(relative, None)
         _write_notes(root, notes)
 
 
@@ -286,20 +293,23 @@ def decode_plan_upload(filename: str, data: bytes) -> PlanFields:
     return parse_plan(text)
 
 
-def _is_reference_file(path: Path) -> bool:
-    return (
-        path.is_file()
-        and not path.is_symlink()
-        and path.name.lower() != "readme.md"
-        and not path.name.startswith(".")
-    )
+def _is_reference_file(folder: Path, path: Path) -> bool:
+    if not path.is_file() or path.is_symlink():
+        return False
+    try:
+        relative = path.relative_to(folder)
+    except ValueError:
+        return False
+    if relative.as_posix().lower() == "readme.md":
+        return False
+    return not any(part.startswith(".") for part in relative.parts)
 
 
-def _reference_record(path: Path, note: str) -> dict[str, object]:
+def _reference_record(path: Path, relative: str, note: str) -> dict[str, object]:
     return {
-        "name": path.name,
+        "name": relative,
         "size": path.stat().st_size,
-        "path": f"{INPUTS_RELATIVE.as_posix()}/{path.name}",
+        "path": f"{INPUTS_RELATIVE.as_posix()}/{relative}",
         "note": note,
     }
 
@@ -334,22 +344,50 @@ def _write_notes(root: Path, notes: dict[str, str]) -> None:
     )
 
 
-def _reference_path(root: Path, filename: str) -> Path:
-    raw = filename or ""
-    if not raw or "/" in raw or "\\" in raw or "\x00" in raw:
+def _reference_relative(filename: str) -> str:
+    raw = (filename or "").replace("\\", "/").strip()
+    if not raw or "\x00" in raw:
         raise PlanFormError("文件名无效")
-    name = Path(raw).name
-    if name in {".", ".."} or name.startswith("."):
+    parts: list[str] = []
+    for part in raw.split("/"):
+        if part in {"", "."}:
+            continue
+        if part == ".." or part.startswith("."):
+            raise PlanFormError("文件名无效")
+        parts.append(part)
+    if not parts:
         raise PlanFormError("文件名无效")
-    if name.lower() == "readme.md":
+    if len(parts) == 1 and parts[0].lower() == "readme.md":
         raise PlanFormError("不能覆盖说明文件")
+    return "/".join(parts)
+
+
+def _reference_path(root: Path, filename: str) -> Path:
+    relative = _reference_relative(filename)
     folder = inputs_dir(root).resolve()
-    path = (folder / name).resolve()
-    if path.parent != folder:
+    cursor = folder
+    for part in relative.split("/"):
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise PlanFormError("不能替换链接文件")
+        if cursor.is_file() and part != relative.split("/")[-1]:
+            raise PlanFormError("文件名无效")
+    path = cursor.resolve()
+    if folder not in path.parents:
         raise PlanFormError("文件名无效")
     if path.is_symlink():
         raise PlanFormError("不能替换链接文件")
     return path
+
+
+def _prune_empty_dirs(folder: Path, directory: Path) -> None:
+    current = directory
+    while current != folder:
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
 
 
 def _numbered_sections(text: str) -> dict[int, str] | None:

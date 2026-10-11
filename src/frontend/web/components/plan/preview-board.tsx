@@ -152,6 +152,7 @@ export function PreviewBoard({
 
   const shown = workflow?.file === MODE_FILE[mode] ? workflow : null;
   const checks = environmentChecks(diag);
+  const shownChecks = checks.filter((item) => item.label !== "模型");
   const envReady = Boolean(diag) && checks.every((item) => item.ok);
   const missingFields = work.rows.flatMap((row) => row.gaps);
   const ready = envReady && missingFields.length === 0 && !envError;
@@ -164,9 +165,9 @@ export function PreviewBoard({
           <h3 id="preview-env-title">环境</h3>
           {envError ? <p className="status-banner error">{envError}</p> : null}
           {!diag && !envError ? <p className="settings-help">正在检查环境…</p> : null}
-          {checks.length ? (
+          {shownChecks.length ? (
             <ul className="diag-list preview-checks">
-              {checks.map((item) => (
+              {shownChecks.map((item) => (
                 <li key={item.label}>
                   <span className={`badge ${item.ok ? "badge-ok" : "badge-warn"}`}>{item.ok ? "就绪" : "未就绪"}</span>
                   <span>

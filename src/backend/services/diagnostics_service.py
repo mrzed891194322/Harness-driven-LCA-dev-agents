@@ -6,7 +6,7 @@ import sys
 from collections.abc import Iterable
 from pathlib import Path
 
-from backend.core.agents.config import load_worker_model
+from backend.core.agents.assignment_models import load_default_model
 from backend.core.agents.inspect import check, inspect
 from backend.core.runtime.model_profiles import load_profiles, resolve_model_profile
 from backend.services.credentials_service import (
@@ -92,7 +92,7 @@ def environment_report(project_root: Path | None = None) -> dict:
     pi_ok, pi_msg = check("pi", project_root=root)
     python_status = python_runtime_status()
     profiles = load_profiles(root)
-    selected = load_worker_model("pi", root)
+    selected = load_default_model(root)
     credentials = credentials_status_bool(root)
     model = _model_status(root, selected, credentials)
     olca = openlca_status(root)
@@ -233,6 +233,15 @@ def _open_paths(pid: int | None) -> list[str]:
 
 def _model_status(project_root: Path, selected: str, credentials: dict[str, bool]) -> dict:
     """Resolve a profile id or provider/model ref before checking its credential."""
+    if not (selected or "").strip():
+        return {
+            "profile_id": "",
+            "display_name": "",
+            "provider": "",
+            "model_id": "",
+            "base_url": "",
+            "credential_set": False,
+        }
     profile = resolve_model_profile(selected, project_root=project_root)
     provider = profile.provider
     model_id = profile.model_id

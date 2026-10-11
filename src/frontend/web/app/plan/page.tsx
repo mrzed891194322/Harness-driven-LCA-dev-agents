@@ -20,6 +20,11 @@ type ReferenceFile = {
   note?: string;
 };
 
+type PendingUpload = {
+  file: File;
+  name: string;
+};
+
 const emptyFields: PlanFields = {
   subject: "",
   functional_unit: "",
@@ -74,14 +79,67 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function duplicateReferenceNames(list: File[], existing: ReferenceFile[]): string[] {
+function duplicateReferenceNames(list: PendingUpload[], existing: ReferenceFile[]): string[] {
   const taken = new Set(existing.map((file) => file.name));
   const conflicts: string[] = [];
-  for (const file of list) {
-    if (taken.has(file.name)) conflicts.push(file.name);
-    else taken.add(file.name);
+  for (const item of list) {
+    if (taken.has(item.name)) conflicts.push(item.name);
+    else taken.add(item.name);
   }
   return [...new Set(conflicts)];
+}
+
+function referenceName(file: File): string {
+  const relative = file.webkitRelativePath.replaceAll("\\", "/").replace(/^\/+/, "");
+  return relative || file.name;
+}
+
+function isSkippedReference(name: string): boolean {
+  const parts = name.split("/").filter((part) => part && part !== ".");
+  return parts.length === 0 || parts.some((part) => part.startsWith(".") || part === "__MACOSX");
+}
+
+function pendingFromFile(file: File, name = referenceName(file)): PendingUpload | null {
+  const normalized = name.replaceAll("\\", "/").replace(/^\/+/, "");
+  if (isSkippedReference(normalized)) return null;
+  return { file, name: normalized };
+}
+
+function fileFromEntry(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => {
+    entry.file(resolve, reject);
+  });
+}
+
+function readEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const all: FileSystemEntry[] = [];
+    const read = () => {
+      reader.readEntries((batch) => {
+        if (!batch.length) {
+          resolve(all);
+          return;
+        }
+        all.push(...batch);
+        read();
+      }, reject);
+    };
+    read();
+  });
+}
+
+async function pendingFromEntry(entry: FileSystemEntry): Promise<PendingUpload[]> {
+  if (entry.name.startsWith(".") || entry.name === "__MACOSX") return [];
+  if (entry.isFile) {
+    const file = await fileFromEntry(entry as FileSystemFileEntry);
+    const item = pendingFromFile(file, entry.fullPath.replace(/^\/+/, ""));
+    return item ? [item] : [];
+  }
+  if (!entry.isDirectory) return [];
+  const reader = (entry as FileSystemDirectoryEntry).createReader();
+  const children = await readEntries(reader);
+  const nested = await Promise.all(children.map((child) => pendingFromEntry(child)));
+  return nested.flat();
 }
 
 async function errorMessage(response: Response): Promise<string> {
@@ -116,6 +174,7 @@ export default function PlanPage() {
   const saveChain = useRef<Promise<void>>(Promise.resolve());
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
   const noteDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -221,19 +280,48 @@ export default function PlanPage() {
     }
   }
 
-  async function uploadReferences(files: FileList | File[]) {
-    const list = Array.from(files);
-    if (!list.length) return;
+  function queueReferences(files: FileList | File[]) {
+    const raw = Array.from(files);
+    if (!raw.length) return;
+    const list = raw
+      .map((file) => pendingFromFile(file))
+      .filter((item): item is PendingUpload => item !== null);
+    void uploadReferences(list);
+  }
+
+  async function uploadDropped(entries: FileSystemEntry[]) {
+    setUploading(true);
+    setError("");
+    try {
+      const nested = await Promise.all(entries.map((entry) => pendingFromEntry(entry)));
+      await uploadReferences(nested.flat(), { alreadyUploading: true });
+    } catch (reason) {
+      setUploading(false);
+      setError(reason instanceof Error ? reason.message : "参考资料上传失败");
+    }
+  }
+
+  async function uploadReferences(list: PendingUpload[], options?: { alreadyUploading?: boolean }) {
+    if (!list.length) {
+      setUploading(false);
+      setStatus("");
+      setError("没有可上传的文件");
+      return;
+    }
     const conflicts = duplicateReferenceNames(list, references);
     if (conflicts.length) {
+      setUploading(false);
       setStatus("");
       setError(`不能上传同名文件：${conflicts.map((name) => `「${name}」`).join("、")}`);
       return;
     }
-    setUploading(true);
+    if (!options?.alreadyUploading) setUploading(true);
     setError("");
     const body = new FormData();
-    for (const file of list) body.append("files", file);
+    for (const item of list) {
+      body.append("files", item.file, item.file.name);
+      body.append("paths", item.name);
+    }
     try {
       const response = await apiFetch("/api/references", { method: "POST", body });
       if (!response.ok) throw new Error(await errorMessage(response));
@@ -398,7 +486,6 @@ export default function PlanPage() {
                   hidden
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    event.target.value = "";
                     if (file) void importPlan(file);
                   }}
                 />
@@ -407,7 +494,7 @@ export default function PlanPage() {
           {panel === "references" ? (
             <div className="plan-ref">
               <p className="settings-help">
-                可以上传任意类型的文件，大小不限，不能有同名文件。Agent 只读取这些文件、项目知识库和 openLCA 数据库。
+                可以上传文件或文件夹，大小不限，相同路径不能重复。Agent 只读取这些文件、项目知识库和 openLCA 数据库。如果对特定文件中希望提取到的信息做规定，请点击「注释」编写。
               </p>
               <div className="plan-ref-body">
                 <div
@@ -421,24 +508,48 @@ export default function PlanPage() {
                   onDrop={(event) => {
                     event.preventDefault();
                     setDragOver(false);
-                    void uploadReferences(event.dataTransfer.files);
+                    const entries: FileSystemEntry[] = [];
+                    for (const item of event.dataTransfer.items) {
+                      if (item.kind !== "file") continue;
+                      const entry = item.webkitGetAsEntry?.();
+                      if (entry) entries.push(entry);
+                    }
+                    if (entries.length) {
+                      void uploadDropped(entries);
+                      return;
+                    }
+                    queueReferences(event.dataTransfer.files);
                   }}
                 >
                   <FileText className="launch-icon" aria-hidden="true" />
                   <strong>{uploading ? "正在上传…" : "将参考资料拖到这里"}</strong>
-                  <span>可以上传任意类型的文件，大小不限，不能有同名文件</span>
-                  <button type="button" onClick={() => referenceInput.current?.click()} disabled={uploading}>
-                    选择文件
-                  </button>
+                  <span>可以上传文件或文件夹，大小不限，相同路径不能重复</span>
+                  <div className="plan-drop-actions">
+                    <button type="button" onClick={() => referenceInput.current?.click()} disabled={uploading}>
+                      选择文件
+                    </button>
+                    <button type="button" onClick={() => folderInput.current?.click()} disabled={uploading}>
+                      选择文件夹
+                    </button>
+                  </div>
                   <input
                     ref={referenceInput}
                     type="file"
                     multiple
                     hidden
                     onChange={(event) => {
-                      const selected = event.target.files;
-                      event.target.value = "";
-                      if (selected) void uploadReferences(selected);
+                      if (event.target.files?.length) queueReferences(event.target.files);
+                    }}
+                  />
+                  <input
+                    ref={folderInput}
+                    type="file"
+                    multiple
+                    hidden
+                    // Native directory picker (Chromium, Firefox, Safari).
+                    {...{ webkitdirectory: "", directory: "" }}
+                    onChange={(event) => {
+                      if (event.target.files?.length) queueReferences(event.target.files);
                     }}
                   />
                 </div>

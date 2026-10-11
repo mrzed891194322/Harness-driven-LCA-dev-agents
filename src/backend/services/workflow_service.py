@@ -134,7 +134,7 @@ class WorkflowService:
 
     def _model_label(self, run_id: str) -> str:
         """Model id for this run, so the terminal can show it instead of the worker name."""
-        from backend.core.agents.config import load_worker_model
+        from backend.core.agents.assignment_models import load_default_model
         from backend.core.runtime.model_profiles import resolve_model_profile
         from backend.core.workflow.persistence.config_fingerprint import runtime_config_path
 
@@ -151,7 +151,9 @@ class WorkflowService:
                     if isinstance(execution, dict):
                         model_ref = str(execution.get("model") or "").strip()
         if not model_ref:
-            model_ref = load_worker_model("pi", self.project_root)
+            model_ref = load_default_model(self.project_root)
+        if not model_ref:
+            return ""
         profile = resolve_model_profile(model_ref, project_root=self.project_root)
         return (profile.model_id or profile.display_name or model_ref).strip()
 
