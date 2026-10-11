@@ -10,6 +10,7 @@ type Progress = {
   run_id?: string | null;
   status?: string;
   current_stage?: string | null;
+  attempt?: number | null;
   status_reason?: string | null;
   model?: string | null;
   text?: string;
@@ -32,6 +33,7 @@ export default function RunsPage() {
   const [reasonOpen, setReasonOpen] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [openlcaDown, setOpenlcaDown] = useState(false);
+  const [activityAttempt, setActivityAttempt] = useState(0);
   const offset = useRef(0);
   const runId = useRef("");
   const epoch = useRef("");
@@ -87,6 +89,7 @@ export default function RunsPage() {
   const label = STATUS_LABEL[status] || status;
   const tone = status === "failed" ? "fail" : status === "idle" ? "off" : "ok";
   const reason = (progress.status_reason || "").trim();
+  const attempt = Number(progress.attempt) || activityAttempt;
 
   useEffect(() => {
     if (status !== "failed") setReasonOpen(false);
@@ -191,30 +194,40 @@ export default function RunsPage() {
                 </span>
               </div>
               <strong>{progress.current_stage || "准备开始"}</strong>
-              {status === "running" ? (
-                <button
-                  type="button"
-                  className="run-stage-action"
-                  onClick={() => void stopWork()}
-                  disabled={stopping}
-                >
-                  <CircleStop size={12} strokeWidth={2} aria-hidden="true" />
-                  {stopping ? "正在中止…" : "中止工作"}
-                </button>
-              ) : null}
-              {status === "failed" ? (
-                <button
-                  type="button"
-                  className="run-stage-action"
-                  aria-expanded={reasonOpen}
-                  onClick={() => setReasonOpen(true)}
-                >
-                  <AlertCircle size={12} strokeWidth={2} aria-hidden="true" />
-                  显示原因
-                </button>
+              {attempt > 0 || status === "running" || status === "failed" ? (
+                <div className="run-stage-foot">
+                  {attempt > 0 ? <span className="run-stage-attempt">第 {attempt} 次</span> : null}
+                  {status === "running" ? (
+                    <button
+                      type="button"
+                      className="run-stage-action"
+                      onClick={() => void stopWork()}
+                      disabled={stopping}
+                    >
+                      <CircleStop size={12} strokeWidth={2} aria-hidden="true" />
+                      {stopping ? "正在中止…" : "中止工作"}
+                    </button>
+                  ) : null}
+                  {status === "failed" ? (
+                    <button
+                      type="button"
+                      className="run-stage-action"
+                      aria-expanded={reasonOpen}
+                      onClick={() => setReasonOpen(true)}
+                    >
+                      <AlertCircle size={12} strokeWidth={2} aria-hidden="true" />
+                      显示原因
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
-            <ActivitySummary runId={String(progress.run_id || "")} running={status === "running"} />
+            <ActivitySummary
+              runId={String(progress.run_id || "")}
+              running={status === "running"}
+              currentStage={String(progress.current_stage || "")}
+              onStageAttempt={setActivityAttempt}
+            />
           </aside>
         </div>
       </section>

@@ -124,7 +124,17 @@ function assignmentIsLive(item: AssignmentActivity, running: boolean): boolean {
   );
 }
 
-export function ActivitySummary({ runId, running = false }: { runId: string; running?: boolean }) {
+export function ActivitySummary({
+  runId,
+  running = false,
+  currentStage = "",
+  onStageAttempt,
+}: {
+  runId: string;
+  running?: boolean;
+  currentStage?: string;
+  onStageAttempt?: (attempt: number) => void;
+}) {
   const [items, setItems] = useState<AssignmentActivity[]>([]);
   const events = useRef<ActivityEvent[]>([]);
   const offset = useRef(0);
@@ -177,6 +187,14 @@ export function ActivitySummary({ runId, running = false }: { runId: string; run
       clearInterval(timer);
     };
   }, [runId]);
+
+  const stageAttempt = items.reduce(
+    (highest, item) => (item.stage === currentStage && item.attempt > highest ? item.attempt : highest),
+    0,
+  );
+  useEffect(() => {
+    onStageAttempt?.(stageAttempt);
+  }, [onStageAttempt, stageAttempt]);
 
   const live = items.find((item) => assignmentIsLive(item, running));
   const nextLiveToken = live ? `${live.key}#${live.attempt}` : "";

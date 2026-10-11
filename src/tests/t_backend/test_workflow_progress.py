@@ -33,6 +33,7 @@ class WorkflowProgressTests(unittest.TestCase):
 
             first = service.progress(0)
             self.assertEqual(first["status"], "running")
+            self.assertIsNone(first["attempt"])
             self.assertIn("start", first["text"])
             self.assertFalse(first["reset"])
             self.assertGreater(first["offset"], 0)
@@ -72,6 +73,47 @@ class WorkflowProgressTests(unittest.TestCase):
             )
             body = WorkflowService(root).progress(0)
             self.assertEqual(body["model"], "claude-sonnet-4-5")
+
+    def test_progress_reports_attempt_from_manifest_or_checkpoint(self) -> None:
+        import json
+        import sqlite3
+
+        from backend.core.workflow.persistence.checkpoint import checkpoint_path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_id = "run-1"
+            write_manifest(
+                root / "workspace",
+                status="running",
+                current_stage="03-dataset-mapping",
+                status_reason="",
+                run_id=run_id,
+                attempt=2,
+            )
+            body = WorkflowService(root).progress(0)
+            self.assertEqual(body["attempt"], 2)
+            self.assertEqual(body["current_stage"], "03-dataset-mapping")
+
+            write_manifest(
+                root / "workspace",
+                status="running",
+                current_stage="03-dataset-mapping",
+                status_reason="",
+                run_id=run_id,
+            )
+            path = checkpoint_path(root / "workspace")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(path) as conn:
+                conn.execute(
+                    "CREATE TABLE workflow_runs (run_id TEXT PRIMARY KEY, state_json TEXT NOT NULL)"
+                )
+                conn.execute(
+                    "INSERT INTO workflow_runs(run_id, state_json) VALUES (?, ?)",
+                    (run_id, json.dumps({"attempt": 2, "current_stage": "03-dataset-mapping"})),
+                )
+            fallback = WorkflowService(root).progress(0)
+            self.assertEqual(fallback["attempt"], 2)
 
     def test_progress_route_shape(self) -> None:
         response = TestClient(app).get("/api/workflow/progress")

@@ -3113,14 +3113,6 @@ button:disabled {
   color: var(--accent);
 }
 
-.run-stage-name {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-}
-
 .run-stage strong {
   min-width: 0;
   overflow: hidden;
@@ -3132,11 +3124,24 @@ button:disabled {
   letter-spacing: -0.01em;
 }
 
+.run-stage-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .run-stage-attempt {
-  flex: none;
+  min-width: 0;
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 650;
+}
+
+.run-stage-foot .run-stage-action {
+  align-self: center;
+  margin-top: 0;
+  margin-left: auto;
 }
 
 .run-stage.is-off {
@@ -3840,11 +3845,6 @@ button:disabled {
   flex: none;
   align-items: center;
   color: var(--muted);
-}
-
-.activity-chip.is-live {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
-  background: var(--accent-soft);
 }
 
 .activity-chip.is-live .activity-chip-mark {
