@@ -1657,12 +1657,26 @@ button:disabled {
 
 .plan-import {
   justify-content: flex-end;
+  flex-wrap: nowrap;
 }
 
-.plan-import p {
+.plan-import .plan-status {
+  margin: 0 auto 0 0;
+  white-space: nowrap;
+}
+
+.plan-import-hint {
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-import button {
+  flex: none;
 }
 
 .plan-grid {

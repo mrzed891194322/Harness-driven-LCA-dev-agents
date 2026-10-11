@@ -93,7 +93,7 @@ type LoginPrompt = {
 
 export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
   const [creds, setCreds] = useState<CredentialsPayload | null>(null);
-  const [expanded, setExpanded] = useState<string | null>("anthropic");
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
   const [draftBaseUrls, setDraftBaseUrls] = useState<Record<string, string>>({});
   const [statusMsg, setStatusMsg] = useState("");

@@ -62,6 +62,7 @@ class PlanFormParseTests(unittest.TestCase):
             "## section 1\n\n瓶子\n\n"
             "## section 5\n\n不要读数据库\n\n"
             "## section 6\n\n不要读方法\n\n"
+            "## section 7\n\n不要读指标\n\n"
             "## section 8\n\n不截断\n"
         )
         self.assertEqual(filled.subject, "瓶子")
@@ -168,3 +169,22 @@ class PlanApiTests(unittest.TestCase):
                 removed = client.delete("/api/references/证据.md")
                 self.assertEqual(removed.status_code, 200)
                 self.assertEqual(removed.json()["files"], [])
+
+
+class PlanFormV2StructuredTests(unittest.TestCase):
+    def test_v2_selectable_sections_stay_in_the_note(self) -> None:
+        fields = parse_plan(
+            "## section 2\n\n数量：1000\n单位：瓶\n在德国交付\n\n"
+            "## section 3\n\n原材料获取、制造\n不包括使用\n\n"
+            "## section 4\n\n德国\n2024\n\n"
+            "## section 7\n\n使用所选方法的全部指标。\n\n"
+            "## section 8\n\n- 不截断\n"
+        )
+        self.assertEqual(fields.functional_unit, "附加说明：数量：1000\n单位：瓶\n在德国交付")
+        self.assertEqual(fields.life_cycle_stages, "附加说明：原材料获取、制造\n不包括使用")
+        self.assertEqual(fields.conditions, "地域：德国\n\n研究年份：2024\n\n- 不截断")
+        self.assertNotIn("全部指标", fields.conditions)
+
+    def test_v2_place_labels_fill_the_text_boxes(self) -> None:
+        fields = parse_plan("## section 4\n\n地域：德国\n研究年份：无要求\n")
+        self.assertEqual(fields.conditions, "地域：德国\n\n研究年份：无要求")

@@ -20,6 +20,7 @@ _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _H2 = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 _SECTION_TITLE = re.compile(r"^section\s+(\d+)\b", re.IGNORECASE)
 _BOLD = re.compile(r"^-\s+\*\*(.+?)\*\*\s*[：:]\s*(.*)$", re.MULTILINE)
+_LINE_LABEL = re.compile(r"^(?:[-*]\s*)?([^：:]{1,12})[：:]\s*(.*)$")
 
 
 class PlanFormError(ValueError):
@@ -62,24 +63,24 @@ Write your own content below this comment. Put each object in its own paragraph.
 
 <!--
 计算基准（功能单位）/ Functional unit
-请在本注释之后自行填写数量、单位，以及可选的附加说明。
-Write the quantity, unit, and an optional note below this comment.
+请在本注释之后填写文字，这些文字会进入「附加说明」。数量和单位请到界面填写。
+Write the note below this comment. It is placed in the note field. Enter the quantity and unit in the interface.
 -->
 
 ## section 3
 
 <!--
 生命周期范围 / Life cycle scope
-请在本注释之后自行填写纳入的阶段和可选的附加说明。阶段可以是：原材料获取、制造、配送、使用、最终处置。
-Write the included stages and an optional note below this comment. Stages may include raw material acquisition, manufacturing, distribution, use, and end of life.
+请在本注释之后填写文字，这些文字会进入「附加说明」。纳入哪些阶段请到界面选择。
+Write the note below this comment. It is placed in the note field. Select the stages in the interface.
 -->
 
 ## section 4
 
 <!--
 地域与时间 / Geography and time
-请在本注释之后自行填写地域和研究年份。
-Write the region and the study year below this comment.
+请在本注释之后分行填写：第一行是地域，第二行是研究年份。也可以写成「地域：…」和「研究年份：…」。
+The first line below this comment is the region, the second line is the study year. You can also write 地域：… and 研究年份：….
 -->
 
 ## section 5
@@ -102,8 +103,8 @@ Do not fill this section. Select it manually in the interface.
 
 <!--
 关注的环境影响 / Impact categories
-请在本注释之后自行填写：使用所选方法的全部指标，或写出指定指标。
-Write below this comment whether to use all indicators of the selected method, or name the specific indicators.
+用户不能填写，请到界面手动选择。
+Do not fill this section. Select it manually in the interface.
 -->
 
 ## section 8
@@ -369,14 +370,67 @@ def _numbered_sections(text: str) -> dict[int, str] | None:
 
 
 def _fields_from_numbered(sections: dict[int, str]) -> PlanFields:
-    """Map the worksheet onto the saved fields. Sections 5 and 6 are chosen in the UI."""
-    extras = [_clean(sections.get(number, "")) for number in (4, 7, 8)]
+    """Map the v2 worksheet onto the saved fields.
+
+    Written text lands in text boxes. Sections 2 and 3 also have selectable
+    controls, so their whole body stays in ``附加说明`` and does not set those
+    controls. Sections 5–7 are chosen in the interface.
+    """
+    blocks = _place_blocks(sections.get(4, ""))
+    special = _clean(sections.get(8, ""))
+    if special and special not in {"无", "none", "None"}:
+        blocks.append(special)
     return PlanFields(
         subject=_clean(sections.get(1, "")),
-        functional_unit=_clean(sections.get(2, "")),
-        life_cycle_stages=_clean(sections.get(3, "")),
-        conditions="\n\n".join(part for part in extras if part),
+        functional_unit=_as_note(sections.get(2, "")),
+        life_cycle_stages=_as_note(sections.get(3, "")),
+        conditions="\n\n".join(blocks),
     )
+
+
+def _as_note(text: str) -> str:
+    """Keep a template body in 附加说明, even if it mentions 数量 or 阶段."""
+    body = _clean(text)
+    if not body:
+        return ""
+    return f"附加说明：{body}"
+
+
+def _split_label(line: str) -> tuple[str, str] | None:
+    match = _LINE_LABEL.match(line.strip())
+    if match is None:
+        return None
+    return match.group(1).strip(), match.group(2).strip()
+
+
+def _place_blocks(text: str) -> list[str]:
+    """Section 4 is two text boxes: region, then study year."""
+    geography: list[str] = []
+    year: list[str] = []
+    unlabeled: list[str] = []
+    for raw in _clean(text).splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        labeled = _split_label(line)
+        if labeled is not None and labeled[0] in {"地域", "研究年份"}:
+            if labeled[1]:
+                (geography if labeled[0] == "地域" else year).append(labeled[1])
+            continue
+        unlabeled.append(line)
+    for line in unlabeled:
+        if not geography:
+            geography.append(line)
+        elif not year:
+            year.append(line)
+        else:
+            geography.append(line)
+    blocks: list[str] = []
+    if geography:
+        blocks.append("地域：" + " ".join(geography))
+    if year:
+        blocks.append("研究年份：" + " ".join(year))
+    return blocks
 
 
 def _h2_sections(text: str) -> dict[str, str]:

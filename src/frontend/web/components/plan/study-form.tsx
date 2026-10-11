@@ -95,19 +95,94 @@ function blankDraft(): StudyDraft {
   };
 }
 
+const LABEL = /^\s*(?:[-*]\s*)?([^：:\n]{1,12})[：:]\s*(.*)$/;
+
+function stageIdsFrom(text: string): StageId[] {
+  return STAGES.filter((stage) => text.includes(stage.label)).map((stage) => stage.id);
+}
+
+/** Restore the structured form from the saved four-field plan (also accepts v1 free text).
+ *
+ * Template import puts sections 2 and 3 entirely under 附加说明. Lines after that
+ * label stay in the note, so quantity, unit, and stage names are not applied to
+ * the selectable controls. The form's own save still writes those labels first.
+ */
 function hydrate(fields: PlanFields): StudyDraft {
   const filled = [fields.subject, fields.functional_unit, fields.life_cycle_stages, fields.conditions].some((item) =>
     item.trim(),
   );
   if (!filled) return blankDraft();
-  return {
-    ...blankDraft(),
-    objects: [{ id: "object-1", name: fields.subject }],
-    unit: "",
-    functionalSpec: fields.functional_unit,
-    scopeNote: fields.life_cycle_stages,
-    special: fields.conditions,
-  };
+  const draft = blankDraft();
+
+  const objects = fields.subject
+    .split(/\n\s*\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  draft.objects = (objects.length ? objects : [""]).map((name, index) => ({ id: `object-${index + 1}`, name }));
+  objectSeq = Math.max(objectSeq, draft.objects.length);
+
+  const fuNotes: string[] = [];
+  let fuNote = false;
+  for (const line of fields.functional_unit.split("\n")) {
+    if (fuNote) {
+      fuNotes.push(line);
+      continue;
+    }
+    const match = LABEL.exec(line);
+    const key = match?.[1].trim();
+    if (match && key === "数量" && !draft.quantity) draft.quantity = match[2].trim();
+    else if (match && key === "单位" && !draft.unit) draft.unit = match[2].trim();
+    else if (match && key === "附加说明") {
+      fuNote = true;
+      if (match[2].trim()) fuNotes.push(match[2].trim());
+    } else {
+      fuNote = true;
+      fuNotes.push(line);
+    }
+  }
+  draft.functionalSpec = fuNotes.join("\n").trim();
+
+  const scopeNotes: string[] = [];
+  let stagesFound = false;
+  let scopeNote = false;
+  for (const line of fields.life_cycle_stages.split("\n")) {
+    if (scopeNote) {
+      scopeNotes.push(line);
+      continue;
+    }
+    const match = LABEL.exec(line);
+    const key = match?.[1].trim();
+    if (!stagesFound && match && (key === "阶段" || key === "生命周期阶段") && stageIdsFrom(match[2]).length) {
+      for (const id of stageIdsFrom(match[2])) draft.stages[id] = true;
+      stagesFound = true;
+    } else if (match && key === "附加说明") {
+      scopeNote = true;
+      if (match[2].trim()) scopeNotes.push(match[2].trim());
+    } else {
+      scopeNote = true;
+      scopeNotes.push(line);
+    }
+  }
+  draft.scopeNote = scopeNotes.join("\n").trim();
+
+  const special: string[] = [];
+  for (const block of fields.conditions.split(/\n\s*\n/)) {
+    const text = block.trim();
+    if (!text) continue;
+    const match = text.includes("\n") ? null : LABEL.exec(text);
+    const key = match?.[1].trim();
+    if (match && key === "地域" && !draft.geography) draft.geography = match[2].trim();
+    else if (match && key === "研究年份" && !draft.year) draft.year = match[2].trim();
+    else if (match && key === "LCA 数据库") continue;
+    else if (match && key === "环境影响评价方法" && !draft.lcia) draft.lcia = match[2].trim();
+    else if (text === "所选方法的全部指标") draft.impactScope = "all";
+    else if (text.startsWith("仅指定指标")) {
+      draft.impactScope = "selected";
+      draft.impactNote = text.replace(/^仅指定指标[：:]?\s*/, "").trim();
+    } else special.push(text);
+  }
+  draft.special = special.join("\n\n");
+  return draft;
 }
 
 function filledLines(lines: Array<string | false>) {
@@ -118,7 +193,7 @@ function sectionSummaries(draft: StudyDraft, database: string) {
   const objects = draft.objects.map((item) => item.name.trim()).filter(Boolean);
   const stages = STAGES.filter((stage) => draft.stages[stage.id]).map((stage) => stage.label);
   return {
-    "study-sec-subject": objects.join("\n"),
+    "study-sec-subject": objects.join("\n\n"),
     "study-sec-basis": filledLines([
       draft.quantity.trim() && `数量：${draft.quantity.trim()}`,
       draft.unit.trim() && `单位：${draft.unit.trim()}`,
@@ -187,15 +262,18 @@ export function studyWork(draft: StudyDraft, databaseLabel: string, databaseName
       gaps: gaps[section.id],
     })),
     plan: {
-      subject: draft.objects.map((item) => item.name.trim()).filter(Boolean).join("\n"),
+      subject: draft.objects.map((item) => item.name.trim()).filter(Boolean).join("\n\n"),
       functional_unit: [
         draft.quantity.trim() && `数量：${draft.quantity.trim()}`,
         draft.unit.trim() && `单位：${draft.unit.trim()}`,
-        draft.functionalSpec.trim(),
+        draft.functionalSpec.trim() && `附加说明：${draft.functionalSpec.trim()}`,
       ]
         .filter(Boolean)
         .join("\n"),
-      life_cycle_stages: [stages.join(" → "), draft.scopeNote.trim()].filter(Boolean).join("\n"),
+      life_cycle_stages: [
+        stages.length > 0 && `阶段：${stages.join(" → ")}`,
+        draft.scopeNote.trim() && `附加说明：${draft.scopeNote.trim()}`,
+      ].filter(Boolean).join("\n"),
       conditions: [
         draft.geography.trim() && `地域：${draft.geography.trim()}`,
         draft.year.trim() && `研究年份：${draft.year.trim()}`,

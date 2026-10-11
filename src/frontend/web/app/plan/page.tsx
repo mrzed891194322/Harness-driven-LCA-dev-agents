@@ -108,6 +108,9 @@ export default function PlanPage() {
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const savedPlan = useRef("");
+  const saveChain = useRef<Promise<void>>(Promise.resolve());
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
   const noteDialog = useRef<HTMLDialogElement>(null);
@@ -122,11 +125,42 @@ export default function PlanPage() {
         setForm({ ...emptyFields, ...data.fields });
         setFormToken((token) => token + 1);
         setReferences(data.references ?? []);
+        setLoaded(true);
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : "无法读取计划");
       });
   }, []);
+
+  // Autosave: persist uploads and field edits (incl. LCIA method) without executing.
+  useEffect(() => {
+    if (!loaded) return;
+    const body = JSON.stringify(work.plan);
+    if (!savedPlan.current) {
+      savedPlan.current = body;
+      return;
+    }
+    if (body === savedPlan.current) return;
+    const timer = window.setTimeout(() => {
+      // Serialize PUTs so an older save can never land after a newer one.
+      saveChain.current = saveChain.current.then(async () => {
+        try {
+          const response = await apiFetch("/api/plan", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: true,
+          });
+          if (!response.ok) throw new Error(await errorMessage(response));
+          savedPlan.current = body;
+          setStatus("已自动保存");
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : "自动保存失败");
+        }
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [loaded, work.plan]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -334,7 +368,8 @@ export default function PlanPage() {
           <div className="plan-fields" hidden={panel !== "fields"}>
             <StudyForm source={form} sourceKey={formToken} onWork={setWork} />
             <div className="row plan-actions plan-import">
-                <p>如果多次使用，可以先下载模板写好，再上传。</p>
+                {status ? <p className="plan-status">{status}</p> : null}
+                <p className="plan-import-hint">如果多次使用，可以先下载模板写好，再上传。</p>
                 <button type="button" onClick={() => void downloadTemplate()}>
                   <Download className="launch-icon" aria-hidden="true" />
                   下载模板
@@ -437,7 +472,7 @@ export default function PlanPage() {
           ) : null}
         </div>
 
-        {status ? <p className="plan-status">{status}</p> : null}
+        {panel !== "fields" && status ? <p className="plan-status">{status}</p> : null}
         {error && !noteTarget ? <p className="status-banner error">{error}</p> : null}
       </section>
       <dialog
