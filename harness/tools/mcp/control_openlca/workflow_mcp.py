@@ -143,7 +143,9 @@ mcp = MCPServer(
         "shell timeout. After partial_failure use reconcile_import then resume_import. "
         "Same-run re-import after upstream LCI rework overwrites this run's own "
         "entities (matching UUIDs in the target category); resume_import reconciles "
-        "per-entity content_hash and re-imports only changed entities."
+        "per-entity content_hash and re-imports only changed entities. "
+        "An import file whose @id already exists outside the target category is "
+        "refused. Background entities may only be referenced from exchanges."
     ),
 )
 
@@ -321,7 +323,10 @@ def get_flow_providers(
         "Read and validate canonical workspace/outputs/LCI or a compatibility LCI under "
         "workspace/tmp, inspect the active database and target category, and list "
         "create/overwrite/delete scope. This tool performs no database writes. "
-        "Optional timeout_sec (300-7200) sets the IPC session budget for slow databases."
+        "A file whose own @id already exists outside the target category (including "
+        "an empty category) fails preflight; background entities may only appear as "
+        "exchange references. Optional timeout_sec (300-7200) sets the IPC session "
+        "budget for slow databases."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -353,6 +358,8 @@ def preflight_import_lci(
         "under workspace/tmp after rerunning preflight. Scope (run, endpoint, database, "
         "category, lci_dir) must match preflight; LCI file content may change within "
         "the same run after rework and will update existing UUIDs in the target category. "
+        "An @id that already exists outside the target category is rejected and not "
+        "written; background entities may only be referenced from exchanges. "
         "After partial_failure, pass resume_operation_id from get_import_operation with "
         "a new request_id and preflight_id, or call resume_import (skips done entities, "
         "re-imports entities whose content_hash changed). Optional timeout_sec (300-7200) "
@@ -421,7 +428,8 @@ def reconcile_import(operation_id: str, timeout_sec: int | None = None) -> dict[
     description=(
         "Resume or supersede an import operation after reconcile_import when needed. "
         "Requires matching import scope and a new request_id plus unconsumed preflight_id; "
-        "reuses done entities when content_hash matches and re-imports changed ones."
+        "reuses done entities when content_hash matches and re-imports changed ones. "
+        "Does not write an @id that already exists outside the target category."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,

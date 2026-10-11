@@ -8,7 +8,7 @@
 
 新建前景实体的名称和 UUID 明确标为本次创建；背景实体须正式查询。仅作范围记录或计划已允许排除的行，在 selection_reason 明说“不计入模型”及依据，不适用的实体字段可留空，不虚构 Provider。实际计入聚合过程的行须指出负荷承接关系。
 
-LCI 保持 flows/、processes/、product_systems/ 中一文件一实体的 JSON-LD，以及根目录 `human_readable_mapping.md`。
+LCI 保持 flows/、processes/、product_systems/ 中一文件一实体的 JSON-LD，以及根目录 `human_readable_mapping.md`。背景实体不作为 LCI 实体文件提交，只在前景过程的交换里引用其 UUID。
 
 JSON-LD 保持现有导入契约：exchange 显式布尔 isInput；每个 Process 恰好一个输出 isQuantitativeReference=true；需要供应过程的前景输入给 defaultProvider；Product System 使用 linkingMode=auto、preferDefaultProviders=true，不用 processLinks 预置待导入拓扑，不使用 input / quantitativeReference 别名。无法用当前导入契约表达的必做模型如实报告能力缺口，不改工具绕过。
 

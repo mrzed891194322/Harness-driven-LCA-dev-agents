@@ -667,6 +667,16 @@ def _repair_foreground_process_providers(
                 f"前景 Process {process_id} ({item['path']}) 尚未导入，无法修复 defaultProvider"
             )
             continue
+        saved_category = getattr(saved, "category", None)
+        saved_category_text = (
+            saved_category if isinstance(saved_category, str) else None
+        )
+        if category_outside_project(saved_category_text, target_category):
+            errors.append(
+                f"{item['path']}: @id {process_id} 已存在且不在本项目分类，"
+                "只能在交换里引用，不能作为导入文件"
+            )
+            continue
         needs_repair = any(
             _exchange_needs_foreground_provider_repair(
                 saved, flow_id=flow_id, provider_id=provider_id
@@ -1433,6 +1443,59 @@ def _active_database_label(endpoint: str, database_name: str | None) -> tuple[st
     return "", "missing"
 
 
+def _existing_outside_project_errors(
+    inventory: list[dict[str, Any]],
+    database_records: list[dict[str, Any]],
+    target_category: str,
+) -> list[str]:
+    """Reject import files whose @id already belongs to a non-project entity."""
+    by_key = {
+        (str(record.get("entity_type")), str(record.get("id"))): record
+        for record in database_records
+        if record.get("id")
+    }
+    errors: list[str] = []
+    for item in inventory:
+        record = by_key.get((str(item.get("entity_type")), str(item.get("id"))))
+        if record is None:
+            continue
+        category = record.get("category")
+        category_text = category if isinstance(category, str) else None
+        if not category_outside_project(category_text, target_category):
+            continue
+        errors.append(
+            f"{item['path']}: @id {item['id']} 已存在且不在本项目分类，"
+            "只能在交换里引用，不能作为导入文件"
+        )
+    return errors
+
+
+def _outside_project_import_refusal(
+    client: OpenLcaClient,
+    item: dict[str, Any],
+    target_category: str,
+) -> str | None:
+    """Second door: skip put when this @id already exists outside the project."""
+    model_type = ENTITY_TYPES.get(str(item.get("entity_type")))
+    entity_id = str(item.get("id") or "")
+    if model_type is None or not entity_id:
+        return None
+    try:
+        existing = client.get(model_type, entity_id)
+    except Exception:
+        return None
+    if existing is None:
+        return None
+    category = getattr(existing, "category", None)
+    category_text = category if isinstance(category, str) else None
+    if not category_outside_project(category_text, target_category):
+        return None
+    return (
+        f"@id {entity_id} 已存在且不在本项目分类，"
+        "只能在交换里引用，不能作为导入文件"
+    )
+
+
 def _inspect_import(
     host: str,
     port: int,
@@ -1528,7 +1591,15 @@ def _inspect_import(
     if owns_client:
         close_ipc_client(ipc_client)
     unit_conversions, unit_errors = _transport_unit_pass(inventory, provider_checks)
-    provider_errors = [*provider_errors, *unit_errors, *reference_errors]
+    identity_errors = _existing_outside_project_errors(
+        inventory, database_records, category
+    )
+    provider_errors = [
+        *provider_errors,
+        *unit_errors,
+        *reference_errors,
+        *identity_errors,
+    ]
     unlinked_warnings: list[str] = []
     for item in inventory:
         if item["entity_type"] != "ProductSystem":
@@ -2093,6 +2164,9 @@ def _execute_import(
         transport_failed = False
         linking_meta: dict[str, Any] = {}
         try:
+            refusal = _outside_project_import_refusal(client, item, target_category)
+            if refusal is not None:
+                raise RuntimeError(refusal)
             entity = _deserialize_entity(item, target_category)
             if isinstance(entity, olca_schema.ProductSystem):
                 reference, linking_meta = _put_product_system(

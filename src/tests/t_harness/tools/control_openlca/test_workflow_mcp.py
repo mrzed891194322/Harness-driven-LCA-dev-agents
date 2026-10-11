@@ -31,6 +31,20 @@ from tests.support.openlca_fakes import (
 )
 
 
+def _seed_flow(
+    client: FakeImportClient,
+    entity_id: str,
+    category: str | None,
+    name: str = "Seeded flow",
+) -> None:
+    flow = olca_schema.Flow(id=entity_id, name=name)
+    flow.category = category
+    client.entities[(olca_schema.Flow, entity_id)] = flow
+    client.descriptors.setdefault("Flow", []).append(
+        FakeDescriptor(entity_id, name, category)
+    )
+
+
 class ImportWorkflowTests(unittest.TestCase):
     def test_lci_validation_rejects_aggregate_and_missing_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -159,6 +173,125 @@ class ImportWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(client.put_calls, [])
         self.assertEqual(client.delete_calls, [])
+
+    def test_preflight_rejects_import_file_reusing_background_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_flow(
+                root,
+                name="Background product copy",
+                entity_id=BACKGROUND_FLOW_ID,
+                filename="background-copy.json",
+            )
+            client = FakeImportClient()
+            _seed_flow(client, BACKGROUND_FLOW_ID, "ecoinvent/cutoff")
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            report = run_import(root, client)
+
+        self.assertFalse(preflight["ok"])
+        self.assertTrue(
+            any("已存在且不在本项目分类" in error for error in preflight["errors"])
+        )
+        self.assertEqual(report["status"], "rejected")
+        self.assertEqual(client.put_calls, [])
+
+    def test_execute_import_skips_put_when_id_exists_outside_project(self) -> None:
+        client = FakeImportClient()
+        _seed_flow(client, BACKGROUND_FLOW_ID, None)
+        item = {
+            "path": "flows/background-copy.json",
+            "entity_type": "Flow",
+            "id": BACKGROUND_FLOW_ID,
+            "name": "Background product copy",
+            "sha256": "abc",
+            "data": {
+                "@type": "Flow",
+                "@id": BACKGROUND_FLOW_ID,
+                "name": "Background product copy",
+            },
+        }
+        _records, imported, failed, deleted, errors = workflow._execute_import(
+            client, [item], [], "project-a"
+        )
+        self.assertEqual(imported, 0)
+        self.assertEqual(failed, 1)
+        self.assertEqual(deleted, 0)
+        self.assertEqual(client.put_calls, [])
+        self.assertTrue(any("已存在且不在本项目分类" in error for error in errors))
+
+    def test_exchange_reference_to_background_flow_still_imports(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_background_linked_product_system_fixture(root)
+            client = FakeImportClient()
+            seed_background_provider(client)
+            _seed_flow(client, BACKGROUND_FLOW_ID, "ecoinvent/cutoff")
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            report = run_import(root, client)
+
+        self.assertTrue(preflight["ok"], preflight["errors"])
+        self.assertEqual(report["status"], "success")
+        put_ids = {getattr(entity, "id", None) for entity in client.put_calls}
+        self.assertNotIn(BACKGROUND_FLOW_ID, put_ids)
+        self.assertIn(FLOW_ID, put_ids)
+
+    def test_import_still_updates_uuid_already_inside_project_category(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_flow(root)
+            client = FakeImportClient()
+            _seed_flow(client, FLOW_ID, "project-a", name="Previous foreground flow")
+            preflight = workflow.preflight_import_lci(
+                "localhost", 8080, root, "project-a", "isolated-db", client
+            )
+            report = run_import(root, client)
+
+        self.assertTrue(preflight["ok"], preflight["errors"])
+        self.assertEqual(report["status"], "success")
+        self.assertTrue(
+            any(getattr(entity, "id", None) == FLOW_ID for entity in client.put_calls)
+        )
+
+    def test_provider_repair_does_not_overwrite_process_outside_project(self) -> None:
+        client = FakeImportClient()
+        background = olca_schema.Process(
+            id=BACKGROUND_PROVIDER_ID,
+            name="Background provider",
+        )
+        background.category = "ecoinvent/cutoff"
+        background.exchanges = []
+        client.entities[(olca_schema.Process, BACKGROUND_PROVIDER_ID)] = background
+        copied = {
+            "path": "processes/copied-background.json",
+            "entity_type": "Process",
+            "id": BACKGROUND_PROVIDER_ID,
+            "name": "Copied background",
+            "data": {
+                "exchanges": [
+                    {
+                        "isInput": True,
+                        "flow": {"@id": FLOW_ID},
+                        "defaultProvider": {"@type": "Process", "@id": PROCESS_ID},
+                    }
+                ]
+            },
+        }
+        foreground = {
+            "path": "processes/foreground.json",
+            "entity_type": "Process",
+            "id": PROCESS_ID,
+            "name": "Foreground",
+            "data": {"exchanges": []},
+        }
+        errors = workflow._repair_foreground_process_providers(
+            client, [copied, foreground], "project-a"
+        )
+        self.assertEqual(client.put_calls, [])
+        self.assertTrue(any("已存在且不在本项目分类" in error for error in errors))
 
     def test_lci_validation_requires_one_output_quantitative_reference(self) -> None:
         cases = ("missing", "duplicate", "input")
