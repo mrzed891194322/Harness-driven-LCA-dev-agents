@@ -74,6 +74,6 @@
 
 没有设置 `OPENLCA_DATABASE_NAME` 时，`database_identity_verified` 一直是 false，不影响运行。之后要么在 `.env` 里写明数据库名，要么让诊断里明确提示这一项。
 
-## knowledge 下的计划和参考资料仍被 git 跟踪（暂缓）
+## knowledge 里的用户文件不再进 git
 
-`harness/knowledge/.gitignore` 写的是 `*`，但 `plan/main_plan.md`、`plan/revise_plan.md`、`inputs/水瓶案例学习.md` 早已提交进 git，`.gitignore` 对已跟踪文件不起作用，所以页面上传或自动保存计划后 `main_plan.md` 会显示为改动。修法：先把默认计划另存为 `plan/main_plan.example.md`、`plan/revise_plan.example.md` 提交；再用 `git rm --cached` 取消跟踪这三个文件（本地文件保留）；`.gitignore` 放行 `!*/`、`!.gitignore`、`!README.md`、`!*.example.md`。状态：暂缓，2026-10-11 只记录，未改代码。
+`harness/knowledge/` 只保留各级 `README.md` 和 `.gitignore`。`main_plan.md`、`revise_plan.md`、`inputs/水瓶案例学习.md`，以及历史上放进该目录的手册和标准全文，已从版本库历史中移除。控制面板仍会在运行时写回计划和参考资料；`.gitignore` 的 `*` 让这些文件留在本地、不再被跟踪。已推送的远程历史还留着旧对象，需要强制推送才会从远端消失。
