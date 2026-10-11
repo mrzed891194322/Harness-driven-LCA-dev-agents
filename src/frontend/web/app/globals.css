@@ -3423,25 +3423,19 @@ button:disabled {
 }
 
 .results-kind-tabs button {
-  display: grid;
-  gap: 1px;
-  justify-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 0;
-  padding: 6px 4px;
+  padding: 8px 6px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   box-shadow: none;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.95rem;
   font-weight: 600;
   line-height: 1.2;
-}
-
-.results-kind-tabs button span {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 500;
 }
 
 .results-kind-tabs button:hover {
@@ -3454,10 +3448,6 @@ button:disabled {
   background: #fff;
   color: var(--accent);
   box-shadow: 0 1px 2px rgba(28, 31, 26, 0.05), 0 4px 12px rgba(28, 31, 26, 0.06);
-}
-
-.results-kind-tabs button.is-active span {
-  color: var(--accent);
 }
 
 .results-pane {

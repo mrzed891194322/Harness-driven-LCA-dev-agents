@@ -165,11 +165,6 @@ export function ArtifactsBrowser({
   );
   const visibleIntermediate = intermediate.slice(0, MAX_ARTIFACT_ROWS);
   const omittedIntermediate = Math.max(0, intermediate.length - visibleIntermediate.length);
-  const counts: Record<ResultKind, number> = {
-    work: handoffs.length + records.length,
-    intermediate: intermediate.length,
-    final: finals.length,
-  };
 
   function chooseKind(next: ResultKind) {
     kindTouched.current = true;
@@ -190,7 +185,6 @@ export function ArtifactsBrowser({
               onClick={() => chooseKind(item)}
             >
               {KIND_LABEL[item]}
-              <span>{counts[item]}</span>
             </button>
           ))}
         </div>

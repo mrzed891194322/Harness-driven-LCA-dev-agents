@@ -17,7 +17,7 @@ Python 编排器（src/backend/core/workflow）按 harness YAML 逐阶段派工
 Pi SDK（src/pi-runtime，createAgentSession）
         │  progress.txt + manifest.json
         ▼
-GUI「运行详情」流式渲染；「结果」展示 workspace 里的产物与记录
+GUI「运行详情」流式渲染；「结果浏览」展示 workspace 里的产物与记录
 ```
 
 这条链路还没有完全走通。改 GUI、启动、编排或展示时，用同一次运行把上下游对上，不要只改其中一层的内部格式。
