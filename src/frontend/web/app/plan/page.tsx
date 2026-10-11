@@ -341,7 +341,7 @@ export default function PlanPage() {
                 </button>
                 <button type="button" onClick={() => planInput.current?.click()}>
                   <Upload className="launch-icon" aria-hidden="true" />
-                  上传 Markdown
+                  上传计划文档
                 </button>
                 <input
                   ref={planInput}
