@@ -10,7 +10,8 @@ from pathlib import Path
 PLAN_RELATIVE = Path("harness/knowledge/plan/main_plan.md")
 INPUTS_RELATIVE = Path("harness/knowledge/inputs")
 TEMPLATE_NAME = "lca-plan-template.md"
-NOTES_NAME = ".reference-notes.json"
+NOTES_NAME = "reference-notes.json"
+_LEGACY_NOTES_NAME = ".reference-notes.json"
 MAX_PLAN_BYTES = 2 * 1024 * 1024
 PLAN_SUFFIXES = {".md", ".markdown", ".txt"}
 FIELD_KEYS = ("研究对象", "功能单位", "生命周期阶段", "附加条件")
@@ -300,7 +301,7 @@ def _is_reference_file(folder: Path, path: Path) -> bool:
         relative = path.relative_to(folder)
     except ValueError:
         return False
-    if relative.as_posix().lower() == "readme.md":
+    if relative.as_posix().lower() in {"readme.md", NOTES_NAME}:
         return False
     return not any(part.startswith(".") for part in relative.parts)
 
@@ -318,10 +319,13 @@ def _notes_path(root: Path) -> Path:
     return inputs_dir(root) / NOTES_NAME
 
 
-def _read_notes(root: Path) -> dict[str, str]:
-    path = _notes_path(root)
+def _legacy_notes_path(root: Path) -> Path:
+    return inputs_dir(root) / _LEGACY_NOTES_NAME
+
+
+def _parse_notes(path: Path) -> dict[str, str] | None:
     if not path.is_file():
-        return {}
+        return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -335,6 +339,20 @@ def _read_notes(root: Path) -> dict[str, str]:
     }
 
 
+def _read_notes(root: Path) -> dict[str, str]:
+    current = _parse_notes(_notes_path(root))
+    legacy_path = _legacy_notes_path(root)
+    if current is None:
+        legacy = _parse_notes(legacy_path)
+        if legacy is None:
+            return {}
+        _write_notes(root, legacy)
+        return legacy
+    if legacy_path.is_file():
+        legacy_path.unlink()
+    return current
+
+
 def _write_notes(root: Path, notes: dict[str, str]) -> None:
     folder = inputs_dir(root)
     folder.mkdir(parents=True, exist_ok=True)
@@ -342,6 +360,9 @@ def _write_notes(root: Path, notes: dict[str, str]) -> None:
         json.dumps(notes, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    legacy = _legacy_notes_path(root)
+    if legacy.is_file():
+        legacy.unlink()
 
 
 def _reference_relative(filename: str) -> str:
@@ -359,6 +380,8 @@ def _reference_relative(filename: str) -> str:
         raise PlanFormError("文件名无效")
     if len(parts) == 1 and parts[0].lower() == "readme.md":
         raise PlanFormError("不能覆盖说明文件")
+    if len(parts) == 1 and parts[0] == NOTES_NAME:
+        raise PlanFormError("不能覆盖注释文件")
     return "/".join(parts)
 
 

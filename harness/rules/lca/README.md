@@ -3,7 +3,7 @@
 | 文件 | 用途 | 阶段 |
 | --- | --- | --- |
 | [method.md](method.md) | 研究要求、缺口、方法及结论边界，含修订优先级 | 全部 |
-| [knowledge-files.md](knowledge-files.md) | 声明来源、证据类型、推导及资料冲突 | 全部 |
+| [knowledge-files.md](knowledge-files.md) | 声明来源、证据类型、推导、资料冲突及用户提取要求 | 全部 |
 | [inventory.md](inventory.md) | 清单完整性、数量基准与量纲 | 02、03 |
 | [mapping.md](mapping.md) | 背景适配、前景标识与重复计算 | 03 |
 | [interpretation.md](interpretation.md) | 计算基准、比较、敏感性和结论证据 | 04 |

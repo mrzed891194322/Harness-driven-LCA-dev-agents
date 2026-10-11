@@ -8,6 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from backend.api.app import app
+from backend.core.runtime.knowledge_providers.local_files import discover_files_at
 from backend.services.plan_form import (
     PlanFields,
     PlanFormError,
@@ -103,7 +104,24 @@ class PlanReferenceTests(unittest.TestCase):
             self.assertEqual(noted["note"], "按表格中的距离建模")
             listed = {item["name"]: item["note"] for item in list_references(root)}
             self.assertEqual(listed["script.exe"], "按表格中的距离建模")
-            self.assertNotIn(".reference-notes.json", listed)
+            notes_path = root / "harness/knowledge/inputs/reference-notes.json"
+            self.assertEqual(
+                notes_path.read_text(encoding="utf-8"),
+                '{\n  "script.exe": "按表格中的距离建模"\n}\n',
+            )
+            self.assertNotIn("reference-notes.json", listed)
+            discovered = {
+                item["path"]
+                for item in discover_files_at(root, "harness/knowledge/inputs/")["files"]
+            }
+            self.assertIn("harness/knowledge/inputs/reference-notes.json", discovered)
+            notes_path.unlink()
+            legacy = root / "harness/knowledge/inputs/.reference-notes.json"
+            legacy.write_text('{"script.exe": "旧注释"}\n', encoding="utf-8")
+            migrated = {item["name"]: item["note"] for item in list_references(root)}
+            self.assertEqual(migrated["script.exe"], "旧注释")
+            self.assertFalse(legacy.exists())
+            self.assertTrue(notes_path.is_file())
             delete_reference(root, "script.exe")
             self.assertNotIn("script.exe", {item["name"] for item in list_references(root)})
             save_reference(root, "案例/证据.md", b"# nested\n")
