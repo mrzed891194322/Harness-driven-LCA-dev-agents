@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import olca_schema
@@ -15,6 +17,10 @@ from harness.tools.shared.control_openlca.ipc_failure import on_ipc_transport_fa
 from harness.tools.shared.control_openlca.protocols import (
     OlcaDescriptor,
     OpenLcaClient,
+)
+from harness.tools.shared.control_openlca.workflow import (
+    ENTITY_TYPES,
+    load_lci_inventory,
 )
 
 
@@ -100,6 +106,82 @@ def _model_types(*, include_supporting: bool) -> list[type]:
     return model_types
 
 
+def _journal_entity_targets(workspace: Path) -> list[tuple[str, str]]:
+    journal = workspace / "records" / "import-operations" / "operations"
+    if not journal.is_dir():
+        return []
+    targets: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for path in sorted(journal.glob("*.json")):
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError):
+            continue
+        for entry in report.get("entity_plan") or []:
+            entity_type = str(entry.get("entity_type") or "")
+            entity_id = str(entry.get("id") or "")
+            key = (entity_type, entity_id)
+            if entity_type and entity_id and key not in seen:
+                seen.add(key)
+                targets.append(key)
+        for entry in report.get("entities") or []:
+            if entry.get("action") != "create_or_update":
+                continue
+            entity_type = str(entry.get("entity_type") or "")
+            entity_id = str(entry.get("id") or "")
+            key = (entity_type, entity_id)
+            if entity_type and entity_id and key not in seen:
+                seen.add(key)
+                targets.append(key)
+    return targets
+
+
+def _lci_entity_targets(workspace: Path) -> list[tuple[str, str]]:
+    lci_root = workspace / "outputs" / "LCI"
+    inventory, _errors = load_lci_inventory(lci_root)
+    return [(str(item["entity_type"]), str(item["id"])) for item in inventory]
+
+
+def _resolve_uuid_targets(
+    client: OpenLcaClient,
+    project_name: str,
+    targets: list[tuple[str, str]],
+) -> tuple[list[tuple[type, object]], list[dict[str, str]]]:
+    resolved: list[tuple[type, object]] = []
+    skipped: list[dict[str, str]] = []
+    for entity_type_name, entity_id in targets:
+        model_type = ENTITY_TYPES.get(entity_type_name)
+        if model_type is None or not entity_id:
+            continue
+        try:
+            existing = client.get(model_type, entity_id)
+        except Exception as exc:
+            skipped.append(
+                {
+                    "type": entity_type_name,
+                    "id": entity_id,
+                    "reason": f"lookup failed: {exc}",
+                }
+            )
+            continue
+        if existing is None:
+            continue
+        category = getattr(existing, "category", None)
+        if not is_in_project_category(category, project_name):
+            skipped.append(
+                {
+                    "type": entity_type_name,
+                    "id": entity_id,
+                    "name": str(getattr(existing, "name", "") or ""),
+                    "category": str(category or ""),
+                    "reason": "entity outside target category",
+                }
+            )
+            continue
+        resolved.append((model_type, existing))
+    return resolved, skipped
+
+
 def _serialize_entities(
     entities: list[tuple[type, OlcaDescriptor]],
 ) -> list[dict[str, str]]:
@@ -121,6 +203,7 @@ def run_cleanup_output(
     *,
     include_supporting: bool = False,
     confirm: bool = False,
+    workspace: Path | str | None = None,
 ) -> dict[str, Any]:
     """Preview or delete ProductSystem, Process, and Flow under a project category."""
     project_name = target_category.strip()
@@ -143,9 +226,29 @@ def run_cleanup_output(
     )
     try:
         entities = collect_entities(client, project_name, model_types)
+        uuid_skipped: list[dict[str, str]] = []
+        if workspace is not None:
+            workspace_path = Path(workspace)
+            uuid_targets = _lci_entity_targets(workspace_path) + _journal_entity_targets(
+                workspace_path
+            )
+            uuid_entities, uuid_skipped = _resolve_uuid_targets(
+                client, project_name, uuid_targets
+            )
+            known_ids = {
+                (model_type.__name__, str(getattr(descriptor, "id", "")))
+                for model_type, descriptor in entities
+            }
+            for model_type, entity in uuid_entities:
+                entity_id = str(getattr(entity, "id", "") or "")
+                key = (model_type.__name__, entity_id)
+                if key in known_ids:
+                    continue
+                known_ids.add(key)
+                entities.append((model_type, entity))
         serialized = _serialize_entities(entities)
         if not confirm:
-            return {
+            payload = {
                 "ok": True,
                 "target_category": project_name,
                 "confirm": False,
@@ -154,6 +257,9 @@ def run_cleanup_output(
                 "entities": serialized,
                 "errors": [],
             }
+            if uuid_skipped:
+                payload["skipped_uuid_cleanup"] = uuid_skipped
+            return payload
 
         deleted_count, errors = delete_entities(
             client, entities, model_types, host=host, port=port
@@ -167,6 +273,8 @@ def run_cleanup_output(
             "entities": serialized,
             "errors": errors,
         }
+        if uuid_skipped:
+            payload["skipped_uuid_cleanup"] = uuid_skipped
         if errors and any(
             "timeout" in str(item).lower() or "timed out" in str(item).lower()
             for item in errors

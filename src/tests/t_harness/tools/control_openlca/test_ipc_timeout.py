@@ -155,18 +155,19 @@ def test_uncertain_leftover_rejects_import(monkeypatch, tmp_path):
                     }
                 ],
             ):
-                result = operations.import_request(
-                    "127.0.0.1",
-                    8080,
-                    workspace / "outputs" / "LCI",
-                    "cat",
-                    "db",
-                    run_id=run_id,
-                    request_id="req-1",
-                    preflight_id=preflight_id,
-                    operation_dir=journal,
-                    client=client,
-                )
+                with guard.endpoint_guard("127.0.0.1", 8080):
+                    result = operations.import_request(
+                        "127.0.0.1",
+                        8080,
+                        workspace / "outputs" / "LCI",
+                        "cat",
+                        "db",
+                        run_id=run_id,
+                        request_id="req-1",
+                        preflight_id=preflight_id,
+                        operation_dir=journal,
+                        client=client,
+                    )
     assert result["status"] == "rejected"
     assert result["retryable"] is False
 

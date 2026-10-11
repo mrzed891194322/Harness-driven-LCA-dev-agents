@@ -139,7 +139,10 @@ mcp = MCPServer(
         "Long-running tools accept optional timeout_sec (300-7200) to lower the host "
         "IPC session budget (min(agent, OPENLCA_IPC_SESSION_BUDGET_SEC)); per-request "
         "HTTP read timeouts are host-only (OPENLCA_TIMEOUT_*). Do not wrap tools in "
-        "shell timeout. After partial_failure use reconcile_import then resume_import."
+        "shell timeout. After partial_failure use reconcile_import then resume_import. "
+        "Same-run re-import after upstream LCI rework overwrites this run's own "
+        "entities (matching UUIDs in the target category); resume_import reconciles "
+        "per-entity content_hash and re-imports only changed entities."
     ),
 )
 
@@ -338,11 +341,12 @@ def preflight_import_lci(
 @mcp.tool(
     description=(
         "Destructively import canonical workspace/outputs/LCI or a compatibility LCI "
-        "under workspace/tmp after rerunning preflight. Rejects the write when the "
-        "database name, target category, or LCI directory does not match the last "
-        "successful preflight scope. After partial_failure, pass resume_operation_id "
-        "from get_import_operation/import_status together with a new request_id and "
-        "preflight_id (do not start a fresh import). Optional timeout_sec (300-7200) "
+        "under workspace/tmp after rerunning preflight. Scope (run, endpoint, database, "
+        "category, lci_dir) must match preflight; LCI file content may change within "
+        "the same run after rework and will update existing UUIDs in the target category. "
+        "After partial_failure, pass resume_operation_id from get_import_operation with "
+        "a new request_id and preflight_id, or call resume_import (skips done entities, "
+        "re-imports entities whose content_hash changed). Optional timeout_sec (300-7200) "
         "lowers the host session budget only; per-request reads use OPENLCA_TIMEOUT_*."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
@@ -406,8 +410,9 @@ def reconcile_import(operation_id: str, timeout_sec: int | None = None) -> dict[
 
 @mcp.tool(
     description=(
-        "Resume a partial import operation after reconcile_import. Requires a new "
-        "request_id and unconsumed preflight_id; skips entities marked done."
+        "Resume or supersede an import operation after reconcile_import when needed. "
+        "Requires matching import scope and a new request_id plus unconsumed preflight_id; "
+        "reuses done entities when content_hash matches and re-imports changed ones."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,

@@ -15,8 +15,16 @@ from .connection import (
     create_ipc_client,
     is_transport_error,
 )
-from .guard import endpoint_is_uncertain, mark_uncertain
+from .guard import mark_uncertain, prior_uncertain_marker
 from .ipc_failure import NON_RETRYABLE_KIND, on_ipc_transport_failure
+
+IDENTITY_SCOPE_KEYS = (
+    "run_id",
+    "endpoint",
+    "database_name",
+    "category",
+    "lci_dir",
+)
 
 
 def identifier(value: str) -> str:
@@ -36,6 +44,78 @@ def journal_root(path):
     if root.exists() and any(p.is_symlink() for p in root.rglob("*")):
         raise ValueError("operation journal must not contain symbolic links")
     return root
+
+
+def identity_scope(identity: dict) -> dict:
+    return {key: identity[key] for key in IDENTITY_SCOPE_KEYS if key in identity}
+
+
+def compare_identity_scope(expected: dict, actual: dict) -> list[str]:
+    errors: list[str] = []
+    for key in IDENTITY_SCOPE_KEYS:
+        if expected.get(key) != actual.get(key):
+            errors.append(
+                "resume_scope_mismatch: "
+                f"field={key} expected={expected.get(key)!r} got={actual.get(key)!r}"
+            )
+    return errors
+
+
+def run_owned_entity_ids(operation_dir, run_id, scope: dict) -> set[str]:
+    """Entity ids written by prior operations in this run with the same import scope."""
+    root = journal_root(operation_dir)
+    owned: set[str] = set()
+    operations_dir = root / "operations"
+    if not operations_dir.is_dir():
+        return owned
+    for path in sorted(operations_dir.glob("*.json")):
+        try:
+            report = read(path)
+        except (OSError, ValueError, TypeError, KeyError):
+            continue
+        ident = report.get("identity") or {}
+        if ident.get("run_id") != run_id:
+            continue
+        if identity_scope(ident) != scope:
+            continue
+        for entry in report.get("entity_plan") or []:
+            entity_id = entry.get("id")
+            if entity_id:
+                owned.add(str(entity_id))
+        for entry in report.get("entities") or []:
+            if entry.get("action") != "create_or_update":
+                continue
+            entity_id = entry.get("id")
+            if entity_id:
+                owned.add(str(entity_id))
+    return owned
+
+
+def merge_entity_plan_for_content_change(
+    previous_plan: list[dict],
+    inventory: list[dict],
+) -> tuple[list[dict], list[str]]:
+    """Reuse done entities when content_hash matches; re-import when it changed."""
+    previous_by_id = {str(entry["id"]): dict(entry) for entry in previous_plan}
+    merged: list[dict] = []
+    changed_entities: list[str] = []
+    for item in inventory:
+        entry = w.build_entity_plan([item])[0]
+        prior = previous_by_id.get(str(item["id"]))
+        if prior is None:
+            merged.append(entry)
+            continue
+        if (
+            prior.get("status") == "done"
+            and prior.get("content_hash") == entry.get("content_hash")
+        ):
+            entry["status"] = "done"
+        elif prior.get("content_hash") != entry.get("content_hash"):
+            changed_entities.append(str(item["id"]))
+        elif prior.get("status") in {"failed", "uncertain", "pending"}:
+            entry["status"] = prior.get("status", "pending")
+        merged.append(entry)
+    return merged, changed_entities
 
 
 def request_identity(host, port, run_id, database_name, category, lci_dir):
@@ -312,23 +392,43 @@ def resume_import_request(
             "execution_mode": "not_executed",
         }
     report = read(path)
-    if report.get("identity") != identity:
+    scope = identity_scope(identity)
+    scope_errors = compare_identity_scope(scope, identity_scope(report.get("identity") or {}))
+    if scope_errors:
         return {
             "status": "rejected",
-            "errors": ["resume_identity_mismatch"],
+            "errors": scope_errors,
             "execution_mode": "not_executed",
         }
-    if report.get("status") not in {"partial_failure", "failed", "indeterminate"}:
+    content_matches = (report.get("identity") or {}).get("lci_content") == identity.get(
+        "lci_content"
+    )
+    if report.get("status") == "success" and content_matches:
+        return {
+            **report,
+            "execution_mode": "reused",
+            "source_operation_id": operation_id,
+            "reuse_reason": "operation already succeeded with identical LCI content",
+        }
+    if report.get("status") not in {
+        "partial_failure",
+        "failed",
+        "indeterminate",
+        "success",
+    }:
         return {
             "status": "rejected",
             "errors": [f"operation_not_resumable:{report.get('status')}"],
             "execution_mode": "not_executed",
         }
     saved = read(root / "preflights" / f"{preflight_id}.json")
-    if saved.get("identity") != identity:
+    preflight_scope_errors = compare_identity_scope(
+        scope, identity_scope(saved.get("identity") or {})
+    )
+    if preflight_scope_errors:
         return {
             "status": "rejected",
-            "errors": ["preflight_identity_mismatch"],
+            "errors": ["preflight_scope_mismatch", *preflight_scope_errors],
             "execution_mode": "not_executed",
         }
     consumed = root / "consumed" / f"{preflight_id}.json"
@@ -350,7 +450,14 @@ def resume_import_request(
                 "errors": ["preflight_stale", *current["errors"]],
                 "execution_mode": "not_executed",
             }
-        plan = list(report.get("entity_plan") or w.build_entity_plan(inventory))
+        previous_plan = list(report.get("entity_plan") or [])
+        if content_matches:
+            plan = list(previous_plan or w.build_entity_plan(inventory))
+        else:
+            plan, changed_entities = merge_entity_plan_for_content_change(
+                previous_plan, inventory
+            )
+            report["changed_entities"] = changed_entities
         report.update(
             status="running",
             owner_pid=os.getpid(),
@@ -358,6 +465,7 @@ def resume_import_request(
             preflight_id=preflight_id,
             execution_mode="resumed",
             resumed_at=w.utc_now(),
+            identity=identity,
             entity_plan=plan,
             errors=[],
         )
@@ -473,10 +581,14 @@ def import_request(
             "reuse_reason": "same request; journal returned without database writes",
         }
     saved = read(root / "preflights" / f"{preflight_id}.json")
-    if saved.get("identity") != identity:
+    scope = identity_scope(identity)
+    preflight_scope_errors = compare_identity_scope(
+        scope, identity_scope(saved.get("identity") or {})
+    )
+    if preflight_scope_errors:
         return {
             "status": "rejected",
-            "errors": ["preflight_identity_mismatch"],
+            "errors": ["preflight_scope_mismatch", *preflight_scope_errors],
             "execution_mode": "not_executed",
         }
     # One preflight authorizes one request, including after partial failure.
@@ -533,11 +645,17 @@ def import_request(
                 "errors": ["preflight_stale", *current["errors"]],
                 "execution_mode": "not_executed",
             }
-        if endpoint_is_uncertain(host, port):
+        if prior_uncertain_marker(host, port):
             leftovers = w.find_uncertain_leftover_entities(
                 ipc, inventory, target_category
             )
-            if leftovers:
+            run_owned = run_owned_entity_ids(root, run_id, scope)
+            foreign_leftovers = [
+                item
+                for item in leftovers
+                if str(item.get("id") or "") not in run_owned
+            ]
+            if foreign_leftovers:
                 return {
                     "status": "rejected",
                     "errors": [
@@ -547,10 +665,10 @@ def import_request(
                         *[
                             f"leftover {item['entity_type']} {item['name']} "
                             f"({item['id']}) from {item['path']}"
-                            for item in leftovers
+                            for item in foreign_leftovers
                         ],
                     ],
-                    "leftover_entities": leftovers,
+                    "leftover_entities": foreign_leftovers,
                     "execution_mode": "not_executed",
                     "retryable": False,
                     "error_kind": NON_RETRYABLE_KIND,
@@ -565,6 +683,31 @@ def import_request(
         ):
             return {"status": "rejected", "errors": ["lci_changed_during_preflight"]}
         operation_id = str(uuid.uuid4())
+        superseded_operation_id = None
+        changed_entities: list[str] = []
+        current_path = root / "current.json"
+        if current_path.exists():
+            prior_id = read(current_path).get("operation_id")
+            if prior_id:
+                prior_path = root / "operations" / f"{identifier(prior_id)}.json"
+                if prior_path.exists():
+                    prior_report = read(prior_path)
+                    prior_identity = prior_report.get("identity") or {}
+                    if (
+                        identity_scope(prior_identity) == scope
+                        and prior_report.get("status") == "success"
+                        and prior_identity.get("lci_content") != identity.get("lci_content")
+                    ):
+                        superseded_operation_id = str(prior_id)
+                        changed_entities = [
+                            item["id"]
+                            for item in inventory
+                            if any(
+                                entry.get("id") == item["id"]
+                                and entry.get("content_hash") != item.get("sha256", "")
+                                for entry in prior_report.get("entity_plan") or []
+                            )
+                        ]
         entity_plan = w.build_entity_plan(inventory)
         report = {
             "schema_version": 2,
@@ -575,6 +718,8 @@ def import_request(
             "preflight_id": preflight_id,
             "identity": identity,
             "execution_mode": "executed",
+            "superseded_operation_id": superseded_operation_id,
+            "changed_entities": changed_entities or None,
             "started_at": w.utc_now(),
             "requested_at": w.utc_now(),
             "success_count": 0,

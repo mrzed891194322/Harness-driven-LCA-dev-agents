@@ -27,7 +27,9 @@ def cleanup(
     """Preview or delete foreground entities; return the raw domain result."""
 
     def perform(host: str, port: int) -> dict[str, Any]:
-        result = run_cleanup_output(host, port, category, confirm=confirm)
+        result = run_cleanup_output(
+            host, port, category, confirm=confirm, workspace=workspace
+        )
         if confirm and result.get("ok"):
             if workspace is None:
                 raise ValueError(

@@ -96,7 +96,9 @@ mcp = MCPServer(
     instructions=(
         "Independent access to the openLCA IPC Server configured "
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci and cleanup_output "
-        "are destructive; import_lci requires a matching current import scope. "
+        "are destructive; import_lci requires matching preflight scope (run, endpoint, "
+        "database, category, lci_dir). Same-run LCI rework may change file content and "
+        "overwrites this run's entities by UUID; resume_import skips unchanged entities. "
         "Long-running tools accept optional timeout_sec (300-7200) for IPC session "
         "budget and per-request HTTP reads; do not wrap tools in shell timeout."
     ),
@@ -275,11 +277,12 @@ def preflight_import_lci(
 
 @mcp.tool(
     description=(
-        "Import the supplied LCI directory "
-        "after rerunning preflight. Rejects the write when the "
-        "database name, target category, or LCI directory does not match the last "
-        "successful preflight scope. Optional timeout_sec (300-7200) extends the IPC "
-        "session budget; do not wrap this tool in shell timeout."
+        "Import the supplied LCI directory after rerunning preflight. Preflight scope "
+        "(run, endpoint, database, category, lci_dir) must match; LCI file content may "
+        "change within the same run and updates entities by UUID in the target category. "
+        "Use resume_operation_id after partial_failure; resume skips unchanged entities. "
+        "Optional timeout_sec (300-7200) extends the IPC session budget; do not wrap "
+        "this tool in shell timeout."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,

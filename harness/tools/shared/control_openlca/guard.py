@@ -7,6 +7,7 @@ import getpass
 import hashlib
 import json
 import os
+import secrets
 import tempfile
 import threading
 import time
@@ -55,6 +56,35 @@ def endpoint_uncertain_marker(host: str, port: int) -> Path:
 
 def endpoint_is_uncertain(host: str, port: int) -> bool:
     return endpoint_uncertain_marker(host, port).is_file()
+
+
+def prior_uncertain_marker(host: str, port: int) -> bool:
+    """True when guard entry found an uncertain marker from a prior holder."""
+    endpoint = build_endpoint(host, port)
+    if endpoint not in getattr(_local, "held", set()):
+        return False
+    return bool(getattr(_local, "prior_uncertain_at_entry", False))
+
+
+def endpoint_was_uncertain_at_entry(host: str, port: int) -> bool:
+    return prior_uncertain_marker(host, port)
+
+
+def _write_guard_marker(uncertain: Path, endpoint: str) -> str:
+    token = secrets.token_hex(16)
+    uncertain.write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "endpoint": endpoint,
+                "token": token,
+                "tid": threading.get_ident(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    _local.guard_marker_token = token
+    return token
 
 
 @contextmanager
@@ -132,7 +162,8 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
     waiting_at = time.monotonic()
     with file_lock(root / f"{key}.lock"):
         _local.lock_wait_ms = round((time.monotonic() - waiting_at) * 1000)
-        if uncertain.exists():
+        _local.prior_uncertain_at_entry = uncertain.exists()
+        if _local.prior_uncertain_at_entry:
             client = None
             try:
                 client = probe_ipc(host, port)
@@ -143,7 +174,7 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
             finally:
                 close_ipc_client(client)
         # A process killed while holding the lock leaves this marker behind.
-        uncertain.write_text(json.dumps({"pid": os.getpid(), "endpoint": endpoint}))
+        _write_guard_marker(uncertain, endpoint)
         _local.held = held | {endpoint}
         deadline_sec = (
             budget_sec
@@ -168,6 +199,8 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
             _local.uncertain = False
             _local.deadline = None
             _local.long_running = False
+            _local.prior_uncertain_at_entry = False
+            _local.guard_marker_token = None
 
 
 def mark_uncertain():
