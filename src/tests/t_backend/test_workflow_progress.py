@@ -117,16 +117,23 @@ class WorkflowProgressTests(unittest.TestCase):
             )
             dump.parent.mkdir(parents=True, exist_ok=True)
             dump.write_text("{}", encoding="utf-8")
+            review = workspace / "records" / "reviews" / "report-1.md"
+            review.parent.mkdir(parents=True, exist_ok=True)
+            review.write_text("review\n", encoding="utf-8")
 
             service = WorkflowService(root)
             body = service.results()
             opened = service.read_result_file("workspace/outputs/reports/lca.md")
             self.assertEqual(opened["kind"], "markdown")
             self.assertIn("LCA", opened["text"])
-            with self.assertRaises(ValueError):
-                service.read_result_file("workspace/records/manifest.json")
+            manifest = service.read_result_file("workspace/records/manifest.json")
+            self.assertEqual(manifest["kind"], "json")
+            note = service.read_result_file("workspace/records/reviews/report-1.md")
+            self.assertEqual(note["kind"], "markdown")
             with self.assertRaises(ValueError):
                 service.read_result_file("workspace/outputs/../../.env")
+            with self.assertRaises(ValueError):
+                service.read_result_file("workspace/tmp/secret.json")
             names = zipfile.ZipFile(io.BytesIO(service.archive_outputs())).namelist()
 
         self.assertEqual(body["manifest"]["run_id"], "run-9")
@@ -135,6 +142,13 @@ class WorkflowProgressTests(unittest.TestCase):
         self.assertFalse(any(name.endswith("README.md") for name in names))
         self.assertEqual(body["handoffs"][0]["stage"], "report")
         self.assertEqual(body["handoffs"][0]["artifacts"], ["workspace/outputs/reports/lca.md"])
+        self.assertEqual(
+            [item["path"] for item in body["records"]],
+            [
+                "workspace/records/manifest.json",
+                "workspace/records/reviews/report-1.md",
+            ],
+        )
         self.assertEqual(
             [(item["path"], item["count"]) for item in body["artifacts"]],
             [

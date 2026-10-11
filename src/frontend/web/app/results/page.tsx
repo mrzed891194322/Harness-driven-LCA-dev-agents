@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, PenLine, RefreshCw } from "lucide-react";
+import { Download, FolderOpen, PenLine, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   ArtifactsBrowser,
@@ -10,11 +10,7 @@ import {
   type Handoff,
   type Preview,
 } from "../../components/results/artifacts-browser";
-import { InjectionCheckPanel } from "../../components/results/injection-check-panel";
-import { getRunJson, INJECTION_TONE, type RunRow } from "../../components/results/run-api";
-import { SessionRecordsPanel } from "../../components/results/session-records-panel";
 import { apiFetch } from "../../lib/api";
-import { filterVisibleRuns } from "../../lib/run-filters";
 import { loadResultFiles, readResultFile, type ResultFile } from "./load-files";
 
 type Manifest = {
@@ -28,14 +24,21 @@ type Results = {
   manifest: Manifest;
   handoffs: Handoff[];
   artifacts: Artifact[];
+  records?: Artifact[];
 };
-
-type DetailTab = "injection" | "sessions" | "artifacts";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function knownPaths(data: Results): Set<string> {
+  return new Set([
+    ...data.handoffs.map((item) => `workspace/records/handoffs/${item.name}`),
+    ...data.artifacts.map((item) => item.path),
+    ...(data.records || []).map((item) => item.path),
+  ]);
 }
 
 export default function ResultsPage() {
@@ -47,13 +50,8 @@ export default function ResultsPage() {
   const [selected, setSelected] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [fileError, setFileError] = useState("");
-  const [runs, setRuns] = useState<RunRow[]>([]);
-  const [selectedRunId, setSelectedRunId] = useState("");
-  const [detailTab, setDetailTab] = useState<DetailTab>("artifacts");
   const selectedRef = useRef("");
   const requestRef = useRef(0);
-  const selectedRunRef = useRef("");
-
   const previewCacheRef = useRef<Map<string, Preview>>(new Map());
 
   const openPath = useCallback(
@@ -105,9 +103,6 @@ export default function ResultsPage() {
     [],
   );
 
-  const detailTabRef = useRef<DetailTab>(detailTab);
-  detailTabRef.current = detailTab;
-
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
     try {
@@ -122,21 +117,12 @@ export default function ResultsPage() {
       }
       setData(next);
       setError("");
-      const manifestRun = String(next.manifest.run_id || "").trim();
-      if (!selectedRunRef.current && manifestRun) {
-        selectedRunRef.current = manifestRun;
-        setSelectedRunId(manifestRun);
-      }
-      if (detailTabRef.current !== "artifacts") {
-        return;
-      }
       const current = selectedRef.current;
-      const known = new Set([
-        ...next.handoffs.map((h) => `workspace/records/handoffs/${h.name}`),
-        ...next.artifacts.map((item) => item.path),
-      ]);
-      const target = current && known.has(current) ? current : firstArtifactPath(next.handoffs, next.artifacts);
-      if (target && !silent && !current) {
+      const known = knownPaths(next);
+      const target = current && known.has(current)
+        ? current
+        : firstArtifactPath(next.handoffs, next.artifacts, next.records || []);
+      if (target && target !== current) {
         void openPath(target, next.artifacts);
       }
     } catch (reason: unknown) {
@@ -145,22 +131,6 @@ export default function ResultsPage() {
       if (!silent) setBusy(false);
     }
   }, [openPath]);
-
-  const loadRuns = useCallback(async () => {
-    try {
-      const body = await getRunJson<{ runs: RunRow[] }>("/api/runs");
-      const visible = filterVisibleRuns(body.runs);
-      setRuns(visible);
-      setSelectedRunId((cur) => {
-        if (cur && visible.some((r) => r.run_id === cur)) return cur;
-        const manifestRun = String(data?.manifest.run_id || "").trim();
-        if (manifestRun && visible.some((r) => r.run_id === manifestRun)) return manifestRun;
-        return visible[0]?.run_id || "";
-      });
-    } catch {
-      setRuns([]);
-    }
-  }, [data?.manifest.run_id]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -173,33 +143,8 @@ export default function ResultsPage() {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  useEffect(() => {
-    void loadRuns();
-    const timer = setInterval(() => void loadRuns(), 8000);
-    return () => clearInterval(timer);
-  }, [loadRuns]);
-
-  useEffect(() => {
-    selectedRunRef.current = selectedRunId;
-  }, [selectedRunId]);
-
-  const manifestRunId = String(data?.manifest.run_id || "").trim();
-  const artifactsForRun = Boolean(
-    selectedRunId && manifestRunId && selectedRunId === manifestRunId,
-  );
-
-  useEffect(() => {
-    if (detailTab !== "artifacts" || !data || !artifactsForRun) return;
-    const controller = new AbortController();
-    const target =
-      selectedRef.current && data.artifacts.some((a) => a.path === selectedRef.current)
-        ? selectedRef.current
-        : firstArtifactPath(data.handoffs, data.artifacts);
-    if (target) void openPath(target, data.artifacts, controller.signal);
-    return () => controller.abort();
-  }, [detailTab, data, artifactsForRun, openPath]);
-
-  const empty = Boolean(data) && !data?.handoffs.length && !data?.artifacts.length;
+  const records = data?.records || [];
+  const empty = Boolean(data) && !data?.handoffs.length && !data?.artifacts.length && !records.length;
 
   async function downloadOutputs() {
     setPacking(true);
@@ -234,7 +179,10 @@ export default function ResultsPage() {
       <section className="settings-card plan-card results-card">
         <div className="section-head plan-head">
           <div className="plan-intro">
-            <h2>结果与历史</h2>
+            <h2>
+              <FolderOpen className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
+              运行结果
+            </h2>
           </div>
           <div className="run-meta">
             <button type="button" onClick={() => void refresh()} disabled={busy}>
@@ -252,95 +200,17 @@ export default function ResultsPage() {
           </div>
         </div>
         {error ? <p className="status-banner error">{error}</p> : null}
-
-        <nav className="results-run-history" aria-label="历史运行">
-          <h3>历史运行</h3>
-          {runs.length === 0 ? (
-            <p className="settings-help">
-              仅列出在 .local/runs 下保留了会话快照的运行；更早的运行请直接查看 workspace 产物目录。
-            </p>
-          ) : (
-            <p className="settings-help">列表仅包含带会话快照的运行（用于注入与会话核对）。</p>
-          )}
-          <ul className="results-run-list">
-            {runs.map((run) => (
-              <li key={run.run_id}>
-                <button
-                  type="button"
-                  className={selectedRunId === run.run_id ? "is-active" : ""}
-                  aria-current={selectedRunId === run.run_id ? "true" : undefined}
-                  onClick={() => setSelectedRunId(run.run_id)}
-                >
-                  <strong>{run.run_id}</strong>
-                  <span>
-                    {run.sessions} 个会话
-                    {run.anomaly ? (
-                      <span className={`badge badge-${INJECTION_TONE[run.level] || "warn"}`} style={{ marginLeft: 6 }}>
-                        注入异常
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        {selectedRunId ? (
-          <>
-            <div className="results-detail-tabs" role="tablist" aria-label="运行详情">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={detailTab === "injection"}
-                className={detailTab === "injection" ? "is-active" : ""}
-                onClick={() => setDetailTab("injection")}
-              >
-                注入核对
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={detailTab === "sessions"}
-                className={detailTab === "sessions" ? "is-active" : ""}
-                onClick={() => setDetailTab("sessions")}
-              >
-                会话记录
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={detailTab === "artifacts"}
-                className={detailTab === "artifacts" ? "is-active" : ""}
-                onClick={() => setDetailTab("artifacts")}
-              >
-                产物
-              </button>
-            </div>
-            {detailTab === "injection" ? <InjectionCheckPanel runId={selectedRunId} /> : null}
-            {detailTab === "sessions" ? <SessionRecordsPanel runId={selectedRunId} /> : null}
-            {detailTab === "artifacts" ? (
-              artifactsForRun ? (
-                <ArtifactsBrowser
-                  handoffs={data?.handoffs || []}
-                  artifacts={data?.artifacts || []}
-                  empty={empty}
-                  selected={selected}
-                  preview={preview}
-                  fileError={fileError}
-                  formatSize={formatSize}
-                  onOpen={(path) => void openPath(path, data?.artifacts || [])}
-                />
-              ) : (
-                <p className="settings-help" style={{ marginTop: 12 }}>
-                  工作区产物只对当前一轮运行（{manifestRunId || "未知"}）保留。请选择该运行，或到 workspace/outputs 查看磁盘上的文件。
-                </p>
-              )
-            ) : null}
-          </>
-        ) : (
-          <p className="settings-help" style={{ marginTop: 12 }}>选择一次运行以查看注入核对、会话记录或产物。</p>
-        )}
+        <ArtifactsBrowser
+          handoffs={data?.handoffs || []}
+          artifacts={data?.artifacts || []}
+          records={records}
+          empty={empty}
+          selected={selected}
+          preview={preview}
+          fileError={fileError}
+          formatSize={formatSize}
+          onOpen={(path) => void openPath(path, data?.artifacts || [])}
+        />
       </section>
     </div>
   );

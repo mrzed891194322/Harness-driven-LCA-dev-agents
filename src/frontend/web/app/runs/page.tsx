@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, CircleStop, RefreshCw } from "lucide-react";
+import { AlertCircle, CircleStop, RefreshCw, Terminal } from "lucide-react";
 import { ActivitySummary } from "../../components/runs/activity-summary";
 import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { apiFetch } from "../../lib/api";
@@ -148,7 +148,10 @@ export default function RunsPage() {
       <section className="settings-card plan-card run-card">
         <div className="section-head plan-head">
           <div className="plan-intro">
-            <h2>实时终端</h2>
+            <h2>
+              <Terminal className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
+              实时终端
+            </h2>
           </div>
         </div>
         {openlcaDown ? (

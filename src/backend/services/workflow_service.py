@@ -122,15 +122,16 @@ class WorkflowService:
         return (profile.model_id or profile.display_name or model_ref).strip()
 
     def results(self) -> dict[str, Any]:
-        """Current run summary, handoff records, and files under workspace/outputs."""
+        """Current run summary plus files under workspace/outputs and workspace/records."""
         return {
             "manifest": self.manifest(),
             "handoffs": _list_handoffs(self.workspace_root / "records" / "handoffs"),
             "artifacts": _list_artifacts(self.workspace_root / "outputs"),
+            "records": _list_record_files(self.workspace_root / "records"),
         }
 
     def read_result_file(self, relative: str) -> dict[str, Any]:
-        """Read one handoff or output file. Paths stay inside those two folders."""
+        """Read one workspace output or record. Paths stay inside those folders."""
         rel = _result_file_relative(relative)
         path = (self.project_root / rel).resolve()
         if not path.is_relative_to(self.project_root.resolve()):
@@ -245,7 +246,32 @@ def _list_artifacts(root: Path) -> list[dict[str, Any]]:
     return items
 
 
-_RESULT_PREFIXES = ("workspace/outputs/", "workspace/records/handoffs/")
+def _list_record_files(root: Path) -> list[dict[str, Any]]:
+    """Files under workspace/records, except handoffs (those are listed on their own)."""
+    if not root.is_dir():
+        return []
+    base = root.resolve()
+    items: list[dict[str, Any]] = []
+    for path in sorted(base.rglob("*")):
+        if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
+            continue
+        try:
+            relative = path.resolve().relative_to(base)
+        except ValueError:
+            continue
+        if relative.parts and relative.parts[0] == "handoffs":
+            continue
+        items.append(
+            {
+                "path": f"workspace/records/{relative.as_posix()}",
+                "size": path.stat().st_size,
+                "count": 1,
+            }
+        )
+    return items
+
+
+_RESULT_PREFIXES = ("workspace/outputs/", "workspace/records/")
 _MAX_RESULT_BYTES = 512_000
 
 
@@ -256,7 +282,7 @@ def _result_file_relative(relative: str) -> str:
         raise ValueError("非法路径")
     rel = "/".join(parts)
     if not rel.startswith(_RESULT_PREFIXES):
-        raise ValueError("只能读取产物或交接记录")
+        raise ValueError("只能读取 workspace 中的产物或记录")
     return rel
 
 

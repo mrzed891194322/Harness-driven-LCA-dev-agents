@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
 import { PreviewBoard } from "../../components/plan/preview-board";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
@@ -277,7 +277,10 @@ export default function PlanPage() {
       <section className="settings-card plan-card">
         <div className="section-head plan-head">
           <div className="plan-intro">
-            <h2>LCA 计划</h2>
+            <h2>
+              <ClipboardList className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
+              LCA工作计划
+            </h2>
           </div>
           <div className="plan-mode" role="radiogroup" aria-label="工作类型" data-mode={workMode}>
             <span className="plan-mode-thumb" aria-hidden="true" />

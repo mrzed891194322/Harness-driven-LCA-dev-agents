@@ -172,6 +172,9 @@ def _injection_summary(runtime: Any, state: WorkflowState) -> None:
         path = injection.runs_root(Path(root)) / run_id / "injection-summary.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        workspace = getattr(runtime, "workspace_root", None)
+        if workspace is not None:
+            injection.publish_workspace_sessions(Path(root), Path(workspace), run_id)
         emit = getattr(runtime, "_emit", None)
         if callable(emit):
             emit(state, {"kind": "injection_summary", **summary})

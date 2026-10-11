@@ -17,7 +17,7 @@ Python 编排器（src/backend/core/workflow）按 harness YAML 逐阶段派工
 Pi SDK（src/pi-runtime，createAgentSession）
         │  progress.txt + manifest.json
         ▼
-GUI「运行详情」流式渲染；「结果与历史」展示产物
+GUI「运行详情」流式渲染；「结果」展示 workspace 里的产物与记录
 ```
 
 这条链路还没有完全走通。改 GUI、启动、编排或展示时，用同一次运行把上下游对上，不要只改其中一层的内部格式。
@@ -30,7 +30,7 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 | 点「执行LCA任务」没有开始，或跳转不对 | `components/plan/preview-board.tsx`，`POST /api/workflow/start`，`services/workflow_launch.py` | 按钮保存当前表单，后台启动 `whole-lca` 或 `revise-lca`，浏览器进入 `/runs` |
 | 运行详情没有字，或清理阶段一直停在一句提示 | `GET /api/workflow/progress`，`services/workflow_service.py`，`workflow_launch.py` 的 `_consume` | 准备阶段的输出逐段出现；编排器写下 `progress.txt` 后，页面改显示该文件并保持追加 |
 | Agent 正文、工具调用没有进终端 | `src/backend/core/agents/progress.py`，`src/backend/pi_client/process.py`，`pi-runtime/src/session_host.ts` | Pi 的 `turn.progress`（以及工具起止）写成 `progress.txt` 里已有的带标签文本，由 `/runs` 解析 |
-| 跑完看不到报告或历史 | `src/frontend/web/app/results/page.tsx`，`workspace/outputs/`，`workspace/records/` | 结果页读本轮产物和 handoff，而不是只写死路径说明 |
+| 跑完看不到报告，或结果页出现历史运行 | `src/frontend/web/app/results/page.tsx`，`workspace/outputs/`，`workspace/records/` | 结果页只渲染 workspace 里的产物和记录。要展示的 `.local` 内容先复制进 workspace，见 `.cursor/rules/workspace-files.mdc` |
 | 模型、密钥、openLCA 不可用 | `/status`，`/api/diagnostics/environment`，设置里的模型档案 | 诊断与「预览执行」使用同一套就绪条件；未就绪时不要启动 |
 
 工作流文件固定为 `harness/LCA-main.yaml`（新工作）和 `harness/LCA-revise.yaml`（修改工作），见 `services/workflow_cli.py` 的 `WORKFLOW_YAML_BY_TASK`。
@@ -51,8 +51,7 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 2. **Pi 的流式事件没有写成进度日志。** `session_host.ts` 会 `emitEvent("turn.progress")`，`process.py` 能挂 `add_event_handler`，但正式 `run_turn` 没有把文本和工具调用交给 `progress.print_session`。`print_session`、`format_tool_start`、`format_assistant` 目前没有调用方。接上之后，`/runs` 不用改解析格式。
 3. **`services/file_sync.py` 的 `sync_files` 是空操作。** 不要依赖 `executor_console.run_pre_workflow_console` 里的 sync 把 GUI 上传写回磁盘。现在能保住资料，是因为 launch 自己做了快照和恢复。若改清理顺序，必须继续保证 `inputs/` 和计划文件在编排器启动前还在。
 4. **编排画布只读。** `workflow-board.tsx` 只 `GET /api/harness/document`。画布上的修改不会写回 `harness/LCA-*.yaml`，执行仍用磁盘上的原文件。用户要求「按 GUI 里的工作流跑」时，要先定义保存位置，再让 `--workflow` 指向那份文件。
-5. **结果页是占位。** `app/results/page.tsx` 只提示目录。报告在 `workspace/outputs/`，交接在 `workspace/records/handoffs/`，运行摘要在 `workspace/records/manifest.json`。
-6. **计划表单没有逐字自动保存。** 只有点击执行时，启动流程才把表单写入 `main_plan.md`。执行前进程若中断，磁盘上的计划可能仍是旧的。
+5. **计划表单没有逐字自动保存。** 只有点击执行时，启动流程才把表单写入 `main_plan.md`。执行前进程若中断，磁盘上的计划可能仍是旧的。
 
 ## 调试：agent 实际收到了什么、做了什么
 
@@ -72,6 +71,7 @@ GUI「运行详情」流式渲染；「结果与历史」展示产物
 - 界面文案用中文。运行详情保持与计划页相同的整页卡片（`status-fit`、`plan-board`、`settings-card`），终端按阶段、工具行和正文渲染，不要退回整段 JSON。
 - 进度文本继续用 `progress.py` 的标签格式。改解析或渲染时，用现有 `progress.txt` 对照，避免页面和日志各说一种方言。
 - 密钥只在设置流里写入 `.local/credentials/`。不要把密钥抄进进度日志、handoff 或提交。
+- 结果页只渲染 `workspace/outputs/` 和 `workspace/records/`。运行中必须写在 `.local/runs/` 的内容，在运行结束时复制一份到 workspace；不要让这一页直接读 `.local`，也不要列出历史运行。目录和改哪些文件见 `.cursor/rules/workspace-files.mdc`。
 
 ## 验证
 

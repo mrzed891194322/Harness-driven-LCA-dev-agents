@@ -28,6 +28,7 @@ export type ResultFiles = {
   };
   handoffs: Handoff[];
   artifacts: Artifact[];
+  records: Artifact[];
 };
 
 function projectRoot(): string {
@@ -107,7 +108,35 @@ function listArtifacts(root: string): Artifact[] {
   return items.concat([...grouped.values()].sort((a, b) => a.path.localeCompare(b.path)));
 }
 
-const RESULT_PREFIXES = ["workspace/outputs/", "workspace/records/handoffs/"];
+function listRecordFiles(root: string): Artifact[] {
+  if (!fs.existsSync(root)) return [];
+  const items: Artifact[] = [];
+
+  function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (path.relative(root, full) === "handoffs") continue;
+        walk(full);
+        continue;
+      }
+      if (!entry.isFile() || entry.name === "README.md") continue;
+      const relative = path.relative(root, full).split(path.sep);
+      items.push({
+        path: `workspace/records/${relative.join("/")}`,
+        size: fs.statSync(full).size,
+        count: 1,
+      });
+    }
+  }
+
+  walk(root);
+  items.sort((a, b) => a.path.localeCompare(b.path));
+  return items;
+}
+
+const RESULT_PREFIXES = ["workspace/outputs/", "workspace/records/"];
 const MAX_RESULT_BYTES = 512_000;
 
 export type ResultFile = {
@@ -126,7 +155,7 @@ function resultRelative(relative: string): string {
   if (parts.some((part) => part === "..")) throw new Error("非法路径");
   const rel = parts.join("/");
   if (!RESULT_PREFIXES.some((prefix) => rel.startsWith(prefix))) {
-    throw new Error("只能读取产物或交接记录");
+    throw new Error("只能读取 workspace 中的产物或记录");
   }
   return rel;
 }
@@ -169,5 +198,6 @@ export async function loadResultFiles(): Promise<ResultFiles> {
     manifest,
     handoffs: listHandoffs(path.join(workspace, "records", "handoffs")),
     artifacts: listArtifacts(path.join(workspace, "outputs")),
+    records: listRecordFiles(path.join(workspace, "records")),
   };
 }

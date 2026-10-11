@@ -66,7 +66,7 @@
   - `npm run inspect` 列出所有运行；`npm run inspect -- <run> [--only-anomalies]` 按会话列注入异常；`npm run inspect -- <run> <stage.role.attempt>` 看单个会话的全部比对项和文件。
   - `npm run session -- <run>` 列出会话；`npm run session -- <run> <stage.role.attempt> [-o out.md] [--full]` 导出一份可读的 Markdown（注入、模型、完整对话），方便别的 agent 接手调试。
   - `npm run doctor`：检查生成式提示词模板能否渲染，并对正在运行的 pi-runtime 做一次空会话自检（只建会话、不调模型，比对后释放）。`--skip-runtime` 只查模板。
-- GUI：运行详情页下方选运行（有异常的标 ⚠，并显示“注入异常”标记）；“注入”标签页按会话对照计划注入和实际生效，差异标红；“会话”标签页列出快照文件，可查看、下载，也可查看或下载完整对话的 Markdown。
+- GUI：结果页只渲染 `workspace/` 里的文件（产物、交接，以及 `workspace/records/` 下的审查、日志和会话快照）。运行结束时，本轮 `.local/runs/<run_id>/sessions/` 会复制到 `workspace/records/sessions/`。更早的运行仍留在 `.local/runs/`，用下面的命令查看，不在结果页列出。
 - 接口：`GET /api/runs`、`GET /api/runs/{run}/sessions`、`GET /api/runs/{run}/sessions/{session}/injection`、`GET /api/runs/{run}/sessions/{session}/file?name=&download=`、`GET /api/runs/{run}/sessions/{session}/markdown?download=`。
 
 ## 生成式提示词

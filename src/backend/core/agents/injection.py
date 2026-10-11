@@ -1,7 +1,9 @@
 """Injection manifest: what the host meant to inject vs what the Pi session really got.
 
 Per session, under ``.local/runs/<run>/sessions/<stage>.<role>.<attempt>/`` (kept per
-run; workspace cleaning does not touch ``.local/runs``):
+run; workspace cleaning does not touch ``.local/runs``). When the run ends, the same
+session tree is copied to ``workspace/records/sessions/`` so the results page can
+render it without reading ``.local``:
 
 - ``injection/intended.json``  host side (this module)
 - ``injection/effective.json`` pi-runtime side, read from real SDK state
@@ -21,6 +23,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -143,6 +146,36 @@ def session_name(stage: str, role: str, attempt: int) -> str:
 
 def runs_root(project_root: Path) -> Path:
     return project_root / ".local" / "runs"
+
+
+def workspace_sessions_dir(workspace_root: Path) -> Path:
+    """Results-page copy of the current run's session snapshots."""
+    return workspace_root / "records" / "sessions"
+
+
+def publish_workspace_sessions(project_root: Path, workspace_root: Path, run_id: str) -> None:
+    """Copy this run's session snapshots into ``workspace/records/sessions``.
+
+    ``.local/runs`` stays the durable archive. The results page only reads
+    workspace, so the same files are placed there when the run ends. A later
+    whole-lca clean removes the workspace copy; older runs remain under ``.local``.
+    """
+    run = _SAFE.sub("_", run_id or "")
+    if not run or run in {".", ".."} or run != (run_id or ""):
+        return
+    src_run = runs_root(project_root) / run
+    if not src_run.is_dir():
+        return
+    dest = workspace_sessions_dir(workspace_root)
+    if dest.exists():
+        shutil.rmtree(dest)
+    sessions = src_run / "sessions"
+    if sessions.is_dir():
+        shutil.copytree(sessions, dest)
+    summary = src_run / "injection-summary.json"
+    if summary.is_file():
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(summary, dest / "injection-summary.json")
 
 
 def resolve_run_id(project_root: Path, run: str) -> str:

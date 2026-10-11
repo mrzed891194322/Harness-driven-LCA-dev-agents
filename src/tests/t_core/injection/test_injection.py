@@ -186,6 +186,25 @@ def test_empty_session_selfcheck_against_real_runtime(tmp_path):
         shutil.rmtree(out, ignore_errors=True)
 
 
+def test_publish_workspace_sessions_copies_the_run_and_replaces_the_previous_copy(tmp_path):
+    launch = _launch(tmp_path)
+    injection.write_session_snapshots(tmp_path, launch, _effective(launch, guard_hook_mounted=False))
+    summary = tmp_path / ".local" / "runs" / "r1" / "injection-summary.json"
+    summary.write_text("{}\n", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    stale = workspace / "records" / "sessions" / "old.txt"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("stale\n", encoding="utf-8")
+
+    injection.publish_workspace_sessions(tmp_path, workspace, "r1")
+
+    dest = workspace / "records" / "sessions"
+    assert (dest / "03-x.executor.2" / "prompt.md").is_file()
+    assert (dest / "injection-summary.json").is_file()
+    assert not stale.exists()
+    assert "sk-FAKEplanted" not in (dest / "03-x.executor.2" / "prompt.md").read_text(encoding="utf-8")
+
+
 def test_snapshot_api(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
