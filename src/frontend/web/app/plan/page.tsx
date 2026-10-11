@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
 import { PreviewBoard } from "../../components/plan/preview-board";
+import { StudyForm } from "../../components/plan/study-form";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
 
@@ -102,6 +103,7 @@ export default function PlanPage() {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
+  const [formToken, setFormToken] = useState(0);
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -117,6 +119,7 @@ export default function PlanPage() {
       })
       .then((data) => {
         setForm({ ...emptyFields, ...data.fields });
+        setFormToken((token) => token + 1);
         setReferences(data.references ?? []);
       })
       .catch((reason: unknown) => {
@@ -141,11 +144,6 @@ export default function PlanPage() {
     if (noteTarget && !dialog.open) dialog.showModal();
     if (!noteTarget && dialog.open) dialog.close();
   }, [noteTarget]);
-
-  function update(key: keyof PlanFields, value: string) {
-    setForm((current) => ({ ...current, [key]: value }));
-    setStatus("");
-  }
 
   async function downloadTemplate() {
     setError("");
@@ -175,6 +173,7 @@ export default function PlanPage() {
       const data = (await response.json()) as { fields: PlanFields };
       const next = { ...emptyFields, ...data.fields };
       setForm(next);
+      setFormToken((token) => token + 1);
       const filled = fields.some((field) => next[field.key].trim());
       setPanel("fields");
       setStatus(filled ? "已从 Markdown 载入" : "模板已载入");
@@ -331,22 +330,9 @@ export default function PlanPage() {
         </div>
 
         <div className="plan-panel" role="tabpanel">
-          {panel === "fields" ? (
-            <div className="plan-fields">
-              <div className="plan-grid">
-                {fields.map((field) => (
-                  <label key={field.key} className="plan-field">
-                    <span>{field.label}</span>
-                    <small>{field.hint}</small>
-                    <textarea
-                      value={form[field.key]}
-                      placeholder={field.placeholder}
-                      onChange={(event) => update(field.key, event.target.value)}
-                    />
-                  </label>
-                ))}
-              </div>
-              <div className="row plan-actions plan-import">
+          <div className="plan-fields" hidden={panel !== "fields"}>
+            <StudyForm source={form} sourceKey={formToken} />
+            <div className="row plan-actions plan-import">
                 <p>可以先下载模板写好，再上传。</p>
                 <button type="button" onClick={() => void downloadTemplate()}>
                   <Download className="launch-icon" aria-hidden="true" />
@@ -367,9 +353,9 @@ export default function PlanPage() {
                     if (file) void importPlan(file);
                   }}
                 />
-              </div>
             </div>
-          ) : panel === "references" ? (
+          </div>
+          {panel === "references" ? (
             <div className="plan-ref">
               <p className="settings-help">
                 可以上传任意类型的文件，大小不限，不能有同名文件。Agent 只读取这些文件、项目知识库和 openLCA 数据库。
@@ -445,9 +431,9 @@ export default function PlanPage() {
             </div>
           ) : panel === "workflow" ? (
             <WorkflowBoard mode={workMode} />
-          ) : (
+          ) : panel === "preview" ? (
             <PreviewBoard mode={workMode} fields={form} references={references} />
-          )}
+          ) : null}
         </div>
 
         {status ? <p className="plan-status">{status}</p> : null}

@@ -1,5 +1,5 @@
 export const SETTINGS_SECTIONS = [
-  { id: "general", label: "通用", title: "端口设置" },
+  { id: "general", label: "通用", title: "通用设置" },
   { id: "models", label: "模型", title: "Provider 配置" },
 ] as const;
 

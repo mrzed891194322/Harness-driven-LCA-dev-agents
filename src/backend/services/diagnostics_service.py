@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 from backend.core.agents.config import load_worker_model
@@ -60,6 +61,7 @@ def openlca_status(project_root: Path) -> dict:
         "message": f"IPC 已连接 {endpoint}" if ok else f"无法连接 {endpoint}",
         "host": host,
         "port": port,
+        "database": connected_openlca_database(port) if ok else "",
     }
 
 
@@ -95,6 +97,7 @@ def environment_report(project_root: Path | None = None) -> dict:
             "message": olca["message"],
             "host": olca["host"],
             "port": olca["port"],
+            "database": olca["database"],
         },
         "lca_tools": lca_tools_report(root, openlca=olca),
         "profiles": profiles,
@@ -104,6 +107,119 @@ def environment_report(project_root: Path | None = None) -> dict:
         "model": model,
         "harness_specs": specs_health(root),
     }
+
+
+_DATABASE_MARKER = "/databases/"
+
+
+def database_name_from_paths(paths: Iterable[str]) -> str:
+    """Pick the openLCA database directory that appears most often in open files."""
+    counts: dict[str, int] = {}
+    for path in paths:
+        index = path.find(_DATABASE_MARKER)
+        if index < 0:
+            continue
+        name = path[index + len(_DATABASE_MARKER) :].split("/", 1)[0]
+        if name:
+            counts[name] = counts.get(name, 0) + 1
+    if not counts:
+        return ""
+    return max(counts, key=lambda name: counts[name])
+
+
+def locked_openlca_database() -> str:
+    """Newest Derby lock under a local openLCA workspace, when the process scan misses."""
+    roots: list[Path] = []
+    for key in ("OPENLCA_WORKSPACE", "OPENLCA_DATA_DIR"):
+        value = os.getenv(key, "").strip()
+        if value:
+            roots.append(Path(value).expanduser())
+    if not roots:
+        roots.extend(sorted(Path.home().glob("openLCA-data*")))
+    found: list[tuple[float, str]] = []
+    for root in roots:
+        databases = root / "databases"
+        if not databases.is_dir():
+            continue
+        for child in databases.iterdir():
+            lock = child / "db.lck"
+            if not child.is_dir() or not lock.is_file():
+                continue
+            try:
+                found.append((lock.stat().st_mtime, child.name))
+            except OSError:
+                continue
+    if not found:
+        return ""
+    found.sort(reverse=True)
+    return found[0][1]
+
+
+def connected_openlca_database(port: int) -> str:
+    """Name of the database the openLCA process listening on `port` currently has open."""
+    name = database_name_from_paths(_open_paths(_listener_pid(port)))
+    return name or locked_openlca_database()
+
+
+def _listener_pid(port: int) -> int | None:
+    inodes = _listen_inodes(port)
+    if not inodes:
+        return None
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return None
+    for pid_dir in proc.iterdir():
+        if not pid_dir.name.isdigit():
+            continue
+        fd_dir = pid_dir / "fd"
+        try:
+            entries = list(fd_dir.iterdir())
+        except OSError:
+            continue
+        for fd in entries:
+            try:
+                target = os.readlink(fd)
+            except OSError:
+                continue
+            if target.startswith("socket:[") and target[8:-1] in inodes:
+                return int(pid_dir.name)
+    return None
+
+
+def _listen_inodes(port: int) -> set[str]:
+    needle = f":{port:04X}"
+    inodes: set[str] = set()
+    for name in ("tcp", "tcp6"):
+        path = Path("/proc/net") / name
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            parts = line.split()
+            if len(parts) < 10:
+                continue
+            local, state, inode = parts[1], parts[3], parts[9]
+            if state == "0A" and local.upper().endswith(needle):
+                inodes.add(inode)
+    return inodes
+
+
+def _open_paths(pid: int | None) -> list[str]:
+    if pid is None:
+        return []
+    fd_dir = Path(f"/proc/{pid}/fd")
+    paths: list[str] = []
+    try:
+        entries = list(fd_dir.iterdir())
+    except OSError:
+        return []
+    for fd in entries:
+        try:
+            paths.append(os.readlink(fd))
+        except OSError:
+            continue
+    return paths
 
 
 def _model_status(project_root: Path, selected: str, credentials: dict[str, bool]) -> dict:
