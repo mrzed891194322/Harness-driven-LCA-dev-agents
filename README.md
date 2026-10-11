@@ -2,6 +2,9 @@
 
 多智能体在 harness 框架下进行合规化 **LCA（Life Cycle Assessment，生命周期评价）** 的项目。业务操作都在 Web 控制面板中完成。
 
+
+![控制面板主页面：项目状态](docs/assets/images/readme/main_page.png)
+
 ## 前置要求
 
 控制面板在 **Linux / macOS** 上运行（Windows 请用 WSL：pi-runtime 服务使用 Unix 域套接字）。需要：
@@ -30,3 +33,4 @@ npm run restart    # = stop + start，保证不会叠出第二个 pi-runtime
 请用 `npm run stop` 停止，不要靠 Ctrl-C 或直接关终端。只有用 `npm start -- --foreground` 前台运行时，Ctrl-C 才会做与 `npm run stop` 完全相同的清理。
 
 设置、计划、执行与结果查看，请在应用内打开 **教程**。
+
