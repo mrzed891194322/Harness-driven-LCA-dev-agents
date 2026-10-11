@@ -72,6 +72,7 @@ def ipc_tool(name):
             runner: Callable[..., Any] = serialized_ipc(
                 lambda host, port: function(**params),
                 long_running=ipc_tool_is_long_running(name),
+                operation=name,
             )
             if profile == "long":
                 budget = resolve_ipc_tool_timeout_sec(timeout)

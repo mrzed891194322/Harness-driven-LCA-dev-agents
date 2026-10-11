@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any
 
 import olca_schema
+import requests
 
 from harness.tools.shared.control_openlca.connection import (
     close_ipc_client,
     create_ipc_client,
     is_transport_error,
+    probe_ipc,
 )
 from harness.tools.shared.control_openlca.ipc_failure import on_ipc_transport_failure
 from harness.tools.shared.control_openlca.protocols import (
@@ -35,15 +37,58 @@ def is_in_project_category(category: str | None, project_name: str) -> bool:
     return category == project_name or category.startswith(project_name + "/")
 
 
+class CleanupReadTimeout(RuntimeError):
+    """A read-only cleanup query timed out twice (or the health probe failed)."""
+
+
+def read_with_retry(label: str, call, *, host: str | None, port: int | None):
+    """Run a read-only query; on read timeout probe health and retry once.
+
+    Only for idempotent reads (descriptors / get). Deletes never retry.
+    """
+    try:
+        return call()
+    except requests.Timeout as first:
+        if host is None or port is None:
+            raise CleanupReadTimeout(f"{label} 读取超时: {first}") from first
+        client = None
+        try:
+            client = probe_ipc(host, port)
+        except Exception as probe_exc:
+            raise CleanupReadTimeout(
+                f"{label} 读取超时，随后健康探测也失败（openLCA 可能卡死，"
+                f"请检查/重启 openLCA）: {probe_exc}"
+            ) from first
+        finally:
+            close_ipc_client(client)
+        try:
+            return call()
+        except requests.Timeout as second:
+            raise CleanupReadTimeout(
+                f"{label} 读取超时（健康探测正常，已重试 1 次仍超时；"
+                f"openLCA 可能在处理大查询或部分卡住）: {second}"
+            ) from second
+
+
 def collect_entities(
     client: OpenLcaClient,
     project_name: str,
     model_types: list[type],
+    *,
+    host: str | None = None,
+    port: int | None = None,
 ) -> list[tuple[type, OlcaDescriptor]]:
     entities: list[tuple[type, OlcaDescriptor]] = []
     for model_type in model_types:
         try:
-            descriptors = client.get_descriptors(model_type)
+            descriptors = read_with_retry(
+                f"{model_type.__name__} descriptors",
+                lambda model_type=model_type: client.get_descriptors(model_type),
+                host=host,
+                port=port,
+            )
+        except CleanupReadTimeout:
+            raise
         except Exception as exc:
             raise RuntimeError(
                 f"Failed to get {model_type.__name__} descriptors; "
@@ -146,6 +191,9 @@ def _resolve_uuid_targets(
     client: OpenLcaClient,
     project_name: str,
     targets: list[tuple[str, str]],
+    *,
+    host: str | None = None,
+    port: int | None = None,
 ) -> tuple[list[tuple[type, object]], list[dict[str, str]]]:
     resolved: list[tuple[type, object]] = []
     skipped: list[dict[str, str]] = []
@@ -154,7 +202,16 @@ def _resolve_uuid_targets(
         if model_type is None or not entity_id:
             continue
         try:
-            existing = client.get(model_type, entity_id)
+            existing = read_with_retry(
+                f"{entity_type_name} {entity_id}",
+                lambda model_type=model_type, entity_id=entity_id: client.get(
+                    model_type, entity_id
+                ),
+                host=host,
+                port=port,
+            )
+        except CleanupReadTimeout:
+            raise
         except Exception as exc:
             skipped.append(
                 {
@@ -225,7 +282,9 @@ def run_cleanup_output(
         olca_schema.ProductSystem,
     )
     try:
-        entities = collect_entities(client, project_name, model_types)
+        entities = collect_entities(
+            client, project_name, model_types, host=host, port=port
+        )
         uuid_skipped: list[dict[str, str]] = []
         if workspace is not None:
             workspace_path = Path(workspace)
@@ -233,7 +292,7 @@ def run_cleanup_output(
                 workspace_path
             )
             uuid_entities, uuid_skipped = _resolve_uuid_targets(
-                client, project_name, uuid_targets
+                client, project_name, uuid_targets, host=host, port=port
             )
             known_ids = {
                 (model_type.__name__, str(getattr(descriptor, "id", "")))

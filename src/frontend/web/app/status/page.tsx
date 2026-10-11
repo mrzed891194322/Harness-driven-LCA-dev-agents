@@ -12,10 +12,16 @@ type LcaTool = {
   id: string;
   name: string;
   ok: boolean;
+  status?: "ok" | "busy" | "down";
   message: string;
   host?: string;
   port?: number;
 };
+
+function toolBadgeLabel(tool: LcaTool): string {
+  if (tool.ok) return "可用";
+  return tool.status === "busy" ? "占用中" : "不可用";
+}
 
 type AvailableProvider = {
   id: string;
@@ -38,7 +44,7 @@ type Diagnostics = {
   node: Check;
   pi_agents: Check;
   python_agent: Check;
-  openlca: Check & { host?: string; port?: number };
+  openlca: Check & { host?: string; port?: number; status?: LcaTool["status"] };
   lca_tools?: LcaTool[];
   available_providers?: AvailableProvider[];
 };
@@ -109,7 +115,7 @@ function OpenLcaToolPanel({ tool, onSaved }: { tool: LcaTool; onSaved: () => Pro
       <div className="tool-status-row">
         <span>当前状态</span>
         <span className={`badge ${tool.ok ? "badge-ok" : "badge-warn"}`}>
-          {tool.ok ? "可用" : "不可用"}
+          {toolBadgeLabel(tool)}
         </span>
       </div>
     </div>
@@ -123,7 +129,7 @@ function ToolConnectionPanel({ tool, onOpenLcaSaved }: { tool: LcaTool; onOpenLc
       <div className="tool-status-row">
         <span>当前状态</span>
         <span className={`badge ${tool.ok ? "badge-ok" : "badge-warn"}`}>
-          {tool.ok ? "可用" : "不可用"}
+          {toolBadgeLabel(tool)}
         </span>
       </div>
     </div>
@@ -137,6 +143,7 @@ function toolsFromDiag(diag: Diagnostics): LcaTool[] {
       id: "openlca",
       name: "openLCA",
       ok: diag.openlca.ok,
+      status: diag.openlca.status,
       message: diag.openlca.message,
       host: diag.openlca.host,
       port: diag.openlca.port,

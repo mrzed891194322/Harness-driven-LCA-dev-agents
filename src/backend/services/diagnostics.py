@@ -5,6 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.core.agents.inspect import WORKERS, check, inspect
+import time
+
+from harness.tools.shared.control_openlca.guard import (
+    EndpointBusy,
+    endpoint_lock_holder,
+)
 from harness.tools.shared.control_openlca.health_service import health
 
 SUPPORTED_HARNESS_CLIS = WORKERS
@@ -46,28 +52,79 @@ def get_openlca_health(
     return health(host, port)
 
 
-def check_openlca(host: str = "127.0.0.1", port: int = 8080) -> bool:
-    """Check if openLCA IPC Server is started and connectable."""
+_OPERATION_LABELS = {
+    "cleanup_output_preview": "清理预览",
+    "cleanup_output_confirm": "清理删除",
+    "import_lci": "导入",
+    "resume_import": "续导",
+    "reconcile_import": "导入对账",
+    "calculate_product_system": "计算",
+}
+
+
+def _busy_message(holder: dict | None) -> str:
+    parts: list[str] = []
+    holder = holder or {}
+    op = holder.get("operation")
+    if op:
+        parts.append(_OPERATION_LABELS.get(str(op), str(op)))
+    if holder.get("pid"):
+        parts.append(f"PID {holder['pid']}")
+    started = holder.get("started_at")
+    if isinstance(started, (int, float)):
+        parts.append(f"已持有 {max(0, round(time.time() - started))}s")
+    suffix = f"（{'，'.join(parts)}）" if parts else ""
+    return f"IPC 正被清理/导入占用{suffix}"
+
+
+def openlca_check(host: str = "127.0.0.1", port: int = 8080) -> dict:
+    """Structured readiness: status is ``ok`` | ``busy`` | ``down``.
+
+    ``busy`` means another process holds the cross-process IPC lock (cleanup,
+    import, calculation). We do not wait for it and do not report openLCA as
+    unreachable: openLCA serves one request at a time and is actively in use.
+    """
     endpoint = f"http://{host}:{port}"
-    print(f"Attempting to connect to openLCA IPC Server ({endpoint})...")
+    holder = endpoint_lock_holder(host, port)
+    if holder is not None:
+        return {"status": "busy", "ok": False, "message": _busy_message(holder), "holder": holder}
     try:
         result = get_openlca_health(host=host, port=port)
+    except EndpointBusy:
+        holder = endpoint_lock_holder(host, port) or {}
+        return {"status": "busy", "ok": False, "message": _busy_message(holder), "holder": holder}
     except Exception as exc:
-        print(f"\n[Error] Cannot connect to openLCA IPC Server ({endpoint}): {exc}")
-        _print_diagnosis(port)
-        return False
+        return {"status": "down", "ok": False, "message": f"无法连接 {endpoint}: {exc}"}
     if result.get("ok"):
+        return {
+            "status": "ok",
+            "ok": True,
+            "message": "IPC 已连接",
+            "attempt_count": result.get("attempt_count", 0),
+        }
+    return {
+        "status": "down",
+        "ok": False,
+        "message": f"无法连接 {endpoint}: {result.get('error') or result.get('errors')}",
+        "attempt_count": result.get("attempt_count", 0),
+    }
+
+
+def check_openlca(host: str = "127.0.0.1", port: int = 8080) -> bool:
+    """CLI readiness check. A busy IPC lock counts as reachable (non-fatal)."""
+    endpoint = f"http://{host}:{port}"
+    print(f"Attempting to connect to openLCA IPC Server ({endpoint})...")
+    state = openlca_check(host, port)
+    if state["status"] == "ok":
         print(
             "Successfully established IPC connection after "
-            f"{result.get('attempt_count', 0)} attempt(s). openLCA is ready."
+            f"{state.get('attempt_count', 0)} attempt(s). openLCA is ready."
         )
         return True
-
-    print(
-        "\n[Error] Cannot connect to openLCA IPC Server after "
-        f"{result.get('attempt_count', 0)} attempts: "
-        f"{result.get('error') or result.get('errors')}"
-    )
+    if state["status"] == "busy":
+        print(f"[Busy] {state['message']}; openLCA is in use by another operation, not probed.")
+        return True
+    print(f"\n[Error] Cannot connect to openLCA IPC Server ({endpoint}): {state['message']}")
     _print_diagnosis(port)
     return False
 

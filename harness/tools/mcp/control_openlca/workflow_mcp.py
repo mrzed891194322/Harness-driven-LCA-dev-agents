@@ -100,6 +100,7 @@ def v2_tool(name):
                         runner: Callable[..., Any] = serialized_ipc(
                             lambda host, port: function(**params),
                             long_running=ipc_tool_is_long_running(name),
+                            operation=name,
                         )
                         result = runner(host, port)
                     if applied_budget is not None and isinstance(result, dict):

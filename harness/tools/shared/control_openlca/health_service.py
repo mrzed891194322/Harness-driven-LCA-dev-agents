@@ -45,5 +45,6 @@ def cleanup(
             )
         return result
 
+    perform.__name__ = "cleanup_output_confirm" if confirm else "cleanup_output_preview"
     runner: Callable[..., Any] = serialized_ipc(perform, long_running=True)
     return runner(host, port)

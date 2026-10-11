@@ -13,7 +13,7 @@ from backend.services.credentials_service import (
     available_providers,
     credentials_status_bool,
 )
-from backend.services.diagnostics import check_openlca
+from backend.services.diagnostics import openlca_check
 from backend.services.project_paths import PROJECT_ROOT
 from backend.services.spec_service import specs_health
 from backend.settings import (
@@ -52,13 +52,21 @@ def openlca_endpoint(project_root: Path) -> tuple[str, int]:
 
 def openlca_status(project_root: Path) -> dict:
     host, port = openlca_endpoint(project_root)
-    ok = bool(check_openlca(host=host, port=port))
+    state = openlca_check(host=host, port=port)
+    ok = state["status"] == "ok"
     endpoint = f"{host}:{port}"
+    if ok:
+        message = f"IPC 已连接 {endpoint}"
+    elif state["status"] == "busy":
+        message = f"{state['message']} · {endpoint}"
+    else:
+        message = f"无法连接 {endpoint}"
     return {
         "id": "openlca",
         "name": "openLCA",
         "ok": ok,
-        "message": f"IPC 已连接 {endpoint}" if ok else f"无法连接 {endpoint}",
+        "status": state["status"],
+        "message": message,
         "host": host,
         "port": port,
         "database": connected_openlca_database(port) if ok else "",
@@ -95,6 +103,7 @@ def environment_report(project_root: Path | None = None) -> dict:
         "openlca": {
             "ok": olca["ok"],
             "message": olca["message"],
+            "status": olca["status"],
             "host": olca["host"],
             "port": olca["port"],
             "database": olca["database"],

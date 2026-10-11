@@ -79,6 +79,8 @@ def _write_guard_marker(uncertain: Path, endpoint: str) -> str:
                 "endpoint": endpoint,
                 "token": token,
                 "tid": threading.get_ident(),
+                "operation": getattr(_local, "operation", None),
+                "started_at": time.time(),
             }
         ),
         encoding="utf-8",
@@ -101,6 +103,48 @@ def cleanup_budget():
 
 class EndpointBusy(RuntimeError):
     pass
+
+
+def endpoint_lock_path(host: str, port: int) -> Path:
+    endpoint = build_endpoint(host, port)
+    key = hashlib.sha256(endpoint.encode()).hexdigest()
+    return endpoint_lock_root() / f"{key}.lock"
+
+
+def endpoint_lock_holder(host: str, port: int) -> dict | None:
+    """Non-blocking probe: return holder info when another op owns the IPC lock.
+
+    Returns ``None`` when the lock is free (or already held by this thread).
+    The holder dict carries pid / operation / started_at read from the
+    guard marker when available; it is advisory diagnostics only.
+    """
+    endpoint = build_endpoint(host, port)
+    if endpoint in getattr(_local, "held", set()):
+        return None
+    path = endpoint_lock_path(host, port)
+    if not path.exists():
+        return None
+    try:
+        with file_lock(path, timeout=0.0):
+            return None
+    except EndpointBusy:
+        pass
+    except OSError:
+        return None
+    holder: dict = {}
+    try:
+        raw = json.loads(
+            endpoint_uncertain_marker(host, port).read_text(encoding="utf-8")
+        )
+        if isinstance(raw, dict):
+            holder = {
+                key: raw.get(key)
+                for key in ("pid", "operation", "started_at")
+                if raw.get(key) is not None
+            }
+    except (OSError, ValueError):
+        pass
+    return holder
 
 
 def _transport_failure(exc):
@@ -207,34 +251,38 @@ def mark_uncertain():
     _local.uncertain = True
 
 
-def serialized_ipc(function=None, *, long_running: bool = False):
+def _call(fn, long_running, host, port, *args, **kwargs):
+    _local.long_running = long_running
+    result = fn(host, port, *args, **kwargs)
+    if isinstance(result, dict):
+        result["lock_wait_ms"] = getattr(_local, "lock_wait_ms", 0)
+    # Some existing domain services preserve failures in result dictionaries.
+    text = json.dumps(result, default=str).lower()
+    if any(
+        word in text
+        for word in ("timed out", "timeout", "connectionerror", "connection refused")
+    ):
+        if isinstance(result, dict) and (
+            result.get("errors") or result.get("error") or result.get("ok") is False
+        ):
+            mark_uncertain()
+    return result
+
+
+def serialized_ipc(
+    function=None, *, long_running: bool = False, operation: str | None = None
+):
     def decorate(fn):
         @functools.wraps(fn)
         def wrapped(host, port, *args, **kwargs):
             budget = session_budget_sec(long_running=long_running)
-            with endpoint_guard(host, port, budget_sec=budget):
-                _local.long_running = long_running
-                result = fn(host, port, *args, **kwargs)
-                if isinstance(result, dict):
-                    result["lock_wait_ms"] = getattr(_local, "lock_wait_ms", 0)
-                # Some existing domain services preserve failures in result dictionaries.
-                text = json.dumps(result, default=str).lower()
-                if any(
-                    word in text
-                    for word in (
-                        "timed out",
-                        "timeout",
-                        "connectionerror",
-                        "connection refused",
-                    )
-                ):
-                    if isinstance(result, dict) and (
-                        result.get("errors")
-                        or result.get("error")
-                        or result.get("ok") is False
-                    ):
-                        mark_uncertain()
-                return result
+            previous_op = getattr(_local, "operation", None)
+            _local.operation = previous_op or operation or getattr(fn, "__name__", None)
+            try:
+                with endpoint_guard(host, port, budget_sec=budget):
+                    return _call(fn, long_running, host, port, *args, **kwargs)
+            finally:
+                _local.operation = previous_op
 
         return wrapped
 
