@@ -110,6 +110,9 @@ export default function PlanPage() {
   const [noteSaving, setNoteSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const savedPlan = useRef("");
+  // Only save after the user actually changed something (upload or edit). Loading
+  // and hydrating the form must never write main_plan.md (a stale tab rewrote it).
+  const dirty = useRef(false);
   const saveChain = useRef<Promise<void>>(Promise.resolve());
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
@@ -136,7 +139,7 @@ export default function PlanPage() {
   useEffect(() => {
     if (!loaded) return;
     const body = JSON.stringify(work.plan);
-    if (!savedPlan.current) {
+    if (!dirty.current) {
       savedPlan.current = body;
       return;
     }
@@ -207,6 +210,7 @@ export default function PlanPage() {
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { fields: PlanFields };
       const next = { ...emptyFields, ...data.fields };
+      dirty.current = true;
       setForm(next);
       setFormToken((token) => token + 1);
       const filled = fields.some((field) => next[field.key].trim());
@@ -365,7 +369,16 @@ export default function PlanPage() {
         </div>
 
         <div className="plan-panel" role="tabpanel">
-          <div className="plan-fields" hidden={panel !== "fields"}>
+          <div
+            className="plan-fields"
+            hidden={panel !== "fields"}
+            onChangeCapture={() => {
+              dirty.current = true;
+            }}
+            onClickCapture={(event) => {
+              if ((event.target as HTMLElement).closest(".plan-study button")) dirty.current = true;
+            }}
+          >
             <StudyForm source={form} sourceKey={formToken} onWork={setWork} />
             <div className="row plan-actions plan-import">
                 {status ? <p className="plan-status">{status}</p> : null}

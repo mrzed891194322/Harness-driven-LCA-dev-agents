@@ -1841,14 +1841,10 @@ button:disabled {
   color: var(--muted);
 }
 
-.study-fu,
-.study-place {
+.study-fu {
   display: grid;
   gap: 10px;
   margin-top: 10px;
-}
-
-.study-fu {
   grid-template-columns: 120px 120px minmax(0, 1fr);
   grid-template-areas:
     "qty-label unit-label note-label"
@@ -1856,6 +1852,10 @@ button:disabled {
   align-items: start;
   column-gap: 10px;
   row-gap: 6px;
+}
+
+.study-place {
+  margin-top: 10px;
 }
 
 .study-fu-qty {
@@ -1882,12 +1882,7 @@ button:disabled {
   grid-area: note-label;
 }
 
-.study-place {
-  grid-template-columns: 1fr 1fr;
-}
-
 .study-fu label,
-.study-place label,
 .study-stack {
   display: flex;
   flex-direction: column;
@@ -1905,7 +1900,6 @@ button:disabled {
 .study-fu input,
 .study-fu select,
 .study-fu textarea,
-.study-place input,
 .study-block > select,
 .study-block > input[type="text"] {
   width: 100%;
@@ -3015,8 +3009,7 @@ button:disabled {
   }
 
   .plan-grid,
-  .plan-study,
-  .study-place {
+  .plan-study {
     grid-template-columns: 1fr;
   }
 

@@ -33,8 +33,7 @@ type StudyDraft = {
   functionalSpec: string;
   stages: Record<StageId, boolean>;
   scopeNote: string;
-  geography: string;
-  year: string;
+  place: string;
   lcia: string;
   impactScope: ImpactScope;
   impactNote: string;
@@ -61,8 +60,6 @@ const STAGES: { id: StageId; label: string; icon: LucideIcon }[] = [
   { id: "end", label: "最终处置", icon: Recycle },
 ];
 
-const REGIONS = ["德国", "中国", "土耳其", "欧洲", "全球"];
-
 const STUDY_SECTIONS = [
   { id: "study-sec-subject", num: "1", title: "研究对象" },
   { id: "study-sec-basis", num: "2", title: "计算基准（功能单位）" },
@@ -86,8 +83,7 @@ function blankDraft(): StudyDraft {
     functionalSpec: "",
     stages: emptyStages(),
     scopeNote: "",
-    geography: "",
-    year: "",
+    place: "",
     lcia: "",
     impactScope: "all",
     impactNote: "",
@@ -166,13 +162,17 @@ function hydrate(fields: PlanFields): StudyDraft {
   draft.scopeNote = scopeNotes.join("\n").trim();
 
   const special: string[] = [];
+  const legacyPlace: string[] = [];
   for (const block of fields.conditions.split(/\n\s*\n/)) {
     const text = block.trim();
     if (!text) continue;
+    if (/^地域与时间[：:]/.test(text)) {
+      draft.place = text.replace(/^地域与时间[：:]\s*/, "").trim();
+      continue;
+    }
     const match = text.includes("\n") ? null : LABEL.exec(text);
     const key = match?.[1].trim();
-    if (match && key === "地域" && !draft.geography) draft.geography = match[2].trim();
-    else if (match && key === "研究年份" && !draft.year) draft.year = match[2].trim();
+    if (match && (key === "地域" || key === "研究年份") && match[2].trim()) legacyPlace.push(match[2].trim());
     else if (match && key === "LCA 数据库") continue;
     else if (match && key === "环境影响评价方法" && !draft.lcia) draft.lcia = match[2].trim();
     else if (text === "所选方法的全部指标") draft.impactScope = "all";
@@ -181,6 +181,7 @@ function hydrate(fields: PlanFields): StudyDraft {
       draft.impactNote = text.replace(/^仅指定指标[：:]?\s*/, "").trim();
     } else special.push(text);
   }
+  if (!draft.place) draft.place = legacyPlace.join("，");
   draft.special = special.join("\n\n");
   return draft;
 }
@@ -203,10 +204,7 @@ function sectionSummaries(draft: StudyDraft, database: string) {
       stages.length > 0 && stages.join(" → "),
       draft.scopeNote.trim() && `附加说明：${draft.scopeNote.trim()}`,
     ]),
-    "study-sec-place": filledLines([
-      draft.geography.trim() && `地域：${draft.geography.trim()}`,
-      draft.year.trim() && `研究年份：${draft.year.trim()}`,
-    ]),
+    "study-sec-place": draft.place.trim(),
     "study-sec-database": database.trim(),
     "study-sec-lcia": draft.lcia.trim(),
     "study-sec-impact":
@@ -237,7 +235,7 @@ function gapList(draft: StudyDraft, databaseName: string): Record<(typeof STUDY_
     "study-sec-subject": objects.length > 0 && objects.every(Boolean) ? [] : ["研究对象"],
     "study-sec-basis": [draft.quantity.trim() ? "" : "数量", draft.unit.trim() ? "" : "单位"].filter(Boolean),
     "study-sec-life": stagePicked ? [] : ["生命周期阶段"],
-    "study-sec-place": [draft.geography.trim() ? "" : "地域", draft.year.trim() ? "" : "研究年份"].filter(Boolean),
+    "study-sec-place": draft.place.trim() ? [] : ["地域与时间"],
     "study-sec-database": databaseName.trim() ? [] : ["LCA 数据库"],
     "study-sec-lcia": draft.lcia.trim() ? [] : ["环境影响评价方法"],
     "study-sec-impact": draft.impactScope === "selected" && !draft.impactNote.trim() ? ["指定指标"] : [],
@@ -275,8 +273,7 @@ export function studyWork(draft: StudyDraft, databaseLabel: string, databaseName
         draft.scopeNote.trim() && `附加说明：${draft.scopeNote.trim()}`,
       ].filter(Boolean).join("\n"),
       conditions: [
-        draft.geography.trim() && `地域：${draft.geography.trim()}`,
-        draft.year.trim() && `研究年份：${draft.year.trim()}`,
+        draft.place.trim() && `地域与时间：${draft.place.trim()}`,
         databaseName.trim() && `LCA 数据库：${databaseName.trim()}`,
         draft.lcia.trim() && `环境影响评价方法：${draft.lcia.trim()}`,
         impact,
@@ -569,32 +566,14 @@ export function StudyForm({
             地域与时间
           </h3>
           <p>如有指定的目标市场、地区或研究年份，请在此说明。</p>
-          <div className="study-place">
-            <label>
-              地域
-              <input
-                type="text"
-                list="study-regions"
-                value={draft.geography}
-                placeholder="例如：德国"
-                onChange={(event) => patch({ geography: event.target.value })}
-              />
-              <datalist id="study-regions">
-                {REGIONS.map((region) => (
-                  <option key={region} value={region} />
-                ))}
-              </datalist>
-            </label>
-            <label>
-              研究年份
-              <input
-                type="text"
-                value={draft.year}
-                placeholder="例如 2024 或 2020–2024"
-                onChange={(event) => patch({ year: event.target.value })}
-              />
-            </label>
-          </div>
+          <input
+            className="study-place"
+            type="text"
+            aria-label="地域与时间"
+            value={draft.place}
+            placeholder="例如：德国销售点，2024"
+            onChange={(event) => patch({ place: event.target.value })}
+          />
         </section>
 
         <section className="study-block" id="study-sec-database">

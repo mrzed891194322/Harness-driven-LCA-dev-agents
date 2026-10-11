@@ -20,7 +20,6 @@ _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _H2 = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 _SECTION_TITLE = re.compile(r"^section\s+(\d+)\b", re.IGNORECASE)
 _BOLD = re.compile(r"^-\s+\*\*(.+?)\*\*\s*[：:]\s*(.*)$", re.MULTILINE)
-_LINE_LABEL = re.compile(r"^(?:[-*]\s*)?([^：:]{1,12})[：:]\s*(.*)$")
 
 
 class PlanFormError(ValueError):
@@ -79,8 +78,8 @@ Write the note below this comment. It is placed in the note field. Select the st
 
 <!--
 地域与时间 / Geography and time
-请在本注释之后分行填写：第一行是地域，第二行是研究年份。也可以写成「地域：…」和「研究年份：…」。
-The first line below this comment is the region, the second line is the study year. You can also write 地域：… and 研究年份：….
+请在本注释之后自行填写，文字会进入同一个文本框。
+Write below this comment. The text goes into one text box.
 -->
 
 ## section 5
@@ -396,41 +395,12 @@ def _as_note(text: str) -> str:
     return f"附加说明：{body}"
 
 
-def _split_label(line: str) -> tuple[str, str] | None:
-    match = _LINE_LABEL.match(line.strip())
-    if match is None:
-        return None
-    return match.group(1).strip(), match.group(2).strip()
-
-
 def _place_blocks(text: str) -> list[str]:
-    """Section 4 is two text boxes: region, then study year."""
-    geography: list[str] = []
-    year: list[str] = []
-    unlabeled: list[str] = []
-    for raw in _clean(text).splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        labeled = _split_label(line)
-        if labeled is not None and labeled[0] in {"地域", "研究年份"}:
-            if labeled[1]:
-                (geography if labeled[0] == "地域" else year).append(labeled[1])
-            continue
-        unlabeled.append(line)
-    for line in unlabeled:
-        if not geography:
-            geography.append(line)
-        elif not year:
-            year.append(line)
-        else:
-            geography.append(line)
-    blocks: list[str] = []
-    if geography:
-        blocks.append("地域：" + " ".join(geography))
-    if year:
-        blocks.append("研究年份：" + " ".join(year))
-    return blocks
+    """Section 4 is one text box. Keep the body together, including old labels."""
+    body = _clean(text)
+    if not body:
+        return []
+    return [f"地域与时间：{body}"]
 
 
 def _h2_sections(text: str) -> dict[str, str]:

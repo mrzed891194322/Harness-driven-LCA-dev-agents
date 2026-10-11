@@ -182,9 +182,9 @@ class PlanFormV2StructuredTests(unittest.TestCase):
         )
         self.assertEqual(fields.functional_unit, "附加说明：数量：1000\n单位：瓶\n在德国交付")
         self.assertEqual(fields.life_cycle_stages, "附加说明：原材料获取、制造\n不包括使用")
-        self.assertEqual(fields.conditions, "地域：德国\n\n研究年份：2024\n\n- 不截断")
+        self.assertEqual(fields.conditions, "地域与时间：德国\n2024\n\n- 不截断")
         self.assertNotIn("全部指标", fields.conditions)
 
-    def test_v2_place_labels_fill_the_text_boxes(self) -> None:
+    def test_v2_place_text_stays_in_one_box(self) -> None:
         fields = parse_plan("## section 4\n\n地域：德国\n研究年份：无要求\n")
-        self.assertEqual(fields.conditions, "地域：德国\n\n研究年份：无要求")
+        self.assertEqual(fields.conditions, "地域与时间：地域：德国\n研究年份：无要求")
