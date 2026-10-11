@@ -11,6 +11,7 @@ import {
   type Preview,
 } from "../../components/results/artifacts-browser";
 import { apiFetch } from "../../lib/api";
+import { reviseWorkLocked } from "../../lib/revise-lock";
 import { loadResultFiles, readResultFile, type ResultFile } from "./load-files";
 
 type Manifest = {
@@ -193,7 +194,12 @@ export default function ResultsPage() {
               <Download size={16} strokeWidth={1.75} aria-hidden="true" />
               {packing ? "打包中…" : "下载产出"}
             </button>
-            <button type="button" onClick={() => router.push("/plan?mode=revise")}>
+            <button
+              type="button"
+              disabled={reviseWorkLocked}
+              title={reviseWorkLocked ? "暂时锁定" : undefined}
+              onClick={() => router.push("/plan?mode=revise")}
+            >
               <PenLine size={16} strokeWidth={1.75} aria-hidden="true" />
               修改计划
             </button>

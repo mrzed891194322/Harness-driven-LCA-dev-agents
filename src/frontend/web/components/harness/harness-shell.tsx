@@ -79,7 +79,7 @@ export function HarnessShell({
     <section className="tutorial-panel settings-card">
       <div className="tutorial-frame">
         <nav className="settings-nav harness-nav tutorial-nav" aria-label="Harness">
-          <p className="settings-nav-label">Harness</p>
+          <p className="settings-nav-label">Harness（开发中）</p>
           {catalog?.sections.map((section) => (
             <div key={section.id}>
               <p className="harness-nav-section">{section.label}</p>

@@ -21,7 +21,7 @@
 npm start          # 等同 node src/scripts/start.mjs
 ```
 
-脚本先同步 uv 与 Node.js 依赖、构建 pi-runtime（若没有 `.env`，会从 `.env.example` 复制一份），再依次启动后端、**唯一的 pi-runtime**、前端，全部就绪后返回；服务在后台常驻，关掉终端也不会停。浏览器打开终端打印的地址（默认 [http://127.0.0.1:3000](http://127.0.0.1:3000)）。
+脚本先同步 uv 与 Node.js 依赖、构建 pi-runtime（若没有 `.env`，会从 `.env.example` 复制一份），再依次启动后端 `fastapi`、`pi-runtime`、前端 `next`，全部就绪后返回；服务在后台常驻，关掉终端也不会停。浏览器打开终端打印的地址（默认 [http://127.0.0.1:3000](http://127.0.0.1:3000)）。
 
 日常停止与重启：
 
@@ -33,4 +33,7 @@ npm run restart    # = stop + start，保证不会叠出第二个 pi-runtime
 请用 `npm run stop` 停止，不要靠 Ctrl-C 或直接关终端。只有用 `npm start -- --foreground` 前台运行时，Ctrl-C 才会做与 `npm run stop` 完全相同的清理。
 
 设置、计划、执行与结果查看，请在应用内打开 **教程**。
+
+> [!CAUTION]
+> 当前项目处于开发阶段，部分功能不太稳定，使用agent操作openLCA数据库时，建议使用 `复制/备份` 后版本的数据库进行连接。
 

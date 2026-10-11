@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { MarkdownView } from "../../../components/markdown-view";
 import {
   TutorialShell,
@@ -15,6 +15,19 @@ function slugToPath(slug: string[] | string | undefined) {
   if (!parts.length) return "";
   const joined = parts.map(decodeURIComponent).join("/");
   return joined.toLowerCase().endsWith(".md") ? joined : `${joined}.md`;
+}
+
+function resolveRelative(currentPath: string, href: string) {
+  const clean = href.split("#")[0].split("?")[0];
+  if (!clean) return null;
+  const parts = currentPath.split("/").slice(0, -1);
+  for (const part of clean.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") parts.pop();
+    else parts.push(part);
+  }
+  const next = parts.join("/");
+  return next.toLowerCase().endsWith(".md") ? next : null;
 }
 
 function resolveTutorialAsset(docPath: string, href: string) {
@@ -32,6 +45,7 @@ function resolveTutorialAsset(docPath: string, href: string) {
 }
 
 export default function TutorialDocPage() {
+  const router = useRouter();
   const params = useParams<{ slug?: string[] }>();
   const selected = useMemo(() => slugToPath(params.slug), [params.slug]);
   const [catalog, setCatalog] = useState<TutorialCatalog | null>(null);
@@ -89,6 +103,15 @@ export default function TutorialDocPage() {
     };
   }, [selected]);
 
+  function openRelative(href: string) {
+    if (!selected || !catalog) return;
+    const next = resolveRelative(selected, href);
+    if (!next) return;
+    const known = catalog.groups.some((group) => group.entries.some((entry) => entry.path === next));
+    if (!known) return;
+    router.push(`/tutorial/${next.replace(/\.md$/i, "")}`);
+  }
+
   return (
     <TutorialShell
       catalog={catalog}
@@ -103,6 +126,7 @@ export default function TutorialDocPage() {
       {doc && doc.path === selected ? (
         <MarkdownView
           source={doc.content}
+          onOpen={openRelative}
           resolveAsset={(href) => resolveTutorialAsset(selected, href)}
         />
       ) : null}

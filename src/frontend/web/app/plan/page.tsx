@@ -6,6 +6,7 @@ import { PreviewBoard } from "../../components/plan/preview-board";
 import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
+import { reviseWorkLocked } from "../../lib/revise-lock";
 
 type PlanFields = {
   subject: string;
@@ -230,6 +231,7 @@ export default function PlanPage() {
   }, []);
 
   useEffect(() => {
+    if (reviseWorkLocked) return;
     if (new URLSearchParams(window.location.search).get("mode") === "revise") {
       setWorkMode("revise");
     }
@@ -418,7 +420,16 @@ export default function PlanPage() {
             >
               新工作
             </button>
-            <button type="button" role="radio" aria-checked={workMode === "revise"} onClick={() => setWorkMode("revise")}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={workMode === "revise"}
+              disabled={reviseWorkLocked}
+              title={reviseWorkLocked ? "暂时锁定" : undefined}
+              onClick={() => {
+                if (!reviseWorkLocked) setWorkMode("revise");
+              }}
+            >
               修改工作
             </button>
           </div>

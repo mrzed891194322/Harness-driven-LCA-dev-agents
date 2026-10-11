@@ -73,3 +73,7 @@
 ## database_identity_verified 一直为 false
 
 没有设置 `OPENLCA_DATABASE_NAME` 时，`database_identity_verified` 一直是 false，不影响运行。之后要么在 `.env` 里写明数据库名，要么让诊断里明确提示这一项。
+
+## knowledge 下的计划和参考资料仍被 git 跟踪（暂缓）
+
+`harness/knowledge/.gitignore` 写的是 `*`，但 `plan/main_plan.md`、`plan/revise_plan.md`、`inputs/水瓶案例学习.md` 早已提交进 git，`.gitignore` 对已跟踪文件不起作用，所以页面上传或自动保存计划后 `main_plan.md` 会显示为改动。修法：先把默认计划另存为 `plan/main_plan.example.md`、`plan/revise_plan.example.md` 提交；再用 `git rm --cached` 取消跟踪这三个文件（本地文件保留）；`.gitignore` 放行 `!*/`、`!.gitignore`、`!README.md`、`!*.example.md`。状态：暂缓，2026-10-11 只记录，未改代码。
