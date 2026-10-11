@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { readWorkflow, type WorkflowGraph } from "./workflow-yaml";
 import type { WorkMode } from "./workflow-board";
+import type { StudyWork } from "./study-form";
 import { apiFetch } from "../../lib/api";
 
 type PlanFields = {
@@ -69,17 +70,6 @@ const PHASE_LABEL: Record<string, string> = {
   report: "报告",
 };
 
-const requiredFields: { key: keyof PlanFields; label: string }[] = [
-  { key: "subject", label: "研究对象" },
-  { key: "functional_unit", label: "功能单位" },
-  { key: "life_cycle_stages", label: "生命周期阶段" },
-];
-
-const contentFields: { key: keyof PlanFields; label: string }[] = [
-  ...requiredFields,
-  { key: "conditions", label: "附加条件" },
-];
-
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -94,11 +84,11 @@ function isDiagnostics(value: unknown): value is Diagnostics {
 
 export function PreviewBoard({
   mode,
-  fields,
+  work,
   references,
 }: {
   mode: WorkMode;
-  fields: PlanFields;
+  work: StudyWork;
   references: ReferenceFile[];
 }) {
   const [diag, setDiag] = useState<Diagnostics | null>(null);
@@ -163,7 +153,7 @@ export function PreviewBoard({
   const shown = workflow?.file === MODE_FILE[mode] ? workflow : null;
   const checks = environmentChecks(diag);
   const envReady = Boolean(diag) && checks.every((item) => item.ok);
-  const missingFields = requiredFields.filter((item) => !fields[item.key].trim());
+  const missingFields = work.rows.flatMap((row) => row.gaps);
   const ready = envReady && missingFields.length === 0 && !envError;
   const gateText = startError || gateMessage({ checking, envError, checks, missingFields, ready, starting });
 
@@ -191,19 +181,15 @@ export function PreviewBoard({
         <section className="preview-section" aria-labelledby="preview-work-title">
           <h3 id="preview-work-title">工作内容</h3>
           <dl className="preview-facts">
-            {contentFields.map((item) => {
-              const value = fields[item.key].trim();
-              const required = requiredFields.some((field) => field.key === item.key);
-              return (
-                <div key={item.key}>
-                  <dt>
-                    {item.label}
-                    {required && !value ? <span className="badge badge-warn">待填写</span> : null}
-                  </dt>
-                  <dd>{value || (required ? "这一项还空着" : "留空")}</dd>
-                </div>
-              );
-            })}
+            {work.rows.map((row) => (
+              <div key={row.id}>
+                <dt>
+                  {row.label}
+                  {row.required && row.gaps.length > 0 ? <span className="badge badge-warn">待填写</span> : null}
+                </dt>
+                <dd>{row.value || (row.required ? "这一项还空着" : "留空")}</dd>
+              </div>
+            ))}
           </dl>
           <h4>参考资料</h4>
           {references.length ? (
@@ -267,7 +253,7 @@ export function PreviewBoard({
           className="primary"
           disabled={!ready || starting}
           onClick={() =>
-            void executeTask(mode, fields, setStarting, setStartError, (href) => router.push(href))
+            void executeTask(mode, work.plan, setStarting, setStartError, (href) => router.push(href))
           }
         >
           <Play className="launch-icon" aria-hidden="true" />
@@ -322,7 +308,7 @@ function gateMessage({
   checking: boolean;
   envError: string;
   checks: { label: string; ok: boolean }[];
-  missingFields: { label: string }[];
+  missingFields: string[];
   ready: boolean;
   starting: boolean;
 }): string {
@@ -335,7 +321,7 @@ function gateMessage({
     const blocked = checks.filter((item) => !item.ok).map((item) => item.label);
     if (blocked.length) parts.push(`环境未就绪：${blocked.join("、")}`);
   }
-  if (missingFields.length) parts.push(`还要填写：${missingFields.map((item) => item.label).join("、")}`);
+  if (missingFields.length) parts.push(`还要填写：${missingFields.join("、")}`);
   return parts.join("。") || "还不能执行";
 }
 

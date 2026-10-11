@@ -53,7 +53,20 @@ class PlanFormParseTests(unittest.TestCase):
         self.assertEqual(parse_plan(render_plan(again, [])), again)
 
     def test_template_and_round_trip(self) -> None:
-        self.assertEqual(parse_plan(template_markdown()), PlanFields("", "", "", ""))
+        template = template_markdown()
+        self.assertIn("## section 1", template)
+        self.assertIn("用户不能填写，请到界面手动选择。", template)
+        self.assertEqual(template.count("## section "), 8)
+        self.assertEqual(parse_plan(template), PlanFields("", "", "", ""))
+        filled = parse_plan(
+            "## section 1\n\n瓶子\n\n"
+            "## section 5\n\n不要读数据库\n\n"
+            "## section 6\n\n不要读方法\n\n"
+            "## section 8\n\n不截断\n"
+        )
+        self.assertEqual(filled.subject, "瓶子")
+        self.assertEqual(filled.conditions, "不截断")
+        self.assertNotIn("不要读", filled.conditions)
         fields = PlanFields("瓶子", "1 000 个", "摇篮到大门", "不截断")
         again = parse_plan(render_plan(fields, ["notes.md"]))
         self.assertEqual(again, fields)
@@ -149,7 +162,8 @@ class PlanApiTests(unittest.TestCase):
 
                 template = client.get("/api/plan/template")
                 self.assertEqual(template.status_code, 200)
-                self.assertIn("研究对象", template.text)
+                self.assertIn("## section 1", template.text)
+                self.assertIn("用户不能填写，请到界面手动选择。", template.text)
 
                 removed = client.delete("/api/references/证据.md")
                 self.assertEqual(removed.status_code, 200)

@@ -82,7 +82,7 @@ function blankDraft(): StudyDraft {
   return {
     objects: [{ id: "object-1", name: "" }],
     quantity: "",
-    unit: "瓶",
+    unit: "",
     functionalSpec: "",
     stages: emptyStages(),
     scopeNote: "",
@@ -142,6 +142,78 @@ function sectionSummaries(draft: StudyDraft, database: string) {
   };
 }
 
+export type WorkRow = {
+  id: string;
+  label: string;
+  value: string;
+  required: boolean;
+  gaps: string[];
+};
+
+export type StudyWork = {
+  rows: WorkRow[];
+  plan: PlanFields;
+};
+
+function gapList(draft: StudyDraft, databaseName: string): Record<(typeof STUDY_SECTIONS)[number]["id"], string[]> {
+  const stagePicked = STAGES.some((stage) => draft.stages[stage.id]);
+  const objects = draft.objects.map((item) => item.name.trim());
+  return {
+    "study-sec-subject": objects.length > 0 && objects.every(Boolean) ? [] : ["研究对象"],
+    "study-sec-basis": [draft.quantity.trim() ? "" : "数量", draft.unit.trim() ? "" : "单位"].filter(Boolean),
+    "study-sec-life": stagePicked ? [] : ["生命周期阶段"],
+    "study-sec-place": [draft.geography.trim() ? "" : "地域", draft.year.trim() ? "" : "研究年份"].filter(Boolean),
+    "study-sec-database": databaseName.trim() ? [] : ["LCA 数据库"],
+    "study-sec-lcia": draft.lcia.trim() ? [] : ["环境影响评价方法"],
+    "study-sec-impact": draft.impactScope === "selected" && !draft.impactNote.trim() ? ["指定指标"] : [],
+    "study-sec-special": [],
+  };
+}
+
+export function studyWork(draft: StudyDraft, databaseLabel: string, databaseName: string): StudyWork {
+  const summaries = sectionSummaries(draft, databaseLabel);
+  const gaps = gapList(draft, databaseName);
+  const stages = STAGES.filter((stage) => draft.stages[stage.id]).map((stage) => stage.label);
+  const impact =
+    draft.impactScope === "selected"
+      ? ["仅指定指标", draft.impactNote.trim()].filter(Boolean).join("：")
+      : "所选方法的全部指标";
+  return {
+    rows: STUDY_SECTIONS.map((section) => ({
+      id: section.id,
+      label: `${section.num} ${section.title}`,
+      value: summaries[section.id],
+      required: section.id !== "study-sec-special",
+      gaps: gaps[section.id],
+    })),
+    plan: {
+      subject: draft.objects.map((item) => item.name.trim()).filter(Boolean).join("\n"),
+      functional_unit: [
+        draft.quantity.trim() && `数量：${draft.quantity.trim()}`,
+        draft.unit.trim() && `单位：${draft.unit.trim()}`,
+        draft.functionalSpec.trim(),
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      life_cycle_stages: [stages.join(" → "), draft.scopeNote.trim()].filter(Boolean).join("\n"),
+      conditions: [
+        draft.geography.trim() && `地域：${draft.geography.trim()}`,
+        draft.year.trim() && `研究年份：${draft.year.trim()}`,
+        databaseName.trim() && `LCA 数据库：${databaseName.trim()}`,
+        draft.lcia.trim() && `环境影响评价方法：${draft.lcia.trim()}`,
+        impact,
+        draft.special.trim(),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    },
+  };
+}
+
+export function emptyStudyWork(): StudyWork {
+  return studyWork(blankDraft(), "", "");
+}
+
 function scrollContainer(main: HTMLElement) {
   if (main.scrollHeight > main.clientHeight + 1) return main;
   const parent = main.parentElement;
@@ -159,9 +231,11 @@ function nextObjectId() {
 export function StudyForm({
   source,
   sourceKey,
+  onWork,
 }: {
   source: PlanFields;
   sourceKey: number;
+  onWork?: (work: StudyWork) => void;
 }) {
   const sourceRef = useRef(source);
   sourceRef.current = source;
@@ -172,6 +246,8 @@ export function StudyForm({
   const [databaseName, setDatabaseName] = useState("");
   const [checking, setChecking] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof STUDY_SECTIONS)[number]["id"]>(STUDY_SECTIONS[0].id);
+  const onWorkRef = useRef(onWork);
+  onWorkRef.current = onWork;
 
   useEffect(() => {
     setDraft(hydrate(sourceRef.current));
@@ -226,7 +302,7 @@ export function StudyForm({
   }
 
   function clearDraft() {
-    setDraft({ ...blankDraft(), unit: "" });
+    setDraft(blankDraft());
     setUnitCustom(false);
   }
 
@@ -242,6 +318,10 @@ export function StudyForm({
 
   const databaseLabel = databaseName || (openlcaOk ? "已连接，未能读取数据库名称" : openlcaOk === false ? "未连接" : "正在读取…");
   const summaries = sectionSummaries(draft, databaseLabel);
+
+  useEffect(() => {
+    onWorkRef.current?.(studyWork(draft, databaseLabel, databaseName));
+  }, [draft, databaseLabel, databaseName]);
 
   return (
     <div className="plan-study">
@@ -476,7 +556,7 @@ export function StudyForm({
               </button>
             </span>
           </div>
-          <p>选择要使用的评价方法。列表为常用方法，连接 openLCA 后仍可在计算阶段改用数据库中的方法。</p>
+          <p>选择当前openLCA数据库中可用的方法</p>
           <select aria-label="环境影响评价方法" value={draft.lcia} onChange={(event) => patch({ lcia: event.target.value })}>
             <option value="">选择评价方法</option>
             {LCIA_METHODS.map((method) => (

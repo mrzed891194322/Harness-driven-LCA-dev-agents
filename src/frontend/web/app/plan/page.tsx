@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
 import { PreviewBoard } from "../../components/plan/preview-board";
-import { StudyForm } from "../../components/plan/study-form";
+import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
 
@@ -104,6 +104,7 @@ export default function PlanPage() {
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
   const [formToken, setFormToken] = useState(0);
+  const [work, setWork] = useState<StudyWork>(() => emptyStudyWork());
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -331,9 +332,9 @@ export default function PlanPage() {
 
         <div className="plan-panel" role="tabpanel">
           <div className="plan-fields" hidden={panel !== "fields"}>
-            <StudyForm source={form} sourceKey={formToken} />
+            <StudyForm source={form} sourceKey={formToken} onWork={setWork} />
             <div className="row plan-actions plan-import">
-                <p>可以先下载模板写好，再上传。</p>
+                <p>如果多次使用，可以先下载模板写好，再上传。</p>
                 <button type="button" onClick={() => void downloadTemplate()}>
                   <Download className="launch-icon" aria-hidden="true" />
                   下载模板
@@ -432,7 +433,7 @@ export default function PlanPage() {
           ) : panel === "workflow" ? (
             <WorkflowBoard mode={workMode} />
           ) : panel === "preview" ? (
-            <PreviewBoard mode={workMode} fields={form} references={references} />
+            <PreviewBoard mode={workMode} work={work} references={references} />
           ) : null}
         </div>
 

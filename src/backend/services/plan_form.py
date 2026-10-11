@@ -18,6 +18,7 @@ _SKIP_LABELS = {"研究对象", "功能单位", "生命周期阶段", "参考资
 _FRONTMATTER = re.compile(r"\A---\n.*?\n---\n*", re.DOTALL)
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _H2 = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+_SECTION_TITLE = re.compile(r"^section\s+(\d+)\b", re.IGNORECASE)
 _BOLD = re.compile(r"^-\s+\*\*(.+?)\*\*\s*[：:]\s*(.*)$", re.MULTILINE)
 
 
@@ -44,36 +45,83 @@ class PlanFields:
 def template_markdown() -> str:
     return """---
 template_kind: lca_execution_plan
-template_version: 1
+template_version: 2
 ---
 
 # LCA 执行计划
 
-## 研究对象
+## section 1
 
-<!-- 比较对象、情景与交付地点 -->
+<!--
+研究对象 / Study object
+请在本注释之后自行填写。有多个对象时，每个对象单独成段。
+Write your own content below this comment. Put each object in its own paragraph.
+-->
 
-## 功能单位
+## section 2
 
-<!-- 功能描述、数量和单位 -->
+<!--
+计算基准（功能单位）/ Functional unit
+请在本注释之后自行填写数量、单位，以及可选的附加说明。
+Write the quantity, unit, and an optional note below this comment.
+-->
 
-## 生命周期阶段
+## section 3
 
-<!-- 纳入与排除的阶段 -->
+<!--
+生命周期范围 / Life cycle scope
+请在本注释之后自行填写纳入的阶段和可选的附加说明。阶段可以是：原材料获取、制造、配送、使用、最终处置。
+Write the included stages and an optional note below this comment. Stages may include raw material acquisition, manufacturing, distribution, use, and end of life.
+-->
 
-## 附加条件
+## section 4
 
-<!-- 研究目的、截断、分配、LCIA 方法、数据库和其他限制；没有则写「无」 -->
+<!--
+地域与时间 / Geography and time
+请在本注释之后自行填写地域和研究年份。
+Write the region and the study year below this comment.
+-->
 
-## 参考资料
+## section 5
 
-<!-- 保存计划时由页面根据已上传文件填写 -->
+<!--
+LCA 数据库 / LCA database
+用户不能填写，请到界面手动选择。
+Do not fill this section. Select it manually in the interface.
+-->
+
+## section 6
+
+<!--
+环境影响评价方法（LCIA）/ LCIA method
+用户不能填写，请到界面手动选择。
+Do not fill this section. Select it manually in the interface.
+-->
+
+## section 7
+
+<!--
+关注的环境影响 / Impact categories
+请在本注释之后自行填写：使用所选方法的全部指标，或写出指定指标。
+Write below this comment whether to use all indicators of the selected method, or name the specific indicators.
+-->
+
+## section 8
+
+<!--
+特殊要求 / Special requirements
+请在本注释之后自行填写。没有额外限制时写「无」。
+Write any extra requirements below this comment. Write "none" if there are none.
+-->
 """
 
 
 def parse_plan(text: str) -> PlanFields:
     """Read the four plan fields. Unrecognized Markdown becomes 附加条件."""
     sections = _h2_sections(text)
+    numbered = _numbered_sections(text)
+    if numbered is not None and not any(key in sections for key in FIELD_KEYS):
+        return _fields_from_numbered(numbered)
     if any(key in sections for key in FIELD_KEYS):
         return PlanFields(
             subject=_clean(sections.get("研究对象", "")),
@@ -302,6 +350,33 @@ def _reference_path(root: Path, filename: str) -> Path:
     if path.is_symlink():
         raise PlanFormError("不能替换链接文件")
     return path
+
+
+def _numbered_sections(text: str) -> dict[int, str] | None:
+    """Bodies under ``## section N``. None when the file does not use that outline."""
+    matches = list(_H2.finditer(text))
+    sections: dict[int, str] = {}
+    found = False
+    for index, match in enumerate(matches):
+        number = _SECTION_TITLE.match(match.group(1).strip())
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        if number is None:
+            continue
+        found = True
+        sections[int(number.group(1))] = text[start:end]
+    return sections if found else None
+
+
+def _fields_from_numbered(sections: dict[int, str]) -> PlanFields:
+    """Map the worksheet onto the saved fields. Sections 5 and 6 are chosen in the UI."""
+    extras = [_clean(sections.get(number, "")) for number in (4, 7, 8)]
+    return PlanFields(
+        subject=_clean(sections.get(1, "")),
+        functional_unit=_clean(sections.get(2, "")),
+        life_cycle_stages=_clean(sections.get(3, "")),
+        conditions="\n\n".join(part for part in extras if part),
+    )
 
 
 def _h2_sections(text: str) -> dict[str, str]:

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import io
 import json
+import sqlite3
 import zipfile
 from pathlib import Path
 from typing import Any
 
 from backend.core.agents.activity import activity_log_path, read_activity
 from backend.core.agents.archive import progress_log_path
+from backend.core.workflow.persistence.checkpoint import checkpoint_path
 from backend.core.workflow.persistence.manifest import manifest_path
 from backend.services.project_paths import PROJECT_ROOT
 
@@ -53,6 +55,7 @@ class WorkflowService:
             status_reason=recorded["status_reason"],
             run_id=recorded["run_id"] or None,
             model=model,
+            attempt=recorded["attempt"],
         )
 
     def activity(self, run_id: str = "", offset: int = 0) -> dict[str, Any]:
@@ -86,6 +89,7 @@ class WorkflowService:
             "status": str(manifest.get("status") or "idle"),
             "current_stage": manifest.get("current_stage"),
             "status_reason": manifest.get("status_reason"),
+            "attempt": _attempt_value(manifest.get("attempt")) or self._checkpoint_attempt(run_id),
             "text": "",
             "mtime": None,
         }
@@ -97,6 +101,36 @@ class WorkflowService:
         recorded["text"] = path.read_text(encoding="utf-8", errors="replace")
         recorded["mtime"] = path.stat().st_mtime
         return recorded
+
+    def _checkpoint_attempt(self, run_id: str) -> int | None:
+        """Attempt from the orchestrator snapshot when the manifest has none yet."""
+        if not run_id:
+            return None
+        path = checkpoint_path(self.workspace_root)
+        if not path.is_file():
+            return None
+        try:
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
+        except sqlite3.Error:
+            return None
+        try:
+            row = conn.execute(
+                "SELECT state_json FROM workflow_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        except sqlite3.Error:
+            return None
+        finally:
+            conn.close()
+        if not row:
+            return None
+        try:
+            state = json.loads(row[0])
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(state, dict):
+            return None
+        return _attempt_value(state.get("attempt"))
 
     def _model_label(self, run_id: str) -> str:
         """Model id for this run, so the terminal can show it instead of the worker name."""
@@ -286,6 +320,12 @@ def _result_file_relative(relative: str) -> str:
     return rel
 
 
+def _attempt_value(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return None
+    return value
+
+
 def _prefer_launch(launch: dict[str, Any], file_mtime: float | None) -> bool:
     if not launch.get("epoch") or launch.get("status") in {"", "idle"}:
         return False
@@ -306,6 +346,7 @@ def _window(
     status_reason: Any,
     run_id: str | None,
     model: str = "",
+    attempt: int | None = None,
 ) -> dict[str, Any]:
     data = text.encode("utf-8")
     size = len(data)
@@ -321,6 +362,7 @@ def _window(
         "status": status,
         "current_stage": current_stage,
         "status_reason": status_reason,
+        "attempt": attempt,
         "model": model,
         "text": chunk.decode("utf-8", errors="replace"),
         "offset": size,

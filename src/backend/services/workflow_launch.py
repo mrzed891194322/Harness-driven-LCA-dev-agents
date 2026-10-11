@@ -179,12 +179,14 @@ def _mark_manifest_aborted(project_root: Path, reason: str) -> None:
     if not isinstance(payload, dict) or str(payload.get("status") or "") != "running":
         return
     stage = payload.get("current_stage")
+    attempt = payload.get("attempt")
     write_manifest(
         project_root / "workspace",
         status="failed",
         current_stage=stage if isinstance(stage, str) else None,
         status_reason=reason,
         run_id=str(payload.get("run_id") or ""),
+        attempt=attempt if isinstance(attempt, int) else None,
     )
 
 

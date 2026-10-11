@@ -86,6 +86,7 @@ def publish_state(workspace_root: Path, state: WorkflowState) -> None:
         current_stage=state.get("current_stage"),
         status_reason=state.get("status_reason") or None,
         run_id=state["run_id"],
+        attempt=_state_int(state, "attempt", 1),
     )
 
 
