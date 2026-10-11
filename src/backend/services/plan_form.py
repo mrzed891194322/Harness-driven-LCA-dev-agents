@@ -10,7 +10,8 @@ from pathlib import Path
 PLAN_RELATIVE = Path("harness/knowledge/plan/main_plan.md")
 INPUTS_RELATIVE = Path("harness/knowledge/inputs")
 TEMPLATE_NAME = "lca-plan-template.md"
-NOTES_NAME = ".reference-notes.json"
+NOTES_NAME = "reference-notes.json"
+_LEGACY_NOTES_NAME = ".reference-notes.json"
 MAX_PLAN_BYTES = 2 * 1024 * 1024
 PLAN_SUFFIXES = {".md", ".markdown", ".txt"}
 FIELD_KEYS = ("研究对象", "功能单位", "生命周期阶段", "附加条件")
@@ -18,6 +19,7 @@ _SKIP_LABELS = {"研究对象", "功能单位", "生命周期阶段", "参考资
 _FRONTMATTER = re.compile(r"\A---\n.*?\n---\n*", re.DOTALL)
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _H2 = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+_SECTION_TITLE = re.compile(r"^section\s+(\d+)\b", re.IGNORECASE)
 _BOLD = re.compile(r"^-\s+\*\*(.+?)\*\*\s*[：:]\s*(.*)$", re.MULTILINE)
 
 
@@ -44,36 +46,83 @@ class PlanFields:
 def template_markdown() -> str:
     return """---
 template_kind: lca_execution_plan
-template_version: 1
+template_version: 2
 ---
 
 # LCA 执行计划
 
-## 研究对象
+## section 1
 
-<!-- 比较对象、情景与交付地点 -->
+<!--
+研究对象 / Study object
+请在本注释之后自行填写。有多个对象时，每个对象单独成段。
+Write your own content below this comment. Put each object in its own paragraph.
+-->
 
-## 功能单位
+## section 2
 
-<!-- 功能描述、数量和单位 -->
+<!--
+计算基准（功能单位）/ Functional unit
+请在本注释之后填写文字，这些文字会进入「附加说明」。数量和单位请到界面填写。
+Write the note below this comment. It is placed in the note field. Enter the quantity and unit in the interface.
+-->
 
-## 生命周期阶段
+## section 3
 
-<!-- 纳入与排除的阶段 -->
+<!--
+生命周期范围 / Life cycle scope
+请在本注释之后填写文字，这些文字会进入「附加说明」。纳入哪些阶段请到界面选择。
+Write the note below this comment. It is placed in the note field. Select the stages in the interface.
+-->
 
-## 附加条件
+## section 4
 
-<!-- 研究目的、截断、分配、LCIA 方法、数据库和其他限制；没有则写「无」 -->
+<!--
+地域与时间 / Geography and time
+请在本注释之后自行填写，文字会进入同一个文本框。
+Write below this comment. The text goes into one text box.
+-->
 
-## 参考资料
+## section 5
 
-<!-- 保存计划时由页面根据已上传文件填写 -->
+<!--
+LCA 数据库 / LCA database
+用户不能填写，请到界面手动选择。
+Do not fill this section. Select it manually in the interface.
+-->
+
+## section 6
+
+<!--
+环境影响评价方法（LCIA）/ LCIA method
+用户不能填写，请到界面手动选择。
+Do not fill this section. Select it manually in the interface.
+-->
+
+## section 7
+
+<!--
+关注的环境影响 / Impact categories
+用户不能填写，请到界面手动选择。
+Do not fill this section. Select it manually in the interface.
+-->
+
+## section 8
+
+<!--
+特殊要求 / Special requirements
+请在本注释之后自行填写。没有额外限制时写「无」。
+Write any extra requirements below this comment. Write "none" if there are none.
+-->
 """
 
 
 def parse_plan(text: str) -> PlanFields:
     """Read the four plan fields. Unrecognized Markdown becomes 附加条件."""
     sections = _h2_sections(text)
+    numbered = _numbered_sections(text)
+    if numbered is not None and not any(key in sections for key in FIELD_KEYS):
+        return _fields_from_numbered(numbered)
     if any(key in sections for key in FIELD_KEYS):
         return PlanFields(
             subject=_clean(sections.get("研究对象", "")),
@@ -163,10 +212,11 @@ def list_references(root: Path) -> list[dict[str, object]]:
         return []
     notes = _read_notes(root)
     rows: list[dict[str, object]] = []
-    for path in sorted(folder.iterdir(), key=lambda item: item.name.lower()):
-        if not _is_reference_file(path):
+    for path in sorted(folder.rglob("*"), key=lambda item: item.as_posix().lower()):
+        if not _is_reference_file(folder, path):
             continue
-        rows.append(_reference_record(path, notes.get(path.name, "")))
+        relative = path.relative_to(folder).as_posix()
+        rows.append(_reference_record(path, relative, notes.get(relative, "")))
     return rows
 
 
@@ -176,27 +226,29 @@ def save_reference(root: Path, filename: str, data: bytes) -> dict[str, object]:
 
 
 def save_references(root: Path, uploads: list[tuple[str, bytes]]) -> list[dict[str, object]]:
-    prepared: list[tuple[Path, bytes]] = []
+    folder = inputs_dir(root).resolve()
+    prepared: list[tuple[Path, str, bytes]] = []
     seen: set[str] = set()
     conflicts: list[str] = []
     for filename, data in uploads:
         path = _reference_path(root, filename)
-        if path.name in seen or path.is_file():
-            conflicts.append(path.name)
+        relative = path.relative_to(folder).as_posix()
+        if relative in seen or path.exists():
+            conflicts.append(relative)
             continue
-        seen.add(path.name)
-        prepared.append((path, data))
+        seen.add(relative)
+        prepared.append((path, relative, data))
     if conflicts:
         names = "、".join(f"「{name}」" for name in dict.fromkeys(conflicts))
         raise PlanFormError(f"不能上传同名文件：{names}")
     saved: list[dict[str, object]] = []
     notes = _read_notes(root)
-    for path, data in prepared:
+    for path, relative, data in prepared:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(path.name + ".uploading")
         temporary.write_bytes(data)
         temporary.replace(path)
-        saved.append(_reference_record(path, notes.get(path.name, "")))
+        saved.append(_reference_record(path, relative, notes.get(relative, "")))
     return saved
 
 
@@ -204,24 +256,28 @@ def save_reference_note(root: Path, filename: str, note: str) -> dict[str, objec
     path = _reference_path(root, filename)
     if not path.is_file():
         raise FileNotFoundError(filename)
+    relative = path.relative_to(inputs_dir(root).resolve()).as_posix()
     notes = _read_notes(root)
     text = note.strip()
     if text:
-        notes[path.name] = text
+        notes[relative] = text
     else:
-        notes.pop(path.name, None)
+        notes.pop(relative, None)
     _write_notes(root, notes)
-    return _reference_record(path, notes.get(path.name, ""))
+    return _reference_record(path, relative, notes.get(relative, ""))
 
 
 def delete_reference(root: Path, filename: str) -> None:
+    folder = inputs_dir(root).resolve()
     path = _reference_path(root, filename)
     if not path.is_file():
         raise FileNotFoundError(filename)
+    relative = path.relative_to(folder).as_posix()
     path.unlink()
+    _prune_empty_dirs(folder, path.parent)
     notes = _read_notes(root)
-    if path.name in notes:
-        notes.pop(path.name, None)
+    if relative in notes:
+        notes.pop(relative, None)
         _write_notes(root, notes)
 
 
@@ -238,20 +294,23 @@ def decode_plan_upload(filename: str, data: bytes) -> PlanFields:
     return parse_plan(text)
 
 
-def _is_reference_file(path: Path) -> bool:
-    return (
-        path.is_file()
-        and not path.is_symlink()
-        and path.name.lower() != "readme.md"
-        and not path.name.startswith(".")
-    )
+def _is_reference_file(folder: Path, path: Path) -> bool:
+    if not path.is_file() or path.is_symlink():
+        return False
+    try:
+        relative = path.relative_to(folder)
+    except ValueError:
+        return False
+    if relative.as_posix().lower() in {"readme.md", NOTES_NAME}:
+        return False
+    return not any(part.startswith(".") for part in relative.parts)
 
 
-def _reference_record(path: Path, note: str) -> dict[str, object]:
+def _reference_record(path: Path, relative: str, note: str) -> dict[str, object]:
     return {
-        "name": path.name,
+        "name": relative,
         "size": path.stat().st_size,
-        "path": f"{INPUTS_RELATIVE.as_posix()}/{path.name}",
+        "path": f"{INPUTS_RELATIVE.as_posix()}/{relative}",
         "note": note,
     }
 
@@ -260,10 +319,13 @@ def _notes_path(root: Path) -> Path:
     return inputs_dir(root) / NOTES_NAME
 
 
-def _read_notes(root: Path) -> dict[str, str]:
-    path = _notes_path(root)
+def _legacy_notes_path(root: Path) -> Path:
+    return inputs_dir(root) / _LEGACY_NOTES_NAME
+
+
+def _parse_notes(path: Path) -> dict[str, str] | None:
     if not path.is_file():
-        return {}
+        return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -277,6 +339,20 @@ def _read_notes(root: Path) -> dict[str, str]:
     }
 
 
+def _read_notes(root: Path) -> dict[str, str]:
+    current = _parse_notes(_notes_path(root))
+    legacy_path = _legacy_notes_path(root)
+    if current is None:
+        legacy = _parse_notes(legacy_path)
+        if legacy is None:
+            return {}
+        _write_notes(root, legacy)
+        return legacy
+    if legacy_path.is_file():
+        legacy_path.unlink()
+    return current
+
+
 def _write_notes(root: Path, notes: dict[str, str]) -> None:
     folder = inputs_dir(root)
     folder.mkdir(parents=True, exist_ok=True)
@@ -284,24 +360,108 @@ def _write_notes(root: Path, notes: dict[str, str]) -> None:
         json.dumps(notes, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    legacy = _legacy_notes_path(root)
+    if legacy.is_file():
+        legacy.unlink()
+
+
+def _reference_relative(filename: str) -> str:
+    raw = (filename or "").replace("\\", "/").strip()
+    if not raw or "\x00" in raw:
+        raise PlanFormError("文件名无效")
+    parts: list[str] = []
+    for part in raw.split("/"):
+        if part in {"", "."}:
+            continue
+        if part == ".." or part.startswith("."):
+            raise PlanFormError("文件名无效")
+        parts.append(part)
+    if not parts:
+        raise PlanFormError("文件名无效")
+    if len(parts) == 1 and parts[0].lower() == "readme.md":
+        raise PlanFormError("不能覆盖说明文件")
+    if len(parts) == 1 and parts[0] == NOTES_NAME:
+        raise PlanFormError("不能覆盖注释文件")
+    return "/".join(parts)
 
 
 def _reference_path(root: Path, filename: str) -> Path:
-    raw = filename or ""
-    if not raw or "/" in raw or "\\" in raw or "\x00" in raw:
-        raise PlanFormError("文件名无效")
-    name = Path(raw).name
-    if name in {".", ".."} or name.startswith("."):
-        raise PlanFormError("文件名无效")
-    if name.lower() == "readme.md":
-        raise PlanFormError("不能覆盖说明文件")
+    relative = _reference_relative(filename)
     folder = inputs_dir(root).resolve()
-    path = (folder / name).resolve()
-    if path.parent != folder:
+    cursor = folder
+    for part in relative.split("/"):
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise PlanFormError("不能替换链接文件")
+        if cursor.is_file() and part != relative.split("/")[-1]:
+            raise PlanFormError("文件名无效")
+    path = cursor.resolve()
+    if folder not in path.parents:
         raise PlanFormError("文件名无效")
     if path.is_symlink():
         raise PlanFormError("不能替换链接文件")
     return path
+
+
+def _prune_empty_dirs(folder: Path, directory: Path) -> None:
+    current = directory
+    while current != folder:
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
+
+
+def _numbered_sections(text: str) -> dict[int, str] | None:
+    """Bodies under ``## section N``. None when the file does not use that outline."""
+    matches = list(_H2.finditer(text))
+    sections: dict[int, str] = {}
+    found = False
+    for index, match in enumerate(matches):
+        number = _SECTION_TITLE.match(match.group(1).strip())
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        if number is None:
+            continue
+        found = True
+        sections[int(number.group(1))] = text[start:end]
+    return sections if found else None
+
+
+def _fields_from_numbered(sections: dict[int, str]) -> PlanFields:
+    """Map the v2 worksheet onto the saved fields.
+
+    Written text lands in text boxes. Sections 2 and 3 also have selectable
+    controls, so their whole body stays in ``附加说明`` and does not set those
+    controls. Sections 5–7 are chosen in the interface.
+    """
+    blocks = _place_blocks(sections.get(4, ""))
+    special = _clean(sections.get(8, ""))
+    if special and special not in {"无", "none", "None"}:
+        blocks.append(special)
+    return PlanFields(
+        subject=_clean(sections.get(1, "")),
+        functional_unit=_as_note(sections.get(2, "")),
+        life_cycle_stages=_as_note(sections.get(3, "")),
+        conditions="\n\n".join(blocks),
+    )
+
+
+def _as_note(text: str) -> str:
+    """Keep a template body in 附加说明, even if it mentions 数量 or 阶段."""
+    body = _clean(text)
+    if not body:
+        return ""
+    return f"附加说明：{body}"
+
+
+def _place_blocks(text: str) -> list[str]:
+    """Section 4 is one text box. Keep the body together, including old labels."""
+    body = _clean(text)
+    if not body:
+        return []
+    return [f"地域与时间：{body}"]
 
 
 def _h2_sections(text: str) -> dict[str, str]:

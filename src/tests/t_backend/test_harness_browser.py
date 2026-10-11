@@ -23,11 +23,15 @@ class HarnessBrowserTests(unittest.TestCase):
         catalog = harness_catalog(PROJECT_ROOT)
         index = _index(catalog)
         self.assertEqual(index["rules/README.md"], ("rules", "overview", "说明"))
-        self.assertEqual(index["rules/prompts/project/runtime.md"][:2], ("rules", "prompts"))
+        self.assertEqual(index["rules/project/runtime.md"][:2], ("rules", "project"))
         self.assertEqual(
-            index["rules/prompts/assignments/01-intake-gate/reviewer.md"],
-            ("rules", "prompts", "assignments / 01-intake-gate / reviewer"),
+            index["rules/stages/01-intake-gate.reviewer.md"],
+            ("rules", "stages", "01-intake-gate.reviewer"),
         )
+        self.assertEqual(
+            index["specs/shared/permissions/reviewer.yaml"][:2], ("specs", "shared")
+        )
+        self.assertIn("specs/03-dataset-mapping/acceptance.yaml", index)
         self.assertEqual(index["specs/01-intake-gate/spec.yaml"][:2], ("specs", "01-intake-gate"))
         self.assertIn("LCA-main.yaml", index)
         self.assertIn("knowledge/plan/main_plan.md", index)
@@ -35,10 +39,11 @@ class HarnessBrowserTests(unittest.TestCase):
 
         rules = next(section for section in catalog["sections"] if section["id"] == "rules")
         group_ids = [group["id"] for group in rules["groups"]]
-        self.assertLess(group_ids.index("prompts"), group_ids.index("permissions"))
+        self.assertLess(group_ids.index("project"), group_ids.index("stages"))
+        self.assertNotIn("permissions", group_ids)
 
     def test_read_markdown_title(self) -> None:
-        document = read_harness_document(PROJECT_ROOT, "rules/prompts/stages/01-intake-gate.md")
+        document = read_harness_document(PROJECT_ROOT, "rules/stages/01-intake-gate.md")
         self.assertEqual(document["title"], "01 初始化检查")
         self.assertEqual(document["kind"], "markdown")
         self.assertIn("启动门禁", document["content"])

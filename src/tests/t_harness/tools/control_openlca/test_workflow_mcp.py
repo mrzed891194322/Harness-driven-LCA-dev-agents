@@ -13,13 +13,18 @@ import requests
 
 from harness.tools.shared.control_openlca import workflow
 from tests.support.openlca_fakes import (
+    BACKGROUND_FLOW_ID,
+    BACKGROUND_PROVIDER_ID,
     FLOW_ID,
     GENERATED_SYSTEM_ID,
+    PROCESS_ID,
     PRODUCT_SYSTEM_ID,
     PROVIDER_ID,
     FakeDescriptor,
     FakeImportClient,
     run_import,
+    seed_background_provider,
+    write_background_linked_product_system_fixture,
     write_flow,
     write_linked_auto_product_system_fixture,
     write_product_system_fixture,
@@ -235,7 +240,7 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(
             any(
-                "does not output foreground Flow" in error for error in result["errors"]
+                "未以定量参考输出" in error for error in result["errors"]
             )
         )
 
@@ -549,7 +554,7 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertEqual((imported, failed, deleted), (0, 1, 0))
         self.assertIn("connection lost", errors[0])
 
-    def test_import_continues_after_read_timeout_on_single_entity(self) -> None:
+    def test_import_stops_after_read_timeout_on_single_entity(self) -> None:
         client = FakeImportClient()
         attempts = {"count": 0}
         original_put = client.put
@@ -583,9 +588,9 @@ class ImportWorkflowTests(unittest.TestCase):
             "project-a",
         )
 
-        self.assertEqual(attempts["count"], 2)
-        self.assertEqual(len(records), 2)
-        self.assertEqual((imported, failed, deleted), (1, 1, 0))
+        self.assertEqual(attempts["count"], 1)
+        self.assertEqual(len(records), 1)
+        self.assertEqual((imported, failed, deleted), (0, 1, 0))
         self.assertIn("slow openlca", errors[0])
 
     def test_product_system_uses_official_auto_linking_and_preserves_uuid(self) -> None:
@@ -628,7 +633,7 @@ class ImportWorkflowTests(unittest.TestCase):
             )
         )
 
-    def test_product_system_create_timeout_recovers_declared_system(self) -> None:
+    def test_product_system_create_timeout_raises_without_retry(self) -> None:
         client = FakeImportClient()
         recovered = olca_schema.ProductSystem(
             id=PRODUCT_SYSTEM_ID,
@@ -647,14 +652,22 @@ class ImportWorkflowTests(unittest.TestCase):
             name="Recovered system",
         )
         entity.ref_process = olca_schema.Ref(id=PROVIDER_ID)
-        reference = workflow._put_product_system(
-            client,
-            entity,
-            {"linkingMode": "auto", "preferDefaultProviders": True},
-        )
-        self.assertEqual(getattr(reference, "id", None), PRODUCT_SYSTEM_ID)
+        calls = {"n": 0}
 
-    def test_product_system_uses_defaults_for_foreground_auto_linking(self) -> None:
+        def counting_timeout(process: object, config: object) -> SimpleNamespace:
+            calls["n"] += 1
+            return timeout_create(process, config)
+
+        client.create_product_system = counting_timeout
+        with self.assertRaises(requests.Timeout):
+            workflow._put_product_system(
+                client,
+                entity,
+                {"linkingMode": "auto", "preferDefaultProviders": True},
+            )[0]
+        self.assertEqual(calls["n"], 1)
+
+    def test_product_system_unit_process_provider_falls_back_to_auto_linking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_linked_auto_product_system_fixture(root)
@@ -669,16 +682,122 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertTrue(validation["ok"], validation["errors"])
         self.assertEqual(report["status"], "success")
         self.assertEqual(len(client.create_product_system_calls), 1)
+        ps_record = next(
+            record
+            for record in report["entities"]
+            if record["entity_type"] == "ProductSystem"
+        )
+        self.assertEqual(ps_record.get("linking_mode_applied"), "auto")
+        self.assertIn("UNIT_PROCESS", ps_record.get("linking_mode_note", ""))
+
+    def test_process_import_order_places_foreground_provider_before_consumer(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            inventory, errors = workflow.load_lci_inventory(root)
+        self.assertEqual(errors, [])
+        process_paths = [
+            item["path"]
+            for item in inventory
+            if item["entity_type"] == "Process"
+        ]
+        self.assertEqual(
+            process_paths,
+            ["processes/p02-provider.json", "processes/p01-test.json"],
+        )
+
+    def test_import_repairs_dropped_foreground_default_providers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            inventory, _ = workflow.load_lci_inventory(root)
+            process_items = [
+                item for item in inventory if item["entity_type"] == "Process"
+            ]
+            process_items.reverse()
+            inventory = [
+                *(
+                    item
+                    for item in inventory
+                    if item["entity_type"] != "Process"
+                ),
+            ]
+            insert_at = next(
+                index
+                for index, item in enumerate(inventory)
+                if item["entity_type"] == "ProductSystem"
+            )
+            inventory[insert_at:insert_at] = process_items
+            client = FakeImportClient()
+            client.drop_missing_foreground_providers = True
+            records, imported, failed, deleted, errors = workflow._execute_import(
+                client,
+                inventory,
+                [],
+                "project-a",
+            )
+        self.assertEqual(failed, 0, errors)
+        self.assertEqual(errors, [])
+        self.assertGreaterEqual(imported, 3)
+        consumer = client.entities[(olca_schema.Process, PROCESS_ID)]
+        provider_exchange = next(
+            ex
+            for ex in consumer.exchanges or []
+            if getattr(ex, "is_input", None) is True
+        )
+        self.assertEqual(
+            getattr(getattr(provider_exchange, "default_provider", None), "id", None),
+            PROVIDER_ID,
+        )
+
+    def test_product_system_explicit_with_background_provider_uses_host_linking(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_background_linked_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# LCI mapping\n",
+                encoding="utf-8",
+            )
+            client = FakeImportClient()
+            seed_background_provider(client)
+            report = run_import(root, client)
+
+        self.assertEqual(report["status"], "success")
+        self.assertEqual(len(client.create_product_system_calls), 0)
+        ps_record = next(
+            record
+            for record in report["entities"]
+            if record["entity_type"] == "ProductSystem"
+        )
+        self.assertEqual(ps_record.get("linking_mode_applied"), "explicit")
         saved_raw = client.entities[(olca_schema.ProductSystem, PRODUCT_SYSTEM_ID)]
         assert isinstance(saved_raw, olca_schema.ProductSystem)
         saved = saved_raw
-        self.assertEqual(len(saved.processes or []), 2)
+        process_ids = {ref.id for ref in saved.processes or []}
+        self.assertIn(PROCESS_ID, process_ids)
+        self.assertIn(BACKGROUND_PROVIDER_ID, process_ids)
         self.assertEqual(len(saved.process_links or []), 1)
+        link = saved.process_links[0]
+        self.assertEqual(link.provider.id, BACKGROUND_PROVIDER_ID)
+        self.assertEqual(link.process.id, PROCESS_ID)
+        self.assertEqual(link.flow.id, BACKGROUND_FLOW_ID)
+        self.assertIsNotNone(link.exchange)
+        self.assertEqual(link.exchange.internal_id, 2)
+        self.assertIsNotNone(saved.ref_exchange)
+        self.assertEqual(saved.ref_exchange.internal_id, 1)
+        self.assertEqual(
+            ps_record.get("provider_types", {}).get(BACKGROUND_PROVIDER_ID),
+            olca_schema.ProcessType.LCI_RESULT.value,
+        )
 
-    def test_lci_validation_rejects_explicit_product_system(self) -> None:
+    def test_product_system_explicit_rejects_unit_process_providers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            write_product_system_fixture(root)
+            write_linked_auto_product_system_fixture(root)
             (root / "human_readable_mapping.md").write_text(
                 "# LCI mapping\n",
                 encoding="utf-8",
@@ -686,14 +805,64 @@ class ImportWorkflowTests(unittest.TestCase):
             path = root / "product_systems" / "ps01-test.json"
             product_system = json.loads(path.read_text(encoding="utf-8"))
             product_system["linkingMode"] = "explicit"
-            product_system["processLinks"] = [{"provider": {"@id": PROVIDER_ID}}]
+            path.write_text(json.dumps(product_system), encoding="utf-8")
+            client = FakeImportClient()
+            report = run_import(root, client)
+
+        self.assertEqual(report["status"], "partial_failure")
+        self.assertTrue(
+            any("UNIT_PROCESS providers" in error for error in report["errors"])
+        )
+
+    def test_product_system_explicit_errors_on_missing_foreground_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# LCI mapping\n",
+                encoding="utf-8",
+            )
+            consumer_path = root / "processes" / "p01-test.json"
+            consumer = json.loads(consumer_path.read_text(encoding="utf-8"))
+            for exchange in consumer["exchanges"]:
+                if exchange.get("isInput") is True:
+                    exchange.pop("defaultProvider", None)
+            consumer_path.write_text(json.dumps(consumer), encoding="utf-8")
+            path = root / "product_systems" / "ps01-test.json"
+            product_system = json.loads(path.read_text(encoding="utf-8"))
+            product_system["linkingMode"] = "explicit"
+            path.write_text(json.dumps(product_system), encoding="utf-8")
+            validation = workflow.validate_lci_directory(root)
+            client = FakeImportClient()
+            report = run_import(root, client)
+
+        self.assertFalse(validation["ok"])
+        self.assertEqual(report["status"], "rejected")
+
+    def test_lci_validation_rejects_explicit_without_providers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            (root / "human_readable_mapping.md").write_text(
+                "# LCI mapping\n",
+                encoding="utf-8",
+            )
+            consumer_path = root / "processes" / "p01-test.json"
+            consumer = json.loads(consumer_path.read_text(encoding="utf-8"))
+            for exchange in consumer["exchanges"]:
+                if exchange.get("isInput") is True:
+                    exchange.pop("defaultProvider", None)
+            consumer_path.write_text(json.dumps(consumer), encoding="utf-8")
+            path = root / "product_systems" / "ps01-test.json"
+            product_system = json.loads(path.read_text(encoding="utf-8"))
+            product_system["linkingMode"] = "explicit"
             path.write_text(json.dumps(product_system), encoding="utf-8")
             result = workflow.validate_lci_directory(root)
 
         self.assertFalse(result["ok"])
         self.assertTrue(
             any(
-                "linkingMode must be explicitly set to 'auto'" in error
+                "explicit linking requires defaultProvider" in error
                 for error in result["errors"]
             )
         )

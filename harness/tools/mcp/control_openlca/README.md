@@ -14,13 +14,13 @@
 - 03 审核通过快照由编排器记录；04 导入/计算只接受未变化的已审模型。计算请求须与 calculation-plan.json 一致。
 - 工具身份由编排器写入 `--context-file`（每轮覆盖 attempt/role）；MCP 每次调用重读。`LCA_*` 环境变量仅为冗余。无该参数时（GUI/探测）才用独立 standalone run，其产物不进入正式运行复用。
 
-离线回归：`uv run pytest src/tests/t_harness/tools/control_openlca -q`。行为规则见 `harness/rules/prompts/tools/control_openlca.md`，证据与返工约定见 `harness/rules/prompts/project/runtime-loop.md`。
+离线回归：`uv run pytest src/tests/t_harness/tools/control_openlca -q`。行为规则见 `harness/rules/tools/control_openlca.md`，证据与返工约定见 `harness/rules/project/runtime-loop.md`。
 
 ---
 
 # openLCA 控制脚本说明及公共工具规范 (README.md)
 
-本目录为 `control-openlca` 技能的脚本目录。Agent 在调用 openLCA MCP 时的行为约束见 [`harness/rules/prompts/tools/control_openlca.md`](../../../rules/prompts/tools/control_openlca.md)。
+本目录为 `control-openlca` 技能的脚本目录。Agent 在调用 openLCA MCP 时的行为约束见 [`harness/rules/tools/control_openlca.md`](../../../rules/tools/control_openlca.md)。
 
 为了保证代码复用性、降低维护成本，本技能采用了“**共享公共工具包 + 专属私有任务包**”的架构设计。
 
@@ -58,12 +58,12 @@ control_openlca/
 - `health_check`：使用有界轻量 descriptor 请求检查 IPC Server 和活动数据库；首次失败后
   新建客户端重连 3 次，并返回每次尝试的耗时和错误类别。
 - `query_descriptors`：按名称片段查询实体名称和 UUID，并返回分类、地域、参考单位及分页信息。
-- `get_process_details`：按一个确切 Process UUID 返回紧凑元数据、地域和定量参考 exchange。
+- `get_process_details`：按一个确切 Process UUID 返回紧凑元数据、地域、定量参考 exchange，以及相对 `target_category` 的 `outside_project` 标记与 `project_scope`（`project` 项目分类内 / `background` 背景库 / `uncategorized` 无分类、多为历史残留，不可作 provider 证据）。
 - `get_flow_providers`：按一个确切 Flow UUID 返回可用 Process Provider 的 UUID、名称、分类、地域和 Flow 引用；支持地域过滤与分页。
 - `preflight_import_lci`：只读解析一文件一实体 JSON-LD，验证声明库名、目标分类和背景 Provider，返回库名、分类、LCI 目录、计划实体和 Provider 检查。
 - `import_lci`：唯一的 Whole-LCA 数据库写入工具。写入前工具内部再预检；库名、分类或 LCI 目录与上次成功预检不一致则拒绝。执行中持续写 `workspace/records/import-operations/current.json`。
 - `get_import_operation`：只读查询当前导入 journal，供 MCP 超时后判断是否已经成功、失败或仍不可确定。
-- `get_model_graph`：读回 Product System 节点、边、断链、孤立节点和缺失预期节点。
+- `get_model_graph`：读回 Product System 节点（含已知 category 与 `outside_project`）、边、断链、孤立节点和缺失预期节点。
 - `calculate_product_system`：执行 LCIA，返回方法/类别名称与 UUID、数值、单位、计算设置和句柄释放状态。
 - `cleanup_output`：预览或删除当前项目分类下的 ProductSystem、Process 和 Flow；`confirm=false` 只列范围，`confirm=true` 执行删除。
 
@@ -100,7 +100,7 @@ uv run pytest src/tests/t_harness/tools/control_openlca -v
 ### 1. IPC 连接模块 (`utils/connection.py`)
 *   **核心函数**：`create_ipc_client(...)`、`probe_ipc(...)`、`close_ipc_client(...)` 以及兼容入口 `connect_ipc(...)`。
 *   **用途**：统一构造带 HTTP timeout 的 `BoundedIPCClient`；探测使用较小的 Currency descriptor 请求，并显式识别 JSON-RPC 错误。
-*   **规范**：每个 MCP 工具在 `IPC_TOOL_PROFILES` 中有唯一档位（`none` / `health` / `short` / `long`）。档位决定 endpoint 锁的会话预算；**省略 timeout 的 `create_ipc_client` 使用当前会话剩余预算作为 HTTP 读超时**。长作业默认会话 **7200 秒**（`OPENLCA_IPC_SESSION_BUDGET_SEC` 或工具 `timeout_sec`）。无会话上下文时保底 **600 秒**（`OPENLCA_IPC_LONG_READ_SEC`）。`OPENLCA_IPC_READ_SEC`（30 秒）不再是 MCP 工具的实际上限。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 超时由 YAML 的 `tool_timeout_sec` 显式配置（本项目默认 7320 秒）；修改 IPC 会话预算时应同步配置为至少 budget+120 秒。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。新增 MCP 工具必须登记档位，否则测试失败。
+*   **规范**：每个 MCP 工具在 `IPC_TOOL_PROFILES` 中有唯一档位（`none` / `health` / `short` / `long`）。档位决定 endpoint 锁的**可选整体会话预算**（`OPENLCA_IPC_SESSION_BUDGET_SEC` 或工具 `timeout_sec`，默认 7200 秒）。**单次 HTTP 读超时**由环境变量配置，不再随剩余预算塌缩为亚秒级：`OPENLCA_TIMEOUT_REQUEST_S`（默认 120）、`OPENLCA_TIMEOUT_PRODUCT_SYSTEM_S`（默认 300，仅 Product System 自动链接/create）。若剩余会话预算不足以容纳下一次请求的读超时，**在发请求前 fail-fast**（`requests.Timeout`），不得带着 0.x 秒读超时启动请求。超时后会做短健康探测（`OPENLCA_TIMEOUT_HEALTH_PROBE_S`，默认 10）；若 IPC 无响应，写入 `.local/runs/<run_id>/events.jsonl` 的 `openlca_unresponsive` 事件、保留 `*.uncertain` 锁标记，并在工具结果中返回 **`retryable: false` / `agent_action: stop_and_submit_failed`**（禁止 agent 重试 import/cleanup/calculate）。诊断落盘 `<run>/diagnostics/openlca_timeout_<ts>.json`（`ss`、Java CPU、`jcmd Thread.print` 尽力采集）。健康探测使用 1 秒连接/3 秒读取 timeout。不得启用 HTTP POST 自动重试；只有 `health_check` 可执行首次失败后的 3 次显式重连。Worker MCP 超时由 YAML 的 `tool_timeout_sec` 显式配置（本项目默认 7320 秒）；修改 IPC 会话预算时应同步配置为至少 budget+120 秒。工具自行创建的客户端在返回前关闭。清理范围任一实体类型扫描失败时必须整体失败，不得把部分结果报告为空项目。新增 MCP 工具必须登记档位，否则测试失败。
 
 ### 2. 实体检索模块 (`utils/entity.py`)
 *   **核心函数**：`find_entity(client, model_type, name_or_uuid)`
@@ -142,7 +142,7 @@ uv run pytest src/tests/t_harness/tools/control_openlca -v
 
 ## Agent 开发与扩展规范
 
-1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。完整 Agent 纪律见 [`harness/rules/prompts/tools/control_openlca.md`](../../../rules/prompts/tools/control_openlca.md)。
+1.  **禁止临时脚本**：不得在 `workspace/tmp/` 或其他位置编写一次性 openLCA 探测/查询脚本。完整 Agent 纪律见 [`harness/rules/tools/control_openlca.md`](../../../rules/tools/control_openlca.md)。
 2.  **首选复用**：当开发正式新脚本时，主程序顶部必须通过追加 `sys.path` 导入 `src/scripts/utils/` 下的对应功能。
 3.  **单一职责**：请勿在新脚本主文件中编写关于连接、查找、导出等繁琐实现。`main.py` 应当只负责顶层流程编排。
 4.  **升级与扩展**：

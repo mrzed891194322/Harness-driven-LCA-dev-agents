@@ -1,0 +1,7 @@
+# 用户偏好（生成式提示词的变量来源）。GUI 修改写到 harness/.user/settings.yaml，删除即恢复默认。
+version: 1
+language:
+  # agent 的说明、handoff 文字使用的语言
+  output: 中文
+  # 交付文档（报告、说明）使用的语言
+  documents: 中文

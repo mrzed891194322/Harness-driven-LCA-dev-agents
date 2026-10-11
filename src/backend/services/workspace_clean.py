@@ -44,7 +44,10 @@ CLEAN_TARGETS = [
 ]
 
 CLEAN_PRESETS: dict[str, list[str]] = {
-    "whole-lca": ["knowledge", "workspace", "openlca"],
+    # openlca runs before workspace: its UUID cleanup reads
+    # workspace/outputs/LCI and records/import-operations, which the workspace
+    # target deletes.
+    "whole-lca": ["knowledge", "openlca", "workspace"],
     "revise-lca": ["knowledge", "openlca"],
 }
 

@@ -12,6 +12,9 @@
     "restart": "node src/scripts/restart.mjs",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test:runtime": "npm run test -w @harness/pi-runtime"
+    "test:runtime": "npm run test -w @harness/pi-runtime",
+    "inspect": "uv run --no-sync python src/scripts/inspect_run.py",
+    "doctor": "uv run --no-sync python src/scripts/doctor.py",
+    "session": "uv run --no-sync python src/scripts/session_export.py"
   }
 }

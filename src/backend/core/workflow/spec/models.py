@@ -22,6 +22,7 @@ class HostActionRef:
     id: str
     action: str
     arguments: dict[str, Any] = field(default_factory=dict)
+    summary: str = ""  # human summary shown to agents via get_spec (not executed)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -29,6 +30,41 @@ class HostActionRef:
             "action": self.action,
             "arguments": dict(self.arguments),
         }
+
+
+@dataclass(frozen=True)
+class SubmitCheck:
+    """One acceptance check run by spec_mcp ``submit`` (acceptance.yaml)."""
+
+    check: str
+    params: dict[str, Any] = field(default_factory=dict)
+    summary: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"check": self.check, "params": dict(self.params), "summary": self.summary}
+
+
+@dataclass(frozen=True)
+class Deliverable:
+    """A stage deliverable. ``writer=spec_mcp`` paths are writable only by spec_mcp."""
+
+    name: str
+    path: str
+    kind: str = "file"
+    format: str | None = None
+    required: bool = True
+    writer: str = "spec_mcp"  # spec_mcp | agent
+    schema: str | None = None  # project-relative effective path (default or user)
+    example: str | None = None  # project-relative effective path
+
+    def contract(self) -> PathContract:
+        return PathContract(
+            path=self.path,
+            required=self.required,
+            kind=self.kind,
+            format=self.format,
+            schema=self.schema,
+        )
 
 
 @dataclass
@@ -44,6 +80,14 @@ class StageSpec:
     on_reviewer_passed: list[HostActionRef] = field(default_factory=list)
     handoff_schema: str | None = None
     handoff_checks: list[HostActionRef] = field(default_factory=list)
+    deliverables: list[Deliverable] = field(default_factory=list)
+    submit_checks: dict[str, list[SubmitCheck]] = field(default_factory=dict)
+    # acceptance.yaml review_points: what the reviewer must verify (via get_spec)
+    review_points: list[str] = field(default_factory=list)
+    # role -> permission rule ids (harness/specs/shared/permissions/<id>.yaml)
+    role_permissions: dict[str, list[str]] = field(default_factory=dict)
+    # harness-relative file -> {"source": "default"|"user", "sha256": ...}
+    sources: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def output_paths(self) -> list[str]:
         return [item.path for item in self.outputs if item.required]

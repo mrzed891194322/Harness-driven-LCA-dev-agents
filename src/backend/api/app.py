@@ -10,13 +10,17 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from backend.core.agents.assignment_models import load_assignment_models, save_assignment_models
-from backend.core.agents.config import load_worker_model
+from backend.core.agents.assignment_models import (
+    load_assignment_models,
+    load_default_model,
+    save_assignment_models,
+    save_default_model,
+)
 from backend.core.runtime.model_profiles import (
     allocate_profile_id,
     delete_local_profile,
@@ -44,26 +48,40 @@ from backend.services.credentials_service import (
     set_provider_api,
     set_provider_base_url,
 )
+from backend.services.prompt_templates import PromptTemplates
+from backend.services.session_snapshots import SessionSnapshots
 from backend.services.diagnostics_service import (
     environment_report,
     openlca_endpoint,
     save_openlca_port,
 )
-from backend.services.harness_browser import HarnessPathError, harness_catalog, read_harness_document
+from backend.services.harness_browser import (
+    HarnessPathError,
+    harness_catalog,
+    read_harness_document,
+)
 from backend.services.plan_form import (
+    TEMPLATE_NAME,
     PlanFields,
     PlanFormError,
-    TEMPLATE_NAME,
     decode_plan_upload,
     delete_reference,
     list_references,
     read_plan_document,
     save_plan,
-    save_references,
     save_reference_note,
+    save_references,
     template_markdown,
 )
 from backend.services.project_paths import PROJECT_ROOT
+from backend.services.spec_service import (
+    SpecPartError,
+    list_specs,
+    read_part,
+    reset_override,
+    save_override,
+    validate_spec,
+)
 from backend.services.tutorial_browser import (
     TutorialPathError,
     read_tutorial_document,
@@ -72,7 +90,7 @@ from backend.services.tutorial_browser import (
 )
 from backend.services.workflow_launch import launcher
 from backend.services.workflow_service import WorkflowService
-from backend.settings import parse_env_file, upsert_env_keys
+from backend.settings import parse_env_file
 
 
 def _web_origins() -> list[str]:
@@ -101,6 +119,8 @@ app.add_middleware(
 )
 
 _workflow = WorkflowService()
+_snapshots = SessionSnapshots()
+_prompt_templates = PromptTemplates()
 _run_events: list[dict[str, Any]] = []
 _event_id = 0
 
@@ -217,7 +237,7 @@ def update_openlca_port(body: OpenLcaPortUpdate) -> dict[str, Any]:
 def model_profiles() -> dict[str, Any]:
     return {
         "profiles": load_profiles(PROJECT_ROOT),
-        "selected": load_worker_model("pi", PROJECT_ROOT),
+        "selected": load_default_model(PROJECT_ROOT),
     }
 
 
@@ -317,7 +337,7 @@ def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[st
 
 @app.get("/api/workflow/models")
 def workflow_models() -> dict[str, Any]:
-    stored = load_worker_model("pi", PROJECT_ROOT)
+    stored = load_default_model(PROJECT_ROOT)
     models, warnings = _connected_models(PROJECT_ROOT)
     return {
         "default": stored,
@@ -344,13 +364,15 @@ def update_workflow_models(body: WorkflowModelsUpdate) -> dict[str, Any]:
 def set_model_selection(body: ModelSelection) -> dict[str, str]:
     if not _accepts_model_ref(PROJECT_ROOT, body.profile_id):
         raise HTTPException(status_code=400, detail=f"未知模型：{body.profile_id}")
-    upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": body.profile_id})
-    return {"profile_id": body.profile_id}
+    saved = save_default_model(PROJECT_ROOT, body.profile_id)
+    return {"profile_id": saved}
 
 
 @app.post("/api/models/test")
 def test_model_connection(body: ModelTestRequest) -> dict[str, Any]:
-    profile_id = (body.profile_id or load_worker_model("pi", PROJECT_ROOT)).strip()
+    profile_id = (body.profile_id or load_default_model(PROJECT_ROOT)).strip()
+    if not profile_id:
+        raise HTTPException(status_code=400, detail="尚未选择默认模型")
     profile = resolve_model_profile(profile_id, project_root=PROJECT_ROOT)
     provider = (body.provider or profile.provider).strip()
     model_id = (body.model_id or profile.model_id).strip()
@@ -544,7 +566,7 @@ def create_custom_endpoint(body: CustomEndpointCreate) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if body.set_as_default:
-        upsert_env_keys(PROJECT_ROOT / ".env", {"PI_MODEL": profile_id})
+        save_default_model(PROJECT_ROOT, profile_id)
     return {
         "status": "saved",
         "profile_id": profile_id,
@@ -580,6 +602,123 @@ def workflow_manifest() -> dict[str, Any]:
     return _workflow.manifest()
 
 
+@app.get("/api/results")
+def workflow_results() -> dict[str, Any]:
+    return _workflow.results()
+
+
+@app.get("/api/results/file")
+def workflow_result_file(path: str) -> dict[str, Any]:
+    try:
+        return _workflow.read_result_file(path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="文件不存在") from exc
+
+
+@app.get("/api/results/archive")
+def workflow_result_archive() -> Response:
+    try:
+        payload = _workflow.archive_outputs()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="lca-outputs.zip"'},
+    )
+
+
+class GeneratedPromptUpdate(BaseModel):
+    rel: str
+    text: str
+
+
+@app.get("/api/prompts/generated")
+def generated_prompts_list() -> dict[str, Any]:
+    """Generated-prompt templates and the user preferences file (default + user version)."""
+    return _prompt_templates.list()
+
+
+@app.put("/api/prompts/generated")
+def generated_prompts_save(body: GeneratedPromptUpdate) -> dict[str, Any]:
+    try:
+        return _prompt_templates.save(body.rel, body.text)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/prompts/generated")
+def generated_prompts_reset(rel: str) -> dict[str, Any]:
+    try:
+        return _prompt_templates.reset(rel)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/prompts/generated/preview")
+def generated_prompts_preview(stage: str, role: str) -> dict[str, Any]:
+    """What a new session for stage+role would get right now (no session is created)."""
+    try:
+        return _prompt_templates.preview(stage, role)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/runs")
+def runs_list() -> dict[str, Any]:
+    """Runs with session snapshots; ``anomaly`` flags any injection warn/mismatch."""
+    return {"runs": _snapshots.runs()}
+
+
+@app.get("/api/runs/{run_id}/sessions")
+def run_sessions(run_id: str) -> dict[str, Any]:
+    try:
+        return _snapshots.run(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/runs/{run_id}/sessions/{session}/injection")
+def run_session_injection(run_id: str, session: str) -> dict[str, Any]:
+    try:
+        return _snapshots.injection(run_id, session)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/runs/{run_id}/sessions/{session}/markdown")
+def run_session_markdown(run_id: str, session: str, download: bool = False) -> Any:
+    """Readable Markdown of one session: injection, model, full transcript."""
+    try:
+        text = _snapshots.markdown(run_id, session)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="会话不存在") from exc
+    if download:
+        return Response(
+            content=text.encode("utf-8"),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{run_id}.{session}.md"'},
+        )
+    return {"text": text}
+
+
+@app.get("/api/runs/{run_id}/sessions/{session}/file")
+def run_session_file(run_id: str, session: str, name: str, download: bool = False) -> Any:
+    try:
+        if download:
+            path = _snapshots.file_path(run_id, session, name)
+            return FileResponse(path, filename=f"{run_id}.{session}.{name.replace('/', '_')}")
+        return _snapshots.read_text(run_id, session, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="文件不存在") from exc
+
+
 @app.get("/api/workflow/progress")
 def workflow_progress(offset: int = 0, epoch: str = "") -> dict[str, Any]:
     return _workflow.progress(offset, epoch)
@@ -599,7 +738,9 @@ async def workflow_activity_stream(
     request: Request, run_id: str = "", offset: int = 0
 ) -> StreamingResponse:
     """SSE form of /api/workflow/activity. Event ``activity`` carries one record;
-    the SSE id is the byte offset to resume from (Last-Event-ID or ?offset=)."""
+    each event's SSE id is the byte offset just past its line in events.jsonl, so
+    ids are unique and increasing, and Last-Event-ID (or ?offset=) resumes right
+    after the last event the client saw. A Last-Event-ID header wins over ?offset=."""
     try:
         first = _workflow.activity(run_id, offset)
     except ValueError as exc:
@@ -616,9 +757,11 @@ async def workflow_activity_stream(
             if batch.get("reset"):
                 yield "event: reset\ndata: {}\n\n"
             next_offset = int(batch.get("offset") or 0)
-            for item in batch.get("events") or []:
+            events = batch.get("events") or []
+            offsets = batch.get("offsets") or [next_offset] * len(events)
+            for item, event_offset in zip(events, offsets):
                 yield (
-                    f"id: {next_offset}\nevent: activity\n"
+                    f"id: {event_offset}\nevent: activity\n"
                     f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
                 )
             if next_offset != position or batch.get("reset"):
@@ -652,6 +795,14 @@ def start_workflow(body: WorkflowStart) -> dict[str, str]:
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/workflow/stop")
+def stop_workflow() -> dict[str, str]:
+    try:
+        return launcher.stop()
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -692,6 +843,50 @@ def read_harness_file(path: str) -> dict[str, str]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="document not found") from exc
+
+
+class SpecPartBody(BaseModel):
+    path: str
+    content: str
+
+
+@app.get("/api/specs")
+def read_specs() -> dict[str, Any]:
+    return list_specs(PROJECT_ROOT)
+
+
+@app.get("/api/specs/{stage}/part")
+def read_spec_part(stage: str, path: str) -> dict[str, Any]:
+    try:
+        return read_part(PROJECT_ROOT, stage, path)
+    except SpecPartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="spec part not found") from exc
+
+
+@app.put("/api/specs/{stage}/part")
+def save_spec_part(stage: str, body: SpecPartBody) -> dict[str, Any]:
+    try:
+        return save_override(PROJECT_ROOT, stage, body.path, body.content)
+    except SpecPartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/specs/{stage}/part")
+def reset_spec_part(stage: str, path: str) -> dict[str, Any]:
+    try:
+        return reset_override(PROJECT_ROOT, stage, path)
+    except SpecPartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/specs/{stage}/validate")
+def validate_spec_endpoint(stage: str) -> dict[str, Any]:
+    try:
+        return validate_spec(PROJECT_ROOT, stage)
+    except SpecPartError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/tutorial/catalog")
@@ -764,10 +959,17 @@ def read_references() -> dict[str, Any]:
 
 
 @app.post("/api/references")
-async def upload_references(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+async def upload_references(
+    files: list[UploadFile] = File(...),
+    paths: list[str] | None = Form(default=None),
+) -> dict[str, Any]:
+    supplied = [item for item in (paths or []) if item is not None]
+    if supplied and len(supplied) != len(files):
+        raise HTTPException(status_code=400, detail="文件路径数量不匹配")
     uploads: list[tuple[str, bytes]] = []
-    for item in files:
-        uploads.append((item.filename or "", await item.read()))
+    for index, item in enumerate(files):
+        name = supplied[index] if supplied else (item.filename or "")
+        uploads.append((name, await item.read()))
     try:
         saved = save_references(PROJECT_ROOT, uploads)
     except PlanFormError as exc:
@@ -775,7 +977,7 @@ async def upload_references(files: list[UploadFile] = File(...)) -> dict[str, An
     return {"status": "saved", "saved": saved, "files": list_references(PROJECT_ROOT)}
 
 
-@app.put("/api/references/{name}/note")
+@app.put("/api/references/{name:path}/note")
 def write_reference_note(name: str, body: ReferenceNoteUpdate) -> dict[str, Any]:
     try:
         item = save_reference_note(PROJECT_ROOT, name, body.note)
@@ -786,7 +988,7 @@ def write_reference_note(name: str, body: ReferenceNoteUpdate) -> dict[str, Any]
     return {"status": "saved", "file": item, "files": list_references(PROJECT_ROOT)}
 
 
-@app.delete("/api/references/{name}")
+@app.delete("/api/references/{name:path}")
 def remove_reference(name: str) -> dict[str, Any]:
     try:
         delete_reference(PROJECT_ROOT, name)

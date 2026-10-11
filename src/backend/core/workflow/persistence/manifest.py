@@ -20,6 +20,7 @@ def write_manifest(
     current_stage: str | None,
     status_reason: str | None,
     run_id: str,
+    attempt: int | None = None,
 ) -> None:
     path = manifest_path(workspace_root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -29,4 +30,6 @@ def write_manifest(
         "status_reason": status_reason,
         "run_id": run_id,
     }
+    if isinstance(attempt, int):
+        payload["attempt"] = attempt
     write_json_atomic(path, payload)

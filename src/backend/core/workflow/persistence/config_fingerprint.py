@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from backend.core.runtime import harness_fs
 from backend.core.runtime.hashing import sha256_file, stable_hash
 from backend.core.runtime.identifiers import resolve_project_path
 from backend.core.runtime.knowledge_providers.local_files import (
@@ -14,9 +15,11 @@ from backend.core.runtime.knowledge_providers.local_files import (
 from backend.core.runtime.knowledge_providers.local_files import discover_files_at
 from backend.core.runtime.tool_runtime import write_json_atomic
 from backend.core.workflow.spec.models import StageSpec
+from backend.core.workflow.spec.view import spec_view, spec_view_hash
 from backend.settings import records_root
 
 from ..config.models import KnowledgeSource, Workflow
+from ..execution import generated_prompts
 
 SCHEMA_VERSION = 1
 
@@ -55,18 +58,22 @@ def implementation_fingerprint(project_root: Path) -> str:
 
 
 def stage_contract_refs(stage_spec: StageSpec, project_root: Path) -> dict[str, Any]:
-    """Fingerprint the stage spec.yaml and every JSON Schema it references."""
-    schemas: list[dict[str, str]] = []
-    seen: set[str] = set()
-    for contract in (*stage_spec.inputs, *stage_spec.outputs):
-        if contract.schema and contract.schema not in seen:
-            seen.add(contract.schema)
-            schemas.append(_file_ref(project_root, contract.schema))
-    if stage_spec.handoff_schema and stage_spec.handoff_schema not in seen:
-        schemas.append(_file_ref(project_root, stage_spec.handoff_schema))
+    """Fingerprint every spec file (content + default/user) and the get_spec view."""
+    files: dict[str, dict[str, str]] = {}
+    for rel in sorted(stage_spec.sources):
+        try:
+            found = harness_fs.resolve(project_root, rel)
+        except ValueError:
+            found = None
+        files[rel] = (
+            {"source": found.source, "sha256": found.sha256}
+            if found is not None
+            else {"source": "missing", "sha256": "missing"}
+        )
     return {
-        "spec": _file_ref(project_root, stage_spec.source_path),
-        "schemas": schemas,
+        "spec": stage_spec.source_path,
+        "files": files,
+        "spec_view": spec_view_hash(spec_view(stage_spec, project_root)),
     }
 
 
@@ -146,6 +153,7 @@ def build_runtime_config(
                 for action_id, spec in sorted(workflow.host_actions.items())
             },
         },
+        "generated_prompts": generated_prompts.fingerprint_refs(project_root),
         "knowledge": {
             kid: knowledge_source_payload(source, project_root)
             for kid, source in sorted(workflow.knowledge.items())
@@ -246,6 +254,79 @@ def assert_runtime_config_matches(
         or stored_exec.get("model") != current_exec["model"]
     ):
         raise ValueError("runtime execution configuration changed; start a new run")
+
+
+def _flatten(value: Any, prefix: str = "") -> dict[str, Any]:
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            out.update(_flatten(v, f"{prefix}.{k}" if prefix else str(k)))
+        return out
+    if isinstance(value, list):
+        if value and all(isinstance(v, dict) and "id" in v for v in value):
+            out = {}
+            for v in value:
+                out.update(_flatten(v, f"{prefix}[{v['id']}]"))
+            return out
+        return {prefix: value}
+    return {prefix: value}
+
+
+def config_changes(stored: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
+    """Leaf-level differences between two runtime configs (old vs new)."""
+    a = _flatten(stored.get("config") or {})
+    b = _flatten(current.get("config") or {})
+    changes = []
+    for key in sorted(set(a) | set(b)):
+        if a.get(key) != b.get(key):
+            changes.append({"path": key, "old": a.get(key, "<absent>"), "new": b.get(key, "<absent>")})
+    return changes
+
+
+def check_runtime_config(
+    workspace_root: Path,
+    run_id: str,
+    workflow: Workflow,
+    *,
+    project_root: Path,
+    worker: str,
+    model: str,
+    strict: bool = False,
+) -> list[dict[str, Any]]:
+    """Resume check. Returns config changes (empty when unchanged).
+
+    Missing config or a changed worker/model still refuses. A changed configuration
+    fingerprint (rules, templates, preferences, specs, implementation) refuses only
+    when ``strict``; otherwise the caller records a warning and continues, and the
+    stored runtime-config.json is updated (previous kept as ``runtime-config.prev-<n>.json``).
+    """
+    path = runtime_config_path(workspace_root, run_id)
+    if not path.is_file():
+        raise ValueError("missing runtime configuration; start a new run")
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    current = build_runtime_config(workflow, project_root=project_root, worker=worker, model=model)
+    stored_exec = stored.get("execution") or {}
+    if (
+        stored_exec.get("worker") != current["execution"]["worker"]
+        or stored_exec.get("model") != current["execution"]["model"]
+    ):
+        raise ValueError("runtime execution configuration changed; start a new run")
+    if stored.get("fingerprint") == current["fingerprint"]:
+        return []
+    changes = config_changes(stored, current) or [
+        {"path": "fingerprint", "old": stored.get("fingerprint"), "new": current["fingerprint"]}
+    ]
+    if strict:
+        raise ValueError(
+            "workflow configuration changed; start a new run (strict mode): "
+            + ", ".join(c["path"] for c in changes[:20])
+        )
+    n = 1
+    while path.with_name(f"runtime-config.prev-{n}.json").exists():
+        n += 1
+    path.rename(path.with_name(f"runtime-config.prev-{n}.json"))
+    write_json_atomic(path, current)
+    return changes
 
 
 def _stage_specs_by_id(workflow: Workflow) -> dict[str, StageSpec]:

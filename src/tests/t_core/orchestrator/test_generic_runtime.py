@@ -105,9 +105,9 @@ class GenericRuntimeTests(unittest.TestCase):
                 "id": "runtime-test",
                 "registry": {
                     "rules": {
-                        "workspace_boundary": "harness/rules/prompts/project/write-boundary.md",
-                        "runtime": "harness/rules/prompts/project/runtime.md",
-                        "paths": "harness/rules/prompts/project/paths.md",
+                        "workspace_boundary": "harness/rules/project/write-boundary.md",
+                        "runtime": "harness/rules/project/runtime.md",
+                        "paths": "harness/rules/project/paths.md",
                     },
                     "tools": {
                         "mcp": {

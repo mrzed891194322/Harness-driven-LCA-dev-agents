@@ -25,14 +25,20 @@ from tests.conftest import PROJECT_ROOT
 def _workflow(tmp_path, server):
     specs = tmp_path / "harness" / "specs" / "work"
     specs.mkdir(parents=True)
+    (specs / "acceptance.yaml").write_text("version: 1\nhost_checks: []\n", encoding="utf-8")
+    (specs / "permissions.yaml").write_text(
+        "version: 1\nroles: {executor: [worker-default], reviewer: [reviewer]}\n",
+        encoding="utf-8",
+    )
     (specs / "spec.yaml").write_text(
         yaml.safe_dump(
             {
-                "version": 1,
+                "version": 2,
                 "id": "work",
                 "inputs": [],
-                "outputs": [],
-                "acceptance": {"checks": []},
+                "deliverables": [],
+                "acceptance": "acceptance.yaml",
+                "permissions": "permissions.yaml",
                 "lifecycle": {"on_reviewer_passed": []},
                 "handoff": {"checks": []},
             },
@@ -178,7 +184,7 @@ def test_generic_handoff_leaves_domain_extension_to_adapter(tmp_path):
     )
     payload = read_handoff(path, role="executor", stage="s", attempt=1)
     errors = validate_handoff_schema(
-        "harness/specs/shared/lca-handoff-extension.schema.json",
+        "harness/specs/shared/handoff.schema.json",
         payload,
         project_root=PROJECT_ROOT,
     )

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -39,13 +41,32 @@ def _workspace_root() -> Path:
     return PROJECT_ROOT / "workspace"
 
 
-def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]:
+def _step(
+    name: str,
+    started: float,
+    progress: Callable[[str], None] | None,
+) -> float:
+    elapsed = time.monotonic() - started
+    line = f"  openLCA [{name}] {elapsed:.1f}s"
+    print(line, flush=True)
+    if progress is not None:
+        progress(line)
+    return time.monotonic()
+
+
+def run_openlca_clean(
+    dry_run: bool = False,
+    *,
+    progress: Callable[[str], None] | None = None,
+) -> tuple[bool, str, dict[str, Any]]:
     """Health-check, preview, and delete workflow entities under the project category."""
     host, port = _endpoint_config()
     category = _target_category()
     workspace = _workspace_root()
+    step_started = time.monotonic()
 
     health = health_check(host, port)
+    step_started = _step("health_check", step_started, progress)
     if not health.get("ok"):
         message = str(health.get("error") or health.get("message") or "health failed")
         return False, message, {"health": health}
@@ -57,6 +78,7 @@ def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]
         confirm=False,
         workspace=workspace,
     )
+    step_started = _step("preview", step_started, progress)
     if not preview.get("ok"):
         return (
             False,
@@ -97,6 +119,7 @@ def run_openlca_clean(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]
         confirm=True,
         workspace=workspace,
     )
+    _step("delete", step_started, progress)
     errors = list(result.get("errors") or [])
     deleted_count = int(result.get("deleted_count", 0))
     if errors or not result.get("ok"):

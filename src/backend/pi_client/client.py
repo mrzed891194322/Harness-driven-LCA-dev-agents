@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from backend.core.agents import injection
 from backend.core.agents.activity import activity_log_path, append_activity
 from backend.core.agents.progress import format_assistant, format_tool_end, format_tool_start, print_session
 from backend.core.agents.providers.store import StoredSessionProvider, session_dir, write_ref
@@ -41,6 +42,7 @@ class PiRuntimeSessionClient(StoredSessionProvider):
             {"launch_spec": spec.to_dict()},
             timeout=120.0,
         )
+        self._record_injection(spec, result)
         storage = {
             "dir": str(storage_dir),
             "session_key": session_key,
@@ -70,7 +72,7 @@ class PiRuntimeSessionClient(StoredSessionProvider):
         )
         if session_file and not Path(session_file).is_file():
             raise SessionResumeError("Pi SDK 会话文件不存在")
-        self._runtime.request(
+        result = self._runtime.request(
             "session.resume",
             {
                 "session_key": session_key,
@@ -78,7 +80,38 @@ class PiRuntimeSessionClient(StoredSessionProvider):
             },
             timeout=120.0,
         )
+        self._record_injection(spec, result)
         return saved
+
+    def _root_for(self, spec: SessionLaunchSpec) -> Path:
+        return Path(
+            spec.resource_bindings.get("project_root")
+            or self._project_root
+            or self._runtime.project_root
+        )
+
+    def _record_injection(self, spec: SessionLaunchSpec, result: Any) -> None:
+        """Write the injection manifest + snapshots. Record only, unless strict mode."""
+        effective = result.get("effective") if isinstance(result, dict) else None
+        try:
+            check = injection.write_session_snapshots(self._root_for(spec), spec, effective)
+        except Exception as exc:  # diagnostics must never break a run
+            print_session(spec.stage_id, spec.role, self.worker, f"injection snapshot failed: {exc}",
+                          attempt=spec.attempt)
+            return
+        if check["level"] != "ok":
+            print_session(spec.stage_id, spec.role, self.worker,
+                          f"injection_check {check['level']}: "
+                          + ", ".join(i["item"] for i in check["items"] if i["level"] != "ok"),
+                          attempt=spec.attempt)
+        try:
+            injection.enforce(check)
+        except injection.InjectionMismatch:
+            try:
+                self._runtime.request("session.release", {"session_key": spec.session_key}, timeout=30.0)
+            except Exception:
+                pass
+            raise
 
     def run_turn(
         self,
@@ -88,6 +121,11 @@ class PiRuntimeSessionClient(StoredSessionProvider):
     ) -> TurnResult:
         session_key = ref.storage.get("session_key") or ""
         spec = config.launch_spec or self._launch_specs.get(session_key)
+        if spec is not None and spec.run_id:
+            try:
+                injection.record_first_prompt(self._root_for(spec), spec, prompt)
+            except Exception:
+                pass
         handler = self._activity_handler(session_key, spec)
         if handler is not None:
             self._runtime.add_event_handler(handler)
@@ -132,6 +170,11 @@ class PiRuntimeSessionClient(StoredSessionProvider):
         def on_event(name: str, data: dict[str, Any]) -> None:
             if name != "turn.event" or data.get("session_key") != session_key:
                 return
+            if data.get("kind") == "injection_payload":
+                try:
+                    injection.record_first_request(root, spec, dict(data.get("args") or {}))
+                except Exception:
+                    pass
             record = {**tags, **{k: v for k, v in data.items() if k != "session_key"}}
             record["session_key"] = session_key
             try:

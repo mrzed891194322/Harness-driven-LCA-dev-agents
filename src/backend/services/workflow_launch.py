@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 import threading
@@ -53,9 +54,12 @@ class WorkflowLauncher:
     ) -> dict[str, str]:
         if task not in WORKFLOW_YAML_BY_TASK:
             raise ValueError(f"未知工作流：{task}")
+        from backend.services.process_manager_stub import clear_stop
+
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
                 raise RuntimeError("已有工作流在运行")
+            clear_stop()
             self.epoch = uuid.uuid4().hex
             self.status = "running"
             self.text = ""
@@ -69,6 +73,16 @@ class WorkflowLauncher:
             )
             self._thread.start()
         return {"status": "started", "task": task, "epoch": epoch}
+
+    def stop(self) -> dict[str, str]:
+        from backend.services.process_manager_stub import request_stop
+
+        with self._lock:
+            alive = self._thread is not None and self._thread.is_alive()
+            if self.status != "running" and not alive:
+                raise RuntimeError("当前没有正在运行的工作")
+        request_stop()
+        return {"status": "stopping"}
 
     def _worker(
         self,
@@ -93,7 +107,8 @@ class WorkflowLauncher:
                     document_values=[],
                     source_text="",
                     ref_upload_file=None,
-                )
+                ),
+                on_chunk=self._append_prepare,
             )
         except Exception as exc:
             self._fail(str(exc))
@@ -106,14 +121,20 @@ class WorkflowLauncher:
             except Exception as exc:
                 self._fail(str(exc))
                 status = "Failed"
+        if status == "Stopped":
+            self._abort(project_root)
+            return
         if self.snapshot()["status"] == "failed" or status != "Finished":
             if self.snapshot()["status"] == "running":
                 self._fail("准备工作没有完成，工作流未启动")
             return
         try:
             self._note("准备工作完成，开始执行工作流")
-            _consume(run_fn(task))
-            self._finish()
+            outcome = _consume(run_fn(task))
+            if outcome == "Stopped":
+                self._abort(project_root)
+            else:
+                self._finish()
         except Exception as exc:
             self._fail(str(exc))
 
@@ -122,6 +143,15 @@ class WorkflowLauncher:
         line = f"[orchestrator-{now}] {body.strip()}\n\n"
         with self._lock:
             self.text += line
+
+    def _abort(self, project_root: Path) -> None:
+        reason = "用户中止了本次工作"
+        self._fail(reason)
+        _mark_manifest_aborted(project_root, reason)
+
+    def _append_prepare(self, chunk: str) -> None:
+        with self._lock:
+            self.text += chunk
 
     def _fail(self, reason: str) -> None:
         self._note(reason)
@@ -133,6 +163,31 @@ class WorkflowLauncher:
         with self._lock:
             if self.status == "running":
                 self.status = "finished"
+
+
+def _mark_manifest_aborted(project_root: Path, reason: str) -> None:
+    """If the run file still says running, record the user abort after the process exits."""
+    from backend.core.workflow.persistence.manifest import manifest_path, write_manifest
+
+    path = manifest_path(project_root / "workspace")
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(payload, dict) or str(payload.get("status") or "") != "running":
+        return
+    stage = payload.get("current_stage")
+    attempt = payload.get("attempt")
+    write_manifest(
+        project_root / "workspace",
+        status="failed",
+        current_stage=stage if isinstance(stage, str) else None,
+        status_reason=reason,
+        run_id=str(payload.get("run_id") or ""),
+        attempt=attempt if isinstance(attempt, int) else None,
+    )
 
 
 def snapshot_user_material(project_root: Path) -> Path:
@@ -168,10 +223,22 @@ def _write_plan(project_root: Path, fields: PlanFields, task: str) -> None:
     path.write_text(render_plan(fields, names), encoding="utf-8")
 
 
-def _consume(stream: Iterator[tuple[str, str]]) -> str:
+def _consume(
+    stream: Iterator[tuple[str, str]],
+    *,
+    on_chunk: Callable[[str], None] | None = None,
+) -> str:
     status = "Finished"
-    for _text, status in stream:
-        pass
+    previous = ""
+    for text, status in stream:
+        if on_chunk and text:
+            if text.startswith(previous):
+                delta = text[len(previous) :]
+            else:
+                delta = text
+            if delta:
+                on_chunk(delta)
+            previous = text
     return status
 
 

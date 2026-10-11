@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -29,6 +30,16 @@ import { currentPeer, emitEvent, listPeers } from "./protocol.js";
 import { ActivityRelay } from "./activity.js";
 import { shutdownPiSession } from "./lifecycle.js";
 import { PathGuard, type GuardRecord } from "./path_guard.js";
+import {
+  buildEffective,
+  firstRequestRecord,
+  knownSecrets,
+  mcpConfigNames,
+  redact,
+  sessionSnapshotDir,
+  writeJson,
+} from "./injection.js";
+import { exportTranscript, type TranscriptState } from "./transcript.js";
 
 const PROTOCOL_VERSION = 1;
 
@@ -45,6 +56,28 @@ interface LiveSession {
   dispose: () => Promise<void>;
   /** Live sink for path-guard records; set while a turn is running. */
   guardSink?: { emit: ((record: GuardRecord) => void) | null };
+  /** effective.json content (real SDK state after creation, before the first model call). */
+  effective: Record<string, unknown>;
+  /** Live sink for the first-request injection check; set while a turn is running. */
+  injectionSink?: { emit: ((record: Record<string, unknown>) => void) | null };
+  /** Turn timing / retries only the live stream knows; merged into transcript.jsonl. */
+  transcript?: TranscriptState;
+}
+
+/** Re-export transcript.jsonl from the SDK session file (best effort, never throws). */
+function writeTranscript(live: LiveSession, final = false): void {
+  if (!live.session || !live.transcript) return;
+  try {
+    exportTranscript(
+      live.spec,
+      live.session.sessionFile ?? live.spec.session_storage.session_file,
+      live.session.systemPrompt ?? "",
+      live.transcript,
+      final,
+    );
+  } catch {
+    // Diagnostics only.
+  }
 }
 
 const sessions = new Map<string, LiveSession>();
@@ -81,6 +114,7 @@ async function releaseSession(key: string): Promise<boolean> {
   const live = sessions.get(key);
   if (!live) return false;
   sessions.delete(key);
+  writeTranscript(live, true);
   await live.dispose();
   return true;
 }
@@ -248,6 +282,13 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
       piSessionId: `mock-${spec.session_key}`,
       session: null,
       dispose: async () => {},
+      effective: {
+        schema: "harness.injection.effective/1",
+        captured: false,
+        source: "mock",
+        reason: "PI_RUNTIME_MOCK=1：没有真实 Pi SDK 会话，无法读取实际生效状态",
+        session_key: spec.session_key,
+      },
     };
   }
 
@@ -265,11 +306,16 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
 
   const cwd = spec.resource_bindings.project_root ?? process.cwd();
   const guardSink: { emit: ((record: GuardRecord) => void) | null } = { emit: null };
+  const injectionSink: { emit: ((record: Record<string, unknown>) => void) | null } = { emit: null };
+  const hooks = { guardMounted: false, firstRequestHook: false, firstRequestSeen: false };
+  const secrets = knownSecrets(spec);
+  let sessionRef: AgentSession | null = null;
   const guard = new PathGuard({
     sessionKey: spec.session_key,
     cwd,
     readGlobs: spec.permission_policy.allowed_read_globs ?? [],
     writeGlobs: spec.permission_policy.allowed_write_globs ?? [],
+    deniedWriteGlobs: spec.permission_policy.denied_write_globs ?? [],
     logFile: guardLogPath(spec),
     notify: (record) => guardSink.emit?.(record),
   });
@@ -284,6 +330,25 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     extensionFactories: [
       (pi) => {
         pi.on("tool_call", (event) => guard.onToolCall(event.toolName, event.input as Record<string, unknown>));
+        hooks.guardMounted = true;
+        // Record (never modify) the first provider payload of this session object.
+        pi.on("before_provider_request", (event) => {
+          if (hooks.firstRequestSeen) return undefined;
+          hooks.firstRequestSeen = true;
+          try {
+            const record = firstRequestRecord(event.payload, sessionRef?.systemPrompt ?? "", secrets);
+            writeJson(path.join(sessionSnapshotDir(spec), "injection", "first_request.json"), record);
+            injectionSink.emit?.({
+              system_prompt_found: record.system_prompt_found,
+              tool_names: record.tool_names,
+              bytes: record.bytes,
+            });
+          } catch {
+            // Diagnostics only; never break the model call.
+          }
+          return undefined;
+        });
+        hooks.firstRequestHook = true;
       },
       createMcpExtension({
         loadConfig: () => loadSessionMcpConfig(agentDir) as any,
@@ -316,6 +381,25 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     await shutdownPiSession(session);
     throw error;
   }
+  sessionRef = session;
+  let effective: Record<string, unknown>;
+  try {
+    effective = redact(
+      buildEffective(spec, session as any, resourceLoader as any, {
+        guardMounted: hooks.guardMounted,
+        firstRequestHook: hooks.firstRequestHook,
+        mcpConfig: mcpConfigNames(agentDir),
+      }),
+      secrets,
+    );
+  } catch (error) {
+    effective = {
+      schema: "harness.injection.effective/1",
+      captured: false,
+      source: "pi-sdk",
+      reason: `读取 SDK 状态失败：${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 
   return {
     spec,
@@ -324,6 +408,9 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     session,
     dispose: () => shutdownPiSession(session),
     guardSink,
+    effective,
+    injectionSink,
+    transcript: { createdAt: Date.now(), turns: [], retries: [] },
   };
 }
 
@@ -497,6 +584,7 @@ export async function handleRuntimeMethod(
       session_key: spec.session_key,
       pi_session_id: live.piSessionId,
       storage: spec.session_storage,
+      effective: live.effective,
     };
   }
   if (method === "session.resume") {
@@ -513,6 +601,7 @@ export async function handleRuntimeMethod(
       session_key: key,
       pi_session_id: live.piSessionId,
       storage: spec.session_storage,
+      effective: live.effective,
     };
   }
   if (method === "session.run_turn") {
@@ -557,7 +646,48 @@ export async function handleRuntimeMethod(
         );
       };
     }
+    if (live.injectionSink) {
+      live.injectionSink.emit = (record) =>
+        emitEvent(
+          "turn.event",
+          {
+            session_key: key,
+            kind: "injection_payload",
+            ts: new Date().toISOString(),
+            summary: record.system_prompt_found
+              ? "首次模型请求包含注入的 system prompt"
+              : "首次模型请求中未找到注入的 system prompt",
+            is_error: !record.system_prompt_found,
+            args: record,
+          },
+          peer,
+        );
+    }
+    const turn = live.transcript
+      ? {
+          type: "turn" as const,
+          index: live.transcript.turns.length + 1,
+          started_at: new Date().toISOString(),
+          status: "running" as const,
+          prompt_sha256: crypto.createHash("sha256").update(prompt, "utf8").digest("hex"),
+        }
+      : null;
+    if (turn && live.transcript) live.transcript.turns.push(turn as any);
+    const turnStart = Date.now();
     const unsub = session.subscribe((ev) => {
+      const anyEv = ev as any;
+      if (live.transcript && (anyEv.type === "auto_retry_start" || anyEv.type === "auto_retry_end")) {
+        live.transcript.retries.push({
+          type: "retry",
+          ts: new Date().toISOString(),
+          phase: anyEv.type === "auto_retry_start" ? "start" : "end",
+          attempt: anyEv.attempt,
+          max_attempts: anyEv.maxAttempts,
+          delay_ms: anyEv.delayMs,
+          error: anyEv.errorMessage ?? anyEv.finalError,
+          success: anyEv.success,
+        });
+      }
       if (ev.type === "message_update" && ev.assistantMessageEvent?.type === "text_delta") {
         const delta = ev.assistantMessageEvent.delta ?? "";
         text += delta;
@@ -572,14 +702,26 @@ export async function handleRuntimeMethod(
     try {
       await session.prompt(prompt);
       relay.finish("ok");
+      if (turn) Object.assign(turn, { status: "ok" });
     } catch (error) {
       relay.finish("error", error instanceof Error ? error.message : String(error));
+      if (turn) Object.assign(turn, { status: "error", error: error instanceof Error ? error.message : String(error) });
       throw error;
     } finally {
+      if (turn) Object.assign(turn, { ended_at: new Date().toISOString(), latency_ms: Date.now() - turnStart });
+      writeTranscript(live);
       unsub();
       if (live.guardSink) live.guardSink.emit = null;
+      if (live.injectionSink) live.injectionSink.emit = null;
     }
     return { status: "ok", text };
+  }
+  if (method === "session.inspect") {
+    // Re-read effective state of a live session (doctor / debugging), no model call.
+    const key = String(params.session_key ?? "");
+    const live = sessions.get(key);
+    if (!live) throw new Error(`unknown session ${key}`);
+    return { session_key: key, effective: live.effective };
   }
   if (method === "session.release") {
     const key = String(params.session_key ?? "");

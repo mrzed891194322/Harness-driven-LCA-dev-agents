@@ -90,3 +90,55 @@ test("empty scopes deny everything (fail closed)", () => {
   assert.equal(g.onToolCall("write", { path: "/tmp/x" })?.block, true);
   assert.equal(g.onToolCall("ls", {})?.block, true);
 });
+
+test("spec_mcp-owned deliverable paths are write-denied even inside the write scope", () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "pguard-deny-")));
+  fs.mkdirSync(path.join(root, "workspace", "outputs", "inventory"), { recursive: true });
+  const official = path.join(root, "workspace", "outputs", "inventory", "process-mapping.json");
+  fs.writeFileSync(official, "{}");
+  const records: GuardRecord[] = [];
+  const guard = new PathGuard({
+    sessionKey: "s",
+    cwd: root,
+    readGlobs: [`${root}/workspace/**`],
+    writeGlobs: [`${root}/workspace/**`],
+    deniedWriteGlobs: [official],
+    notify: (r) => records.push(r),
+  });
+  for (const tool of ["write", "edit"]) {
+    const res = guard.onToolCall(tool, { path: "workspace/outputs/inventory/process-mapping.json" });
+    assert.equal(res?.block, true, tool);
+    assert.match(res!.reason, /spec_mcp/);
+  }
+  // ../ tricks resolve to the same file and are still denied
+  assert.equal(
+    guard.onToolCall("write", { path: "workspace/drafts/../outputs/inventory/process-mapping.json" })?.block,
+    true,
+  );
+  // drafts elsewhere stay writable, and the official file stays readable
+  assert.equal(guard.onToolCall("write", { path: "workspace/drafts/process-mapping.json" }), undefined);
+  assert.equal(guard.onToolCall("read", { path: "workspace/outputs/inventory/process-mapping.json" }), undefined);
+  assert.equal(records.filter((r) => r.action === "denied").length, 3);
+});
+
+test("official deliverable paths are write-denied even inside workspace (spec_mcp only)", () => {
+  const { root } = setup();
+  const records: GuardRecord[] = [];
+  const guard = new PathGuard({
+    sessionKey: "s",
+    cwd: root,
+    readGlobs: [`${root}/workspace/**`],
+    writeGlobs: [`${root}/workspace/**`],
+    deniedWriteGlobs: [`${root}/workspace/outputs/inventory/process-mapping.json`],
+    logFile: path.join(root, ".local", "guard2.jsonl"),
+    notify: (r) => records.push(r),
+  });
+  for (const tool of ["write", "edit"]) {
+    const res = guard.onToolCall(tool, { path: "workspace/outputs/inventory/process-mapping.json" });
+    assert.ok(res && res.block, `${tool} to official path must be blocked`);
+    assert.match(String(res.reason), /spec_mcp/);
+  }
+  assert.equal(guard.onToolCall("read", { path: "workspace/outputs/inventory/process-mapping.json" }), undefined);
+  assert.equal(guard.onToolCall("write", { path: "workspace/tmp/process-mapping.json" }), undefined);
+  assert.equal(records.length, 2);
+});

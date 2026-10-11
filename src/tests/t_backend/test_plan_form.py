@@ -8,6 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from backend.api.app import app
+from backend.core.runtime.knowledge_providers.local_files import discover_files_at
 from backend.services.plan_form import (
     PlanFields,
     PlanFormError,
@@ -53,7 +54,21 @@ class PlanFormParseTests(unittest.TestCase):
         self.assertEqual(parse_plan(render_plan(again, [])), again)
 
     def test_template_and_round_trip(self) -> None:
-        self.assertEqual(parse_plan(template_markdown()), PlanFields("", "", "", ""))
+        template = template_markdown()
+        self.assertIn("## section 1", template)
+        self.assertIn("用户不能填写，请到界面手动选择。", template)
+        self.assertEqual(template.count("## section "), 8)
+        self.assertEqual(parse_plan(template), PlanFields("", "", "", ""))
+        filled = parse_plan(
+            "## section 1\n\n瓶子\n\n"
+            "## section 5\n\n不要读数据库\n\n"
+            "## section 6\n\n不要读方法\n\n"
+            "## section 7\n\n不要读指标\n\n"
+            "## section 8\n\n不截断\n"
+        )
+        self.assertEqual(filled.subject, "瓶子")
+        self.assertEqual(filled.conditions, "不截断")
+        self.assertNotIn("不要读", filled.conditions)
         fields = PlanFields("瓶子", "1 000 个", "摇篮到大门", "不截断")
         again = parse_plan(render_plan(fields, ["notes.md"]))
         self.assertEqual(again, fields)
@@ -89,9 +104,43 @@ class PlanReferenceTests(unittest.TestCase):
             self.assertEqual(noted["note"], "按表格中的距离建模")
             listed = {item["name"]: item["note"] for item in list_references(root)}
             self.assertEqual(listed["script.exe"], "按表格中的距离建模")
-            self.assertNotIn(".reference-notes.json", listed)
+            notes_path = root / "harness/knowledge/inputs/reference-notes.json"
+            self.assertEqual(
+                notes_path.read_text(encoding="utf-8"),
+                '{\n  "script.exe": "按表格中的距离建模"\n}\n',
+            )
+            self.assertNotIn("reference-notes.json", listed)
+            discovered = {
+                item["path"]
+                for item in discover_files_at(root, "harness/knowledge/inputs/")["files"]
+            }
+            self.assertIn("harness/knowledge/inputs/reference-notes.json", discovered)
+            notes_path.unlink()
+            legacy = root / "harness/knowledge/inputs/.reference-notes.json"
+            legacy.write_text('{"script.exe": "旧注释"}\n', encoding="utf-8")
+            migrated = {item["name"]: item["note"] for item in list_references(root)}
+            self.assertEqual(migrated["script.exe"], "旧注释")
+            self.assertFalse(legacy.exists())
+            self.assertTrue(notes_path.is_file())
             delete_reference(root, "script.exe")
             self.assertNotIn("script.exe", {item["name"] for item in list_references(root)})
+            save_reference(root, "案例/证据.md", b"# nested\n")
+            save_reference(root, "其他/证据.md", b"# other\n")
+            nested = {item["name"]: item["path"] for item in list_references(root)}
+            self.assertEqual(
+                nested["案例/证据.md"],
+                "harness/knowledge/inputs/案例/证据.md",
+            )
+            self.assertIn("其他/证据.md", nested)
+            noted_nested = save_reference_note(root, "案例/证据.md", "只读运输表")
+            self.assertEqual(noted_nested["note"], "只读运输表")
+            delete_reference(root, "案例/证据.md")
+            self.assertFalse((root / "harness/knowledge/inputs/案例").exists())
+            self.assertIn("其他/证据.md", {item["name"] for item in list_references(root)})
+            with self.assertRaises(PlanFormError):
+                save_reference(root, "../escape.md", b"x")
+            with self.assertRaises(PlanFormError):
+                save_reference(root, "案例/../escape.md", b"x")
             with self.assertRaises(PlanFormError):
                 decode_plan_upload("plan.pdf", b"not markdown")
 
@@ -149,8 +198,58 @@ class PlanApiTests(unittest.TestCase):
 
                 template = client.get("/api/plan/template")
                 self.assertEqual(template.status_code, 200)
-                self.assertIn("研究对象", template.text)
+                self.assertIn("## section 1", template.text)
+                self.assertIn("用户不能填写，请到界面手动选择。", template.text)
 
                 removed = client.delete("/api/references/证据.md")
                 self.assertEqual(removed.status_code, 200)
                 self.assertEqual(removed.json()["files"], [])
+
+                nested = client.post(
+                    "/api/references",
+                    data={"paths": ["案例/证据.md", "其他/说明.txt"]},
+                    files=[
+                        ("files", ("证据.md", b"# nested\n", "text/markdown")),
+                        ("files", ("说明.txt", b"note", "text/plain")),
+                    ],
+                )
+                self.assertEqual(nested.status_code, 200)
+                self.assertEqual(
+                    [item["name"] for item in nested.json()["files"]],
+                    ["其他/说明.txt", "案例/证据.md"],
+                )
+                noted = client.put(
+                    "/api/references/案例/证据.md/note",
+                    json={"note": "文件夹里的表"},
+                )
+                self.assertEqual(noted.status_code, 200)
+                self.assertEqual(noted.json()["file"]["note"], "文件夹里的表")
+                escaped = client.post(
+                    "/api/references",
+                    data={"paths": "../escape.md"},
+                    files={"files": ("escape.md", b"x", "text/plain")},
+                )
+                self.assertEqual(escaped.status_code, 400)
+                removed_nested = client.delete("/api/references/案例/证据.md")
+                self.assertEqual(removed_nested.status_code, 200)
+                self.assertFalse((root / "harness/knowledge/inputs/案例").exists())
+                self.assertTrue((root / "harness/knowledge/inputs/其他/说明.txt").is_file())
+
+
+class PlanFormV2StructuredTests(unittest.TestCase):
+    def test_v2_selectable_sections_stay_in_the_note(self) -> None:
+        fields = parse_plan(
+            "## section 2\n\n数量：1000\n单位：瓶\n在德国交付\n\n"
+            "## section 3\n\n原材料获取、制造\n不包括使用\n\n"
+            "## section 4\n\n德国\n2024\n\n"
+            "## section 7\n\n使用所选方法的全部指标。\n\n"
+            "## section 8\n\n- 不截断\n"
+        )
+        self.assertEqual(fields.functional_unit, "附加说明：数量：1000\n单位：瓶\n在德国交付")
+        self.assertEqual(fields.life_cycle_stages, "附加说明：原材料获取、制造\n不包括使用")
+        self.assertEqual(fields.conditions, "地域与时间：德国\n2024\n\n- 不截断")
+        self.assertNotIn("全部指标", fields.conditions)
+
+    def test_v2_place_text_stays_in_one_box(self) -> None:
+        fields = parse_plan("## section 4\n\n地域：德国\n研究年份：无要求\n")
+        self.assertEqual(fields.conditions, "地域与时间：地域：德国\n研究年份：无要求")

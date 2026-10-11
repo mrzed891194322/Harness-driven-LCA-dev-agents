@@ -1,13 +1,14 @@
-version: 1
+# 机器契约清单：交付物、验收、权限都在这里登记；提示词在 harness/rules/。
+version: 2
 id: 01-intake-gate
 inputs:
 - path: harness/knowledge/plan/main_plan.md
   required: true
-outputs: []
-acceptance:
-  checks: []
+deliverables: []
+acceptance: acceptance.yaml
+permissions: permissions.yaml
 lifecycle:
   on_reviewer_passed: []
 handoff:
-  schema: harness/specs/shared/lca-handoff-extension.schema.json
+  schema: ../shared/handoff.schema.json
   checks: []

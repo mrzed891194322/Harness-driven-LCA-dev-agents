@@ -1,27 +1,30 @@
-version: 1
+version: 2
 id: 03-dataset-mapping
 inputs:
 - path: workspace/outputs/inventory/extracted-bom.json
   required: true
 - path: harness/knowledge/plan/main_plan.md
   required: true
-outputs:
-- path: workspace/outputs/inventory/process-mapping.json
-  kind: file
-  required: true
-  format: json
-  schema: harness/specs/03-dataset-mapping/process-mapping.schema.json
-- path: workspace/outputs/LCI
+deliverables:
+- name: LCI
+  path: workspace/outputs/LCI
   kind: directory
   required: true
-acceptance:
-  checks:
-  - id: mapping
-    action: mapping_check
+  writer: agent
+- name: process-mapping
+  path: workspace/outputs/inventory/process-mapping.json
+  format: json
+  required: true
+  writer: spec_mcp
+  schema: deliverables/process-mapping.schema.json
+  example: examples/process-mapping.json
+acceptance: acceptance.yaml
+permissions: permissions.yaml
+examples: examples/
 lifecycle:
   on_reviewer_passed:
   - id: record_acceptance
     action: record_acceptance
 handoff:
-  schema: harness/specs/shared/lca-handoff-extension.schema.json
+  schema: ../shared/handoff.schema.json
   checks: []

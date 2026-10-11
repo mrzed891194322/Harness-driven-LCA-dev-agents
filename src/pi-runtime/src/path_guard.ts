@@ -7,7 +7,8 @@
  * and symlink escapes are caught. bash is not blocked: every command is logged and
  * paths outside the read scope are flagged (a real sandbox is future work).
  *
- * Scopes come only from the launch spec (core parses harness/rules/permissions).
+ * Scopes come only from the launch spec (core parses harness/specs/<stage>/permissions.yaml).
+ * deniedWriteGlobs (official deliverable paths only spec_mcp may write) beat writeGlobs.
  * Empty scopes deny everything (fail closed).
  */
 import fs from "node:fs";
@@ -34,6 +35,8 @@ export interface PathGuardOptions {
   cwd: string;
   readGlobs: string[];
   writeGlobs: string[];
+  /** Write-denied even inside writeGlobs (spec_mcp-owned deliverable paths). */
+  deniedWriteGlobs?: string[];
   /** Where denial / bash records are appended (JSONL). */
   logFile?: string;
   /** Extra live sink (e.g. turn.event to the host). */
@@ -92,17 +95,27 @@ export interface CheckResult {
 export class PathGuard {
   readonly readRoots: string[];
   readonly writeRoots: string[];
+  readonly deniedWriteRoots: string[];
 
   constructor(private readonly opts: PathGuardOptions) {
     this.readRoots = rootsFromGlobs(opts.readGlobs);
     // Anything writable is also readable.
     this.writeRoots = rootsFromGlobs(opts.writeGlobs);
+    this.deniedWriteRoots = rootsFromGlobs(opts.deniedWriteGlobs ?? []);
   }
 
   check(tool: string, rawPath: string | undefined): CheckResult {
     const requested = rawPath && rawPath.trim() ? rawPath : ".";
     const resolved = realResolve(toAbsolute(requested, this.opts.cwd));
     if (WRITE_TOOLS.has(tool)) {
+      if (isInside(resolved, this.deniedWriteRoots)) {
+        return {
+          allowed: false,
+          requested,
+          resolved,
+          reason: "这是正式交付路径，只能由 spec_mcp 写入：先把草稿写在 workspace 其他位置，再调用 spec_mcp 的 submit 提交",
+        };
+      }
       if (isInside(resolved, this.writeRoots)) {
         return { allowed: true, requested, resolved };
       }

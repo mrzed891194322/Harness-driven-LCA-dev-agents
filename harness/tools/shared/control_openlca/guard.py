@@ -7,6 +7,7 @@ import getpass
 import hashlib
 import json
 import os
+import secrets
 import tempfile
 import threading
 import time
@@ -38,6 +39,56 @@ def remaining_budget():
     return remaining
 
 
+def endpoint_lock_root() -> Path:
+    user = hashlib.sha256(getpass.getuser().encode()).hexdigest()[:16]
+    return Path(
+        os.getenv(
+            "LCA_IPC_LOCK_ROOT", str(Path(tempfile.gettempdir()) / f"lca-ipc-{user}")
+        )
+    )
+
+
+def endpoint_uncertain_marker(host: str, port: int) -> Path:
+    endpoint = build_endpoint(host, port)
+    key = hashlib.sha256(endpoint.encode()).hexdigest()
+    return endpoint_lock_root() / f"{key}.uncertain"
+
+
+def endpoint_is_uncertain(host: str, port: int) -> bool:
+    return endpoint_uncertain_marker(host, port).is_file()
+
+
+def prior_uncertain_marker(host: str, port: int) -> bool:
+    """True when guard entry found an uncertain marker from a prior holder."""
+    endpoint = build_endpoint(host, port)
+    if endpoint not in getattr(_local, "held", set()):
+        return False
+    return bool(getattr(_local, "prior_uncertain_at_entry", False))
+
+
+def endpoint_was_uncertain_at_entry(host: str, port: int) -> bool:
+    return prior_uncertain_marker(host, port)
+
+
+def _write_guard_marker(uncertain: Path, endpoint: str) -> str:
+    token = secrets.token_hex(16)
+    uncertain.write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "endpoint": endpoint,
+                "token": token,
+                "tid": threading.get_ident(),
+                "operation": getattr(_local, "operation", None),
+                "started_at": time.time(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    _local.guard_marker_token = token
+    return token
+
+
 @contextmanager
 def cleanup_budget():
     """Reserve a bounded disposal attempt after the main request budget expires."""
@@ -52,6 +103,48 @@ def cleanup_budget():
 
 class EndpointBusy(RuntimeError):
     pass
+
+
+def endpoint_lock_path(host: str, port: int) -> Path:
+    endpoint = build_endpoint(host, port)
+    key = hashlib.sha256(endpoint.encode()).hexdigest()
+    return endpoint_lock_root() / f"{key}.lock"
+
+
+def endpoint_lock_holder(host: str, port: int) -> dict | None:
+    """Non-blocking probe: return holder info when another op owns the IPC lock.
+
+    Returns ``None`` when the lock is free (or already held by this thread).
+    The holder dict carries pid / operation / started_at read from the
+    guard marker when available; it is advisory diagnostics only.
+    """
+    endpoint = build_endpoint(host, port)
+    if endpoint in getattr(_local, "held", set()):
+        return None
+    path = endpoint_lock_path(host, port)
+    if not path.exists():
+        return None
+    try:
+        with file_lock(path, timeout=0.0):
+            return None
+    except EndpointBusy:
+        pass
+    except OSError:
+        return None
+    holder: dict = {}
+    try:
+        raw = json.loads(
+            endpoint_uncertain_marker(host, port).read_text(encoding="utf-8")
+        )
+        if isinstance(raw, dict):
+            holder = {
+                key: raw.get(key)
+                for key in ("pid", "operation", "started_at")
+                if raw.get(key) is not None
+            }
+    except (OSError, ValueError):
+        pass
+    return holder
 
 
 def _transport_failure(exc):
@@ -107,18 +200,14 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
     if endpoint in held:
         yield
         return
-    user = hashlib.sha256(getpass.getuser().encode()).hexdigest()[:16]
-    root = Path(
-        os.getenv(
-            "LCA_IPC_LOCK_ROOT", str(Path(tempfile.gettempdir()) / f"lca-ipc-{user}")
-        )
-    )
+    root = endpoint_lock_root()
     key = hashlib.sha256(endpoint.encode()).hexdigest()
     uncertain = root / f"{key}.uncertain"
     waiting_at = time.monotonic()
     with file_lock(root / f"{key}.lock"):
         _local.lock_wait_ms = round((time.monotonic() - waiting_at) * 1000)
-        if uncertain.exists():
+        _local.prior_uncertain_at_entry = uncertain.exists()
+        if _local.prior_uncertain_at_entry:
             client = None
             try:
                 client = probe_ipc(host, port)
@@ -129,7 +218,7 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
             finally:
                 close_ipc_client(client)
         # A process killed while holding the lock leaves this marker behind.
-        uncertain.write_text(json.dumps({"pid": os.getpid(), "endpoint": endpoint}))
+        _write_guard_marker(uncertain, endpoint)
         _local.held = held | {endpoint}
         deadline_sec = (
             budget_sec
@@ -143,6 +232,8 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
         except BaseException as exc:
             if isinstance(exc, Exception) and not _transport_failure(exc):
                 uncertain.unlink(missing_ok=True)
+            if isinstance(exc, Exception) and _transport_failure(exc):
+                mark_uncertain()
             raise
         else:
             if not getattr(_local, "uncertain", False):
@@ -152,40 +243,46 @@ def endpoint_guard(host: str, port: int, *, budget_sec: float | None = None):
             _local.uncertain = False
             _local.deadline = None
             _local.long_running = False
+            _local.prior_uncertain_at_entry = False
+            _local.guard_marker_token = None
 
 
 def mark_uncertain():
     _local.uncertain = True
 
 
-def serialized_ipc(function=None, *, long_running: bool = False):
+def _call(fn, long_running, host, port, *args, **kwargs):
+    _local.long_running = long_running
+    result = fn(host, port, *args, **kwargs)
+    if isinstance(result, dict):
+        result["lock_wait_ms"] = getattr(_local, "lock_wait_ms", 0)
+    # Some existing domain services preserve failures in result dictionaries.
+    text = json.dumps(result, default=str).lower()
+    if any(
+        word in text
+        for word in ("timed out", "timeout", "connectionerror", "connection refused")
+    ):
+        if isinstance(result, dict) and (
+            result.get("errors") or result.get("error") or result.get("ok") is False
+        ):
+            mark_uncertain()
+    return result
+
+
+def serialized_ipc(
+    function=None, *, long_running: bool = False, operation: str | None = None
+):
     def decorate(fn):
         @functools.wraps(fn)
         def wrapped(host, port, *args, **kwargs):
             budget = session_budget_sec(long_running=long_running)
-            with endpoint_guard(host, port, budget_sec=budget):
-                _local.long_running = long_running
-                result = fn(host, port, *args, **kwargs)
-                if isinstance(result, dict):
-                    result["lock_wait_ms"] = getattr(_local, "lock_wait_ms", 0)
-                # Some existing domain services preserve failures in result dictionaries.
-                text = json.dumps(result, default=str).lower()
-                if any(
-                    word in text
-                    for word in (
-                        "timed out",
-                        "timeout",
-                        "connectionerror",
-                        "connection refused",
-                    )
-                ):
-                    if isinstance(result, dict) and (
-                        result.get("errors")
-                        or result.get("error")
-                        or result.get("ok") is False
-                    ):
-                        mark_uncertain()
-                return result
+            previous_op = getattr(_local, "operation", None)
+            _local.operation = previous_op or operation or getattr(fn, "__name__", None)
+            try:
+                with endpoint_guard(host, port, budget_sec=budget):
+                    return _call(fn, long_running, host, port, *args, **kwargs)
+            finally:
+                _local.operation = previous_op
 
         return wrapped
 

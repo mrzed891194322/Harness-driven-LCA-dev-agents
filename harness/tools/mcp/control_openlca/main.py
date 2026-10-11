@@ -28,6 +28,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 from harness.tools.shared.control_openlca import operations, readonly
 from harness.tools.shared.control_openlca.cleanup import run_cleanup_output
 from harness.tools.shared.control_openlca.connection import (
+    describe_ipc_session_budget,
     ipc_budget_scope,
     ipc_tool_is_long_running,
     ipc_tool_profile,
@@ -71,12 +72,18 @@ def ipc_tool(name):
             runner: Callable[..., Any] = serialized_ipc(
                 lambda host, port: function(**params),
                 long_running=ipc_tool_is_long_running(name),
+                operation=name,
             )
             if profile == "long":
                 budget = resolve_ipc_tool_timeout_sec(timeout)
                 with ipc_budget_scope(budget):
                     result = runner(host, port)
-                result["applied_timeout_sec"] = int(budget)
+                if isinstance(result, dict):
+                    meta = describe_ipc_session_budget(timeout)
+                    result["applied_timeout_sec"] = int(
+                        meta["effective_session_budget_sec"]
+                    )
+                    result.update(meta)
                 return result
             return runner(host, port)
 
@@ -90,7 +97,9 @@ mcp = MCPServer(
     instructions=(
         "Independent access to the openLCA IPC Server configured "
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci and cleanup_output "
-        "are destructive; import_lci requires a matching current import scope. "
+        "are destructive; import_lci requires matching preflight scope (run, endpoint, "
+        "database, category, lci_dir). Same-run LCI rework may change file content and "
+        "overwrites this run's entities by UUID; resume_import skips unchanged entities. "
         "Long-running tools accept optional timeout_sec (300-7200) for IPC session "
         "budget and per-request HTTP reads; do not wrap tools in shell timeout."
     ),
@@ -122,11 +131,9 @@ def _endpoint_config() -> tuple[str, int]:
 
 
 def _target_category(target_category: str) -> str:
-    category = target_category.strip()
-    if not category or any(character in category for character in "\r\n\0"):
-        raise ValueError(
-            "target_category must be nonempty and contain no control characters"
-        )
+    category = target_category.strip() or PROJECT_ROOT.name
+    if any(character in category for character in "\r\n\0"):
+        raise ValueError("target_category contains invalid characters")
     return category
 
 
@@ -148,8 +155,9 @@ def health_check() -> dict[str, Any]:
 @mcp.tool(
     description=(
         "Search descriptors in the active openLCA database and return names, UUIDs, "
-        "categories, and pagination metadata. Optional timeout_sec (300-7200) sets "
-        "the IPC session budget for large databases."
+        "categories, outside_project (relative to target_category), and pagination "
+        "metadata. Optional timeout_sec (300-7200) sets the IPC session budget for "
+        "large databases."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -173,6 +181,7 @@ def query_descriptors(
     search: str = "",
     limit: int = 50,
     offset: int = 0,
+    target_category: str = "",
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Query entity descriptors by a case-insensitive name substring."""
@@ -184,14 +193,16 @@ def query_descriptors(
         search=search,
         limit=limit,
         offset=offset,
+        target_category=_target_category(target_category),
     )
 
 
 @mcp.tool(
     description=(
         "Read one exact openLCA Process UUID and return compact process metadata, "
-        "location, and quantitative-reference exchanges. Optional timeout_sec "
-        "(300-7200) sets the IPC session budget."
+        "location, quantitative-reference exchanges, and outside_project relative "
+        "to target_category. Optional timeout_sec (300-7200) sets the IPC session "
+        "budget."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -199,11 +210,14 @@ def query_descriptors(
 @ipc_tool("get_process_details")
 def get_process_details(
     process_id: str,
+    target_category: str = "",
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Read compact details for one exact Process UUID."""
     host, port = _endpoint_config()
-    return run_get_process_details(host, port, process_id)
+    return run_get_process_details(
+        host, port, process_id, target_category=_target_category(target_category)
+    )
 
 
 @mcp.tool(
@@ -232,6 +246,7 @@ def get_flow_providers(
         location=location,
         limit=limit,
         offset=offset,
+        target_category=_target_category(""),
     )
 
 
@@ -269,11 +284,12 @@ def preflight_import_lci(
 
 @mcp.tool(
     description=(
-        "Import the supplied LCI directory "
-        "after rerunning preflight. Rejects the write when the "
-        "database name, target category, or LCI directory does not match the last "
-        "successful preflight scope. Optional timeout_sec (300-7200) extends the IPC "
-        "session budget; do not wrap this tool in shell timeout."
+        "Import the supplied LCI directory after rerunning preflight. Preflight scope "
+        "(run, endpoint, database, category, lci_dir) must match; LCI file content may "
+        "change within the same run and updates entities by UUID in the target category. "
+        "Use resume_operation_id after partial_failure; resume skips unchanged entities. "
+        "Optional timeout_sec (300-7200) extends the IPC session budget; do not wrap "
+        "this tool in shell timeout."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,
@@ -287,6 +303,7 @@ def import_lci(
     operation_dir: str,
     scope_id: str,
     database_name: str | None = None,
+    resume_operation_id: str | None = None,
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Import only after a matching fresh preflight; persist request identity."""
@@ -301,6 +318,7 @@ def import_lci(
         run_id=scope_id,
         request_id=request_id,
         preflight_id=preflight_id,
+        resume_operation_id=resume_operation_id,
     )
 
 
@@ -331,8 +349,9 @@ def get_import_operation(
 @mcp.tool(
     description=(
         "Read a Product System model graph from the active database and report "
-        "nodes, edges, broken links, and disconnected nodes. Optional timeout_sec "
-        "(300-7200) sets the IPC session budget and the Product System HTTP read."
+        "nodes (with category/outside_project when known), edges, broken links, "
+        "and disconnected nodes. Optional timeout_sec (300-7200) sets the IPC "
+        "session budget and the Product System HTTP read."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -341,6 +360,7 @@ def get_import_operation(
 def get_model_graph(
     product_system: str,
     expected_process_ids: list[str] | None = None,
+    target_category: str = "",
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Read and validate an openLCA Product System graph."""
@@ -350,6 +370,7 @@ def get_model_graph(
         port,
         product_system,
         expected_process_ids=expected_process_ids,
+        target_category=_target_category(target_category),
     )
 
 
@@ -432,7 +453,13 @@ def query_descriptors_batch(
 ) -> dict[str, Any]:
     host, port = _endpoint_config()
     return readonly.query_descriptors_batch(
-        host, port, entity_type, searches, limit, offset
+        host,
+        port,
+        entity_type,
+        searches,
+        limit,
+        offset,
+        target_category=_target_category(""),
     )
 
 
@@ -451,7 +478,9 @@ def validate_providers_batch(
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     host, port = _endpoint_config()
-    return readonly.validate_providers_batch(host, port, requirements)
+    return readonly.validate_providers_batch(
+        host, port, requirements, target_category=_target_category("")
+    )
 
 
 if __name__ == "__main__":

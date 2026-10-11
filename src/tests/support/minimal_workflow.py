@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import textwrap
 from pathlib import Path
 
@@ -14,15 +15,45 @@ def write_tree(root: Path) -> None:
     (knowledge / "inputs").mkdir(parents=True, exist_ok=True)
     (knowledge / "plan").mkdir(parents=True, exist_ok=True)
     (knowledge / "README.md").write_text("# k\n", encoding="utf-8")
-    rules = root / "harness" / "rules" / "prompts" / "project"
+    rules = root / "harness" / "rules" / "project"
     rules.mkdir(parents=True, exist_ok=True)
     for name in ("write-boundary.md", "runtime.md", "paths.md", "extra.md"):
         (rules / name).write_text(f"# {name}\n", encoding="utf-8")
     for kind in ("mcp", "host_action", "shared"):
         (root / "harness" / "tools" / kind).mkdir(parents=True, exist_ok=True)
+    write_shared_permissions(root)
     tools = root / "harness" / "tools" / "mcp" / "probe"
     tools.mkdir(parents=True, exist_ok=True)
     (tools / "main.py").write_text("print('ok')\n", encoding="utf-8")
+
+
+STAGE_ROLES = {
+    "executor": ["worker-default"],
+    "reviser": ["worker-default"],
+    "reviewer": ["reviewer"],
+}
+
+
+def write_shared_permissions(root: Path) -> None:
+    """Shared permission rules under harness/specs/shared/permissions/."""
+    target = root / "harness" / "specs" / "shared" / "permissions"
+    target.mkdir(parents=True, exist_ok=True)
+    rules = {
+        "worker-default": {
+            "id": "worker-default",
+            "applies_to": {"roles": ["executor", "reviser"]},
+            "tools": {"builtin": ["read", "grep", "find", "ls", "write", "edit"], "mcp": ["mcp__*__*"]},
+            "paths": {"read": ["workspace/**", "harness/knowledge/**"], "write": ["workspace/**"]},
+        },
+        "reviewer": {
+            "id": "reviewer",
+            "applies_to": {"roles": ["reviewer"]},
+            "tools": {"builtin": ["read", "grep", "find", "ls"], "mcp": ["mcp__*__*"]},
+            "paths": {"read": ["workspace/**", "harness/knowledge/**"], "write": []},
+        },
+    }
+    for rule_id, body in rules.items():
+        (target / f"{rule_id}.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
 
 
 def write_stage_spec(
@@ -58,15 +89,32 @@ def write_stage_spec(
                 "required": True,
             }
         ]
+    spec_dir = root / "harness" / "specs" / stage_id
+    deliverables = []
+    for index, item in enumerate(outputs):
+        entry = {k: v for k, v in item.items() if k != "schema"}
+        entry.setdefault("name", Path(str(item["path"])).stem.replace(".", "-") or f"out{index}")
+        entry.setdefault("writer", "agent")
+        if item.get("schema"):
+            entry["schema"] = os.path.relpath(root / str(item["schema"]), spec_dir)
+        deliverables.append(entry)
     payload = {
-        "version": 1,
+        "version": 2,
         "id": stage_id,
         "inputs": [],
-        "outputs": outputs,
-        "acceptance": {"checks": acceptance},
+        "deliverables": deliverables,
+        "acceptance": "acceptance.yaml",
+        "permissions": "permissions.yaml",
         "lifecycle": {"on_reviewer_passed": on_reviewer_passed},
         "handoff": {"checks": handoff_checks},
     }
+    (spec_dir / "acceptance.yaml").write_text(
+        yaml.safe_dump({"version": 1, "host_checks": acceptance, "deliverables": {}}),
+        encoding="utf-8",
+    )
+    (spec_dir / "permissions.yaml").write_text(
+        yaml.safe_dump({"version": 1, "roles": dict(STAGE_ROLES)}), encoding="utf-8"
+    )
     relative = f"harness/specs/{stage_id}/spec.yaml"
     (root / relative).write_text(
         yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
@@ -230,10 +278,10 @@ def write_minimal_workflow(
         "id": workflow_id,
         "registry": {
             "rules": {
-                "workspace_boundary": "harness/rules/prompts/project/write-boundary.md",
-                "runtime": "harness/rules/prompts/project/runtime.md",
-                "paths": "harness/rules/prompts/project/paths.md",
-                "extra_rule": "harness/rules/prompts/project/extra.md",
+                "workspace_boundary": "harness/rules/project/write-boundary.md",
+                "runtime": "harness/rules/project/runtime.md",
+                "paths": "harness/rules/project/paths.md",
+                "extra_rule": "harness/rules/project/extra.md",
             },
             "tools": {
                 "mcp": {tool_id: tool_entry},

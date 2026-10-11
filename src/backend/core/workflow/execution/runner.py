@@ -86,6 +86,7 @@ def publish_state(workspace_root: Path, state: WorkflowState) -> None:
         current_stage=state.get("current_stage"),
         status_reason=state.get("status_reason") or None,
         run_id=state["run_id"],
+        attempt=_state_int(state, "attempt", 1),
     )
 
 
@@ -101,6 +102,7 @@ def fail_run(
     )
     store.save(state, event="failed", action=action)
     publish_state(runtime.workspace_root, state)
+    _injection_summary(runtime, state)
     return state
 
 
@@ -154,7 +156,36 @@ def run_workflow(
             context=before,
         )
         publish_state(runtime.workspace_root, state)
+    _injection_summary(runtime, state)
     return state
+
+
+def _injection_summary(runtime: Any, state: WorkflowState) -> None:
+    """Run end: list every injection mismatch (record only, never changes the result)."""
+    try:
+        from backend.core.agents import injection
+
+        run_id = str(state.get("run_id") or "")
+        root = getattr(runtime, "project_root", None)
+        if not run_id or root is None:
+            return
+        summary = injection.run_summary(Path(root), run_id)
+        path = injection.runs_root(Path(root)) / run_id / "injection-summary.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        workspace = getattr(runtime, "workspace_root", None)
+        if workspace is not None:
+            injection.publish_workspace_sessions(Path(root), Path(workspace), run_id)
+        emit = getattr(runtime, "_emit", None)
+        if callable(emit):
+            emit(state, {"kind": "injection_summary", **summary})
+        if summary["mismatches"]:
+            print_orchestrator(
+                "injection mismatches: "
+                + "; ".join(f"{m['session']}:{m['item']}" for m in summary["mismatches"])
+            )
+    except Exception:
+        pass
 
 
 def session_key(assignment_id: str) -> str:

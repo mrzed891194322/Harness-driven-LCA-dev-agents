@@ -158,7 +158,7 @@ class CleanDirectoryTests(unittest.TestCase):
     def test_preset_whole_lca_targets(self) -> None:
         self.assertEqual(
             CLEAN_PRESETS["whole-lca"],
-            ["knowledge", "workspace", "openlca"],
+            ["knowledge", "openlca", "workspace"],
         )
         self.assertEqual(CLEAN_PRESETS["revise-lca"], ["knowledge", "openlca"])
 
@@ -187,6 +187,31 @@ class CleanDirectoryTests(unittest.TestCase):
             self.assertEqual(clean_main.run_clean(yes=True, preset="whole-lca"), 1)
 
         self.assertEqual(calls, ["knowledge"])
+
+    def test_whole_lca_openlca_sees_workspace_before_it_is_cleaned(self) -> None:
+        """Regression (p5-cleanup-lock): UUID cleanup reads workspace LCI/journal."""
+        seen: dict[str, bool] = {}
+        state = {"workspace_cleaned": False}
+
+        def fake_openlca(dry_run: bool = False):
+            seen["workspace_intact"] = not state["workspace_cleaned"]
+            return True, "deleted 35 openLCA entity(ies)", {}
+
+        def fake_fs(target_cfg, *, dry_run: bool = False):
+            if target_cfg["name"] == "workspace":
+                state["workspace_cleaned"] = True
+            return 0, 0, 0, 0
+
+        with (
+            patch.object(clean_main, "run_openlca_clean", fake_openlca),
+            patch.object(clean_main, "_clean_filesystem_target", fake_fs),
+        ):
+            self.assertEqual(
+                clean_main.run_clean(yes=True, preset="whole-lca", clean_staging=False),
+                0,
+            )
+        self.assertTrue(seen["workspace_intact"])
+        self.assertTrue(state["workspace_cleaned"])
 
     def test_openlca_target_uses_shared_cleanup(self) -> None:
         with patch.object(
@@ -220,7 +245,7 @@ class CleanDirectoryTests(unittest.TestCase):
                 0,
             )
 
-        self.assertEqual(calls, ["workspace", "openlca"])
+        self.assertEqual(calls, ["openlca", "workspace"])
 
     def test_clean_staging_false_with_only_staging_is_noop(self) -> None:
         calls: list[str] = []

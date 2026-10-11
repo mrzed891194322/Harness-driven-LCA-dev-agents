@@ -65,6 +65,8 @@ export interface PermissionPolicy {
   allowed_read_globs: string[];
   allowed_write_globs: string[];
   deny_shell?: boolean;
+  /** Official deliverable paths only spec_mcp may write; beats allowed_write_globs. */
+  denied_write_globs?: string[];
 }
 
 export interface SessionStorage {

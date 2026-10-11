@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -31,6 +33,7 @@ class WorkflowProgressTests(unittest.TestCase):
 
             first = service.progress(0)
             self.assertEqual(first["status"], "running")
+            self.assertIsNone(first["attempt"])
             self.assertIn("start", first["text"])
             self.assertFalse(first["reset"])
             self.assertGreater(first["offset"], 0)
@@ -47,6 +50,71 @@ class WorkflowProgressTests(unittest.TestCase):
             self.assertIn("start", reset["text"])
             self.assertIn("next", reset["text"])
 
+    def test_progress_reports_the_run_model(self) -> None:
+        import json
+
+        from backend.core.workflow.persistence.config_fingerprint import runtime_config_path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_id = "run-1"
+            write_manifest(
+                root / "workspace",
+                status="completed",
+                current_stage="01-intake-gate",
+                status_reason="",
+                run_id=run_id,
+            )
+            config = runtime_config_path(root / "workspace", run_id)
+            config.parent.mkdir(parents=True, exist_ok=True)
+            config.write_text(
+                json.dumps({"execution": {"model": "anthropic/claude-sonnet-4-5"}}),
+                encoding="utf-8",
+            )
+            body = WorkflowService(root).progress(0)
+            self.assertEqual(body["model"], "claude-sonnet-4-5")
+
+    def test_progress_reports_attempt_from_manifest_or_checkpoint(self) -> None:
+        import json
+        import sqlite3
+
+        from backend.core.workflow.persistence.checkpoint import checkpoint_path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_id = "run-1"
+            write_manifest(
+                root / "workspace",
+                status="running",
+                current_stage="03-dataset-mapping",
+                status_reason="",
+                run_id=run_id,
+                attempt=2,
+            )
+            body = WorkflowService(root).progress(0)
+            self.assertEqual(body["attempt"], 2)
+            self.assertEqual(body["current_stage"], "03-dataset-mapping")
+
+            write_manifest(
+                root / "workspace",
+                status="running",
+                current_stage="03-dataset-mapping",
+                status_reason="",
+                run_id=run_id,
+            )
+            path = checkpoint_path(root / "workspace")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(path) as conn:
+                conn.execute(
+                    "CREATE TABLE workflow_runs (run_id TEXT PRIMARY KEY, state_json TEXT NOT NULL)"
+                )
+                conn.execute(
+                    "INSERT INTO workflow_runs(run_id, state_json) VALUES (?, ?)",
+                    (run_id, json.dumps({"attempt": 2, "current_stage": "03-dataset-mapping"})),
+                )
+            fallback = WorkflowService(root).progress(0)
+            self.assertEqual(fallback["attempt"], 2)
+
     def test_progress_route_shape(self) -> None:
         response = TestClient(app).get("/api/workflow/progress")
         self.assertEqual(response.status_code, 200)
@@ -55,3 +123,78 @@ class WorkflowProgressTests(unittest.TestCase):
         self.assertIn("offset", body)
         self.assertIn("status", body)
         self.assertIn("reset", body)
+
+    def test_results_lists_handoffs_and_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / "workspace"
+            write_manifest(
+                workspace,
+                status="completed",
+                current_stage="report",
+                status_reason="done",
+                run_id="run-9",
+            )
+            handoff = workspace / "records" / "handoffs" / "report-executor-1.json"
+            handoff.parent.mkdir(parents=True, exist_ok=True)
+            handoff.write_text(
+                '{"stage":"report","role":"executor","attempt":1,"status":"ok",'
+                '"status_reason":"已交卷","artifacts":["workspace/outputs/reports/lca.md"]}',
+                encoding="utf-8",
+            )
+            report = workspace / "outputs" / "reports" / "lca.md"
+            report.parent.mkdir(parents=True, exist_ok=True)
+            report.write_text("# LCA\n", encoding="utf-8")
+            (workspace / "outputs" / "reports" / "README.md").write_text("skip\n", encoding="utf-8")
+            dump = (
+                workspace
+                / "outputs"
+                / "reports"
+                / "runs"
+                / "run-9"
+                / "03-dataset-mapping"
+                / "1"
+                / "abc"
+                / "raw.json"
+            )
+            dump.parent.mkdir(parents=True, exist_ok=True)
+            dump.write_text("{}", encoding="utf-8")
+            review = workspace / "records" / "reviews" / "report-1.md"
+            review.parent.mkdir(parents=True, exist_ok=True)
+            review.write_text("review\n", encoding="utf-8")
+
+            service = WorkflowService(root)
+            body = service.results()
+            opened = service.read_result_file("workspace/outputs/reports/lca.md")
+            self.assertEqual(opened["kind"], "markdown")
+            self.assertIn("LCA", opened["text"])
+            manifest = service.read_result_file("workspace/records/manifest.json")
+            self.assertEqual(manifest["kind"], "json")
+            note = service.read_result_file("workspace/records/reviews/report-1.md")
+            self.assertEqual(note["kind"], "markdown")
+            with self.assertRaises(ValueError):
+                service.read_result_file("workspace/outputs/../../.env")
+            with self.assertRaises(ValueError):
+                service.read_result_file("workspace/tmp/secret.json")
+            names = zipfile.ZipFile(io.BytesIO(service.archive_outputs())).namelist()
+
+        self.assertEqual(body["manifest"]["run_id"], "run-9")
+        self.assertIn("outputs/reports/lca.md", names)
+        self.assertIn("outputs/reports/runs/run-9/03-dataset-mapping/1/abc/raw.json", names)
+        self.assertFalse(any(name.endswith("README.md") for name in names))
+        self.assertEqual(body["handoffs"][0]["stage"], "report")
+        self.assertEqual(body["handoffs"][0]["artifacts"], ["workspace/outputs/reports/lca.md"])
+        self.assertEqual(
+            [item["path"] for item in body["records"]],
+            [
+                "workspace/records/manifest.json",
+                "workspace/records/reviews/report-1.md",
+            ],
+        )
+        self.assertEqual(
+            [(item["path"], item["count"]) for item in body["artifacts"]],
+            [
+                ("workspace/outputs/reports/lca.md", 1),
+                ("workspace/outputs/reports/runs/run-9/03-dataset-mapping/1", 1),
+            ],
+        )

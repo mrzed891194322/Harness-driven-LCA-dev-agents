@@ -19,10 +19,12 @@ from .connection import (
     create_ipc_client,
     is_transport_error,
 )
+from .ipc_failure import on_ipc_transport_failure
+from .timeout_policy import ipc_read_scope, product_system_read_sec
 from .entity import find_entity
 from .protocols import CalculationResult, OlcaDescriptor, OpenLcaClient
+from .readonly import category_outside_project, category_project_scope
 
-PRODUCT_SYSTEM_SLOW_RETRIES = 3
 
 ENTITY_IMPORT_ORDER: tuple[str, ...] = (
     "UnitGroup",
@@ -180,9 +182,73 @@ def load_lci_inventory(json_dir: Path) -> tuple[list[dict[str, Any]], list[str]]
             }
         )
 
-    order = {name: index for index, name in enumerate(ENTITY_IMPORT_ORDER)}
-    inventory.sort(key=lambda item: (order[item["entity_type"]], item["path"]))
+    inventory = _sort_inventory_for_import(inventory)
     return inventory, errors
+
+
+def _foreground_process_ids(inventory: list[dict[str, Any]]) -> set[str]:
+    return {item["id"] for item in inventory if item["entity_type"] == "Process"}
+
+
+def _topologically_sort_process_items(
+    processes: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Import foreground defaultProvider processes before their consumers."""
+    by_id = {item["id"]: item for item in processes}
+    process_ids = set(by_id)
+    dependents: dict[str, set[str]] = {process_id: set() for process_id in process_ids}
+    indegree: dict[str, int] = {process_id: 0 for process_id in process_ids}
+    for item in processes:
+        consumer_id = item["id"]
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            provider_id = _exchange_provider_id(exchange)
+            if not provider_id or provider_id not in process_ids:
+                continue
+            if consumer_id not in dependents[provider_id]:
+                dependents[provider_id].add(consumer_id)
+                indegree[consumer_id] += 1
+
+    def path_key(process_id: str) -> str:
+        return str(by_id[process_id]["path"])
+
+    ready = sorted(
+        [process_id for process_id in process_ids if indegree[process_id] == 0],
+        key=path_key,
+    )
+    ordered_ids: list[str] = []
+    while ready:
+        current_id = ready.pop(0)
+        ordered_ids.append(current_id)
+        for dependent_id in sorted(dependents[current_id], key=path_key):
+            indegree[dependent_id] -= 1
+            if indegree[dependent_id] == 0:
+                ready.append(dependent_id)
+                ready.sort(key=path_key)
+    if len(ordered_ids) != len(process_ids):
+        remaining = sorted(process_ids - set(ordered_ids), key=path_key)
+        ordered_ids.extend(remaining)
+    return [by_id[process_id] for process_id in ordered_ids]
+
+
+def _sort_inventory_for_import(
+    inventory: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    order = {name: index for index, name in enumerate(ENTITY_IMPORT_ORDER)}
+    buckets: dict[str, list[dict[str, Any]]] = {
+        entity_type: [] for entity_type in ENTITY_IMPORT_ORDER
+    }
+    for item in inventory:
+        buckets[item["entity_type"]].append(item)
+    for entity_type in buckets:
+        if entity_type != "Process":
+            buckets[entity_type].sort(key=lambda row: row["path"])
+    buckets["Process"] = _topologically_sort_process_items(buckets["Process"])
+    sorted_inventory: list[dict[str, Any]] = []
+    for entity_type in ENTITY_IMPORT_ORDER:
+        sorted_inventory.extend(buckets[entity_type])
+    return sorted_inventory
 
 
 def validate_lci_directory(json_dir: Path) -> dict[str, Any]:
@@ -238,9 +304,7 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
     foreground_flow_ids = {
         item["id"] for item in inventory if item["entity_type"] == "Flow"
     }
-    foreground_process_ids = {
-        item["id"] for item in inventory if item["entity_type"] == "Process"
-    }
+    foreground_process_ids = _foreground_process_ids(inventory)
     foreground_outputs: dict[str, set[str]] = {
         process_id: set() for process_id in foreground_process_ids
     }
@@ -340,17 +404,20 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
             if flow_id not in foreground_outputs.get(provider_id, set()):
                 errors.append(
                     f"{item['path']}: exchanges[{index}].defaultProvider "
-                    f"{provider_id} does not output foreground Flow {flow_id}"
+                    f"Process {provider_id} 未以定量参考输出前景流 {flow_id}；"
+                    "请核对 provider 过程的输出 exchange 与输入流一致"
                 )
 
     for item in inventory:
         if item["entity_type"] != "ProductSystem":
             continue
         data = item["data"]
-        if data.get("linkingMode") != "auto":
+        linking_mode = data.get("linkingMode")
+        if linking_mode not in {"auto", "explicit"}:
             errors.append(
-                f"{item['path']}: linkingMode must be explicitly set to 'auto'"
+                f"{item['path']}: linkingMode must be 'auto' or 'explicit'"
             )
+            continue
         if data.get("preferDefaultProviders") is not True:
             errors.append(f"{item['path']}: preferDefaultProviders must be true")
         ref_process = data.get("refProcess")
@@ -384,11 +451,659 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                 errors.append(
                     f"{item['path']}: expectedProcessIds must include refProcess"
                 )
-        if "processes" in data:
-            errors.append(f"{item['path']}: auto linking must not provide processes")
-        if "processLinks" in data:
-            errors.append(f"{item['path']}: auto linking must not provide processLinks")
+        if linking_mode == "auto":
+            if "processes" in data:
+                errors.append(f"{item['path']}: auto linking must not provide processes")
+            if "processLinks" in data:
+                errors.append(
+                    f"{item['path']}: auto linking must not provide processLinks"
+                )
+        else:
+            if "processes" in data or "processLinks" in data:
+                errors.append(
+                    f"{item['path']}: explicit linking must not provide processes "
+                    "or processLinks; the host builds them from defaultProvider"
+                )
+            expected_ids = [
+                process_id
+                for process_id in (expected or [])
+                if isinstance(process_id, str)
+            ]
+            missing_providers = _foreground_technosphere_missing_providers(
+                inventory, expected_ids
+            )
+            if missing_providers:
+                errors.append(
+                    f"{item['path']}: explicit linking requires defaultProvider on "
+                    f"every technosphere product input of foreground processes: "
+                    f"{missing_providers}"
+                )
     return errors
+
+
+def _exchange_flow_id(exchange: dict[str, Any]) -> str | None:
+    flow = exchange.get("flow")
+    return flow.get("@id") if isinstance(flow, dict) else None
+
+
+def _exchange_provider_id(exchange: dict[str, Any]) -> str | None:
+    provider = exchange.get("defaultProvider")
+    return provider.get("@id") if isinstance(provider, dict) else None
+
+
+def _foreground_flow_ids(inventory: list[dict[str, Any]]) -> set[str]:
+    return {item["id"] for item in inventory if item["entity_type"] == "Flow"}
+
+
+def _is_technosphere_input(
+    exchange: dict[str, Any], foreground_flow_ids: set[str]
+) -> bool:
+    if exchange.get("isInput") is not True:
+        return False
+    if _exchange_provider_id(exchange):
+        return True
+    flow_id = _exchange_flow_id(exchange)
+    return bool(flow_id and flow_id in foreground_flow_ids)
+
+
+def _collect_unlinked_inputs(
+    inventory: list[dict[str, Any]],
+    process_ids: list[str],
+) -> list[dict[str, Any]]:
+    """Elementary inputs without defaultProvider (non-foreground flows)."""
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    allowed = set(process_ids)
+    unlinked: list[dict[str, Any]] = []
+    for item in inventory:
+        if item["entity_type"] != "Process" or item["id"] not in allowed:
+            continue
+        for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            if _exchange_provider_id(exchange):
+                continue
+            flow_id = _exchange_flow_id(exchange)
+            if flow_id and flow_id in foreground_flow_ids:
+                continue
+            unlinked.append(
+                {
+                    "path": item["path"],
+                    "process_id": item["id"],
+                    "exchange_index": index,
+                    "flow_id": flow_id,
+                }
+            )
+    return unlinked
+
+
+def _foreground_technosphere_missing_providers(
+    inventory: list[dict[str, Any]],
+    process_ids: list[str],
+) -> list[str]:
+    """Foreground-flow technosphere inputs that lack defaultProvider."""
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    allowed = set(process_ids)
+    missing: list[str] = []
+    for item in inventory:
+        if item["entity_type"] != "Process" or item["id"] not in allowed:
+            continue
+        path = item["path"]
+        for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            flow_id = _exchange_flow_id(exchange)
+            if flow_id not in foreground_flow_ids:
+                continue
+            if not _exchange_provider_id(exchange):
+                missing.append(f"{path}: exchanges[{index}]")
+    return missing
+
+
+def _preflight_foreground_provider_reference_errors(
+    inventory: list[dict[str, Any]],
+    *,
+    background_process_ids: set[str] | None = None,
+) -> list[str]:
+    """Offline checks for foreground defaultProvider references in LCI JSON."""
+    foreground_process_ids = _foreground_process_ids(inventory)
+    background_ids = background_process_ids or set()
+    foreground_outputs: dict[str, set[str]] = {
+        process_id: set() for process_id in foreground_process_ids
+    }
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is True:
+                continue
+            if exchange.get("isQuantitativeReference") is True:
+                flow = exchange.get("flow")
+                flow_id = flow.get("@id") if isinstance(flow, dict) else None
+                if isinstance(flow_id, str) and flow_id:
+                    foreground_outputs[item["id"]].add(flow_id)
+    errors: list[str] = []
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        for index, exchange in enumerate(item["data"].get("exchanges", []), start=1):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            flow = exchange.get("flow")
+            flow_id = flow.get("@id") if isinstance(flow, dict) else None
+            provider = exchange.get("defaultProvider")
+            provider_id = provider.get("@id") if isinstance(provider, dict) else None
+            if not isinstance(flow_id, str) or not flow_id:
+                continue
+            if flow_id not in foreground_flow_ids:
+                continue
+            if not provider_id:
+                continue
+            if provider_id in foreground_process_ids:
+                if flow_id not in foreground_outputs.get(provider_id, set()):
+                    errors.append(
+                        f"{item['path']}: exchanges[{index}] 前景 provider Process "
+                        f"{provider_id} 未以定量参考输出流 {flow_id}"
+                    )
+                continue
+            if provider_id not in background_ids:
+                errors.append(
+                    f"{item['path']}: exchanges[{index}] defaultProvider Process "
+                    f"{provider_id} 既不在本批 LCI 前景过程中，也未在预检数据库 Process "
+                    "描述符中找到；请改用 validate_providers_batch 核实的背景数据集"
+                )
+    return errors
+
+
+def _exchange_needs_foreground_provider_repair(
+    saved: olca_schema.Process,
+    *,
+    flow_id: str,
+    provider_id: str,
+) -> bool:
+    for exchange in list(getattr(saved, "exchanges", None) or []):
+        if getattr(exchange, "is_input", None) is not True:
+            continue
+        ex_flow = getattr(getattr(exchange, "flow", None), "id", None)
+        if ex_flow != flow_id:
+            continue
+        ex_provider = getattr(getattr(exchange, "default_provider", None), "id", None)
+        return ex_provider != provider_id
+    return True
+
+
+def _repair_foreground_process_providers(
+    client: OpenLcaClient,
+    inventory: list[dict[str, Any]],
+    target_category: str,
+) -> list[str]:
+    """Re-put foreground processes whose defaultProvider refs were dropped on first import."""
+    foreground_process_ids = _foreground_process_ids(inventory)
+    errors: list[str] = []
+    for item in inventory:
+        if item["entity_type"] != "Process":
+            continue
+        process_id = item["id"]
+        expected: list[tuple[str, str]] = []
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict) or exchange.get("isInput") is not True:
+                continue
+            flow = exchange.get("flow") or {}
+            flow_id = flow.get("@id")
+            provider_id = _exchange_provider_id(exchange)
+            if (
+                not isinstance(flow_id, str)
+                or not flow_id
+                or not provider_id
+                or provider_id not in foreground_process_ids
+            ):
+                continue
+            expected.append((flow_id, provider_id))
+        if not expected:
+            continue
+        saved = client.get(olca_schema.Process, process_id)
+        if saved is None:
+            errors.append(
+                f"前景 Process {process_id} ({item['path']}) 尚未导入，无法修复 defaultProvider"
+            )
+            continue
+        needs_repair = any(
+            _exchange_needs_foreground_provider_repair(
+                saved, flow_id=flow_id, provider_id=provider_id
+            )
+            for flow_id, provider_id in expected
+        )
+        if not needs_repair:
+            continue
+        entity = _deserialize_entity(item, target_category)
+        assert isinstance(entity, olca_schema.Process)
+        client.put(entity)
+        saved_after = client.get(olca_schema.Process, process_id)
+        if saved_after is None:
+            errors.append(
+                f"修复 defaultProvider 后无法读回 Process {process_id} ({item['path']})"
+            )
+            continue
+        for flow_id, provider_id in expected:
+            if _exchange_needs_foreground_provider_repair(
+                saved_after, flow_id=flow_id, provider_id=provider_id
+            ):
+                errors.append(
+                    f"Process {process_id} ({item['name']}) 交换 flow={flow_id} "
+                    f"仍缺少 defaultProvider={provider_id}；"
+                    "openLCA 在 provider 过程不存在时静默丢弃链接，"
+                    "请确认导入顺序与 provider 修复已执行"
+                )
+    return errors
+
+
+def build_entity_plan(inventory: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per-entity import plan persisted on the operation record."""
+    return [
+        {
+            "path": item["path"],
+            "entity_type": item["entity_type"],
+            "id": item["id"],
+            "name": item["name"],
+            "content_hash": item.get("sha256", ""),
+            "status": "pending",
+        }
+        for item in inventory
+    ]
+
+
+def _plan_by_id(plan: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {str(entry["id"]): entry for entry in plan}
+
+
+def _entity_openlca_fingerprint(
+    entity: object, entity_type: str, content_hash: str
+) -> str:
+    """Stable fingerprint for reconcile: prefer source hash when entity matches."""
+    name = getattr(entity, "name", None)
+    entity_id = getattr(entity, "id", None)
+    payload: dict[str, Any] = {
+        "entity_type": entity_type,
+        "id": entity_id,
+        "name": name,
+        "content_hash": content_hash,
+    }
+    if entity_type == "ProductSystem":
+        payload["ref_process"] = getattr(
+            getattr(entity, "ref_process", None), "id", None
+        )
+        payload["process_count"] = len(getattr(entity, "processes", None) or [])
+        payload["link_count"] = len(getattr(entity, "process_links", None) or [])
+    return stable_hash(payload)
+
+
+def reconcile_entity_plan(
+    client: OpenLcaClient,
+    plan: list[dict[str, Any]],
+    inventory: list[dict[str, Any]],
+    target_category: str,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Read-only openLCA checks; mark plan entries done when id and fingerprint match."""
+    inventory_by_id = {item["id"]: item for item in inventory}
+    issues: list[str] = []
+    updated: list[dict[str, Any]] = []
+    for entry in plan:
+        current = dict(entry)
+        entity_type = str(entry.get("entity_type") or "")
+        entity_id = str(entry.get("id") or "")
+        model_type = ENTITY_TYPES.get(entity_type)
+        source = inventory_by_id.get(entity_id)
+        if model_type is None or not entity_id or source is None:
+            issues.append(f"unknown plan entity {entity_type} {entity_id}")
+            current["status"] = "uncertain"
+            updated.append(current)
+            continue
+        try:
+            existing = client.get(model_type, entity_id)
+        except Exception as exc:
+            issues.append(f"get {entity_type} {entity_id}: {exc}")
+            current["status"] = "uncertain"
+            updated.append(current)
+            continue
+        if existing is None:
+            if current.get("status") == "failed":
+                current["status"] = "pending"
+            updated.append(current)
+            continue
+        category = getattr(existing, "category", None)
+        if category and category != target_category and not str(category).startswith(
+            f"{target_category}/"
+        ):
+            issues.append(
+                f"{entity_type} {entity_id} exists outside target category "
+                f"({category!r} vs {target_category!r})"
+            )
+            current["status"] = "failed"
+            updated.append(current)
+            continue
+        if getattr(existing, "name", None) != source.get("name"):
+            issues.append(
+                f"{entity_type} {entity_id} exists but does not match planned "
+                f"content (name/hash mismatch)"
+            )
+            current["status"] = "failed"
+            updated.append(current)
+            continue
+        if entity_type == "ProductSystem":
+            links = getattr(existing, "process_links", None) or []
+            processes = getattr(existing, "processes", None) or []
+            if not processes or (source["data"].get("linkingMode") != "auto" and not links):
+                issues.append(
+                    f"ProductSystem {entity_id} exists but looks incomplete "
+                    f"(processes={len(processes)}, links={len(links)})"
+                )
+                current["status"] = "uncertain"
+                updated.append(current)
+                continue
+        current["status"] = "done"
+        updated.append(current)
+    return updated, issues
+
+
+def _foreground_process_data(
+    inventory: list[dict[str, Any]], process_id: str
+) -> dict[str, Any] | None:
+    for item in inventory:
+        if item["entity_type"] == "Process" and item["id"] == process_id:
+            return item["data"]
+    return None
+
+
+def _all_foreground_technosphere_have_providers(
+    inventory: list[dict[str, Any]], process_ids: list[str]
+) -> bool:
+    return not _foreground_technosphere_missing_providers(inventory, process_ids)
+
+
+def _foreground_has_technosphere_inputs(
+    inventory: list[dict[str, Any]], process_ids: list[str]
+) -> bool:
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    allowed = set(process_ids)
+    for item in inventory:
+        if item["entity_type"] != "Process" or item["id"] not in allowed:
+            continue
+        for exchange in item["data"].get("exchanges", []):
+            if isinstance(exchange, dict) and _is_technosphere_input(
+                exchange, foreground_flow_ids
+            ):
+                return True
+    return False
+
+
+def _amounts_match(stored: object, expected: object) -> bool:
+    if isinstance(stored, bool) or isinstance(expected, bool):
+        return False
+    if not isinstance(stored, (int, float)) or not isinstance(expected, (int, float)):
+        return stored == expected
+    return abs(float(stored) - float(expected)) <= 1e-9 * max(
+        1.0, abs(float(stored)), abs(float(expected))
+    )
+
+
+def _process_type_label(process: object) -> str | None:
+    process_type = getattr(process, "process_type", None)
+    if process_type is None:
+        return None
+    return getattr(process_type, "value", str(process_type))
+
+
+def _read_saved_process(
+    client: OpenLcaClient, process_id: str
+) -> olca_schema.Process:
+    saved = client.get(olca_schema.Process, process_id)
+    if saved is None:
+        raise ValueError(
+            f"foreground Process {process_id} must be imported before ProductSystem"
+        )
+    return saved
+
+
+def _match_saved_input_exchange(
+    saved: olca_schema.Process,
+    *,
+    process_id: str,
+    flow_id: str,
+    provider_id: str,
+    amount: object,
+) -> olca_schema.Exchange:
+    matches: list[olca_schema.Exchange] = []
+    same_flow: list[tuple[olca_schema.Exchange, str | None]] = []
+    for exchange in list(getattr(saved, "exchanges", None) or []):
+        if getattr(exchange, "is_input", None) is not True:
+            continue
+        ex_flow = getattr(getattr(exchange, "flow", None), "id", None)
+        ex_provider = getattr(getattr(exchange, "default_provider", None), "id", None)
+        if ex_flow == flow_id:
+            same_flow.append((exchange, ex_provider))
+        if ex_flow != flow_id or ex_provider != provider_id:
+            continue
+        matches.append(exchange)
+    # Amount is only a tie-breaker: import may convert units (e.g. kg*km -> t*km),
+    # so the stored amount can legitimately differ from the source JSON.
+    if len(matches) > 1:
+        narrowed = [
+            ex for ex in matches if _amounts_match(getattr(ex, "amount", None), amount)
+        ]
+        if narrowed:
+            matches = narrowed
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        if same_flow:
+            stored = sorted({stored_provider for _, stored_provider in same_flow})
+            raise ValueError(
+                f"Process {process_id} 已导入的交换与 LCI 技术输入不匹配："
+                f"flow={flow_id} 期望 defaultProvider={provider_id}，"
+                f"数据库中为 stored provider={stored!r}。"
+                "这通常是导入顺序导致 openLCA 静默丢弃 defaultProvider，"
+                "而非 LCI 内容缺少该输入；请 reconcile 后重试 import 或检查 provider 修复日志。"
+            )
+        raise ValueError(
+            f"no imported exchange on Process {process_id} matches technosphere "
+            f"input flow={flow_id} provider={provider_id} amount={amount!r}"
+        )
+    raise ValueError(
+        f"ambiguous imported exchanges on Process {process_id} for "
+        f"flow={flow_id} provider={provider_id} amount={amount!r}"
+    )
+
+
+def _match_saved_output_exchange(
+    saved: olca_schema.Process,
+    *,
+    process_id: str,
+    flow_id: str,
+    amount: object,
+) -> olca_schema.Exchange:
+    matches: list[olca_schema.Exchange] = []
+    for exchange in list(getattr(saved, "exchanges", None) or []):
+        if getattr(exchange, "is_quantitative_reference", None) is not True:
+            continue
+        ex_flow = getattr(getattr(exchange, "flow", None), "id", None)
+        if ex_flow != flow_id:
+            continue
+        if amount is not None and not _amounts_match(
+            getattr(exchange, "amount", None), amount
+        ):
+            continue
+        matches.append(exchange)
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise ValueError(
+            f"no quantitative-reference output on Process {process_id} "
+            f"for flow={flow_id}"
+        )
+    raise ValueError(
+        f"ambiguous quantitative-reference outputs on Process {process_id} "
+        f"for flow={flow_id}"
+    )
+
+
+def _provider_types_for_ids(
+    client: OpenLcaClient, provider_ids: set[str]
+) -> dict[str, str | None]:
+    types: dict[str, str | None] = {}
+    for provider_id in sorted(provider_ids):
+        try:
+            provider = client.get(olca_schema.Process, provider_id)
+        except Exception as exc:
+            raise ValueError(f"cannot read provider Process {provider_id}: {exc}") from exc
+        if provider is None:
+            raise ValueError(f"provider Process {provider_id} was not found in database")
+        types[provider_id] = _process_type_label(provider)
+    return types
+
+
+def _unit_process_providers(provider_types: dict[str, str | None]) -> list[str]:
+    return sorted(
+        provider_id
+        for provider_id, label in provider_types.items()
+        if label == olca_schema.ProcessType.UNIT_PROCESS.value
+    )
+
+
+def _build_explicit_product_system(
+    client: OpenLcaClient,
+    entity: olca_schema.ProductSystem,
+    source_data: dict[str, Any],
+    inventory: list[dict[str, Any]],
+    *,
+    target_category: str,
+) -> tuple[olca_schema.ProductSystem, dict[str, Any]]:
+    repair_errors = _repair_foreground_process_providers(
+        client, inventory, target_category
+    )
+    if repair_errors:
+        raise ValueError("; ".join(repair_errors))
+    ref_process = source_data.get("refProcess") or {}
+    ref_process_id = ref_process.get("@id") if isinstance(ref_process, dict) else None
+    if not isinstance(ref_process_id, str):
+        raise ValueError("ProductSystem requires refProcess for explicit linking")
+    if _foreground_process_data(inventory, ref_process_id) is None:
+        raise ValueError(f"refProcess {ref_process_id} not found in LCI inventory")
+
+    expected_raw = source_data.get("expectedProcessIds") or []
+    expected_ids = [
+        process_id for process_id in expected_raw if isinstance(process_id, str)
+    ]
+    if not expected_ids:
+        raise ValueError("ProductSystem expectedProcessIds must be non-empty")
+
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    process_refs: dict[str, olca_schema.Ref] = {}
+    links: list[olca_schema.ProcessLink] = []
+    ref_exchange: olca_schema.Exchange | None = None
+    unlinked_inputs = _collect_unlinked_inputs(inventory, expected_ids)
+
+    for item in inventory:
+        if item["entity_type"] != "Process" or item["id"] not in set(expected_ids):
+            continue
+        process_refs[item["id"]] = olca_schema.Ref(id=item["id"], name=item["name"])
+        saved_process = _read_saved_process(client, item["id"])
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict):
+                continue
+            if exchange.get("isInput") is not True:
+                if (
+                    item["id"] == ref_process_id
+                    and exchange.get("isQuantitativeReference") is True
+                ):
+                    flow = exchange.get("flow") or {}
+                    flow_id = flow.get("@id")
+                    saved_out = _match_saved_output_exchange(
+                        saved_process,
+                        process_id=item["id"],
+                        flow_id=flow_id,
+                        amount=exchange.get("amount", 1.0),
+                    )
+                    internal_id = getattr(saved_out, "internal_id", None)
+                    if internal_id is None:
+                        raise ValueError(
+                            f"quantitative-reference on {item['id']} lacks internal_id"
+                        )
+                    ref_exchange = olca_schema.Exchange(
+                        internal_id=internal_id,
+                        flow=olca_schema.Ref(
+                            id=flow_id,
+                            name=flow.get("name"),
+                        ),
+                        is_input=False,
+                        amount=exchange.get("amount", 1.0),
+                        flow_property=getattr(saved_out, "flow_property", None),
+                        unit=getattr(saved_out, "unit", None),
+                    )
+                continue
+            if not _is_technosphere_input(exchange, foreground_flow_ids):
+                continue
+            flow = exchange.get("flow") or {}
+            flow_id = flow.get("@id")
+            provider = exchange.get("defaultProvider") or {}
+            provider_id = provider.get("@id")
+            if not isinstance(flow_id, str) or not flow_id:
+                raise ValueError(f"technosphere input on {item['id']} lacks flow @id")
+            if not isinstance(provider_id, str) or not provider_id:
+                raise ValueError(
+                    f"technosphere input flow {flow_id} on {item['id']} "
+                    "requires defaultProvider"
+                )
+            amount = exchange.get("amount", 1.0)
+            saved_in = _match_saved_input_exchange(
+                saved_process,
+                process_id=item["id"],
+                flow_id=flow_id,
+                provider_id=provider_id,
+                amount=amount,
+            )
+            internal_id = getattr(saved_in, "internal_id", None)
+            if internal_id is None:
+                raise ValueError(
+                    f"matched input on {item['id']} flow={flow_id} lacks internal_id"
+                )
+            if provider_id not in process_refs:
+                process_refs[provider_id] = olca_schema.Ref(
+                    id=provider_id,
+                    name=provider.get("name"),
+                )
+            links.append(
+                olca_schema.ProcessLink(
+                    provider=olca_schema.Ref(id=provider_id),
+                    process=olca_schema.Ref(id=item["id"]),
+                    flow=olca_schema.Ref(id=flow_id, name=flow.get("name")),
+                    exchange=olca_schema.ExchangeRef(internal_id=internal_id),
+                )
+            )
+
+    if ref_exchange is None:
+        raise ValueError("refProcess has no quantitative reference output exchange")
+
+    provider_ids = {link.provider.id for link in links if link.provider and link.provider.id}
+    provider_types = _provider_types_for_ids(client, provider_ids)
+
+    entity.processes = list(process_refs.values())
+    entity.process_links = links
+    entity.ref_process = olca_schema.Ref(id=ref_process_id)
+    entity.ref_exchange = ref_exchange
+    if entity.target_amount is None and source_data.get("targetAmount") is not None:
+        entity.target_amount = source_data["targetAmount"]
+    if (
+        entity.target_flow_property is None
+        and getattr(ref_exchange, "flow_property", None) is not None
+    ):
+        entity.target_flow_property = ref_exchange.flow_property
+    if entity.target_unit is None and getattr(ref_exchange, "unit", None) is not None:
+        entity.target_unit = ref_exchange.unit
+    meta = {
+        "unlinked_inputs": unlinked_inputs,
+        "provider_types": provider_types,
+    }
+    return entity, meta
 
 
 def _descriptor_record(entity_type: str, descriptor: object) -> dict[str, Any]:
@@ -779,6 +1494,16 @@ def _inspect_import(
             f"Failed to inspect active openLCA database at {endpoint}: {exc}"
         ) from exc
 
+    background_process_ids = {
+        str(record["id"])
+        for record in database_records
+        if record.get("entity_type") == "Process" and record.get("id")
+    }
+    reference_errors = _preflight_foreground_provider_reference_errors(
+        inventory,
+        background_process_ids=background_process_ids,
+    )
+
     planned_entities = [
         {
             "path": item["path"],
@@ -803,7 +1528,20 @@ def _inspect_import(
     if owns_client:
         close_ipc_client(ipc_client)
     unit_conversions, unit_errors = _transport_unit_pass(inventory, provider_checks)
-    provider_errors = [*provider_errors, *unit_errors]
+    provider_errors = [*provider_errors, *unit_errors, *reference_errors]
+    unlinked_warnings: list[str] = []
+    for item in inventory:
+        if item["entity_type"] != "ProductSystem":
+            continue
+        expected = item["data"].get("expectedProcessIds") or []
+        expected_ids = [
+            process_id for process_id in expected if isinstance(process_id, str)
+        ]
+        for entry in _collect_unlinked_inputs(inventory, expected_ids):
+            unlinked_warnings.append(
+                f"{entry['path']}: exchanges[{entry['exchange_index']}] "
+                f"elementary input flow={entry.get('flow_id')} has no defaultProvider"
+            )
     lci_fingerprint = stable_hash(planned_entities)
     target_scope_fingerprint = stable_hash(overwrite_scope)
     background_provider_fingerprint = stable_hash(provider_checks)
@@ -849,7 +1587,10 @@ def _inspect_import(
             },
             "errors": provider_errors,
             "unit_conversions": unit_conversions,
-            "warnings": [c["note"] for c in unit_conversions],
+            "warnings": [
+                *[c["note"] for c in unit_conversions],
+                *unlinked_warnings,
+            ],
             "preflight_hash": preflight_hash,
             "timestamp": utc_now(),
         },
@@ -949,31 +1690,6 @@ def _deserialize_entity(item: dict[str, Any], target_category: str) -> object:
     return entity
 
 
-def _retry_on_read_timeout(callable_fn):
-    last: requests.Timeout | None = None
-    for attempt in range(PRODUCT_SYSTEM_SLOW_RETRIES):
-        try:
-            return callable_fn()
-        except requests.Timeout as exc:
-            last = exc
-            if attempt + 1 >= PRODUCT_SYSTEM_SLOW_RETRIES:
-                raise
-    if last is not None:
-        raise last
-    raise RuntimeError("Product System retry loop exhausted without result")
-
-
-def _load_product_system_with_retries(
-    client: OpenLcaClient, system_id: str
-) -> olca_schema.ProductSystem | None:
-    try:
-        return _retry_on_read_timeout(
-            lambda: client.get(olca_schema.ProductSystem, system_id)
-        )
-    except requests.Timeout:
-        return None
-
-
 def _apply_generated_product_system_fields(
     entity: olca_schema.ProductSystem,
     generated: olca_schema.ProductSystem,
@@ -996,16 +1712,188 @@ def _apply_generated_product_system_fields(
             setattr(entity, field, value)
 
 
+def find_uncertain_leftover_entities(
+    client: OpenLcaClient,
+    inventory: list[dict[str, Any]],
+    target_category: str,
+) -> list[dict[str, Any]]:
+    """When IPC state is uncertain, report DB entities that match planned import ids."""
+    leftovers: list[dict[str, Any]] = []
+    for item in inventory:
+        entity_type = item.get("entity_type")
+        model_type = ENTITY_TYPES.get(str(entity_type))
+        entity_id = str(item.get("id") or "")
+        if model_type is None or not entity_id:
+            continue
+        try:
+            existing = client.get(model_type, entity_id)
+        except Exception:
+            continue
+        if existing is None:
+            continue
+        category = getattr(existing, "category", None)
+        if category and category != target_category and not str(category).startswith(
+            f"{target_category}/"
+        ):
+            continue
+        leftovers.append(
+            {
+                "path": item.get("path"),
+                "entity_type": entity_type,
+                "id": entity_id,
+                "name": item.get("name") or getattr(existing, "name", None),
+                "database_category": category,
+            }
+        )
+    return leftovers
+
+
+def _put_product_system_explicit(
+    client: OpenLcaClient,
+    entity: olca_schema.ProductSystem,
+    source_data: dict[str, Any],
+    inventory: list[dict[str, Any]],
+    *,
+    target_category: str,
+) -> tuple[object, dict[str, Any]]:
+    """Save a Product System with host-built links (no data/create/system)."""
+    if source_data.get("preferDefaultProviders") is not True:
+        raise ValueError("ProductSystem preferDefaultProviders must be true")
+    built, build_meta = _build_explicit_product_system(
+        client, entity, source_data, inventory, target_category=target_category
+    )
+    built.category = target_category
+    ps_read = product_system_read_sec()
+    with ipc_read_scope(ps_read):
+        reference = client.put(built)
+    if reference is None:
+        raise RuntimeError("IPC Server did not return an entity reference")
+    with ipc_read_scope(ps_read):
+        read_back = client.get(olca_schema.ProductSystem, str(getattr(built, "id", "")))
+    if read_back is None:
+        raise RuntimeError(
+            f"IPC Server could not read back ProductSystem {getattr(built, 'id', None)}"
+        )
+    meta = {
+        "linking_mode_applied": "explicit",
+        "linking_mode_declared": "explicit",
+        **build_meta,
+    }
+    return reference, meta
+
+
+def _explicit_link_provider_ids(
+    inventory: list[dict[str, Any]], source_data: dict[str, Any]
+) -> set[str]:
+    expected_ids = [
+        process_id
+        for process_id in (source_data.get("expectedProcessIds") or [])
+        if isinstance(process_id, str)
+    ]
+    foreground_flow_ids = _foreground_flow_ids(inventory)
+    provider_ids: set[str] = set()
+    for item in inventory:
+        if item["entity_type"] != "Process" or item["id"] not in set(expected_ids):
+            continue
+        for exchange in item["data"].get("exchanges", []):
+            if not isinstance(exchange, dict) or not _is_technosphere_input(
+                exchange, foreground_flow_ids
+            ):
+                continue
+            provider_id = _exchange_provider_id(exchange)
+            if provider_id:
+                provider_ids.add(provider_id)
+    return provider_ids
+
+
+def _explicit_link_blocked_by_unit_process_providers(
+    client: OpenLcaClient,
+    inventory: list[dict[str, Any]],
+    source_data: dict[str, Any],
+) -> tuple[bool, list[str], dict[str, str | None]]:
+    provider_ids = _explicit_link_provider_ids(inventory, source_data)
+    if not provider_ids:
+        return False, [], {}
+    provider_types = _provider_types_for_ids(client, provider_ids)
+    unit_ids = _unit_process_providers(provider_types)
+    return bool(unit_ids), unit_ids, provider_types
+
+
 def _put_product_system(
     client: OpenLcaClient,
     entity: olca_schema.ProductSystem,
     source_data: dict[str, Any],
-) -> object:
-    """Create a Product System through openLCA's official auto-linking API."""
-    if source_data.get("linkingMode") != "auto":
-        raise ValueError("ProductSystem linkingMode must be 'auto'")
+    *,
+    inventory: list[dict[str, Any]] | None = None,
+    target_category: str = "",
+) -> tuple[object, dict[str, Any]]:
+    """Create a Product System (explicit put or openLCA auto-linking API)."""
+    linking_mode = source_data.get("linkingMode")
+    if linking_mode not in {"auto", "explicit"}:
+        raise ValueError("ProductSystem linkingMode must be 'auto' or 'explicit'")
     if source_data.get("preferDefaultProviders") is not True:
         raise ValueError("ProductSystem preferDefaultProviders must be true")
+
+    ref_process = source_data.get("refProcess") or {}
+    ref_process_id = ref_process.get("@id") if isinstance(ref_process, dict) else None
+    expected_ids = [
+        process_id
+        for process_id in (source_data.get("expectedProcessIds") or [])
+        if isinstance(process_id, str)
+    ]
+    use_explicit = linking_mode == "explicit"
+    if (
+        linking_mode == "auto"
+        and inventory is not None
+        and expected_ids
+        and _foreground_has_technosphere_inputs(inventory, expected_ids)
+        and _all_foreground_technosphere_have_providers(inventory, expected_ids)
+    ):
+        use_explicit = True
+
+    unit_block_note: str | None = None
+    if use_explicit and inventory is not None:
+        blocked, unit_ids, provider_types = _explicit_link_blocked_by_unit_process_providers(
+            client, inventory, source_data
+        )
+        if blocked:
+            if linking_mode == "explicit":
+                raise ValueError(
+                    "explicit ProductSystem linking cannot use UNIT_PROCESS providers "
+                    f"(truncates supply chain): {unit_ids}"
+                )
+            use_explicit = False
+            unit_block_note = (
+                "auto preferred explicit host linking but UNIT_PROCESS providers "
+                f"would truncate the supply chain: {unit_ids}; "
+                f"provider_types={provider_types}"
+            )
+
+    category = target_category.strip()
+    if category:
+        entity.category = category
+
+    if use_explicit:
+        if inventory is None:
+            raise ValueError("explicit ProductSystem import requires LCI inventory")
+        if not category:
+            raise ValueError("ProductSystem import requires target_category")
+        reference, meta = _put_product_system_explicit(
+            client,
+            entity,
+            source_data,
+            inventory,
+            target_category=category,
+        )
+        declared = str(source_data.get("linkingMode") or "auto")
+        meta["linking_mode_declared"] = declared
+        if declared == "auto":
+            meta["linking_mode_applied"] = "explicit"
+            meta["linking_mode_note"] = (
+                "auto requested but all technosphere inputs have defaultProvider; "
+                "used explicit host linking to avoid data/create/system hang risk"
+            )
+        return reference, meta
 
     ref_process = getattr(entity, "ref_process", None)
     if ref_process is None or not getattr(ref_process, "id", None):
@@ -1030,42 +1918,29 @@ def _put_product_system(
     generated_id: str | None = None
     generated: olca_schema.ProductSystem | None = None
 
-    try:
-        generated_ref = _retry_on_read_timeout(
-            lambda: client.create_product_system(ref_process, config)
+    # No automatic retry: a read timeout on create/readback propagates at once so the
+    # caller's unresponsive probe can mark openLCA down instead of waiting again.
+    ps_read = product_system_read_sec()
+    with ipc_read_scope(ps_read):
+        generated_ref = client.create_product_system(ref_process, config)
+    generated_id = getattr(generated_ref, "id", None)
+    if not generated_id:
+        raise RuntimeError("IPC Server did not create an auto-linked ProductSystem")
+    with ipc_read_scope(ps_read):
+        generated = client.get(olca_schema.ProductSystem, generated_id)
+    if generated is None:
+        raise RuntimeError(
+            f"IPC Server could not read generated ProductSystem {generated_id}"
         )
-        generated_id = getattr(generated_ref, "id", None)
-    except requests.Timeout:
-        generated = _load_product_system_with_retries(client, declared_id)
-        if generated is None or not list(getattr(generated, "processes", None) or []):
-            raise
-        generated_id = declared_id
-    else:
-        if not generated_id:
-            raise RuntimeError("IPC Server did not create an auto-linked ProductSystem")
-        try:
-            generated = _retry_on_read_timeout(
-                lambda: client.get(olca_schema.ProductSystem, generated_id)
-            )
-        except requests.Timeout:
-            generated = _load_product_system_with_retries(client, declared_id)
-            if generated is not None:
-                generated_id = declared_id
-        if generated is None:
-            recovered = _load_product_system_with_retries(client, declared_id)
-            if recovered is not None:
-                generated = recovered
-                generated_id = declared_id
-            else:
-                raise RuntimeError(
-                    f"IPC Server could not read generated ProductSystem {generated_id}"
-                )
 
     assert generated is not None
     _apply_generated_product_system_fields(entity, generated)
+    if category:
+        entity.category = category
 
     try:
-        reference = _retry_on_read_timeout(lambda: client.put(entity))
+        with ipc_read_scope(ps_read):
+            reference = client.put(entity)
         if reference is None:
             raise RuntimeError("IPC Server did not return an entity reference")
     except Exception as exc:
@@ -1073,6 +1948,12 @@ def _put_product_system(
             try:
                 client.delete(generated_ref)
             except Exception as cleanup_exc:
+                if category and generated is not None:
+                    try:
+                        generated.category = category
+                        client.put(generated)
+                    except Exception:
+                        pass
                 raise RuntimeError(
                     f"{exc}; additionally could not delete temporary ProductSystem "
                     f"{generated_id}: {cleanup_exc}"
@@ -1088,7 +1969,13 @@ def _put_product_system(
                 f"{generated_id}: {exc}"
             ) from exc
 
-    return reference
+    auto_meta: dict[str, Any] = {
+        "linking_mode_applied": "auto",
+        "linking_mode_declared": linking_mode,
+    }
+    if unit_block_note:
+        auto_meta["linking_mode_note"] = unit_block_note
+    return reference, auto_meta
 
 
 def _execute_import(
@@ -1100,6 +1987,11 @@ def _execute_import(
     on_progress: (
         Callable[[list[dict[str, Any]], int, int, int, list[str]], None] | None
     ) = None,
+    *,
+    host: str | None = None,
+    port: int | None = None,
+    resume: bool = False,
+    entity_plan: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], int, int, int, list[str]]:
     records: list[dict[str, Any]] = []
     imported = 0
@@ -1107,65 +1999,117 @@ def _execute_import(
     deleted = 0
     errors: list[str] = []
     output = emit or (lambda _message: None)
+    plan = list(entity_plan or build_entity_plan(inventory))
+    plan_lookup = _plan_by_id(plan)
+    providers_repaired = False
 
-    for entity_type in ENTITY_DELETE_ORDER:
-        for current_type, descriptor in target_descriptors:
-            if current_type != entity_type:
-                continue
-            entity_id = getattr(descriptor, "id", None)
-            entity_name = getattr(descriptor, "name", None)
-            transport_failed = False
-            try:
-                reference = descriptor.to_ref()
-                client.delete(reference)
-                deleted += 1
-                output(f"  [已删除] {entity_type}: {entity_name} (UUID: {entity_id})")
-                records.append(
-                    {
-                        "path": "openlca://active-database",
-                        "entity_type": entity_type,
-                        "id": entity_id,
-                        "name": entity_name,
-                        "action": "delete",
-                        "status": "success",
-                        "error": None,
-                    }
-                )
-            except Exception as exc:
-                failed += 1
-                transport_failed = is_transport_error(exc)
-                message = f"delete {entity_type} {entity_id}: {exc}"
-                errors.append(message)
-                output(f"  [错误] {message}")
-                records.append(
-                    {
-                        "path": "openlca://active-database",
-                        "entity_type": entity_type,
-                        "id": entity_id,
-                        "name": entity_name,
-                        "action": "delete",
-                        "status": "failed",
-                        "error": str(exc),
-                    }
-                )
+    if not resume:
+
+        def progress(*extra: object) -> None:
             if on_progress is not None:
                 on_progress(records, imported, failed, deleted, errors)
-            if transport_failed:
-                return records, imported, failed, deleted, errors
+
+        for entity_type in ENTITY_DELETE_ORDER:
+            for current_type, descriptor in target_descriptors:
+                if current_type != entity_type:
+                    continue
+                entity_id = getattr(descriptor, "id", None)
+                entity_name = getattr(descriptor, "name", None)
+                transport_failed = False
+                try:
+                    reference = descriptor.to_ref()
+                    client.delete(reference)
+                    deleted += 1
+                    output(
+                        f"  [已删除] {entity_type}: {entity_name} (UUID: {entity_id})"
+                    )
+                    records.append(
+                        {
+                            "path": "openlca://active-database",
+                            "entity_type": entity_type,
+                            "id": entity_id,
+                            "name": entity_name,
+                            "action": "delete",
+                            "status": "success",
+                            "error": None,
+                        }
+                    )
+                except Exception as exc:
+                    failed += 1
+                    transport_failed = is_transport_error(exc)
+                    message = f"delete {entity_type} {entity_id}: {exc}"
+                    errors.append(message)
+                    output(f"  [错误] {message}")
+                    if transport_failed and host is not None and port is not None:
+                        on_ipc_transport_failure(
+                            host,
+                            port,
+                            exc,
+                            operation="delete",
+                            entity={
+                                "path": "openlca://active-database",
+                                "entity_type": entity_type,
+                                "id": entity_id,
+                                "name": entity_name,
+                            },
+                        )
+                    records.append(
+                        {
+                            "path": "openlca://active-database",
+                            "entity_type": entity_type,
+                            "id": entity_id,
+                            "name": entity_name,
+                            "action": "delete",
+                            "status": "failed",
+                            "error": str(exc),
+                        }
+                    )
+                progress()
+                if transport_failed:
+                    return records, imported, failed, deleted, errors
 
     for item in inventory:
+        plan_entry = plan_lookup.get(item["id"])
+        if plan_entry and plan_entry.get("status") == "done":
+            output(f"跳过已完成实体: {item['path']} ({item['id']})")
+            if on_progress is not None:
+                on_progress(records, imported, failed, deleted, errors)
+            continue
+        if item["entity_type"] == "ProductSystem" and not providers_repaired:
+            repair_errors = _repair_foreground_process_providers(
+                client, inventory, target_category
+            )
+            providers_repaired = True
+            if repair_errors:
+                failed += len(repair_errors)
+                errors.extend(repair_errors)
+                for message in repair_errors:
+                    output(f"[错误] {message}")
+                if on_progress is not None:
+                    on_progress(records, imported, failed, deleted, errors)
+                return records, imported, failed, deleted, errors
+
         output(f"正在处理文件: {item['path']}...")
         transport_failed = False
+        linking_meta: dict[str, Any] = {}
         try:
             entity = _deserialize_entity(item, target_category)
             if isinstance(entity, olca_schema.ProductSystem):
-                reference = _put_product_system(client, entity, item["data"])
+                reference, linking_meta = _put_product_system(
+                    client,
+                    entity,
+                    item["data"],
+                    inventory=inventory,
+                    target_category=target_category,
+                )
             else:
                 reference = client.put(entity)
             if reference is None:
                 raise RuntimeError("IPC Server did not return an entity reference")
             imported += 1
             returned_id = getattr(reference, "id", None) or item["id"]
+            if plan_entry is not None:
+                plan_entry["status"] = "done"
             output(
                 f"[成功] 成功导入 {item['entity_type']}: "
                 f"'{item['name']}' (ID: {returned_id})"
@@ -1176,23 +2120,44 @@ def _execute_import(
                     "entity_type": item["entity_type"],
                     "id": returned_id,
                     "name": item["name"],
+                    "content_hash": item.get("sha256", ""),
+                    "entity_status": "done",
                     "action": "create_or_update",
                     "status": "success",
                     "error": None,
+                    **linking_meta,
                 }
             )
         except Exception as exc:
             failed += 1
-            transport_failed = isinstance(exc, requests.ConnectionError)
+            transport_failed = is_transport_error(exc)
+            entity_status = "uncertain" if transport_failed else "failed"
+            if plan_entry is not None:
+                plan_entry["status"] = entity_status
             message = f"import {item['path']}: {exc}"
             errors.append(message)
             output(f"[错误] {message}")
+            if transport_failed and host is not None and port is not None:
+                on_ipc_transport_failure(
+                    host,
+                    port,
+                    exc,
+                    operation="import",
+                    entity={
+                        "path": item["path"],
+                        "entity_type": item["entity_type"],
+                        "id": item["id"],
+                        "name": item["name"],
+                    },
+                )
             records.append(
                 {
                     "path": item["path"],
                     "entity_type": item["entity_type"],
                     "id": item["id"],
                     "name": item["name"],
+                    "content_hash": item.get("sha256", ""),
+                    "entity_status": entity_status,
                     "action": "create_or_update",
                     "status": "failed",
                     "error": str(exc),
@@ -1202,6 +2167,17 @@ def _execute_import(
             on_progress(records, imported, failed, deleted, errors)
         if transport_failed:
             return records, imported, failed, deleted, errors
+    if not providers_repaired and any(
+        item["entity_type"] == "Process" for item in inventory
+    ):
+        repair_errors = _repair_foreground_process_providers(
+            client, inventory, target_category
+        )
+        if repair_errors:
+            failed += len(repair_errors)
+            errors.extend(repair_errors)
+            for message in repair_errors:
+                output(f"[错误] {message}")
     return records, imported, failed, deleted, errors
 
 
@@ -1547,14 +2523,28 @@ def model_graph_from_product_system(
     product_system: object,
     endpoint: str,
     expected_process_ids: list[str] | None = None,
+    *,
+    target_category: str = "",
+    process_categories: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     """Convert an openLCA ProductSystem into a structured graph with link checks."""
     process_refs = list(getattr(product_system, "processes", None) or [])
     process_links = list(getattr(product_system, "process_links", None) or [])
-    nodes = [
-        {"id": getattr(process, "id", None), "name": getattr(process, "name", None)}
-        for process in process_refs
-    ]
+    category_scope = target_category.strip()
+    categories = process_categories or {}
+    nodes = []
+    for process in process_refs:
+        process_id = getattr(process, "id", None)
+        category = categories.get(str(process_id or ""))
+        node = {
+            "id": process_id,
+            "name": getattr(process, "name", None),
+        }
+        if category is not None or process_id in categories:
+            node["category"] = category
+            node["outside_project"] = category_outside_project(category, category_scope)
+            node["project_scope"] = category_project_scope(category, category_scope)
+        nodes.append(node)
     node_ids = {node["id"] for node in nodes if node["id"]}
     connected_ids: set[str] = set()
     edges: list[dict[str, Any]] = []
@@ -1652,11 +2642,20 @@ def get_model_graph(
     product_system: str,
     client: OpenLcaClient | None = None,
     expected_process_ids: list[str] | None = None,
+    target_category: str = "",
 ) -> dict[str, Any]:
     endpoint = build_endpoint(host, port)
     owns_client = client is None
     ipc_client = client or create_ipc_client(host, port)
     try:
+        process_categories: dict[str, str | None] = {}
+        if hasattr(ipc_client, "get_descriptors"):
+            for descriptor in list(ipc_client.get_descriptors(olca_schema.Process) or []):
+                descriptor_id = getattr(descriptor, "id", None)
+                if isinstance(descriptor_id, str) and descriptor_id:
+                    process_categories[descriptor_id] = getattr(
+                        descriptor, "category", None
+                    )
         system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
         if system is None:
             result = {
@@ -1679,7 +2678,10 @@ def get_model_graph(
             system,
             endpoint,
             expected_process_ids=expected_process_ids,
+            target_category=target_category,
+            process_categories=process_categories,
         )
+        result["target_category"] = target_category.strip() or None
         return result
     finally:
         if owns_client:

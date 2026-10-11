@@ -70,7 +70,7 @@ class _FakeRuntime:
 
 def test_read_activity_offsets_and_partial_lines(tmp_path: Path) -> None:
     path = activity_log_path(tmp_path, "r1")
-    assert read_activity(path, 0) == {"events": [], "offset": 0, "reset": False}
+    assert read_activity(path, 0) == {"events": [], "offsets": [], "offset": 0, "reset": False}
     append_activity(path, {"kind": "text", "summary": "a"})
     first = read_activity(path, 0)
     assert [e["summary"] for e in first["events"]] == ["a"]
@@ -174,3 +174,81 @@ def test_activity_service_and_route(tmp_path: Path, monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["events"][0]["tool"] == "read"
     assert client.get("/api/workflow/activity", params={"run_id": "../etc"}).status_code == 400
+
+
+def test_read_activity_per_event_offsets(tmp_path: Path) -> None:
+    path = activity_log_path(tmp_path, "run1")
+    for i in range(3):
+        append_activity(path, {"kind": "text", "n": i})
+    lines = path.read_bytes().splitlines(keepends=True)
+    body = read_activity(path, 0)
+    assert body["offsets"] == [len(lines[0]), len(lines[0]) + len(lines[1]), body["offset"]]
+    resumed = read_activity(path, body["offsets"][0])
+    assert [e["n"] for e in resumed["events"]] == [1, 2]
+    assert resumed["offsets"] == body["offsets"][1:]
+
+
+class _FakeRequest:
+    def __init__(self, headers: dict[str, str], loops: int = 1) -> None:
+        self.headers = headers
+        self._loops = loops
+
+    async def is_disconnected(self) -> bool:
+        self._loops -= 1
+        return self._loops < 0
+
+
+def _collect_sse(app_module, headers: dict[str, str], offset: int = 0) -> list[tuple[int, int]]:
+    import asyncio
+
+    async def run() -> list[str]:
+        resp = await app_module.workflow_activity_stream(_FakeRequest(headers), run_id="run1", offset=offset)
+        return [c if isinstance(c, str) else c.decode() async for c in resp.body_iterator]
+
+    out = []
+    for chunk in asyncio.run(run()):
+        if chunk.startswith("id: "):
+            event_id = int(chunk.split("\n")[0][4:])
+            data = json.loads(chunk.split("data: ", 1)[1])
+            out.append((event_id, data["n"]))
+    return out
+
+
+def test_activity_stream_unique_ids_and_resume(tmp_path: Path, monkeypatch) -> None:
+    import backend.api.app as app_module
+
+    write_manifest(tmp_path / "workspace", status="running", current_stage="01", status_reason="", run_id="run1")
+    path = activity_log_path(tmp_path, "run1")
+    for i in range(4):
+        append_activity(path, {"kind": "text", "n": i})
+    monkeypatch.setattr(app_module, "_workflow", WorkflowService(tmp_path))
+
+    async def no_sleep(_s: float) -> None:
+        return None
+
+    monkeypatch.setattr(app_module.asyncio, "sleep", no_sleep)
+    events = _collect_sse(app_module, {})
+    ids = [i for i, _ in events]
+    assert [n for _, n in events] == [0, 1, 2, 3]
+    assert ids == sorted(set(ids)) and ids[-1] == path.stat().st_size
+    # Last-Event-ID resumes right after that event (and beats ?offset=)
+    assert [n for _, n in _collect_sse(app_module, {"last-event-id": str(ids[1])}, offset=0)] == [2, 3]
+    assert [n for _, n in _collect_sse(app_module, {}, offset=ids[2])] == [3]
+
+
+def test_resolve_run_id_prefix(tmp_path: Path) -> None:
+    import pytest
+
+    from backend.core.agents.injection import resolve_run_id
+
+    base = tmp_path / ".local" / "runs"
+    for name in ("6db89e857ee5", "6db8aaaa", "abc123"):
+        (base / name).mkdir(parents=True)
+    assert resolve_run_id(tmp_path, "6db89e85") == "6db89e857ee5"
+    assert resolve_run_id(tmp_path, "abc123") == "abc123"
+    with pytest.raises(ValueError, match="ambiguous.*6db89e857ee5, 6db8aaaa"):
+        resolve_run_id(tmp_path, "6db8")
+    with pytest.raises(ValueError, match="no run matches"):
+        resolve_run_id(tmp_path, "zzz")
+    with pytest.raises(ValueError, match="invalid"):
+        resolve_run_id(tmp_path, "../x")

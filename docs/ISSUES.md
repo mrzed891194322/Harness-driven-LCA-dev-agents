@@ -33,6 +33,11 @@
 | 25 | 🔴 | 04 发现上游 LCI 问题时无法退回 03：未写 `calculation-plan.json`，`get_rework_status` 返回 eligible=false | 返工判定逻辑 / `control_openlca` | 返工资格不应依赖下游计划文件；支持跨阶段回退并带原因 |
 | 26 | 🔴 | 01 reviewer 读取 `workspace/records/handoffs` 和 evidence 下 `manifest.json` 时路径不存在（2 个工具报错） | 01 提示词 / 工作区初始化 | 预建目录或在提示中说明首阶段无历史 |
 | 27 | 🔴 | worker 读取范围过宽：会去读 `docs/`（如 `docs/dev/history/.../bottle_filling_case1.json`）。要求只能读 `workspace/` 和 `harness/knowledge/`，其余 harness 内容由宿主提前注入 | 当前白名单只限工具名不限路径；`read`/`bash` 无路径约束 | 权限规则加读写路径范围，由 Pi 拦截扩展执行；bash 可绕过，reviewer 不给 bash |
+| 28 | 🟢 | `import_lci` 共享 1800s 会话预算，末次 Product System 请求读超时塌缩到亚秒（budget collapse）；超时后 IPC 挂死、预清理 openLCA 无超时 | `connection._TimeoutHTTPAdapter`、`guard.endpoint_guard`、`cleanup_service` | 分支 `refactor/p5-openlca-timeouts`：按请求读超时 + 预算不足 fail-fast；超时后健康探测、`openlca_unresponsive` 事件与诊断；清理同步超时；不确定状态下拒绝同名实体导入 |
+| 29 | 🟢 | `partial_failure` 后同阶段重试被 `previous import requires reconciliation` 挡住，attempt 2/3 无法续导 Product System（`775710e3`） | `operations.import_request`、`workflow._execute_import` | 分支 `refactor/p5-import-resume`：`entity_plan` + `reconcile_import` / `resume_import` / `import_lci(resume_operation_id=...)`；显式 ProductSystem put 规避 `create/system` 挂死 |
+| 30 | 🟢 | `endpoint_guard` 写入的 `.uncertain` 标记在 `import_request` 内被当成「上次超时遗留」，同 run 已成功导入的 UUID 触发 `uncertain_ipc_leftover_entities` / `openlca_unresponsive`（`9f97683e` attempt 4）；`resume_import` 又因 `lci_content` 变化报 `resume_identity_mismatch` | `guard.py`、`operations.import_request` / `resume_import_request`、`cleanup.py` | 分支 `refactor/p5-import-identity`：区分 guard 自有标记与真实遗留；同 run journal 实体可覆盖；scope/content 分拆 resume；预清理按 UUID 删 in-category 实体 |
+| 31 | 🟢 | 预清理 openLCA 卡在 `endpoint busy: lock wait exceeded deadline`（`3d87884` 首轮）：`whole-lca` 先清 workspace 再清 openLCA，按 UUID 删除时 LCI/journal 已被删；清理持有 IPC 锁期间后端诊断等锁 5s 后误报「无法连接 / openLCA 未运行」；UUID 逐个 `get` 读超时被静默跳过、无重试 | `workspace_clean.CLEAN_PRESETS`、`diagnostics.check_openlca`、`cleanup.py` | 分支 `refactor/p5-cleanup-lock`：preset 改为 knowledge→openlca→workspace；诊断非阻塞探锁，被占用时报 `busy`「IPC 正被清理/导入占用」并带 holder（操作/PID/时长），状态页显示「占用中」；清理只读查询读超时→健康探测→重试 1 次，仍失败则中止并给出明确原因（不删除） |
+| 32 | 🟢 | run `7b272327`：04 attempt 1 `import_lci` partial_failure，4 个 ProductSystem 在 explicit 连接阶段失败（no imported exchange）——前景 Process 按路径字母序导入，`c1-bottle-filling` 早于 `c1-plastic-components`，openLCA 静默丢弃尚未存在的 defaultProvider；03 attempt 2 试探性 `submit(process-mapping)` 不带 data 想原位重验被拒，随后重传 34 条 payload 时被 16:18 后端重启中断（run 终止的直接原因是重启，不是拒绝） | `workflow.load_lci_inventory` / `_execute_import`、`spec_mcp.submit`、openLCA 读工具 | 分支 `refactor/p5-cleanup-lock`：Process 拓扑排序 + 导入后 provider 修复；预检校验前景 provider 引用；`submit` 支持 `path`；读工具返回 `outside_project` + `project_scope`（project/background/uncategorized）；宿主 ProductSystem 统一写入 `target_category` |
 | 18 | 🟢 P1 `5b89231` | `test_plan_form` 失败（解析 `main_plan.md` 的 CML 条件） | `src/tests` | 与 plan 文件内容有关 |
 
 ## 前端（GUI）
@@ -53,3 +58,18 @@
 
 运行 `d18bc463`（2026-10-10）中，案例 3 主情景是 764.47 kg CO2-Eq，原文是 686。运输单位修正之前，反推的结果约 739，已经偏高 7.7%，所以不是单位换算的 bug。可能的原因有：背景数据库版本（这里用的是 ecoinvent 3.11）、provider 的选取、LCIA 方法版本。下一步按贡献逐段拆开，和原文 Figure 23 对比（运输段原文是 474 kg）。这件事不阻塞分支合并。
 
+## P5 Spec 三通道（长期关注：harness 核心问题）
+
+分支 `refactor/p5-spec-channels`，设计见 `docs/REFACTOR_PLAN.md` §8B。自动测试通过，但还没在真实 LCA 里跑过。要持续跟踪的问题：
+
+- **bash 绕过写保护**：path guard 只拦 write/edit。agent 用 bash 重定向（`cat > workspace/outputs/...`）还是能写正式路径。目前的兜底是：spec_mcp 用哈希把被改过的交付物标成 stale，`submit_handoff(ok)` 会被拒，编排器交卷后的检查也会拦下。要彻底堵住，需要在 bash 策略里解析重定向目标，或者把正式路径设成只读挂载。
+- **writer=agent 的交付物**：03 的 LCI 目录、04 报告仍由 agent 直接写在正式位置，只做原位验收，因为它们是目录或多文件，并且由 MCP 工具生成。以后可以考虑改成先写草稿目录，由 spec_mcp 整体搬过去。
+- **03 单位组检查依赖 provider 记录**：必须先在当前模型指纹上调用 `validate_providers_batch`，否则只能给出修法提示。以后可以让 spec_mcp 在 submit 时自己调用 openLCA 做验证，不再依赖 agent 攒证据。
+- **spec_mcp 和 core 各有一份 spec 解析**：spec_mcp 不能 import core，所以 `spec_view.py` 是 core `view.py` 的镜像，靠测试保证两边输出一致。将来随 lca-tools 自包含项目一起收敛。
+- **HMAC 密钥**：`.local/run/spec_mcp.key` 不在任何 agent 的读取范围内，但 bash 仍有可能读到。要确认 reviewer 和 worker 的 bash 策略不能访问 `.local/`。
+- **旧运行的续跑**：spec 文件哈希和 `get_spec` 视图都进了指纹，P5 之前开始的运行不能在 P5 代码上续跑，只能重开。
+
+
+## database_identity_verified 一直为 false
+
+没有设置 `OPENLCA_DATABASE_NAME` 时，`database_identity_verified` 一直是 false，不影响运行。之后要么在 `.env` 里写明数据库名，要么让诊断里明确提示这一项。

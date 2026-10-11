@@ -7,8 +7,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from backend.core.workflow.execution.handoff import read_handoff
-from harness.tools.mcp.lca_artifacts.main import submit_handoff
 from harness.tools.shared.lca_artifacts import checks
 from harness.tools.shared.lca_artifacts.store import (
     Context,
@@ -126,37 +124,6 @@ class ContextFileTests(unittest.TestCase):
     def test_flag_without_path_is_host_error(self) -> None:
         with self.assertRaisesRegex(HostContextError, "host_context_missing"):
             context_file_from_argv(["prog", "--context-file"])
-
-    def test_submit_handoff_writes_valid_handoff(self) -> None:
-        path = _write_context(
-            self.root / "ctx.json",
-            stage="02-inventory-extraction",
-            attempt=1,
-            role="executor",
-            assignment="02-inventory-extraction.executor",
-        )
-        bind_context_argv(["prog", "--context-file", str(path)])
-        result = submit_handoff(
-            status="failed",
-            status_reason="资料缺口已记录",
-            artifacts=[],
-        )
-        self.assertEqual(result.get("status"), "success")
-        workspace = Path(json.loads(path.read_text())["workspace"])
-        handoff_path = (
-            workspace
-            / "records"
-            / "handoffs"
-            / "02-inventory-extraction-executor-1.json"
-        )
-        payload = read_handoff(
-            handoff_path,
-            role="executor",
-            stage="02-inventory-extraction",
-            attempt=1,
-        )
-        self.assertEqual(payload["status"], "failed")
-        self.assertEqual(payload["rework_scope"], "none")
 
 
 if __name__ == "__main__":

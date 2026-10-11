@@ -101,3 +101,27 @@ test("disposeAllSessions stops every MCP server", { skip, timeout: 60_000 }, asy
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("each session gets its own spec_mcp child, released with the session (P5)", { skip, timeout: 60_000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-rt-release-"));
+  try {
+    const pids: number[] = [];
+    for (const key of ["s1", "s2"]) {
+      const pidFile = path.join(dir, `${key}.pid`);
+      const launch = spec(dir, key, pidFile);
+      launch.mcp_bindings = {
+        spec_mcp: { command: process.execPath, args: [fakeServer, pidFile], timeout_ms: 30_000, exposure: "direct" },
+      };
+      launch.permission_policy.allowed_tools = ["read", "mcp__spec_mcp__*"];
+      await handleRuntimeMethod("session.create", { launch_spec: launch });
+      pids.push(Number(fs.readFileSync(pidFile, "utf8")));
+    }
+    assert.notEqual(pids[0], pids[1], "spec_mcp must not be shared across sessions");
+    await handleRuntimeMethod("session.release", { session_key: "s1" });
+    assert.ok(await waitFor(() => !alive(pids[0]), 10_000), "released session's spec_mcp still alive");
+    assert.ok(alive(pids[1]), "other session's spec_mcp must stay up");
+  } finally {
+    await disposeAllSessions();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -1,10 +1,87 @@
-# 产物地图（ARTIFACTS）
+# 运行产物与调试记录
+
+本文说明每次运行在 `.local/runs/<run_id>/` 下留下什么，以及怎么查。`.local/` 已在 `.gitignore` 里，`workspace` 清理（`whole-lca` 等预设）不碰它，所以这些记录按运行保留。
+
+## 目录
+
+```text
+.local/runs/<run_id>/
+  events.jsonl               Pi 活动事件 + 编排器事件（含 injection_check / injection_summary）
+  injection-summary.json     运行结束时写：会话数、最差等级、全部 mismatch 列表
+  pi/<session_key>.mcp.log   MCP 子进程日志
+  pi/<session_key>.guard.jsonl  路径守卫记录（拦截与越界）
+  sessions/<stage>.<role>.<attempt>/
+    prompt.md                最终拼好的完整提示词；每段前有注释：来源文件、默认版/用户版、哈希
+    spec.json                作为首段上下文注入的 get_spec() 结果
+    tools.json               pi-runtime 反报的、实际暴露给模型的工具名和 schema
+    permissions.json         本会话生效的路径与工具白名单
+    launch.json              模型、MCP 配置、环境变量名（只有名字）、各项哈希
+    transcript.jsonl         完整对话记录（见下）
+    transcript.blobs/        单条超过 1 MB 的记录全文
+    injection/
+      intended.json          宿主打算注入的内容
+      effective.json         pi-runtime 从 SDK 真实状态读回的内容
+      diff.json              逐项比对结果
+      first_request.json     第一次请求模型时的实际 payload（脱敏），以及是否含注入的 system prompt
+```
+
+同一个 assignment 在一次运行里复用一个 Pi 会话；返工时（attempt 2、3…）会建新的会话目录，transcript 里早于本 attempt 的记录标 `scope: "earlier_attempt"`。
+
+## 注入清单
+
+- **intended.json（宿主）**：system prompt 全文和哈希；分段 `segments`（`spec_context`、运行协议、运行上下文、每条规则、提交说明、生成式提示词、知识资料），每段写明来源、`origin`（`builtin` / `runtime` / `default` / `user` / `generated`）、文件哈希和内容哈希；首条 user 提示词（第一轮开始时补上）；模型和参数；权限；工具白名单；MCP 配置（环境变量只写名字）；skills；extensions。分段正是 `build_prompt` 实际拼出的段落，按空行连接就是发出去的提示词（有测试保证）。
+- **effective.json（pi-runtime）**：会话建好、第一次调模型之前，从 SDK 读：生效的 system prompt 全文（含 SDK 自己加的部分）、实际模型、工具名和 schema、MCP 工具是否注册及 exposure、已加载的 skills/extensions、路径守卫钩子是否挂上、首请求钩子是否挂上。mock 模式下 `captured: false`，不会伪造。
+- **first_request.json**：SDK 的 `before_provider_request` 钩子在第一次请求模型时记录 payload（脱敏）。记录的是本项目扩展看到的 payload，排在后面的扩展若再改，不在其中。
+- **diff.json**：逐项比对，分 `ok` / `warn` / `mismatch`。计划了但没生效、生效了但不在计划里、哈希对不上，都会列出。关键项：模型、spec_mcp 工具、路径守卫钩子。SDK 在注入内容前后追加的文字记为 `ok / sdk_added`。
+
+**策略**：默认只记录、不中断。设置 `HARNESS_INJECTION_STRICT=1` 时，关键项 mismatch 会让会话启动失败；这个开关给测试和 doctor 用。已有硬拦截（如 MCP 工具等待 90 秒超时）不变。
+
+**暂停后恢复**：恢复时若运行指纹（规则、模板、偏好、spec、实现代码）变了，默认不拒绝，在 `events.jsonl` 记一条 `injection_check`（`phase: resume`，`level: warn`），逐项列出变化的指纹路径和新旧值，然后按新配置继续；旧的 `runtime-config.json` 改名为 `runtime-config.prev-<n>.json`。严格模式下仍拒绝。worker 或模型变化、运行配置缺失，照旧拒绝。
+
+## transcript.jsonl
+
+由 pi-runtime 从 Pi SDK 自己的会话文件（`SessionManager.open` 写的 JSONL）导出，再补上只有实时事件流知道的内容；不从 `events.jsonl` 摘要拼凑。每轮结束和会话释放时重新导出。每行一个对象，`type` 为：
+
+| type | 内容 |
+|---|---|
+| `header` | Pi 会话头 |
+| `system` | 实际生效的 system prompt 全文 |
+| `message`（user） | 全文 |
+| `message`（assistant） | 文本、thinking（提供方返回时）、工具调用（完整参数）、provider/model、token（输入、输出、缓存读写）、耗时、停止原因、错误 |
+| `tool_result` | 工具名、调用 id、完整结果、是否出错、耗时 |
+| `entry` | 其他 SDK 条目（模型切换、压缩等）原样保留 |
+| `turn` | 每轮开始/结束时间、耗时、状态、错误 |
+| `retry` | SDK 自动重试的开始/结束 |
+| `summary` | 消息与工具调用计数、模型、总 token 和本 attempt 的 token、交卷结果（handoff 的 status） |
+
+超过 1 MB 的记录写进 `transcript.blobs/NNNN.json`，jsonl 里只留带 `blob` 和 `bytes` 的引用。
+
+## 脱敏
+
+所有快照写盘前统一脱敏：键名像密钥的字段（key、token、secret、password、authorization、signing…）直接替换；已知密钥值（敏感环境变量、MCP 环境里的 token、`.local/run/spec_mcp.key`、`.local/credentials/*.json` 里的值、`.env` 里的敏感项）和常见 token 模式（`sk-…`、`Bearer …` 等）在全文里替换为 `[REDACTED]`。有测试在环境里放假密钥和签名密钥，确认所有快照文件里都搜不到。
+
+## 怎么查
+
+- 命令行：
+  - `npm run inspect` 列出所有运行；`npm run inspect -- <run> [--only-anomalies]` 按会话列注入异常；`npm run inspect -- <run> <stage.role.attempt>` 看单个会话的全部比对项和文件。
+  - `npm run session -- <run>` 列出会话；`npm run session -- <run> <stage.role.attempt> [-o out.md] [--full]` 导出一份可读的 Markdown（注入、模型、完整对话），方便别的 agent 接手调试。
+  - `npm run doctor`：检查生成式提示词模板能否渲染，并对正在运行的 pi-runtime 做一次空会话自检（只建会话、不调模型，比对后释放）。`--skip-runtime` 只查模板。
+- GUI：结果页只渲染 `workspace/` 里的文件（产物、交接，以及 `workspace/records/` 下的审查、日志和会话快照）。运行结束时，本轮 `.local/runs/<run_id>/sessions/` 会复制到 `workspace/records/sessions/`。更早的运行仍留在 `.local/runs/`，用下面的命令查看，不在结果页列出。
+- 接口：`GET /api/runs`、`GET /api/runs/{run}/sessions`、`GET /api/runs/{run}/sessions/{session}/injection`、`GET /api/runs/{run}/sessions/{session}/file?name=&download=`、`GET /api/runs/{run}/sessions/{session}/markdown?download=`。
+
+## 生成式提示词
+
+`harness/rules/generated/*.md.tmpl` 每次建会话现场渲染（见 `harness/rules/README.md`）。预览接口 `GET /api/prompts/generated/preview?stage=&role=` **只支持 `harness/LCA-main.yaml` 里的阶段**（修订工作流 `LCA-revise.yaml` 暂不支持）。
+
+---
+
+## 附录：产物地图（P5 合并前版本，基于 `ee78fc0`）
 
 > 长期迭代文档：记录每个阶段产出什么、放在哪、谁写谁读、GUI 怎么显示、什么时候失效。重构中每次改动产物的路径、写入方或渲染方式，都要同步更新本文，并在末尾“变更记录”里记一笔。
 >
 > 本版依据 `master`（`ee78fc0`）的代码核对，路径均相对项目根目录。P5（`spec_mcp`，分支 `refactor/p5-spec-channels`）尚未合并，相关变化只在“已知问题与待优化”里预告。
 
-## 1. 总表
+### 1. 总表
 
 | 阶段 / 层级 | 产物 | 路径 | 格式 / 契约 | 写入方 | 校验 / 读取方 | GUI |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -31,28 +108,28 @@
 | 运行级 | 结构化事件 | `.local/runs/<run>/events.jsonl` | JSONL：worker 的 `tool_call`/`tool_result`/`text`/`turn_end`/`permission`；编排器的 `retry`/`rework_upstream`/`fault_injected`（`source: orchestrator`） | `pi_client` + 编排器 `_emit` | `GET /api/workflow/activity`（+ `/stream`） | `/runs` 的 `ActivitySummary` |
 | 每个会话 | 路径拦截日志 | `.local/runs/<run>/pi/<session_key>.guard.jsonl` | JSONL：`tool`、`action`、`requested_path`、`resolved_path`、`reason` | pi-runtime `session_host.ts` | 人工 / 巡检 | 不显示 |
 
-## 2. 按阶段说明
+### 2. 按阶段说明
 
-### 01-intake-gate（只有 reviewer）
+#### 01-intake-gate（只有 reviewer）
 - 输入：`harness/knowledge/plan/main_plan.md`。`spec.yaml` 中 `outputs: []`、`acceptance.checks: []`。
 - 唯一产物是 reviewer 的 handoff 和宿主写的审查记录。
 
-### 02-inventory-extraction
+#### 02-inventory-extraction
 - executor 写 `extracted-bom.json`、`extracted-bom.md`，交 handoff。
 - 宿主依次跑：`validate_outputs`（存在、非空、JSON、schema）→ `inventory_check`（`checks.inventory_errors`：行结构、来源 ID 是否在声明的知识来源中）。不过则 `_retry_or_fail`，在 `events.jsonl` 记 `retry`。
 - reviewer 只读审查；reviewer 判 passed 后，`_guard_reviewer_passed` 会再跑一次产物契约和检查。
 
-### 03-dataset-mapping
+#### 03-dataset-mapping
 - executor 写 `process-mapping.json` 和 `outputs/LCI/`，并通过 `control_openlca` 调 `validate_providers_batch` / `preflight_import_lci`，调用结果进 `raw.json` 和 manifest。
 - `mapping_check` 只认**当前模型指纹**下的 provider 验证调用；LCI 或 mapping 改动后旧证据作废。
 - reviewer 通过后执行 `lifecycle.on_reviewer_passed` 的 `record_acceptance`，把冻结输入写进 `accepted["lca.model"]`。
 
-### 04-openlca-reporting
+#### 04-openlca-reporting
 - executor 写 `calculation-plan.json`，调 `import_lci`、`get_model_graph`、`calculate_product_system`（结果进 raw.json / manifest），再调 `render_report_tables` 生成 `lca_report.md` 的表格并补正文。
 - `report_check` = `report_evidence_errors`（证据必须基于已验收模型、当前计算计划）+ `report_table_errors`（报告表格与证据一致）+ 语言提示。
 - executor 交 failed 并带 `model_changed` / `rework_target_stage` / `rework_artifacts` 时，编排器核对后退回上游（见 §4）。
 
-## 3. GUI 现状
+### 3. GUI 现状
 
 | 页面 / 组件 | 接口 | 数据源 | 显示内容 |
 | --- | --- | --- | --- |
@@ -64,7 +141,7 @@
 
 GUI **不显示**：BOM、mapping、LCI、计算计划、报告正文、raw.json、证据 manifest、检查记录、handoff 内容、审查记录、返工记录、guard 日志、turn 快照。
 
-## 4. 生命周期
+### 4. 生命周期
 
 - **跨运行**：控制面板的 whole-lca / revise-lca 预设在执行前清理 `workspace/`（`workspace_clean.py`，忽略 `records/**`、`outputs/**`、`tmp/**` 的 gitignore 规则下全部清掉，只保留 `README.md` 和 `records/orchestrator.lock`）。所以 `workspace/` 只保留**最近一次运行**；`.local/runs/<run>/`（events、guard）不在清理范围内，跨运行保留。
 - **同一运行内的重试**：`outputs/` 下的交付文件固定路径，每次 attempt **原地覆盖**；handoff 与 review 文件名带 attempt 编号，不覆盖；raw.json 按 `<stage>/<attempt>/<call_id>` 分目录，manifest `calls[]` 只追加。
@@ -74,7 +151,7 @@ GUI **不显示**：BOM、mapping、LCI、计算计划、报告正文、raw.json
   - `model_fingerprint`：LCI 文件 + BOM + mapping（`checks.upstream_files`）的内容哈希；`calculation_fingerprint`：`calculation-plan.json` 哈希。两者写进每条 manifest `calls[]`，决定证据是否仍有效。
   - 报告、BOM 说明、examples 不进入运行配置指纹。
 
-## 5. 流程图
+### 5. 流程图
 
 ```mermaid
 flowchart LR
@@ -109,9 +186,9 @@ flowchart LR
   REP -.不显示.-> RES[/results 页面/]
 ```
 
-## 6. 已知问题与待优化
+### 6. 已知问题与待优化
 
-1. **结果页是空壳**：`/results` 不读任何产物，报告、BOM、mapping、计算结果都只能去文件系统看。需要后端提供“本轮产物列表 + 读取”接口（只读、限定在 `workspace/outputs`、`records/handoffs`、`records/reviews`）。
+1. **（部分解决，`refactor/p5-gui-relocate`：「结果与历史」已有产物、注入核对、会话记录）结果页是空壳**：`/results` 不读任何产物，报告、BOM、mapping、计算结果都只能去文件系统看。需要后端提供“本轮产物列表 + 读取”接口（只读、限定在 `workspace/outputs`、`records/handoffs`、`records/reviews`）。
 2. **“已交卷”状态串到下一次 attempt**：`activity-summary.tsx` 在 attempt 递增时执行 `if (entry.handoff !== "ok") entry.handoff = "none"`，上一 attempt 的 `ok` 会保留，所以 04 第 2 次还没交卷也显示“已交卷”（巡检报告过的现象）。
 3. **编排器事件没被页面使用**：`retry`、`rework_upstream`、`fault_injected` 已写进 `events.jsonl`，但 `ActivitySummary` 只处理 `tool_call`/`tool_result`/`turn_end`，重排和退回原因在 GUI 上看不到。
 4. **guard 日志、handoff、审查记录、返工记录都不展示**，排障全靠读文件。
@@ -119,11 +196,12 @@ flowchart LR
 6. **`records/README.md` 过时**：列出的 `stages/` 目录代码里没有写入方，`evidence/`、`rework/`、`import-operations/` 没写进去。
 7. **`outputs/reports/` 下的 `raw/`、`model_graph/`、`lca-quality/` 目录**在实际工作区里存在，但 master 代码里没找到写入方，可能是旧版本遗留，待确认后清理或补文档。
 8. **部分交付物没有 schema**：`calculation-plan.json`、`lca_report.md`、`extracted-bom.md`、LCI 目录只做存在/非空检查，结构靠提示词和下游检查兜底。
-9. **写入方分散**：02/03 的 JSON 交付由 agent 直接写文件，04 报告由 MCP + agent 混写，验收证据由 MCP 写、验收结论由宿主写。P5 `spec_mcp` 会把正式交付改为经 `submit` 写盘（spec 中 `writer: spec_mcp`），并把 schema 与 acceptance 前移到提交时；合并后本文 §1、§2、§5 需要整体更新。
+9. **（已解决，P5 已合并：正式交付经 `spec_mcp` 的 `submit` 写盘；§1、§2、§5 仍待按 P5 更新）写入方分散**：02/03 的 JSON 交付由 agent 直接写文件，04 报告由 MCP + agent 混写，验收证据由 MCP 写、验收结论由宿主写。P5 `spec_mcp` 会把正式交付改为经 `submit` 写盘（spec 中 `writer: spec_mcp`），并把 schema 与 acceptance 前移到提交时；合并后本文 §1、§2、§5 需要整体更新。
 10. **跨运行历史只有 `.local/runs`**：`workspace/` 每次被预清理，旧运行的产物、handoff 不保留；若 GUI 要做“历史结果”，需要先定归档位置。
 
-## 7. 变更记录
+### 7. 变更记录
 
 | 日期 | 基于提交 | 变更 |
 | --- | --- | --- |
 | 2026-10-10 | `ee78fc0`（master） | 初版：按代码盘点四个阶段的产物、写入/校验方、GUI 渲染、生命周期与指纹，列出 10 条待优化项 |
+| 2026-10-11 | P5 合并进 master | 与 P5 版调试记录合并为一个文件；产物地图保留为附录，第 1、9 条标注进展 |

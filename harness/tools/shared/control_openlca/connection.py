@@ -33,6 +33,9 @@ IPC_TOOL_PROFILES: dict[str, IpcToolProfile] = {
     "validate_providers_batch": "long",
     "preflight_import_lci": "long",
     "import_lci": "long",
+    "reconcile_import": "long",
+    "resume_import": "long",
+    "import_status": "none",
     "get_model_graph": "long",
     "calculate_product_system": "long",
     "cleanup_output": "long",
@@ -85,15 +88,44 @@ def ipc_tool_timeout_max_sec() -> float:
     return min(env_cap, IPC_TOOL_TIMEOUT_MAX_SEC)
 
 
+def host_session_budget_sec() -> float:
+    """Configured maximum IPC session budget for one long-running tool call."""
+    return session_budget_sec(long_running=True)
+
+
 def resolve_ipc_tool_timeout_sec(requested: int | None) -> float:
-    """MCP optional timeout_sec → IPC session budget for one tool call."""
+    """Map optional agent timeout_sec to the effective session budget (min with host cap)."""
+    host_cap = host_session_budget_sec()
     if requested is None:
-        return session_budget_sec(long_running=True)
-    clamped = max(
-        IPC_TOOL_TIMEOUT_MIN_SEC,
-        min(float(requested), ipc_tool_timeout_max_sec()),
-    )
-    return max(clamped, long_read_sec() + 1.0)
+        effective = host_cap
+    else:
+        agent = max(
+            IPC_TOOL_TIMEOUT_MIN_SEC,
+            min(float(requested), IPC_TOOL_TIMEOUT_MAX_SEC),
+        )
+        effective = min(agent, host_cap)
+    return max(effective, long_read_sec() + 1.0)
+
+
+def describe_ipc_session_budget(requested: int | None) -> dict[str, float | None]:
+    """Return host cap, agent request, and effective session budget for tool results."""
+    host_cap = host_session_budget_sec()
+    agent: float | None
+    if requested is None:
+        agent = None
+        effective = host_cap
+    else:
+        agent = max(
+            IPC_TOOL_TIMEOUT_MIN_SEC,
+            min(float(requested), IPC_TOOL_TIMEOUT_MAX_SEC),
+        )
+        effective = min(agent, host_cap)
+    effective = max(effective, long_read_sec() + 1.0)
+    return {
+        "host_session_budget_sec": host_cap,
+        "agent_timeout_sec": agent,
+        "effective_session_budget_sec": effective,
+    }
 
 
 @contextmanager
@@ -121,13 +153,10 @@ def ipc_tool_is_long_running(name: str) -> bool:
 
 
 def session_request_timeout() -> TimeoutValue:
-    """HTTP timeout for a new IPC client: remaining session budget, else LONG."""
-    from .guard import remaining_budget
+    """HTTP timeout for a new IPC client: per-request read, not shrinking budget."""
+    from .timeout_policy import active_read_sec, resolve_http_read_timeout
 
-    remaining = remaining_budget()
-    if remaining is None:
-        return LONG_REQUEST_TIMEOUT
-    return (2.0, remaining)
+    return resolve_http_read_timeout(read_sec=active_read_sec())
 
 
 def read_request_timeout() -> TimeoutValue:
@@ -163,19 +192,16 @@ class _TimeoutHTTPAdapter(HTTPAdapter):
     def send(self, request, **kwargs):
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self.timeout
-        from .guard import remaining_budget
+        from .timeout_policy import resolve_http_read_timeout
 
-        remaining = remaining_budget()
-        if remaining is not None:
-            value = kwargs["timeout"]
-            if isinstance(value, tuple):
-                connect = min(value[0], max(0.001, remaining / 2))
-                kwargs["timeout"] = (
-                    connect,
-                    min(value[1], max(0.001, remaining - connect)),
-                )
-            else:
-                kwargs["timeout"] = min(value, remaining)
+        value = kwargs["timeout"]
+        if isinstance(value, tuple):
+            connect, read = value[0], value[1]
+            kwargs["timeout"] = resolve_http_read_timeout(
+                read_sec=read, connect_sec=connect
+            )
+        else:
+            kwargs["timeout"] = resolve_http_read_timeout(read_sec=float(value))
         return super().send(request, **kwargs)
 
 

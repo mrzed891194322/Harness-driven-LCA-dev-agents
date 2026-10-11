@@ -1,7 +1,8 @@
-"""Per-assignment model overrides for the workflow board.
+"""Workflow-page model choices.
 
-The run-wide default stays in ``PI_MODEL``. This file only stores the
-assignments that should use a different connected profile.
+The page default and per-assignment overrides live in
+``.local/workflow-models.json``. An empty default means the page has not
+chosen one. ``.env`` is not read or written for this choice.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ def _path(project_root: Path) -> Path:
     return project_root / ASSIGNMENT_MODELS_PATH
 
 
-def load_assignment_models(project_root: Path) -> dict[str, str]:
+def _read_store(project_root: Path) -> dict:
     path = _path(project_root)
     if not path.is_file():
         return {}
@@ -29,7 +30,31 @@ def load_assignment_models(project_root: Path) -> dict[str, str]:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
-    assignments = raw.get("assignments") if isinstance(raw, dict) else None
+    return raw if isinstance(raw, dict) else {}
+
+
+def _write_store(project_root: Path, raw: dict) -> None:
+    path = _path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def load_default_model(project_root: Path) -> str:
+    """Page-saved default model. Missing or blank means none was chosen."""
+    return str(_read_store(project_root).get("default") or "").strip()
+
+
+def save_default_model(project_root: Path, model_ref: str) -> str:
+    chosen = str(model_ref or "").strip()
+    raw = _read_store(project_root)
+    raw["default"] = chosen
+    _write_store(project_root, raw)
+    return chosen
+
+
+def load_assignment_models(project_root: Path) -> dict[str, str]:
+    raw = _read_store(project_root)
+    assignments = raw.get("assignments")
     if not isinstance(assignments, dict):
         return {}
     out: dict[str, str] = {}
@@ -52,10 +77,9 @@ def save_assignment_models(project_root: Path, assignments: dict[str, str]) -> d
             cleaned[assignment_id] = profile_id
     if len(cleaned) > 200:
         raise ValueError("分工模型过多")
-    path = _path(project_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"assignments": cleaned}
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    raw = _read_store(project_root)
+    raw["assignments"] = cleaned
+    _write_store(project_root, raw)
     return cleaned
 
 

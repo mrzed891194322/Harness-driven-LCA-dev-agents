@@ -298,13 +298,18 @@ class Context:
             "status": result_status(result),
             "artifact": ref,
         }
-        from .checks import calculation_fingerprint, evidence_model_fingerprint
+        from .checks import (
+            calculation_fingerprint,
+            evidence_model_fingerprint,
+            lci_fingerprint,
+        )
 
         entry.update(
             snapshots
             or {
                 "model_fingerprint": evidence_model_fingerprint(self),
                 "calculation_fingerprint": calculation_fingerprint(self),
+                "lci_fingerprint": lci_fingerprint(self),
             }
         )
         if (
@@ -419,6 +424,19 @@ def envelope(ctx, tool, raw, arguments, duration_ms, snapshots=None):
         "attempt_count",
         "lock_wait_ms",
         "applied_timeout_sec",
+        "host_session_budget_sec",
+        "agent_timeout_sec",
+        "effective_session_budget_sec",
+        "entity_plan",
+        "reconciled_at",
+        "reconciliation_issues",
+        "resumed_at",
+        "retryable",
+        "agent_action",
+        "agent_message",
+        "timed_out_entity",
+        "diagnostics_path",
+        "leftover_entities",
     ):
         if key in raw:
             payload[key] = raw[key]
@@ -460,11 +478,16 @@ def invoke(tool, function, *, arguments=None, ctx=None):
     started = time.monotonic()
     try:
         ctx = ctx or Context.environment()
-        from .checks import calculation_fingerprint, evidence_model_fingerprint
+        from .checks import (
+            calculation_fingerprint,
+            evidence_model_fingerprint,
+            lci_fingerprint,
+        )
 
         snapshots = {
             "model_fingerprint": evidence_model_fingerprint(ctx),
             "calculation_fingerprint": calculation_fingerprint(ctx),
+            "lci_fingerprint": lci_fingerprint(ctx),
         }
         raw = function()
         return envelope(

@@ -1,23 +1,26 @@
-version: 1
+version: 2
 id: 02-inventory-extraction
 inputs:
 - path: harness/knowledge/plan/main_plan.md
   required: true
-outputs:
-- path: workspace/outputs/inventory/extracted-bom.json
-  kind: file
-  required: true
+deliverables:
+- name: extracted-bom
+  path: workspace/outputs/inventory/extracted-bom.json
   format: json
-  schema: harness/specs/02-inventory-extraction/extracted-bom.schema.json
-- path: workspace/outputs/inventory/extracted-bom.md
-  kind: file
   required: true
-acceptance:
-  checks:
-  - id: inventory
-    action: inventory_check
+  writer: spec_mcp
+  schema: deliverables/extracted-bom.schema.json
+  example: examples/extracted-bom.json
+- name: extracted-bom-notes
+  path: workspace/outputs/inventory/extracted-bom.md
+  format: text
+  required: true
+  writer: spec_mcp
+acceptance: acceptance.yaml
+permissions: permissions.yaml
+examples: examples/
 lifecycle:
   on_reviewer_passed: []
 handoff:
-  schema: harness/specs/shared/lca-handoff-extension.schema.json
+  schema: ../shared/handoff.schema.json
   checks: []

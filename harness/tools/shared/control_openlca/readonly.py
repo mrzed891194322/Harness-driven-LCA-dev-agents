@@ -35,6 +35,42 @@ DEFAULT_QUERY_LIMIT = 50
 MAX_QUERY_LIMIT = 200
 
 
+def category_outside_project(
+    category: str | None, target_category: str
+) -> bool:
+    """True when entity category is empty or outside the project target tree."""
+    target = target_category.strip()
+    if not target:
+        return True
+    if category is None or not str(category).strip():
+        return True
+    normalized = str(category)
+    if normalized == target or normalized.startswith(f"{target}/"):
+        return False
+    return True
+
+
+def category_project_scope(category: str | None, target_category: str) -> str:
+    """'project' (under target category), 'uncategorized' (no category: likely a
+    leftover from earlier runs / auto-linking), or 'background' (database data)."""
+    if category is None or not str(category).strip():
+        return "uncategorized"
+    if not category_outside_project(category, target_category):
+        return "project"
+    return "background"
+
+
+def _with_outside_project(
+    payload: dict[str, Any], target_category: str
+) -> dict[str, Any]:
+    category = payload.get("category")
+    if "category" in payload:
+        cat = category if isinstance(category, str) else None
+        payload["outside_project"] = category_outside_project(cat, target_category)
+        payload["project_scope"] = category_project_scope(cat, target_category)
+    return payload
+
+
 def health_check(host: str, port: int) -> dict[str, Any]:
     """Probe openLCA once, then reconnect three times before returning failure."""
     endpoint = build_endpoint(host, port)
@@ -112,6 +148,7 @@ def query_descriptors(
     search: str = "",
     limit: int = DEFAULT_QUERY_LIMIT,
     offset: int = 0,
+    target_category: str = "",
 ) -> dict[str, Any]:
     """Query and paginate descriptors from the active openLCA database."""
     model_type = _validate_query(entity_type, search, limit, offset)
@@ -135,13 +172,18 @@ def query_descriptors(
         if search_key in str(getattr(descriptor, "name", "") or "").casefold()
     ]
     page = matches[offset : offset + limit]
-    items = [_descriptor_to_dict(entity_type, descriptor) for descriptor in page]
+    category_scope = target_category.strip()
+    items = [
+        _with_outside_project(_descriptor_to_dict(entity_type, descriptor), category_scope)
+        for descriptor in page
+    ]
     next_offset = offset + len(items)
     has_more = next_offset < len(matches)
     return {
         "ok": True,
         "endpoint": endpoint,
         "entity_type": entity_type,
+        "target_category": category_scope or None,
         "search": search_text,
         "total_descriptors": len(descriptors),
         "total_matches": len(matches),
@@ -158,6 +200,7 @@ def get_process_details(
     host: str,
     port: int,
     process_id: str,
+    target_category: str = "",
 ) -> dict[str, Any]:
     """Return the location and quantitative reference for one Process UUID."""
     _validate_identifier("process_id", process_id)
@@ -173,16 +216,30 @@ def get_process_details(
     finally:
         close_ipc_client(client)
 
+    process_payload = (
+        _with_outside_project(_process_to_dict(process), target_category.strip())
+        if process is not None
+        else None
+    )
     return {
         "ok": True,
         "endpoint": endpoint,
         "process_id": process_id,
+        "target_category": target_category.strip() or None,
         "found": process is not None,
-        "process": _process_to_dict(process) if process is not None else None,
+        "process": process_payload,
     }
 
 
-def query_descriptors_batch(host, port, entity_type, searches, limit=20, offset=0):
+def query_descriptors_batch(
+    host,
+    port,
+    entity_type,
+    searches,
+    limit=20,
+    offset=0,
+    target_category: str = "",
+):
     if not isinstance(searches, list) or not 1 <= len(searches) <= 50:
         raise ValueError("searches must contain 1..50 strings")
     model_type = _validate_query(entity_type, "", limit, offset)
@@ -200,11 +257,17 @@ def query_descriptors_batch(host, port, entity_type, searches, limit=20, offset=
                 in str(getattr(d, "name", "") or "").casefold()
             ]
             page = matches[offset : offset + limit]
+            category_scope = target_category.strip()
             queries.append(
                 {
                     "search": search,
                     "total_matches": len(matches),
-                    "items": [_descriptor_to_dict(entity_type, d) for d in page],
+                    "items": [
+                        _with_outside_project(
+                            _descriptor_to_dict(entity_type, d), category_scope
+                        )
+                        for d in page
+                    ],
                     "has_more": offset + len(page) < len(matches),
                     "next_offset": offset + len(page)
                     if offset + len(page) < len(matches)
@@ -213,6 +276,7 @@ def query_descriptors_batch(host, port, entity_type, searches, limit=20, offset=
             )
         return {
             "ok": True,
+            "target_category": target_category.strip() or None,
             "queries": queries,
             "counts": {"descriptor_scans": 1, "queries": len(queries)},
         }
@@ -220,7 +284,7 @@ def query_descriptors_batch(host, port, entity_type, searches, limit=20, offset=
         close_ipc_client(client)
 
 
-def validate_providers_batch(host, port, requirements):
+def validate_providers_batch(host, port, requirements, target_category: str = ""):
     if not isinstance(requirements, list) or not 1 <= len(requirements) <= 200:
         raise ValueError("requirements must contain 1..200 process/flow pairs")
     client = create_ipc_client(host, port)
@@ -241,6 +305,11 @@ def validate_providers_batch(host, port, requirements):
                 if e.is_input is not True
             }
             expected = str(item.get("expected_geography") or "").casefold()
+            process_payload = (
+                _with_outside_project(_process_to_dict(process), target_category.strip())
+                if process is not None
+                else None
+            )
             check = {
                 "process_id": process_id,
                 "flow_id": flow_id,
@@ -249,13 +318,24 @@ def validate_providers_batch(host, port, requirements):
                 "location": location,
                 "geography_match": not expected
                 or expected in {str(v).casefold() for v in (location or {}).values()},
-                "process": _process_to_dict(process) if process is not None else None,
+                "process": process_payload,
+                "outside_project": (
+                    process_payload.get("outside_project")
+                    if process_payload is not None
+                    else None
+                ),
+                "project_scope": (
+                    process_payload.get("project_scope")
+                    if process_payload is not None
+                    else None
+                ),
             }
             checks.append(check)
             if not check["exists"] or not check["output_flow_match"]:
                 errors.append(f"provider {process_id} does not supply {flow_id}")
         return {
             "ok": not errors,
+            "target_category": target_category.strip() or None,
             "checks": checks,
             "errors": errors,
             "counts": {"process_reads": len(cache), "pairs": len(checks)},
@@ -271,6 +351,7 @@ def get_flow_providers(
     location: str = "",
     limit: int = DEFAULT_QUERY_LIMIT,
     offset: int = 0,
+    target_category: str = "",
 ) -> dict[str, Any]:
     """Return compact provider references for one exact Flow UUID."""
     _validate_identifier("flow_id", flow_id)
@@ -310,13 +391,26 @@ def get_flow_providers(
         if not location_key
         or location_key in str(provider["provider_location"] or "").casefold()
     ]
-    page = matches[offset : offset + limit]
+    category_scope = target_category.strip()
+    page = [
+        {
+            **provider,
+            "outside_project": category_outside_project(
+                provider.get("provider_category"), category_scope
+            ),
+            "project_scope": category_project_scope(
+                provider.get("provider_category"), category_scope
+            ),
+        }
+        for provider in matches[offset : offset + limit]
+    ]
     next_offset = offset + len(page)
     has_more = next_offset < len(matches)
     return {
         "ok": True,
         "endpoint": endpoint,
         "flow_id": flow_id,
+        "target_category": category_scope or None,
         "flow_found": flow is not None,
         "location": location_text,
         "total_providers": len(providers),

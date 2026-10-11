@@ -14,6 +14,14 @@ from backend.services.diagnostics_service import _model_status
 
 
 class AssignmentModelTests(unittest.TestCase):
+    def test_missing_page_default_stays_empty_even_when_env_is_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".env").write_text('PI_MODEL="fast"\n', encoding="utf-8")
+            from backend.core.agents.assignment_models import load_default_model
+
+            self.assertEqual(load_default_model(root), "")
+
     def test_unknown_override_falls_back_to_run_model(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -55,6 +63,11 @@ class AssignmentModelTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / ".env").write_text('PI_MODEL="fast"\n', encoding="utf-8")
+            (root / ".local").mkdir()
+            (root / ".local/workflow-models.json").write_text(
+                json.dumps({"default": "anthropic/claude-haiku-4-5", "assignments": {}}),
+                encoding="utf-8",
+            )
 
             def catalog(_root: Path, provider: str) -> dict:
                 if provider == "anthropic":
@@ -79,13 +92,28 @@ class AssignmentModelTests(unittest.TestCase):
                 listed = client.get("/api/workflow/models")
                 self.assertEqual(listed.status_code, 200)
                 body = listed.json()
-                self.assertEqual(body["default"], "fast")
+                self.assertEqual(body["default"], "anthropic/claude-haiku-4-5")
                 self.assertEqual(body["default_ref"], "anthropic/claude-haiku-4-5")
+                self.assertEqual((root / ".env").read_text(encoding="utf-8"), 'PI_MODEL="fast"\n')
                 self.assertEqual(
                     {item["id"] for item in body["models"]},
                     {"anthropic/claude-sonnet-4-5", "anthropic/claude-haiku-4-5"},
                 )
                 self.assertNotIn("项目默认", {item["label"] for item in body["models"]})
+
+                selected = client.post(
+                    "/api/models/selection",
+                    json={"profile_id": "anthropic/claude-sonnet-4-5"},
+                )
+                self.assertEqual(selected.status_code, 200)
+                self.assertEqual(selected.json()["profile_id"], "anthropic/claude-sonnet-4-5")
+                stored = json.loads((root / ".local/workflow-models.json").read_text(encoding="utf-8"))
+                self.assertEqual(stored["default"], "anthropic/claude-sonnet-4-5")
+                self.assertEqual((root / ".env").read_text(encoding="utf-8"), 'PI_MODEL="fast"\n')
+
+                cleared = client.post("/api/models/selection", json={"profile_id": ""})
+                self.assertEqual(cleared.status_code, 200)
+                self.assertEqual(cleared.json()["profile_id"], "")
 
                 saved = client.put(
                     "/api/workflow/models",
@@ -105,6 +133,8 @@ class AssignmentModelTests(unittest.TestCase):
                     model_for_assignment(root, "02-inventory-extraction.executor", "fast"),
                     "anthropic/claude-sonnet-4-5",
                 )
+                kept = json.loads((root / ".local/workflow-models.json").read_text(encoding="utf-8"))
+                self.assertEqual(kept["default"], "")
 
                 rejected = client.put(
                     "/api/workflow/models",

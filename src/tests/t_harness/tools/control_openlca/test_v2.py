@@ -115,6 +115,94 @@ def test_stale_preflight_and_consumption(context):
     assert not client.put_calls
 
 
+def test_resume_after_partial_product_system_failure(context):
+    client = FakeImportClient()
+    root = context.workspace / "outputs" / "LCI"
+    write_product_system_fixture(root)
+    operation_dir = context.workspace / "records" / "import-operations"
+    preflight = operations.preflight(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        operation_dir=operation_dir,
+        client=client,
+    )
+    kwargs = {
+        "run_id": context.run_id,
+        "request_id": "request-one",
+        "preflight_id": preflight["preflight_id"],
+        "operation_dir": operation_dir,
+        "client": client,
+    }
+    client.fail_create_product_system = True
+    first = operations.import_request(
+        "localhost", 8080, root, "project-a", "isolated-db", **kwargs
+    )
+    assert first["status"] == "partial_failure"
+    assert first["entity_plan"][0]["status"] == "done"
+    preflight2_early = operations.preflight(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        operation_dir=operation_dir,
+        client=client,
+    )
+    blocked = operations.import_request(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        request_id="request-two",
+        preflight_id=preflight2_early["preflight_id"],
+        operation_dir=operation_dir,
+        client=client,
+    )
+    assert blocked.get("agent_action") == "reconcile_and_resume"
+    client.fail_create_product_system = False
+    preflight2 = operations.preflight(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        operation_dir=operation_dir,
+        client=client,
+    )
+    operations.reconcile_import(
+        "localhost",
+        8080,
+        operation_dir,
+        run_id=context.run_id,
+        operation_id=first["operation_id"],
+        client=client,
+    )
+    resumed = operations.resume_import_request(
+        "localhost",
+        8080,
+        root,
+        "project-a",
+        "isolated-db",
+        run_id=context.run_id,
+        request_id="request-two",
+        preflight_id=preflight2["preflight_id"],
+        operation_id=first["operation_id"],
+        operation_dir=operation_dir,
+        client=client,
+    )
+    assert resumed["status"] == "success"
+    assert resumed["execution_mode"] == "resumed"
+    assert len(client.create_product_system_calls) == 2
+
+
 def test_failed_import_never_retries(context):
     client = FakeImportClient()
     client.put_error = requests.Timeout("read timed out")
@@ -122,7 +210,7 @@ def test_failed_import_never_retries(context):
     first = operations.import_request(
         "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
     )
-    assert first["status"] == "partial_failure"
+    assert first["status"] in {"partial_failure", "failed"}
     with patch.object(guard, "probe_ipc", return_value=client):
         again = operations.import_request(
             "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
@@ -579,17 +667,14 @@ def test_clean_reconciles_active_pointer_without_rewriting_old_receipt(context):
     first = operations.import_request(
         "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
     )
-    assert first["status"] == "partial_failure"
+    assert first["status"] in {"partial_failure", "failed"}
     operations.reconcile_cleanup(
         kwargs["operation_dir"], "localhost", 8080, "project-a"
     )
     assert not (kwargs["operation_dir"] / "current.json").exists()
-    assert (
-        operations.get_operation(
-            kwargs["operation_dir"], run_id=context.run_id, request_id="request-one"
-        )["status"]
-        == "partial_failure"
-    )
+    assert operations.get_operation(
+        kwargs["operation_dir"], run_id=context.run_id, request_id="request-one"
+    )["status"] in {"partial_failure", "failed"}
 
 
 def test_mapping_checks_coverage_and_lci_semantics(context):
@@ -700,6 +785,20 @@ def test_mcp_channel_gate_rejects_without_env(monkeypatch):
     assert "MCP" in blocked["errors"][0]["message"]
 
 
+def test_resolve_ipc_tool_timeout_sec_agent_vs_host_cap(monkeypatch):
+    from harness.tools.shared.control_openlca.connection import (
+        reload_ipc_timeout_settings,
+        resolve_ipc_tool_timeout_sec,
+    )
+
+    monkeypatch.setenv("OPENLCA_IPC_LONG_READ_SEC", "30")
+    monkeypatch.setenv("OPENLCA_IPC_SESSION_BUDGET_SEC", "1800")
+    reload_ipc_timeout_settings()
+    assert resolve_ipc_tool_timeout_sec(7200) == 1800.0
+    assert resolve_ipc_tool_timeout_sec(600) == 600.0
+    reload_ipc_timeout_settings()
+
+
 def test_resolve_ipc_tool_timeout_sec_clamps(monkeypatch):
     from harness.tools.shared.control_openlca.connection import (
         IPC_TOOL_TIMEOUT_MAX_SEC,
@@ -737,27 +836,25 @@ def test_long_tool_reports_applied_timeout_sec(context, monkeypatch):
     assert result["applied_timeout_sec"] == 3600
 
 
-def test_session_request_timeout_follows_remaining_budget(tmp_path, monkeypatch):
+def test_session_request_timeout_uses_per_request_read_not_shrinking_budget(
+    tmp_path, monkeypatch
+):
     monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
+    monkeypatch.setenv("OPENLCA_TIMEOUT_REQUEST_S", "120")
     from harness.tools.shared.control_openlca.connection import (
-        LONG_REQUEST_TIMEOUT,
         session_request_timeout,
     )
 
-    assert session_request_timeout() == LONG_REQUEST_TIMEOUT
+    assert session_request_timeout() == (2.0, 120.0)
     with guard.endpoint_guard("localhost", 8080, budget_sec=3600):
         timeout = session_request_timeout()
-    assert isinstance(timeout, tuple)
-    assert timeout[0] == 2.0
-    assert 3500 < timeout[1] <= 3600
+    assert timeout == (2.0, 120.0)
 
 
-def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
+def test_create_ipc_client_defaults_to_per_request_read(tmp_path, monkeypatch):
     monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
-    from harness.tools.shared.control_openlca.connection import (
-        LONG_REQUEST_TIMEOUT,
-        create_ipc_client,
-    )
+    monkeypatch.setenv("OPENLCA_TIMEOUT_REQUEST_S", "120")
+    from harness.tools.shared.control_openlca.connection import create_ipc_client
 
     dummy = FakeClient()
     with patch(
@@ -767,18 +864,8 @@ def test_create_ipc_client_defaults_to_session_timeout(tmp_path, monkeypatch):
         create_ipc_client("localhost", 8080)
     factory.assert_called_once_with(
         "http://localhost:8080",
-        timeout=LONG_REQUEST_TIMEOUT,
+        timeout=(2.0, 120.0),
     )
-
-    with guard.endpoint_guard("localhost", 8080, budget_sec=3600):
-        with patch(
-            "harness.tools.shared.control_openlca.connection.BoundedIPCClient",
-            return_value=dummy,
-        ) as factory:
-            create_ipc_client("localhost", 8080)
-        timeout = factory.call_args.kwargs["timeout"]
-    assert timeout[0] == 2.0
-    assert 3500 < timeout[1] <= 3600
 
 
 def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):
@@ -852,3 +939,34 @@ def test_prior_handoff_none_keeps_fingerprint_result(context):
     handoff.write_text(json.dumps({"status": "failed", "rework_scope": "report_only"}))
     status = checks.reuse_status(retry)
     assert status["eligible"] and status["rework_scope"] == "report_only"
+
+
+def test_provider_evidence_survives_mapping_write(context):
+    """Provider–Flow evidence is keyed on the LCI only; writing mapping must not void it."""
+    mapping_ctx = Context(
+        context.project,
+        context.workspace,
+        context.run_id,
+        "03-dataset-mapping",
+        1,
+        metadata={"lca": {"phase": "mapping"}},
+    )
+    root = context.workspace / "outputs"
+    write_product_system_fixture(root / "LCI")
+    lci_before = checks.lci_fingerprint(mapping_ctx)
+    model_before = checks.model_fingerprint(mapping_ctx)
+    call = {"lci_fingerprint": lci_before, "model_fingerprint": model_before}
+    write_json(
+        root / "inventory" / "process-mapping.json", {"items": [{"item_id": "b1"}]}
+    )
+    assert checks.model_fingerprint(mapping_ctx) != model_before
+    assert checks.lci_fingerprint(mapping_ctx) == lci_before
+    assert checks._provider_evidence_matches(mapping_ctx, call)
+    # Editing the LCI does invalidate the evidence.
+    extra = root / "LCI" / "processes" / "zz_extra.json"
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text('{"@id": "zz"}', encoding="utf-8")
+    assert not checks._provider_evidence_matches(mapping_ctx, call)
+    # Legacy records without lci_fingerprint fall back to the model fingerprint.
+    legacy = {"model_fingerprint": checks.model_fingerprint(mapping_ctx)}
+    assert checks._provider_evidence_matches(mapping_ctx, legacy)

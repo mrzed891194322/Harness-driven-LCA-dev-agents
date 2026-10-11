@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { History, Play } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
 /** One record of /api/workflow/activity (events.jsonl written by the Pi client). */
@@ -55,14 +56,20 @@ export function summarizeActivity(events: ActivityEvent[]): AssignmentActivity[]
   for (const event of events) {
     const stage = event.stage || "";
     const role = event.role || "";
-    const key = event.assignment || `${stage}.${role}`;
+    // Orchestrator notes (for example upstream rework) have no stage/role.
+    if (!stage || !role) continue;
+    const attempt = Number(event.attempt) || 0;
+    // Each attempt is its own chip, inserted when that attempt first appears.
+    // A later visit (03 attempt 2 after 04) is appended, and the earlier chip stays.
+    const assignment = event.assignment || `${stage}.${role}`;
+    const key = `${assignment}#${attempt}`;
     let entry = byKey.get(key);
     if (!entry) {
       entry = {
         key,
         stage,
         role,
-        attempt: 0,
+        attempt,
         tools: 0,
         errors: 0,
         running: "",
@@ -74,11 +81,6 @@ export function summarizeActivity(events: ActivityEvent[]): AssignmentActivity[]
       };
       byKey.set(key, entry);
       open.set(key, new Set());
-    }
-    const attempt = Number(event.attempt) || 0;
-    if (attempt > entry.attempt) {
-      entry.attempt = attempt;
-      if (entry.handoff !== "ok") entry.handoff = "none";
     }
     const pending = open.get(key)!;
     const tool = event.tool || "";
@@ -112,11 +114,33 @@ export function summarizeActivity(events: ActivityEvent[]): AssignmentActivity[]
   return [...byKey.values()];
 }
 
-export function ActivitySummary({ runId }: { runId: string }) {
+function assignmentIsLive(item: AssignmentActivity, running: boolean): boolean {
+  return (
+    running &&
+    Boolean(item.stage) &&
+    (Boolean(item.running) ||
+      item.handoff === "pending" ||
+      (!item.turnEnded && item.handoff === "none"))
+  );
+}
+
+export function ActivitySummary({
+  runId,
+  running = false,
+  currentStage = "",
+  onStageAttempt,
+}: {
+  runId: string;
+  running?: boolean;
+  currentStage?: string;
+  onStageAttempt?: (attempt: number) => void;
+}) {
   const [items, setItems] = useState<AssignmentActivity[]>([]);
   const events = useRef<ActivityEvent[]>([]);
   const offset = useRef(0);
   const current = useRef("");
+  const liveItemRef = useRef<HTMLLIElement | null>(null);
+  const liveToken = useRef("");
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +188,23 @@ export function ActivitySummary({ runId }: { runId: string }) {
     };
   }, [runId]);
 
+  const stageAttempt = items.reduce(
+    (highest, item) => (item.stage === currentStage && item.attempt > highest ? item.attempt : highest),
+    0,
+  );
+  useEffect(() => {
+    onStageAttempt?.(stageAttempt);
+  }, [onStageAttempt, stageAttempt]);
+
+  const live = items.find((item) => assignmentIsLive(item, running));
+  const nextLiveToken = live ? `${live.key}#${live.attempt}` : "";
+
+  useEffect(() => {
+    if (!nextLiveToken || nextLiveToken === liveToken.current) return;
+    liveToken.current = nextLiveToken;
+    liveItemRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [nextLiveToken]);
+
   if (!items.length) return null;
   return (
     <ul className="activity-summary" aria-label="各分工活动概览">
@@ -178,9 +219,18 @@ export function ActivitySummary({ runId }: { runId: string }) {
                 ? "warn"
                 : "off";
         const note = item.handoff === "err" ? item.handoffNote : "";
+        const active = assignmentIsLive(item, running);
         return (
-          <li key={item.key} className="activity-chip" title={note || item.lastDetail || undefined}>
+          <li
+            key={item.key}
+            ref={active ? liveItemRef : undefined}
+            className={active ? "activity-chip is-live" : "activity-chip"}
+            title={note || item.lastDetail || undefined}
+          >
             <span className="activity-chip-head">
+              <span className="activity-chip-mark" role="img" aria-label={active ? "正在执行" : "历史记录"}>
+                {active ? <Play size={13} strokeWidth={1.75} /> : <History size={13} strokeWidth={1.75} />}
+              </span>
               <strong>{item.stage}</strong>
               <small>
                 {role}

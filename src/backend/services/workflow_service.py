@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import io
 import json
+import sqlite3
+import zipfile
 from pathlib import Path
 from typing import Any
 
 from backend.core.agents.activity import activity_log_path, read_activity
 from backend.core.agents.archive import progress_log_path
+from backend.core.workflow.persistence.checkpoint import checkpoint_path
 from backend.core.workflow.persistence.manifest import manifest_path
 from backend.services.project_paths import PROJECT_ROOT
 
@@ -27,6 +31,7 @@ class WorkflowService:
 
         recorded = self._recorded_progress()
         launch = launch_snapshot()
+        model = self._model_label(str(recorded["run_id"] or ""))
         if _prefer_launch(launch, recorded["mtime"]):
             status = "failed" if launch["status"] == "failed" else "running"
             return _window(
@@ -38,6 +43,7 @@ class WorkflowService:
                 current_stage=None,
                 status_reason=launch.get("reason") or None,
                 run_id=None,
+                model=model,
             )
         return _window(
             text=recorded["text"],
@@ -48,6 +54,8 @@ class WorkflowService:
             current_stage=recorded["current_stage"],
             status_reason=recorded["status_reason"],
             run_id=recorded["run_id"] or None,
+            model=model,
+            attempt=recorded["attempt"],
         )
 
     def activity(self, run_id: str = "", offset: int = 0) -> dict[str, Any]:
@@ -81,6 +89,7 @@ class WorkflowService:
             "status": str(manifest.get("status") or "idle"),
             "current_stage": manifest.get("current_stage"),
             "status_reason": manifest.get("status_reason"),
+            "attempt": _attempt_value(manifest.get("attempt")) or self._checkpoint_attempt(run_id),
             "text": "",
             "mtime": None,
         }
@@ -92,6 +101,231 @@ class WorkflowService:
         recorded["text"] = path.read_text(encoding="utf-8", errors="replace")
         recorded["mtime"] = path.stat().st_mtime
         return recorded
+
+    def _checkpoint_attempt(self, run_id: str) -> int | None:
+        """Attempt from the orchestrator snapshot when the manifest has none yet."""
+        if not run_id:
+            return None
+        path = checkpoint_path(self.workspace_root)
+        if not path.is_file():
+            return None
+        try:
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=0.2)
+        except sqlite3.Error:
+            return None
+        try:
+            row = conn.execute(
+                "SELECT state_json FROM workflow_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        except sqlite3.Error:
+            return None
+        finally:
+            conn.close()
+        if not row:
+            return None
+        try:
+            state = json.loads(row[0])
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(state, dict):
+            return None
+        return _attempt_value(state.get("attempt"))
+
+    def _model_label(self, run_id: str) -> str:
+        """Model id for this run, so the terminal can show it instead of the worker name."""
+        from backend.core.agents.assignment_models import load_default_model
+        from backend.core.runtime.model_profiles import resolve_model_profile
+        from backend.core.workflow.persistence.config_fingerprint import runtime_config_path
+
+        model_ref = ""
+        if run_id:
+            path = runtime_config_path(self.workspace_root, run_id)
+            if path.is_file():
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    payload = None
+                if isinstance(payload, dict):
+                    execution = payload.get("execution")
+                    if isinstance(execution, dict):
+                        model_ref = str(execution.get("model") or "").strip()
+        if not model_ref:
+            model_ref = load_default_model(self.project_root)
+        if not model_ref:
+            return ""
+        profile = resolve_model_profile(model_ref, project_root=self.project_root)
+        return (profile.model_id or profile.display_name or model_ref).strip()
+
+    def results(self) -> dict[str, Any]:
+        """Current run summary plus files under workspace/outputs and workspace/records."""
+        return {
+            "manifest": self.manifest(),
+            "handoffs": _list_handoffs(self.workspace_root / "records" / "handoffs"),
+            "artifacts": _list_artifacts(self.workspace_root / "outputs"),
+            "records": _list_record_files(self.workspace_root / "records"),
+        }
+
+    def read_result_file(self, relative: str) -> dict[str, Any]:
+        """Read one workspace output or record. Paths stay inside those folders."""
+        rel = _result_file_relative(relative)
+        path = (self.project_root / rel).resolve()
+        if not path.is_relative_to(self.project_root.resolve()):
+            raise ValueError("非法路径")
+        if not path.is_file():
+            raise FileNotFoundError(rel)
+        size = path.stat().st_size
+        if size > _MAX_RESULT_BYTES:
+            return {"path": rel, "kind": "too-large", "size": size, "text": ""}
+        text = path.read_text(encoding="utf-8", errors="replace")
+        kind = "text"
+        if path.suffix.lower() == ".md":
+            kind = "markdown"
+        elif path.suffix.lower() == ".json":
+            kind = "json"
+            try:
+                text = json.dumps(json.loads(text), ensure_ascii=False, indent=2)
+            except json.JSONDecodeError:
+                kind = "text"
+        return {"path": rel, "kind": kind, "size": size, "text": text}
+
+    def archive_outputs(self) -> bytes:
+        """Zip every deliverable under workspace/outputs."""
+        root = (self.workspace_root / "outputs").resolve()
+        buffer = io.BytesIO()
+        count = 0
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            if root.is_dir():
+                for path in sorted(root.rglob("*")):
+                    if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
+                        continue
+                    try:
+                        relative = path.resolve().relative_to(root)
+                    except ValueError:
+                        continue
+                    archive.write(path, f"outputs/{relative.as_posix()}")
+                    count += 1
+        if count == 0:
+            raise FileNotFoundError("还没有产出")
+        return buffer.getvalue()
+
+
+def _list_handoffs(folder: Path) -> list[dict[str, Any]]:
+    if not folder.is_dir():
+        return []
+    rows: list[dict[str, Any]] = []
+    for path in sorted(folder.glob("*.json")):
+        row: dict[str, Any] = {
+            "name": path.name,
+            "stage": "",
+            "role": "",
+            "attempt": None,
+            "status": "",
+            "status_reason": "",
+            "artifacts": [],
+        }
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            row["status_reason"] = "无法读取"
+            rows.append(row)
+            continue
+        if isinstance(payload, dict):
+            row["stage"] = str(payload.get("stage") or "")
+            row["role"] = str(payload.get("role") or "")
+            attempt = payload.get("attempt")
+            row["attempt"] = attempt if isinstance(attempt, int) else None
+            row["status"] = str(payload.get("status") or "")
+            row["status_reason"] = str(payload.get("status_reason") or "")
+            artifacts = payload.get("artifacts")
+            if isinstance(artifacts, list):
+                row["artifacts"] = [str(item) for item in artifacts if isinstance(item, str)]
+        rows.append(row)
+    return rows
+
+
+def _list_artifacts(root: Path) -> list[dict[str, Any]]:
+    if not root.is_dir():
+        return []
+    base = root.resolve()
+    items: list[dict[str, Any]] = []
+    grouped: dict[str, dict[str, int]] = {}
+    for path in sorted(base.rglob("*")):
+        if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
+            continue
+        try:
+            relative = path.resolve().relative_to(base)
+        except ValueError:
+            continue
+        parts = relative.parts
+        # Tool dumps land one file per call; show the attempt folder once.
+        if (
+            path.name == "raw.json"
+            and len(parts) >= 6
+            and parts[0] == "reports"
+            and parts[1] == "runs"
+        ):
+            key = f"workspace/outputs/{Path(*parts[:5]).as_posix()}"
+            bucket = grouped.setdefault(key, {"size": 0, "count": 0})
+            bucket["size"] += path.stat().st_size
+            bucket["count"] += 1
+            continue
+        items.append(
+            {
+                "path": f"workspace/outputs/{relative.as_posix()}",
+                "size": path.stat().st_size,
+                "count": 1,
+            }
+        )
+    for path, bucket in sorted(grouped.items()):
+        items.append({"path": path, "size": bucket["size"], "count": bucket["count"]})
+    return items
+
+
+def _list_record_files(root: Path) -> list[dict[str, Any]]:
+    """Files under workspace/records, except handoffs (those are listed on their own)."""
+    if not root.is_dir():
+        return []
+    base = root.resolve()
+    items: list[dict[str, Any]] = []
+    for path in sorted(base.rglob("*")):
+        if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
+            continue
+        try:
+            relative = path.resolve().relative_to(base)
+        except ValueError:
+            continue
+        if relative.parts and relative.parts[0] == "handoffs":
+            continue
+        items.append(
+            {
+                "path": f"workspace/records/{relative.as_posix()}",
+                "size": path.stat().st_size,
+                "count": 1,
+            }
+        )
+    return items
+
+
+_RESULT_PREFIXES = ("workspace/outputs/", "workspace/records/")
+_MAX_RESULT_BYTES = 512_000
+
+
+def _result_file_relative(relative: str) -> str:
+    rel = relative.replace("\\", "/").strip().lstrip("/")
+    parts = [part for part in rel.split("/") if part and part != "."]
+    if any(part == ".." for part in parts):
+        raise ValueError("非法路径")
+    rel = "/".join(parts)
+    if not rel.startswith(_RESULT_PREFIXES):
+        raise ValueError("只能读取 workspace 中的产物或记录")
+    return rel
+
+
+def _attempt_value(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return None
+    return value
 
 
 def _prefer_launch(launch: dict[str, Any], file_mtime: float | None) -> bool:
@@ -113,6 +347,8 @@ def _window(
     current_stage: Any,
     status_reason: Any,
     run_id: str | None,
+    model: str = "",
+    attempt: int | None = None,
 ) -> dict[str, Any]:
     data = text.encode("utf-8")
     size = len(data)
@@ -128,6 +364,8 @@ def _window(
         "status": status,
         "current_stage": current_stage,
         "status_reason": status_reason,
+        "attempt": attempt,
+        "model": model,
         "text": chunk.decode("utf-8", errors="replace"),
         "offset": size,
         "reset": reset,

@@ -39,7 +39,7 @@ def read_activity(path: Path, offset: int = 0) -> dict[str, Any]:
     true when the offset no longer fits the file (rotated / new run).
     """
     if not path.is_file():
-        return {"events": [], "offset": 0, "reset": offset != 0}
+        return {"events": [], "offsets": [], "offset": 0, "reset": offset != 0}
     size = path.stat().st_size
     reset = offset < 0 or offset > size
     start = 0 if reset else offset
@@ -48,13 +48,17 @@ def read_activity(path: Path, offset: int = 0) -> dict[str, Any]:
         data = handle.read(MAX_READ_BYTES)
     end = data.rfind(b"\n")
     if end < 0:
-        return {"events": [], "offset": start, "reset": reset}
+        return {"events": [], "offsets": [], "offset": start, "reset": reset}
     events: list[dict[str, Any]] = []
-    for raw in data[: end + 1].splitlines():
+    offsets: list[int] = []  # byte offset just past each event's line (resume point)
+    pos = start
+    for raw in data[: end + 1].splitlines(keepends=True):
+        pos += len(raw)
         try:
             item = json.loads(raw.decode("utf-8", errors="replace"))
         except json.JSONDecodeError:
             continue
         if isinstance(item, dict):
             events.append(item)
-    return {"events": events, "offset": start + end + 1, "reset": reset}
+            offsets.append(pos)
+    return {"events": events, "offsets": offsets, "offset": start + end + 1, "reset": reset}

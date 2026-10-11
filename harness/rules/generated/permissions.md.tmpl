@@ -1,0 +1,15 @@
+# 本会话的访问范围（宿主按 spec 权限生成）
+除非注入的上下文另有说明，只能按以下范围访问；越界会被拦截并记录；需要范围外的内容，就在 handoff 里写明，不要自己去试。
+
+可读路径（相对项目根目录）：
+{{readable_paths}}
+
+可写路径（相对项目根目录）：
+{{writable_paths}}
+
+允许的工具：
+{{allowed_tools}}
+
+正式交付物只能经 spec_mcp 的 submit 提交，不要直接写这些路径：
+{{official_deliverables}}
+{{shell_note}}

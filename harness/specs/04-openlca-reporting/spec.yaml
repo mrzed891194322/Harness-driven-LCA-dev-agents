@@ -1,4 +1,4 @@
-version: 1
+version: 2
 id: 04-openlca-reporting
 inputs:
 - path: workspace/outputs/LCI
@@ -8,16 +8,16 @@ inputs:
   required: true
 - path: workspace/outputs/inventory/process-mapping.json
   required: true
-outputs:
-- path: workspace/outputs/reports/lca_report.md
-  kind: file
+deliverables:
+- name: lca_report
+  path: workspace/outputs/reports/lca_report.md
+  format: text
   required: true
-acceptance:
-  checks:
-  - id: report
-    action: report_check
+  writer: agent
+acceptance: acceptance.yaml
+permissions: permissions.yaml
 lifecycle:
   on_reviewer_passed: []
 handoff:
-  schema: harness/specs/shared/lca-handoff-extension.schema.json
+  schema: ../shared/handoff.schema.json
   checks: []

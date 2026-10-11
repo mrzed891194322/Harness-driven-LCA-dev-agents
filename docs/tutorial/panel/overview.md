@@ -21,4 +21,4 @@ Linux / macOS（Windows 请用 WSL）。启动前会同步 uv 与 Node.js 依赖
 | 项目状态 | 环境与就绪检查 |
 | LCA 计划 | 编写 / 保存计划 |
 | 运行详情 | 查看运行 manifest |
-| 结果与历史 | 查看评估结果 |
+| 结果浏览 | 查看本轮 workspace 里的产物与记录 |

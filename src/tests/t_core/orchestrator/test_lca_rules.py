@@ -66,7 +66,11 @@ def test_stage_and_role_rules_reach_each_prompt_once(workflow_file):
             run_context={"task": workflow.workflow_id, "role": bundle.role},
         )
         headers = re.findall(r"^# 规则 (\S+)$", prompt, flags=re.MULTILINE)
-        assert headers == bundle.rule_ids, assignment_id
+        stage_rules = [r for r in bundle.rule_ids if workflow.rules[r].startswith("harness/rules/stages/")]
+        general = [r for r in bundle.rule_ids if r not in stage_rules]
+        # P5 order: run protocol -> rules prompts -> stage rules -> submission note
+        assert headers == general + stage_rules, assignment_id
+        assert prompt.rstrip().endswith("以 spec_mcp 为准，用 submit 交付")
         for rule_id in expected:
             body = (PROJECT_ROOT / workflow.rules[rule_id]).read_text().strip()
             assert prompt.count(body) == 1, (assignment_id, rule_id)

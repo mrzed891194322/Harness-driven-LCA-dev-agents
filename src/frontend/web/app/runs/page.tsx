@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AlertCircle, CircleStop, RefreshCw, Terminal } from "lucide-react";
 import { ActivitySummary } from "../../components/runs/activity-summary";
-import { AgentStream } from "../../components/runs/agent-stream";
+import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { apiFetch } from "../../lib/api";
 
 type Progress = {
   run_id?: string | null;
   status?: string;
   current_stage?: string | null;
+  attempt?: number | null;
   status_reason?: string | null;
+  model?: string | null;
   text?: string;
   offset?: number;
   reset?: boolean;
@@ -27,9 +30,14 @@ export default function RunsPage() {
   const [progress, setProgress] = useState<Progress>({ status: "idle", text: "" });
   const [log, setLog] = useState("");
   const [error, setError] = useState("");
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [openlcaDown, setOpenlcaDown] = useState(false);
+  const [activityAttempt, setActivityAttempt] = useState(0);
   const offset = useRef(0);
   const runId = useRef("");
   const epoch = useRef("");
+  const activityOffset = useRef(0);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -81,27 +89,147 @@ export default function RunsPage() {
   const label = STATUS_LABEL[status] || status;
   const tone = status === "failed" ? "fail" : status === "idle" ? "off" : "ok";
   const reason = (progress.status_reason || "").trim();
+  const attempt = Number(progress.attempt) || activityAttempt;
+
+  useEffect(() => {
+    if (status !== "failed") setReasonOpen(false);
+    if (status !== "running") setStopping(false);
+  }, [status]);
+
+  async function stopWork() {
+    setStopping(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/workflow/stop", { method: "POST" });
+      const data = (await response.json()) as { detail?: string };
+      if (!response.ok) throw new Error(data.detail || `无法中止工作（HTTP ${response.status}）`);
+    } catch (reason: unknown) {
+      setStopping(false);
+      setError(reason instanceof Error ? reason.message : "无法中止工作");
+    }
+  }
+
+  useEffect(() => {
+    const run = String(progress.run_id || "");
+    if (!run) {
+      setOpenlcaDown(false);
+      activityOffset.current = 0;
+      return;
+    }
+    let cancelled = false;
+    async function check() {
+      try {
+        const query = new URLSearchParams({
+          run_id: run,
+          offset: String(activityOffset.current),
+        });
+        const response = await apiFetch(`/api/workflow/activity?${query.toString()}`);
+        if (!response.ok || cancelled) return;
+        const data = (await response.json()) as {
+          events?: { kind?: string }[];
+          offset?: number;
+          reset?: boolean;
+        };
+        if (data.reset) activityOffset.current = 0;
+        activityOffset.current = Number(data.offset) || activityOffset.current;
+        const hit = (data.events || []).some((event) => event.kind === "openlca_unresponsive");
+        if (!cancelled) setOpenlcaDown((current) => current || hit);
+      } catch {
+        // ignore
+      }
+    }
+    void check();
+    const timer = setInterval(() => void check(), 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [progress.run_id]);
 
   return (
     <div className="plan-board">
       <section className="settings-card plan-card run-card">
         <div className="section-head plan-head">
           <div className="plan-intro">
-            <h2>运行详情</h2>
-          </div>
-          <div className="run-meta">
-            <span className={`badge badge-${tone}`}>{label}</span>
-            {progress.current_stage ? <span>{progress.current_stage}</span> : null}
+            <h2>
+              <Terminal className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
+              实时终端
+            </h2>
           </div>
         </div>
-        {reason ? (
-          <p className={`run-reason${status === "failed" ? " is-fail" : ""}`} title={reason}>
-            {reason}
-          </p>
+        {openlcaDown ? (
+          <p className="status-banner error">openLCA 无响应，请检查界面或重启 IPC</p>
         ) : null}
         {error ? <p className="status-banner error">{error}</p> : null}
-        <ActivitySummary runId={String(progress.run_id || "")} />
-        <AgentStream text={log} running={status === "running"} />
+        <div className="run-body">
+          <div className="run-terminal">
+            <AgentStream text={log} running={status === "running"} model={(progress.model || "").trim()} />
+            {reasonOpen ? (
+              <div className="run-reason-panel" role="dialog" aria-label="失败原因">
+                <div className="run-reason-head">
+                  <h3>失败原因</h3>
+                  <button type="button" onClick={() => setReasonOpen(false)}>
+                    关闭
+                  </button>
+                </div>
+                <div className="run-reason-body agent-prose">
+                  {reason ? <AgentProse text={reason} /> : <p>没有记录到这次失败的原因。</p>}
+                </div>
+                <div className="run-reason-foot">
+                  <button type="button" disabled title="计划从检查点续跑本阶段，尚未接入">
+                    <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
+                    重跑本轮
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <aside className="run-side">
+            <div className={`run-stage is-${tone}`}>
+              <div className="run-stage-head">
+                <span>当前阶段</span>
+                <span className={`badge badge-${tone}${status === "running" ? " is-live" : ""}`}>
+                  {status === "running" ? <span className="run-live-dot" aria-hidden="true" /> : null}
+                  {label}
+                </span>
+              </div>
+              <strong>{progress.current_stage || "准备开始"}</strong>
+              {attempt > 0 || status === "running" || status === "failed" ? (
+                <div className="run-stage-foot">
+                  {attempt > 0 ? <span className="run-stage-attempt">第 {attempt} 次</span> : null}
+                  {status === "running" ? (
+                    <button
+                      type="button"
+                      className="run-stage-action"
+                      onClick={() => void stopWork()}
+                      disabled={stopping}
+                    >
+                      <CircleStop size={12} strokeWidth={2} aria-hidden="true" />
+                      {stopping ? "正在中止…" : "中止工作"}
+                    </button>
+                  ) : null}
+                  {status === "failed" ? (
+                    <button
+                      type="button"
+                      className="run-stage-action"
+                      aria-expanded={reasonOpen}
+                      onClick={() => setReasonOpen(true)}
+                    >
+                      <AlertCircle size={12} strokeWidth={2} aria-hidden="true" />
+                      显示原因
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            <ActivitySummary
+              runId={String(progress.run_id || "")}
+              running={status === "running"}
+              currentStage={String(progress.current_stage || "")}
+              onStageAttempt={setActivityAttempt}
+            />
+          </aside>
+        </div>
       </section>
     </div>
   );

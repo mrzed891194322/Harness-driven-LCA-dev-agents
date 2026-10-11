@@ -1,120 +1,168 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiFetch } from "../../lib/api";
+import { useState } from "react";
 
 type PortField = {
-  id: string;
+  id: "web" | "api";
   label: string;
-  hint: string;
   envKey: string;
 };
 
 const PORT_FIELDS: PortField[] = [
-  {
-    id: "openlca",
-    label: "openLCA IPC",
-    hint: "与 openLCA 偏好设置中的 IPC Server 端口一致。",
-    envKey: "OPENLCA_IPC_PORT",
-  },
+  { id: "web", label: "前端", envKey: "GUI_WEB_PORT" },
+  { id: "api", label: "后端", envKey: "GUI_API_PORT" },
 ];
 
-export function GeneralSection({ onChanged }: { onChanged?: () => void }) {
-  const [host, setHost] = useState("127.0.0.1");
-  const [ports, setPorts] = useState<Record<string, string>>({ openlca: "8080" });
-  const [busy, setBusy] = useState(false);
+const CACHE_OPTIONS = [
+  { id: "user-input", label: "用户输入" },
+  { id: "knowledge", label: "知识库" },
+  { id: "workspace", label: "工作区" },
+  { id: "olca", label: "openLCA产物" },
+] as const;
+
+function validPort(value: string) {
+  const port = Number(value);
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
+export function GeneralSection(_props: { onChanged?: () => void }) {
+  const [host] = useState("127.0.0.1");
+  const [ports, setPorts] = useState<Record<PortField["id"], string>>({
+    web: "3000",
+    api: "8800",
+  });
   const [message, setMessage] = useState("");
-  const [tone, setTone] = useState<"ok" | "warn" | "error">("ok");
+  const [tone, setTone] = useState<"ok" | "error">("ok");
+  const [cacheTargets, setCacheTargets] = useState<Record<string, boolean>>({});
+  const [agentLanguage, setAgentLanguage] = useState("中文");
+  const [languageMessage, setLanguageMessage] = useState("");
+  const [languageTone, setLanguageTone] = useState<"ok" | "error">("ok");
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch("/api/lca/openlca")
-      .then(async (response) => {
-        const data = (await response.json()) as { host?: string; port?: number; detail?: string };
-        if (!response.ok) throw new Error(data.detail || "无法读取端口");
-        if (cancelled) return;
-        if (data.host) setHost(data.host);
-        if (data.port != null) setPorts((prev) => ({ ...prev, openlca: String(data.port) }));
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setTone("error");
-        setMessage(error instanceof Error ? error.message : "无法读取端口");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function saveOpenLca() {
-    const port = Number(ports.openlca);
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  function savePorts() {
+    const invalid = PORT_FIELDS.find((field) => !validPort(ports[field.id]));
+    if (invalid) {
       setTone("error");
-      setMessage("端口须为 1–65535 的整数");
+      setMessage(`${invalid.label}端口须为 1–65535 的整数`);
       return;
     }
-    setBusy(true);
-    setMessage("");
-    try {
-      const response = await apiFetch("/api/lca/openlca", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ port }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.detail || "保存端口失败");
-      const tool = data.tool as { ok?: boolean; message?: string; port?: number; host?: string } | undefined;
-      if (tool?.port != null) setPorts((prev) => ({ ...prev, openlca: String(tool.port) }));
-      if (tool?.host) setHost(tool.host);
-      setTone(tool?.ok ? "ok" : "warn");
-      setMessage(
-        tool
-          ? `已保存端口 ${tool.port}。${tool.message}`
-          : `已保存端口 ${port}`,
-      );
-      onChanged?.();
-    } catch (error: unknown) {
+    if (ports.web === ports.api) {
       setTone("error");
-      setMessage(error instanceof Error ? error.message : "保存端口失败");
-    } finally {
-      setBusy(false);
+      setMessage("前端与后端端口不能相同");
+      return;
     }
+    setTone("ok");
+    setMessage("端口已记录，重启后生效。");
+  }
+
+  function saveLanguage() {
+    const value = agentLanguage.trim();
+    if (!value) {
+      setLanguageTone("error");
+      setLanguageMessage("请填写语言");
+      return;
+    }
+    setAgentLanguage(value);
+    setLanguageTone("ok");
+    setLanguageMessage("语言已记录。");
   }
 
   return (
     <div className="settings-section">
-      <p className="settings-help">连接端口写入项目根目录的 .env，保存后立即重新检查。</p>
-      {PORT_FIELDS.map((field) => (
-        <section key={field.id} className="settings-card">
-          <h3>{field.label}</h3>
-          <p className="settings-help">{field.hint}</p>
-          <div className="row">
+      <section className="settings-card">
+        <h3>端口设置</h3>
+        <p className="settings-help">保存后重启生效。</p>
+        {PORT_FIELDS.map((field) => (
+          <div key={field.id} className="row">
             <label className="inline-field">
-              端口
+              {field.label}
               <input
                 type="number"
                 min={1}
                 max={65535}
-                value={ports[field.id] ?? ""}
-                onChange={(event) =>
-                  setPorts((prev) => ({ ...prev, [field.id]: event.target.value }))
-                }
+                aria-label={`${field.label}端口`}
+                value={ports[field.id]}
+                onChange={(event) => {
+                  setMessage("");
+                  setPorts((prev) => ({ ...prev, [field.id]: event.target.value }));
+                }}
               />
             </label>
             <span className="settings-meta">
               主机 {host} · <span className="mono">{field.envKey}</span>
             </span>
-            <button type="button" className="primary" disabled={busy} onClick={() => void saveOpenLca()}>
-              {busy ? "检查中…" : "保存并检查"}
-            </button>
           </div>
-        </section>
-      ))}
-      {message ? (
-        <div className={`status-banner${tone === "ok" ? "" : ` ${tone}`}`} role="status">
-          {message}
+        ))}
+        <div className="row">
+          <button type="button" className="primary" onClick={savePorts}>
+            保存
+          </button>
         </div>
-      ) : null}
+        {message ? (
+          <div className={`status-banner${tone === "ok" ? "" : ` ${tone}`}`} role="status">
+            {message}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="settings-card">
+        <h3 className="settings-card-title">
+          清理缓存
+          <span className="badge badge-warn">开发中，功能未完善</span>
+        </h3>
+        <ul className="settings-checks">
+          {CACHE_OPTIONS.map((option) => (
+            <li key={option.id}>
+              <label className="settings-check">
+                <input
+                  type="checkbox"
+                  checked={Boolean(cacheTargets[option.id])}
+                  onChange={(event) =>
+                    setCacheTargets((prev) => ({ ...prev, [option.id]: event.target.checked }))
+                  }
+                />
+                <span>{option.label}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+        <div className="row">
+          <button type="button">清除</button>
+        </div>
+      </section>
+
+      <section className="settings-card">
+        <h3 className="settings-card-title">
+          Agent 语言
+          <span className="badge badge-warn">开发中，功能未完善</span>
+        </h3>
+        <p className="settings-help">agent将会倾向以这种语言进行输出，但不影响GUI显示语言</p>
+        <div className="row">
+          <label className="inline-field">
+            语言
+            <input
+              type="text"
+              className="agent-language"
+              aria-label="Agent 语言"
+              value={agentLanguage}
+              placeholder="例如：中文"
+              onChange={(event) => {
+                setLanguageMessage("");
+                setAgentLanguage(event.target.value);
+              }}
+            />
+          </label>
+        </div>
+        <div className="row">
+          <button type="button" className="primary" onClick={saveLanguage}>
+            保存
+          </button>
+        </div>
+        {languageMessage ? (
+          <div className={`status-banner${languageTone === "ok" ? "" : ` ${languageTone}`}`} role="status">
+            {languageMessage}
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

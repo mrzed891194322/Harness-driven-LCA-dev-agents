@@ -1,0 +1,7 @@
+# 本阶段各角色使用的权限规则（规则定义在 harness/specs/shared/permissions/<id>.yaml）。
+# spec_mcp 的工具由 core 自动加入白名单；spec_mcp 写入的正式交付路径对 agent 自动只读。
+version: 1
+roles:
+  executor: [worker-default]
+  reviser: [worker-default]
+  reviewer: [reviewer]

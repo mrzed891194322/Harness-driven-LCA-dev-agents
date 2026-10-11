@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from backend.api.app import app
+from backend.core.workflow.persistence.manifest import write_manifest
 from backend.services.plan_form import PlanFields
+from backend.services.process_manager_stub import (
+    clear_active_process,
+    clear_stop,
+    request_stop,
+    set_active_process,
+    should_stop,
+)
 from backend.services.workflow_launch import WorkflowLauncher
+from backend.services.workflow_service import WorkflowService
 
 
 class WorkflowLaunchTests(unittest.TestCase):
@@ -100,3 +111,70 @@ class WorkflowLaunchTests(unittest.TestCase):
     def test_start_route_rejects_unknown_task(self) -> None:
         response = TestClient(app).post("/api/workflow/start", json={"task": "nope"})
         self.assertEqual(response.status_code, 400)
+
+    def test_stop_while_idle_is_rejected(self) -> None:
+        response = TestClient(app).post("/api/workflow/stop")
+        self.assertEqual(response.status_code, 409)
+
+    def test_request_stop_terminates_only_the_active_process(self) -> None:
+        class _Proc:
+            def __init__(self) -> None:
+                self.returncode: int | None = None
+                self.terminated = False
+
+            def poll(self) -> int | None:
+                return self.returncode
+
+            def terminate(self) -> None:
+                self.terminated = True
+                self.returncode = -15
+
+        proc = _Proc()
+        set_active_process(proc)  # type: ignore[arg-type]
+        try:
+            self.assertTrue(request_stop())
+            self.assertTrue(proc.terminated)
+            self.assertTrue(should_stop())
+            self.assertFalse(request_stop())
+        finally:
+            clear_active_process()
+            clear_stop()
+
+    def test_stop_marks_the_run_failed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_manifest(
+                root / "workspace",
+                status="running",
+                current_stage="04-openlca-reporting",
+                status_reason="",
+                run_id="run-stop",
+            )
+            started = threading.Event()
+
+            def prepare(task: str, **_kwargs: object):
+                del task
+                started.set()
+                while not should_stop():
+                    time.sleep(0.02)
+                    yield "wait\n", "Running"
+                yield "stopped\n", "Stopped"
+
+            launcher = WorkflowLauncher()
+            launcher.start(
+                task="whole-lca",
+                fields=PlanFields("瓶子", "1 个", "摇篮到大门", ""),
+                project_root=root,
+                prepare=prepare,
+                run=prepare,
+            )
+            self.assertTrue(started.wait(timeout=2))
+            self.assertEqual(launcher.stop()["status"], "stopping")
+            assert launcher._thread is not None
+            launcher._thread.join(timeout=5)
+            self.assertEqual(launcher.snapshot()["status"], "failed")
+            self.assertIn("用户中止", launcher.snapshot()["reason"])
+            recorded = WorkflowService(root).manifest()
+            self.assertEqual(recorded["status"], "failed")
+            self.assertIn("用户中止", recorded["status_reason"])
+            clear_stop()

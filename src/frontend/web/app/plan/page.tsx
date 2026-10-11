@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
 import { PreviewBoard } from "../../components/plan/preview-board";
+import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
 
@@ -17,6 +18,11 @@ type ReferenceFile = {
   name: string;
   size: number;
   note?: string;
+};
+
+type PendingUpload = {
+  file: File;
+  name: string;
 };
 
 const emptyFields: PlanFields = {
@@ -73,14 +79,67 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function duplicateReferenceNames(list: File[], existing: ReferenceFile[]): string[] {
+function duplicateReferenceNames(list: PendingUpload[], existing: ReferenceFile[]): string[] {
   const taken = new Set(existing.map((file) => file.name));
   const conflicts: string[] = [];
-  for (const file of list) {
-    if (taken.has(file.name)) conflicts.push(file.name);
-    else taken.add(file.name);
+  for (const item of list) {
+    if (taken.has(item.name)) conflicts.push(item.name);
+    else taken.add(item.name);
   }
   return [...new Set(conflicts)];
+}
+
+function referenceName(file: File): string {
+  const relative = file.webkitRelativePath.replaceAll("\\", "/").replace(/^\/+/, "");
+  return relative || file.name;
+}
+
+function isSkippedReference(name: string): boolean {
+  const parts = name.split("/").filter((part) => part && part !== ".");
+  return parts.length === 0 || parts.some((part) => part.startsWith(".") || part === "__MACOSX");
+}
+
+function pendingFromFile(file: File, name = referenceName(file)): PendingUpload | null {
+  const normalized = name.replaceAll("\\", "/").replace(/^\/+/, "");
+  if (isSkippedReference(normalized)) return null;
+  return { file, name: normalized };
+}
+
+function fileFromEntry(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => {
+    entry.file(resolve, reject);
+  });
+}
+
+function readEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const all: FileSystemEntry[] = [];
+    const read = () => {
+      reader.readEntries((batch) => {
+        if (!batch.length) {
+          resolve(all);
+          return;
+        }
+        all.push(...batch);
+        read();
+      }, reject);
+    };
+    read();
+  });
+}
+
+async function pendingFromEntry(entry: FileSystemEntry): Promise<PendingUpload[]> {
+  if (entry.name.startsWith(".") || entry.name === "__MACOSX") return [];
+  if (entry.isFile) {
+    const file = await fileFromEntry(entry as FileSystemFileEntry);
+    const item = pendingFromFile(file, entry.fullPath.replace(/^\/+/, ""));
+    return item ? [item] : [];
+  }
+  if (!entry.isDirectory) return [];
+  const reader = (entry as FileSystemDirectoryEntry).createReader();
+  const children = await readEntries(reader);
+  const nested = await Promise.all(children.map((child) => pendingFromEntry(child)));
+  return nested.flat();
 }
 
 async function errorMessage(response: Response): Promise<string> {
@@ -102,11 +161,20 @@ export default function PlanPage() {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
+  const [formToken, setFormToken] = useState(0);
+  const [work, setWork] = useState<StudyWork>(() => emptyStudyWork());
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const savedPlan = useRef("");
+  // Only save after the user actually changed something (upload or edit). Loading
+  // and hydrating the form must never write main_plan.md (a stale tab rewrote it).
+  const dirty = useRef(false);
+  const saveChain = useRef<Promise<void>>(Promise.resolve());
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
   const noteDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -117,16 +185,54 @@ export default function PlanPage() {
       })
       .then((data) => {
         setForm({ ...emptyFields, ...data.fields });
+        setFormToken((token) => token + 1);
         setReferences(data.references ?? []);
+        setLoaded(true);
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : "无法读取计划");
       });
   }, []);
 
+  // Autosave: persist uploads and field edits (incl. LCIA method) without executing.
+  useEffect(() => {
+    if (!loaded) return;
+    const body = JSON.stringify(work.plan);
+    if (!dirty.current) {
+      savedPlan.current = body;
+      return;
+    }
+    if (body === savedPlan.current) return;
+    const timer = window.setTimeout(() => {
+      // Serialize PUTs so an older save can never land after a newer one.
+      saveChain.current = saveChain.current.then(async () => {
+        try {
+          const response = await apiFetch("/api/plan", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: true,
+          });
+          if (!response.ok) throw new Error(await errorMessage(response));
+          savedPlan.current = body;
+          setStatus("已自动保存");
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : "自动保存失败");
+        }
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [loaded, work.plan]);
+
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
     return () => document.documentElement.classList.remove("status-fit");
+  }, []);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("mode") === "revise") {
+      setWorkMode("revise");
+    }
   }, []);
 
   useEffect(() => {
@@ -135,11 +241,6 @@ export default function PlanPage() {
     if (noteTarget && !dialog.open) dialog.showModal();
     if (!noteTarget && dialog.open) dialog.close();
   }, [noteTarget]);
-
-  function update(key: keyof PlanFields, value: string) {
-    setForm((current) => ({ ...current, [key]: value }));
-    setStatus("");
-  }
 
   async function downloadTemplate() {
     setError("");
@@ -168,7 +269,9 @@ export default function PlanPage() {
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { fields: PlanFields };
       const next = { ...emptyFields, ...data.fields };
+      dirty.current = true;
       setForm(next);
+      setFormToken((token) => token + 1);
       const filled = fields.some((field) => next[field.key].trim());
       setPanel("fields");
       setStatus(filled ? "已从 Markdown 载入" : "模板已载入");
@@ -177,19 +280,48 @@ export default function PlanPage() {
     }
   }
 
-  async function uploadReferences(files: FileList | File[]) {
-    const list = Array.from(files);
-    if (!list.length) return;
+  function queueReferences(files: FileList | File[]) {
+    const raw = Array.from(files);
+    if (!raw.length) return;
+    const list = raw
+      .map((file) => pendingFromFile(file))
+      .filter((item): item is PendingUpload => item !== null);
+    void uploadReferences(list);
+  }
+
+  async function uploadDropped(entries: FileSystemEntry[]) {
+    setUploading(true);
+    setError("");
+    try {
+      const nested = await Promise.all(entries.map((entry) => pendingFromEntry(entry)));
+      await uploadReferences(nested.flat(), { alreadyUploading: true });
+    } catch (reason) {
+      setUploading(false);
+      setError(reason instanceof Error ? reason.message : "参考资料上传失败");
+    }
+  }
+
+  async function uploadReferences(list: PendingUpload[], options?: { alreadyUploading?: boolean }) {
+    if (!list.length) {
+      setUploading(false);
+      setStatus("");
+      setError("没有可上传的文件");
+      return;
+    }
     const conflicts = duplicateReferenceNames(list, references);
     if (conflicts.length) {
+      setUploading(false);
       setStatus("");
       setError(`不能上传同名文件：${conflicts.map((name) => `「${name}」`).join("、")}`);
       return;
     }
-    setUploading(true);
+    if (!options?.alreadyUploading) setUploading(true);
     setError("");
     const body = new FormData();
-    for (const file of list) body.append("files", file);
+    for (const item of list) {
+      body.append("files", item.file, item.file.name);
+      body.append("paths", item.name);
+    }
     try {
       const response = await apiFetch("/api/references", { method: "POST", body });
       if (!response.ok) throw new Error(await errorMessage(response));
@@ -271,7 +403,10 @@ export default function PlanPage() {
       <section className="settings-card plan-card">
         <div className="section-head plan-head">
           <div className="plan-intro">
-            <h2>LCA 计划</h2>
+            <h2>
+              <ClipboardList className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
+              LCA工作计划
+            </h2>
           </div>
           <div className="plan-mode" role="radiogroup" aria-label="工作类型" data-mode={workMode}>
             <span className="plan-mode-thumb" aria-hidden="true" />
@@ -322,30 +457,27 @@ export default function PlanPage() {
         </div>
 
         <div className="plan-panel" role="tabpanel">
-          {panel === "fields" ? (
-            <div className="plan-fields">
-              <div className="plan-grid">
-                {fields.map((field) => (
-                  <label key={field.key} className="plan-field">
-                    <span>{field.label}</span>
-                    <small>{field.hint}</small>
-                    <textarea
-                      value={form[field.key]}
-                      placeholder={field.placeholder}
-                      onChange={(event) => update(field.key, event.target.value)}
-                    />
-                  </label>
-                ))}
-              </div>
-              <div className="row plan-actions plan-import">
-                <p>可以先下载模板写好，再上传。</p>
+          <div
+            className="plan-fields"
+            hidden={panel !== "fields"}
+            onChangeCapture={() => {
+              dirty.current = true;
+            }}
+            onClickCapture={(event) => {
+              if ((event.target as HTMLElement).closest(".plan-study button")) dirty.current = true;
+            }}
+          >
+            <StudyForm source={form} sourceKey={formToken} onWork={setWork} />
+            <div className="row plan-actions plan-import">
+                {status ? <p className="plan-status">{status}</p> : null}
+                <p className="plan-import-hint">如果多次使用，可以先下载模板写好，再上传。</p>
                 <button type="button" onClick={() => void downloadTemplate()}>
                   <Download className="launch-icon" aria-hidden="true" />
                   下载模板
                 </button>
                 <button type="button" onClick={() => planInput.current?.click()}>
                   <Upload className="launch-icon" aria-hidden="true" />
-                  上传 Markdown
+                  上传计划文档
                 </button>
                 <input
                   ref={planInput}
@@ -354,16 +486,15 @@ export default function PlanPage() {
                   hidden
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    event.target.value = "";
                     if (file) void importPlan(file);
                   }}
                 />
-              </div>
             </div>
-          ) : panel === "references" ? (
+          </div>
+          {panel === "references" ? (
             <div className="plan-ref">
               <p className="settings-help">
-                可以上传任意类型的文件，大小不限，不能有同名文件。Agent 只读取这些文件、项目知识库和 openLCA 数据库。
+                可以上传文件或文件夹，大小不限，相同路径不能重复。Agent 只读取这些文件、项目知识库和 openLCA 数据库。如果对特定文件中希望提取到的信息做规定，请点击「注释」编写。
               </p>
               <div className="plan-ref-body">
                 <div
@@ -377,24 +508,48 @@ export default function PlanPage() {
                   onDrop={(event) => {
                     event.preventDefault();
                     setDragOver(false);
-                    void uploadReferences(event.dataTransfer.files);
+                    const entries: FileSystemEntry[] = [];
+                    for (const item of event.dataTransfer.items) {
+                      if (item.kind !== "file") continue;
+                      const entry = item.webkitGetAsEntry?.();
+                      if (entry) entries.push(entry);
+                    }
+                    if (entries.length) {
+                      void uploadDropped(entries);
+                      return;
+                    }
+                    queueReferences(event.dataTransfer.files);
                   }}
                 >
                   <FileText className="launch-icon" aria-hidden="true" />
                   <strong>{uploading ? "正在上传…" : "将参考资料拖到这里"}</strong>
-                  <span>可以上传任意类型的文件，大小不限，不能有同名文件</span>
-                  <button type="button" onClick={() => referenceInput.current?.click()} disabled={uploading}>
-                    选择文件
-                  </button>
+                  <span>可以上传文件或文件夹，大小不限，相同路径不能重复</span>
+                  <div className="plan-drop-actions">
+                    <button type="button" onClick={() => referenceInput.current?.click()} disabled={uploading}>
+                      选择文件
+                    </button>
+                    <button type="button" onClick={() => folderInput.current?.click()} disabled={uploading}>
+                      选择文件夹
+                    </button>
+                  </div>
                   <input
                     ref={referenceInput}
                     type="file"
                     multiple
                     hidden
                     onChange={(event) => {
-                      const selected = event.target.files;
-                      event.target.value = "";
-                      if (selected) void uploadReferences(selected);
+                      if (event.target.files?.length) queueReferences(event.target.files);
+                    }}
+                  />
+                  <input
+                    ref={folderInput}
+                    type="file"
+                    multiple
+                    hidden
+                    // Native directory picker (Chromium, Firefox, Safari).
+                    {...{ webkitdirectory: "", directory: "" }}
+                    onChange={(event) => {
+                      if (event.target.files?.length) queueReferences(event.target.files);
                     }}
                   />
                 </div>
@@ -435,13 +590,13 @@ export default function PlanPage() {
               </div>
             </div>
           ) : panel === "workflow" ? (
-            <WorkflowBoard mode={workMode} onModeChange={setWorkMode} />
-          ) : (
-            <PreviewBoard mode={workMode} fields={form} references={references} />
-          )}
+            <WorkflowBoard mode={workMode} />
+          ) : panel === "preview" ? (
+            <PreviewBoard mode={workMode} work={work} references={references} />
+          ) : null}
         </div>
 
-        {status ? <p className="plan-status">{status}</p> : null}
+        {panel !== "fields" && status ? <p className="plan-status">{status}</p> : null}
         {error && !noteTarget ? <p className="status-banner error">{error}</p> : null}
       </section>
       <dialog

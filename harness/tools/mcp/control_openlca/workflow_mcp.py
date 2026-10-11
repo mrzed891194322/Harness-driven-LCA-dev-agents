@@ -26,6 +26,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 from harness.tools.shared.control_openlca import operations, readonly
 from harness.tools.shared.control_openlca.cleanup import run_cleanup_output
 from harness.tools.shared.control_openlca.connection import (
+    describe_ipc_session_budget,
     ipc_budget_scope,
     ipc_tool_is_long_running,
     ipc_tool_profile,
@@ -99,10 +100,17 @@ def v2_tool(name):
                         runner: Callable[..., Any] = serialized_ipc(
                             lambda host, port: function(**params),
                             long_running=ipc_tool_is_long_running(name),
+                            operation=name,
                         )
                         result = runner(host, port)
                     if applied_budget is not None and isinstance(result, dict):
-                        result["applied_timeout_sec"] = int(applied_budget)
+                        budget = describe_ipc_session_budget(
+                            None if timeout_raw is None else int(timeout_raw)
+                        )
+                        result["applied_timeout_sec"] = int(
+                            budget["effective_session_budget_sec"]
+                        )
+                        result.update(budget)
                     return result
 
                 if applied_budget is not None:
@@ -129,8 +137,13 @@ mcp = MCPServer(
         "Query and gated workflow access to the openLCA IPC Server configured "
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci and cleanup_output "
         "are destructive; import_lci requires a matching current import scope. "
-        "Long-running tools accept optional timeout_sec (300-7200) for IPC session "
-        "budget and per-request HTTP reads; do not wrap tools in shell timeout."
+        "Long-running tools accept optional timeout_sec (300-7200) to lower the host "
+        "IPC session budget (min(agent, OPENLCA_IPC_SESSION_BUDGET_SEC)); per-request "
+        "HTTP read timeouts are host-only (OPENLCA_TIMEOUT_*). Do not wrap tools in "
+        "shell timeout. After partial_failure use reconcile_import then resume_import. "
+        "Same-run re-import after upstream LCI rework overwrites this run's own "
+        "entities (matching UUIDs in the target category); resume_import reconciles "
+        "per-entity content_hash and re-imports only changed entities."
     ),
 )
 
@@ -208,7 +221,8 @@ def health_check() -> dict[str, Any]:
 @mcp.tool(
     description=(
         "Search descriptors in the active openLCA database and return names, UUIDs, "
-        "categories, and pagination metadata. Optional timeout_sec (300-7200) sets "
+        "categories, outside_project (relative to target_category, default project "
+        "folder name), and pagination metadata. Optional timeout_sec (300-7200) sets "
         "the IPC session budget for large databases."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
@@ -233,6 +247,7 @@ def query_descriptors(
     search: str = "",
     limit: int = 50,
     offset: int = 0,
+    target_category: str = "",
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Query entity descriptors by a case-insensitive name substring."""
@@ -244,13 +259,15 @@ def query_descriptors(
         search=search,
         limit=limit,
         offset=offset,
+        target_category=_target_category(target_category),
     )
 
 
 @mcp.tool(
     description=(
         "Read one exact openLCA Process UUID and return compact process metadata, "
-        "location, and quantitative-reference exchanges. Optional timeout_sec "
+        "location, quantitative-reference exchanges, and outside_project relative "
+        "to target_category (default project folder name). Optional timeout_sec "
         "(300-7200) sets the IPC session budget."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
@@ -259,11 +276,14 @@ def query_descriptors(
 @v2_tool("get_process_details")
 def get_process_details(
     process_id: str,
+    target_category: str = "",
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Read compact details for one exact Process UUID."""
     host, port = _endpoint_config()
-    return run_get_process_details(host, port, process_id)
+    return run_get_process_details(
+        host, port, process_id, target_category=_target_category(target_category)
+    )
 
 
 @mcp.tool(
@@ -292,6 +312,7 @@ def get_flow_providers(
         location=location,
         limit=limit,
         offset=offset,
+        target_category=_target_category(""),
     )
 
 
@@ -329,10 +350,13 @@ def preflight_import_lci(
 @mcp.tool(
     description=(
         "Destructively import canonical workspace/outputs/LCI or a compatibility LCI "
-        "under workspace/tmp after rerunning preflight. Rejects the write when the "
-        "database name, target category, or LCI directory does not match the last "
-        "successful preflight scope. Optional timeout_sec (300-7200) extends the IPC "
-        "session budget; do not wrap this tool in shell timeout."
+        "under workspace/tmp after rerunning preflight. Scope (run, endpoint, database, "
+        "category, lci_dir) must match preflight; LCI file content may change within "
+        "the same run after rework and will update existing UUIDs in the target category. "
+        "After partial_failure, pass resume_operation_id from get_import_operation with "
+        "a new request_id and preflight_id, or call resume_import (skips done entities, "
+        "re-imports entities whose content_hash changed). Optional timeout_sec (300-7200) "
+        "lowers the host session budget only; per-request reads use OPENLCA_TIMEOUT_*."
     ),
     annotations=DESTRUCTIVE_ANNOTATIONS,
     structured_output=True,
@@ -344,6 +368,7 @@ def import_lci(
     lci_dir: str = "workspace/outputs/LCI",
     target_category: str = "",
     database_name: str | None = None,
+    resume_operation_id: str | None = None,
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Import LCI under a precise, current preflight scope."""
@@ -366,6 +391,93 @@ def import_lci(
         run_id=context.run_id,
         request_id=request_id,
         preflight_id=preflight_id,
+        resume_operation_id=resume_operation_id,
+    )
+
+
+@mcp.tool(
+    description=(
+        "Read-only reconcile of a partial import: query openLCA for each planned "
+        "entity id and update entity_plan statuses (done/failed/uncertain)."
+    ),
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+@v2_tool("reconcile_import")
+def reconcile_import(operation_id: str, timeout_sec: int | None = None) -> dict[str, Any]:
+    """Reconcile journal entity_plan against the active database."""
+    host, port = _endpoint_config()
+    context = Context.environment()
+    return operations.reconcile_import(
+        host,
+        port,
+        context.safe(context.workspace / "records" / "import-operations"),
+        run_id=context.run_id,
+        operation_id=operation_id,
+    )
+
+
+@mcp.tool(
+    description=(
+        "Resume or supersede an import operation after reconcile_import when needed. "
+        "Requires matching import scope and a new request_id plus unconsumed preflight_id; "
+        "reuses done entities when content_hash matches and re-imports changed ones."
+    ),
+    annotations=DESTRUCTIVE_ANNOTATIONS,
+    structured_output=True,
+)
+@v2_tool("resume_import")
+def resume_import(
+    operation_id: str,
+    request_id: str,
+    preflight_id: str,
+    lci_dir: str = "workspace/outputs/LCI",
+    target_category: str = "",
+    database_name: str | None = None,
+    timeout_sec: int | None = None,
+) -> dict[str, Any]:
+    """Continue importing from the first non-done entity in entity_plan."""
+    host, port = _endpoint_config()
+    context = Context.environment()
+    from harness.tools.shared.lca_artifacts.checks import (
+        require_approved_model,
+        require_import_directory,
+    )
+
+    require_approved_model(context)
+    require_import_directory(context, _workflow_lci_dir(lci_dir))
+    return operations.resume_import_request(
+        host=host,
+        port=port,
+        lci_dir=_workflow_lci_dir(lci_dir),
+        target_category=_target_category(target_category),
+        database_name=database_name,
+        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
+        run_id=context.run_id,
+        request_id=request_id,
+        preflight_id=preflight_id,
+        operation_id=operation_id,
+    )
+
+
+@mcp.tool(
+    description=(
+        "Alias for get_import_operation: read import journal status and entity_plan."
+    ),
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+@v2_tool("import_status")
+def import_status(
+    request_id: str | None = None, operation_id: str | None = None
+) -> dict[str, Any]:
+    """Job-style status for the current or specified import operation."""
+    context = Context.environment()
+    return operations.get_operation(
+        context.safe(context.workspace / "records" / "import-operations"),
+        run_id=context.run_id,
+        request_id=request_id,
+        operation_id=operation_id,
     )
 
 
@@ -413,6 +525,7 @@ def get_model_graph(
         port,
         product_system,
         expected_process_ids=expected_process_ids,
+        target_category=_target_category(""),
     )
 
 
@@ -525,7 +638,13 @@ def query_descriptors_batch(
 ) -> dict[str, Any]:
     host, port = _endpoint_config()
     return readonly.query_descriptors_batch(
-        host, port, entity_type, searches, limit, offset
+        host,
+        port,
+        entity_type,
+        searches,
+        limit,
+        offset,
+        target_category=_target_category(""),
     )
 
 
@@ -544,7 +663,9 @@ def validate_providers_batch(
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     host, port = _endpoint_config()
-    return readonly.validate_providers_batch(host, port, requirements)
+    return readonly.validate_providers_batch(
+        host, port, requirements, target_category=_target_category("")
+    )
 
 
 if __name__ == "__main__":
