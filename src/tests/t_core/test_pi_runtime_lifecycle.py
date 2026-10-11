@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import signal
+import socket
 import subprocess
 import tempfile
 import time
@@ -24,8 +25,10 @@ from backend.core.workflow import main as workflow_main
 from backend.pi_client.env import runtime_env
 from backend.pi_client.process import (
     NOT_RUNNING,
+    EndpointError,
     PiRuntimeClient,
     RuntimeNotRunning,
+    runtime_endpoint,
     runtime_entry,
     socket_path,
 )
@@ -139,6 +142,70 @@ def test_socket_path_default_and_override(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert socket_path(tmp_path) == tmp_path / ".local" / "run" / "pi-runtime.sock"
     monkeypatch.setenv("PI_RUNTIME_SOCKET", str(tmp_path / "x.sock"))
     assert socket_path(tmp_path) == tmp_path / "x.sock"
+
+
+def test_runtime_endpoint_file_and_loopback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("PI_RUNTIME_SOCKET", raising=False)
+    recorded = tmp_path / ".local" / "run" / "pi-runtime.endpoint"
+    recorded.parent.mkdir(parents=True)
+    recorded.write_text("tcp://127.0.0.1:39123\n", encoding="utf-8")
+    assert runtime_endpoint(tmp_path) == "tcp://127.0.0.1:39123"
+    with pytest.raises(EndpointError):
+        socket_path(tmp_path)
+    recorded.write_text("tcp://10.0.0.8:80\n", encoding="utf-8")
+    with pytest.raises(EndpointError, match="127.0.0.1"):
+        runtime_endpoint(tmp_path)
+    monkeypatch.setenv("PI_RUNTIME_SOCKET", str(tmp_path / "x.sock"))
+    assert socket_path(tmp_path) == tmp_path / "x.sock"
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+def _port_open(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+            return True
+    except OSError:
+        return False
+
+
+def test_tcp_client_runtime_info_and_shutdown() -> None:
+    port = _free_port()
+    endpoint = f"tcp://127.0.0.1:{port}"
+    env = {**os.environ, "PI_RUNTIME_MOCK": "1"}
+    env.pop("PI_RUNTIME_PRIVATE", None)
+    proc = subprocess.Popen(
+        [*runtime_entry(PROJECT_ROOT), "--listen", endpoint],
+        cwd=str(PROJECT_ROOT),
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    client = PiRuntimeClient(PROJECT_ROOT, endpoint=endpoint, private=False)
+    try:
+        assert _wait(lambda: _port_open(port), 20)
+        info = client.request("runtime.info", timeout=10)
+        assert info["socket"] == endpoint
+        assert info["transport"] == "socket"
+        assert info["mode"] == "mock"
+        assert client.request("runtime.shutdown", timeout=10) == {
+            "shutting_down": True
+        }
+        # wait() reaps the process. os.kill(pid, 0) still succeeds on a zombie.
+        assert proc.wait(timeout=15) == 0
+        assert not _port_open(port)
+    finally:
+        client.close()
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
 
 
 @posix_only

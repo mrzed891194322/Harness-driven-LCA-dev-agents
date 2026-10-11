@@ -81,6 +81,12 @@ function writeTranscript(live: LiveSession, final = false): void {
 }
 
 const sessions = new Map<string, LiveSession>();
+let shutdownRequest: ((reason: string) => void) | null = null;
+
+/** Service mode registers this so `runtime.shutdown` can stop the process. */
+export function setShutdownRequestHandler(handler: (reason: string) => void): void {
+  shutdownRequest = handler;
+}
 
 const startedAt = new Date();
 let transport: { transport: "stdio" | "socket"; socket: string | null } = {
@@ -751,6 +757,16 @@ export async function handleRuntimeMethod(
     }
     await session.abort();
     return { cancelled: true };
+  }
+  if (method === "runtime.shutdown") {
+    if (!shutdownRequest) {
+      throw new Error("runtime.shutdown 仅在服务模式下可用");
+    }
+    const trigger = shutdownRequest;
+    // The response is written after this function returns. Wait so it flushes
+    // before the process exits (Windows stop cannot deliver SIGTERM).
+    setTimeout(() => trigger("runtime.shutdown"), 50);
+    return { shutting_down: true };
   }
   if (method === "runtime.info") {
     return runtimeInfo();

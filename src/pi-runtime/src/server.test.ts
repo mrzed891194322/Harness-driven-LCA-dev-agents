@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { connectTarget } from "./endpoint.js";
 import type { SessionLaunchSpec } from "./types.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -58,9 +59,9 @@ class Client {
     });
   }
 
-  static connect(socketPath: string): Promise<Client> {
+  static connect(endpoint: string): Promise<Client> {
     return new Promise((resolve, reject) => {
-      const socket = net.connect(socketPath);
+      const socket = net.connect(connectTarget(endpoint));
       socket.once("connect", () => resolve(new Client(socket)));
       socket.once("error", reject);
     });
@@ -272,3 +273,32 @@ test(
     }
   },
 );
+
+test("service: loopback tcp serves runtime.info and shutdown closes the port", { timeout: 30_000 }, async () => {
+  const port = await new Promise<number>((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      const chosen = address && typeof address === "object" ? address.port : 0;
+      probe.close(() => resolve(chosen));
+    });
+  });
+  const endpoint = `tcp://127.0.0.1:${port}`;
+  const rt = startService(endpoint, { PI_RUNTIME_MOCK: "1" });
+  try {
+    assert.ok(await waitFor(() => rt.err().includes("listening on"), 20_000), rt.err());
+    const client = await Client.connect(endpoint);
+    const info = await client.call("runtime.info");
+    assert.equal(info.transport, "socket");
+    assert.equal(info.socket, endpoint);
+    assert.equal(info.mode, "mock");
+    assert.deepEqual(await client.call("runtime.shutdown"), { shutting_down: true });
+    const exit = await rt.exited;
+    assert.equal(exit.code, 0);
+    assert.match(rt.err(), /reason=runtime\.shutdown/);
+    await assert.rejects(Client.connect(endpoint));
+  } finally {
+    rt.child.kill("SIGKILL");
+  }
+});

@@ -2,7 +2,7 @@
 
 本文档介绍运行 **Harness-driven LCA Agents** 所需的环境与配置。
 
-在项目根目录执行（macOS、Linux 与 Windows 相同；Windows 可用 PowerShell、命令提示符或 Git Bash）：
+在项目根目录执行（macOS、Linux 与原生 Windows 相同；Windows 可用 PowerShell 或命令提示符）。Windows 还需安装 [Git for Windows](https://git-scm.com/download/win)，供 Agent 的 bash 工具使用：
 
 ```bash
 node src/scripts/start.mjs
@@ -34,7 +34,11 @@ Worker 固定为 **Pi SDK runtime**（`src/pi-runtime`，依赖 Node.js）。Web
   uv --version
   ```
 
-## 2. Python 依赖
+## 2. Windows：Git for Windows
+
+从 [git-scm.com/download/win](https://git-scm.com/download/win) 安装。默认位置是 `C:\Program Files\Git\bin\bash.exe`。装到其它目录时，把 `PI_BASH` 设为该 `bash.exe` 的完整路径。Linux 和 macOS 不需要这一步。
+
+## 3. Python 依赖
 
 项目由 `.python-version` 和 `pyproject.toml` 固定使用 Python `3.12`。在项目根目录
 执行：
@@ -56,7 +60,7 @@ uv run pyright
 uv run pytest
 ```
 
-## 3. openLCA IPC
+## 4. openLCA IPC
 
 运行工作流前：
 

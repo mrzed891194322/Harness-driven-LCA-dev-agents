@@ -2,8 +2,10 @@
 
 Lifetime (ISSUES #23, Du Yuan's rule): exactly ONE pi-runtime per project. It is
 a service started by ``npm run dev`` / ``npm start`` and stopped by
-``npm run stop``; it listens on a Unix domain socket
-(``.local/run/pi-runtime.sock``, override with ``PI_RUNTIME_SOCKET``). The
+``npm run stop``. Linux and macOS use a Unix domain socket
+(``.local/run/pi-runtime.sock``). Native Windows uses loopback TCP
+(``tcp://127.0.0.1:<port>``). The address in use is recorded in
+``.local/run/pi-runtime.endpoint``; ``PI_RUNTIME_SOCKET`` overrides it. The
 backend and every workflow.py subprocess connect to it -- they never spawn one.
 Closing a connection releases the sessions (and MCP servers) it created; the
 runtime itself stays up.
@@ -40,6 +42,8 @@ PROJECT_ROOT = next(
 SOCKET_ENV = "PI_RUNTIME_SOCKET"
 PRIVATE_ENV = "PI_RUNTIME_PRIVATE"
 NOT_RUNNING = "pi-runtime 未运行，请用 npm run dev 启动"
+ENDPOINT_FILENAME = "pi-runtime.endpoint"
+_TCP_LOOPBACK = re.compile(r"^tcp://127\.0\.0\.1:(\d+)$")
 
 EventHandler = Callable[[str, dict[str, Any]], None]
 
@@ -64,12 +68,66 @@ class RuntimeNotRunning(SessionError):
     """The project's pi-runtime service is not listening (not retryable)."""
 
 
-def socket_path(project_root: Path | None = None) -> Path:
-    """Where the project's pi-runtime listens."""
+class EndpointError(ValueError):
+    """``PI_RUNTIME_SOCKET`` or the endpoint file is not a usable address."""
+
+
+def parse_listen_endpoint(value: str) -> tuple[str, int] | None:
+    """Return ``(host, port)`` for loopback TCP, or None for a Unix socket path."""
+    text = value.strip()
+    if text.lower().startswith("tcp://"):
+        match = _TCP_LOOPBACK.fullmatch(text)
+        if match is None:
+            raise EndpointError(
+                f"pi-runtime 只接受 tcp://127.0.0.1:<端口>，收到 {text}"
+            )
+        port = int(match.group(1))
+        if not 1 <= port <= 65535:
+            raise EndpointError(f"pi-runtime 端口无效：{text}")
+        return ("127.0.0.1", port)
+    if not text:
+        raise EndpointError("pi-runtime 监听地址为空")
+    return None
+
+
+def canonical_endpoint(value: str) -> str:
+    parsed = parse_listen_endpoint(value)
+    if parsed is None:
+        return str(Path(value).expanduser())
+    host, port = parsed
+    return f"tcp://{host}:{port}"
+
+
+def _endpoint_file(project_root: Path) -> Path:
+    return project_root / ".local" / "run" / ENDPOINT_FILENAME
+
+
+def _read_endpoint_file(project_root: Path) -> str:
+    path = _endpoint_file(project_root)
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def runtime_endpoint(project_root: Path | None = None) -> str:
+    """Address of the project's pi-runtime (tcp URL or Unix socket path)."""
+    root = project_root or PROJECT_ROOT
     override = (os.environ.get(SOCKET_ENV) or "").strip()
     if override:
-        return Path(override).expanduser()
-    return (project_root or PROJECT_ROOT) / ".local" / "run" / "pi-runtime.sock"
+        return canonical_endpoint(override)
+    recorded = _read_endpoint_file(root)
+    if recorded:
+        return canonical_endpoint(recorded)
+    return str(root / ".local" / "run" / "pi-runtime.sock")
+
+
+def socket_path(project_root: Path | None = None) -> Path:
+    """Unix socket path. Raises when the runtime address is loopback TCP."""
+    endpoint = runtime_endpoint(project_root)
+    if parse_listen_endpoint(endpoint) is not None:
+        raise EndpointError(f"不是文件套接字：{endpoint}")
+    return Path(endpoint)
 
 
 def runtime_entry(project_root: Path) -> list[str]:
@@ -104,11 +162,17 @@ class _Connection:
 
 
 class _SocketConnection(_Connection):
-    def __init__(self, path: Path, timeout: float = 5.0) -> None:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    def __init__(self, endpoint: str, timeout: float = 5.0) -> None:
+        parsed = parse_listen_endpoint(endpoint)
+        if parsed is None:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            address: str | tuple[str, int] = endpoint
+        else:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            address = parsed
         sock.settimeout(timeout)
         try:
-            sock.connect(str(path))
+            sock.connect(address)
         except OSError:
             sock.close()
             raise
@@ -205,11 +269,13 @@ class PiRuntimeClient:
         project_root: Path | None = None,
         *,
         socket_file: Path | None = None,
+        endpoint: str | None = None,
         private: bool | None = None,
         label: str | None = None,
     ) -> None:
         self.project_root = project_root or PROJECT_ROOT
         self._socket = socket_file
+        self._endpoint_override = endpoint.strip() if endpoint else None
         self.private = (
             os.environ.get(PRIVATE_ENV) == "1" if private is None else private
         )
@@ -222,9 +288,19 @@ class PiRuntimeClient:
         self._event_handlers: list[EventHandler] = []
         self.runtime_pid: int | None = None
 
+    def listen_endpoint(self) -> str:
+        if self._endpoint_override:
+            return canonical_endpoint(self._endpoint_override)
+        if self._socket is not None:
+            return str(self._socket)
+        return runtime_endpoint(self.project_root)
+
     @property
     def socket_path(self) -> Path:
-        return self._socket or socket_path(self.project_root)
+        endpoint = self.listen_endpoint()
+        if parse_listen_endpoint(endpoint) is not None:
+            raise EndpointError(f"不是文件套接字：{endpoint}")
+        return Path(endpoint)
 
     def add_event_handler(self, handler: EventHandler) -> None:
         with self._lock:
@@ -266,7 +342,9 @@ class PiRuntimeClient:
             threading.Thread(target=self._read_loop, args=(conn,), daemon=True).start()
         if not self.private:
             try:
-                info = self._call(conn, "client.hello", {"label": self.label}, timeout=10.0)
+                info = self._call(
+                    conn, "client.hello", {"label": self.label}, timeout=10.0
+                )
                 if isinstance(info, dict) and info.get("pid"):
                     self.runtime_pid = int(info["pid"])
             except Exception:  # noqa: BLE001 - an old runtime may not know hello
@@ -276,13 +354,15 @@ class PiRuntimeClient:
     def _open(self) -> _Connection:
         if self.private:
             return _PrivateProcess(self.project_root)
-        path = self.socket_path
+        endpoint = self.listen_endpoint()
         try:
-            return _SocketConnection(path)
+            return _SocketConnection(endpoint)
         except (FileNotFoundError, ConnectionRefusedError) as exc:
-            raise RuntimeNotRunning(f"{NOT_RUNNING}（{path}）") from exc
+            raise RuntimeNotRunning(f"{NOT_RUNNING}（{endpoint}）") from exc
         except OSError as exc:
-            raise RuntimeNotRunning(f"{NOT_RUNNING}（连接 {path} 失败：{exc}）") from exc
+            raise RuntimeNotRunning(
+                f"{NOT_RUNNING}（连接 {endpoint} 失败：{exc}）"
+            ) from exc
 
     def _drop(self, conn: _Connection, message: str, *, grace: float = 10.0) -> None:
         with self._lock:

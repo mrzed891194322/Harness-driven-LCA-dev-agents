@@ -9,12 +9,14 @@ import {
   readPid,
   removePid,
   repoProcesses,
+  requestRuntimeShutdown,
   root as defaultRoot,
   runtimeSocket,
   sleep,
   socketInUse,
   windows,
 } from "./service_files.mjs";
+import { endpointFile, isTcpEndpoint } from "./endpoint.mjs";
 
 const GRACE_MS = 15_000;
 
@@ -70,8 +72,14 @@ export async function stopAll({ dryRun = false, repoRoot = defaultRoot, log = co
     }
     log(`stopping ${name} (process group ${pid})...`);
     if (name === "pi-runtime") {
-      // Leader only: it releases every session and closes its MCP children itself.
-      signalPid(pid, "SIGTERM");
+      if (windows) {
+        // SIGTERM from another process does not run the runtime's handlers.
+        log("asking pi-runtime to shut down...");
+        await requestRuntimeShutdown(runtimeSocket());
+      } else {
+        // Leader only: it releases every session and closes its MCP children itself.
+        signalPid(pid, "SIGTERM");
+      }
     } else {
       signalGroup(pid, "SIGTERM");
     }
@@ -96,7 +104,13 @@ export async function stopAll({ dryRun = false, repoRoot = defaultRoot, log = co
   for (const p of rest) {
     if (!alive(p.pid)) continue;
     log(`stopping stray ${p.kind} pid ${p.pid}`);
-    signalPid(p.pid, "SIGTERM");
+    if (windows && p.kind === "pi-runtime") {
+      await requestRuntimeShutdown(runtimeSocket());
+    } else if (windows) {
+      signalGroup(p.pid, "SIGTERM");
+    } else {
+      signalPid(p.pid, "SIGTERM");
+    }
     stopped += 1;
   }
   if (rest.length) {
@@ -104,15 +118,32 @@ export async function stopAll({ dryRun = false, repoRoot = defaultRoot, log = co
     for (const p of rest) {
       if (alive(p.pid)) {
         log(`pid ${p.pid} (${p.kind}) ignored SIGTERM; sending SIGKILL`);
-        signalPid(p.pid, "SIGKILL");
+        if (windows) signalGroup(p.pid, "SIGKILL");
+        else signalPid(p.pid, "SIGKILL");
       }
     }
   }
 
-  // The runtime removes its socket on exit; clear a stale one left by SIGKILL.
-  const socketPath = runtimeSocket();
-  if (fs.existsSync(socketPath) && !(await socketInUse(socketPath))) {
-    fs.rmSync(socketPath, { force: true });
-  }
+  await clearIdleEndpoint(repoRoot);
   return stopped;
+}
+
+/** Drop a socket file or endpoint record left behind when nothing is listening. */
+async function clearIdleEndpoint(repoRoot) {
+  let endpoint;
+  try {
+    endpoint = runtimeSocket(process.env, repoRoot);
+  } catch {
+    return;
+  }
+  if (await socketInUse(endpoint)) return;
+  if (!isTcpEndpoint(endpoint) && fs.existsSync(endpoint)) {
+    fs.rmSync(endpoint, { force: true });
+  }
+  const record = endpointFile(repoRoot);
+  if (!fs.existsSync(record)) return;
+  const text = fs.readFileSync(record, "utf8").trim();
+  if (!text || text === endpoint || !(await socketInUse(text))) {
+    fs.rmSync(record, { force: true });
+  }
 }

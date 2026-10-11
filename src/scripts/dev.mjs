@@ -2,16 +2,18 @@
 // Start the control panel: FastAPI backend, the project's single pi-runtime, and
 // the Next.js web. Usually run through `npm start` (syncs dependencies first).
 //
-//   npm run dev                 detached (Linux/macOS): every service runs in its own
-//                               session (setsid), survives the launching shell, pid in
-//                               .local/run/<name>.pid, output in .local/logs/<name>.log.
-//                               Stop with `npm run stop`.
+//   npm run dev                 detached: every service survives the launching shell,
+//                               pid in .local/run/<name>.pid, output in
+//                               .local/logs/<name>.log. Stop with `npm run stop`.
 //   npm run dev -- --foreground stays attached and streams the logs; Ctrl-C stops
 //                               exactly what `npm run stop` stops, in the same order.
 //
-// Start order: backend, then immediately pi-runtime (socket .local/run/pi-runtime.sock,
-// PI_RUNTIME_SOCKET overrides), then web. Exactly one pi-runtime per project: the
-// backend and every workflow.py run connect to it and never start their own.
+// Start order: backend, then immediately pi-runtime, then web. Linux / macOS listen
+// on .local/run/pi-runtime.sock. Windows listens on tcp://127.0.0.1:<port>. The
+// address is written to .local/run/pi-runtime.endpoint; PI_RUNTIME_SOCKET overrides.
+// Exactly one pi-runtime per project: the backend and every workflow.py run connect
+// to it and never start their own. Windows also requires Git for Windows so the
+// agent's bash tool has a shell.
 //
 // Models are real by default. PI_RUNTIME_MOCK=1 (test-only) must be set explicitly.
 import { spawn } from "node:child_process";
@@ -36,16 +38,16 @@ import {
   sleep,
   socketInUse,
   windows,
+  writeEndpointFile,
   writePid,
 } from "./service_files.mjs";
+import { parseListenEndpoint } from "./endpoint.mjs";
+import { findGitBash, prependPath } from "./platform.mjs";
+import { allocateLoopbackPort } from "./endpoint.mjs";
 import { stopAll } from "./stop_lib.mjs";
 
 const foreground = process.argv.includes("--foreground") || process.argv.includes("-f");
-
-if (windows) {
-  console.error("The pi-runtime service needs Unix domain sockets; run the control panel on Linux/macOS (or WSL).");
-  process.exit(1);
-}
+const OPENLCA_PORT = 8080;
 
 function resolvePort(fileEnv, key, fallback) {
   const raw = (process.env[key] || fileEnv[key] || fallback).trim();
@@ -72,7 +74,6 @@ function portFree(port) {
 const fileEnv = parseEnvFile(path.join(root, ".env"));
 const webPort = resolvePort(fileEnv, "GUI_WEB_PORT", "3000");
 const apiPort = resolvePort(fileEnv, "GUI_API_PORT", "8800");
-const socketPath = runtimeSocket();
 
 if (webPort === apiPort) {
   console.error("GUI_WEB_PORT and GUI_API_PORT must be different.");
@@ -93,10 +94,6 @@ for (const name of SERVICES) {
   }
   if (pid) removePid(name);
 }
-if (await socketInUse(socketPath)) {
-  console.error(`A pi-runtime is already listening on ${socketPath}. Run \`npm run stop\` first.`);
-  process.exit(1);
-}
 const strayRuntimes = repoProcesses().filter((p) => p.kind === "pi-runtime");
 if (strayRuntimes.length) {
   console.error(
@@ -112,6 +109,17 @@ if (!(await portFree(webPort))) {
   console.error(`Web port ${webPort} is already in use. Run \`npm run stop\`, or change GUI_WEB_PORT in .env.`);
   process.exit(1);
 }
+const socketPath = writeEndpointFile(root, await chooseEndpoint());
+if (await socketInUse(socketPath)) {
+  console.error(`A pi-runtime is already listening on ${socketPath}. Run \`npm run stop\` first.`);
+  process.exit(1);
+}
+const bash = windows ? findGitBash(process.env, fs.existsSync) : null;
+if (bash?.error) {
+  console.error(bash.error);
+  process.exit(1);
+}
+
 const runtimeCommand = runtimeArgv(socketPath);
 if (!runtimeCommand) {
   console.error("pi-runtime is not built: npm install && npm run build -w @harness/pi-runtime");
@@ -148,6 +156,7 @@ try {
   process.exit(1);
 }
 delete piEnv.PI_RUNTIME_PRIVATE;
+if (bash?.path) prependPath(piEnv, path.win32.dirname(bash.path), path.delimiter);
 
 const services = {
   backend: {
@@ -174,8 +183,38 @@ const services = {
 };
 
 function shown(file) {
+  if (String(file).startsWith("tcp://")) return file;
   const rel = path.relative(root, file);
   return rel && !rel.startsWith("..") ? rel : file;
+}
+
+async function chooseEndpoint() {
+  try {
+    return await chooseEndpointUnchecked();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}
+
+async function chooseEndpointUnchecked() {
+  if (!windows) return runtimeSocket();
+  const override = (process.env.PI_RUNTIME_SOCKET || "").trim();
+  if (override) {
+    const parsed = parseListenEndpoint(override);
+    if (parsed.kind !== "tcp") {
+      console.error("Windows 上 PI_RUNTIME_SOCKET 必须是 tcp://127.0.0.1:<端口>。");
+      process.exit(1);
+    }
+    return parsed.raw;
+  }
+  const recorded = runtimeSocket({ ...process.env, PI_RUNTIME_SOCKET: "" });
+  if (recorded.startsWith("tcp://") && (await socketInUse(recorded))) {
+    console.error(`A pi-runtime is already listening on ${recorded}. Run \`npm run stop\` first.`);
+    process.exit(1);
+  }
+  const port = await allocateLoopbackPort(new Set([webPort, apiPort, OPENLCA_PORT]));
+  return `tcp://127.0.0.1:${port}`;
 }
 
 console.log(`Control panel: web http://127.0.0.1:${webPort}  api http://127.0.0.1:${apiPort}  pi-runtime ${shown(socketPath)}`);
@@ -212,6 +251,9 @@ async function launch(name) {
     env: svc.env,
     stdio: ["ignore", out, out],
     detached: true,
+    windowsHide: true,
+    // npm is npm.cmd on Windows; uv.exe can be spawned directly.
+    shell: windows && svc.cmd === "npm",
   });
   if (!foreground) fs.closeSync(out);
   const failed = await new Promise((resolve) => {

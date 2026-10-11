@@ -1,9 +1,19 @@
 // Shared paths and helpers for dev.mjs / stop.mjs (pid files, logs, liveness).
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  connectEndpoint,
+  isTcpEndpoint,
+  parseListenEndpoint,
+  readEndpointFile,
+  writeEndpointFile,
+} from "./endpoint.mjs";
+import { matchRepoProcess, parseWin32ProcessList } from "./platform.mjs";
+
+export { allocateLoopbackPort, endpointFile, readEndpointFile, writeEndpointFile } from "./endpoint.mjs";
+export { findGitBash, prependPath } from "./platform.mjs";
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const runDir = path.join(root, ".local", "run");
@@ -94,10 +104,22 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ------------------------------------------------------------ pi-runtime
 
-/** Socket of the project's single pi-runtime (PI_RUNTIME_SOCKET overrides). */
-export function runtimeSocket(env = process.env) {
+/**
+ * Where the project's single pi-runtime listens.
+ * `PI_RUNTIME_SOCKET` wins; otherwise `.local/run/pi-runtime.endpoint`;
+ * otherwise the Unix socket `.local/run/pi-runtime.sock`.
+ */
+export function runtimeSocket(env = process.env, repoRoot = root) {
   const override = (env.PI_RUNTIME_SOCKET || "").trim();
-  return override ? path.resolve(override) : path.join(runDir, "pi-runtime.sock");
+  if (override) return normalizeEndpoint(override);
+  const recorded = readEndpointFile(repoRoot);
+  if (recorded) return normalizeEndpoint(recorded);
+  return path.join(repoRoot, ".local", "run", "pi-runtime.sock");
+}
+
+function normalizeEndpoint(value) {
+  const parsed = parseListenEndpoint(value);
+  return parsed.kind === "tcp" ? parsed.raw : path.resolve(parsed.path);
 }
 
 /** node argv for the runtime service (built dist, else tsx on the sources). */
@@ -129,14 +151,20 @@ export function runtimeEnv(baseEnv) {
   return JSON.parse(lines[lines.length - 1]);
 }
 
-/** Is a runtime accepting connections on `socketPath`? */
+/** Is a runtime accepting connections on this unix path or `tcp://` address? */
 export function socketInUse(socketPath, timeoutMs = 1000) {
   return new Promise((resolve) => {
-    if (!fs.existsSync(socketPath)) {
+    if (!isTcpEndpoint(socketPath) && !fs.existsSync(socketPath)) {
       resolve(false);
       return;
     }
-    const probe = net.connect(socketPath);
+    let probe;
+    try {
+      probe = connectEndpoint(socketPath);
+    } catch {
+      resolve(false);
+      return;
+    }
     const done = (value) => {
       probe.destroy();
       resolve(value);
@@ -150,10 +178,19 @@ export function socketInUse(socketPath, timeoutMs = 1000) {
 /** Send one NDJSON request to the runtime and return its result (or throw). */
 export function runtimeRequest(socketPath, method, params = {}, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
-    const socket = net.connect(socketPath);
+    let socket;
+    try {
+      socket = connectEndpoint(socketPath);
+    } catch (error) {
+      reject(error);
+      return;
+    }
     let buffer = "";
+    let settled = false;
     const timer = setTimeout(() => finish(new Error(`${method}: timed out`)), timeoutMs);
     function finish(error, value) {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       socket.destroy();
       if (error) reject(error);
@@ -185,18 +222,18 @@ export function runtimeRequest(socketPath, method, params = {}, timeoutMs = 5000
   });
 }
 
+/** Ask a running runtime to release sessions and exit. False if it does not answer. */
+export function requestRuntimeShutdown(endpoint, timeoutMs = 5000) {
+  return runtimeRequest(endpoint, "runtime.shutdown", {}, timeoutMs)
+    .then(() => true)
+    .catch(() => false);
+}
+
 /** pi-runtime / MCP / orchestrator / backend / web processes of this checkout. */
 export function repoProcesses(repoRoot = root) {
-  if (windows) return [];
+  if (windows) return windowsRepoProcesses(repoRoot);
   const out = spawnSync("ps", ["-eo", "pid=,args="], { encoding: "utf8" }).stdout || "";
   const prefix = repoRoot + path.sep;
-  const patterns = [
-    { kind: "pi-runtime", re: /pi-runtime[\\/](dist[\\/]main\.js|src[\\/]main\.ts)/ },
-    { kind: "orchestrator", re: /src[\\/]scripts[\\/]workflow\.py/ },
-    { kind: "mcp", re: /harness[\\/]tools[\\/]mcp[\\/]/ },
-    { kind: "backend", re: /backend\.api\.app:app/ },
-    { kind: "web", re: /node_modules[\\/]\.bin[\\/]next dev|next[\\/]dist[\\/]bin[\\/]next dev|^next-server\b/ },
-  ];
   const found = [];
   for (const line of out.split("\n")) {
     const match = line.trim().match(/^(\d+)\s+(.*)$/);
@@ -207,10 +244,24 @@ export function repoProcesses(repoRoot = root) {
     const cwd = cwdOf(pid);
     const ours = args.includes(prefix) || (cwd !== null && (cwd === repoRoot || cwd.startsWith(prefix)));
     if (!ours) continue;
-    const hit = patterns.find((p) => p.re.test(args));
-    if (hit) found.push({ pid, kind: hit.kind, args });
+    const kind = matchRepoProcess(args);
+    if (kind) found.push({ pid, kind, args });
   }
   return found;
+}
+
+function windowsRepoProcesses(repoRoot) {
+  const script = [
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+    "Get-CimInstance Win32_Process | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress",
+  ].join("; ");
+  const result = spawnSync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    { encoding: "utf8", windowsHide: true },
+  );
+  if (result.status !== 0) return [];
+  return parseWin32ProcessList(result.stdout, repoRoot, process.pid);
 }
 
 function cwdOf(pid) {

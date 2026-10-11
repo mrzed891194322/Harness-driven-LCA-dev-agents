@@ -7,11 +7,12 @@
 
 ## 前置要求
 
-控制面板在 **Linux / macOS** 上运行（Windows 请用 WSL：pi-runtime 服务使用 Unix 域套接字）。需要：
+控制面板在 **Linux、macOS 和原生 Windows** 上运行。需要：
 
 1. **[uv](https://docs.astral.sh/uv/getting-started/installation/)**：Python 包与项目管理。Python 3.12 由 uv 按项目配置安装，无需单独准备。
 2. **[Node.js 22+](https://nodejs.org/)**（自带 npm）。
 3. **[openLCA](https://www.openlca.org/download/)** 桌面客户端。使用前打开目标数据库，并启用 IPC Server（默认 `127.0.0.1:8080`）。
+4. **Windows：** [Git for Windows](https://git-scm.com/download/win)。Agent 的 bash 工具使用它自带的 `bash.exe`。
 
 ## 启动
 

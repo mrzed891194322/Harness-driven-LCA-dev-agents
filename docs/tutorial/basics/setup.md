@@ -5,8 +5,9 @@
 1. **uv**（Python 包管理）
 2. **Node.js 22+**（Pi SDK 运行时与控制面板）
 3. **openLCA** 桌面客户端，并启用 IPC Server
+4. **Windows：** [Git for Windows](https://git-scm.com/download/win)，供 Agent 的 bash 工具使用
 
-在仓库根目录执行（Linux / macOS；Windows 请用 WSL）。脚本会先同步依赖，再依次启动后端、pi-runtime 和前端；没有 `.env` 时会从 `.env.example` 复制：
+在仓库根目录执行（Linux、macOS 或原生 Windows）。脚本会先同步依赖，再依次启动后端、pi-runtime 和前端；没有 `.env` 时会从 `.env.example` 复制：
 
 ```bash
 npm start          # 或 node src/scripts/start.mjs

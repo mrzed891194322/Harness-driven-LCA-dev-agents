@@ -2,12 +2,14 @@
 /**
  * Harness Pi SDK runtime.
  *
- * Service mode (`--listen <socket>`): the project's single long-lived runtime,
- * started by `npm run dev` and stopped by `npm run stop`. Clients (backend,
- * workflow.py) connect over a Unix domain socket and speak NDJSON; when a client
- * disconnects, the sessions it created are released. It does not follow any
- * parent: only SIGTERM/SIGINT/SIGHUP stop it (releasing every session and MCP
- * child, then removing the socket).
+ * Service mode (`--listen <socket-or-tcp>`): the project's single long-lived
+ * runtime, started by `npm run dev` and stopped by `npm run stop`. A filesystem
+ * path is a Unix domain socket; `tcp://127.0.0.1:<port>` is loopback TCP.
+ * Clients (backend, workflow.py) speak NDJSON. When a client disconnects, the
+ * sessions it created are released. It does not follow any parent. On Linux /
+ * macOS, SIGTERM/SIGINT/SIGHUP stop it. On Windows, `runtime.shutdown` does the
+ * same work (signals from another process do not run these handlers), then
+ * sessions and MCP children are released and the listen address is dropped.
  *
  * Stdio mode (no flag): private child for tests and probes -- NDJSON on
  * stdin/stdout, logs on stderr, exits on stdin EOF, signals or parent loss.
@@ -17,10 +19,12 @@ import {
   handleRuntimeMethod,
   releaseSessionsOwnedBy,
   runtimeMode,
+  setShutdownRequestHandler,
   setTransportInfo,
 } from "./session_host.js";
 import { emitEvent, startProtocolLoop } from "./protocol.js";
 import { installLifecycle } from "./lifecycle.js";
+import { parseListenEndpoint, removeEndpointRecord } from "./endpoint.js";
 import { startSocketServer, type SocketServer } from "./server.js";
 
 function listenPath(argv: string[]): string | null {
@@ -28,10 +32,15 @@ function listenPath(argv: string[]): string | null {
   if (index < 0) return null;
   const value = argv[index + 1];
   if (!value || value.startsWith("--")) {
-    process.stderr.write("[pi-runtime] --listen needs a socket path\n");
+    process.stderr.write("[pi-runtime] --listen needs a socket path or tcp://127.0.0.1:<port>\n");
     process.exit(2);
   }
-  return value;
+  try {
+    return parseListenEndpoint(value).raw;
+  } catch (error) {
+    process.stderr.write(`[pi-runtime] ${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(2);
+  }
 }
 
 const socketPath = listenPath(process.argv.slice(2));
@@ -48,24 +57,27 @@ if (socketPath) {
   runStdio();
 }
 
-async function runService(path: string): Promise<void> {
-  setTransportInfo({ transport: "socket", socket: path });
+async function runService(listenAddress: string): Promise<void> {
+  setTransportInfo({ transport: "socket", socket: listenAddress });
   let server: SocketServer | null = null;
-  installLifecycle({
+  const lifecycle = installLifecycle({
     // A service outlives whoever launched it (dev.mjs exits right away).
     parentPollMs: 0,
     onShutdown: async () => {
       await server?.close();
+      removeEndpointRecord(listenAddress);
       await disposeAllSessions();
     },
     log,
   });
+  // Reply to runtime.shutdown first (the handler delays), then stop.
+  setShutdownRequestHandler((reason) => void lifecycle.shutdown(reason));
   // One misbehaving session must not take every client's runtime down.
   process.on("unhandledRejection", (reason) => log(`[pi-runtime] unhandled rejection: ${String(reason)}`));
   process.on("uncaughtException", (error) => log(`[pi-runtime] uncaught exception: ${error.stack ?? String(error)}`));
   try {
     server = await startSocketServer({
-      socketPath: path,
+      socketPath: listenAddress,
       onRequest: handleRuntimeMethod,
       onPeerClosed: async (peer) => {
         const released = await releaseSessionsOwnedBy(peer.id);
@@ -78,7 +90,7 @@ async function runService(path: string): Promise<void> {
     log(`[pi-runtime] ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
-  log(`[pi-runtime] listening on ${path}`);
+  log(`[pi-runtime] listening on ${listenAddress}`);
 }
 
 function runStdio(): void {
