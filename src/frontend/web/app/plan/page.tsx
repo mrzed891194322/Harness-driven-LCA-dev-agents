@@ -505,7 +505,7 @@ export default function PlanPage() {
           {panel === "references" ? (
             <div className="plan-ref">
               <p className="settings-help">
-                可以上传文件或文件夹，大小不限，相同路径不能重复。Agent 只读取这些文件、项目知识库和 openLCA 数据库。如果对特定文件中希望提取到的信息做规定，请点击「注释」编写。
+                如果对特定文件中希望提取到的信息做规定，请点击「注释」编写。
               </p>
               <div className="plan-ref-body">
                 <div
