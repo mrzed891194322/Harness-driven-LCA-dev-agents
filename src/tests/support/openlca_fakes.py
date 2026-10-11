@@ -108,6 +108,7 @@ class FakeImportClient:
         self.create_product_system_calls: list[tuple[object, object]] = []
         self.entities: dict[tuple[type, str], object] = {}
         self.close_calls = 0
+        self.drop_missing_foreground_providers = False
 
     def get_descriptors(self, model_type: type) -> list[FakeDescriptor]:
         if self.query_error is not None:
@@ -129,6 +130,17 @@ class FakeImportClient:
     def put(self, entity: object) -> SimpleNamespace | None:
         if isinstance(entity, olca_schema.Process):
             entity = self._finalize_process(entity)
+            if self.drop_missing_foreground_providers:
+                for exchange in list(getattr(entity, "exchanges", None) or []):
+                    if getattr(exchange, "is_input", None) is not True:
+                        continue
+                    provider = getattr(exchange, "default_provider", None)
+                    provider_id = getattr(provider, "id", None)
+                    if (
+                        provider_id
+                        and (olca_schema.Process, provider_id) not in self.entities
+                    ):
+                        exchange.default_provider = None
         self.put_calls.append(entity)
         if self.put_error is not None:
             raise self.put_error

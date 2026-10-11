@@ -240,7 +240,7 @@ class ImportWorkflowTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(
             any(
-                "does not output foreground Flow" in error for error in result["errors"]
+                "未以定量参考输出" in error for error in result["errors"]
             )
         )
 
@@ -689,6 +689,68 @@ class ImportWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(ps_record.get("linking_mode_applied"), "auto")
         self.assertIn("UNIT_PROCESS", ps_record.get("linking_mode_note", ""))
+
+    def test_process_import_order_places_foreground_provider_before_consumer(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            inventory, errors = workflow.load_lci_inventory(root)
+        self.assertEqual(errors, [])
+        process_paths = [
+            item["path"]
+            for item in inventory
+            if item["entity_type"] == "Process"
+        ]
+        self.assertEqual(
+            process_paths,
+            ["processes/p02-provider.json", "processes/p01-test.json"],
+        )
+
+    def test_import_repairs_dropped_foreground_default_providers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_linked_auto_product_system_fixture(root)
+            inventory, _ = workflow.load_lci_inventory(root)
+            process_items = [
+                item for item in inventory if item["entity_type"] == "Process"
+            ]
+            process_items.reverse()
+            inventory = [
+                *(
+                    item
+                    for item in inventory
+                    if item["entity_type"] != "Process"
+                ),
+            ]
+            insert_at = next(
+                index
+                for index, item in enumerate(inventory)
+                if item["entity_type"] == "ProductSystem"
+            )
+            inventory[insert_at:insert_at] = process_items
+            client = FakeImportClient()
+            client.drop_missing_foreground_providers = True
+            records, imported, failed, deleted, errors = workflow._execute_import(
+                client,
+                inventory,
+                [],
+                "project-a",
+            )
+        self.assertEqual(failed, 0, errors)
+        self.assertEqual(errors, [])
+        self.assertGreaterEqual(imported, 3)
+        consumer = client.entities[(olca_schema.Process, PROCESS_ID)]
+        provider_exchange = next(
+            ex
+            for ex in consumer.exchanges or []
+            if getattr(ex, "is_input", None) is True
+        )
+        self.assertEqual(
+            getattr(getattr(provider_exchange, "default_provider", None), "id", None),
+            PROVIDER_ID,
+        )
 
     def test_product_system_explicit_with_background_provider_uses_host_linking(
         self,

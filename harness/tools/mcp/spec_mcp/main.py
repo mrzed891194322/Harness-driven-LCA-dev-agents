@@ -54,6 +54,11 @@ READ = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_h
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
 WRITER_ROLES = {"executor", "reviser"}
 HANDOFF_STATUSES = {"ok", "failed", "blocked", "passed"}
+MAX_SUBMIT_PATH_BYTES = 5 * 1024 * 1024
+_SUBMIT_PATH_HINT = (
+    "可选三种方式：1) data 内联完整内容；2) path 指向 workspace/outputs/ 或 "
+    "workspace/tmp/ 下的文件；3) path=该交付物正式路径以仅重新验收已有文件。"
+)
 
 
 # ---------------------------------------------------------------- helpers
@@ -139,6 +144,44 @@ def _official(b: Binding, d: Deliverable) -> Path:
     if path != ws and ws not in path.parents:
         raise SpecError(f"deliverable path escapes workspace: {d.path}")
     return path
+
+
+def _resolve_submit_path(b: Binding, d: Deliverable, path: str) -> Path:
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("path 必须是非空字符串")
+    raw = path.strip().replace("\\", "/")
+    if raw.startswith("workspace/"):
+        raw = raw[len("workspace/") :]
+    candidate = (b.workspace / raw).resolve()
+    workspace = b.workspace.resolve()
+    try:
+        candidate.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError(f"path 必须位于 workspace 下：{path}") from exc
+    if candidate.is_symlink():
+        raise ValueError(f"path 不能是符号链接：{path}")
+    real = candidate.resolve()
+    if real != candidate:
+        raise ValueError(f"path 解析后必须落在 workspace 内：{path}")
+    official = _official(b, d)
+    allowed_roots = [
+        (workspace / "outputs").resolve(),
+        (workspace / "tmp").resolve(),
+        official,
+    ]
+    if not any(root == real or root in real.parents for root in allowed_roots):
+        raise ValueError(
+            "path 必须位于 workspace/outputs/、workspace/tmp/ 下，"
+            f"或等于正式路径 {d.path}"
+        )
+    if not real.is_file():
+        raise ValueError(f"path 指向的文件不存在：{path}")
+    size = real.stat().st_size
+    if size > MAX_SUBMIT_PATH_BYTES:
+        raise ValueError(
+            f"path 文件过大（{size} 字节，上限 {MAX_SUBMIT_PATH_BYTES} 字节）：{path}"
+        )
+    return real
 
 
 def _deliverable_status(b: Binding, d: Deliverable, state: dict) -> dict:
@@ -248,15 +291,17 @@ def get_spec() -> dict[str, Any]:
 
 @mcp.tool(
     description=(
-        "提交一个交付物。writer=spec_mcp：data 传完整内容（JSON 交付物可传对象或 JSON 字符串），"
-        "先做 schema 校验再跑验收，通过后由 spec_mcp 写到正式路径。writer=agent：不传 data，在正式路径原位验收。"
+        "提交一个交付物。writer=spec_mcp：用 data 内联完整内容，或用 path 指向 "
+        "workspace/outputs/、workspace/tmp/ 下的文件（大 payload 推荐 path），"
+        "或 path=正式路径仅重新验收；data 与 path 不可同时传。先做 schema 校验再跑验收，"
+        "通过后由 spec_mcp 写到正式路径。writer=agent：不传 data/path，在正式路径原位验收。"
         "失败时返回可操作的错误清单，修正后重新提交。"
     ),
     annotations=WRITE,
     structured_output=True,
 )
 @_guard
-def submit(name: str, data: Any = None) -> dict[str, Any]:
+def submit(name: str, data: Any = None, path: str | None = None) -> dict[str, Any]:
     binding, spec = _session()
     if binding.role not in WRITER_ROLES:
         return _refuse(f"角色 {binding.role} 不能提交交付物（只读审查）")
@@ -272,8 +317,29 @@ def submit(name: str, data: Any = None) -> dict[str, Any]:
     backup: bytes | None = None
     wrote = False
     if d.writer == "spec_mcp":
-        if data is None:
-            return _refuse(f"{name} 由 spec_mcp 写入：请在 data 里传完整内容")
+        if data is not None and path is not None:
+            return _refuse(f"{name} 不能同时传 data 和 path；{_SUBMIT_PATH_HINT}")
+        if data is None and path is None:
+            return _refuse(
+                f"{name} 由 spec_mcp 写入：请传 data 内联内容、path 指向 workspace 文件，"
+                f"或 path 等于正式路径以重新验收。{_SUBMIT_PATH_HINT}"
+            )
+        if path is not None:
+            try:
+                source = _resolve_submit_path(binding, d, path)
+            except ValueError as exc:
+                return _refuse(str(exc))
+            if d.format == "json":
+                try:
+                    raw_text = source.read_text(encoding="utf-8")
+                    data = json.loads(raw_text)
+                except (OSError, json.JSONDecodeError) as exc:
+                    return _refuse(f"path 文件不是合法 JSON：{exc}")
+            else:
+                try:
+                    data = source.read_text(encoding="utf-8")
+                except OSError as exc:
+                    return _refuse(f"无法读取 path 文件：{exc}")
         value, payload, errors = _coerce(d, data)
         if not errors and d.schema is not None:
             errors = _schema_errors(d.schema, value)
@@ -283,8 +349,10 @@ def submit(name: str, data: Any = None) -> dict[str, Any]:
         _write_atomic(target, payload)
         wrote = True
     else:
-        if data is not None:
-            return _refuse(f"{name} 由你在正式路径 {d.path} 生成：submit 时不要传 data，只做原位验收")
+        if data is not None or path is not None:
+            return _refuse(
+                f"{name} 由你在正式路径 {d.path} 生成：submit 时不要传 data 或 path，只做原位验收"
+            )
         if _hash_target(target) is None:
             return _fail(binding, state, d, [f"{d.path} 不存在：先生成该交付物再 submit"], hint="")
         if d.schema is not None and d.format == "json":

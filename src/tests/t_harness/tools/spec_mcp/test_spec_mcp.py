@@ -116,6 +116,19 @@ def test_get_spec_matches_core_and_is_override_first(project):
     assert again["spec_hash"] != out["spec_hash"]
 
 
+def test_submit_accepts_path_and_revalidates_official_file(project):
+    target = project / "workspace/outputs/bom.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(GOOD), encoding="utf-8")
+    rel = "outputs/bom.json"
+    out = server.submit("bom", path=rel)
+    assert out["ok"] and out["status"] == "passed"
+    both = server.submit("bom", data=GOOD, path=rel)
+    assert not both["ok"] and "data 和 path" in both["errors"][0]
+    missing = server.submit("bom")
+    assert not missing["ok"] and "data 内联" in missing["errors"][0]
+
+
 def test_submit_rejects_invalid_then_accepts_corrected(project):
     target = project / "workspace/outputs/bom.json"
     bad = server.submit("bom", {"items": [{"item_id": "a"}], "extra": 1})

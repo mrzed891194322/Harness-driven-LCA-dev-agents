@@ -221,7 +221,8 @@ def health_check() -> dict[str, Any]:
 @mcp.tool(
     description=(
         "Search descriptors in the active openLCA database and return names, UUIDs, "
-        "categories, and pagination metadata. Optional timeout_sec (300-7200) sets "
+        "categories, outside_project (relative to target_category, default project "
+        "folder name), and pagination metadata. Optional timeout_sec (300-7200) sets "
         "the IPC session budget for large databases."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
@@ -246,6 +247,7 @@ def query_descriptors(
     search: str = "",
     limit: int = 50,
     offset: int = 0,
+    target_category: str = "",
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Query entity descriptors by a case-insensitive name substring."""
@@ -257,13 +259,15 @@ def query_descriptors(
         search=search,
         limit=limit,
         offset=offset,
+        target_category=_target_category(target_category),
     )
 
 
 @mcp.tool(
     description=(
         "Read one exact openLCA Process UUID and return compact process metadata, "
-        "location, and quantitative-reference exchanges. Optional timeout_sec "
+        "location, quantitative-reference exchanges, and outside_project relative "
+        "to target_category (default project folder name). Optional timeout_sec "
         "(300-7200) sets the IPC session budget."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
@@ -272,11 +276,14 @@ def query_descriptors(
 @v2_tool("get_process_details")
 def get_process_details(
     process_id: str,
+    target_category: str = "",
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Read compact details for one exact Process UUID."""
     host, port = _endpoint_config()
-    return run_get_process_details(host, port, process_id)
+    return run_get_process_details(
+        host, port, process_id, target_category=_target_category(target_category)
+    )
 
 
 @mcp.tool(
@@ -305,6 +312,7 @@ def get_flow_providers(
         location=location,
         limit=limit,
         offset=offset,
+        target_category=_target_category(""),
     )
 
 
@@ -517,6 +525,7 @@ def get_model_graph(
         port,
         product_system,
         expected_process_ids=expected_process_ids,
+        target_category=_target_category(""),
     )
 
 
@@ -629,7 +638,13 @@ def query_descriptors_batch(
 ) -> dict[str, Any]:
     host, port = _endpoint_config()
     return readonly.query_descriptors_batch(
-        host, port, entity_type, searches, limit, offset
+        host,
+        port,
+        entity_type,
+        searches,
+        limit,
+        offset,
+        target_category=_target_category(""),
     )
 
 
@@ -648,7 +663,9 @@ def validate_providers_batch(
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     host, port = _endpoint_config()
-    return readonly.validate_providers_batch(host, port, requirements)
+    return readonly.validate_providers_batch(
+        host, port, requirements, target_category=_target_category("")
+    )
 
 
 if __name__ == "__main__":
