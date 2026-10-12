@@ -29,6 +29,20 @@ function killProcess(child) {
   child.kill("SIGTERM");
 }
 
+// uv sync rewrites uv.lock to whatever index the user configured (a regional
+// mirror, for example). Keep that choice on the machine: if the lockfile
+// changed only by download host, put the committed PyPI URLs back.
+function restoreIndexOnlyLockChange(lockFile, before) {
+  if (!before || !fs.existsSync(lockFile)) return;
+  const after = fs.readFileSync(lockFile);
+  if (before.equals(after)) return;
+  const hostsOnly = (buf) =>
+    buf.toString("utf8").replaceAll("\r\n", "\n").replace(/https:\/\/[^/\s"']+/g, "https://HOST");
+  if (hostsOnly(before) !== hostsOnly(after)) return;
+  fs.writeFileSync(lockFile, before);
+  console.log("Restored uv.lock download URLs. Keep UV_DEFAULT_INDEX on this machine; do not commit a mirror into the lockfile.");
+}
+
 function reportTimeout(label) {
   const seconds = SYNC_TIMEOUT_MS / 1000;
   console.error(`${label} timed out after ${seconds} seconds.`);
@@ -95,10 +109,13 @@ if (!fs.existsSync(envPath)) {
 }
 
 console.log("Syncing uv dependencies...");
-await runOrExit("uv", ["sync"], {
-  timeoutMs: SYNC_TIMEOUT_MS,
-  timeoutLabel: "uv sync",
-});
+const lockPath = path.join(root, "uv.lock");
+const lockBefore = fs.existsSync(lockPath) ? fs.readFileSync(lockPath) : null;
+const sync = await run("uv", ["sync"], { timeoutMs: SYNC_TIMEOUT_MS });
+restoreIndexOnlyLockChange(lockPath, lockBefore);
+if (sync.timedOut) reportTimeout("uv sync");
+if (sync.error) fail(`Failed to run uv: ${sync.error.message}`);
+if (sync.code !== 0) process.exit(sync.code ?? 1);
 
 console.log("Syncing Node.js dependencies...");
 await runOrExit("npm", ["install"], {

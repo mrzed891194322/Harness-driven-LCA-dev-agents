@@ -2,17 +2,16 @@
 
 多智能体在 harness 框架下进行合规化 **LCA（Life Cycle Assessment，生命周期评价）** 的项目。业务操作都在 Web 控制面板中完成。
 
-
 ![控制面板主页面：项目状态](docs/assets/images/readme/main_page.png)
 
 ## 前置要求
 
 控制面板在 **Linux、macOS 和原生 Windows** 上运行。需要：
 
-1. **[uv](https://docs.astral.sh/uv/getting-started/installation/)**：Python 包与项目管理。Python 3.12 由 uv 按项目配置安装，无需单独准备。
+1. **[uv](https://docs.astral.sh/uv/getting-started/installation/)**：Python 包与项目管理。
 2. **[Node.js 22+](https://nodejs.org/)**（自带 npm）。
 3. **[openLCA](https://www.openlca.org/download/)** 桌面客户端。使用前打开目标数据库，并启用 IPC Server（默认 `127.0.0.1:8080`）。
-4. **Windows：** [Git for Windows](https://git-scm.com/download/win)。Agent 的 bash 工具使用它自带的 `bash.exe`。
+4. ***Windows用户特别需求：** [Git for Windows](https://git-scm.com/download/win)。Pi Agent 的 bash 工具需要使用它自带的 `bash.exe`。
 
 ## 启动
 
