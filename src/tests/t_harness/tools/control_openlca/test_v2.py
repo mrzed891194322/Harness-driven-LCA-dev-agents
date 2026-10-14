@@ -970,3 +970,74 @@ def test_provider_evidence_survives_mapping_write(context):
     # Legacy records without lci_fingerprint fall back to the model fingerprint.
     legacy = {"model_fingerprint": checks.model_fingerprint(mapping_ctx)}
     assert checks._provider_evidence_matches(mapping_ctx, legacy)
+
+
+def _phase_context(context, stage, phase):
+    return Context(
+        context.project,
+        context.workspace,
+        context.run_id,
+        stage,
+        1,
+        metadata={"lca": {"phase": phase}} if phase else {},
+    )
+
+
+@pytest.mark.parametrize(
+    ("stage", "phase"),
+    [
+        ("03-dataset-mapping", "mapping"),
+        ("02-inventory-extraction", "inventory"),
+        ("03-dataset-mapping", None),
+    ],
+)
+def test_cleanup_confirm_refused_outside_report_phase(
+    context, monkeypatch, stage, phase
+):
+    import harness.tools.mcp.control_openlca.workflow_mcp as main
+
+    monkeypatch.setenv(main.LCA_CONTROL_OPENLCA_MCP, "1")
+    ctx = _phase_context(context, stage, phase)
+    monkeypatch.setattr(
+        main.Context, "environment", classmethod(lambda cls, *a, **k: ctx)
+    )
+    with patch.object(
+        main, "run_cleanup_output", side_effect=AssertionError("must not delete")
+    ):
+        value = main.cleanup_output(confirm=True)
+    assert value["status"] == "failed"
+    assert "report phase" in value["errors"][0]["message"]
+
+
+def test_cleanup_preview_allowed_outside_report_phase(context, monkeypatch):
+    import harness.tools.mcp.control_openlca.workflow_mcp as main
+
+    monkeypatch.setenv(main.LCA_CONTROL_OPENLCA_MCP, "1")
+    ctx = _phase_context(context, "03-dataset-mapping", "mapping")
+    monkeypatch.setattr(
+        main.Context, "environment", classmethod(lambda cls, *a, **k: ctx)
+    )
+    with (
+        patch.object(main, "_endpoint_config", return_value=("localhost", 8080)),
+        patch.object(
+            main, "run_cleanup_output", return_value={"ok": True, "deleted": []}
+        ) as run,
+    ):
+        main.cleanup_output(confirm=False)
+    assert run.call_args.kwargs["confirm"] is False
+
+
+def test_cleanup_confirm_allowed_in_report_phase(context, monkeypatch):
+    import harness.tools.mcp.control_openlca.workflow_mcp as main
+
+    monkeypatch.setenv(main.LCA_CONTROL_OPENLCA_MCP, "1")
+    monkeypatch.setattr(
+        main.Context, "environment", classmethod(lambda cls, *a, **k: context)
+    )
+    with (
+        patch.object(main, "_endpoint_config", return_value=("localhost", 8080)),
+        patch.object(main, "serialized_ipc", lambda fn, **kw: fn),
+        patch.object(main, "run_cleanup_output", return_value={"ok": False}) as run,
+    ):
+        main.cleanup_output(confirm=True)
+    assert run.call_args.kwargs["confirm"] is True

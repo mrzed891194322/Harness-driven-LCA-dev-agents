@@ -1,7 +1,7 @@
 # control_openlca 调用纪律
 
 - 仅通过当前 Worker 已注册的 MCP 工具名访问 openLCA；endpoint 由服务配置。禁止 shell、临时脚本或直接 import 内部函数绕过 MCP、角色和阶段门禁。
-- 本角色首次访问 IPC 前调用 `health_check`，探测失败如实报告。只读离线证据或 report_only 返工不需要探测。不得调用 `cleanup_output` 作为工作流启动或故障恢复措施。
+- 本角色首次访问 IPC 前调用 `health_check`，探测失败如实报告。只读离线证据或 report_only 返工不需要探测。不得调用 `cleanup_output` 作为工作流启动或故障恢复措施。 `cleanup_output(confirm=true)` 仅 04（report 阶段）可执行，其他阶段调用会被工具拒绝；`confirm=false` 预览不受限。
 - 查询已有实体使用正式工具；描述符优先 `query_descriptors_batch`，有确切 Provider UUID 时用 `validate_providers_batch`，发现候选用确切 Flow 的 `get_flow_providers`，核对定量参考用 `get_process_details`。处理分页，不能把一页无匹配当作全库不存在。
 - Provider 验证须确认目标 Flow 对应关系，不仅是 UUID 存在。地域别名只作诊断；功能和代表性由 LCA 规则判断。新建前景实体按建模规则管理，不要求在创建前从数据库查询到。
 - 背景库里已有的 Flow、Process、ProductSystem 只写在交换的 `flow.@id`、`defaultProvider.@id` 里。不要在 `LCI/flows/`、`LCI/processes/`、`LCI/product_systems/` 再放一份以该 UUID 为文件自身 `@id` 的实体；导入会按这个 `@id` 覆盖原记录，并把分类改到本项目。为了记录单位或流属性而复制背景实体同样不允许，单位写在引用它的交换上。预检因「@id 已存在且不在本项目分类」失败时，停止导入，把该文件退回阶段 03 删掉，不要改成新 UUID 再导入。
