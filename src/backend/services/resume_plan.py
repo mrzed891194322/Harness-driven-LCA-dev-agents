@@ -22,6 +22,7 @@ from backend.core.workflow.persistence.workflow_snapshot import (
     evidence_workflow_path,
     local_workflow_path,
 )
+from backend.core.workflow.resume_stages import normalize_resume_code, stage_id_from_code
 from backend.services.project_paths import MAIN_WORKFLOW_REL
 from backend.services.run_reconcile import workflow_status_for_run
 from backend.settings import records_root
@@ -52,33 +53,8 @@ STAGE_ORDER: tuple[str, ...] = (
     "04-openlca-reporting",
 )
 
-RESUME_CODES: dict[str, str] = {
-    "02": "02-inventory-extraction",
-    "03": "03-dataset-mapping",
-    "04": "04-openlca-reporting",
-}
-
 RESUMABLE_STATUSES = frozenset({"failed", "aborted", "interrupted"})
 ACCEPTANCE_MODEL = "lca.model"
-
-
-def normalize_resume_code(from_stage: str) -> str:
-    raw = str(from_stage or "").strip()
-    if raw == "01":
-        raise ValueError("请直接运行 whole-lca")
-    if raw in RESUME_CODES:
-        return raw
-    m = re.match(r"^(\d{2})", raw)
-    if m and m.group(1) in RESUME_CODES:
-        return m.group(1)
-    raise ValueError(f"无效的 from_stage：{from_stage!r}")
-
-
-def stage_id_from_code(code: str) -> str:
-    key = normalize_resume_code(code)
-    if key == "01":
-        raise ValueError("请直接运行 whole-lca")
-    return RESUME_CODES[key]
 
 
 def _stage_index(stage_id: str) -> int:

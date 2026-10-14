@@ -199,7 +199,7 @@ def _main(args: argparse.Namespace) -> int:
                 state["resumed_from"] = str(args.resumed_from)
             if args.from_stage:
                 state["resume_from_stage"] = str(args.from_stage)
-                from backend.core.workflow.persistence.evidence_seed import (  # noqa: E402
+                from backend.core.workflow.persistence.acceptance_seed import (  # noqa: E402
                     write_resume_metadata,
                 )
 

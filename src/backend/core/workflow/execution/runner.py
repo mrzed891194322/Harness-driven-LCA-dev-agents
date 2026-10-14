@@ -912,10 +912,12 @@ class OrchestratorRuntime:
                     for out in self._stage_outputs(self.workflow.stages[i])
                 )
             ]
+        from backend.core.workflow.resume_stages import floor_stage_id, stage_num
+
         resume_floor = str(self.resume_from_stage or "").strip()
         if resume_floor and target_id:
-            floor_id = _resume_floor_stage_id(resume_floor)
-            if floor_id and _stage_num(target_id) < _stage_num(floor_id):
+            floor_id = floor_stage_id(resume_floor)
+            if floor_id and stage_num(target_id) < stage_num(floor_id):
                 problems.append(
                     f"续跑自 {resume_floor} 起，返工不得指向其之前的阶段（{target_id}）"
                 )
@@ -1353,26 +1355,6 @@ def missing_expected_outputs(
         elif not resolved.is_file():
             missing.append(relative)
     return missing
-
-
-def _stage_num(stage_id: str) -> int:
-    import re
-
-    m = re.match(r"^(\d{2})", str(stage_id or ""))
-    return int(m.group(1)) if m else 0
-
-
-def _resume_floor_stage_id(code: str) -> str | None:
-    mapping = {
-        "02": "02-inventory-extraction",
-        "03": "03-dataset-mapping",
-        "04": "04-openlca-reporting",
-    }
-    text = str(code or "").strip()
-    if "-" in text:
-        return text
-    prefix = text[:2] if len(text) >= 2 else text
-    return mapping.get(prefix)
 
 
 def _resolve_workspace_output(workspace_root: Path, relative: str) -> Path:
