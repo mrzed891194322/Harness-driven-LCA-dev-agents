@@ -24,22 +24,12 @@ logs/
 .env
 
 #
-.cursor/
+
 
 # dev: AI agents
 .codex/*
-!.codex/config.toml
-!.codex/agents/
-.codex/agents/*
-!.codex/agents/opencode_lca_user.toml
-!.codex/skills/
-.codex/skills/*
-!.codex/skills/bootstrap-env/
-!.codex/skills/bootstrap-env/**
-!.codex/skills/whole-lca/
-!.codex/skills/whole-lca/**
-!.codex/skills/revise-lca/
-!.codex/skills/revise-lca/**
+.claude/*
+.cursor/*
 
 # Generated caches inside tracked Codex packages
 .codex/skills/**/__pycache__/
