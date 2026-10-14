@@ -51,6 +51,7 @@ class WorkflowLauncher:
         project_root: Path,
         prepare: Console | None = None,
         run: Console | None = None,
+        resume_context: dict[str, Any] | None = None,
     ) -> dict[str, str]:
         if task not in WORKFLOW_YAML_BY_TASK:
             raise ValueError(f"未知工作流：{task}")
@@ -68,7 +69,7 @@ class WorkflowLauncher:
             epoch = self.epoch
             self._thread = threading.Thread(
                 target=self._worker,
-                args=(task, fields, project_root, prepare, run),
+                args=(task, fields, project_root, prepare, run, resume_context),
                 daemon=True,
             )
             self._thread.start()
@@ -91,6 +92,7 @@ class WorkflowLauncher:
         project_root: Path,
         prepare: Console | None,
         run: Console | None,
+        resume_context: dict[str, Any] | None,
     ) -> None:
         from backend.services.executor_console import run_pre_workflow_console
 
@@ -98,15 +100,22 @@ class WorkflowLauncher:
         run_fn = run or _run_real_workflow
         kept: Path | None = None
         status = "Failed"
+        resume_context = resume_context or {}
+        is_resume = task == "resume-lca"
         try:
-            self._note("正在保存当前计划，并清理上一次运行…")
-            kept = snapshot_user_material(project_root)
+            if is_resume:
+                self._note("正在按续跑清单清理 workspace…")
+            else:
+                self._note("正在保存当前计划，并清理上一次运行…")
+                kept = snapshot_user_material(project_root)
             status = _consume(
                 prepare_fn(
                     task,
                     document_values=[],
                     source_text="",
                     ref_upload_file=None,
+                    cleanup_list_path=resume_context.get("cleanup_list_path"),
+                    cleanup_old_run_id=resume_context.get("old_run_id"),
                 ),
                 on_chunk=self._append_prepare,
             )
@@ -116,11 +125,12 @@ class WorkflowLauncher:
             if kept is not None:
                 restore_user_material(project_root, kept)
                 kept = None
-            try:
-                _write_plan(project_root, fields, task)
-            except Exception as exc:
-                self._fail(str(exc))
-                status = "Failed"
+            if not is_resume:
+                try:
+                    _write_plan(project_root, fields, task)
+                except Exception as exc:
+                    self._fail(str(exc))
+                    status = "Failed"
         if status == "Stopped":
             self._abort(project_root)
             return
@@ -130,7 +140,18 @@ class WorkflowLauncher:
             return
         try:
             self._note("准备工作完成，开始执行工作流")
-            outcome = _consume(run_fn(task))
+            if is_resume:
+                outcome = _consume(
+                    run_fn(
+                        task,
+                        workflow=resume_context.get("workflow_path"),
+                        resumed_from=str(resume_context.get("old_run_id") or ""),
+                        from_stage=str(resume_context.get("from_stage") or ""),
+                        seed_acceptance=resume_context.get("seed_acceptance_path"),
+                    )
+                )
+            else:
+                outcome = _consume(run_fn(task))
             if outcome == "Stopped":
                 self._abort(project_root)
             else:
@@ -246,10 +267,73 @@ def _consume(
     return status
 
 
-def _run_real_workflow(task: str) -> Iterator[tuple[str, str]]:
+def _run_real_workflow(
+    task: str,
+    *,
+    workflow: str | Path | None = None,
+    resumed_from: str | None = None,
+    from_stage: str | None = None,
+    seed_acceptance: str | Path | None = None,
+) -> Iterator[tuple[str, str]]:
     from backend.services.executor_console import run_workflow_command_console
 
-    yield from run_workflow_command_console(task)
+    yield from run_workflow_command_console(
+        task,
+        workflow=workflow,
+        resumed_from=resumed_from,
+        from_stage=from_stage,
+        seed_acceptance=seed_acceptance,
+    )
+
+
+def start_resume_workflow(
+    project_root: Path,
+    old_run_id: str,
+    from_stage: str,
+    fields: PlanFields | None = None,
+) -> dict[str, str]:
+    from backend.services.resume_plan import (
+        build_plan,
+        eligibility,
+        load_seed_acceptance,
+        resume_plan_dir,
+    )
+
+    preview = eligibility(project_root, old_run_id, from_stage)
+    if not preview.get("eligible"):
+        reasons = preview.get("reasons") or ["不可续跑"]
+        raise ValueError("; ".join(str(r) for r in reasons))
+    from tempfile import NamedTemporaryFile
+
+    plan = build_plan(project_root, old_run_id, from_stage)
+    workspace = project_root / "workspace"
+    plan_dir = resume_plan_dir(workspace, old_run_id)
+    cleanup_path = plan_dir / "cleanup.json"
+    workflow_path = str(plan.get("workflow_yaml") or "")
+    seed_path: Path | None = None
+    code = str(from_stage).strip()[:2]
+    if code == "04":
+        blob = load_seed_acceptance(workspace, old_run_id)
+        if blob:
+            tmp = NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False, encoding="utf-8"
+            )
+            json.dump(blob, tmp, ensure_ascii=False)
+            tmp.close()
+            seed_path = Path(tmp.name)
+    fields = fields or PlanFields("", "", "", "")
+    return launcher.start(
+        task="resume-lca",
+        fields=fields,
+        project_root=project_root,
+        resume_context={
+            "old_run_id": old_run_id,
+            "from_stage": from_stage,
+            "cleanup_list_path": cleanup_path,
+            "workflow_path": workflow_path.replace("\\", "/"),
+            "seed_acceptance_path": seed_path,
+        },
+    )
 
 
 launcher = WorkflowLauncher()

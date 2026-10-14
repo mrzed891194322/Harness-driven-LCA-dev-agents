@@ -187,6 +187,11 @@ class WorkflowStart(BaseModel):
     conditions: str = ""
 
 
+class WorkflowResume(BaseModel):
+    run_id: str
+    from_stage: str
+
+
 class ReferenceNoteUpdate(BaseModel):
     note: str = ""
 
@@ -673,6 +678,34 @@ def generated_prompts_preview(stage: str, role: str) -> dict[str, Any]:
 def runs_list() -> dict[str, Any]:
     """Runs with session snapshots; ``anomaly`` flags any injection warn/mismatch."""
     return {"runs": _snapshots.runs()}
+
+
+@app.get("/api/runs/{run_id}/resume-preview")
+def resume_preview(run_id: str, from_stage: str) -> dict[str, Any]:
+    from backend.services.resume_plan import eligibility
+
+    preview = eligibility(PROJECT_ROOT, run_id, from_stage)
+    return preview
+
+
+@app.post("/api/workflow/resume")
+def resume_workflow(body: WorkflowResume) -> dict[str, Any]:
+    from backend.services.resume_plan import eligibility
+    from backend.services.workflow_launch import start_resume_workflow
+
+    preview = eligibility(PROJECT_ROOT, body.run_id, body.from_stage)
+    if not preview.get("eligible"):
+        raise HTTPException(
+            status_code=409,
+            detail={"reasons": preview.get("reasons") or [], "preview": preview},
+        )
+    try:
+        started = start_resume_workflow(PROJECT_ROOT, body.run_id, body.from_stage)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {**started, "preview": preview}
 
 
 @app.get("/api/runs/{run_id}/sessions")

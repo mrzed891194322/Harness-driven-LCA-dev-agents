@@ -76,6 +76,8 @@ class WorkflowState(TypedDict):
     stale_stages: list[str]
     attempt_high_water: dict[str, int]
     faults_fired: list[str]
+    resumed_from: str
+    resume_from_stage: str
 
 
 def publish_state(workspace_root: Path, state: WorkflowState) -> None:
@@ -87,6 +89,8 @@ def publish_state(workspace_root: Path, state: WorkflowState) -> None:
         status_reason=state.get("status_reason") or None,
         run_id=state["run_id"],
         attempt=_state_int(state, "attempt", 1),
+        resumed_from=str(state.get("resumed_from") or "") or None,
+        resume_from_stage=str(state.get("resume_from_stage") or "") or None,
     )
 
 
@@ -110,6 +114,7 @@ def run_workflow(
     runtime: OrchestratorRuntime, state: WorkflowState, store: CheckpointStore
 ) -> WorkflowState:
     """Run from a saved action boundary. The caller owns the workspace lock."""
+    runtime.resume_from_stage = str(state.get("resume_from_stage") or "")
     if state.get("status") in {"completed", "failed", "interrupted"}:
         publish_state(runtime.workspace_root, state)
         return state
@@ -234,6 +239,7 @@ class OrchestratorRuntime:
         self.session_client = session_client
         self.worker = worker
         self.model = model
+        self.resume_from_stage = ""
 
     def prepare(self, state: WorkflowState) -> dict[str, Any]:
         stage, assignment = self._current(state)
@@ -906,6 +912,15 @@ class OrchestratorRuntime:
                     for out in self._stage_outputs(self.workflow.stages[i])
                 )
             ]
+        resume_floor = str(self.resume_from_stage or "").strip()
+        if resume_floor and target_id:
+            floor_id = _resume_floor_stage_id(resume_floor)
+            if floor_id and _stage_num(target_id) < _stage_num(floor_id):
+                problems.append(
+                    f"续跑自 {resume_floor} 起，返工不得指向其之前的阶段（{target_id}）"
+                )
+                return None, problems
+
         if target_id:
             if target_id not in stage_ids:
                 problems.append(f"rework_target_stage {target_id!r} 不是本工作流的阶段")
@@ -1338,6 +1353,26 @@ def missing_expected_outputs(
         elif not resolved.is_file():
             missing.append(relative)
     return missing
+
+
+def _stage_num(stage_id: str) -> int:
+    import re
+
+    m = re.match(r"^(\d{2})", str(stage_id or ""))
+    return int(m.group(1)) if m else 0
+
+
+def _resume_floor_stage_id(code: str) -> str | None:
+    mapping = {
+        "02": "02-inventory-extraction",
+        "03": "03-dataset-mapping",
+        "04": "04-openlca-reporting",
+    }
+    text = str(code or "").strip()
+    if "-" in text:
+        return text
+    prefix = text[:2] if len(text) >= 2 else text
+    return mapping.get(prefix)
 
 
 def _resolve_workspace_output(workspace_root: Path, relative: str) -> Path:
