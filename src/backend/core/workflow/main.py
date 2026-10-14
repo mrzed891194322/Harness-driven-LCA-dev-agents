@@ -54,6 +54,9 @@ from backend.core.workflow.persistence.config_fingerprint import (  # noqa: E402
     check_runtime_config,
     write_runtime_config,
 )
+from backend.core.workflow.persistence.workflow_snapshot import (  # noqa: E402
+    write_workflow_snapshot,
+)
 from backend.core.agents.injection import strict_mode as injection_strict_mode  # noqa: E402
 from backend.settings import parse_env_file  # noqa: E402
 
@@ -101,6 +104,7 @@ def _main(args: argparse.Namespace) -> int:
         return 2
 
     workflow_path = args.workflow.resolve()
+    workflow_text = workflow_path.read_text(encoding="utf-8")
     document = read_workflow_document(workflow_path, project_root=project_root)
     capabilities = base_capabilities()
     task_label = str(workflow_path)
@@ -145,6 +149,12 @@ def _main(args: argparse.Namespace) -> int:
                 project_root=project_root,
                 worker=worker,
                 model=model,
+            )
+            write_workflow_snapshot(
+                workspace_root=workspace_root,
+                project_root=project_root,
+                run_id=run_id,
+                workflow_text=workflow_text,
             )
             state = initial_state(
                 run_id=run_id,
