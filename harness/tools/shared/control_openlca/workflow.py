@@ -1482,8 +1482,12 @@ def _outside_project_import_refusal(
         return None
     try:
         existing = client.get(model_type, entity_id)
-    except Exception:
-        return None
+    except Exception as exc:
+        # Fail closed: if we cannot verify, never overwrite a possibly foreign entity.
+        return (
+            f"无法核实 @id {entity_id} 是否已存在（查询出错: {exc}），"
+            "为避免覆盖数据库已有数据，拒绝写入"
+        )
     if existing is None:
         return None
     category = getattr(existing, "category", None)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,9 @@ from harness.tools.shared.control_openlca.workflow import (
     ENTITY_TYPES,
     load_lci_inventory,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def connect_ipc(host, port, model_type=None):
@@ -109,17 +113,52 @@ def delete_entities(
     entities: list[tuple[type, OlcaDescriptor]],
     model_types: list[type],
     *,
+    project_name: str,
     host: str | None = None,
     port: int | None = None,
 ) -> tuple[int, list[str]]:
+    """Delete entities, re-checking each one is inside ``project_name`` first.
+
+    Defensive: callers already filter, but every target (including supporting
+    FlowProperty/UnitGroup) is fetched again and skipped unless its live
+    category is the project category. Missing or unverifiable targets are
+    skipped, never deleted.
+    """
     deleted_count = 0
     errors: list[str] = []
+    deleted: list[str] = []
     for model_type in model_types:
         current = [item for item in entities if item[0] == model_type]
         for _, descriptor in current:
+            entity_id = str(getattr(descriptor, "id", "") or "")
+            label = f"{model_type.__name__} {getattr(descriptor, 'name', '')} ({entity_id})"
+            if not entity_id:
+                logger.warning("cleanup skip %s: missing @id", label)
+                continue
+            try:
+                live = client.get(model_type, entity_id)
+            except Exception as exc:
+                logger.warning("cleanup skip %s: lookup failed: %s", label, exc)
+                errors.append(f"Skipped {label}: lookup failed, not deleted: {exc}")
+                continue
+            if live is None:
+                logger.info("cleanup skip %s: not found", label)
+                continue
+            category = getattr(live, "category", None)
+            if not is_in_project_category(
+                category if isinstance(category, str) else None, project_name
+            ):
+                logger.warning(
+                    "cleanup skip %s: outside project category (%r)", label, category
+                )
+                errors.append(
+                    f"Skipped {label}: outside project category {category!r}, not deleted"
+                )
+                continue
             try:
                 client.delete(descriptor.to_ref())
                 deleted_count += 1
+                deleted.append(label)
             except Exception as exc:
                 errors.append(
                     f"Failed to delete {descriptor.name} ({descriptor.id}): {exc}"
@@ -136,7 +175,9 @@ def delete_entities(
                             "name": descriptor.name,
                         },
                     )
+                    logger.info("cleanup deleted %d: %s", deleted_count, deleted)
                     return deleted_count, errors
+    logger.info("cleanup deleted %d: %s", deleted_count, deleted)
     return deleted_count, errors
 
 
@@ -321,7 +362,12 @@ def run_cleanup_output(
             return payload
 
         deleted_count, errors = delete_entities(
-            client, entities, model_types, host=host, port=port
+            client,
+            entities,
+            model_types,
+            project_name=project_name,
+            host=host,
+            port=port,
         )
         payload = {
             "ok": not errors,
