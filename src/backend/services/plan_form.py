@@ -249,9 +249,9 @@ def save_references(root: Path, uploads: list[tuple[str, bytes]]) -> list[dict[s
     for filename, data in uploads:
         path = _reference_path(root, filename)
         relative = path.relative_to(folder).as_posix()
-        # Add-only: a same-name upload overwrites that file; nothing else in
-        # inputs/ is removed. Only duplicates within one batch are rejected.
-        if relative in seen or path.is_dir():
+        # Add-only: an existing name is rejected (never overwritten) and no
+        # other file in inputs/ is ever removed.
+        if relative in seen or path.exists():
             conflicts.append(relative)
             continue
         seen.add(relative)

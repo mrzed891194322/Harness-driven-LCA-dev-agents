@@ -6,8 +6,14 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from backend.services import executor_console
-from backend.services.plan_form import save_references, write_text_atomic
+from backend.services.plan_form import (
+    PlanFormError,
+    save_references,
+    write_text_atomic,
+)
 from backend.services.workspace_clean import CLEAN_PRESETS
 
 
@@ -47,7 +53,12 @@ def test_reference_sync_is_add_only(tmp_path: Path):
     inputs.mkdir(parents=True)
     (inputs / "keep.md").write_text("keep", encoding="utf-8")
     (inputs / "same.md").write_text("old", encoding="utf-8")
-    save_references(tmp_path, [("same.md", b"new"), ("added.md", b"add")])
+    with pytest.raises(PlanFormError, match="不能上传同名文件"):
+        save_references(tmp_path, [("same.md", b"new"), ("added.md", b"add")])
     assert (inputs / "keep.md").read_text(encoding="utf-8") == "keep"
-    assert (inputs / "same.md").read_bytes() == b"new"
+    assert (inputs / "same.md").read_text(encoding="utf-8") == "old"
+    assert not (inputs / "added.md").exists()
+    save_references(tmp_path, [("added.md", b"add")])
     assert (inputs / "added.md").read_bytes() == b"add"
+    assert (inputs / "keep.md").read_text(encoding="utf-8") == "keep"
+    assert (inputs / "same.md").read_text(encoding="utf-8") == "old"

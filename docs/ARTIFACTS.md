@@ -143,7 +143,7 @@ GUI **不显示**：BOM、mapping、LCI、计算计划、报告正文、raw.json
 
 ### 4. 生命周期
 
-- **跨运行**：控制面板的 whole-lca / revise-lca 预设在执行前清理 `workspace/`（`workspace_clean.py`，忽略 `records/**`、`outputs/**`、`tmp/**` 的 gitignore 规则下全部清掉，只保留 `README.md` 和 `records/orchestrator.lock`）。所以 `workspace/` 只保留**最近一次运行**；`.local/runs/<run>/`（events、guard）不在清理范围内，跨运行保留。预设（whole-lca = openlca→workspace，revise-lca = openlca）**不清理 `harness/knowledge/`**：计划文件按原位原子替换，参考资料只增不删（同名覆盖）；`knowledge` 目标只在手动执行 `clean.py -t knowledge` 时使用。
+- **跨运行**：控制面板的 whole-lca / revise-lca 预设在执行前清理 `workspace/`（`workspace_clean.py`，忽略 `records/**`、`outputs/**`、`tmp/**` 的 gitignore 规则下全部清掉，只保留 `README.md` 和 `records/orchestrator.lock`）。所以 `workspace/` 只保留**最近一次运行**；`.local/runs/<run>/`（events、guard）不在清理范围内，跨运行保留。预设（whole-lca = openlca→workspace，revise-lca = openlca）**不清理 `harness/knowledge/`**：计划文件按原位原子替换，参考资料只增不删（已存在的同名文件拒绝上传，不覆盖）；`knowledge` 目标只在手动执行 `clean.py -t knowledge` 时使用。
 - **同一运行内的重试**：`outputs/` 下的交付文件固定路径，每次 attempt **原地覆盖**；handoff 与 review 文件名带 attempt 编号，不覆盖；raw.json 按 `<stage>/<attempt>/<call_id>` 分目录，manifest `calls[]` 只追加。
 - **上游返工**：`_invalidate_stages` 把目标阶段到当前阶段标为 `stale_stages`，写 `records/rework/upstream-<n>.json`，从 evidence manifest 的 `accepted` 中删掉这些阶段记下的验收并追加 `invalidations`。产物**留在原处**由目标执行者修改，不移动不删除。`checks/*.json` 不被直接删除，靠输入指纹变化在下次读取时变 `stale`。attempt 编号经 `stage_attempt_base` 继续递增，旧 handoff 不被覆盖。
 - **指纹**：
@@ -205,4 +205,4 @@ flowchart LR
 | --- | --- | --- |
 | 2026-10-10 | `ee78fc0`（master） | 初版：按代码盘点四个阶段的产物、写入/校验方、GUI 渲染、生命周期与指纹，列出 10 条待优化项 |
 | 2026-10-11 | P5 合并进 master | 与 P5 版调试记录合并为一个文件；产物地图保留为附录，第 1、9 条标注进展 |
-| 2026-10-14 | 预清理不再清 knowledge | 预设去掉 knowledge；计划原子替换，参考资料只增不删 |
+| 2026-10-14 | 预清理不再清 knowledge | 预设去掉 knowledge；计划原子替换；参考资料只增不删，同名拒绝上传 |
