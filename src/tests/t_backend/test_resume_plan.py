@@ -210,7 +210,7 @@ class ResumePlanTests(unittest.TestCase):
             )
             with patch("backend.services.workspace_clean.PROJECT_ROOT", root):
                 code, report = run_cleanup_list(list_path, yes=True, dry_run=True)
-            self.assertEqual(code, 0)
+            self.assertEqual(code, 1)
             self.assertTrue(report["workspace_refused"])
 
 

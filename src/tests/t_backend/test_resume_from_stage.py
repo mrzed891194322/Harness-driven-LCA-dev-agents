@@ -114,7 +114,7 @@ def test_cleanup_list_refuses_knowledge(tmp_path: Path) -> None:
         tmp_path,
     ):
         code, report = run_cleanup_list(list_path, yes=True)
-    assert code == 0
+    assert code == 1
     assert report["workspace_refused"]
 
 

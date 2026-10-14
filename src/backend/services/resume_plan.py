@@ -211,7 +211,7 @@ def _inputs_unchanged(
             return False, reasons
     sources_dir = records_root(workspace_root) / "evidence" / old_run_id / "sources"
     if sources_dir.is_dir():
-        recorded: list[dict[str, str]] = []
+        recorded: dict[str, set[str]] = {}
         for path in sorted(sources_dir.glob("*.json")):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
@@ -223,28 +223,34 @@ def _inputs_unchanged(
                 if not isinstance(entry, dict) or entry.get("readable") is not True:
                     continue
                 rel = str(entry.get("path") or "").replace("\\", "/")
-                if not rel:
-                    continue
-                file_path = project_root / rel
-                digest = sha256_file(file_path) if file_path.is_file() else "missing"
-                recorded.append({"path": rel, "sha256": digest})
+                digest = str(entry.get("sha256") or "")
+                if rel and digest:
+                    recorded.setdefault(rel, set()).add(digest)
         if recorded:
-            old_fp = stable_hash(sorted(recorded, key=lambda x: x["path"]))
-            live: list[dict[str, str]] = []
-            for item in recorded:
-                rel = item["path"]
+            changed: list[str] = []
+            for rel, digests in sorted(recorded.items()):
                 file_path = project_root / rel
-                live.append(
-                    {
-                        "path": rel,
-                        "sha256": sha256_file(file_path)
-                        if file_path.is_file()
-                        else "missing",
-                    }
-                )
-            if stable_hash(sorted(live, key=lambda x: x["path"])) == old_fp:
+                live = sha256_file(file_path) if file_path.is_file() else "missing"
+                # Recorded at the old run's stage starts; every record must still match.
+                if digests != {live}:
+                    changed.append(rel)
+            for relative in ("harness/knowledge/plan", "harness/knowledge/inputs"):
+                base = project_root / relative
+                if not base.is_dir():
+                    continue
+                for path in sorted(base.rglob("*")):
+                    if not path.is_file():
+                        continue
+                    rel = path.relative_to(project_root).as_posix()
+                    if any(part.startswith(".") for part in Path(rel).parts):
+                        continue
+                    if rel not in recorded:
+                        changed.append(f"{rel}（新增）")
+            if not changed:
                 return True, reasons
-            reasons.append("计划或 inputs 相对上次运行 sources 记录已变化")
+            reasons.append(
+                "计划或 inputs 相对上次运行 sources 记录已变化：" + "、".join(changed[:10])
+            )
             return False, reasons
     if from_stage_id == "04-openlca-reporting":
         reasons.append("阶段 04 续跑需要 accepted[lca.model] 或可追溯的 sources 记录")
@@ -306,14 +312,11 @@ def cleanup_workspace_paths(workspace_root: Path, from_stage_id: str) -> list[st
                     continue
                 paths.append(rel)
         if stage_id == "04-openlca-reporting":
-            journal = workspace_root / "records" / "import-operations" / "operations"
-            if journal.is_dir():
-                for hit in sorted(journal.glob("*.json")):
-                    paths.append(
-                        hit.resolve()
-                        .relative_to(workspace_root.resolve())
-                        .as_posix()
-                    )
+            # The whole import journal (operations, current.json, scopes, preflights,
+            # requests, consumed) belongs to stage 04; its @ids are read into the
+            # openLCA cleanup list before this directory is deleted.
+            if (workspace_root / "records" / "import-operations").exists():
+                paths.append("records/import-operations")
     # de-dupe, preserve order
     seen: set[str] = set()
     out: list[str] = []
@@ -392,6 +395,11 @@ def eligibility(
         if not ok:
             reasons.append(f"阶段 {stage_id} 产物缺失：{', '.join(missing)}")
 
+    if from_stage_id == "04-openlca-reporting" and load_seed_acceptance(
+        workspace_root, old_run_id
+    ) is None:
+        reasons.append("阶段 04 续跑需要旧运行的 accepted[lca.model]（03 验收记录）")
+
     ok_inputs, input_reasons = _inputs_unchanged(
         project_root, workspace_root, old_run_id, from_stage_id
     )
@@ -410,7 +418,7 @@ def eligibility(
         "from_stage_id": from_stage_id,
         "cleanup": {"workspace_paths": ws_paths, "openlca_ids": ola_ids},
         "workflow_yaml": snapshot_text,
-        "rework_note": "返工请求若指向 N 之前的阶段将被拒绝",
+        "rework_note": f"续跑后，返工请求若指向 {from_stage_id} 之前的阶段将被拒绝",
     }
 
 

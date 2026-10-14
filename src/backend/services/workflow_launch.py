@@ -303,8 +303,6 @@ def start_resume_workflow(
     if not preview.get("eligible"):
         reasons = preview.get("reasons") or ["不可续跑"]
         raise ValueError("; ".join(str(r) for r in reasons))
-    from tempfile import NamedTemporaryFile
-
     plan = build_plan(project_root, old_run_id, from_stage)
     workspace = project_root / "workspace"
     plan_dir = resume_plan_dir(workspace, old_run_id)
@@ -314,13 +312,11 @@ def start_resume_workflow(
     code = str(from_stage).strip()[:2]
     if code == "04":
         blob = load_seed_acceptance(workspace, old_run_id)
-        if blob:
-            tmp = NamedTemporaryFile(
-                mode="w", suffix=".json", delete=False, encoding="utf-8"
-            )
-            json.dump(blob, tmp, ensure_ascii=False)
-            tmp.close()
-            seed_path = Path(tmp.name)
+        if not blob:
+            raise ValueError("阶段 04 续跑缺少旧运行的 accepted[lca.model]")
+        # Kept with the plan (records/resume/<old>/), not in /tmp.
+        seed_path = plan_dir / "seed-acceptance.json"
+        seed_path.write_text(json.dumps(blob, ensure_ascii=False), encoding="utf-8")
     fields = fields or PlanFields("", "", "", "")
     return launcher.start(
         task="resume-lca",

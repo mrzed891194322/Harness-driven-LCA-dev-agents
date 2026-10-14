@@ -356,6 +356,8 @@ def _cleanup_list_refuse_path(
     rel = relative.replace("\\", "/").strip("/")
     if not rel:
         return "空路径"
+    if any(part in {"", ".", ".."} for part in rel.split("/")):
+        return "路径不得包含 . 或 .."
     if rel.startswith("harness/knowledge") or "/harness/knowledge/" in f"/{rel}/":
         return "禁止清理 harness/knowledge"
     try:
@@ -366,6 +368,18 @@ def _cleanup_list_refuse_path(
         except ValueError:
             return "路径必须在 workspace 内"
         return "路径必须在 workspace 内"
+    if target == workspace_root.resolve():
+        return "禁止删除整个 workspace"
+    protected = [
+        "records/orchestrator.lock",
+        "records/orchestrator.sqlite",
+        "records/resume",
+    ]
+    if old_run_id:
+        protected.append(f"records/evidence/{old_run_id}")
+    for keep in protected:
+        if keep.startswith(rel + "/"):
+            return f"禁止删除包含受保护路径（{keep}）的目录"
     if rel == ORCHESTRATOR_LOCK_KEEP or rel.endswith("/orchestrator.lock"):
         return "禁止删除 orchestrator.lock"
     if rel in {"records/orchestrator.sqlite", "records/orchestrator.lock"}:
@@ -441,6 +455,10 @@ def run_cleanup_list(
     except WorkspaceBusy:
         print("[FAIL] workspace busy", file=sys.stderr)
         return 1, report
+    if report["workspace_refused"]:
+        # A list we composed should never contain a refused path: stop before openLCA.
+        print(f"[FAIL] cleanup-list 含被拒路径: {report['workspace_refused']}", file=sys.stderr)
+        return 1, report
 
     if openlca_ids:
         from harness.tools.shared.control_openlca.cleanup import (
@@ -452,8 +470,12 @@ def run_cleanup_list(
         from backend.services.diagnostics_service import openlca_endpoint
         from harness.tools.shared.control_openlca.cleanup import _model_types
 
+        from harness.tools.shared.control_openlca.cleanup_service import (
+            _target_category,
+        )
+
         host, port = openlca_endpoint(PROJECT_ROOT)
-        project_name = PROJECT_ROOT.name
+        project_name = _target_category()
         targets = [
             (str(item.get("type") or ""), str(item.get("id") or ""))
             for item in openlca_ids
@@ -464,7 +486,11 @@ def run_cleanup_list(
                 {"type": t, "id": i} for t, i in targets if t and i
             ]
             return 0, report
-        client = connect_ipc(host, port)
+        try:
+            client = connect_ipc(host, port)
+        except Exception as exc:
+            print(f"[FAIL] openLCA 连接失败，未删除任何实体: {exc}", file=sys.stderr)
+            return 1, report
         try:
             resolved, skipped = _resolve_uuid_targets(
                 client, project_name, targets, host=host, port=port
@@ -481,7 +507,11 @@ def run_cleanup_list(
             )
             report["openlca_deleted"] = deleted_count
             if errors:
-                print(f"[WARN] openlca delete errors: {errors}", file=sys.stderr)
+                print(f"[FAIL] openlca delete errors: {errors}", file=sys.stderr)
+                return 1, report
+        except Exception as exc:
+            print(f"[FAIL] openLCA 清理中止: {exc}", file=sys.stderr)
+            return 1, report
         finally:
             close_ipc_client(client)
 
