@@ -1,4 +1,4 @@
-export type RunStatusKey = "idle" | "running" | "failed" | "completed" | "interrupted";
+export type RunStatusKey = "idle" | "running" | "failed" | "completed" | "interrupted" | "aborted";
 
 export const RUN_STATUS_LABEL: Record<RunStatusKey, { zh: string; en: string }> = {
   idle: { zh: "空闲", en: "Idle" },
@@ -6,6 +6,7 @@ export const RUN_STATUS_LABEL: Record<RunStatusKey, { zh: string; en: string }> 
   failed: { zh: "失败", en: "Failed" },
   completed: { zh: "完成", en: "Completed" },
   interrupted: { zh: "已中断", en: "Interrupted" },
+  aborted: { zh: "已中止", en: "Aborted" },
 };
 
 export function uiLang(): "zh" | "en" {
@@ -20,7 +21,7 @@ export function runStatusLabel(status: string, lang: "zh" | "en" = uiLang()): st
 }
 
 export function runStatusTone(status: string): "fail" | "warn" | "ok" | "off" {
-  if (status === "failed") return "fail";
+  if (status === "failed" || status === "aborted") return "fail";
   if (status === "interrupted") return "warn";
   if (status === "idle") return "off";
   return "ok";
