@@ -1,0 +1,1 @@
+`.agents/skills/` 只给在本仓库里改代码的 agent 用。LCA 工作会话不加载这里的技能。

@@ -1,6 +1,6 @@
 # 控制面板进程
 
-任意 agent 在本仓库启动、重启、关闭或诊断 Web 控制面板时，只执行本文命令。工作目录是仓库根目录。
+打开、关闭项目，或在出问题时诊断。只执行本文命令。工作目录是仓库根目录。
 
 `npm start` 与 `npm run dev` 把后端、唯一的 pi-runtime、前端放到后台后，自己打印 `Ready.` 并退出。关掉终端不会停这些服务。停止只用 `npm run stop`。
 
@@ -9,7 +9,6 @@
 - 不要手写 `uvicorn`、`next dev`、`node src/pi-runtime/dist/main.js`，也不要再起一个 pi-runtime。整个项目只有一个。
 - 不要加 `--foreground` 或 `-f`。前台进程绑在当前终端上，agent 结束会话时可能把服务一起停掉。
 - 不要设置 `PI_RUNTIME_MOCK` 或 `PI_RUNTIME_PRIVATE`。控制面板应打印 `mode=real`。
-- 不要 `POST /api/workflow/start`，不要替用户点「执行LCA任务」。那会清理工作区并开始一次 LCA。
 - 不要把 `.env`、`.local/credentials/` 里的密钥写进回复、日志或提交。
 - 上一次启动或重启还在同步、构建时，不要再开一次。
 

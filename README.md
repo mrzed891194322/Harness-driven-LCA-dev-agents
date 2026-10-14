@@ -22,10 +22,10 @@
 使用任意 AI agent 工具（codex、claude、copilot、dsh等）打开本项目并新建对话，对 agent 输入下列文字：
 
 ```text
-请参考 docs/agent/control-panel.md 的推荐步骤，启动本项目 
+请根据 .agents/skills/proj-ops 技能，为用户打开项目
 ```
 
-参考同一套提示词，同样可以重启、关闭项目，或者在项目运行出现问题时进行原因排查。
+参考同一套提示词，同样可以关闭项目，或在项目出问题时进行诊断。
 
 ### 手动启动
 

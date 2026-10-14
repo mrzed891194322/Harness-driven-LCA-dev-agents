@@ -41,8 +41,6 @@ logs/
 !.codex/skills/revise-lca/
 !.codex/skills/revise-lca/**
 
-.agents/
-
 # Generated caches inside tracked Codex packages
 .codex/skills/**/__pycache__/
 .codex/skills/**/*.py[oc]
