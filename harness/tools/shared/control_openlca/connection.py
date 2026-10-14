@@ -182,6 +182,11 @@ class OpenLCARequestError(RuntimeError):
     """Raised when the IPC endpoint returns an invalid JSON-RPC response."""
 
 
+def is_not_found_rpc_error(error: object) -> bool:
+    """True for olca-ipc's formatted JSON-RPC not-found error (``"404: ..."``)."""
+    return str(error or "").strip().startswith("404:")
+
+
 class _TimeoutHTTPAdapter(HTTPAdapter):
     """Apply a default timeout without enabling automatic POST retries."""
 
@@ -225,6 +230,30 @@ class BoundedIPCClient(olca_ipc.Client):
             # olca-ipc otherwise turns several RPC failures into empty lists/None.
             raise OpenLCARequestError(f"openLCA {method} failed at {self.url}: {error}")
         return result, None
+
+    def get(self, model_type, uid=None, name=None):
+        """Return None only for a definite not-found; raise on any other error.
+
+        openLCA answers ``data/get`` for an unknown @id with JSON-RPC error
+        ``{"code": 404, "message": "resource not found"}`` (HTTP 200), which
+        olca-ipc formats as ``"404: resource not found"``. That is "does not
+        exist". Timeouts, connection errors and other RPC errors still raise.
+        """
+        if not uid and not name:
+            return None
+        params = {"@type": model_type.__name__}
+        if uid is not None:
+            params["@id"] = uid
+        if name is not None:
+            params["name"] = name
+        result, error = olca_ipc.Client.rpc_call(self, "data/get", params)
+        if error:
+            if is_not_found_rpc_error(error):
+                return None
+            raise OpenLCARequestError(
+                f"openLCA data/get failed at {self.url}: {error}"
+            )
+        return model_type.from_dict(result)
 
     def create_product_system(
         self,
