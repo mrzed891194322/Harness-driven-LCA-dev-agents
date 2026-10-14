@@ -68,6 +68,23 @@ def _require_mcp_stdio_channel() -> None:
         )
 
 
+CLEANUP_ALLOWED_PHASES = frozenset({"report"})
+
+
+def _require_cleanup_phase(context: Context) -> None:
+    """Least privilege: only the report stage (04) may delete openLCA entities.
+
+    The host's pre-run cleanup does not go through MCP, so it is unaffected.
+    confirm=false previews remain available to every non-reviewer role.
+    """
+    phase = context.lca_phase()
+    if phase not in CLEANUP_ALLOWED_PHASES:
+        raise ValueError(
+            "cleanup_output(confirm=true) is only allowed in the report phase "
+            f"(04-openlca-reporting); current stage={context.stage} phase={phase}"
+        )
+
+
 def v2_tool(name):
     def decorate(function):
         @functools.wraps(function)
@@ -609,6 +626,8 @@ def cleanup_output(
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
     """Clean workflow-imported entities from the active openLCA database."""
+    if confirm:
+        _require_cleanup_phase(Context.environment())
     host, port = _endpoint_config()
     result = run_cleanup_output(
         host=host,
