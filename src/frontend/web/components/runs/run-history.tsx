@@ -221,6 +221,14 @@ export function RunHistoryList({ highlightRunId = "" }: { highlightRunId?: strin
                 <li key={item} data-testid="resume-delete-item">{item}</li>
               ))}
             </ul>
+            <p>将删除以下本项目 openLCA 实体（仅导入日志记录的 @id，删除前逐个复查是否在本项目分类）：</p>
+            <ul data-testid="resume-openlca-list">
+              {(preview?.cleanup?.openlca_ids || []).map((item) => (
+                <li key={`${item.type}:${item.id}`} data-testid="resume-openlca-item">
+                  {item.type} {item.id}
+                </li>
+              ))}
+            </ul>
           </div>
           <div className="run-reason-foot">
             <button
