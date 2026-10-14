@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+import os
+import tempfile
 from pathlib import Path
 
 PLAN_RELATIVE = Path("harness/knowledge/plan/main_plan.md")
@@ -199,11 +201,25 @@ def read_plan_document(root: Path) -> dict[str, object]:
     }
 
 
+def write_text_atomic(path: Path, text: str) -> None:
+    """Replace ``path`` in place (or create it) via a temp file in the same dir."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
+
+
 def save_plan(root: Path, fields: PlanFields) -> None:
     path = plan_path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
     names = [item["name"] for item in list_references(root)]
-    path.write_text(render_plan(fields, names), encoding="utf-8")
+    write_text_atomic(path, render_plan(fields, names))
 
 
 def list_references(root: Path) -> list[dict[str, object]]:
@@ -233,7 +249,9 @@ def save_references(root: Path, uploads: list[tuple[str, bytes]]) -> list[dict[s
     for filename, data in uploads:
         path = _reference_path(root, filename)
         relative = path.relative_to(folder).as_posix()
-        if relative in seen or path.exists():
+        # Add-only: a same-name upload overwrites that file; nothing else in
+        # inputs/ is removed. Only duplicates within one batch are rejected.
+        if relative in seen or path.is_dir():
             conflicts.append(relative)
             continue
         seen.add(relative)

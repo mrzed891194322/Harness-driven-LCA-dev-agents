@@ -158,9 +158,11 @@ class CleanDirectoryTests(unittest.TestCase):
     def test_preset_whole_lca_targets(self) -> None:
         self.assertEqual(
             CLEAN_PRESETS["whole-lca"],
-            ["knowledge", "openlca", "workspace"],
+            ["openlca", "workspace"],
         )
-        self.assertEqual(CLEAN_PRESETS["revise-lca"], ["knowledge", "openlca"])
+        self.assertEqual(CLEAN_PRESETS["revise-lca"], ["openlca"])
+        for targets in CLEAN_PRESETS.values():
+            self.assertNotIn("knowledge", targets)
 
     def test_preset_whole_lca_runs_targets_in_order(self) -> None:
         calls: list[str] = []
@@ -181,12 +183,12 @@ class CleanDirectoryTests(unittest.TestCase):
         def fake_single(target_name: str, *, dry_run: bool = False) -> int:
             del dry_run
             calls.append(target_name)
-            return 1 if target_name == "knowledge" else 0
+            return 1 if target_name == "openlca" else 0
 
         with patch.object(clean_main, "_run_single_target", fake_single):
             self.assertEqual(clean_main.run_clean(yes=True, preset="whole-lca"), 1)
 
-        self.assertEqual(calls, ["knowledge"])
+        self.assertEqual(calls, ["openlca"])
 
     def test_whole_lca_openlca_sees_workspace_before_it_is_cleaned(self) -> None:
         """Regression (p5-cleanup-lock): UUID cleanup reads workspace LCI/journal."""

@@ -47,8 +47,10 @@ CLEAN_PRESETS: dict[str, list[str]] = {
     # openlca runs before workspace: its UUID cleanup reads
     # workspace/outputs/LCI and records/import-operations, which the workspace
     # target deletes.
-    "whole-lca": ["knowledge", "openlca", "workspace"],
-    "revise-lca": ["knowledge", "openlca"],
+    # knowledge (plan + reference inputs) is never cleared before a run; the
+    # "knowledge" target stays available for explicit manual use only.
+    "whole-lca": ["openlca", "workspace"],
+    "revise-lca": ["openlca"],
 }
 
 FILESYSTEM_TARGET_NAMES = [cfg["name"] for cfg in CLEAN_TARGETS]

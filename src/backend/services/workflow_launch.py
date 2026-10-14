@@ -191,7 +191,10 @@ def _mark_manifest_aborted(project_root: Path, reason: str) -> None:
 
 
 def snapshot_user_material(project_root: Path) -> Path:
-    """Copy plan and reference files before a clean preset removes them."""
+    """Copy plan and reference files as a safety net while the pre-run step runs.
+
+    Presets no longer clear knowledge; this only guards against accidents.
+    """
     dest = Path(tempfile.mkdtemp(prefix="lca-material-"))
     for relative in _MATERIAL:
         source = project_root / relative
@@ -218,9 +221,10 @@ def _write_plan(project_root: Path, fields: PlanFields, task: str) -> None:
     from backend.services.plan_form import list_references
 
     names = [str(item["name"]) for item in list_references(project_root)]
+    from backend.services.plan_form import write_text_atomic
+
     path = project_root / "harness" / "knowledge" / "plan" / "revise_plan.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_plan(fields, names), encoding="utf-8")
+    write_text_atomic(path, render_plan(fields, names))
 
 
 def _consume(

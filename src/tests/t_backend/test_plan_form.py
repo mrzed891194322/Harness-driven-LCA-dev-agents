@@ -19,6 +19,7 @@ from backend.services.plan_form import (
     render_plan,
     save_plan,
     save_reference,
+    save_references,
     save_reference_note,
     template_markdown,
 )
@@ -95,10 +96,12 @@ class PlanReferenceTests(unittest.TestCase):
                 save_reference(root, "../escape.md", b"x")
             saved_binary = save_reference(root, "script.exe", b"x")
             self.assertEqual(saved_binary["name"], "script.exe")
+            # Add-only sync: same name overwrites in place.
+            save_reference(root, "script.exe", b"changed")
+            self.assertEqual((root / "harness/knowledge/inputs/script.exe").read_bytes(), b"changed")
             with self.assertRaises(PlanFormError) as duplicate:
-                save_reference(root, "script.exe", b"changed")
+                save_references(root, [("dup.md", b"a"), ("dup.md", b"b")])
             self.assertIn("不能上传同名文件", str(duplicate.exception))
-            self.assertEqual((root / "harness/knowledge/inputs/script.exe").read_bytes(), b"x")
             self.assertEqual(save_reference(root, "无扩展名", b"")["size"], 0)
             noted = save_reference_note(root, "script.exe", "  按表格中的距离建模  ")
             self.assertEqual(noted["note"], "按表格中的距离建模")
@@ -172,10 +175,15 @@ class PlanApiTests(unittest.TestCase):
                         ("files", ("证据.md", b"overwrite", "text/markdown")),
                     ],
                 )
-                self.assertEqual(duplicate.status_code, 400)
-                self.assertIn("不能上传同名文件", duplicate.json()["detail"])
-                self.assertEqual((root / "harness/knowledge/inputs/证据.md").read_bytes(), b"# evidence\n")
-                self.assertFalse((root / "harness/knowledge/inputs/新资料.md").exists())
+                # Same name overwrites, new name is added, nothing is removed.
+                self.assertEqual(duplicate.status_code, 200)
+                self.assertEqual((root / "harness/knowledge/inputs/证据.md").read_bytes(), b"overwrite")
+                self.assertTrue((root / "harness/knowledge/inputs/新资料.md").is_file())
+                client.post(
+                    "/api/references",
+                    files={"files": ("证据.md", b"# evidence\n", "text/markdown")},
+                )
+                self.assertEqual(client.delete("/api/references/新资料.md").status_code, 200)
 
                 noted = client.put(
                     "/api/references/证据.md/note",
