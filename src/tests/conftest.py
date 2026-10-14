@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "src" / "backend"
 FRONTEND_ROOT = PROJECT_ROOT / "src" / "frontend"
 WEB_ROOT = FRONTEND_ROOT / "web"
-WORKFLOWS = PROJECT_ROOT / "harness"
+WORKFLOWS = PROJECT_ROOT / "src" / "backend" / "workflows"
 
 MAIN_PLAN_PATH = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "main_plan.md"
 REVISE_PLAN_PATH = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "revise_plan.md"

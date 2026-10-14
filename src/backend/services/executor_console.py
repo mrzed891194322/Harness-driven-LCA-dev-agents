@@ -176,8 +176,8 @@ ORCHESTRATOR_COMMAND = [
 ]
 # GUI UX labels → workflow YAML paths (composition lives in harness YAML, not aliases).
 WORKFLOW_YAML_BY_TASK = {
-    "whole-lca": "harness/LCA-main.yaml",
-    "revise-lca": "harness/LCA-revise.yaml",
+    "whole-lca": "src/backend/workflows/LCA-main.yaml",
+    "revise-lca": "src/backend/workflows/LCA-revise.yaml",
 }
 WORKFLOW_TASKS = tuple(WORKFLOW_YAML_BY_TASK)
 

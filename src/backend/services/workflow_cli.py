@@ -10,8 +10,8 @@ ORCHESTRATOR_COMMAND = [
 ]
 
 WORKFLOW_YAML_BY_TASK = {
-    "whole-lca": "harness/LCA-main.yaml",
-    "revise-lca": "harness/LCA-revise.yaml",
+    "whole-lca": "src/backend/workflows/LCA-main.yaml",
+    "revise-lca": "src/backend/workflows/LCA-revise.yaml",
 }
 
 

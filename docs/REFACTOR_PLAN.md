@@ -229,7 +229,7 @@ ComponentRef（harness_store 的统一句柄，GUI 用它编辑任何组件）
 | C3 | S2 | 规则与权限矛盾：`reviewer-readonly.md` 允许 reviewer 在 `workspace/tmp/` 做复算，但 reviewer 没有 bash 和 write | `rules/project/reviewer-readonly.md:4` | P4（§7.6） |
 | C4 | S2 | 分工模型（GUI 写入 `.local/workflow-models.json`，目前它是唯一来源，已定）不在运行指纹里；`IMPLEMENTATION_ROOTS` 不含 `src/backend/pi_client` 和 `src/pi-runtime/src` | `persistence/config_fingerprint.py:23-27` | P4 |
 | C5 | S3 | 模型配置分散在 4 处（`.env`、`src/backend/core/runtime/model_profiles.json`、`.local/model_profiles.json`、`.local/workflow-models.json`）；编排页显示的模型与实际生效的不一致（ISSUES F3）。来源收敛属于后续的“分工模型配置”专门功能（§10.3），当前阶段只修 F3 的显示 | `runtime/model_profiles.py`；`agents/assignment_models.py` | P7（F3）/ 后续 |
-| C6 | S3 | main 和 revise 两份 YAML 约 95% 相同 | `diff harness/LCA-main.yaml harness/LCA-revise.yaml` | P4（看 Q1） |
+| C6 | S3 | main 和 revise 两份 YAML 约 95% 相同 | `diff src/backend/workflows/LCA-main.yaml src/backend/workflows/LCA-revise.yaml` | P4（看 Q1） |
 | C7 | S3 | `harness/tools` 里有 39 个文件、7262 行，其中 5324 行是 shared 代码；宿主 `services/diagnostics.py:8` 和 `services/workspace_clean.py:9`（P-1 前在 `src/shared/`）直接 import 它 | §6.1 | P5 |
 | C8 | S3 | `harness/knowledge/水瓶案例学习.md` 与 `inputs/` 下的同名文件重复 | 文件清单 | P5 |
 
@@ -971,8 +971,8 @@ Skill 和 MCP 清单的检查已经并入 §5.3（错误码）、§5.4（doctor�
 
 | 位置 | 引用 | 搬迁时改成 |
 | --- | --- | --- |
-| `harness/LCA-main.yaml:5-27`（`registry.rules`，23 条路径） | `harness/rules/{project,lca,tools,stages,assignments}/…` | `harness/rules/prompts/…`，并改为 `registry.rules.prompts`（见 7.3） |
-| `harness/LCA-revise.yaml`（`registry.rules`，27 条路径，多了 4 条 `.revise.md` 和 reviser） | 同上 | 同上 |
+| `src/backend/workflows/LCA-main.yaml:5-27`（`registry.rules`，23 条路径） | `harness/rules/{project,lca,tools,stages,assignments}/…` | `harness/rules/prompts/…`，并改为 `registry.rules.prompts`（见 7.3） |
+| `src/backend/workflows/LCA-revise.yaml`（`registry.rules`，27 条路径，多了 4 条 `.revise.md` 和 reviser） | 同上 | 同上 |
 | 两份 YAML 中 `stages[].rules`、`assignments.*.rules`（main 约 15 处 `rules:` 块）、MCP 的 `rules: [openlca_usage]` 等 | 规则 ID（不是路径） | 改为 `rules: {prompts: [...], permissions: [...]}`；ID 不变 |
 | `harness/rules/README.md:1-26` | 目录说明 | 拆成 `rules/README.md`（两类规则总览）和 `rules/prompts/README.md`；同时修正第 22 行对 `harness/tools/shared` 的描述 |
 | `harness/knowledge/README.md:8` | `harness/rules/lca/knowledge-files.md` | `harness/rules/prompts/lca/knowledge-files.md` |
@@ -1104,7 +1104,7 @@ assignments:
 
 | kind | 文件 | 主键 | 校验（全部由 core 执行） | 被谁引用 |
 | --- | --- | --- | --- | --- |
-| `workflow` | `harness/LCA-*.yaml` | 文件名 | loader 和 resolve 全量通过；所有引用都存在；每个 assignment 都有交卷途径 | 任务映射（core） |
+| `workflow` | `src/backend/workflows/LCA-*.yaml` | 文件名 | loader 和 resolve 全量通过；所有引用都存在；每个 assignment 都有交卷途径 | 任务映射（core） |
 | `prompt_rule` | `harness/rules/prompts/**.md` + `registry.rules.prompts` | registry 键 | 文件存在、UTF-8、非空 | stage、assignment、MCP 清单的 `rules` |
 | `permission_rule` | `harness/rules/permissions/<id>.yaml` + `registry.rules.permissions` | 文件名 | 白名单语义（§7.2）：工具名、`@group` 存在；globs 在项目内；一个角色最多一条默认规则；交卷途径可用 | assignment 的 `rules.permissions`；角色默认 |
 | `knowledge` | `harness/knowledge/**` + `registry.knowledge` | registry 键 | 路径在 harness 内；目录可读 | stage、assignment |

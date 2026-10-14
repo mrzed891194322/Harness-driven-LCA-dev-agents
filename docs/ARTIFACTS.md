@@ -71,7 +71,7 @@
 
 ## 生成式提示词
 
-`harness/rules/generated/*.md.tmpl` 每次建会话现场渲染（见 `harness/rules/README.md`）。预览接口 `GET /api/prompts/generated/preview?stage=&role=` **只支持 `harness/LCA-main.yaml` 里的阶段**（修订工作流 `LCA-revise.yaml` 暂不支持）。
+`harness/rules/generated/*.md.tmpl` 每次建会话现场渲染（见 `harness/rules/README.md`）。预览接口 `GET /api/prompts/generated/preview?stage=&role=` **只支持 `src/backend/workflows/LCA-main.yaml` 里的阶段**（修订工作流 `LCA-revise.yaml` 暂不支持）。
 
 ---
 

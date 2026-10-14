@@ -384,7 +384,7 @@ def test_cli_busy_workspace_does_not_dispatch_or_write(run_case, resuming, capsy
     runtime, _, client, store = run_case
     args = [
         "--workflow",
-        str(PROJECT_ROOT / "harness" / "LCA-main.yaml"),
+        str(PROJECT_ROOT / "src" / "backend" / "workflows" / "LCA-main.yaml"),
         "--worker",
         "pi",
         "--workspace",

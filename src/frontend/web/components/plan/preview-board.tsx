@@ -37,8 +37,8 @@ type Diagnostics = {
 };
 
 const MODE_FILE: Record<WorkMode, string> = {
-  new: "LCA-main.yaml",
-  revise: "LCA-revise.yaml",
+  new: "workflows/LCA-main.yaml",
+  revise: "workflows/LCA-revise.yaml",
 };
 
 const MODE_LABEL: Record<WorkMode, string> = {
@@ -47,8 +47,8 @@ const MODE_LABEL: Record<WorkMode, string> = {
 };
 
 const FILE_LABEL: Record<string, string> = {
-  "LCA-main.yaml": "主流程",
-  "LCA-revise.yaml": "修订流程",
+  "workflows/LCA-main.yaml": "主流程",
+  "workflows/LCA-revise.yaml": "修订流程",
 };
 
 const STAGE_TITLE: Record<string, string> = {
