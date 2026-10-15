@@ -38,7 +38,7 @@ class CleanDirectoryTests(unittest.TestCase):
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
                     "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
-                    "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
+                    "keep_patterns": ["**/README.md", "runs/_run/orchestrator.lock"],
                 }
             ]
             with (
@@ -295,7 +295,7 @@ class CleanDirectoryTests(unittest.TestCase):
                         "path": workspace,
                         "gitignore": workspace / ".gitignore",
                         "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
-                        "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
+                        "keep_patterns": ["**/README.md", "runs/_run/orchestrator.lock"],
                     }
                 ]
                 with (
@@ -347,7 +347,7 @@ class CleanDirectoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             workspace = root / "workspace"
-            memory = workspace / "records"
+            memory = workspace / "runs" / "_run"
             memory.mkdir(parents=True)
             (workspace / "outputs").mkdir()
             (workspace / "tmp").mkdir()
@@ -360,7 +360,7 @@ class CleanDirectoryTests(unittest.TestCase):
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
                     "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
-                    "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
+                    "keep_patterns": ["**/README.md", "runs/_run/orchestrator.lock"],
                 }
             ]
 

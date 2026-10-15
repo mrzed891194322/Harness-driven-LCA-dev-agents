@@ -95,7 +95,7 @@ def resume(runtime, store, run_id="run-python"):
 
 def manifest(runtime):
     return json.loads(
-        (runtime.workspace_root / "records" / "manifest.json").read_text()
+        (runtime.workspace_root / "runs" / "_run" / "manifest.json").read_text()
     )
 
 
@@ -311,7 +311,7 @@ def test_terminal_resume_repairs_manifest_without_rechecking_config(
     store.save(state, event="finished")
     config = (
         runtime.workspace_root
-        / "records"
+        / "runs" / "_run"
         / "evidence"
         / state["run_id"]
         / "runtime-config.json"
@@ -327,7 +327,7 @@ def test_changed_config_failure_is_persisted(run_case):
     store.save(state, event="ready")
     config = (
         runtime.workspace_root
-        / "records"
+        / "runs" / "_run"
         / "evidence"
         / state["run_id"]
         / "runtime-config.json"
@@ -454,7 +454,7 @@ with workspace_lock(Path(sys.argv[1])):
 
 
 def _edit_stored_config(runtime, state):
-    config = runtime.workspace_root / "records" / "evidence" / state["run_id"] / "runtime-config.json"
+    config = runtime.workspace_root / "runs" / "_run" / "evidence" / state["run_id"] / "runtime-config.json"
     stored = json.loads(config.read_text())
     stored["fingerprint"] = "old-fingerprint"
     stored["config"]["generated_prompts"] = {"harness/settings.yaml": {"source": "default", "sha256": "old"}}

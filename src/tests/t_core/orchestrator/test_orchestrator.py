@@ -134,9 +134,9 @@ class OrchestratorGraphTests(unittest.TestCase):
         ]
         self.assertEqual(len(mapping_turns), 2)
         self.assertNotEqual(mapping_turns[0][0], mapping_turns[1][0])
-        self.assertTrue((self.workspace / "records" / "manifest.json").is_file())
+        self.assertTrue((self.workspace / "runs" / "_run" / "manifest.json").is_file())
         manifest = json.loads(
-            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "runs" / "_run" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "completed")
         # 01 reviewer submits its handoff through lca_artifacts.submit_handoff.
@@ -261,11 +261,11 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(client.turns, [])
         self.assertTrue(
             (
-                self.workspace / "records" / "logs" / "run-inflight" / "progress.txt"
+                self.workspace / "runs" / "_run" / "progress.txt"
             ).is_file()
         )
         manifest = json.loads(
-            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "runs" / "_run" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
         self.assertIn("in_flight", manifest["status_reason"])
@@ -426,7 +426,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(len(executor_labels), PROTOCOL_REPAIR_LIMIT + 1)
         self.assertGreaterEqual(client.resume_count, PROTOCOL_REPAIR_LIMIT)
         manifest = json.loads(
-            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "runs" / "_run" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
 
@@ -462,13 +462,13 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(len(review_labels), PROTOCOL_REPAIR_LIMIT + 1)
         self.assertTrue(all(label.endswith(":1") for label in review_labels))
         manifest = json.loads(
-            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "runs" / "_run" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
         self.assertIn("handoff 无效", manifest["status_reason"])
         self.assertFalse(
             (
-                self.workspace / "records" / "reviews" / "02-inventory-extraction-1.md"
+                self.workspace / "runs" / "_run" / "reviews" / "02-inventory-extraction-1.md"
             ).is_file()
         )
 

@@ -144,7 +144,7 @@ class WorkflowProgressTests(unittest.TestCase):
                 status_reason="done",
                 run_id="run-9",
             )
-            handoff = workspace / "records" / "handoffs" / "report-executor-1.json"
+            handoff = workspace / "runs" / "report" / "executor-1" / "handoff.json"
             handoff.parent.mkdir(parents=True, exist_ok=True)
             handoff.write_text(
                 '{"stage":"report","role":"executor","attempt":1,"status":"ok",'
@@ -168,7 +168,7 @@ class WorkflowProgressTests(unittest.TestCase):
             )
             dump.parent.mkdir(parents=True, exist_ok=True)
             dump.write_text("{}", encoding="utf-8")
-            review = workspace / "records" / "reviews" / "report-1.md"
+            review = workspace / "runs" / "report" / "reviewer-1" / "review.md"
             review.parent.mkdir(parents=True, exist_ok=True)
             review.write_text("review\n", encoding="utf-8")
 
@@ -177,9 +177,9 @@ class WorkflowProgressTests(unittest.TestCase):
             opened = service.read_result_file("workspace/outputs/reports/lca.md")
             self.assertEqual(opened["kind"], "markdown")
             self.assertIn("LCA", opened["text"])
-            manifest = service.read_result_file("workspace/records/manifest.json")
+            manifest = service.read_result_file("workspace/runs/_run/manifest.json")
             self.assertEqual(manifest["kind"], "json")
-            note = service.read_result_file("workspace/records/reviews/report-1.md")
+            note = service.read_result_file("workspace/runs/report/reviewer-1/review.md")
             self.assertEqual(note["kind"], "markdown")
             with self.assertRaises(ValueError):
                 service.read_result_file("workspace/outputs/../../.env")
@@ -195,10 +195,7 @@ class WorkflowProgressTests(unittest.TestCase):
         self.assertEqual(body["handoffs"][0]["artifacts"], ["workspace/outputs/reports/lca.md"])
         self.assertEqual(
             [item["path"] for item in body["records"]],
-            [
-                "workspace/records/manifest.json",
-                "workspace/records/reviews/report-1.md",
-            ],
+            ["workspace/runs/_run/manifest.json"],
         )
         self.assertEqual(
             [(item["path"], item["count"]) for item in body["artifacts"]],

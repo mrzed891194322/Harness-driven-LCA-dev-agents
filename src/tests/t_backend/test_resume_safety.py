@@ -24,20 +24,20 @@ def _list(tmp_path: Path, paths, ids=()):
 
 @pytest.mark.parametrize(
     "rel",
-    [".", "records", "records/evidence", "../outside", "outputs/../..", "records/orchestrator.sqlite",
-     "records/resume/x", "records/evidence/oldrun"],
+    [".", "records", "records/evidence", "../outside", "outputs/../..", "runs/_run/orchestrator.sqlite",
+     "runs/_run/resume/x", "runs/_run/evidence/oldrun"],
 )
 def test_cleanup_list_refuses_dangerous_paths(tmp_path: Path, rel: str):
     ws = tmp_path / "workspace"
-    (ws / "records" / "evidence" / "oldrun").mkdir(parents=True)
-    (ws / "records" / "orchestrator.sqlite").write_text("db", encoding="utf-8")
+    (ws / "runs" / "_run" / "evidence" / "oldrun").mkdir(parents=True)
+    (ws / "runs" / "_run" / "orchestrator.sqlite").write_text("db", encoding="utf-8")
     (tmp_path / "outside").mkdir()
     with patch("backend.services.workspace_clean.PROJECT_ROOT", tmp_path):
         code, report = run_cleanup_list(_list(tmp_path, [rel]), yes=True, old_run_id="oldrun")
     assert code == 1
     assert report["workspace_refused"] and not report["workspace_deleted"]
-    assert (ws / "records" / "orchestrator.sqlite").is_file()
-    assert (ws / "records" / "evidence" / "oldrun").is_dir()
+    assert (ws / "runs" / "_run" / "orchestrator.sqlite").is_file()
+    assert (ws / "runs" / "_run" / "evidence" / "oldrun").is_dir()
     assert (tmp_path / "outside").is_dir()
 
 
@@ -91,7 +91,7 @@ def test_cleanup_list_openlca_dry_run_touches_nothing(tmp_path: Path):
 
 
 def _sources(root: Path, run_id: str, files: dict[str, str]):
-    folder = root / "workspace" / "records" / "evidence" / run_id / "sources"
+    folder = root / "workspace" / "runs" / "_run" / "evidence" / run_id / "sources"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "x.json").write_text(json.dumps({"files": [
         {"path": rel, "readable": True, "sha256": digest} for rel, digest in files.items()
@@ -124,16 +124,19 @@ def test_stage_04_requires_model_acceptance(tmp_path: Path):
 
 def test_cleanup_paths_include_records_for_later_stages(tmp_path: Path):
     ws = tmp_path / "workspace"
-    handoffs = ws / "records" / "handoffs"
-    handoffs.mkdir(parents=True)
-    for name in ("02-inventory-extraction-reviewer-1.json", "03-dataset-mapping-executor-1.json",
-                 "04-openlca-reporting-executor-1.json"):
-        (handoffs / name).write_text("{}", encoding="utf-8")
-    (ws / "records" / "import-operations" / "operations").mkdir(parents=True)
+    for stage, role, attempt in (
+        ("02-inventory-extraction", "reviewer", 1),
+        ("03-dataset-mapping", "executor", 1),
+        ("04-openlca-reporting", "executor", 1),
+    ):
+        folder = ws / "runs" / stage / f"{role}-{attempt}"
+        folder.mkdir(parents=True)
+        (folder / "handoff.json").write_text("{}", encoding="utf-8")
+    journal = ws / "runs" / "04-openlca-reporting" / "executor-1" / "import-operations" / "operations"
+    journal.mkdir(parents=True)
     paths = resume_plan.cleanup_workspace_paths(ws, "03-dataset-mapping")
-    assert "records/handoffs/03-dataset-mapping-executor-1.json" in paths
-    assert "records/handoffs/04-openlca-reporting-executor-1.json" in paths
-    assert "records/handoffs/02-inventory-extraction-reviewer-1.json" not in paths
-    assert "records/import-operations" in paths
-    assert "outputs/LCI" in paths and "outputs/reports" in paths
-    assert not any(p.startswith("outputs/inventory/extracted-bom") for p in paths)
+    assert "runs/03-dataset-mapping/executor-1" in paths
+    assert "runs/04-openlca-reporting/executor-1" in paths
+    assert not any("02-inventory-extraction" in p for p in paths)
+    assert "artifacts/LCI" in paths and "artifacts/lca_report.md" in paths
+    assert not any(p.startswith("artifacts/extracted-bom") for p in paths)

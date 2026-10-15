@@ -53,13 +53,10 @@ class ResumePlanTests(unittest.TestCase):
                 status_reason="test",
                 run_id=run_id,
             )
-            handoffs = ws / "records" / "handoffs"
-            handoffs.mkdir(parents=True)
-            for stage, name in (
-                ("01-intake-gate", "01-intake-gate-reviewer-1.json"),
-                ("02-inventory-extraction", "02-inventory-extraction-reviewer-1.json"),
-            ):
-                (handoffs / name).write_text(
+            for stage in ("01-intake-gate", "02-inventory-extraction"):
+                folder = ws / "runs" / stage / "reviewer-1"
+                folder.mkdir(parents=True, exist_ok=True)
+                (folder / "handoff.json").write_text(
                     json.dumps(
                         {
                             "schema_version": 1,
@@ -73,14 +70,14 @@ class ResumePlanTests(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
-            inv = ws / "outputs" / "inventory"
+            inv = ws / "artifacts"
             inv.mkdir(parents=True)
             (inv / "extracted-bom.json").write_text("{}", encoding="utf-8")
             (inv / "extracted-bom.md").write_text("# bom", encoding="utf-8")
             plan = root / "harness" / "knowledge" / "plan" / "main_plan.md"
             plan.parent.mkdir(parents=True, exist_ok=True)
             plan.write_text("# plan\n", encoding="utf-8")
-            sources = ws / "records" / "evidence" / run_id / "sources"
+            sources = ws / "runs" / "_run" / "evidence" / run_id / "sources"
             sources.mkdir(parents=True)
             (sources / "plan.json").write_text(
                 json.dumps(
@@ -121,14 +118,14 @@ class ResumePlanTests(unittest.TestCase):
                 status_reason="x",
                 run_id=run_id,
             )
-            handoffs = ws / "records" / "handoffs"
-            handoffs.mkdir(parents=True)
             for stage in (
                 "01-intake-gate",
                 "02-inventory-extraction",
                 "03-dataset-mapping",
             ):
-                (handoffs / f"{stage}-reviewer-1.json").write_text(
+                folder = ws / "runs" / stage / "reviewer-1"
+                folder.mkdir(parents=True, exist_ok=True)
+                (folder / "handoff.json").write_text(
                     json.dumps(
                         {
                             "schema_version": 1,
@@ -142,16 +139,16 @@ class ResumePlanTests(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
-            inv = ws / "outputs" / "inventory"
-            inv.mkdir(parents=True)
-            (inv / "extracted-bom.json").write_text("{}", encoding="utf-8")
-            (inv / "extracted-bom.md").write_text("x", encoding="utf-8")
-            (inv / "process-mapping.json").write_text("{}", encoding="utf-8")
-            (ws / "outputs" / "LCI").mkdir(parents=True)
+            art = ws / "artifacts"
+            art.mkdir(parents=True)
+            (art / "extracted-bom.json").write_text("{}", encoding="utf-8")
+            (art / "extracted-bom.md").write_text("x", encoding="utf-8")
+            (art / "process-mapping.json").write_text("{}", encoding="utf-8")
+            (art / "LCI").mkdir(parents=True)
             plan = root / "harness" / "knowledge" / "plan" / "main_plan.md"
             plan.parent.mkdir(parents=True, exist_ok=True)
             plan.write_text("# p\n", encoding="utf-8")
-            sources = ws / "records" / "evidence" / run_id / "sources"
+            sources = ws / "runs" / "_run" / "evidence" / run_id / "sources"
             sources.mkdir(parents=True)
             h = __import__("backend.core.runtime.hashing", fromlist=["sha256_file"]).sha256_file
             (sources / "x.json").write_text(
@@ -168,7 +165,7 @@ class ResumePlanTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            evidence = ws / "records" / "evidence" / run_id / "manifest.json"
+            evidence = ws / "runs" / "_run" / "evidence" / run_id / "manifest.json"
             evidence.parent.mkdir(parents=True, exist_ok=True)
             evidence.write_text(
                 json.dumps(

@@ -44,7 +44,7 @@ def context(tmp_path, monkeypatch):
 def start_import(ctx, client) -> tuple[Path, dict[str, Any]]:
     lci = ctx.workspace / "outputs" / "LCI"
     write_flow(lci)
-    operation_dir = ctx.workspace / "records" / "import-operations"
+    operation_dir = ctx.attempt_root() / "import-operations"
     preflight = operations.preflight(
         "localhost",
         8080,
@@ -119,7 +119,7 @@ def test_resume_after_partial_product_system_failure(context):
     client = FakeImportClient()
     root = context.workspace / "outputs" / "LCI"
     write_product_system_fixture(root)
-    operation_dir = context.workspace / "records" / "import-operations"
+    operation_dir = context.attempt_root() / "import-operations"
     preflight = operations.preflight(
         "localhost",
         8080,
@@ -901,9 +901,7 @@ def test_prior_handoff_defect_blocks_report_only(context, declared):
         metadata=dict(context.metadata),
     )
     assert checks.reuse_status(retry)["rework_scope"] == "report_only"
-    handoff = (
-        context.workspace / "records" / "handoffs" / f"{context.stage}-executor-1.json"
-    )
+    handoff = context.workspace / "runs" / context.stage / "executor-1" / "handoff.json"
     handoff.parent.mkdir(parents=True, exist_ok=True)
     handoff.write_text(
         json.dumps(
@@ -932,9 +930,7 @@ def test_prior_handoff_none_keeps_fingerprint_result(context):
         2,
         metadata=dict(context.metadata),
     )
-    handoff = (
-        context.workspace / "records" / "handoffs" / f"{context.stage}-executor-1.json"
-    )
+    handoff = context.workspace / "runs" / context.stage / "executor-1" / "handoff.json"
     handoff.parent.mkdir(parents=True, exist_ok=True)
     handoff.write_text(json.dumps({"status": "failed", "rework_scope": "report_only"}))
     status = checks.reuse_status(retry)

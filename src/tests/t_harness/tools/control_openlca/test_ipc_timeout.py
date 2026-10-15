@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -99,7 +99,7 @@ def test_uncertain_leftover_rejects_import(monkeypatch, tmp_path):
     workspace = tmp_path / "workspace"
     lci_dir = workspace / "outputs" / "LCI"
     lci_dir.mkdir(parents=True)
-    journal = workspace / "records" / "import-operations"
+    journal = workspace / "runs" / "04-openlca-reporting" / "executor-1" / "import-operations"
     journal.mkdir(parents=True, exist_ok=True)
     preflight_id = "pf-1"
     run_id = "run-uncertain"
@@ -124,11 +124,14 @@ def test_uncertain_leftover_rejects_import(monkeypatch, tmp_path):
         ),
         encoding="utf-8",
     )
-    with patch(
-        "harness.tools.shared.control_openlca.operations.create_ipc_client",
-        return_value=client,
-    ):
-        with patch(
+    with (
+        patch.object(guard, "probe_ipc", return_value=MagicMock()),
+        patch.object(guard, "close_ipc_client"),
+        patch(
+            "harness.tools.shared.control_openlca.operations.create_ipc_client",
+            return_value=client,
+        ),
+        patch(
             "harness.tools.shared.control_openlca.workflow._inspect_import",
             return_value=(
                 {"ok": True, "preflight_hash": "h"},
@@ -143,31 +146,32 @@ def test_uncertain_leftover_rejects_import(monkeypatch, tmp_path):
                 ],
                 [],
             ),
-        ):
-            with patch(
-                "harness.tools.shared.control_openlca.workflow.find_uncertain_leftover_entities",
-                return_value=[
-                    {
-                        "path": "product_systems/x.json",
-                        "entity_type": "ProductSystem",
-                        "id": entity_id,
-                        "name": "sys",
-                    }
-                ],
-            ):
-                with guard.endpoint_guard("127.0.0.1", 8080):
-                    result = operations.import_request(
-                        "127.0.0.1",
-                        8080,
-                        workspace / "outputs" / "LCI",
-                        "cat",
-                        "db",
-                        run_id=run_id,
-                        request_id="req-1",
-                        preflight_id=preflight_id,
-                        operation_dir=journal,
-                        client=client,
-                    )
+        ),
+        patch(
+            "harness.tools.shared.control_openlca.workflow.find_uncertain_leftover_entities",
+            return_value=[
+                {
+                    "path": "product_systems/x.json",
+                    "entity_type": "ProductSystem",
+                    "id": entity_id,
+                    "name": "sys",
+                }
+            ],
+        ),
+    ):
+        with guard.endpoint_guard("127.0.0.1", 8080):
+            result = operations.import_request(
+                "127.0.0.1",
+                8080,
+                workspace / "outputs" / "LCI",
+                "cat",
+                "db",
+                run_id=run_id,
+                request_id="req-1",
+                preflight_id=preflight_id,
+                operation_dir=journal,
+                client=client,
+            )
     assert result["status"] == "rejected"
     assert result["retryable"] is False
 

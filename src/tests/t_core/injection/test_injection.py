@@ -192,13 +192,13 @@ def test_publish_workspace_sessions_copies_the_run_and_replaces_the_previous_cop
     summary = tmp_path / ".local" / "runs" / "r1" / "injection-summary.json"
     summary.write_text("{}\n", encoding="utf-8")
     workspace = tmp_path / "workspace"
-    stale = workspace / "records" / "sessions" / "old.txt"
+    stale = workspace / "runs" / "_run" / "sessions" / "old.txt"
     stale.parent.mkdir(parents=True)
     stale.write_text("stale\n", encoding="utf-8")
 
     injection.publish_workspace_sessions(tmp_path, workspace, "r1")
 
-    dest = workspace / "records" / "sessions"
+    dest = workspace / "runs" / "_run" / "sessions"
     assert (dest / "03-x.executor.2" / "prompt.md").is_file()
     assert (dest / "injection-summary.json").is_file()
     assert not stale.exists()
