@@ -153,6 +153,40 @@ def should_run_openlca_attempt_cleanup(
     return row.get("openlca_deleted") is None and row.get("openlca_skipped") is None
 
 
+def record_openlca_unreachable(
+    workspace: Path,
+    stage_id: str,
+    *,
+    role: str,
+    attempt: int,
+) -> None:
+    """Mark current attempt as skipped cleanup because openLCA could not be reached."""
+    document = _load_attempts_document(workspace, stage_id)
+    rows: list[dict[str, Any]] = list(document.get("attempts") or [])
+    row = next(
+        (
+            r
+            for r in rows
+            if r.get("role") == role and int(r.get("attempt") or 0) == attempt
+        ),
+        None,
+    )
+    if row is None:
+        rel = f"runs/{stage_id}/{role}-{attempt}"
+        row = {
+            "dir": rel,
+            "role": role,
+            "attempt": attempt,
+            "origin": "whole-lca",
+            "started_at": _utc_now(),
+            "status": "running",
+        }
+        rows.append(row)
+    row["openlca_skipped"] = [{"reason": "openlca_unreachable"}]
+    document["attempts"] = rows
+    _save_attempts_document(workspace, stage_id, document)
+
+
 def record_openlca_cleanup(
     workspace: Path,
     stage_id: str,
@@ -196,6 +230,7 @@ def accept_stage(
     reviewer_attempt: int,
     run_id: str,
 ) -> dict:
+    del run_id  # run identity lives under .local/runs, not workspace accepted.json
     writer = writer_dir(workspace, spec.spec_id, reviewer_attempt)
     paths: dict[str, str] = {}
     fingerprints: dict[str, str] = {}
@@ -249,7 +284,6 @@ def accept_stage(
     entry = {
         **previous,
         "stage": spec.spec_id,
-        "run_id": run_id,
         "executor": writer_rel,
         "writer": writer_rel,
         "reviewer": reviewer_rel,
