@@ -458,7 +458,7 @@ class PlatformAdapterTests(unittest.TestCase):
         elsewhere = "\n".join(
             (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             for relative in (
-                "harness/LCA-main.yaml",
+                "src/backend/workflows/LCA-main.yaml",
                 "harness/rules/tools/control_openlca.md",
                 "docs/lang_CN/harness.md",
             )
@@ -482,7 +482,7 @@ class PlatformAdapterTests(unittest.TestCase):
         combined = "\n".join(
             (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             for relative in (
-                "harness/LCA-main.yaml",
+                "src/backend/workflows/LCA-main.yaml",
                 "docs/lang_CN/platform-adapter.md",
             )
         )

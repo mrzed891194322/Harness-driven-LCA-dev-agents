@@ -27,7 +27,7 @@
 | `permissions.md.tmpl` | `readable_paths`、`writable_paths`、`allowed_tools`、`official_deliverables`、`shell_note` | 本会话实际生效的 spec 权限（`permissions.yaml` 解析结果），路径相对项目根目录 |
 | `language.md.tmpl` | `output_language`、`document_language` | `harness/settings.yaml`（用户版 `harness/.user/settings.yaml`），默认都是中文 |
 
-GUI 接口：`GET/PUT/DELETE /api/prompts/generated`（读取、保存用户版、恢复默认；保存时拒绝未知变量），`GET /api/prompts/generated/preview?stage=&role=` 返回该阶段该角色新会话会拿到的提示词（不建会话；**只支持 `harness/LCA-main.yaml` 的阶段**）。
+GUI 接口：`GET/PUT/DELETE /api/prompts/generated`（读取、保存用户版、恢复默认；保存时拒绝未知变量），`GET /api/prompts/generated/preview?stage=&role=` 返回该阶段该角色新会话会拿到的提示词（不建会话；**只支持 `src/backend/workflows/LCA-main.yaml` 的阶段**）。
 
 交付规格不进提示词：宿主在会话开头注入 `spec_mcp.get_spec()` 的结果；agent 通过 spec_mcp 的 `submit` 交付、`submit_handoff` 交卷。
 

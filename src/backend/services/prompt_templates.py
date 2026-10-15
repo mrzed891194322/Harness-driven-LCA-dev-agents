@@ -24,7 +24,7 @@ class PromptTemplates:
     def reset(self, rel: str) -> dict[str, Any]:
         return gp.reset_item(self.root, rel)
 
-    def preview(self, stage: str, role: str, workflow: str = "harness/LCA-main.yaml") -> dict[str, Any]:
+    def preview(self, stage: str, role: str, workflow: str = "src/backend/workflows/LCA-main.yaml") -> dict[str, Any]:
         """Render exactly what a new session for stage+role would get now (no session, no model)."""
         from backend.core.agents.injection import runtime_system_prompt
         from backend.core.runtime.capabilities import base_capabilities

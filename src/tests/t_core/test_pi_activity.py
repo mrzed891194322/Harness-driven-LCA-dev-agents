@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ from backend.core.contracts.session_launch_spec import (
     PermissionPolicy,
     SessionLaunchSpec,
 )
+from backend.core.workflow.persistence.heartbeat import write_heartbeat
 from backend.core.workflow.persistence.manifest import write_manifest
 from backend.pi_client.client import PiRuntimeSessionClient, activity_progress_line
 from backend.services.workflow_service import WorkflowService
@@ -158,6 +160,7 @@ def test_activity_service_and_route(tmp_path: Path, monkeypatch) -> None:
         status_reason="",
         run_id="run1",
     )
+    write_heartbeat(tmp_path / "workspace", run_id="run1", pid=os.getpid())
     service = WorkflowService(tmp_path)
     assert service.activity()["events"] == []
     append_activity(activity_log_path(tmp_path, "run1"), {"kind": "tool_call", "tool": "read"})
@@ -218,6 +221,7 @@ def test_activity_stream_unique_ids_and_resume(tmp_path: Path, monkeypatch) -> N
     import backend.api.app as app_module
 
     write_manifest(tmp_path / "workspace", status="running", current_stage="01", status_reason="", run_id="run1")
+    write_heartbeat(tmp_path / "workspace", run_id="run1", pid=os.getpid())
     path = activity_log_path(tmp_path, "run1")
     for i in range(4):
         append_activity(path, {"kind": "text", "n": i})

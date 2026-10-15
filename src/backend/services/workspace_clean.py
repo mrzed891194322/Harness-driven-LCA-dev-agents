@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from backend.core.workflow.persistence.checkpoint import WorkspaceBusy, workspace_lock
 from backend.settings import (
@@ -344,6 +346,178 @@ def run_clean(
         return 1
 
 
+def _cleanup_list_refuse_path(
+    workspace_root: Path,
+    project_root: Path,
+    relative: str,
+    *,
+    old_run_id: str | None = None,
+) -> str | None:
+    rel = relative.replace("\\", "/").strip("/")
+    if not rel:
+        return "空路径"
+    if any(part in {"", ".", ".."} for part in rel.split("/")):
+        return "路径不得包含 . 或 .."
+    if rel.startswith("harness/knowledge") or "/harness/knowledge/" in f"/{rel}/":
+        return "禁止清理 harness/knowledge"
+    try:
+        target = ensure_path_within(workspace_root / rel, workspace_root)
+    except ValueError:
+        try:
+            ensure_path_within(project_root / rel, workspace_root)
+        except ValueError:
+            return "路径必须在 workspace 内"
+        return "路径必须在 workspace 内"
+    if target == workspace_root.resolve():
+        return "禁止删除整个 workspace"
+    protected = [
+        "records/orchestrator.lock",
+        "records/orchestrator.sqlite",
+        "records/resume",
+    ]
+    if old_run_id:
+        protected.append(f"records/evidence/{old_run_id}")
+    for keep in protected:
+        if keep.startswith(rel + "/"):
+            return f"禁止删除包含受保护路径（{keep}）的目录"
+    if rel == ORCHESTRATOR_LOCK_KEEP or rel.endswith("/orchestrator.lock"):
+        return "禁止删除 orchestrator.lock"
+    if rel in {"records/orchestrator.sqlite", "records/orchestrator.lock"}:
+        return "禁止删除编排器锁或检查点库"
+    if old_run_id and rel.startswith(f"records/evidence/{old_run_id}"):
+        return "禁止删除旧运行 evidence"
+    if rel.startswith("records/resume/"):
+        return "禁止删除 records/resume"
+    return None
+
+
+def run_cleanup_list(
+    list_path: Path,
+    *,
+    dry_run: bool = False,
+    yes: bool = False,
+    old_run_id: str | None = None,
+) -> tuple[int, dict[str, Any]]:
+    """Delete exactly the paths listed in a cleanup.json (workspace + optional openlca)."""
+    workspace_root = PROJECT_ROOT / "workspace"
+    try:
+        payload = json.loads(list_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[FAIL] cleanup-list: {exc}", file=sys.stderr)
+        return 1, {}
+    if not isinstance(payload, dict):
+        print("[FAIL] cleanup-list: JSON 必须是对象", file=sys.stderr)
+        return 1, {}
+    paths = payload.get("workspace_paths") or []
+    openlca_ids = payload.get("openlca_ids") or []
+    if not isinstance(paths, list):
+        print("[FAIL] workspace_paths 必须是数组", file=sys.stderr)
+        return 1, {}
+    report: dict[str, Any] = {
+        "dry_run": dry_run,
+        "workspace_deleted": [],
+        "workspace_refused": [],
+        "openlca_deleted": [],
+        "openlca_skipped": [],
+    }
+    if not yes and not dry_run:
+        confirm = input("cleanup-list 将按清单删除文件，继续？(y/N): ")
+        if confirm.strip().lower() not in ("y", "yes"):
+            print("操作已取消。")
+            return 0, report
+
+    def _delete_path(rel: str) -> None:
+        reason = _cleanup_list_refuse_path(
+            workspace_root, PROJECT_ROOT, rel, old_run_id=old_run_id
+        )
+        if reason:
+            report["workspace_refused"].append({"path": rel, "reason": reason})
+            return
+        target = workspace_root / rel.replace("\\", "/").strip("/")
+        if not target.exists() and not target.is_symlink():
+            return
+        if dry_run:
+            report["workspace_deleted"].append(rel)
+            return
+        if target.is_dir() and not target.is_symlink():
+            import shutil
+
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+        report["workspace_deleted"].append(rel)
+
+    try:
+        with workspace_lock(workspace_root):
+            for rel in paths:
+                if isinstance(rel, str):
+                    _delete_path(rel)
+    except WorkspaceBusy:
+        print("[FAIL] workspace busy", file=sys.stderr)
+        return 1, report
+    if report["workspace_refused"]:
+        # A list we composed should never contain a refused path: stop before openLCA.
+        print(f"[FAIL] cleanup-list 含被拒路径: {report['workspace_refused']}", file=sys.stderr)
+        return 1, report
+
+    if openlca_ids:
+        from harness.tools.shared.control_openlca.cleanup import (
+            _resolve_uuid_targets,
+            connect_ipc,
+            close_ipc_client,
+            delete_entities,
+        )
+        from backend.services.diagnostics_service import openlca_endpoint
+        from harness.tools.shared.control_openlca.cleanup import _model_types
+
+        from harness.tools.shared.control_openlca.cleanup_service import (
+            _target_category,
+        )
+
+        host, port = openlca_endpoint(PROJECT_ROOT)
+        project_name = _target_category()
+        targets = [
+            (str(item.get("type") or ""), str(item.get("id") or ""))
+            for item in openlca_ids
+            if isinstance(item, dict)
+        ]
+        if dry_run:
+            report["openlca_deleted"] = [
+                {"type": t, "id": i} for t, i in targets if t and i
+            ]
+            return 0, report
+        try:
+            client = connect_ipc(host, port)
+        except Exception as exc:
+            print(f"[FAIL] openLCA 连接失败，未删除任何实体: {exc}", file=sys.stderr)
+            return 1, report
+        try:
+            resolved, skipped = _resolve_uuid_targets(
+                client, project_name, targets, host=host, port=port
+            )
+            report["openlca_skipped"] = skipped
+            model_types = _model_types(include_supporting=True)
+            deleted_count, errors = delete_entities(
+                client,
+                resolved,
+                model_types,
+                project_name=project_name,
+                host=host,
+                port=port,
+            )
+            report["openlca_deleted"] = deleted_count
+            if errors:
+                print(f"[FAIL] openlca delete errors: {errors}", file=sys.stderr)
+                return 1, report
+        except Exception as exc:
+            print(f"[FAIL] openLCA 清理中止: {exc}", file=sys.stderr)
+            return 1, report
+        finally:
+            close_ipc_client(client)
+
+    return 0, report
+
+
 def cli_main(argv: list[str] | None = None) -> None:
     """Argparse entry for ``src/scripts/clean.py`` (GUI backend / bootstrap subprocess)."""
     import argparse
@@ -376,7 +550,27 @@ def cli_main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="跳过 knowledge（GUI staging）清理",
     )
+    parser.add_argument(
+        "--cleanup-list",
+        type=Path,
+        default=None,
+        help="按 JSON 清单精确删除（resume 续跑）",
+    )
+    parser.add_argument(
+        "--cleanup-old-run-id",
+        type=str,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     args = parser.parse_args(argv)
+    if args.cleanup_list is not None:
+        code, _report = run_cleanup_list(
+            args.cleanup_list,
+            dry_run=args.dry_run,
+            yes=args.yes,
+            old_run_id=args.cleanup_old_run_id,
+        )
+        raise SystemExit(code)
     raise SystemExit(
         run_clean(
             dry_run=args.dry_run,

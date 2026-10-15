@@ -36,8 +36,6 @@ BANNED_IMPORT_PREFIXES = (
 HARNESS_BANNED_CORE = ("core", "backend")
 HARNESS_ROOT_ALLOWLIST = frozenset(
     {
-        "LCA-main.yaml",
-        "LCA-revise.yaml",
         "knowledge",
         "tools",
         "rules",

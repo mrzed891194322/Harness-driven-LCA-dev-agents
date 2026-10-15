@@ -36,7 +36,9 @@
 
 **策略**：默认只记录、不中断。设置 `HARNESS_INJECTION_STRICT=1` 时，关键项 mismatch 会让会话启动失败；这个开关给测试和 doctor 用。已有硬拦截（如 MCP 工具等待 90 秒超时）不变。
 
-**暂停后恢复**：恢复时若运行指纹（规则、模板、偏好、spec、实现代码）变了，默认不拒绝，在 `events.jsonl` 记一条 `injection_check`（`phase: resume`，`level: warn`），逐项列出变化的指纹路径和新旧值，然后按新配置继续；旧的 `runtime-config.json` 改名为 `runtime-config.prev-<n>.json`。严格模式下仍拒绝。worker 或模型变化、运行配置缺失，照旧拒绝。
+**暂停后恢复（同 run_id checkpoint）**：恢复时若运行指纹（规则、模板、偏好、spec、实现代码）变了，默认不拒绝，在 `events.jsonl` 记一条 `injection_check`（`phase: resume`，`level: warn`），逐项列出变化的指纹路径和新旧值，然后按新配置继续；旧的 `runtime-config.json` 改名为 `runtime-config.prev-<n>.json`。严格模式下仍拒绝。worker 或模型变化、运行配置缺失，照旧拒绝。
+
+**从阶段 N 续跑（`resume-lca`）**：失败/中止/中断的运行可从阶段 02/03/04 重新开一条新 `run_id`，沿用 N 之前已通过审查的阶段产物。每次新运行启动时在 `workspace/records/evidence/<run_id>/workflow.yaml` 与 `.local/runs/<run_id>/workflow.yaml` 保存当时使用的装配图原文；续跑优先读旧运行的快照生成 `workspace/records/resume/<old_run_id>/workflow.yaml`（`id: resume-lca`，阶段截断为 N..04）。清理走 `clean.py --cleanup-list`（只删清单内 workspace 路径 + journal 中的 openLCA UUID）；`records/evidence/<old>/`、`records/resume/` 与编排器锁库不删。新运行在 `records/evidence/<new>/resume.json` 与 `manifest.json` 记录 `resumed_from` / `resume_from_stage`；从 04 续跑时预置 `accepted["lca.model"]`。续跑中返工不得指向 N 之前的阶段。
 
 ## transcript.jsonl
 
@@ -71,7 +73,7 @@
 
 ## 生成式提示词
 
-`harness/rules/generated/*.md.tmpl` 每次建会话现场渲染（见 `harness/rules/README.md`）。预览接口 `GET /api/prompts/generated/preview?stage=&role=` **只支持 `harness/LCA-main.yaml` 里的阶段**（修订工作流 `LCA-revise.yaml` 暂不支持）。
+`harness/rules/generated/*.md.tmpl` 每次建会话现场渲染（见 `harness/rules/README.md`）。预览接口 `GET /api/prompts/generated/preview?stage=&role=` **只支持 `src/backend/workflows/LCA-main.yaml` 里的阶段**（修订工作流 `LCA-revise.yaml` 暂不支持）。
 
 ---
 
@@ -101,6 +103,9 @@
 | 运行级 | 运行摘要 | `workspace/records/manifest.json` | JSON：`status`、`current_stage`、`status_reason`、`run_id` | 编排器 `publish_state` | `GET /api/workflow/manifest`、progress/activity 接口取 run_id | `/runs` 状态 |
 | 运行级 | 检查点 | `workspace/records/orchestrator.sqlite`（+ `orchestrator.lock`） | SQLite | `CheckpointStore` | 断点续跑 | 不显示 |
 | 运行级 | 运行配置指纹 | `workspace/records/evidence/<run>/runtime-config.json` | JSON：实现、rules、tools、knowledge、各阶段 spec + schema 的哈希 | 编排器 | 续跑时比对 | 不显示 |
+| 运行级 | 工作流快照 | `workspace/records/evidence/<run>/workflow.yaml`（镜像 `.local/runs/<run>/workflow.yaml`） | 启动时 workflow YAML 原文 | 编排器 `write_workflow_snapshot` | `resume-lca` 资格校验与过滤装配 | 不显示 |
+| 续跑计划 | 续跑元数据 | `workspace/records/resume/<old_run_id>/{workflow.yaml,cleanup.json,plan.json}`（镜像 `.local/runs/<old_run_id>/resume/`） | 过滤后的 `resume-lca` 装配、删除清单、摘要 | `resume_plan.build_plan` | `POST /api/workflow/resume` | 不显示 |
+| 续跑运行 | 续跑来源 | `workspace/records/evidence/<new_run>/resume.json`；`manifest.json` 的 `resumed_from` / `resume_from_stage` | JSON | 编排器 `--resumed-from` / `--from-stage` | 运行历史、排障 | `/runs` 续跑 UI |
 | 运行级 | 上游返工记录 | `workspace/records/rework/upstream-<n>.json` | JSON：`stale_stages`、`reason`、`at` | 编排器 `_invalidate_stages` | 人工 | 不显示 |
 | 运行级 | 进度文本 | `workspace/records/logs/<run>/progress.txt` | 带标签的文本块 | `pi_client` 活动处理 + 编排器 | `GET /api/workflow/progress` | `/runs` 的 `AgentStream` |
 | 每个 turn | 排障快照 | `workspace/records/logs/<run>/<stage>/<assignment>#<attempt>/`：`prompt.md`、`session-config.json`、`argv.json`、`stdout.jsonl`、`session-ref.json`、`rendered-manifest.json` | 文本 / JSON | `core/agents/archive.py` | 人工排障 | 不显示 |
@@ -144,6 +149,7 @@ GUI **不显示**：BOM、mapping、LCI、计算计划、报告正文、raw.json
 ### 4. 生命周期
 
 - **跨运行**：控制面板的 whole-lca / revise-lca 预设在执行前清理 `workspace/`（`workspace_clean.py`，忽略 `records/**`、`outputs/**`、`tmp/**` 的 gitignore 规则下全部清掉，只保留 `README.md` 和 `records/orchestrator.lock`）。所以 `workspace/` 只保留**最近一次运行**；`.local/runs/<run>/`（events、guard）不在清理范围内，跨运行保留。预设（whole-lca = openlca→workspace，revise-lca = openlca）**不清理 `harness/knowledge/`**：计划文件按原位原子替换，参考资料只增不删（已存在的同名文件拒绝上传，不覆盖）；`knowledge` 目标只在手动执行 `clean.py -t knowledge` 时使用。
+- **从阶段续跑（`resume-lca`）**：仅当 workspace 当前 `manifest.json` 的 `run_id` 对应一次 `failed` / `aborted` / `interrupted` 运行，且计划与 inputs 相对旧运行验收快照未变。`GET /api/runs/{id}/resume-preview` 返回精确删除清单；`POST /api/workflow/resume` 先 `build_plan`，再 `clean.py --cleanup-list`（不碰 `harness/knowledge`、`records/resume/`、旧 run 的 `records/evidence/<old>/`），然后以过滤后的 `resume-lca` YAML 启动新 run。阶段 N 之前的产物与 handoff 沿用；续跑运行内若 reviewer 返工指向 N 之前的阶段，编排器拒绝（`validate_upstream_request`）。从 04 续跑时会把旧 run 的 `accepted["lca.model"]` 种子写入新 run 的 evidence manifest。
 - **同一运行内的重试**：`outputs/` 下的交付文件固定路径，每次 attempt **原地覆盖**；handoff 与 review 文件名带 attempt 编号，不覆盖；raw.json 按 `<stage>/<attempt>/<call_id>` 分目录，manifest `calls[]` 只追加。
 - **上游返工**：`_invalidate_stages` 把目标阶段到当前阶段标为 `stale_stages`，写 `records/rework/upstream-<n>.json`，从 evidence manifest 的 `accepted` 中删掉这些阶段记下的验收并追加 `invalidations`。产物**留在原处**由目标执行者修改，不移动不删除。`checks/*.json` 不被直接删除，靠输入指纹变化在下次读取时变 `stale`。attempt 编号经 `stage_attempt_base` 继续递增，旧 handoff 不被覆盖。
 - **指纹**：

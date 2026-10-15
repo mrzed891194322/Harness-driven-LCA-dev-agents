@@ -76,6 +76,8 @@ class WorkflowState(TypedDict):
     stale_stages: list[str]
     attempt_high_water: dict[str, int]
     faults_fired: list[str]
+    resumed_from: str
+    resume_from_stage: str
 
 
 def publish_state(workspace_root: Path, state: WorkflowState) -> None:
@@ -87,6 +89,8 @@ def publish_state(workspace_root: Path, state: WorkflowState) -> None:
         status_reason=state.get("status_reason") or None,
         run_id=state["run_id"],
         attempt=_state_int(state, "attempt", 1),
+        resumed_from=str(state.get("resumed_from") or "") or None,
+        resume_from_stage=str(state.get("resume_from_stage") or "") or None,
     )
 
 
@@ -110,7 +114,8 @@ def run_workflow(
     runtime: OrchestratorRuntime, state: WorkflowState, store: CheckpointStore
 ) -> WorkflowState:
     """Run from a saved action boundary. The caller owns the workspace lock."""
-    if state.get("status") in {"completed", "failed"}:
+    runtime.resume_from_stage = str(state.get("resume_from_stage") or "")
+    if state.get("status") in {"completed", "failed", "interrupted"}:
         publish_state(runtime.workspace_root, state)
         return state
     if state.get("in_flight"):
@@ -234,6 +239,7 @@ class OrchestratorRuntime:
         self.session_client = session_client
         self.worker = worker
         self.model = model
+        self.resume_from_stage = ""
 
     def prepare(self, state: WorkflowState) -> dict[str, Any]:
         stage, assignment = self._current(state)
@@ -906,6 +912,17 @@ class OrchestratorRuntime:
                     for out in self._stage_outputs(self.workflow.stages[i])
                 )
             ]
+        from backend.core.workflow.resume_stages import floor_stage_id, stage_num
+
+        resume_floor = str(self.resume_from_stage or "").strip()
+        if resume_floor and target_id:
+            floor_id = floor_stage_id(resume_floor)
+            if floor_id and stage_num(target_id) < stage_num(floor_id):
+                problems.append(
+                    f"续跑自 {resume_floor} 起，返工不得指向其之前的阶段（{target_id}）"
+                )
+                return None, problems
+
         if target_id:
             if target_id not in stage_ids:
                 problems.append(f"rework_target_stage {target_id!r} 不是本工作流的阶段")

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from backend.services.project_paths import BACKEND_ROOT
+
 _TEXT_SUFFIXES = {".md", ".yaml", ".yml", ".json"}
+_WORKFLOW_DOC_PREFIX = "workflows/"
 _SECTION_SPECS: tuple[tuple[str, str, set[str]], ...] = (
     ("rules", "规则", {".md", ".yaml", ".yml"}),
     ("specs", "规格", {".md", ".yaml", ".yml", ".json"}),
@@ -52,8 +55,12 @@ def read_harness_document(project: Path, relative: str) -> dict:
         content = path.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
         raise HarnessPathError("document is not utf-8 text") from exc
-    root = (project / "harness").resolve()
-    rel = path.resolve().relative_to(root).as_posix()
+    workflows_root = (BACKEND_ROOT / "workflows").resolve()
+    if path.resolve().is_relative_to(workflows_root):
+        rel = f"{_WORKFLOW_DOC_PREFIX}{path.name}"
+    else:
+        root = (project / "harness").resolve()
+        rel = path.resolve().relative_to(root).as_posix()
     label = _file_label(path.name)
     return {
         "path": rel,
@@ -67,11 +74,12 @@ def read_harness_document(project: Path, relative: str) -> dict:
 def _groups_for(root: Path, section_id: str, suffixes: set[str]) -> list[dict]:
     buckets: dict[str, list[dict[str, str]]] = {}
     for path in _collect(root, section_id, suffixes):
-        rel = path.resolve().relative_to(root.resolve()).as_posix()
         if section_id == "workflows":
             group_id = ""
             label = _file_label(path.name)
+            rel = f"{_WORKFLOW_DOC_PREFIX}{path.name}"
         else:
+            rel = path.resolve().relative_to(root.resolve()).as_posix()
             parts = path.relative_to(root / section_id).parts
             group_id = parts[0] if len(parts) > 1 else ""
             rest = parts[1:] if group_id else parts
@@ -103,13 +111,15 @@ def _collect(root: Path, section_id: str, suffixes: set[str]) -> list[Path]:
         return []
     resolved_root = root.resolve()
     if section_id == "workflows":
+        workflow_dir = BACKEND_ROOT / "workflows"
+        if not workflow_dir.is_dir():
+            return []
         found = [
             path
-            for path in root.iterdir()
+            for path in workflow_dir.iterdir()
             if path.is_file()
             and not path.name.startswith(".")
             and path.suffix.lower() in suffixes
-            and path.resolve().is_relative_to(resolved_root)
         ]
         return sorted(found, key=lambda path: path.name)
     base = root / section_id
@@ -132,8 +142,19 @@ def _resolve_document(project: Path, relative: str) -> Path:
     root = (project / "harness").resolve()
     if not relative or relative.startswith(("/", "\\")) or "\\" in relative:
         raise HarnessPathError("invalid harness path")
-    candidate = (root / relative).resolve()
-    if not candidate.is_relative_to(root):
+    if relative.startswith(_WORKFLOW_DOC_PREFIX):
+        name = relative[len(_WORKFLOW_DOC_PREFIX) :]
+        if "/" in name or name.startswith("."):
+            raise HarnessPathError("invalid harness path")
+        candidate = (BACKEND_ROOT / "workflows" / name).resolve()
+    else:
+        candidate = (root / relative).resolve()
+    if candidate.is_relative_to(root):
+        pass
+    elif not (
+        relative.startswith(_WORKFLOW_DOC_PREFIX)
+        and candidate.is_relative_to((BACKEND_ROOT / "workflows").resolve())
+    ):
         raise HarnessPathError("invalid harness path")
     if candidate.suffix.lower() not in _TEXT_SUFFIXES:
         raise HarnessPathError("unsupported harness document")

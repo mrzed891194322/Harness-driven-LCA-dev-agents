@@ -13,4 +13,4 @@
 
 `rules`、`knowledge` 用裸列表表示整表替换，或用 `{add, remove}` 在继承结果上增删。不要写 `seq`，那是加载器内部形式。角色可用的 MCP 只放在 assignment 的 `tools.mcp`，键只允许 `mcp`。
 
-`LCA-main.yaml` 的角色是 executor 与 reviewer。`LCA-revise.yaml` 另有 reviser，以及 `*.revise.md` 规则。改一边时对照另一边，需要两边都生效的绑定要各写一份。任务名到文件的对应在 `src/backend/services/workflow_cli.py` 的 `WORKFLOW_YAML_BY_TASK`，换文件名时同步改那里。
+`LCA-main.yaml` 的角色是 executor 与 reviewer。`LCA-revise.yaml` 另有 reviser，以及 `*.revise.md` 规则。改一边时对照另一边，需要两边都生效的绑定要各写一份。工作流 YAML 在 `src/backend/workflows/`（`LCA-main.yaml`、`LCA-revise.yaml`）。任务名到文件的对应在 `src/backend/services/workflow_cli.py` 的 `WORKFLOW_YAML_BY_TASK`，换文件名时同步改那里。

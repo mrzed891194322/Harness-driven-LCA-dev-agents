@@ -21,6 +21,8 @@ def write_manifest(
     status_reason: str | None,
     run_id: str,
     attempt: int | None = None,
+    resumed_from: str | None = None,
+    resume_from_stage: str | None = None,
 ) -> None:
     path = manifest_path(workspace_root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -32,4 +34,8 @@ def write_manifest(
     }
     if isinstance(attempt, int):
         payload["attempt"] = attempt
+    if resumed_from:
+        payload["resumed_from"] = resumed_from
+    if resume_from_stage:
+        payload["resume_from_stage"] = resume_from_stage
     write_json_atomic(path, payload)

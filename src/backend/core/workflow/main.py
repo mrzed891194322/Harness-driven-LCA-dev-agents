@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import signal
 import sys
 import threading
@@ -49,9 +50,13 @@ from backend.core.workflow.persistence.checkpoint import (  # noqa: E402
     open_store,
     workspace_lock,
 )
+from backend.core.workflow.persistence.heartbeat import orchestrator_heartbeat  # noqa: E402
 from backend.core.workflow.persistence.config_fingerprint import (  # noqa: E402
     check_runtime_config,
     write_runtime_config,
+)
+from backend.core.workflow.persistence.workflow_snapshot import (  # noqa: E402
+    write_workflow_snapshot,
 )
 from backend.core.agents.injection import strict_mode as injection_strict_mode  # noqa: E402
 from backend.settings import parse_env_file  # noqa: E402
@@ -68,6 +73,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--worker", default=None, help="worker name")
     parser.add_argument(
         "--resume", dest="run_id", default=None, help="resume an existing run id"
+    )
+    parser.add_argument(
+        "--resumed-from",
+        default=None,
+        help="prior run id when starting resume-lca (metadata only)",
+    )
+    parser.add_argument(
+        "--from-stage",
+        default=None,
+        help="resume stage code (02/03/04) for resume-lca",
+    )
+    parser.add_argument(
+        "--seed-acceptance",
+        type=Path,
+        default=None,
+        help="JSON file with accepted[lca.model] blob to seed before stages",
     )
     parser.add_argument(
         "--project-root",
@@ -100,6 +121,7 @@ def _main(args: argparse.Namespace) -> int:
         return 2
 
     workflow_path = args.workflow.resolve()
+    workflow_text = workflow_path.read_text(encoding="utf-8")
     document = read_workflow_document(workflow_path, project_root=project_root)
     capabilities = base_capabilities()
     task_label = str(workflow_path)
@@ -145,13 +167,50 @@ def _main(args: argparse.Namespace) -> int:
                 worker=worker,
                 model=model,
             )
+            write_workflow_snapshot(
+                workspace_root=workspace_root,
+                project_root=project_root,
+                run_id=run_id,
+                workflow_text=workflow_text,
+            )
+            if args.seed_acceptance is not None:
+                from backend.core.workflow.persistence.acceptance_seed import (  # noqa: E402
+                    seed_acceptance_manifest,
+                )
+
+                try:
+                    blob = json.loads(
+                        args.seed_acceptance.read_text(encoding="utf-8")
+                    )
+                except (OSError, json.JSONDecodeError) as exc:
+                    print_orchestrator(
+                        f"seed acceptance unreadable: {exc}", file=sys.stderr
+                    )
+                    return 2
+                if isinstance(blob, dict):
+                    seed_acceptance_manifest(workspace_root, run_id, blob)
             state = initial_state(
                 run_id=run_id,
                 task=str(task_label),
                 worker=worker,
                 workflow=workflow,
             )
-            return _exit_code(run_workflow(runtime, state, store))
+            if args.resumed_from:
+                state["resumed_from"] = str(args.resumed_from)
+            if args.from_stage:
+                state["resume_from_stage"] = str(args.from_stage)
+                from backend.core.workflow.persistence.acceptance_seed import (  # noqa: E402
+                    write_resume_metadata,
+                )
+
+                write_resume_metadata(
+                    workspace_root,
+                    run_id,
+                    str(args.resumed_from or ""),
+                    str(args.from_stage),
+                )
+            with orchestrator_heartbeat(workspace_root, run_id):
+                return _exit_code(run_workflow(runtime, state, store))
     except WorkspaceBusy as exc:
         print_orchestrator(str(exc), file=sys.stderr)
         return 1
@@ -269,8 +328,9 @@ def _resume(
             file=sys.stderr,
         )
         return 1
-    if state.get("status") in {"completed", "failed"} or state.get("in_flight"):
-        return _exit_code(run_workflow(runtime, state, store))
+    if state.get("status") in {"completed", "failed", "interrupted"} or state.get("in_flight"):
+        with orchestrator_heartbeat(workspace_root, run_id):
+            return _exit_code(run_workflow(runtime, state, store))
     try:
         changes = check_runtime_config(
             workspace_root,
@@ -287,7 +347,8 @@ def _resume(
     if changes:
         _record_resume_config_change(project_root, run_id, changes)
     print_orchestrator(f"resume run_id={run_id}")
-    return _exit_code(run_workflow(runtime, state, store))
+    with orchestrator_heartbeat(workspace_root, run_id):
+        return _exit_code(run_workflow(runtime, state, store))
 
 
 def _exit_code(result: WorkflowState | None) -> int:

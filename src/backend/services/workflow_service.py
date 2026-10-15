@@ -19,7 +19,13 @@ class WorkflowService:
         self.project_root = project_root or PROJECT_ROOT
         self.workspace_root = self.project_root / "workspace"
 
+    def _reconcile(self) -> None:
+        from backend.services.run_reconcile import reconcile_project
+
+        reconcile_project(self.project_root)
+
     def manifest(self) -> dict[str, Any]:
+        self._reconcile()
         path = manifest_path(self.workspace_root)
         if not path.is_file():
             return {"status": "idle"}
@@ -29,11 +35,18 @@ class WorkflowService:
         """Return new bytes of the launch notes or the current run's progress log."""
         from backend.services.workflow_launch import launch_snapshot
 
+        self._reconcile()
         recorded = self._recorded_progress()
         launch = launch_snapshot()
         model = self._model_label(str(recorded["run_id"] or ""))
         if _prefer_launch(launch, recorded["mtime"]):
-            status = "failed" if launch["status"] == "failed" else "running"
+            launch_status = str(launch["status"] or "")
+            if launch_status == "failed":
+                status = "failed"
+            elif launch_status == "interrupted":
+                status = "interrupted"
+            else:
+                status = "running"
             return _window(
                 text=str(launch["text"]),
                 epoch=str(launch["epoch"]),
@@ -334,7 +347,7 @@ def _prefer_launch(launch: dict[str, Any], file_mtime: float | None) -> bool:
     started = float(launch.get("started_at") or 0)
     if file_mtime is not None and file_mtime >= started:
         return False
-    return launch.get("status") in {"running", "failed", "finished"}
+    return launch.get("status") in {"running", "failed", "finished", "interrupted"}
 
 
 def _window(

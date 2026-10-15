@@ -33,7 +33,7 @@ class HarnessBrowserTests(unittest.TestCase):
         )
         self.assertIn("specs/03-dataset-mapping/acceptance.yaml", index)
         self.assertEqual(index["specs/01-intake-gate/spec.yaml"][:2], ("specs", "01-intake-gate"))
-        self.assertIn("LCA-main.yaml", index)
+        self.assertIn("workflows/LCA-main.yaml", index)
         self.assertIn("knowledge/plan/main_plan.md", index)
         self.assertTrue(all(not path.endswith(".py") for path in index))
 

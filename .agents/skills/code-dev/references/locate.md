@@ -9,6 +9,6 @@
 | 跑完看不到报告，或结果页出现历史运行 | `src/frontend/web/app/results/page.tsx`，`workspace/outputs/`，`workspace/records/` | 结果页只渲染 workspace 里的产物和记录。要展示的 `.local` 内容先复制进 workspace，见 `.cursor/rules/workspace-files.mdc` |
 | 模型、密钥、openLCA 不可用 | `/status`，`/api/diagnostics/environment`，设置里的模型档案 | 诊断与「预览执行」使用同一套就绪条件；未就绪时不要启动 |
 
-工作流文件固定为 `harness/LCA-main.yaml`（`whole-lca`）和 `harness/LCA-revise.yaml`（`revise-lca`），见 `services/workflow_cli.py` 的 `WORKFLOW_YAML_BY_TASK`。
+工作流文件固定为 `src/backend/workflows/LCA-main.yaml`（`whole-lca`）和 `src/backend/workflows/LCA-revise.yaml`（`revise-lca`），见 `services/workflow_cli.py` 的 `WORKFLOW_YAML_BY_TASK`。
 
 要改这些 YAML 的内容时，改读 `.agents/skills/harness-edit/SKILL.md`，不要在 `code-dev` 里直接改装配。

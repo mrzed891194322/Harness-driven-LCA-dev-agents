@@ -174,29 +174,17 @@ ORCHESTRATOR_COMMAND = [
     "python",
     "src/scripts/workflow.py",
 ]
-# GUI UX labels → workflow YAML paths (composition lives in harness YAML, not aliases).
-WORKFLOW_YAML_BY_TASK = {
-    "whole-lca": "harness/LCA-main.yaml",
-    "revise-lca": "harness/LCA-revise.yaml",
-}
+from backend.services.workflow_cli import (  # noqa: E402
+    WORKFLOW_YAML_BY_TASK,
+    workflow_command_args as _workflow_command_args,
+)
+
 WORKFLOW_TASKS = tuple(WORKFLOW_YAML_BY_TASK)
 
 
-def workflow_command_args(task: str, agent: str) -> list[str]:
+def workflow_command_args(task: str, agent: str, **kwargs) -> list[str]:
     """Return the Python orchestrator subprocess argv with an explicit workflow YAML path."""
-    agent_key = (agent or "pi").strip().lower()
-    if agent_key != "pi":
-        raise ValueError(f"Unsupported harness agent: {agent}")
-    workflow = WORKFLOW_YAML_BY_TASK.get(task)
-    if workflow is None:
-        raise ValueError(f"Unsupported workflow task: {task}")
-    return [
-        *ORCHESTRATOR_COMMAND,
-        "--workflow",
-        workflow,
-        "--worker",
-        agent_key,
-    ]
+    return _workflow_command_args(task, agent, **kwargs)
 
 
 CLEAN_DIR_SCRIPT = [
@@ -293,15 +281,56 @@ def _format_sync_lines(result) -> str:
     return "".join(lines)
 
 
+def run_cleanup_list_console(
+    cleanup_path: Path,
+    *,
+    old_run_id: str | None = None,
+    dry_run: bool = False,
+) -> Generator[tuple[str, str], None, None]:
+    """Run workspace cleanup-list mode for resume-lca."""
+    command = [
+        *CLEAN_DIR_SCRIPT,
+        "-y",
+        "--cleanup-list",
+        str(cleanup_path),
+    ]
+    if dry_run:
+        command.append("--dry-run")
+    if old_run_id:
+        command.extend(["--cleanup-old-run-id", old_run_id])
+    yield from _stream_subprocess_command(
+        command,
+        start_message=f"[System] 正在按清单清理（resume）…\n",
+    )
+
+
 def run_pre_workflow_console(
     task: str,
     *,
     document_values: list[object],
     source_text: str,
     ref_upload_file: object,
+    cleanup_list_path: Path | None = None,
+    cleanup_old_run_id: str | None = None,
 ) -> Generator[tuple[str, str], None, None]:
     """Clean, then sync GUI inputs before launching whole-lca or revise-lca."""
     from backend.services.file_sync import sync_files
+
+    if task == "resume-lca":
+        if cleanup_list_path is None:
+            yield "[System] resume-lca 缺少 cleanup 清单。\n", "Failed"
+            return
+        latest_console = ""
+        latest_status = "Running"
+        for latest_console, latest_status in run_cleanup_list_console(
+            cleanup_list_path, old_run_id=cleanup_old_run_id
+        ):
+            yield latest_console, latest_status
+        if latest_status != "Finished":
+            return
+        latest_console += "[System] 续跑清理完成。\n"
+        yield render_terminal_text(latest_console), "Finished"
+        return
 
     preset = task if task in {"whole-lca", "revise-lca"} else None
     if preset is None:
@@ -350,13 +379,24 @@ def run_workflow_command_console(
     task: str,
     *,
     env_overrides: dict[str, str] | None = None,
+    workflow: str | None = None,
+    resumed_from: str | None = None,
+    from_stage: str | None = None,
+    seed_acceptance: str | None = None,
 ) -> Generator[tuple[str, str], None, None]:
     """
     Run whole-lca or revise-lca via the Python orchestrator.
     Worker is fixed to the Pi SDK runtime (`--worker pi`).
     """
     agent = "pi"
-    command = workflow_command_args(task, agent)
+    command = workflow_command_args(
+        task,
+        agent,
+        workflow=workflow,
+        resumed_from=resumed_from,
+        from_stage=from_stage,
+        seed_acceptance=seed_acceptance,
+    )
     accumulated_output = ""
 
     yield f"[System] Preparing to start {task} ({agent})...\n", "Running"

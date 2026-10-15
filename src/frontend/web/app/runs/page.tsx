@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, CircleStop, RefreshCw, Terminal } from "lucide-react";
+import { AlertCircle, CircleStop, Play, RefreshCw, Terminal } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { ActivitySummary } from "../../components/runs/activity-summary";
 import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
+import { RunHistoryList } from "../../components/runs/run-history";
 import { apiFetch } from "../../lib/api";
+import { runStatusLabel, runStatusTone } from "../../lib/run-status";
 
 type Progress = {
   run_id?: string | null;
@@ -19,19 +22,14 @@ type Progress = {
   epoch?: string;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  idle: "空闲",
-  running: "运行中",
-  failed: "失败",
-  completed: "完成",
-};
-
 export default function RunsPage() {
+  const router = useRouter();
   const [progress, setProgress] = useState<Progress>({ status: "idle", text: "" });
   const [log, setLog] = useState("");
   const [error, setError] = useState("");
   const [reasonOpen, setReasonOpen] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [openlcaDown, setOpenlcaDown] = useState(false);
   const [activityAttempt, setActivityAttempt] = useState(0);
   const offset = useRef(0);
@@ -86,15 +84,53 @@ export default function RunsPage() {
   }, []);
 
   const status = progress.status || "idle";
-  const label = STATUS_LABEL[status] || status;
-  const tone = status === "failed" ? "fail" : status === "idle" ? "off" : "ok";
+  const label = runStatusLabel(status);
+  const tone = runStatusTone(status);
   const reason = (progress.status_reason || "").trim();
   const attempt = Number(progress.attempt) || activityAttempt;
 
   useEffect(() => {
-    if (status !== "failed") setReasonOpen(false);
+    if (status !== "failed" && status !== "interrupted") setReasonOpen(false);
     if (status !== "running") setStopping(false);
   }, [status]);
+
+  async function restartFromScratch() {
+    const ok = confirm("确定要从头重跑吗？将按当前计划重新执行 whole-lca 任务。");
+    if (!ok) return;
+    setRestarting(true);
+    setError("");
+    try {
+      const planResponse = await apiFetch("/api/plan");
+      const plan = (await planResponse.json()) as {
+        fields?: Record<string, string>;
+        detail?: string;
+      };
+      if (!planResponse.ok) throw new Error(plan.detail || `无法读取计划（HTTP ${planResponse.status}）`);
+      const fields = plan.fields || {};
+      const response = await apiFetch("/api/workflow/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: "whole-lca",
+          subject: fields.subject || "",
+          functional_unit: fields.functional_unit || "",
+          life_cycle_stages: fields.life_cycle_stages || "",
+          conditions: fields.conditions || "",
+        }),
+      });
+      const data = (await response.json()) as { detail?: string };
+      if (!response.ok) throw new Error(data.detail || `无法启动（HTTP ${response.status}）`);
+      offset.current = 0;
+      epoch.current = "";
+      runId.current = "";
+      setLog("");
+      router.refresh();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "无法从头重跑");
+    } finally {
+      setRestarting(false);
+    }
+  }
 
   async function stopWork() {
     setStopping(true);
@@ -165,15 +201,19 @@ export default function RunsPage() {
           <div className="run-terminal">
             <AgentStream text={log} running={status === "running"} model={(progress.model || "").trim()} />
             {reasonOpen ? (
-              <div className="run-reason-panel" role="dialog" aria-label="失败原因">
+              <div className="run-reason-panel" role="dialog" aria-label={status === "interrupted" ? "中断原因" : "失败原因"}>
                 <div className="run-reason-head">
-                  <h3>失败原因</h3>
+                  <h3>{status === "interrupted" ? "中断原因" : "失败原因"}</h3>
                   <button type="button" onClick={() => setReasonOpen(false)}>
                     关闭
                   </button>
                 </div>
                 <div className="run-reason-body agent-prose">
-                  {reason ? <AgentProse text={reason} /> : <p>没有记录到这次失败的原因。</p>}
+                  {reason ? (
+                    <AgentProse text={reason} />
+                  ) : (
+                    <p>{status === "interrupted" ? "没有记录到这次中断的原因。" : "没有记录到这次失败的原因。"}</p>
+                  )}
                 </div>
                 <div className="run-reason-foot">
                   <button type="button" disabled title="计划从检查点续跑本阶段，尚未接入">
@@ -194,7 +234,7 @@ export default function RunsPage() {
                 </span>
               </div>
               <strong>{progress.current_stage || "准备开始"}</strong>
-              {attempt > 0 || status === "running" || status === "failed" ? (
+              {attempt > 0 || status === "running" || status === "failed" || status === "interrupted" ? (
                 <div className="run-stage-foot">
                   {attempt > 0 ? <span className="run-stage-attempt">第 {attempt} 次</span> : null}
                   {status === "running" ? (
@@ -208,7 +248,7 @@ export default function RunsPage() {
                       {stopping ? "正在中止…" : "中止工作"}
                     </button>
                   ) : null}
-                  {status === "failed" ? (
+                  {status === "failed" || status === "interrupted" ? (
                     <button
                       type="button"
                       className="run-stage-action"
@@ -217,6 +257,17 @@ export default function RunsPage() {
                     >
                       <AlertCircle size={12} strokeWidth={2} aria-hidden="true" />
                       显示原因
+                    </button>
+                  ) : null}
+                  {status === "interrupted" ? (
+                    <button
+                      type="button"
+                      className="run-stage-action"
+                      onClick={() => void restartFromScratch()}
+                      disabled={restarting}
+                    >
+                      <Play size={12} strokeWidth={2} aria-hidden="true" />
+                      {restarting ? "正在启动…" : "从头重跑"}
                     </button>
                   ) : null}
                 </div>
@@ -228,6 +279,7 @@ export default function RunsPage() {
               currentStage={String(progress.current_stage || "")}
               onStageAttempt={setActivityAttempt}
             />
+            <RunHistoryList highlightRunId={String(progress.run_id || "")} />
           </aside>
         </div>
       </section>
