@@ -46,7 +46,10 @@ class _Client:
         self.store = store
         self.deleted: list[str] = []
 
-    def get(self, model_type, entity_id):
+    def get(self, *_a, **_k):
+        raise AssertionError("cleanup must not call full data/get")
+
+    def get_descriptor(self, model_type, entity_id):
         return self.store.get(entity_id)
 
     def delete(self, ref):

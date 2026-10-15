@@ -108,6 +108,18 @@ def collect_entities(
     return entities
 
 
+def get_descriptor_only(client: OpenLcaClient, model_type: type, entity_id: str):
+    """Return the openLCA descriptor (Ref with name/category) or None if missing.
+
+    Uses ``data/get/descriptor`` only. A full ``client.get`` serializes the whole
+    entity; for ProductSystems linked to ecoinvent this blocks the IPC server.
+    """
+    ref = client.get_descriptor(model_type, entity_id)
+    if ref is None or not getattr(ref, "id", None):
+        return None
+    return ref
+
+
 def delete_entities(
     client: OpenLcaClient,
     entities: list[tuple[type, OlcaDescriptor]],
@@ -120,7 +132,8 @@ def delete_entities(
     """Delete entities, re-checking each one is inside ``project_name`` first.
 
     Defensive: callers already filter, but every target (including supporting
-    FlowProperty/UnitGroup) is fetched again and skipped unless its live
+    FlowProperty/UnitGroup) is looked up again by descriptor only (never a full
+    ``data/get``, which can block openLCA IPC for minutes on large product systems) and skipped unless its live
     category is the project category. Missing or unverifiable targets are
     skipped, never deleted.
     """
@@ -136,7 +149,7 @@ def delete_entities(
                 logger.warning("cleanup skip %s: missing @id", label)
                 continue
             try:
-                live = client.get(model_type, entity_id)
+                live = get_descriptor_only(client, model_type, entity_id)
             except Exception as exc:
                 logger.warning("cleanup skip %s: lookup failed: %s", label, exc)
                 errors.append(f"Skipped {label}: lookup failed, not deleted: {exc}")
@@ -233,7 +246,7 @@ def _journal_entity_targets(workspace: Path) -> list[tuple[str, str]]:
 def _lci_entity_targets(workspace: Path) -> list[tuple[str, str]]:
     lci_root = workspace / "artifacts" / "LCI"
     if not lci_root.is_dir():
-        lci_root = workspace / "outputs" / "LCI"
+        return []
     inventory, _errors = load_lci_inventory(lci_root)
     return [(str(item["entity_type"]), str(item["id"])) for item in inventory]
 
@@ -255,8 +268,8 @@ def _resolve_uuid_targets(
         try:
             existing = read_with_retry(
                 f"{entity_type_name} {entity_id}",
-                lambda model_type=model_type, entity_id=entity_id: client.get(
-                    model_type, entity_id
+                lambda model_type=model_type, entity_id=entity_id: get_descriptor_only(
+                    client, model_type, entity_id
                 ),
                 host=host,
                 port=port,

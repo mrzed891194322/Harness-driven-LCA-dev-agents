@@ -174,6 +174,7 @@ class WorkspaceRunsE2ETests(unittest.TestCase):
         hook_calls: list[dict[str, Any]] = []
 
         class _Ent:
+            id = "p-old"
             name = "p-old"
             category = "202606-harness-agent-LCA/x"
 
@@ -181,7 +182,7 @@ class WorkspaceRunsE2ETests(unittest.TestCase):
                 return self
 
         class _Client:
-            def get(self, *_a):
+            def get_descriptor(self, *_a):
                 return _Ent()
 
             def delete(self, _r):

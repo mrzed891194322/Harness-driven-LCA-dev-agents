@@ -21,6 +21,10 @@ class _Client:
         self.deleted: list[str] = []
 
     def get(self, model_type, entity_id):
+        # import guard (not cleanup) still uses a full get
+        return self.get_descriptor(model_type, entity_id)
+
+    def get_descriptor(self, model_type, entity_id):
         if self.raise_on_get:
             raise RuntimeError("ipc down")
         return self.store.get(entity_id)
@@ -48,9 +52,9 @@ def test_import_guard_allows_not_found():
 
 def test_delete_skips_foreign_and_deletes_project_entities():
     store = {
-        "own": SimpleNamespace(category=f"{PROJECT}/flows"),
-        "foreign": SimpleNamespace(category="Elementary flows/air"),
-        "unit": SimpleNamespace(category="Technical unit groups"),
+        "own": SimpleNamespace(id="own", category=f"{PROJECT}/flows"),
+        "foreign": SimpleNamespace(id="foreign", category="Elementary flows/air"),
+        "unit": SimpleNamespace(id="unit", category="Technical unit groups"),
     }
     client = _Client(store)
     entities = [

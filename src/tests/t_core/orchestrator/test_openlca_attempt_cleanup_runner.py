@@ -36,6 +36,7 @@ def test_second_attempt_writes_openlca_deleted_to_attempts_json(tmp_path: Path) 
     register_attempt(ws, STAGE, "executor", 2, "run-b")
 
     class FakeEntity:
+        id = "p-old"
         name = "p-old"
         category = "202606-harness-agent-LCA/x"
 
@@ -43,7 +44,10 @@ def test_second_attempt_writes_openlca_deleted_to_attempts_json(tmp_path: Path) 
             return self
 
     class FakeClient:
-        def get(self, _model, entity_id):
+        def get(self, _model, _entity_id):
+            raise AssertionError("full data/get must not be used in cleanup")
+
+        def get_descriptor(self, _model, entity_id):
             del entity_id
             return FakeEntity()
 

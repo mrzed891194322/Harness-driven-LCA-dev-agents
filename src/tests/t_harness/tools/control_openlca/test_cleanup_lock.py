@@ -26,7 +26,10 @@ class _Client:
             raise requests.ReadTimeout("read timed out")
         return []
 
-    def get(self, model_type, entity_id):
+    def get(self, *_a, **_k):
+        raise AssertionError("cleanup must not call full data/get")
+
+    def get_descriptor(self, model_type, entity_id):
         self.get_calls += 1
         if self.get_failures > 0:
             self.get_failures -= 1

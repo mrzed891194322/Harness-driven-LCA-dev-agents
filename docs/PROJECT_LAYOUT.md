@@ -84,11 +84,13 @@ workspace/
 
 | 预设 | workspace | openLCA |
 | --- | --- | --- |
-| `whole-lca` | 删除 `runs/`（保留 `runs/_run/orchestrator.lock` 与 `**/README.md`）、`artifacts/`、`tmp/` | 项目分类内实体（先于 workspace，避免 UUID 来源丢失） |
+| `whole-lca` | 删除 `runs/`（保留 `runs/_run/orchestrator.lock` 与 `**/README.md`）、`artifacts/`、`tmp/`，以及旧布局遗留的 `outputs/`、`records/` | 项目分类内实体（先于 workspace；openLCA 步失败则不清 workspace） |
 | `revise-lca` | **不清理** | 同 whole-lca 的 openLCA 步 |
 | `resume-lca` | **不清理** | 不按整轮清理；04 在尝试开始前按 import 日志删未 accepted 的旧尝试实体 |
 
 知识文件 `harness/knowledge/` 永不随 whole-lca 删除。
+
+openLCA 清理（开跑前预览/删除、04 尝试前清理）**只用 descriptor**（`data/get/descriptors` 按分类列出、`data/get/descriptor` 按 @id 复核分类），删除按 Ref 发 `data/delete`；**从不对实体做完整 `data/get`**——连着 ecoinvent 的 ProductSystem 完整序列化会把 IPC 堵住数分钟。旧实体靠分类列表即可找到，不依赖 workspace 文件；UUID 来源只读 `artifacts/LCI` 与 `runs/**/import-operations`，不再回退旧 `outputs/LCI`。分类判断要求第一级恰为项目名（`202606-harness-agent-LCA-old` 之类拒绝）。
 
 ## 6. 校验链（不变）
 

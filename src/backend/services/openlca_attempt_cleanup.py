@@ -19,6 +19,7 @@ from harness.tools.shared.control_openlca.attempt_cleanup import (
     cleanup_prior_attempt_imports,
 )
 from harness.tools.shared.control_openlca.connection import close_ipc_client, connect_ipc
+from harness.tools.shared.control_openlca.cleanup import get_descriptor_only
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ def maybe_cleanup_before_openlca_write(
         if model is None:
             return None
         try:
-            live = client.get(model, entity_id)
+            live = get_descriptor_only(client, model, entity_id)
         except Exception as exc:
             logger.warning("openlca lookup %s %s: %s", entity_type, entity_id, exc)
             return None
@@ -74,7 +75,7 @@ def maybe_cleanup_before_openlca_write(
         model = _TYPE_MAP.get(entity_type)
         if model is None:
             return
-        live = client.get(model, entity_id)
+        live = get_descriptor_only(client, model, entity_id)
         if live is None:
             return
         client.delete(live.to_ref())

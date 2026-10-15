@@ -40,7 +40,14 @@ CLEAN_TARGETS = [
         "name": "workspace",
         "path": PROJECT_ROOT / "workspace",
         "gitignore": PROJECT_ROOT / "workspace" / ".gitignore",
-        "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
+        "ignored_dirs": [
+            "runs/**",
+            "artifacts/**",
+            "tmp/**",
+            # legacy pre-refactor layout; removed on full run only
+            "outputs/**",
+            "records/**",
+        ],
         "keep_patterns": ["**/README.md", ORCHESTRATOR_LOCK_KEEP],
     },
 ]

@@ -290,7 +290,10 @@ def test_cleanup_deletes_only_in_category_uuid_targets(tmp_path):
     from harness.tools.shared.control_openlca import cleanup
 
     class LookupClient:
-        def get(self, model_type, entity_id):
+        def get(self, *_a, **_k):
+            raise AssertionError("cleanup must not call full data/get")
+
+        def get_descriptor(self, model_type, entity_id):
             if entity_id == "process-1":
                 return olca_schema.Process(
                     id="process-1", name="In", category="project-a"

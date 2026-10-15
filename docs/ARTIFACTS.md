@@ -148,7 +148,7 @@ GUI **不显示**：BOM、mapping、LCI、计算计划、报告正文、raw.json
 
 ### 4. 生命周期
 
-- **跨运行**：控制面板的 whole-lca / revise-lca 预设在执行前清理 `workspace/runs/`（保留 `orchestrator.lock` 与 `**/README.md`）、`workspace/artifacts/`、`workspace/tmp/`（`workspace_clean.py`）。所以 `workspace/` 只保留**最近一次运行**的可浏览产物；`.local/runs/<run>/`（events、guard）不在清理范围内，跨运行保留。预设**不清理 `harness/knowledge/`**。
+- **跨运行**：控制面板的 whole-lca / revise-lca 预设在执行前清理 `workspace/runs/`（保留 `orchestrator.lock` 与 `**/README.md`）、`workspace/artifacts/`、`workspace/tmp/`，以及旧布局遗留的 `workspace/outputs/`、`workspace/records/`（`workspace_clean.py`；whole-lca 先清 openLCA，成功后才清 workspace；revise/resume 不清 workspace）。所以 `workspace/` 只保留**最近一次运行**的可浏览产物；`.local/runs/<run>/`（events、guard）不在清理范围内，跨运行保留。预设**不清理 `harness/knowledge/`**。
 - **从阶段续跑（`resume-lca`）**：仅当 workspace 当前 `manifest.json` 的 `run_id` 对应一次 `failed` / `aborted` / `interrupted` 运行，且计划与 inputs 相对旧运行验收快照未变。`GET /api/runs/{id}/resume-preview` 返回精确删除清单；`POST /api/workflow/resume` 先 `build_plan`，再按清单清理（不碰 `harness/knowledge`、`.local` 历史），然后以过滤后的 `resume-lca` YAML 启动新 run。阶段 N 之前的产物与 handoff 沿用；续跑运行内若 reviewer 返工指向 N 之前的阶段，编排器拒绝（`validate_upstream_request`）。
 - **同一运行内的重试**：各阶段尝试目录 `workspace/runs/<stage>/<role>-<n>/` 独立；交付物在尝试目录内写入，审查通过后复制到 `workspace/artifacts/`；handoff 与 review 随尝试目录保留；`raw/` 按 call_id 分目录，manifest `calls[]` 只追加。
 - **上游返工**：`_invalidate_stages` 把目标阶段到当前阶段标为 `stale_stages`，写 `workspace/runs/_run/rework/upstream-<n>.json`，从 evidence manifest 的 `accepted` 中删掉这些阶段记下的验收并追加 `invalidations`。产物**留在原处**由目标执行者修改，不移动不删除。attempt 编号经 `stage_attempt_base` 继续递增，旧 handoff 不被覆盖。
