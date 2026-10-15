@@ -10,6 +10,8 @@ import yaml
 
 from backend.core.runtime.identifiers import resolve_project_path
 
+from backend.core.workflow.workspace.layout import resolve_path
+
 from .models import PathContract, StageSpec
 
 try:
@@ -19,12 +21,27 @@ except ImportError:  # pragma: no cover - dependency declared in pyproject
 
 
 def _resolve_contract_path(
-    workspace_root: Path, project_root: Path, declared: str
+    workspace_root: Path,
+    project_root: Path,
+    declared: str,
+    *,
+    stage_id: str,
+    from_ref: str | None = None,
+    role: str | None = None,
+    attempt: int | None = None,
 ) -> Path:
     text = declared.replace("\\", "/")
     if text.startswith("harness/"):
         return resolve_project_path(project_root, text, label="contract path")
-    return _resolve_workspace_path(workspace_root, declared)
+    return resolve_path(
+        workspace_root,
+        project_root,
+        stage_id,
+        declared,
+        from_ref,
+        role=role,
+        attempt=attempt,
+    )
 
 
 def validate_path_contracts(
@@ -32,6 +49,9 @@ def validate_path_contracts(
     *,
     workspace_root: Path,
     project_root: Path,
+    stage_id: str,
+    role: str | None = None,
+    attempt: int | None = None,
 ) -> list[str]:
     """Validate PathContracts.
 
@@ -43,7 +63,15 @@ def validate_path_contracts(
     errors: list[str] = []
     for item in items:
         try:
-            target = _resolve_contract_path(workspace_root, project_root, item.path)
+            target = _resolve_contract_path(
+                workspace_root,
+                project_root,
+                item.path,
+                stage_id=stage_id,
+                from_ref=item.from_ref,
+                role=role,
+                attempt=attempt,
+            )
         except ValueError as exc:
             errors.append(str(exc))
             continue
@@ -69,6 +97,7 @@ def validate_inputs(
         spec.inputs,
         workspace_root=workspace_root,
         project_root=project_root,
+        stage_id=spec.spec_id,
     )
 
 
@@ -77,11 +106,16 @@ def validate_outputs(
     *,
     workspace_root: Path,
     project_root: Path,
+    role: str | None = None,
+    attempt: int | None = None,
 ) -> list[str]:
     return validate_path_contracts(
         spec.outputs,
         workspace_root=workspace_root,
         project_root=project_root,
+        stage_id=spec.spec_id,
+        role=role,
+        attempt=attempt,
     )
 
 

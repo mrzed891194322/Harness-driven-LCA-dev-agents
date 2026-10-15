@@ -51,3 +51,21 @@ def language_hints(ctx):
     path = ctx.safe(ctx.workspace / "outputs" / "reports" / "lca_report.md")
     mapping = _items(ctx.workspace / "outputs" / "inventory" / "process-mapping.json")
     return artifact_report.language_hints(path, mapping)
+
+
+def write_results(ctx):
+    """Host-only projection of verified raw calculations; preserve units and refs."""
+    from harness.tools.shared.control_openlca.workflow import _write_json_atomic
+    calculations = []
+    for call, raw in evidence(ctx):
+        if call.get('tool') != 'calculate_product_system' or call.get('status') != 'success':
+            continue
+        calculations.append({
+            'product_system': raw.get('product_system'),
+            'impact_method': raw.get('impact_method'),
+            'impact_categories': raw.get('impact_categories', []),
+            'evidence': call['artifact'],
+        })
+    path = ctx.path('results.json')
+    _write_json_atomic(path, {'schema_version': 1, 'calculations': calculations})
+    return path

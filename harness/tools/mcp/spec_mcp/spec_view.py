@@ -35,7 +35,8 @@ class SpecError(ValueError):
 class Deliverable:
     name: str
     path: str
-    kind: str
+    kind: str  # handoff | deliverable (agent-facing)
+    path_kind: str  # file | directory
     format: str | None
     required: bool
     writer: str
@@ -63,6 +64,7 @@ class StageSpec:
                     "name": d.name,
                     "path": d.path,
                     "kind": d.kind,
+                    "path_kind": d.path_kind,
                     "format": d.format,
                     "required": d.required,
                     "writer": d.writer,
@@ -134,6 +136,26 @@ class _Reader:
             raise SpecError(f"harness/{rel}: invalid JSON: {exc}") from exc
 
 
+def _parse_kind_fields(item: dict[str, Any]) -> tuple[str | None, str]:
+    raw_kind = str(item.get("kind") or "").strip()
+    path_kind = str(item.get("path_kind") or "").strip()
+    artifact_kind = str(item.get("artifact_kind") or "").strip() or None
+    if raw_kind in {"handoff", "deliverable"}:
+        artifact_kind = raw_kind
+        storage = path_kind or "file"
+    elif raw_kind in {"file", "directory"}:
+        storage = raw_kind
+        if not artifact_kind:
+            artifact_kind = "deliverable"
+    elif not raw_kind:
+        storage = path_kind or "file"
+    else:
+        raise SpecError(f"invalid kind on {item.get('name')}: {raw_kind!r}")
+    if storage not in {"file", "directory"}:
+        raise SpecError(f"invalid path_kind on {item.get('name')}: {storage!r}")
+    return artifact_kind, storage
+
+
 def read_spec(project_root: Path, manifest: str) -> StageSpec:
     """Fail closed: any missing/invalid part raises SpecError."""
     r = _Reader(project_root, manifest)
@@ -161,11 +183,13 @@ def read_spec(project_root: Path, manifest: str) -> StageSpec:
         if item.get("example") is not None:
             rel = r.ref(item["example"])
             example = r.json(rel) if fmt == "json" or rel.endswith(".json") else r.text(rel)
+        artifact_kind, storage_kind = _parse_kind_fields(item)
         out.append(
             Deliverable(
                 name=str(item["name"]),
                 path=str(item["path"]),
-                kind=str(item.get("kind") or "file"),
+                kind=artifact_kind or "deliverable",
+                path_kind=storage_kind,
                 format=str(fmt) if fmt is not None else None,
                 required=bool(item.get("required", True)),
                 writer=str(item.get("writer") or "spec_mcp"),

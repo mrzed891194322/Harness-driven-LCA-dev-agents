@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.core.runtime.tool_runtime import write_json_atomic
-from backend.settings import records_root
+from backend.settings import run_root
 
 DEFAULT_INTERVAL_SEC = 15.0
 DEFAULT_STALE_SEC = 120.0
@@ -19,7 +19,7 @@ HEARTBEAT_NAME = "orchestrator.heartbeat.json"
 
 
 def heartbeat_path(workspace_root: Path) -> Path:
-    return records_root(workspace_root) / HEARTBEAT_NAME
+    return run_root(workspace_root) / HEARTBEAT_NAME
 
 
 def heartbeat_interval_sec() -> float:

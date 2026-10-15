@@ -10,9 +10,11 @@ from typing import Any
 class PathContract:
     path: str
     required: bool = True
-    kind: str = "file"  # file | directory
+    kind: str = "file"  # file | directory (storage shape)
     format: str | None = None  # json | yaml | text | None
     schema: str | None = None  # repo-relative JSON Schema path
+    artifact_kind: str | None = None  # handoff | deliverable
+    from_ref: str | None = None  # upstream stage/file for inputs
 
 
 @dataclass(frozen=True)
@@ -50,12 +52,13 @@ class Deliverable:
 
     name: str
     path: str
-    kind: str = "file"
+    kind: str = "file"  # file | directory
     format: str | None = None
     required: bool = True
     writer: str = "spec_mcp"  # spec_mcp | agent
     schema: str | None = None  # project-relative effective path (default or user)
     example: str | None = None  # project-relative effective path
+    artifact_kind: str | None = None  # handoff | deliverable
 
     def contract(self) -> PathContract:
         return PathContract(
@@ -64,6 +67,7 @@ class Deliverable:
             kind=self.kind,
             format=self.format,
             schema=self.schema,
+            artifact_kind=self.artifact_kind,
         )
 
 
@@ -90,4 +94,9 @@ class StageSpec:
     sources: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def output_paths(self) -> list[str]:
-        return [item.path for item in self.outputs if item.required]
+        out: list[str] = []
+        for item in self.outputs:
+            if not item.required:
+                continue
+            out.append(item.path)
+        return out

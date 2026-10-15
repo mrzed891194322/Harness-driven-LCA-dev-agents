@@ -198,7 +198,60 @@ def _main(args: argparse.Namespace) -> int:
             if args.resumed_from:
                 state["resumed_from"] = str(args.resumed_from)
             if args.from_stage:
+                from backend.core.workflow.resume_stages import (  # noqa: E402
+                    normalize_resume_code,
+                    stage_id_from_code,
+                )
+                from backend.core.workflow.workspace.layout import attempts  # noqa: E402
+
                 state["resume_from_stage"] = str(args.from_stage)
+                code = normalize_resume_code(str(args.from_stage))
+                resume_stage_id = stage_id_from_code(code)
+                stage_index = next(
+                    (
+                        index
+                        for index, stage in enumerate(workflow.stages)
+                        if stage.stage_id == resume_stage_id
+                    ),
+                    0,
+                )
+                resume_stage = workflow.stages[stage_index]
+                writer_index = 0
+                from backend.core.workflow.execution.runner import (  # noqa: E402
+                    WRITER_ROLES,
+                    _first_writer_index,
+                )
+
+                writer_index = _first_writer_index(workflow, resume_stage)
+                writer_assignment = workflow.assignment_for(resume_stage, writer_index)
+                role = writer_assignment.role
+                prior = [
+                    int(row.get("attempt") or 0)
+                    for row in attempts(workspace_root, resume_stage_id)
+                    if row.get("role") == role
+                ]
+                next_attempt = (max(prior) if prior else 0) + 1
+                high_water: dict[str, int] = {}
+                for stage in workflow.stages[: stage_index + 1]:
+                    for row in attempts(workspace_root, stage.stage_id):
+                        if row.get("role") not in WRITER_ROLES:
+                            continue
+                        high_water[stage.stage_id] = max(
+                            high_water.get(stage.stage_id, 0),
+                            int(row.get("attempt") or 0),
+                        )
+                state.update(
+                    {
+                        "stage_index": stage_index,
+                        "step_index": writer_index,
+                        "attempt": next_attempt,
+                        "attempt_high_water": high_water,
+                        "stage_attempt_base": dict(high_water),
+                        "current_stage": resume_stage_id,
+                        "current_assignment": writer_assignment.assignment_id,
+                        "current_role": role,
+                    }
+                )
                 from backend.core.workflow.persistence.acceptance_seed import (  # noqa: E402
                     write_resume_metadata,
                 )

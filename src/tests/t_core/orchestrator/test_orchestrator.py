@@ -10,7 +10,11 @@ from unittest.mock import patch
 
 from backend.core.runtime.capabilities import base_capabilities
 from backend.core.workflow.config.loader import load_workflow
-from backend.core.workflow.execution.handoff import read_handoff
+from backend.core.workflow.execution.handoff import (
+    handoff_path,
+    read_handoff,
+    review_note_path,
+)
 from backend.core.workflow.execution.runner import (
     PROTOCOL_REPAIR_LIMIT,
     WORKER_TRANSPORT_RETRY_LIMIT,
@@ -130,9 +134,9 @@ class OrchestratorGraphTests(unittest.TestCase):
         ]
         self.assertEqual(len(mapping_turns), 2)
         self.assertNotEqual(mapping_turns[0][0], mapping_turns[1][0])
-        self.assertTrue((self.workspace / "records" / "manifest.json").is_file())
+        self.assertTrue((self.workspace / "runs" / "_run" / "manifest.json").is_file())
         manifest = json.loads(
-            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "runs" / "_run" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "completed")
         # 01 reviewer submits its handoff through lca_artifacts.submit_handoff.
@@ -174,8 +178,8 @@ class OrchestratorGraphTests(unittest.TestCase):
         script[("02-inventory-extraction", "executor", 2)] = {
             "status": "ok",
             "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
+                "extracted-bom.json",
+                "extracted-bom.md",
             ],
         }
         script[("02-inventory-extraction", "reviewer", 2)] = {"status": "passed"}
@@ -257,11 +261,11 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(client.turns, [])
         self.assertTrue(
             (
-                self.workspace / "records" / "logs" / "run-inflight" / "progress.txt"
+                self.workspace / "runs" / "_run" / "progress.txt"
             ).is_file()
         )
         manifest = json.loads(
-            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "runs" / "_run" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
         self.assertIn("in_flight", manifest["status_reason"])
@@ -283,8 +287,8 @@ class OrchestratorGraphTests(unittest.TestCase):
         script[("02-inventory-extraction", "executor", 2)] = {
             "status": "ok",
             "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
+                "extracted-bom.json",
+                "extracted-bom.md",
             ],
         }
         script[("02-inventory-extraction", "reviewer", 2)] = {"status": "passed"}
@@ -316,9 +320,9 @@ class OrchestratorGraphTests(unittest.TestCase):
             if label == "02-inventory-extraction:reviewer:1"
         ][1]
         self.assertIn("契约", second_repair_prompt)
-        note = (
-            self.workspace / "records" / "reviews" / "02-inventory-extraction-1.md"
-        ).read_text(encoding="utf-8")
+        note = review_note_path(self.workspace, "02-inventory-extraction", 1).read_text(
+            encoding="utf-8"
+        )
         self.assertIn("缺一行", note)
         self.assertNotIn("不能为空", note)
 
@@ -337,8 +341,8 @@ class OrchestratorGraphTests(unittest.TestCase):
                 "status": "ok",
                 "status_reason": "ok",
                 "write": [
-                    "workspace/outputs/inventory/extracted-bom.json",
-                    "workspace/outputs/inventory/extracted-bom.md",
+                    "extracted-bom.json",
+                    "extracted-bom.md",
                 ],
             },
             ("02-inventory-extraction", "reviewer", 1): [transport]
@@ -367,8 +371,8 @@ class OrchestratorGraphTests(unittest.TestCase):
                 "status": "ok",
                 "status_reason": "ok",
                 "write": [
-                    "workspace/outputs/inventory/extracted-bom.json",
-                    "workspace/outputs/inventory/extracted-bom.md",
+                    "extracted-bom.json",
+                    "extracted-bom.md",
                 ],
             },
             ("02-inventory-extraction", "reviewer", 1): [
@@ -385,10 +389,13 @@ class OrchestratorGraphTests(unittest.TestCase):
         ]
         self.assertEqual(len(review_turns), 3)
         handoff = read_handoff(
-            self.workspace
-            / "records"
-            / "handoffs"
-            / "02-inventory-extraction-reviewer-1.json",
+            handoff_path(
+                self.workspace,
+                "02-inventory-extraction",
+                "reviewer",
+                1,
+                project_root=PROJECT_ROOT,
+            ),
             role="reviewer",
             stage="02-inventory-extraction",
             attempt=1,
@@ -419,7 +426,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(len(executor_labels), PROTOCOL_REPAIR_LIMIT + 1)
         self.assertGreaterEqual(client.resume_count, PROTOCOL_REPAIR_LIMIT)
         manifest = json.loads(
-            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "runs" / "_run" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
 
@@ -437,8 +444,8 @@ class OrchestratorGraphTests(unittest.TestCase):
             ("02-inventory-extraction", "executor", 1): {
                 "status": "ok",
                 "write": [
-                    "workspace/outputs/inventory/extracted-bom.json",
-                    "workspace/outputs/inventory/extracted-bom.md",
+                    "extracted-bom.json",
+                    "extracted-bom.md",
                 ],
             },
             ("02-inventory-extraction", "reviewer", 1): [invalid]
@@ -455,13 +462,13 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(len(review_labels), PROTOCOL_REPAIR_LIMIT + 1)
         self.assertTrue(all(label.endswith(":1") for label in review_labels))
         manifest = json.loads(
-            (self.workspace / "records" / "manifest.json").read_text(encoding="utf-8")
+            (self.workspace / "runs" / "_run" / "manifest.json").read_text(encoding="utf-8")
         )
         self.assertEqual(manifest["status"], "failed")
         self.assertIn("handoff 无效", manifest["status_reason"])
         self.assertFalse(
             (
-                self.workspace / "records" / "reviews" / "02-inventory-extraction-1.md"
+                self.workspace / "runs" / "_run" / "reviews" / "02-inventory-extraction-1.md"
             ).is_file()
         )
 
@@ -485,8 +492,8 @@ class OrchestratorGraphTests(unittest.TestCase):
         script[("03-dataset-mapping", "executor", 2)] = {
             "status": "ok",
             "write": [
-                "workspace/outputs/inventory/process-mapping.json",
-                "workspace/outputs/LCI/",
+                "process-mapping.json",
+                "LCI/",
             ],
         }
         script[("03-dataset-mapping", "reviewer", 2)] = {"status": "passed"}
@@ -681,8 +688,8 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
         script[("02-inventory-extraction", "reviser", 2)] = {
             "status": "ok",
             "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
+                "extracted-bom.json",
+                "extracted-bom.md",
             ],
         }
         script[("02-inventory-extraction", "reviewer", 2)] = {"status": "passed"}

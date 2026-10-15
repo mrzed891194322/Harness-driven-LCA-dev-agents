@@ -72,6 +72,10 @@ def run(command: str, request: dict[str, Any]) -> dict[str, Any]:
     profile = COMMANDS[command]
     result = checks.validate(ctx, profile)
     ok = bool(result.get("ok"))
+    if ok and profile == "report":
+        from harness.tools.shared.lca_artifacts.report import write_results
+
+        write_results(ctx)
     errors = [str(e) for e in list(result.get("errors") or [])]
     summary = str(result.get("summary") or "") or (
         "; ".join(errors[:5]) if errors else ("passed" if ok else "failed")

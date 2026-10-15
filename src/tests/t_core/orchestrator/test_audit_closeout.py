@@ -120,7 +120,9 @@ class ReviewNoteGateTests(unittest.TestCase):
                     store,
                 )
             self.assertEqual(result["status"], "completed")
-            note = workspace / "records" / "reviews" / "03-dataset-mapping-1.md"
+            from backend.core.workflow.execution.handoff import review_note_path
+
+            note = review_note_path(workspace, "03-dataset-mapping", 1)
             self.assertTrue(note.is_file())
             self.assertIn("accepted", note.read_text(encoding="utf-8"))
 

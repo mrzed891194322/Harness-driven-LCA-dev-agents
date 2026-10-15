@@ -61,14 +61,15 @@ control_openlca/
 - `get_process_details`：按一个确切 Process UUID 返回紧凑元数据、地域、定量参考 exchange，以及相对 `target_category` 的 `outside_project` 标记与 `project_scope`（`project` 项目分类内 / `background` 背景库 / `uncategorized` 无分类、多为历史残留，不可作 provider 证据）。
 - `get_flow_providers`：按一个确切 Flow UUID 返回可用 Process Provider 的 UUID、名称、分类、地域和 Flow 引用；支持地域过滤与分页。
 - `preflight_import_lci`：只读解析一文件一实体 JSON-LD，验证声明库名、目标分类和背景 Provider，返回库名、分类、LCI 目录、计划实体和 Provider 检查。
-- `import_lci`：唯一的 Whole-LCA 数据库写入工具。写入前工具内部再预检；库名、分类或 LCI 目录与上次成功预检不一致则拒绝。执行中持续写 `workspace/records/import-operations/current.json`。
+- `import_lci`：唯一的 Whole-LCA 数据库写入工具。写入前工具内部再预检；库名、分类或 LCI 目录与上次成功预检不一致则拒绝。执行中持续写 当前尝试目录下的 `import-operations/current.json`（`workspace/runs/<stage>/<role>-<n>/`）。
 - `get_import_operation`：只读查询当前导入 journal，供 MCP 超时后判断是否已经成功、失败或仍不可确定。
 - `get_model_graph`：读回 Product System 节点（含已知 category 与 `outside_project`）、边、断链、孤立节点和缺失预期节点。
 - `calculate_product_system`：执行 LCIA，返回方法/类别名称与 UUID、数值、单位、计算设置和句柄释放状态。
 - `cleanup_output`：预览或删除当前项目分类下的 ProductSystem、Process 和 Flow；`confirm=false` 只列范围，`confirm=true` 执行删除。
 
 `import_lci` 与 `cleanup_output` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径默认为
-`workspace/outputs/LCI`；连续改进运行可改用 `workspace/tmp/` 下的具体兼容 LCI 子目录。
+`workspace/artifacts/LCI`；04 也可传入宿主解析的上游 `workspace/runs/03-dataset-mapping/<role>-<n>/LCI`。
+连续改进运行可改用 `workspace/tmp/` 下的具体兼容 LCI 子目录。
 路径解析会拒绝 `workspace/tmp` 根目录、inputs、其他 workspace 目录、项目外路径及通过
 `..` 或符号链接逃逸的路径。实体解析、删除顺序、图结构和计算执行逻辑由
 `harness/tools/shared/control_openlca/workflow.py` 承担。

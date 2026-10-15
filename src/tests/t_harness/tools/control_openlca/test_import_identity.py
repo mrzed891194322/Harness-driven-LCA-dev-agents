@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import olca_schema
 import pytest
+from unittest.mock import MagicMock, patch
 
 from harness.tools.shared.control_openlca import guard, operations
 from harness.tools.shared.control_openlca.guard import endpoint_uncertain_marker
@@ -18,6 +19,16 @@ from tests.support.openlca_fakes import (
 @pytest.fixture
 def lock_root(tmp_path, monkeypatch):
     monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
+
+
+@pytest.fixture(autouse=True)
+def _mock_bounded_ipc_probe():
+    """Guard re-probes IPC when an uncertain marker exists; no openLCA in CI."""
+    with (
+        patch.object(guard, "probe_ipc", return_value=MagicMock()),
+        patch.object(guard, "close_ipc_client"),
+    ):
+        yield
 
 
 def test_guard_self_marker_not_prior_uncertain(lock_root):
@@ -38,7 +49,7 @@ def _start_import(tmp_path, client, run_id="run-one"):
     workspace = tmp_path / "workspace"
     lci = workspace / "outputs" / "LCI"
     write_product_system_fixture(lci)
-    operation_dir = workspace / "records" / "import-operations"
+    operation_dir = workspace / "runs" / "04-openlca-reporting" / "executor-1" / "import-operations"
     preflight = operations.preflight(
         "localhost",
         8080,
@@ -57,6 +68,32 @@ def _start_import(tmp_path, client, run_id="run-one"):
         "operation_dir": operation_dir,
         "client": client,
     }
+
+
+def test_reimport_same_id_does_not_duplicate_entity_plan(lock_root, tmp_path):
+    client = FakeImportClient()
+    lci, kwargs = _start_import(tmp_path, client)
+    first = operations.import_request(
+        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+    )
+    assert first["status"] == "success"
+    plan_ids = [entry["id"] for entry in first.get("entity_plan") or []]
+    assert len(plan_ids) == len(set(plan_ids))
+    second = operations.import_request(
+        "localhost",
+        8080,
+        lci,
+        "project-a",
+        "isolated-db",
+        run_id=kwargs["run_id"],
+        request_id="request-one",
+        preflight_id=kwargs["preflight_id"],
+        operation_dir=kwargs["operation_dir"],
+        client=client,
+    )
+    assert second.get("reuse_reason")
+    plan2 = [entry["id"] for entry in second.get("entity_plan") or []]
+    assert len(plan2) == len(set(plan2))
 
 
 def test_same_run_reimport_after_content_change_updates(lock_root, tmp_path):

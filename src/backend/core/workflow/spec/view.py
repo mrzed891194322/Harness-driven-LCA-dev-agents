@@ -43,7 +43,8 @@ def spec_view(spec: StageSpec, project_root: Path) -> dict[str, Any]:
             {
                 "name": d.name,
                 "path": d.path,
-                "kind": d.kind,
+                "kind": d.artifact_kind or "deliverable",
+                "path_kind": d.kind,
                 "format": d.format,
                 "required": d.required,
                 "writer": d.writer,

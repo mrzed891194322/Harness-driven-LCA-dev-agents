@@ -11,6 +11,7 @@ from backend.core.agents.activity import activity_log_path, read_activity
 from backend.core.agents.archive import progress_log_path
 from backend.core.workflow.persistence.checkpoint import checkpoint_path
 from backend.core.workflow.persistence.manifest import manifest_path
+from backend.settings import run_root
 from backend.services.project_paths import PROJECT_ROOT
 
 
@@ -171,12 +172,12 @@ class WorkflowService:
         return (profile.model_id or profile.display_name or model_ref).strip()
 
     def results(self) -> dict[str, Any]:
-        """Current run summary plus files under workspace/outputs and workspace/records."""
+        """Current run summary plus workspace artifacts, runs, and run-level files."""
         return {
             "manifest": self.manifest(),
-            "handoffs": _list_handoffs(self.workspace_root / "records" / "handoffs"),
-            "artifacts": _list_artifacts(self.workspace_root / "outputs"),
-            "records": _list_record_files(self.workspace_root / "records"),
+            "handoffs": _list_handoffs_from_runs(self.workspace_root),
+            "artifacts": _list_workspace_artifacts(self.workspace_root),
+            "records": _list_run_level_files(self.workspace_root),
         }
 
     def read_result_file(self, relative: str) -> dict[str, Any]:
@@ -203,8 +204,8 @@ class WorkflowService:
         return {"path": rel, "kind": kind, "size": size, "text": text}
 
     def archive_outputs(self) -> bytes:
-        """Zip every deliverable under workspace/outputs."""
-        root = (self.workspace_root / "outputs").resolve()
+        """Zip every deliverable under workspace/artifacts."""
+        root = (self.workspace_root / "artifacts").resolve()
         buffer = io.BytesIO()
         count = 0
         with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -216,51 +217,87 @@ class WorkflowService:
                         relative = path.resolve().relative_to(root)
                     except ValueError:
                         continue
-                    archive.write(path, f"outputs/{relative.as_posix()}")
+                    archive.write(path, f"artifacts/{relative.as_posix()}")
                     count += 1
         if count == 0:
             raise FileNotFoundError("还没有产出")
         return buffer.getvalue()
 
 
-def _list_handoffs(folder: Path) -> list[dict[str, Any]]:
-    if not folder.is_dir():
+def _handoff_row(path: Path, workspace_root: Path, payload: dict[str, Any] | None) -> dict[str, Any]:
+    try:
+        rel = path.resolve().relative_to(workspace_root.resolve()).as_posix()
+    except ValueError:
+        rel = path.name
+    row: dict[str, Any] = {
+        "name": rel,
+        "path": f"workspace/{rel}",
+        "stage": "",
+        "role": "",
+        "attempt": None,
+        "status": "",
+        "status_reason": "",
+        "artifacts": [],
+    }
+    if payload is None:
+        row["status_reason"] = "无法读取"
+        return row
+    row["stage"] = str(payload.get("stage") or "")
+    row["role"] = str(payload.get("role") or "")
+    attempt = payload.get("attempt")
+    row["attempt"] = attempt if isinstance(attempt, int) else None
+    row["status"] = str(payload.get("status") or "")
+    row["status_reason"] = str(payload.get("status_reason") or "")
+    artifacts = payload.get("artifacts")
+    if isinstance(artifacts, list):
+        row["artifacts"] = [str(item) for item in artifacts if isinstance(item, str)]
+    return row
+
+
+def _list_handoffs_from_runs(workspace_root: Path) -> list[dict[str, Any]]:
+    runs = workspace_root / "runs"
+    if not runs.is_dir():
         return []
     rows: list[dict[str, Any]] = []
-    for path in sorted(folder.glob("*.json")):
-        row: dict[str, Any] = {
-            "name": path.name,
-            "stage": "",
-            "role": "",
-            "attempt": None,
-            "status": "",
-            "status_reason": "",
-            "artifacts": [],
-        }
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            row["status_reason"] = "无法读取"
-            rows.append(row)
+    for handoff in sorted(runs.rglob("handoff.json")):
+        if "_run" in handoff.parts:
             continue
-        if isinstance(payload, dict):
-            row["stage"] = str(payload.get("stage") or "")
-            row["role"] = str(payload.get("role") or "")
-            attempt = payload.get("attempt")
-            row["attempt"] = attempt if isinstance(attempt, int) else None
-            row["status"] = str(payload.get("status") or "")
-            row["status_reason"] = str(payload.get("status_reason") or "")
-            artifacts = payload.get("artifacts")
-            if isinstance(artifacts, list):
-                row["artifacts"] = [str(item) for item in artifacts if isinstance(item, str)]
-        rows.append(row)
+        try:
+            payload = json.loads(handoff.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = None
+        if payload is not None and not isinstance(payload, dict):
+            payload = None
+        rows.append(_handoff_row(handoff, workspace_root, payload))
     return rows
 
 
-def _list_artifacts(root: Path) -> list[dict[str, Any]]:
+def _list_deliverable_artifacts(root: Path) -> list[dict[str, Any]]:
     if not root.is_dir():
         return []
     base = root.resolve()
+    items: list[dict[str, Any]] = []
+    for path in sorted(base.rglob("*")):
+        if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
+            continue
+        try:
+            relative = path.resolve().relative_to(base)
+        except ValueError:
+            continue
+        items.append(
+            {
+                "path": f"workspace/artifacts/{relative.as_posix()}",
+                "size": path.stat().st_size,
+                "count": 1,
+            }
+        )
+    return items
+
+
+def _list_run_attempt_artifacts(runs_root: Path) -> list[dict[str, Any]]:
+    if not runs_root.is_dir():
+        return []
+    base = runs_root.resolve()
     items: list[dict[str, Any]] = []
     grouped: dict[str, dict[str, int]] = {}
     for path in sorted(base.rglob("*")):
@@ -270,22 +307,19 @@ def _list_artifacts(root: Path) -> list[dict[str, Any]]:
             relative = path.resolve().relative_to(base)
         except ValueError:
             continue
+        if relative.parts and relative.parts[0] == "_run":
+            continue
         parts = relative.parts
-        # Tool dumps land one file per call; show the attempt folder once.
-        if (
-            path.name == "raw.json"
-            and len(parts) >= 6
-            and parts[0] == "reports"
-            and parts[1] == "runs"
-        ):
-            key = f"workspace/outputs/{Path(*parts[:5]).as_posix()}"
+        if path.name == "raw.json" and "raw" in parts:
+            attempt_key = Path(*parts[: parts.index("raw")]).as_posix()
+            key = f"workspace/runs/{attempt_key}"
             bucket = grouped.setdefault(key, {"size": 0, "count": 0})
             bucket["size"] += path.stat().st_size
             bucket["count"] += 1
             continue
         items.append(
             {
-                "path": f"workspace/outputs/{relative.as_posix()}",
+                "path": f"workspace/runs/{relative.as_posix()}",
                 "size": path.stat().st_size,
                 "count": 1,
             }
@@ -295,12 +329,20 @@ def _list_artifacts(root: Path) -> list[dict[str, Any]]:
     return items
 
 
-def _list_record_files(root: Path) -> list[dict[str, Any]]:
-    """Files under workspace/records, except handoffs (those are listed on their own)."""
+def _list_workspace_artifacts(workspace_root: Path) -> list[dict[str, Any]]:
+    return _list_deliverable_artifacts(workspace_root / "artifacts") + _list_run_attempt_artifacts(
+        workspace_root / "runs"
+    )
+
+
+def _list_run_level_files(workspace_root: Path) -> list[dict[str, Any]]:
+    """Files under workspace/runs/_run."""
+    root = run_root(workspace_root)
     if not root.is_dir():
         return []
-    base = root.resolve()
     items: list[dict[str, Any]] = []
+    base = root.resolve()
+    prefix = "workspace/runs/_run"
     for path in sorted(base.rglob("*")):
         if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
             continue
@@ -312,7 +354,7 @@ def _list_record_files(root: Path) -> list[dict[str, Any]]:
             continue
         items.append(
             {
-                "path": f"workspace/records/{relative.as_posix()}",
+                "path": f"{prefix}/{relative.as_posix()}",
                 "size": path.stat().st_size,
                 "count": 1,
             }
@@ -320,7 +362,11 @@ def _list_record_files(root: Path) -> list[dict[str, Any]]:
     return items
 
 
-_RESULT_PREFIXES = ("workspace/outputs/", "workspace/records/")
+_RESULT_PREFIXES = (
+    "workspace/runs/_run/",
+    "workspace/artifacts/",
+    "workspace/runs/",
+)
 _MAX_RESULT_BYTES = 512_000
 
 

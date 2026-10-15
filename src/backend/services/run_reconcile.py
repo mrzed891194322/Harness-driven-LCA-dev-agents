@@ -18,7 +18,7 @@ from backend.core.workflow.persistence.heartbeat import (
     read_heartbeat,
 )
 from backend.core.workflow.persistence.manifest import manifest_path, write_manifest
-from backend.settings import records_root
+from backend.settings import run_root
 
 REASON_BACKEND_RESTART = "后端重启导致编排中断"
 REASON_HEARTBEAT_TIMEOUT = "心跳超时"
@@ -108,8 +108,8 @@ def reconcile_workspace_run(project_root: Path, workspace_root: Path) -> bool:
 
 
 def orchestrator_lock_held(workspace_root: Path) -> bool:
-    """True when a live process holds ``records/orchestrator.lock`` (non-blocking probe)."""
-    path = records_root(workspace_root) / "orchestrator.lock"
+    """True when a live process holds ``runs/_run/orchestrator.lock`` (non-blocking probe)."""
+    path = run_root(workspace_root) / "orchestrator.lock"
     if not path.is_file():
         return False
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -19,6 +19,9 @@ for _p in (_ROOT / "src", _ROOT):
         sys.path.insert(0, str(_p))
 
 from backend.core.workflow.main import main as orchestrator_main  # noqa: E402
+from backend.services.orchestrator_wiring import install as install_orchestrator_hooks  # noqa: E402
+
+install_orchestrator_hooks()
 
 PROJECT_ROOT = _ROOT
 

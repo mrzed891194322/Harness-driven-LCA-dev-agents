@@ -144,66 +144,56 @@ class WorkflowProgressTests(unittest.TestCase):
                 status_reason="done",
                 run_id="run-9",
             )
-            handoff = workspace / "records" / "handoffs" / "report-executor-1.json"
+            handoff = workspace / "runs" / "report" / "executor-1" / "handoff.json"
             handoff.parent.mkdir(parents=True, exist_ok=True)
             handoff.write_text(
                 '{"stage":"report","role":"executor","attempt":1,"status":"ok",'
-                '"status_reason":"已交卷","artifacts":["workspace/outputs/reports/lca.md"]}',
+                '"status_reason":"已交卷","artifacts":["workspace/artifacts/lca_report.md"]}',
                 encoding="utf-8",
             )
-            report = workspace / "outputs" / "reports" / "lca.md"
+            report = workspace / "artifacts" / "lca_report.md"
             report.parent.mkdir(parents=True, exist_ok=True)
             report.write_text("# LCA\n", encoding="utf-8")
-            (workspace / "outputs" / "reports" / "README.md").write_text("skip\n", encoding="utf-8")
+            (workspace / "artifacts" / "README.md").write_text("skip\n", encoding="utf-8")
             dump = (
                 workspace
-                / "outputs"
-                / "reports"
                 / "runs"
-                / "run-9"
                 / "03-dataset-mapping"
-                / "1"
+                / "executor-1"
+                / "raw"
                 / "abc"
                 / "raw.json"
             )
             dump.parent.mkdir(parents=True, exist_ok=True)
             dump.write_text("{}", encoding="utf-8")
-            review = workspace / "records" / "reviews" / "report-1.md"
+            review = workspace / "runs" / "report" / "reviewer-1" / "review.md"
             review.parent.mkdir(parents=True, exist_ok=True)
             review.write_text("review\n", encoding="utf-8")
 
             service = WorkflowService(root)
             body = service.results()
-            opened = service.read_result_file("workspace/outputs/reports/lca.md")
+            opened = service.read_result_file("workspace/artifacts/lca_report.md")
             self.assertEqual(opened["kind"], "markdown")
             self.assertIn("LCA", opened["text"])
-            manifest = service.read_result_file("workspace/records/manifest.json")
+            manifest = service.read_result_file("workspace/runs/_run/manifest.json")
             self.assertEqual(manifest["kind"], "json")
-            note = service.read_result_file("workspace/records/reviews/report-1.md")
+            note = service.read_result_file("workspace/runs/report/reviewer-1/review.md")
             self.assertEqual(note["kind"], "markdown")
             with self.assertRaises(ValueError):
-                service.read_result_file("workspace/outputs/../../.env")
+                service.read_result_file("workspace/artifacts/../../.env")
             with self.assertRaises(ValueError):
                 service.read_result_file("workspace/tmp/secret.json")
             names = zipfile.ZipFile(io.BytesIO(service.archive_outputs())).namelist()
 
         self.assertEqual(body["manifest"]["run_id"], "run-9")
-        self.assertIn("outputs/reports/lca.md", names)
-        self.assertIn("outputs/reports/runs/run-9/03-dataset-mapping/1/abc/raw.json", names)
+        self.assertIn("artifacts/lca_report.md", names)
         self.assertFalse(any(name.endswith("README.md") for name in names))
         self.assertEqual(body["handoffs"][0]["stage"], "report")
-        self.assertEqual(body["handoffs"][0]["artifacts"], ["workspace/outputs/reports/lca.md"])
+        self.assertEqual(body["handoffs"][0]["artifacts"], ["workspace/artifacts/lca_report.md"])
         self.assertEqual(
             [item["path"] for item in body["records"]],
-            [
-                "workspace/records/manifest.json",
-                "workspace/records/reviews/report-1.md",
-            ],
+            ["workspace/runs/_run/manifest.json"],
         )
-        self.assertEqual(
-            [(item["path"], item["count"]) for item in body["artifacts"]],
-            [
-                ("workspace/outputs/reports/lca.md", 1),
-                ("workspace/outputs/reports/runs/run-9/03-dataset-mapping/1", 1),
-            ],
-        )
+        artifact_paths = {(item["path"], item["count"]) for item in body["artifacts"]}
+        self.assertIn(("workspace/artifacts/lca_report.md", 1), artifact_paths)
+        self.assertIn(("workspace/runs/03-dataset-mapping/executor-1", 1), artifact_paths)

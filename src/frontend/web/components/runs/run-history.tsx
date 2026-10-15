@@ -15,6 +15,7 @@ type ResumePreview = {
   reasons?: string[];
   inherited_stages?: string[];
   from_stage?: string;
+  reused_attempts?: { stage: string; executor?: string; reviewer?: string }[];
   cleanup?: { workspace_paths?: string[]; openlca_ids?: { type: string; id: string }[] };
   rework_note?: string;
 };
@@ -215,20 +216,17 @@ export function RunHistoryList({ highlightRunId = "" }: { highlightRunId?: strin
                 ))}
               </ul>
             ) : null}
-            <p>将删除以下 workspace 路径：</p>
+            <p>将复用以下已接受尝试（workspace 与 openLCA 均保留）：</p>
             <ul data-testid="resume-delete-list">
-              {(preview?.cleanup?.workspace_paths || []).map((item) => (
-                <li key={item} data-testid="resume-delete-item">{item}</li>
-              ))}
-            </ul>
-            <p>将删除以下本项目 openLCA 实体（仅导入日志记录的 @id，删除前逐个复查是否在本项目分类）：</p>
-            <ul data-testid="resume-openlca-list">
-              {(preview?.cleanup?.openlca_ids || []).map((item) => (
-                <li key={`${item.type}:${item.id}`} data-testid="resume-openlca-item">
-                  {item.type} {item.id}
+              {(preview?.reused_attempts || []).map((item) => (
+                <li key={item.stage} data-testid="resume-delete-item">
+                  {STAGE_LABELS[item.stage] || item.stage}
+                  {item.executor ? ` · 执行 ${item.executor}` : ""}
+                  {item.reviewer ? ` · 审查 ${item.reviewer}` : ""}
                 </li>
               ))}
             </ul>
+            <ul data-testid="resume-openlca-list" hidden aria-hidden="true" />
           </div>
           <div className="run-reason-foot">
             <button

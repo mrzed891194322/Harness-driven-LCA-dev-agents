@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -17,7 +18,7 @@ from backend.core.workflow.execution.runner import (
 )
 from backend.core.workflow.persistence.checkpoint import open_store
 from backend.core.workflow.persistence.config_fingerprint import write_runtime_config
-from backend.settings import records_root
+from backend.settings import run_root
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.scripted_session import (
     ScriptedSessionClient,
@@ -25,7 +26,7 @@ from tests.support.scripted_session import (
     _passing_run_host_action,
 )
 
-BOM = "workspace/outputs/inventory/extracted-bom.json"
+BOM = "workspace/artifacts/extracted-bom.json"
 S2, S3, S4 = "02-inventory-extraction", "03-dataset-mapping", "04-openlca-reporting"
 
 
@@ -82,7 +83,7 @@ def _run(tmp_path, script, monkeypatch, max_attempts=None):
         model="test-model",
     )
     # Pretend 03 recorded an acceptance earlier in this run.
-    manifest = records_root(workspace) / "evidence" / "run-up" / "manifest.json"
+    manifest = run_root(workspace) / "evidence" / "run-up" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         json.dumps(
@@ -156,6 +157,53 @@ def test_target_inferred_from_artifacts(tmp_path, monkeypatch):
     assert [r["to"] for r in recs if r["kind"] == "rework_upstream"] == [S2]
 
 
+def test_upstream_rework_accepts_attempt_dir_path(tmp_path, monkeypatch):
+    script = dict(_happy_script())
+    script[(S4, "executor", 1)] = _ask_upstream(
+        rework_artifacts=[f"workspace/runs/{S2}/executor-1/extracted-bom.json"],
+    )
+    script.update(_ok(S2, 2))
+    script.update(_ok(S3, 2))
+    script.update(_ok(S4, 2))
+    final, _client, recs, _m = _run(tmp_path, script, monkeypatch)
+    assert final["status"] == "completed"
+    ev = [r for r in recs if r["kind"] == "rework_upstream"]
+    assert len(ev) == 1 and ev[0]["validated"] is True and ev[0]["to"] == S2
+
+
+def test_upstream_rework_accepts_relative_runs_path(tmp_path, monkeypatch):
+    script = dict(_happy_script())
+    script[(S4, "executor", 1)] = _ask_upstream(
+        rework_artifacts=[f"runs/{S2}/executor-1/extracted-bom.json"],
+    )
+    script.update(_ok(S2, 2))
+    script.update(_ok(S3, 2))
+    script.update(_ok(S4, 2))
+    final, _client, recs, _m = _run(tmp_path, script, monkeypatch)
+    assert final["status"] == "completed"
+    assert [r["to"] for r in recs if r["kind"] == "rework_upstream"] == [S2]
+
+
+def test_upstream_rework_rejects_undeclared_path(tmp_path, monkeypatch):
+    script = dict(_happy_script())
+    script[(S4, "executor", 1)] = _ask_upstream(
+        rework_target_stage=S2,
+        rework_artifacts=["workspace/tmp/not-a-deliverable.json"],
+    )
+    script[(S4, "executor", 2)] = _happy_script()[(S4, "executor", 1)]
+    script[(S4, "reviewer", 2)] = {"status": "passed"}
+    final, client, recs, _m = _run(tmp_path, script, monkeypatch)
+    assert final["status"] == "completed"
+    rej = [r for r in recs if r["kind"] == "rework_upstream"]
+    assert len(rej) == 1 and rej[0]["validated"] is False
+    assert any("未声明产出" in p for p in rej[0]["rejected"])
+    assert client.turns[order_index(client, S4, 1) + 1][1] == f"{S4}:executor:2"
+
+
+def order_index(client, stage: str, attempt: int) -> int:
+    return [t[1] for t in client.turns].index(f"{stage}:executor:{attempt}")
+
+
 @pytest.mark.parametrize(
     "extra, why",
     [
@@ -225,34 +273,16 @@ def test_retry_events_and_attempt_budget_per_visit(tmp_path, monkeypatch):
     assert retry[0]["source"] == "orchestrator"
 
 
-def _seed_lci(tmp_path):
-    proc = tmp_path / "workspace" / "outputs" / "LCI" / "processes" / "p01.json"
-    proc.parent.mkdir(parents=True, exist_ok=True)
-    proc.write_text(
-        json.dumps(
-            {
-                "exchanges": [
-                    {"isInput": False, "unit": {"name": "kg"}},
-                    {
-                        "isInput": True,
-                        "amount": 19.5,
-                        "flow": {"@id": "f-tr", "name": "transport, lorry"},
-                        "unit": {"name": "t*km"},
-                    },
-                ]
-            }
-        )
-    )
-    return proc
+def _lci_process_file(workspace: Path) -> Path:
+    return workspace / "artifacts" / "LCI" / "processes" / "p01.json"
 
 
 def test_fault_inject_lci_unit_missing_fires_once(tmp_path, monkeypatch):
     monkeypatch.setenv("HARNESS_FAULT_INJECT", "lci_unit_missing")
-    proc = _seed_lci(tmp_path)
     script = dict(_happy_script())
     script[(S4, "executor", 1)] = _ask_upstream(
         rework_target_stage=S3,
-        rework_artifacts=["workspace/outputs/LCI/processes/p01.json"],
+        rework_artifacts=["workspace/artifacts/LCI/processes/p01.json"],
         status_reason="preflight: unit missing on transport exchange",
     )
     script.update(_ok(S3, 2))
@@ -263,19 +293,17 @@ def test_fault_inject_lci_unit_missing_fires_once(tmp_path, monkeypatch):
     assert len(faults) == 1
     f = faults[0]
     assert f["what"] == "lci_unit_missing" and f["fired"] is True
-    assert f["file"] == "workspace/outputs/LCI/processes/p01.json"
+    assert f["file"] == "workspace/artifacts/LCI/processes/p01.json"
     assert f["exchange"]["index"] == 2 and f["exchange"]["removed_unit"] == "t*km"
-    assert "unit" not in json.loads(proc.read_text())["exchanges"][1]
     assert final["faults_fired"] == ["lci_unit_missing"]
     assert [r["to"] for r in recs if r["kind"] == "rework_upstream"] == [S3]
 
 
 def test_fault_inject_unset_has_no_effect(tmp_path, monkeypatch):
     monkeypatch.delenv("HARNESS_FAULT_INJECT", raising=False)
-    proc = _seed_lci(tmp_path)
-    before = proc.read_text()
     final, _c, recs, _m = _run(tmp_path, dict(_happy_script()), monkeypatch)
     assert final["status"] == "completed"
     assert not [r for r in recs if r["kind"] == "fault_injected"]
-    assert proc.read_text() == before
+    proc = _lci_process_file(tmp_path / "workspace")
+    assert json.loads(proc.read_text())["exchanges"][1]["unit"]["name"] == "t*km"
     assert "faults_fired" not in final

@@ -36,6 +36,18 @@ _MINIMAL_BOM = {
     ]
 }
 
+_MINIMAL_LCI_PROCESS = {
+    "exchanges": [
+        {"isInput": False, "unit": {"name": "kg"}},
+        {
+            "isInput": True,
+            "amount": 19.5,
+            "flow": {"@id": "f-tr", "name": "transport, lorry"},
+            "unit": {"name": "t*km"},
+        },
+    ]
+}
+
 _MINIMAL_MAPPING = {
     "items": [
         {
@@ -141,7 +153,8 @@ class ScriptedSessionClient:
                 or "test 模型连接失败：Connection error."
             )
             raise WorkerTransportError(message)
-        self._write_outputs(payload)
+        self._write_outputs(payload, context)
+        self._seed_import_operations(payload, context)
         handoff_rel = context["handoff_path"]
         handoff_path = Path(handoff_rel)
         if not handoff_path.is_absolute():
@@ -182,12 +195,23 @@ class ScriptedSessionClient:
     def release(self, ref: SessionRef) -> None:
         del ref
 
-    def _write_outputs(self, payload: dict) -> None:
+    def _write_outputs(self, payload: dict, context: dict) -> None:
         for relative in payload.get("write") or []:
-            path = self.workspace.joinpath(*Path(relative).parts[1:])
+            from backend.core.workflow.workspace.layout import resolve_path, stage_spec
+            stage = context['stage']
+            name = Path(relative.rstrip('/')).name
+            declared = next((d['path'] for d in stage_spec(PROJECT_ROOT, stage).get('deliverables', []) if Path(d['path']).name == name), relative)
+            path = resolve_path(self.workspace, PROJECT_ROOT, stage, declared, role=context['role'], attempt=context['attempt'])
             path.parent.mkdir(parents=True, exist_ok=True)
             if relative.endswith("/"):
                 path.mkdir(parents=True, exist_ok=True)
+                if path.name == "LCI":
+                    proc = path / "processes" / "p01.json"
+                    proc.parent.mkdir(parents=True, exist_ok=True)
+                    proc.write_text(
+                        json.dumps(_MINIMAL_LCI_PROCESS, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
                 continue
             if relative.endswith("extracted-bom.json"):
                 path.write_text(
@@ -199,6 +223,27 @@ class ScriptedSessionClient:
                 )
             else:
                 path.write_text("{}\n", encoding="utf-8")
+
+    def _seed_import_operations(self, payload: dict, context: dict) -> None:
+        entities = payload.get("import_operations")
+        if not entities:
+            return
+        stage = context["stage"]
+        role = context["role"]
+        attempt = int(context["attempt"])
+        ops = (
+            self.workspace
+            / "runs"
+            / stage
+            / f"{role}-{attempt}"
+            / "import-operations"
+            / "operations"
+        )
+        ops.mkdir(parents=True, exist_ok=True)
+        (ops / "1.json").write_text(
+            json.dumps({"entities": list(entities)}, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
 
 def context_from_prompt(prompt: str) -> dict:
@@ -223,23 +268,17 @@ def happy_script() -> HandoffScript:
         },
         ("02-inventory-extraction", "executor", 1): {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
-            ],
+            "write": ["extracted-bom.json", "extracted-bom.md"],
         },
         ("02-inventory-extraction", "reviewer", 1): {"status": "passed"},
         ("03-dataset-mapping", "executor", 1): {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/process-mapping.json",
-                "workspace/outputs/LCI/",
-            ],
+            "write": ["process-mapping.json", "LCI/"],
         },
         ("03-dataset-mapping", "reviewer", 1): {"status": "passed"},
         ("04-openlca-reporting", "executor", 1): {
             "status": "ok",
-            "write": ["workspace/outputs/reports/lca_report.md"],
+            "write": ["lca_report.md"],
         },
         ("04-openlca-reporting", "reviewer", 1): {"status": "passed"},
     }
@@ -256,23 +295,17 @@ def revise_happy_script() -> HandoffScript:
         },
         ("02-inventory-extraction", "reviser", 1): {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
-            ],
+            "write": ["extracted-bom.json", "extracted-bom.md"],
         },
         ("02-inventory-extraction", "reviewer", 1): {"status": "passed"},
         ("03-dataset-mapping", "reviser", 1): {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/process-mapping.json",
-                "workspace/outputs/LCI/",
-            ],
+            "write": ["process-mapping.json", "LCI/"],
         },
         ("03-dataset-mapping", "reviewer", 1): {"status": "passed"},
         ("04-openlca-reporting", "reviser", 1): {
             "status": "ok",
-            "write": ["workspace/outputs/reports/lca_report.md"],
+            "write": ["lca_report.md"],
         },
         ("04-openlca-reporting", "reviewer", 1): {"status": "passed"},
     }

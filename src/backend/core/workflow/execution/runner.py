@@ -21,7 +21,9 @@ from backend.core.workflow.spec.outputs import (
     validate_inputs,
     validate_outputs,
 )
-from backend.settings import records_root
+from backend.settings import run_root
+from backend.core.workflow.workspace.index import accept_stage, register_attempt
+from backend.core.workflow.workspace.layout import attempts, resolve_path
 
 from ..config.bundle import TaskBundle
 from ..config.models import Assignment, Stage, Workflow
@@ -244,6 +246,16 @@ class OrchestratorRuntime:
     def prepare(self, state: WorkflowState) -> dict[str, Any]:
         stage, assignment = self._current(state)
         bundle = self.bundles[assignment.assignment_id]
+        task = _state_str(state, "task")
+        origin = task if task in {"whole-lca", "revise-lca", "resume-lca"} else "whole-lca"
+        register_attempt(
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            _attempt(state),
+            _state_str(state, "run_id"),
+            origin=origin,
+        )
         # Stage entry: validate inputs before first assignment work (no retry bump).
         if _state_int(state, "step_index") == 0:
             input_errors = validate_inputs(
@@ -265,7 +277,11 @@ class OrchestratorRuntime:
                     },
                 }
         handoff = handoff_path(
-            self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            _attempt(state),
+            project_root=self.project_root,
         )
         context = {
             "run_id": _state_str(state, "run_id"),
@@ -317,6 +333,21 @@ class OrchestratorRuntime:
         from .session_bind import build_session_config
 
         stage, assignment = self._current(state)
+        from backend.core.workflow.hooks import get_before_openlca_write
+
+        hook = get_before_openlca_write()
+        if (
+            callable(hook)
+            and assignment.role in WRITER_ROLES
+            and stage.stage_id == "04-openlca-reporting"
+        ):
+            hook(
+                self.project_root,
+                self.workspace_root,
+                stage_id=stage.stage_id,
+                role=assignment.role,
+                attempt=_attempt(state),
+            )
         model = model_for_assignment(
             self.project_root, assignment.assignment_id, self.model
         )
@@ -324,7 +355,11 @@ class OrchestratorRuntime:
         sessions = dict(state.get("sessions") or {})
         bundle = self.bundles[assignment.assignment_id]
         handoff = handoff_path(
-            self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            _attempt(state),
+            project_root=self.project_root,
         )
         run_context = {
             "run_id": _state_str(state, "run_id"),
@@ -432,7 +467,11 @@ class OrchestratorRuntime:
         sessions[key] = ref.to_dict()
         print_orchestrator(f"worker turn done session={ref.session_id}")
         handoff_file = handoff_path(
-            self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            _attempt(state),
+            project_root=self.project_root,
         )
         if not handoff_file.is_file():
             print_orchestrator(
@@ -451,7 +490,11 @@ class OrchestratorRuntime:
         stage, assignment = self._current(state)
         attempt = _attempt(state)
         path = handoff_path(
-            self.workspace_root, stage.stage_id, assignment.role, attempt
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            attempt,
+            project_root=self.project_root,
         )
         try:
             handoff = read_handoff(
@@ -513,7 +556,20 @@ class OrchestratorRuntime:
         bundle = self.bundles[assignment.assignment_id]
         missing = missing_expected_outputs(
             self.workspace_root,
-            bundle.expected_outputs,
+            [
+                str(
+                    resolve_path(
+                        self.workspace_root,
+                        self.project_root,
+                        stage.stage_id,
+                        item.path,
+                        role=assignment.role,
+                        attempt=_attempt(state),
+                    ).relative_to(self.workspace_root.resolve())
+                )
+                for item in bundle.stage_spec.outputs
+                if item.required
+            ],
         )
         status = handoff["status"]
         failed = status in {"failed", "blocked"} or bool(missing)
@@ -565,6 +621,8 @@ class OrchestratorRuntime:
             bundle.stage_spec,
             workspace_root=self.workspace_root,
             project_root=self.project_root,
+            role=assignment.role if assignment.role in WRITER_ROLES else None,
+            attempt=_attempt(state),
         )
         if output_errors:
             reason = "产物契约未通过：" + "; ".join(output_errors[:20])
@@ -711,6 +769,13 @@ class OrchestratorRuntime:
                             "status_reason": reason,
                         },
                     }
+            accept_stage(
+                self.workspace_root,
+                self.project_root,
+                bundle.stage_spec,
+                _attempt(state),
+                _state_str(state, "run_id"),
+            )
             write_review_note(
                 note_path,
                 handoff,
@@ -751,6 +816,7 @@ class OrchestratorRuntime:
             bundle.stage_spec,
             workspace_root=self.workspace_root,
             project_root=self.project_root,
+            attempt=_attempt(state),
         )
         if output_errors:
             return "审查期间产物或确定性检查状态已变化：" + "; ".join(
@@ -884,10 +950,20 @@ class OrchestratorRuntime:
         return UPSTREAM_REWORK_LIMIT_DEFAULT
 
     def _stage_outputs(self, stage: Stage) -> list[str]:
+        from backend.core.workflow.workspace.legacy_paths import resolve_declared_path
+
         for assignment_id in stage.steps:
             bundle = self.bundles.get(assignment_id)
             if bundle is not None:
-                return [item.path for item in bundle.stage_spec.outputs]
+                spec = bundle.stage_spec
+                return [
+                    resolve_declared_path(
+                        stage_id=spec.spec_id,
+                        declared=item.path,
+                        from_ref=item.from_ref,
+                    )
+                    for item in spec.outputs
+                ]
         return []
 
     def validate_upstream_request(
@@ -904,11 +980,14 @@ class OrchestratorRuntime:
             )
         producers: dict[str, list[int]] = {}
         for artifact in artifacts:
-            producers[artifact] = [
+            artifact_n = _norm_rel(artifact)
+            producers[artifact_n] = [
                 i
                 for i in range(stage_index)
                 if any(
-                    _path_covers(out, artifact)
+                    _artifact_matches_declared_output(
+                        self.workflow.stages[i].stage_id, out, artifact_n
+                    )
                     for out in self._stage_outputs(self.workflow.stages[i])
                 )
             ]
@@ -1088,7 +1167,7 @@ class OrchestratorRuntime:
         cannot treat the old model as approved.
         """
         run_id = _state_str(state, "run_id")
-        records = records_root(self.workspace_root)
+        records = run_root(self.workspace_root)
         write_json_atomic(
             records / "rework" / f"upstream-{rework_no}.json",
             {
@@ -1203,7 +1282,13 @@ class OrchestratorRuntime:
         nxt = self.workflow.stages[next_stage]
         fired = self._maybe_inject_fault(state, stage)
         high = _record_high_water(state, stage.stage_id)
-        base = int(high.get(nxt.stage_id, 0))
+        base = max(
+            int(high.get(nxt.stage_id, 0)),
+            max(
+                (int(r["attempt"]) for r in attempts(self.workspace_root, nxt.stage_id)),
+                default=0,
+            ),
+        )
         stale = [s for s in (state.get("stale_stages") or []) if s != stage.stage_id]
         bases = dict(state.get("stage_attempt_base") or {})
         if base:
@@ -1289,6 +1374,36 @@ def _norm_rel(path: str) -> str:
 def _path_covers(declared: str, artifact: str) -> bool:
     d, a = _norm_rel(declared), _norm_rel(artifact)
     return a == d or a.startswith(d + "/")
+
+
+def _artifact_matches_declared_output(
+    stage_id: str, declared: str, artifact: str
+) -> bool:
+    """Match artifacts/ paths and attempt dirs under workspace/runs/<stage>/…."""
+    from backend.core.workflow.workspace.legacy_paths import resolve_declared_path
+
+    declared_n = _norm_rel(declared)
+    artifact_n = _norm_rel(artifact)
+    if _path_covers(declared_n, artifact_n):
+        return True
+    prefix = f"workspace/runs/{stage_id}/"
+    if not artifact_n.startswith(prefix):
+        return False
+    rest = artifact_n[len(prefix) :]
+    slash = rest.find("/")
+    if slash < 0:
+        return False
+    suffix = rest[slash + 1 :]
+    if not suffix:
+        return False
+    mapped = _norm_rel(resolve_declared_path(stage_id=stage_id, declared=suffix))
+    if _path_covers(declared_n, mapped):
+        return True
+    root = suffix.split("/")[0]
+    mapped_root = _norm_rel(resolve_declared_path(stage_id=stage_id, declared=root))
+    return _path_covers(declared_n, mapped_root) and (
+        suffix == root or suffix.startswith(root + "/")
+    )
 
 
 def _strip_transport_unit(root: Path) -> tuple[str, dict[str, Any]] | None:

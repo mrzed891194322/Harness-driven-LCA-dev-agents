@@ -13,14 +13,14 @@
 
 ## 2. 前景清单
 
-用表格列出 BOM `item_id`、名称、数量、单位、来源。完整清单见 `workspace/outputs/inventory/extracted-bom.json`。
+用表格列出 BOM `item_id`、名称、数量、单位、来源。完整清单见 `workspace/artifacts/extracted-bom.json`。
 
 <!-- lca:inventory:start -->
 <!-- lca:inventory:end -->
 
 ## 3. 数据集映射
 
-用表格列出 `item_id`、选用 Process/Provider 名称与 UUID、请求/实际地域、理由。完整映射见 `workspace/outputs/inventory/process-mapping.json`。
+用表格列出 `item_id`、选用 Process/Provider 名称与 UUID、请求/实际地域、理由。完整映射见 `workspace/artifacts/process-mapping.json`。
 
 <!-- lca:mapping:start -->
 <!-- lca:mapping:end -->

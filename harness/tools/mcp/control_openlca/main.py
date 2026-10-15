@@ -427,12 +427,21 @@ def cleanup_output(
     operation_dir: str | None = None,
     timeout_sec: int | None = None,
 ) -> dict[str, Any]:
+    if confirm:
+        return {
+            "status": "failed",
+            "errors": [
+                {
+                    "message": (
+                        "cleanup_output(confirm=true) is host-only; "
+                        "agents must use confirm=false preview"
+                    )
+                }
+            ],
+        }
     host, port = _endpoint_config()
     category = _target_category(target_category)
-    result = run_cleanup_output(host, port, category, confirm=confirm)
-    if confirm and result.get("ok") and operation_dir is not None:
-        operations.reconcile_cleanup(Path(operation_dir), host, port, category)
-    return result
+    return run_cleanup_output(host, port, category, confirm=False)
 
 
 @mcp.tool(

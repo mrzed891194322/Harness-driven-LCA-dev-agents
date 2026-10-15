@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.runtime.tool_runtime import write_json_atomic
-from backend.settings import records_root
+from backend.settings import run_root
 
 ACCEPTANCE_MODEL = "lca.model"
 MANIFEST_SCHEMA_VERSION = 2
@@ -18,7 +18,7 @@ def seed_acceptance_manifest(
     new_run_id: str,
     acceptance_blob: dict[str, Any],
 ) -> Path:
-    path = records_root(workspace_root) / "evidence" / new_run_id / "manifest.json"
+    path = run_root(workspace_root) / "evidence" / new_run_id / "manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
@@ -41,5 +41,5 @@ def write_resume_metadata(
         "from_stage": from_stage,
         "run_id": run_id,
     }
-    path = records_root(workspace_root) / "evidence" / run_id / "resume.json"
+    path = run_root(workspace_root) / "evidence" / run_id / "resume.json"
     write_json_atomic(path, payload)

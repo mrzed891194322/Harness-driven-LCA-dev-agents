@@ -304,9 +304,9 @@ class WorkflowYamlTests(unittest.TestCase):
             self.assertEqual(
                 config.archive_dir,
                 workspace
-                / "records"
+                / "runs"
+                / "_run"
                 / "logs"
-                / "run-1"
                 / stage.stage_id
                 / f"{executor.assignment_id}#2",
             )

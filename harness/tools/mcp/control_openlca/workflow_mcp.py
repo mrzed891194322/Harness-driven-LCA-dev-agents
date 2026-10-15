@@ -53,6 +53,7 @@ from harness.tools.shared.control_openlca.workflow import (
 from harness.tools.shared.control_openlca.workflow import (
     get_model_graph as run_get_model_graph,
 )
+from harness.tools.shared.lca_artifacts.lci_import_dir import resolve_workflow_lci_dir
 from harness.tools.shared.lca_artifacts.store import (
     Context,
     bind_context_argv,
@@ -69,6 +70,10 @@ def _require_mcp_stdio_channel() -> None:
 
 
 CLEANUP_ALLOWED_PHASES = frozenset({"report"})
+
+
+def _import_operation_dir(context: Context) -> Path:
+    return context.safe(context.attempt_root() / "import-operations")
 
 
 def _require_cleanup_phase(context: Context) -> None:
@@ -192,27 +197,14 @@ def _endpoint_config() -> tuple[str, int]:
 
 
 def _workflow_lci_dir(lci_dir: str) -> Path:
-    """Limit MCP imports to canonical LCI or a workflow compatibility directory."""
+    """Limit MCP imports to accepted upstream LCI, artifacts copy, or tmp draft."""
     project_root = PROJECT_ROOT.resolve()
     workspace_root = Path(
         os.getenv("LCA_WORKSPACE", str(project_root / "workspace"))
     ).resolve()
-    configured = Path(lci_dir)
-    if not configured.is_absolute() and configured.parts[:1] == ("workspace",):
-        candidate = workspace_root.joinpath(*configured.parts[1:])
-    else:
-        candidate = (
-            configured if configured.is_absolute() else project_root / configured
-        )
-    resolved = candidate.resolve()
-    canonical = workspace_root / "outputs" / "LCI"
-    temporary_root = workspace_root / "tmp"
-    if resolved != canonical and temporary_root not in resolved.parents:
-        raise ValueError(
-            "lci_dir must resolve to workspace/outputs/LCI or a subdirectory "
-            "of workspace/tmp"
-        )
-    return resolved
+    return resolve_workflow_lci_dir(
+        lci_dir, workspace_root=workspace_root, project_root=project_root
+    )
 
 
 def _target_category(target_category: str) -> str:
@@ -337,8 +329,9 @@ def get_flow_providers(
 
 @mcp.tool(
     description=(
-        "Read and validate canonical workspace/outputs/LCI or a compatibility LCI under "
-        "workspace/tmp, inspect the active database and target category, and list "
+        "Read and validate workspace/artifacts/LCI, the accepted 03 attempt LCI "
+        "directory, or a compatibility LCI under workspace/tmp; inspect the active "
+        "database and target category, and list "
         "create/overwrite/delete scope. This tool performs no database writes. "
         "A file whose own @id already exists outside the target category (including "
         "an empty category) fails preflight; background entities may only appear as "
@@ -350,7 +343,7 @@ def get_flow_providers(
 )
 @v2_tool("preflight_import_lci")
 def preflight_import_lci(
-    lci_dir: str = "workspace/outputs/LCI",
+    lci_dir: str = "workspace/artifacts/LCI",
     target_category: str = "",
     database_name: str | None = None,
     timeout_sec: int | None = None,
@@ -364,15 +357,16 @@ def preflight_import_lci(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
+        operation_dir=_import_operation_dir(context),
         run_id=context.run_id,
     )
 
 
 @mcp.tool(
     description=(
-        "Destructively import canonical workspace/outputs/LCI or a compatibility LCI "
-        "under workspace/tmp after rerunning preflight. Scope (run, endpoint, database, "
+        "Destructively import workspace/artifacts/LCI, the accepted 03 attempt LCI "
+        "directory, or a compatibility LCI under workspace/tmp after rerunning preflight. "
+        "Scope (run, endpoint, database, "
         "category, lci_dir) must match preflight; LCI file content may change within "
         "the same run after rework and will update existing UUIDs in the target category. "
         "An @id that already exists outside the target category is rejected and not "
@@ -389,7 +383,7 @@ def preflight_import_lci(
 def import_lci(
     request_id: str,
     preflight_id: str,
-    lci_dir: str = "workspace/outputs/LCI",
+    lci_dir: str = "workspace/artifacts/LCI",
     target_category: str = "",
     database_name: str | None = None,
     resume_operation_id: str | None = None,
@@ -411,7 +405,7 @@ def import_lci(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
+        operation_dir=_import_operation_dir(context),
         run_id=context.run_id,
         request_id=request_id,
         preflight_id=preflight_id,
@@ -435,7 +429,7 @@ def reconcile_import(operation_id: str, timeout_sec: int | None = None) -> dict[
     return operations.reconcile_import(
         host,
         port,
-        context.safe(context.workspace / "records" / "import-operations"),
+        _import_operation_dir(context),
         run_id=context.run_id,
         operation_id=operation_id,
     )
@@ -456,7 +450,7 @@ def resume_import(
     operation_id: str,
     request_id: str,
     preflight_id: str,
-    lci_dir: str = "workspace/outputs/LCI",
+    lci_dir: str = "workspace/artifacts/LCI",
     target_category: str = "",
     database_name: str | None = None,
     timeout_sec: int | None = None,
@@ -477,7 +471,7 @@ def resume_import(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
+        operation_dir=_import_operation_dir(context),
         run_id=context.run_id,
         request_id=request_id,
         preflight_id=preflight_id,
@@ -499,7 +493,7 @@ def import_status(
     """Job-style status for the current or specified import operation."""
     context = Context.environment()
     return operations.get_operation(
-        context.safe(context.workspace / "records" / "import-operations"),
+        _import_operation_dir(context),
         run_id=context.run_id,
         request_id=request_id,
         operation_id=operation_id,
@@ -521,7 +515,7 @@ def get_import_operation(
     """Read an import journal without writing to openLCA."""
     context = Context.environment()
     return operations.get_operation(
-        context.safe(context.workspace / "records" / "import-operations"),
+        _import_operation_dir(context),
         run_id=context.run_id,
         request_id=request_id,
         operation_id=operation_id,
@@ -627,24 +621,25 @@ def cleanup_output(
 ) -> dict[str, Any]:
     """Clean workflow-imported entities from the active openLCA database."""
     if confirm:
-        _require_cleanup_phase(Context.environment())
+        return {
+            "status": "failed",
+            "errors": [
+                {
+                    "message": (
+                        "cleanup_output(confirm=true) is host-only; "
+                        "agents must use confirm=false preview"
+                    )
+                }
+            ],
+        }
     host, port = _endpoint_config()
-    result = run_cleanup_output(
+    return run_cleanup_output(
         host=host,
         port=port,
         target_category=_target_category(target_category),
         include_supporting=include_supporting,
-        confirm=confirm,
+        confirm=False,
     )
-    if confirm and result.get("ok"):
-        context = Context.environment()
-        operations.reconcile_cleanup(
-            context.safe(context.workspace / "records" / "import-operations"),
-            host,
-            port,
-            _target_category(target_category),
-        )
-    return result
 
 
 @mcp.tool(

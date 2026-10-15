@@ -6,10 +6,10 @@
 
 - 输入：`harness/knowledge/plan/main_plan.md`（revise 另加 `harness/knowledge/plan/revise_plan.md`）
 - 知识：以工作流 YAML 绑定的 `knowledge_sources` / `source_manifest` 为准
-- 状态：`workspace/records/manifest.json`、`workspace/records/reviews/`、`workspace/records/handoffs/`；编排检查点在 `workspace/records/` 的 SQLite
-- 排障留档：`workspace/records/logs/<run_id>/`；运行时 MCP 渲染在 `workspace/tmp/mcp-render/`
+- 状态：`workspace/runs/_run/manifest.json`；每次尝试的 handoff / review 在 `workspace/runs/<stage>/<role>-<n>/`；编排检查点为 `workspace/runs/_run/orchestrator.sqlite`
+- 排障留档：`workspace/runs/_run/logs/`；运行时 MCP 渲染在 `workspace/tmp/mcp-render/`
 - 前景产物：`extracted-bom.json` / `.md`、`process-mapping.json`。GUI「工作细节」只渲染两份 JSON
-- LCI：`workspace/outputs/LCI/`（`flows/`、`processes/`、`product_systems/`，外加 `human_readable_mapping.md`）
+- LCI：`workspace/artifacts/LCI/`（`flows/`、`processes/`、`product_systems/`，外加 `human_readable_mapping.md`）
 - 报告：`lca_report.md`；MCP 完整业务结果在 `reports/runs/<run_id>/.../raw.json`。revise 覆盖该报告并追加修订三节
 
 ## 证据与返工政策
@@ -26,7 +26,7 @@
 
 可选 handoff 字段 `checks_ref` / `evidence_manifest_ref` 为路径字符串；`rework_scope` 为 none / report_only / calculation_changed / model_changed。不可自行伪造工具检查状态。
 
-**请求上游返工**：执行者发现问题出在上游阶段的产物（本阶段只能写自己的产物，改不了）时，以 `status=failed` 交卷，并给出 `rework_scope=model_changed`、`rework_artifacts`（出问题的上游产物路径列表，如 `workspace/outputs/inventory/extracted-bom.json`）和可选的 `rework_target_stage`（建议退回的阶段 id）；`status_reason` 写问题，`fix_instructions` 写上游要怎么改。主编排会核对：目标必须在本阶段上游，且其 spec 声明产出这些文件；核对不通过就仍在本阶段重做。退回后目标阶段及其后所有阶段作废重跑，上游返工次数有上限，超出即 failed。不要用上游返工逃避本阶段能修的问题。
+**请求上游返工**：执行者发现问题出在上游阶段的产物（本阶段只能写自己的产物，改不了）时，以 `status=failed` 交卷，并给出 `rework_scope=model_changed`、`rework_artifacts`（出问题的上游产物路径列表，如 `workspace/artifacts/extracted-bom.json` 或 `workspace/runs/02-inventory-extraction/executor-1/extracted-bom.json`）和可选的 `rework_target_stage`（建议退回的阶段 id）；`status_reason` 写问题，`fix_instructions` 写上游要怎么改。主编排会核对：目标必须在本阶段上游，且其 spec 声明产出这些文件；核对不通过就仍在本阶段重做。退回后目标阶段及其后所有阶段作废重跑，上游返工次数有上限，超出即 failed。不要用上游返工逃避本阶段能修的问题。
 
 审查 `passed` 后执行的 lifecycle actions（如 mapping 阶段 `record_acceptance`）应尽量幂等；运行器在异常时 fail-closed。openLCA 访问遵守绑定的工具规则。新 revise 仍完整执行工作流 YAML 中的全部阶段，不复用跨 run 的通过状态。
 

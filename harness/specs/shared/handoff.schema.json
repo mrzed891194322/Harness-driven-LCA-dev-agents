@@ -26,7 +26,7 @@
         "type": "string",
         "minLength": 1
       },
-      "description": "Workspace-relative paths of the upstream artifacts that must change (e.g. workspace/outputs/inventory/extracted-bom.json). Required for upstream rework."
+      "description": "Workspace-relative paths of the upstream artifacts that must change (e.g. workspace/artifacts/extracted-bom.json). Required for upstream rework."
     }
   }
 }

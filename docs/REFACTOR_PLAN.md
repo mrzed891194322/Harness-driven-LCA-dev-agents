@@ -41,6 +41,7 @@
 | `refactor/p5-cleanup-lock` | `refactor/p5-spec-channels`（rebase 到 `0a7cda4`） | `61e8289`、`f14bcde` | 预清理顺序 openlca 先于 workspace（UUID 来源不丢）；`check_openlca` 遇 IPC 锁占用报 busy+holder 而非「无法连接」，状态页「占用中」；清理只读查询读超时探活后重试一次；run `7b272327`：LCI Process 拓扑导入 + defaultProvider 修复、spec_mcp `submit(path=…)`、openLCA 读结果 `outside_project`、ProductSystem 分类对齐；Python 522 全过、前端 build 过；未连真实 openLCA 跑完整运行 | 已合并（ff 到 `f14bcde`，2026-10-11 17:05，已重启） |
 | `refactor/p5-zombie-runs` | `refactor/p5-cleanup-lock`（`f14bcde`） | （进行中） | 编排器 `orchestrator.heartbeat.json`（15s）+ `run_reconcile`（锁探测/心跳超时/死 PID）；后端启动与 progress、`/api/runs*` 对账；状态 `interrupted`、事件 `run_interrupted`；运行详情与历史列表区分已中断/失败，支持从头重跑 | 未合并 |
 | `feature/resume-from-stage` | `master`（worktree） | `e30d3ff`+ | 工作流 YAML 迁至 `src/backend/workflows/`；新运行保存 `workflow.yaml` 快照；`resume-lca` 任务 + `resume_plan` 资格校验/清单清理/过滤装配图；API `resume-preview` + `POST /api/workflow/resume`；运行页从阶段继续 UI；Python 549+ 全过（不含 pi-runtime 环境用例）、前端 build 通过 | 未合并 |
+| `refactor/workspace-runs-artifacts` | `master` `b49c3f1` | `004364f`+ | `workspace/runs` 尝试目录 + `accepted.json`；证据/checks 随尝试；whole-lca 清 runs/artifacts/tmp；MCP 禁止 `cleanup_output(confirm=true)`；Python 577 全过、`npm run build` 通过 | 未合并 |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 

@@ -369,11 +369,15 @@ def clean_root_files(
 # Canonical workspace subdirectory names (formerly utils/workspace_layout.py)
 # ---------------------------------------------------------------------------
 
-RECORDS_DIRNAME = "records"
+RUN_LEVEL_DIRNAME = "_run"
+RUNS_DIRNAME = "runs"
+RUN_DIRNAME = f"{RUNS_DIRNAME}/{RUN_LEVEL_DIRNAME}"
+ORCHESTRATOR_LOCK_REL = "runs/_run/orchestrator.lock"
 
 
-def records_root(workspace_root: Path) -> Path:
-    return workspace_root / RECORDS_DIRNAME
+def run_root(workspace_root: Path) -> Path:
+    """Run-scoped files (manifest, checkpoint, evidence, progress, …)."""
+    return workspace_root / RUN_DIRNAME
 
 
 # ---------------------------------------------------------------------------

@@ -76,7 +76,7 @@ class OutputTrailingSlashTests(unittest.TestCase):
         )
         outs = workflow.bundles["03-dataset-mapping.executor"].stage_spec.outputs
         kinds = {item.path: item.kind for item in outs}
-        self.assertEqual(kinds.get("workspace/outputs/LCI"), "directory")
+        self.assertEqual(kinds.get("LCI"), "directory")
 
 
 class FrozenModelTests(unittest.TestCase):

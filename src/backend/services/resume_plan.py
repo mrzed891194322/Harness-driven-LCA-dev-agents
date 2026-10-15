@@ -25,7 +25,7 @@ from backend.core.workflow.persistence.workflow_snapshot import (
 from backend.core.workflow.resume_stages import normalize_resume_code, stage_id_from_code
 from backend.services.project_paths import MAIN_WORKFLOW_REL
 from backend.services.run_reconcile import workflow_status_for_run
-from backend.settings import records_root
+from backend.settings import run_root
 from harness.tools.shared.control_openlca import cleanup as openlca_cleanup
 from harness.tools.shared.lca_artifacts.checks import snapshot_unchanged
 from harness.tools.shared.lca_artifacts.store import Context
@@ -33,16 +33,18 @@ from harness.tools.shared.lca_artifacts.store import Context
 # Workspace-relative artifact roots produced per stage (see harness/specs + ARTIFACTS.md).
 STAGE_ARTIFACTS: dict[str, list[str]] = {
     "02-inventory-extraction": [
-        "outputs/inventory/extracted-bom.json",
-        "outputs/inventory/extracted-bom.md",
+        "artifacts/extracted-bom.json",
+        "artifacts/extracted-bom.md",
         "tmp",
     ],
     "03-dataset-mapping": [
-        "outputs/inventory/process-mapping.json",
-        "outputs/LCI",
+        "artifacts/process-mapping.json",
+        "artifacts/LCI",
     ],
     "04-openlca-reporting": [
-        "outputs/reports",
+        "artifacts/calculation-plan.json",
+        "artifacts/lca_report.md",
+        "artifacts/results.json",
     ],
 }
 
@@ -71,28 +73,19 @@ def _workspace_rel(path: str) -> str:
     return p
 
 
-def _handoffs_dir(workspace_root: Path) -> Path:
-    return records_root(workspace_root) / "handoffs"
-
-
 def _latest_reviewer_handoff(workspace_root: Path, stage_id: str) -> Path | None:
-    folder = _handoffs_dir(workspace_root)
-    if not folder.is_dir():
-        return None
-    prefix = f"{stage_id}-reviewer-"
-    candidates = sorted(folder.glob(f"{prefix}*.json"), key=lambda p: p.name)
-    if not candidates:
-        return None
+    stage_runs = workspace_root / "runs" / stage_id
     best: Path | None = None
     best_attempt = -1
-    for path in candidates:
-        m = re.search(r"-reviewer-(\d+)\.json$", path.name)
-        if not m:
-            continue
-        attempt = int(m.group(1))
-        if attempt >= best_attempt:
-            best_attempt = attempt
-            best = path
+    if stage_runs.is_dir():
+        for path in stage_runs.glob("reviewer-*/handoff.json"):
+            m = re.search(r"reviewer-(\d+)", path.parent.name)
+            if not m:
+                continue
+            attempt = int(m.group(1))
+            if attempt >= best_attempt:
+                best_attempt = attempt
+                best = path
     return best
 
 
@@ -121,7 +114,7 @@ def _fingerprint_plan_inputs(project_root: Path) -> str:
 
 
 def _evidence_manifest(workspace_root: Path, run_id: str) -> dict[str, Any] | None:
-    path = records_root(workspace_root) / "evidence" / run_id / "manifest.json"
+    path = run_root(workspace_root) / "evidence" / run_id / "manifest.json"
     if not path.is_file():
         return None
     try:
@@ -209,7 +202,7 @@ def _inputs_unchanged(
                 return True, reasons
             reasons.append("计划或 inputs 相对上次验收快照已变化")
             return False, reasons
-    sources_dir = records_root(workspace_root) / "evidence" / old_run_id / "sources"
+    sources_dir = run_root(workspace_root) / "evidence" / old_run_id / "sources"
     if sources_dir.is_dir():
         recorded: dict[str, set[str]] = {}
         for path in sorted(sources_dir.glob("*.json")):
@@ -278,23 +271,50 @@ def _artifact_paths_exist(workspace_root: Path, stage_id: str) -> tuple[bool, li
 def _record_globs_for_stage(stage_id: str) -> list[str]:
     short = stage_id.split("-", 1)[0]
     return [
-        f"records/handoffs/{stage_id}-*",
-        f"records/reviews/{stage_id}*",
-        f"records/reviews/{short}*",
-        f"records/sessions/{stage_id}.*",
-        f"records/sessions/{short}*",
+        f"runs/{stage_id}/executor-*",
+        f"runs/{stage_id}/reviser-*",
+        f"runs/{stage_id}/reviewer-*",
+        f"runs/{stage_id}/system-*",
+        f"runs/_run/sessions/{stage_id}.*",
+        f"runs/_run/sessions/{short}*",
     ]
 
 
 def _expand_glob(workspace_root: Path, pattern: str) -> list[Path]:
     rel = pattern.replace("\\", "/")
-    if rel.startswith("records/"):
-        base = records_root(workspace_root)
-        glob_part = rel[len("records/") :]
+    if rel.startswith("runs/_run/"):
+        base = run_root(workspace_root)
+        glob_part = rel[len("runs/_run/") :]
     else:
         base = workspace_root
         glob_part = rel
     return sorted(base.glob(glob_part))
+
+
+def reused_accepted_attempts(workspace_root: Path, from_stage_id: str) -> list[dict[str, str]]:
+    """Accepted writer/reviewer dirs for stages before ``from_stage_id``."""
+    start = _stage_index(from_stage_id)
+    reused: list[dict[str, str]] = []
+    for stage_id in STAGE_ORDER[:start]:
+        path = workspace_root / "runs" / stage_id / "accepted.json"
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        reused.append(
+            {
+                "stage": stage_id,
+                "executor": str(
+                    payload.get("executor") or payload.get("writer") or ""
+                ),
+                "reviewer": str(payload.get("reviewer") or ""),
+            }
+        )
+    return reused
 
 
 def cleanup_workspace_paths(workspace_root: Path, from_stage_id: str) -> list[str]:
@@ -311,12 +331,6 @@ def cleanup_workspace_paths(workspace_root: Path, from_stage_id: str) -> list[st
                 except ValueError:
                     continue
                 paths.append(rel)
-        if stage_id == "04-openlca-reporting":
-            # The whole import journal (operations, current.json, scopes, preflights,
-            # requests, consumed) belongs to stage 04; its @ids are read into the
-            # openLCA cleanup list before this directory is deleted.
-            if (workspace_root / "records" / "import-operations").exists():
-                paths.append("records/import-operations")
     # de-dupe, preserve order
     seen: set[str] = set()
     out: list[str] = []
@@ -406,9 +420,6 @@ def eligibility(
     if not ok_inputs:
         reasons.extend(input_reasons)
 
-    ws_paths = cleanup_workspace_paths(workspace_root, from_stage_id)
-    ola_ids = openlca_cleanup_ids(workspace_root)
-
     eligible = not reasons and snapshot_text is not None
     return {
         "eligible": eligible,
@@ -416,7 +427,8 @@ def eligibility(
         "inherited_stages": inherited,
         "from_stage": code,
         "from_stage_id": from_stage_id,
-        "cleanup": {"workspace_paths": ws_paths, "openlca_ids": ola_ids},
+        "reused_attempts": reused_accepted_attempts(workspace_root, from_stage_id),
+        "cleanup": {"workspace_paths": [], "openlca_ids": []},
         "workflow_yaml": snapshot_text,
         "rework_note": f"续跑后，返工请求若指向 {from_stage_id} 之前的阶段将被拒绝",
     }
@@ -447,7 +459,7 @@ def _filter_workflow_document(document: dict[str, Any], from_stage_id: str) -> d
 
 
 def resume_plan_dir(workspace_root: Path, old_run_id: str) -> Path:
-    return records_root(workspace_root) / "resume" / old_run_id
+    return run_root(workspace_root) / "resume" / old_run_id
 
 
 def build_plan(
@@ -472,22 +484,16 @@ def build_plan(
     plan_root = resume_plan_dir(workspace_root, old_run_id)
     plan_root.mkdir(parents=True, exist_ok=True)
     workflow_path = plan_root / "workflow.yaml"
-    cleanup_path = plan_root / "cleanup.json"
     plan_path = plan_root / "plan.json"
 
     workflow_path.write_text(composed, encoding="utf-8")
-    cleanup_payload = preview["cleanup"]
-    cleanup_path.write_text(
-        json.dumps(cleanup_payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
     plan_payload = {
         "old_run_id": old_run_id,
         "from_stage": preview["from_stage"],
         "from_stage_id": from_stage_id,
         "inherited_stages": preview["inherited_stages"],
+        "reused_attempts": preview.get("reused_attempts") or [],
         "workflow_yaml": str(workflow_path.relative_to(project_root)),
-        "cleanup": cleanup_payload,
     }
     plan_path.write_text(
         json.dumps(plan_payload, ensure_ascii=False, indent=2) + "\n",
@@ -496,7 +502,7 @@ def build_plan(
 
     local_resume = injection.runs_root(project_root) / old_run_id / "resume"
     local_resume.mkdir(parents=True, exist_ok=True)
-    for name in ("workflow.yaml", "cleanup.json", "plan.json"):
+    for name in ("workflow.yaml", "plan.json"):
         dest = local_resume / name
         dest.write_text((plan_root / name).read_text(encoding="utf-8"), encoding="utf-8")
 

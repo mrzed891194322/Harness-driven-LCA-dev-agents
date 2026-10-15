@@ -14,23 +14,15 @@ const KIND_LABEL: Record<ResultKind, string> = {
   final: "最终交付",
 };
 
-const INTERMEDIATE_PREFIXES = [
-  "workspace/outputs/LCI/flows/",
-  "workspace/outputs/LCI/processes/",
-  "workspace/outputs/LCI/product_systems/",
-  "workspace/outputs/reports/runs/",
-  "workspace/outputs/reports/raw/",
-  "workspace/outputs/reports/model_graph/",
-  "workspace/outputs/reports/lca-quality/",
-];
-
-export function resultKind(filePath: string): ResultKind {
-  if (filePath.startsWith("workspace/records/")) return "work";
-  const normalized = filePath.endsWith("/") ? filePath : `${filePath}/`;
-  if (INTERMEDIATE_PREFIXES.some((prefix) => normalized.startsWith(prefix) || filePath.startsWith(prefix))) {
-    return "intermediate";
-  }
-  if (filePath.startsWith("workspace/outputs/")) return "final";
+export function resultKind(
+  filePath: string,
+  category?: "intermediate" | "deliverable",
+): ResultKind {
+  if (category === "deliverable") return "final";
+  if (category === "intermediate") return "intermediate";
+  if (filePath.startsWith("workspace/artifacts/")) return "final";
+  if (filePath.startsWith("workspace/runs/_run/")) return "work";
+  if (filePath.startsWith("workspace/runs/")) return "intermediate";
   return "work";
 }
 
@@ -48,6 +40,7 @@ export type Artifact = {
   path: string;
   size: number;
   count?: number;
+  category?: "intermediate" | "deliverable";
 };
 
 export type Preview =
@@ -68,7 +61,10 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 function handoffPath(item: Handoff): string {
-  return `workspace/records/handoffs/${item.name}`;
+  if (item.name.includes("/")) {
+    return `workspace/${item.name}`;
+  }
+  return `workspace/runs/${item.name}`;
 }
 
 function baseName(filePath: string): string {
@@ -86,8 +82,9 @@ function navTitle(item: Artifact): string {
 
 function parentName(filePath: string): string {
   const trimmed = filePath
-    .replace(/^workspace\/outputs\//, "")
-    .replace(/^workspace\/records\//, "");
+    .replace(/^workspace\/artifacts\//, "")
+    .replace(/^workspace\/runs\/_run\//, "")
+    .replace(/^workspace\/runs\//, "");
   const slash = trimmed.lastIndexOf("/");
   return slash >= 0 ? trimmed.slice(0, slash) : "";
 }
@@ -156,11 +153,15 @@ export function ArtifactsBrowser({
   }, [selected]);
 
   const intermediate = useMemo(
-    () => artifacts.filter((item) => resultKind(item.path) === "intermediate"),
+    () =>
+      artifacts.filter(
+        (item) => resultKind(item.path, item.category) === "intermediate",
+      ),
     [artifacts],
   );
   const finals = useMemo(
-    () => artifacts.filter((item) => resultKind(item.path) === "final"),
+    () =>
+      artifacts.filter((item) => resultKind(item.path, item.category) === "final"),
     [artifacts],
   );
   const visibleIntermediate = intermediate.slice(0, MAX_ARTIFACT_ROWS);
@@ -293,7 +294,9 @@ export function firstArtifactPath(
   artifacts: Artifact[],
   records: Artifact[] = [],
 ): string {
-  const finalPath = artifacts.find((item) => resultKind(item.path) === "final")?.path;
+  const finalPath = artifacts.find(
+    (item) => resultKind(item.path, item.category) === "final",
+  )?.path;
   if (finalPath) return finalPath;
   if (handoffs[0]) return handoffPath(handoffs[0]);
   return artifacts[0]?.path || records[0]?.path || "";

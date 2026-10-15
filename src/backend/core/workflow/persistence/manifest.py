@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.runtime.tool_runtime import write_json_atomic
-from backend.settings import records_root
+from backend.settings import run_root
 
 
 def manifest_path(workspace_root: Path) -> Path:
-    return records_root(workspace_root) / "manifest.json"
+    return run_root(workspace_root) / "manifest.json"
 
 
 def write_manifest(

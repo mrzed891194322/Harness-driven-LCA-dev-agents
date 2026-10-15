@@ -89,7 +89,7 @@ function collect(root: string): { name: string; data: Buffer }[] {
       }
       if (!entry.isFile() || entry.name === "README.md") continue;
       const relative = path.relative(root, full).split(path.sep).join("/");
-      files.push({ name: `outputs/${relative}`, data: fs.readFileSync(full) });
+      files.push({ name: `artifacts/${relative}`, data: fs.readFileSync(full) });
     }
   }
   if (fs.existsSync(root)) walk(root);
@@ -98,7 +98,7 @@ function collect(root: string): { name: string; data: Buffer }[] {
 }
 
 export function GET() {
-  const files = collect(path.join(projectRoot(), "workspace", "outputs"));
+  const files = collect(path.join(projectRoot(), "workspace", "artifacts"));
   if (files.length === 0) {
     return Response.json({ detail: "还没有产出" }, { status: 404 });
   }

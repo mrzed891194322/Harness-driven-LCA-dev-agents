@@ -44,8 +44,8 @@ class TaskBundleResolveTests(unittest.TestCase):
         self.assertEqual(
             writer.expected_outputs,
             [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
+                "extracted-bom.json",
+                "extracted-bom.md",
             ],
         )
         self.assertEqual(writer.acceptance_checks[0].action, "inventory_check")

@@ -1,4 +1,4 @@
-"""Turn archive paths and writers under workspace/records/logs."""
+"""Turn archive paths and writers under workspace/runs/_run/logs."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.runtime.hashing import sha256_file
-from backend.settings import records_root
+from backend.settings import run_root
 
 from .session import SessionConfig, SessionRef
 
@@ -15,11 +15,13 @@ REDACTED = "<redacted>"
 
 
 def run_log_dir(workspace_root: Path, run_id: str) -> Path:
-    return records_root(workspace_root) / "logs" / run_id
+    del run_id  # workspace keeps a single current run; path has no run id segment
+    return run_root(workspace_root) / "logs"
 
 
 def progress_log_path(workspace_root: Path, run_id: str) -> Path:
-    return run_log_dir(workspace_root, run_id) / "progress.txt"
+    del run_id  # workspace keeps a single current run; path has no run id segment
+    return run_root(workspace_root) / "progress.txt"
 
 
 def turn_archive_dir(

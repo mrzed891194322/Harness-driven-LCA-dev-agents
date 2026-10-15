@@ -6,7 +6,7 @@
 - 界面文案用中文。运行详情保持与计划页相同的整页卡片（`status-fit`、`plan-board`、`settings-card`），终端按阶段、工具行和正文渲染，不要退回整段 JSON。
 - 进度文本继续用 `progress.py` 的标签格式。改解析或渲染时，用现有 `progress.txt` 对照。
 - 密钥只在设置流里写入 `.local/credentials/`。不要把密钥抄进进度日志、handoff 或提交。
-- 结果页只渲染 `workspace/outputs/` 和 `workspace/records/`。运行中必须写在 `.local/runs/` 的内容，在运行结束时复制一份到 workspace。不要让结果页直接读 `.local`，也不要列出历史运行。目录和要改的文件见 `.cursor/rules/workspace-files.mdc`。
+- 结果页只渲染 `workspace/artifacts/`、`workspace/runs/` 与 `workspace/runs/_run/`。运行中必须写在 `.local/runs/` 的内容，在运行结束时复制一份到 workspace。不要让结果页直接读 `.local`，也不要列出历史运行。目录和要改的文件见 `.cursor/rules/workspace-files.mdc`。
 
 ## 验证
 

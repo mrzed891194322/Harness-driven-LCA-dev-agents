@@ -21,9 +21,9 @@ from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 
 def _write_handoff(workspace: Path, stage: str, attempt: int, status: str = "passed") -> None:
-    folder = workspace / "records" / "handoffs"
+    folder = workspace / "runs" / stage / f"reviewer-{attempt}"
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{stage}-reviewer-{attempt}.json"
+    path = folder / "handoff.json"
     path.write_text(
         json.dumps(
             {
@@ -39,7 +39,7 @@ def _write_handoff(workspace: Path, stage: str, attempt: int, status: str = "pas
 
 
 def _stage02_artifacts(workspace: Path) -> None:
-    inv = workspace / "outputs" / "inventory"
+    inv = workspace / "artifacts"
     inv.mkdir(parents=True, exist_ok=True)
     (inv / "extracted-bom.json").write_text("{}", encoding="utf-8")
     (inv / "extracted-bom.md").write_text("# bom\n", encoding="utf-8")
@@ -72,14 +72,16 @@ def test_filter_workflow_plan_id(tmp_path: Path) -> None:
         run_id=run_id,
     )
     wf_text = (WORKFLOWS / "LCA-main.yaml").read_text(encoding="utf-8")
-    ev = workspace / "records" / "evidence" / run_id
+    ev = workspace / "runs" / "_run" / "evidence" / run_id
     ev.mkdir(parents=True)
     (ev / "workflow.yaml").write_text(wf_text, encoding="utf-8")
     for stage in ("01-intake-gate", "02-inventory-extraction"):
         _write_handoff(workspace, stage, 1)
     _stage02_artifacts(workspace)
-    (workspace / "outputs" / "inventory" / "process-mapping.json").write_text("{}", encoding="utf-8")
-    lci = workspace / "outputs" / "LCI"
+    art = workspace / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "process-mapping.json").write_text("{}", encoding="utf-8")
+    lci = art / "LCI"
     lci.mkdir(parents=True)
     (lci / "placeholder.json").write_text("{}", encoding="utf-8")
     from backend.core.runtime.knowledge_providers.local_files import discover_files_at
@@ -122,7 +124,7 @@ def test_cleanup_list_deletes_only_listed(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     target = workspace / "outputs" / "reports"
     target.mkdir(parents=True)
-    keep = workspace / "records" / "evidence" / "oldrun"
+    keep = workspace / "runs" / "_run" / "evidence" / "oldrun"
     keep.mkdir(parents=True)
     (keep / "manifest.json").write_text("{}", encoding="utf-8")
     (target / "a.txt").write_text("x", encoding="utf-8")
@@ -166,7 +168,7 @@ def test_resume_post_launches(mock_start: MagicMock) -> None:
         run_id=run_id,
     )
     wf = (WORKFLOWS / "LCA-main.yaml").read_text(encoding="utf-8")
-    ev = workspace / "records" / "evidence" / run_id
+    ev = workspace / "runs" / "_run" / "evidence" / run_id
     ev.mkdir(parents=True, exist_ok=True)
     (ev / "workflow.yaml").write_text(wf, encoding="utf-8")
     _write_handoff(workspace, "01-intake-gate", 1)

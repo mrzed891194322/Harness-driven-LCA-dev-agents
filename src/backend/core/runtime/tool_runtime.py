@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from backend.settings import records_root
-
 from .context import RunContext
 
 CONTEXT_FILE_FLAG_DEFAULT = "--context-file"
@@ -58,13 +56,17 @@ def mcp_context_path(
 
 
 def _handoff_path_for_context(ctx: RunContext) -> str:
-    handoff = (
-        records_root(ctx.workspace_root)
-        / "handoffs"
-        / f"{ctx.stage_id}-{ctx.role}-{ctx.attempt}.json"
+    from backend.core.workflow.execution.handoff import handoff_path
+
+    handoff = handoff_path(
+        ctx.workspace_root,
+        ctx.stage_id,
+        ctx.role,
+        ctx.attempt,
+        project_root=ctx.project_root,
     )
     try:
-        return str(handoff.relative_to(ctx.workspace_root)).replace("\\", "/")
+        return str(handoff.relative_to(ctx.project_root)).replace("\\", "/")
     except ValueError:
         return str(handoff)
 
