@@ -25,7 +25,7 @@ from backend.core.workflow.persistence.workflow_snapshot import (
 from backend.core.workflow.resume_stages import normalize_resume_code, stage_id_from_code
 from backend.services.project_paths import MAIN_WORKFLOW_REL
 from backend.services.run_reconcile import workflow_status_for_run
-from backend.settings import records_root
+from backend.settings import legacy_records_root, records_root
 from harness.tools.shared.control_openlca import cleanup as openlca_cleanup
 from harness.tools.shared.lca_artifacts.checks import snapshot_unchanged
 from harness.tools.shared.lca_artifacts.store import Context
@@ -33,16 +33,18 @@ from harness.tools.shared.lca_artifacts.store import Context
 # Workspace-relative artifact roots produced per stage (see harness/specs + ARTIFACTS.md).
 STAGE_ARTIFACTS: dict[str, list[str]] = {
     "02-inventory-extraction": [
-        "outputs/inventory/extracted-bom.json",
-        "outputs/inventory/extracted-bom.md",
+        "artifacts/extracted-bom.json",
+        "artifacts/extracted-bom.md",
         "tmp",
     ],
     "03-dataset-mapping": [
-        "outputs/inventory/process-mapping.json",
-        "outputs/LCI",
+        "artifacts/process-mapping.json",
+        "artifacts/LCI",
     ],
     "04-openlca-reporting": [
-        "outputs/reports",
+        "artifacts/calculation-plan.json",
+        "artifacts/lca_report.md",
+        "artifacts/results.json",
     ],
 }
 
@@ -71,21 +73,26 @@ def _workspace_rel(path: str) -> str:
     return p
 
 
-def _handoffs_dir(workspace_root: Path) -> Path:
-    return records_root(workspace_root) / "handoffs"
-
-
 def _latest_reviewer_handoff(workspace_root: Path, stage_id: str) -> Path | None:
-    folder = _handoffs_dir(workspace_root)
+    stage_runs = workspace_root / "runs" / stage_id
+    best: Path | None = None
+    best_attempt = -1
+    if stage_runs.is_dir():
+        for path in stage_runs.glob("reviewer-*/handoff.json"):
+            m = re.search(r"reviewer-(\d+)", path.parent.name)
+            if not m:
+                continue
+            attempt = int(m.group(1))
+            if attempt >= best_attempt:
+                best_attempt = attempt
+                best = path
+    if best:
+        return best
+    folder = legacy_records_root(workspace_root) / "handoffs"
     if not folder.is_dir():
         return None
     prefix = f"{stage_id}-reviewer-"
-    candidates = sorted(folder.glob(f"{prefix}*.json"), key=lambda p: p.name)
-    if not candidates:
-        return None
-    best: Path | None = None
-    best_attempt = -1
-    for path in candidates:
+    for path in sorted(folder.glob(f"{prefix}*.json"), key=lambda p: p.name):
         m = re.search(r"-reviewer-(\d+)\.json$", path.name)
         if not m:
             continue
@@ -278,6 +285,12 @@ def _artifact_paths_exist(workspace_root: Path, stage_id: str) -> tuple[bool, li
 def _record_globs_for_stage(stage_id: str) -> list[str]:
     short = stage_id.split("-", 1)[0]
     return [
+        f"runs/{stage_id}/executor-*",
+        f"runs/{stage_id}/reviser-*",
+        f"runs/{stage_id}/reviewer-*",
+        f"runs/{stage_id}/system-*",
+        f"runs/_run/sessions/{stage_id}.*",
+        f"runs/_run/sessions/{short}*",
         f"records/handoffs/{stage_id}-*",
         f"records/reviews/{stage_id}*",
         f"records/reviews/{short}*",
@@ -288,8 +301,11 @@ def _record_globs_for_stage(stage_id: str) -> list[str]:
 
 def _expand_glob(workspace_root: Path, pattern: str) -> list[Path]:
     rel = pattern.replace("\\", "/")
-    if rel.startswith("records/"):
+    if rel.startswith("runs/_run/"):
         base = records_root(workspace_root)
+        glob_part = rel[len("runs/_run/") :]
+    elif rel.startswith("records/"):
+        base = legacy_records_root(workspace_root)
         glob_part = rel[len("records/") :]
     else:
         base = workspace_root
@@ -338,10 +354,8 @@ def cleanup_workspace_paths(workspace_root: Path, from_stage_id: str) -> list[st
                     continue
                 paths.append(rel)
         if stage_id == "04-openlca-reporting":
-            # The whole import journal (operations, current.json, scopes, preflights,
-            # requests, consumed) belongs to stage 04; its @ids are read into the
-            # openLCA cleanup list before this directory is deleted.
-            if (workspace_root / "records" / "import-operations").exists():
+            legacy_journal = workspace_root / "records" / "import-operations"
+            if legacy_journal.exists():
                 paths.append("records/import-operations")
     # de-dupe, preserve order
     seen: set[str] = set()

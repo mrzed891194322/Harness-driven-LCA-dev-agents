@@ -8,9 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.agents.activity import activity_log_path, read_activity
-from backend.core.agents.archive import progress_log_path
-from backend.core.workflow.persistence.checkpoint import checkpoint_path
-from backend.core.workflow.persistence.manifest import manifest_path
+from backend.core.agents.archive import resolve_progress_log_path
+from backend.core.workflow.persistence.checkpoint import resolve_checkpoint_path
+from backend.core.workflow.persistence.manifest import resolve_manifest_path
+from backend.settings import legacy_records_root, records_root
 from backend.services.project_paths import PROJECT_ROOT
 
 
@@ -26,7 +27,7 @@ class WorkflowService:
 
     def manifest(self) -> dict[str, Any]:
         self._reconcile()
-        path = manifest_path(self.workspace_root)
+        path = resolve_manifest_path(self.workspace_root)
         if not path.is_file():
             return {"status": "idle"}
         return json.loads(path.read_text(encoding="utf-8"))
@@ -108,7 +109,7 @@ class WorkflowService:
         }
         if not run_id:
             return recorded
-        path = progress_log_path(self.workspace_root, run_id)
+        path = resolve_progress_log_path(self.workspace_root, run_id)
         if not path.is_file():
             return recorded
         recorded["text"] = path.read_text(encoding="utf-8", errors="replace")
@@ -119,7 +120,7 @@ class WorkflowService:
         """Attempt from the orchestrator snapshot when the manifest has none yet."""
         if not run_id:
             return None
-        path = checkpoint_path(self.workspace_root)
+        path = resolve_checkpoint_path(self.workspace_root)
         if not path.is_file():
             return None
         try:
@@ -171,12 +172,12 @@ class WorkflowService:
         return (profile.model_id or profile.display_name or model_ref).strip()
 
     def results(self) -> dict[str, Any]:
-        """Current run summary plus files under workspace/outputs and workspace/records."""
+        """Current run summary plus workspace artifacts, runs, and run-level files."""
         return {
             "manifest": self.manifest(),
-            "handoffs": _list_handoffs(self.workspace_root / "records" / "handoffs"),
+            "handoffs": _list_handoffs_from_runs(self.workspace_root),
             "artifacts": _list_artifacts(self.workspace_root / "outputs"),
-            "records": _list_record_files(self.workspace_root / "records"),
+            "records": _list_run_level_files(self.workspace_root),
         }
 
     def read_result_file(self, relative: str) -> dict[str, Any]:
@@ -223,36 +224,71 @@ class WorkflowService:
         return buffer.getvalue()
 
 
-def _list_handoffs(folder: Path) -> list[dict[str, Any]]:
+def _handoff_row(path: Path, workspace_root: Path, payload: dict[str, Any] | None) -> dict[str, Any]:
+    try:
+        rel = path.resolve().relative_to(workspace_root.resolve()).as_posix()
+    except ValueError:
+        rel = path.name
+    row: dict[str, Any] = {
+        "name": rel,
+        "path": f"workspace/{rel}",
+        "stage": "",
+        "role": "",
+        "attempt": None,
+        "status": "",
+        "status_reason": "",
+        "artifacts": [],
+    }
+    if payload is None:
+        row["status_reason"] = "无法读取"
+        return row
+    row["stage"] = str(payload.get("stage") or "")
+    row["role"] = str(payload.get("role") or "")
+    attempt = payload.get("attempt")
+    row["attempt"] = attempt if isinstance(attempt, int) else None
+    row["status"] = str(payload.get("status") or "")
+    row["status_reason"] = str(payload.get("status_reason") or "")
+    artifacts = payload.get("artifacts")
+    if isinstance(artifacts, list):
+        row["artifacts"] = [str(item) for item in artifacts if isinstance(item, str)]
+    return row
+
+
+def _list_handoffs_from_runs(workspace_root: Path) -> list[dict[str, Any]]:
+    runs = workspace_root / "runs"
+    if not runs.is_dir():
+        return _list_handoffs_legacy(workspace_root)
+    rows: list[dict[str, Any]] = []
+    for handoff in sorted(runs.rglob("handoff.json")):
+        if "_run" in handoff.parts:
+            continue
+        try:
+            payload = json.loads(handoff.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = None
+        if payload is not None and not isinstance(payload, dict):
+            payload = None
+        rows.append(_handoff_row(handoff, workspace_root, payload))
+    if rows:
+        return rows
+    return _list_handoffs_legacy(workspace_root)
+
+
+def _list_handoffs_legacy(workspace_root: Path) -> list[dict[str, Any]]:
+    folder = legacy_records_root(workspace_root) / "handoffs"
     if not folder.is_dir():
         return []
     rows: list[dict[str, Any]] = []
     for path in sorted(folder.glob("*.json")):
-        row: dict[str, Any] = {
-            "name": path.name,
-            "stage": "",
-            "role": "",
-            "attempt": None,
-            "status": "",
-            "status_reason": "",
-            "artifacts": [],
-        }
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            row["status_reason"] = "无法读取"
-            rows.append(row)
-            continue
-        if isinstance(payload, dict):
-            row["stage"] = str(payload.get("stage") or "")
-            row["role"] = str(payload.get("role") or "")
-            attempt = payload.get("attempt")
-            row["attempt"] = attempt if isinstance(attempt, int) else None
-            row["status"] = str(payload.get("status") or "")
-            row["status_reason"] = str(payload.get("status_reason") or "")
-            artifacts = payload.get("artifacts")
-            if isinstance(artifacts, list):
-                row["artifacts"] = [str(item) for item in artifacts if isinstance(item, str)]
+            payload = None
+        if payload is not None and not isinstance(payload, dict):
+            payload = None
+        row = _handoff_row(path, workspace_root, payload)
+        row["name"] = path.name
+        row["path"] = f"workspace/records/handoffs/{path.name}"
         rows.append(row)
     return rows
 
@@ -295,32 +331,45 @@ def _list_artifacts(root: Path) -> list[dict[str, Any]]:
     return items
 
 
-def _list_record_files(root: Path) -> list[dict[str, Any]]:
-    """Files under workspace/records, except handoffs (those are listed on their own)."""
-    if not root.is_dir():
-        return []
-    base = root.resolve()
+def _list_run_level_files(workspace_root: Path) -> list[dict[str, Any]]:
+    """Files under workspace/runs/_run (legacy: workspace/records)."""
     items: list[dict[str, Any]] = []
-    for path in sorted(base.rglob("*")):
-        if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
+    for root, prefix in (
+        (records_root(workspace_root), "workspace/runs/_run"),
+        (legacy_records_root(workspace_root), "workspace/records"),
+    ):
+        if not root.is_dir():
             continue
-        try:
-            relative = path.resolve().relative_to(base)
-        except ValueError:
-            continue
-        if relative.parts and relative.parts[0] == "handoffs":
-            continue
-        items.append(
-            {
-                "path": f"workspace/records/{relative.as_posix()}",
-                "size": path.stat().st_size,
-                "count": 1,
-            }
-        )
+        base = root.resolve()
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
+                continue
+            try:
+                relative = path.resolve().relative_to(base)
+            except ValueError:
+                continue
+            if relative.parts and relative.parts[0] == "handoffs":
+                continue
+            rel_path = f"{prefix}/{relative.as_posix()}"
+            if any(item["path"] == rel_path for item in items):
+                continue
+            items.append(
+                {
+                    "path": rel_path,
+                    "size": path.stat().st_size,
+                    "count": 1,
+                }
+            )
     return items
 
 
-_RESULT_PREFIXES = ("workspace/outputs/", "workspace/records/")
+_RESULT_PREFIXES = (
+    "workspace/outputs/",
+    "workspace/records/",
+    "workspace/runs/_run/",
+    "workspace/artifacts/",
+    "workspace/runs/",
+)
 _MAX_RESULT_BYTES = 512_000
 
 

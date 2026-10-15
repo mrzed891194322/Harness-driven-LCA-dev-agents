@@ -192,38 +192,51 @@ def _model_types(*, include_supporting: bool) -> list[type]:
     return model_types
 
 
+def _journal_paths(workspace: Path) -> list[Path]:
+    paths: list[Path] = []
+    legacy = workspace / "records" / "import-operations" / "operations"
+    if legacy.is_dir():
+        paths.append(legacy)
+    runs = workspace / "runs"
+    if runs.is_dir():
+        for journal in sorted(runs.rglob("import-operations/operations")):
+            if journal.is_dir() and "_run" not in journal.parts:
+                paths.append(journal)
+    return paths
+
+
 def _journal_entity_targets(workspace: Path) -> list[tuple[str, str]]:
-    journal = workspace / "records" / "import-operations" / "operations"
-    if not journal.is_dir():
-        return []
     targets: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
-    for path in sorted(journal.glob("*.json")):
-        try:
-            report = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, TypeError):
-            continue
-        for entry in report.get("entity_plan") or []:
-            entity_type = str(entry.get("entity_type") or "")
-            entity_id = str(entry.get("id") or "")
-            key = (entity_type, entity_id)
-            if entity_type and entity_id and key not in seen:
-                seen.add(key)
-                targets.append(key)
-        for entry in report.get("entities") or []:
-            if entry.get("action") != "create_or_update":
+    for journal in _journal_paths(workspace):
+        for path in sorted(journal.glob("*.json")):
+            try:
+                report = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, TypeError):
                 continue
-            entity_type = str(entry.get("entity_type") or "")
-            entity_id = str(entry.get("id") or "")
-            key = (entity_type, entity_id)
-            if entity_type and entity_id and key not in seen:
-                seen.add(key)
-                targets.append(key)
+            for entry in report.get("entity_plan") or []:
+                entity_type = str(entry.get("entity_type") or "")
+                entity_id = str(entry.get("id") or "")
+                key = (entity_type, entity_id)
+                if entity_type and entity_id and key not in seen:
+                    seen.add(key)
+                    targets.append(key)
+            for entry in report.get("entities") or []:
+                if entry.get("action") != "create_or_update":
+                    continue
+                entity_type = str(entry.get("entity_type") or "")
+                entity_id = str(entry.get("id") or "")
+                key = (entity_type, entity_id)
+                if entity_type and entity_id and key not in seen:
+                    seen.add(key)
+                    targets.append(key)
     return targets
 
 
 def _lci_entity_targets(workspace: Path) -> list[tuple[str, str]]:
-    lci_root = workspace / "outputs" / "LCI"
+    lci_root = workspace / "artifacts" / "LCI"
+    if not lci_root.is_dir():
+        lci_root = workspace / "outputs" / "LCI"
     inventory, _errors = load_lci_inventory(lci_root)
     return [(str(item["entity_type"]), str(item["id"])) for item in inventory]
 

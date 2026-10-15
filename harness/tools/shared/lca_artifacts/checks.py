@@ -643,11 +643,19 @@ def prior_handoff_report(ctx):
     """
     if ctx.attempt < 2:
         return None
-    root = ctx.workspace / "records" / "handoffs"
     for role in ("executor", "reviser"):
-        path = root / f"{ctx.stage}-{role}-{ctx.attempt - 1}.json"
+        path = ctx.workspace / "runs" / ctx.stage / f"{role}-{ctx.attempt - 1}" / "handoff.json"
         if not path.is_file():
-            continue
+            legacy = (
+                ctx.workspace
+                / "records"
+                / "handoffs"
+                / f"{ctx.stage}-{role}-{ctx.attempt - 1}.json"
+            )
+            if legacy.is_file():
+                path = legacy
+            else:
+                continue
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
