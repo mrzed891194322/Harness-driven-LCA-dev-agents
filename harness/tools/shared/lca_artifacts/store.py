@@ -325,8 +325,8 @@ class Context:
         }
 
     def resolve_ref(self, ref):
-        expected = normalize_sha256(ref["sha256"])
         path = self.resolve_read_path(str(ref["path"]))
+        expected = normalize_sha256(ref["sha256"])
         if sha256_file(path) != expected:
             raise ValueError(
                 f"artifact checksum mismatch: {ref['path']} (the file's bytes do "
