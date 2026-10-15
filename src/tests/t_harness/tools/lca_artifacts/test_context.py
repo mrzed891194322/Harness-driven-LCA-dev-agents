@@ -61,7 +61,6 @@ class ContextFileTests(unittest.TestCase):
                 "LCA_STAGE",
                 "LCA_ATTEMPT",
                 "LCA_ROLE",
-                "LCA_WORKSPACE",
             }
         }
         with patch.dict(os.environ, env, clear=True):

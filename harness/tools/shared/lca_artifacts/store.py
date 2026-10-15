@@ -125,7 +125,9 @@ class Context:
         )
 
     def path(self, declared: str) -> Path:
-        from harness.tools.shared.lca_artifacts.legacy_paths import resolve_declared_path
+        from harness.tools.shared.lca_artifacts.legacy_paths import (
+            resolve_declared_path,
+        )
 
         rel = resolve_declared_path(
             stage_id=self.stage,
@@ -199,9 +201,13 @@ class Context:
     @classmethod
     def from_env(cls):
         project = PROJECT_ROOT.resolve()
-        workspace = Path(
-            os.getenv("LCA_WORKSPACE", str(project / "workspace"))
-        ).resolve()
+        env_workspace = os.getenv("LCA_WORKSPACE")
+        if not env_workspace and "PYTEST_CURRENT_TEST" in os.environ:
+            # 测试中缺少上下文时不得回退到真实 PROJECT_ROOT/workspace。
+            raise HostContextError(
+                "host_context_missing: LCA_WORKSPACE not set under pytest"
+            )
+        workspace = Path(env_workspace or str(project / "workspace")).resolve()
         metadata: dict = {}
         raw_meta = os.getenv("LCA_METADATA_JSON")
         if raw_meta:

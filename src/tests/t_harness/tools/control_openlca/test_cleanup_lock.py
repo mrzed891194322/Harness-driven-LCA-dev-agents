@@ -66,8 +66,51 @@ def test_read_timeout_twice_fails_with_clear_message(probe_ok):
     assert client.get_calls == 2
 
 
-def test_read_timeout_with_failed_probe_does_not_retry(monkeypatch):
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_clock(monkeypatch):
+    clock = _FakeClock()
+    monkeypatch.setattr(cleanup, "_monotonic", clock.monotonic)
+    monkeypatch.setattr(cleanup, "_sleep", clock.sleep)
+    return clock
+
+
+def test_read_timeout_waits_for_recovery_then_retries_once(monkeypatch, fake_clock):
+    probes: list[float] = []
+
+    def flaky_probe(h, p):
+        probes.append(fake_clock.now)
+        if len(probes) < 4:
+            raise requests.ConnectTimeout("still stuck")
+
+    monkeypatch.setattr(cleanup, "probe_ipc", flaky_probe)
+    client = _Client(desc_failures=1)
+    result = cleanup.collect_entities(
+        client, "proj", [olca_schema.Flow], host="h", port=1
+    )
+    assert result == []
+    assert client.desc_calls == 2
+    assert probes == [0.0, 15.0, 30.0, 45.0]
+    assert fake_clock.sleeps == [15.0, 15.0, 15.0]
+
+
+def test_read_timeout_with_failed_probe_does_not_retry(monkeypatch, fake_clock):
+    probes: list[float] = []
+
     def bad_probe(h, p):
+        probes.append(fake_clock.now)
         raise requests.ConnectTimeout("probe")
 
     monkeypatch.setattr(cleanup, "probe_ipc", bad_probe)
@@ -77,6 +120,9 @@ def test_read_timeout_with_failed_probe_does_not_retry(monkeypatch):
             client, "proj", [("Flow", "f-1")], host="h", port=1
         )
     assert client.get_calls == 1
+    assert probes[0] == 0.0 and probes[-1] == 180.0
+    assert len(probes) == 13  # 0,15,...,180
+    assert fake_clock.now == 180.0
 
 
 def test_uuid_lookup_timeout_aborts_cleanup_without_delete(

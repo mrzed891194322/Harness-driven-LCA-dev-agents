@@ -219,6 +219,7 @@ class BoundedIPCClient(olca_ipc.Client):
         *,
         timeout: TimeoutValue = READ_REQUEST_TIMEOUT,
     ) -> None:
+        guard_live_openlca(_endpoint_port(endpoint))
         super().__init__(endpoint)
         adapter = _TimeoutHTTPAdapter(timeout)
         self._s.mount("http://", adapter)
@@ -313,6 +314,40 @@ def build_endpoint(host: str, port: int) -> str:
         normalized_host = normalized_host[1:-1]
     url_host = f"[{normalized_host}]" if ":" in normalized_host else normalized_host
     return f"http://{url_host}:{port}"
+
+
+LIVE_OPENLCA_PORTS_ENV = "LCA_TEST_FORBIDDEN_OPENLCA_PORTS"
+DEFAULT_LIVE_OPENLCA_PORT = 8080
+
+
+class LiveOpenLCAForbiddenError(RuntimeError):
+    """A test tried to open an IPC client against the real openLCA port."""
+
+
+def forbidden_test_ports() -> set[int]:
+    ports = {DEFAULT_LIVE_OPENLCA_PORT}
+    for item in os.getenv(LIVE_OPENLCA_PORTS_ENV, "").split(","):
+        item = item.strip()
+        if item.isdigit():
+            ports.add(int(item))
+    return ports
+
+
+def _endpoint_port(endpoint: str | int) -> int | None:
+    if isinstance(endpoint, int):
+        return endpoint
+    tail = str(endpoint).rstrip("/").rsplit(":", 1)[-1]
+    return int(tail) if tail.isdigit() else None
+
+
+def guard_live_openlca(port: int | None) -> None:
+    """Under pytest, refuse any IPC client that targets the real openLCA port."""
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        return
+    if port in forbidden_test_ports():
+        raise LiveOpenLCAForbiddenError(
+            f"tests must not connect to the real openLCA IPC port {port}; use a fake client"
+        )
 
 
 def create_ipc_client(

@@ -156,10 +156,16 @@ def test_resume_post_409_when_ineligible() -> None:
 
 
 @patch("backend.services.workflow_launch.launcher.start")
-def test_resume_post_launches(mock_start: MagicMock) -> None:
+def test_resume_post_launches(mock_start: MagicMock, tmp_path: Path, monkeypatch) -> None:
     mock_start.return_value = {"status": "started", "task": "resume-lca", "epoch": "e"}
     run_id = "b" * 32
-    workspace = PROJECT_ROOT / "workspace"
+    # 用临时项目根：src/harness 指回仓库，workspace 是空的临时目录，绝不写真实 workspace。
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    for name in ("src", "harness", "pyproject.toml"):
+        (project_root / name).symlink_to(PROJECT_ROOT / name)
+    monkeypatch.setattr("backend.api.app.PROJECT_ROOT", project_root)
+    workspace = project_root / "workspace"
     write_manifest(
         workspace,
         status="failed",

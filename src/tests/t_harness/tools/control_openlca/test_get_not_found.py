@@ -20,7 +20,7 @@ ITEM = {"entity_type": "Flow", "id": "9c1e2f30-0001-4a10-8b01-000000000001"}
 
 
 def _client(monkeypatch, outcome):
-    client = BoundedIPCClient(8080)
+    client = BoundedIPCClient(65530)
 
     def fake_rpc(self, method, params=None):
         if isinstance(outcome, Exception):

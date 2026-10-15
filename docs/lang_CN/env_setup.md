@@ -60,6 +60,8 @@ uv run pyright
 uv run pytest
 ```
 
+> 测试隔离：pytest 下禁止连接真实 openLCA（8080 及 `.env` 中的 `OPENLCA_IPC_PORT`），workspace 默认重定向到临时目录。即便如此，修改代码和跑测试请在独立 git worktree 中进行，不要在后端正在运行的主仓库里跑 pytest。
+
 ## 4. openLCA IPC
 
 运行工作流前：

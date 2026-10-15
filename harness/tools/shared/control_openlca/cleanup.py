@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,6 @@ from harness.tools.shared.control_openlca.workflow import (
     load_lci_inventory,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -45,26 +45,55 @@ class CleanupReadTimeout(RuntimeError):
     """A read-only cleanup query timed out twice (or the health probe failed)."""
 
 
-def read_with_retry(label: str, call, *, host: str | None, port: int | None):
-    """Run a read-only query; on read timeout probe health and retry once.
+HEALTH_WAIT_INTERVAL_SECONDS = 15.0
+HEALTH_WAIT_MAX_SECONDS = 180.0
+_sleep = time.sleep
+_monotonic = time.monotonic
 
-    Only for idempotent reads (descriptors / get). Deletes never retry.
+
+def _wait_until_healthy(host: str, port: int) -> Exception | None:
+    """Probe health every 15 s for up to 3 min. Return None when healthy, else last error."""
+    deadline = _monotonic() + HEALTH_WAIT_MAX_SECONDS
+    last_exc: Exception | None = None
+    attempt = 0
+    while True:
+        attempt += 1
+        client = None
+        try:
+            client = probe_ipc(host, port)
+            if attempt > 1:
+                logger.warning("openLCA 健康探测第 %d 次恢复正常", attempt)
+            return None
+        except Exception as exc:  # noqa: BLE001 - any probe failure means unhealthy
+            last_exc = exc
+            logger.warning("openLCA 健康探测第 %d 次失败: %s", attempt, exc)
+        finally:
+            close_ipc_client(client)
+        remaining = deadline - _monotonic()
+        if remaining <= 0:
+            return last_exc
+        _sleep(min(HEALTH_WAIT_INTERVAL_SECONDS, remaining))
+
+
+def read_with_retry(label: str, call, *, host: str | None, port: int | None):
+    """Run a read-only query; on read timeout wait for health and retry once.
+
+    On timeout the health probe runs every 15 s for up to 3 min; once healthy the
+    read is retried exactly once. Only for idempotent reads. Deletes never retry.
     """
     try:
         return call()
     except requests.Timeout as first:
         if host is None or port is None:
             raise CleanupReadTimeout(f"{label} 读取超时: {first}") from first
-        client = None
-        try:
-            client = probe_ipc(host, port)
-        except Exception as probe_exc:
+        probe_exc = _wait_until_healthy(host, port)
+        if probe_exc is not None:
             raise CleanupReadTimeout(
-                f"{label} 读取超时，随后健康探测也失败（openLCA 可能卡死，"
+                f"{label} 读取超时，随后健康探测也失败（每 "
+                f"{int(HEALTH_WAIT_INTERVAL_SECONDS)} 秒探测一次，等了 "
+                f"{int(HEALTH_WAIT_MAX_SECONDS)} 秒仍未恢复；openLCA 可能卡死，"
                 f"请检查/重启 openLCA）: {probe_exc}"
             ) from first
-        finally:
-            close_ipc_client(client)
         try:
             return call()
         except requests.Timeout as second:

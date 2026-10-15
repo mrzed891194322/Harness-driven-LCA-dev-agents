@@ -24,11 +24,11 @@ def _tool_annotations(tool: object):
 class ReadOnlyServiceTests(unittest.TestCase):
     def test_build_endpoint_validates_and_formats_hosts(self) -> None:
         self.assertEqual(
-            connection.build_endpoint("localhost", 8080), "http://localhost:8080"
+            connection.build_endpoint("localhost", 65530), "http://localhost:65530"
         )
-        self.assertEqual(connection.build_endpoint("::1", 8080), "http://[::1]:8080")
+        self.assertEqual(connection.build_endpoint("::1", 65530), "http://[::1]:65530")
         with self.assertRaisesRegex(ValueError, "not a URL"):
-            connection.build_endpoint("http://localhost", 8080)
+            connection.build_endpoint("http://localhost", 65530)
         with self.assertRaisesRegex(ValueError, "between 1 and 65535"):
             connection.build_endpoint("localhost", 0)
 
@@ -44,7 +44,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         self.assertEqual(send.call_args.kwargs["timeout"], (1.0, 3.0))
 
     def test_product_system_creation_returns_valid_reference(self) -> None:
-        client = connection.BoundedIPCClient("http://localhost:8080")
+        client = connection.BoundedIPCClient("http://localhost:65530")
         process = olca_schema.Ref(id="process-id", name="Reference process")
         config = olca_schema.LinkingConfig(
             prefer_unit_processes=False,
@@ -80,7 +80,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         )
 
     def test_product_system_creation_preserves_rpc_error(self) -> None:
-        client = connection.BoundedIPCClient("http://localhost:8080")
+        client = connection.BoundedIPCClient("http://localhost:65530")
         try:
             with (
                 patch.object(
@@ -110,7 +110,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         )
         for response in responses:
             with self.subTest(response=response):
-                client = connection.BoundedIPCClient("http://localhost:8080")
+                client = connection.BoundedIPCClient("http://localhost:65530")
                 try:
                     with (
                         patch.object(
@@ -133,27 +133,27 @@ class ReadOnlyServiceTests(unittest.TestCase):
             "BoundedIPCClient",
             return_value=client,
         ) as client_factory:
-            result = connection.probe_ipc("localhost", 8080, "Process")
+            result = connection.probe_ipc("localhost", 65530, "Process")
 
         self.assertIs(result, client)
         self.assertIs(client.requested_type, olca_schema.Process)
         client_factory.assert_called_once_with(
-            "http://localhost:8080",
+            "http://localhost:65530",
             timeout=connection.HEALTH_REQUEST_TIMEOUT,
         )
 
     def test_health_check_returns_success(self) -> None:
         client = FakeClient()
         with patch.object(readonly, "probe_ipc", return_value=client) as probe:
-            result = readonly.health_check("127.0.0.1", 8080)
+            result = readonly.health_check("127.0.0.1", 65530)
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["endpoint"], "http://127.0.0.1:8080")
+        self.assertEqual(result["endpoint"], "http://127.0.0.1:65530")
         self.assertEqual(result["attempt_count"], 1)
         self.assertTrue(client.closed)
         probe.assert_called_once_with(
             "127.0.0.1",
-            8080,
+            65530,
             olca_schema.Currency,
             timeout=connection.HEALTH_REQUEST_TIMEOUT,
         )
@@ -167,7 +167,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
             ) as probe,
             patch.object(readonly.time, "sleep") as sleep,
         ):
-            result = readonly.health_check("127.0.0.1", 8080)
+            result = readonly.health_check("127.0.0.1", 65530)
 
         self.assertFalse(result["ok"])
         self.assertEqual(result["attempt_count"], 4)
@@ -196,7 +196,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
             ),
             patch.object(readonly.time, "sleep"),
         ):
-            result = readonly.health_check("127.0.0.1", 8080)
+            result = readonly.health_check("127.0.0.1", 65530)
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["attempt_count"], 4)
@@ -226,7 +226,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         ):
             result = connection.connect_ipc(
                 "127.0.0.1",
-                8080,
+                65530,
                 olca_schema.Process,
             )
 
@@ -235,7 +235,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         self.assertEqual(probe.call_count, 4)
         create.assert_called_once_with(
             "127.0.0.1",
-            8080,
+            65530,
             timeout=None,
         )
         self.assertEqual(sleep.call_count, 3)
@@ -257,7 +257,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         ):
             result = connection.connect_ipc(
                 "127.0.0.1",
-                8080,
+                65530,
                 olca_schema.ProductSystem,
                 timeout=connection.LONG_REQUEST_TIMEOUT,
             )
@@ -265,7 +265,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         self.assertIs(result, operation_client)
         create.assert_called_once_with(
             "127.0.0.1",
-            8080,
+            65530,
             timeout=connection.LONG_REQUEST_TIMEOUT,
         )
 
@@ -292,7 +292,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         with patch.object(readonly, "create_ipc_client", return_value=client):
             result = readonly.query_descriptors(
                 "localhost",
-                8080,
+                65530,
                 "Flow",
                 search=" ELECTRICITY ",
                 limit=1,
@@ -318,7 +318,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         with patch.object(readonly, "create_ipc_client", return_value=client):
             result = readonly.query_descriptors(
                 "localhost",
-                8080,
+                65530,
                 "Process",
                 limit=1,
             )
@@ -328,19 +328,19 @@ class ReadOnlyServiceTests(unittest.TestCase):
 
     def test_query_validates_type_and_pagination(self) -> None:
         with self.assertRaisesRegex(ValueError, "Unsupported entity_type"):
-            readonly.query_descriptors("localhost", 8080, "Database")
+            readonly.query_descriptors("localhost", 65530, "Database")
         with self.assertRaisesRegex(ValueError, "between 1 and 200"):
-            readonly.query_descriptors("localhost", 8080, "Flow", limit=201)
+            readonly.query_descriptors("localhost", 65530, "Flow", limit=201)
         with self.assertRaisesRegex(ValueError, "non-negative"):
-            readonly.query_descriptors("localhost", 8080, "Flow", offset=-1)
+            readonly.query_descriptors("localhost", 65530, "Flow", offset=-1)
 
     def test_query_wraps_ipc_errors_with_endpoint_context(self) -> None:
         client = FakeClient(error=OSError("connection refused"))
         with (
             patch.object(readonly, "create_ipc_client", return_value=client),
-            self.assertRaisesRegex(RuntimeError, "http://localhost:8080"),
+            self.assertRaisesRegex(RuntimeError, "http://localhost:65530"),
         ):
-            readonly.query_descriptors("localhost", 8080, "Flow")
+            readonly.query_descriptors("localhost", 65530, "Flow")
 
     def test_flow_providers_filter_and_paginate_compact_references(self) -> None:
         flow_id = "flow-1"
@@ -393,7 +393,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         ) as client_factory:
             result = readonly.get_flow_providers(
                 "localhost",
-                8080,
+                65530,
                 flow_id,
                 location="de",
                 limit=1,
@@ -407,7 +407,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         self.assertEqual(result["next_offset"], 1)
         self.assertEqual(result["items"][0]["provider_id"], "provider-1")
         self.assertEqual(result["items"][0]["flow_ref_unit"], "kWh")
-        client_factory.assert_called_once_with("localhost", 8080)
+        client_factory.assert_called_once_with("localhost", 65530)
 
     def test_process_details_return_location_and_quantitative_reference(self) -> None:
         process_id = "process-1"
@@ -441,7 +441,7 @@ class ReadOnlyServiceTests(unittest.TestCase):
         with patch.object(readonly, "create_ipc_client", return_value=client):
             result = readonly.get_process_details(
                 "localhost",
-                8080,
+                65530,
                 process_id,
             )
 
@@ -461,28 +461,28 @@ class ReadOnlyServiceTests(unittest.TestCase):
         with patch.object(readonly, "create_ipc_client", return_value=client):
             result = readonly.get_process_details(
                 "localhost",
-                8080,
+                65530,
                 "missing-process",
             )
 
         self.assertFalse(result["found"])
         self.assertIsNone(result["process"])
         with self.assertRaisesRegex(ValueError, "non-empty"):
-            readonly.get_process_details("localhost", 8080, "")
+            readonly.get_process_details("localhost", 65530, "")
 
     def test_flow_providers_report_missing_flow_without_broad_query(self) -> None:
         client = FakeClient()
         with patch.object(readonly, "create_ipc_client", return_value=client):
             result = readonly.get_flow_providers(
                 "localhost",
-                8080,
+                65530,
                 "missing-flow",
             )
 
         self.assertFalse(result["flow_found"])
         self.assertEqual(result["items"], [])
         with self.assertRaisesRegex(ValueError, "non-empty"):
-            readonly.get_flow_providers("localhost", 8080, "")
+            readonly.get_flow_providers("localhost", 65530, "")
 
 
 class MCPServerTests(unittest.TestCase):

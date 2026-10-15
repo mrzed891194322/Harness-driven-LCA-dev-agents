@@ -48,7 +48,7 @@ def start_import(ctx, client) -> tuple[Path, dict[str, Any]]:
     operation_dir = ctx.attempt_root() / "import-operations"
     preflight = operations.preflight(
         "localhost",
-        8080,
+        65530,
         lci,
         "project-a",
         "isolated-db",
@@ -71,25 +71,25 @@ def test_request_reuse_and_changed_identity(context):
     client = FakeImportClient()
     lci, kwargs = start_import(context, client)
     first = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     assert first["status"] == "success"
     count = len(client.put_calls)
     again = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     assert again["execution_mode"] == "reused"
     assert again["operation_id"] == first["operation_id"]
     assert len(client.put_calls) == count
     write_flow(lci, name="Changed flow")
     wrong = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     assert wrong["status"] == "rejected"
     assert len(client.put_calls) == count
     preflight = operations.preflight(
         "localhost",
-        8080,
+        65530,
         lci,
         "project-a",
         "isolated-db",
@@ -99,7 +99,7 @@ def test_request_reuse_and_changed_identity(context):
     )
     kwargs.update(request_id="new-request", preflight_id=preflight["preflight_id"])
     new = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     assert new["status"] == "success"
     assert new["operation_id"] != first["operation_id"]
@@ -110,7 +110,7 @@ def test_stale_preflight_and_consumption(context):
     lci, kwargs = start_import(context, client)
     write_flow(lci, name="changed before import")
     result = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     assert result["status"] == "rejected"
     assert not client.put_calls
@@ -123,7 +123,7 @@ def test_resume_after_partial_product_system_failure(context):
     operation_dir = context.attempt_root() / "import-operations"
     preflight = operations.preflight(
         "localhost",
-        8080,
+        65530,
         root,
         "project-a",
         "isolated-db",
@@ -140,13 +140,13 @@ def test_resume_after_partial_product_system_failure(context):
     }
     client.fail_create_product_system = True
     first = operations.import_request(
-        "localhost", 8080, root, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, root, "project-a", "isolated-db", **kwargs
     )
     assert first["status"] == "partial_failure"
     assert first["entity_plan"][0]["status"] == "done"
     preflight2_early = operations.preflight(
         "localhost",
-        8080,
+        65530,
         root,
         "project-a",
         "isolated-db",
@@ -156,7 +156,7 @@ def test_resume_after_partial_product_system_failure(context):
     )
     blocked = operations.import_request(
         "localhost",
-        8080,
+        65530,
         root,
         "project-a",
         "isolated-db",
@@ -170,7 +170,7 @@ def test_resume_after_partial_product_system_failure(context):
     client.fail_create_product_system = False
     preflight2 = operations.preflight(
         "localhost",
-        8080,
+        65530,
         root,
         "project-a",
         "isolated-db",
@@ -180,7 +180,7 @@ def test_resume_after_partial_product_system_failure(context):
     )
     operations.reconcile_import(
         "localhost",
-        8080,
+        65530,
         operation_dir,
         run_id=context.run_id,
         operation_id=first["operation_id"],
@@ -188,7 +188,7 @@ def test_resume_after_partial_product_system_failure(context):
     )
     resumed = operations.resume_import_request(
         "localhost",
-        8080,
+        65530,
         root,
         "project-a",
         "isolated-db",
@@ -209,12 +209,12 @@ def test_failed_import_never_retries(context):
     client.put_error = requests.Timeout("read timed out")
     lci, kwargs = start_import(context, client)
     first = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     assert first["status"] in {"partial_failure", "failed"}
     with patch.object(guard, "probe_ipc", return_value=client):
         again = operations.import_request(
-            "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+            "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
         )
     assert again["execution_mode"] == "reused"
     assert len(client.put_calls) == 1
@@ -285,7 +285,7 @@ def test_batch_reads_once(context):
         patch.object(client, "get_descriptors", wraps=client.get_descriptors) as read,
     ):
         result = readonly.query_descriptors_batch(
-            "localhost", 8080, "Process", ["market", "electricity"]
+            "localhost", 65530, "Process", ["market", "electricity"]
         )
         assert len(result["queries"]) == 2
         assert read.call_count == 1
@@ -294,7 +294,7 @@ def test_batch_reads_once(context):
         patch.object(client, "get", wraps=client.get) as read,
     ):
         value = readonly.validate_providers_batch(
-            "localhost", 8080, [{"process_id": "p", "flow_id": "f"}] * 8
+            "localhost", 65530, [{"process_id": "p", "flow_id": "f"}] * 8
         )
         assert value["ok"]
         assert read.call_count == 1
@@ -636,14 +636,14 @@ def test_ignored_source_manifest_and_inventory_dependency_scope(context):
 
 def test_busy_unknown_probe_and_recovery(context):
     with pytest.raises(requests.Timeout):
-        with guard.endpoint_guard("localhost", 8080):
+        with guard.endpoint_guard("localhost", 65530):
             raise requests.Timeout("timed out")
     with patch.object(guard, "probe_ipc", side_effect=requests.Timeout("still busy")):
         with pytest.raises(guard.EndpointBusy):
-            with guard.endpoint_guard("localhost", 8080):
+            with guard.endpoint_guard("localhost", 65530):
                 pytest.fail("must not run while endpoint is uncertain")
     with patch.object(guard, "probe_ipc", return_value=FakeClient()) as probe:
-        with guard.endpoint_guard("localhost", 8080):
+        with guard.endpoint_guard("localhost", 65530):
             pass
     assert probe.call_count == 1
 
@@ -652,11 +652,11 @@ def test_preflight_is_single_use_and_cross_run_not_reused(context):
     client = FakeImportClient()
     lci, kwargs = start_import(context, client)
     first = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     kwargs["request_id"] = "another-request"
     repeated = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     assert repeated["status"] == "rejected"
     assert len(client.put_calls) == 1
@@ -691,11 +691,11 @@ def test_clean_reconciles_active_pointer_without_rewriting_old_receipt(context):
     client.fail_put = True
     lci, kwargs = start_import(context, client)
     first = operations.import_request(
-        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+        "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
     )
     assert first["status"] in {"partial_failure", "failed"}
     operations.reconcile_cleanup(
-        kwargs["operation_dir"], "localhost", 8080, "project-a"
+        kwargs["operation_dir"], "localhost", 65530, "project-a"
     )
     assert not (kwargs["operation_dir"] / "current.json").exists()
     assert operations.get_operation(
@@ -743,7 +743,7 @@ def test_raw_pointer_read_uses_checksum(context, monkeypatch):
 
 
 def test_request_deadline_reserves_disposal(context):
-    with guard.endpoint_guard("localhost", 8080):
+    with guard.endpoint_guard("localhost", 65530):
         guard._local.deadline = time.monotonic() - 1
         with pytest.raises(requests.Timeout):
             guard.remaining_budget()
@@ -777,7 +777,7 @@ def test_rpc_failure_is_not_an_empty_descriptor_list(context):
         session_budget_sec,
     )
 
-    client = BoundedIPCClient("http://localhost:8080")
+    client = BoundedIPCClient("http://localhost:65530")
     try:
         with patch.object(
             olca_ipc.Client, "rpc_call", return_value=(None, "database busy")
@@ -854,7 +854,7 @@ def test_long_tool_reports_applied_timeout_sec(context, monkeypatch):
         patch.object(
             guard,
             "serialized_ipc",
-            side_effect=lambda fn, **kwargs: fn("127.0.0.1", 8080),
+            side_effect=lambda fn, **kwargs: fn("127.0.0.1", 65530),
         ),
         patch.object(main, "run_get_model_graph", return_value={"ok": True}),
     ):
@@ -873,7 +873,7 @@ def test_session_request_timeout_uses_per_request_read_not_shrinking_budget(
     )
 
     assert session_request_timeout() == (2.0, 120.0)
-    with guard.endpoint_guard("localhost", 8080, budget_sec=3600):
+    with guard.endpoint_guard("localhost", 65530, budget_sec=3600):
         timeout = session_request_timeout()
     assert timeout == (2.0, 120.0)
 
@@ -888,9 +888,9 @@ def test_create_ipc_client_defaults_to_per_request_read(tmp_path, monkeypatch):
         "harness.tools.shared.control_openlca.connection.BoundedIPCClient",
         return_value=dummy,
     ) as factory:
-        create_ipc_client("localhost", 8080)
+        create_ipc_client("localhost", 65530)
     factory.assert_called_once_with(
-        "http://localhost:8080",
+        "http://localhost:65530",
         timeout=(2.0, 120.0),
     )
 
@@ -907,7 +907,7 @@ def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):
         patch.object(
             guard,
             "serialized_ipc",
-            side_effect=lambda fn, **kwargs: fn("127.0.0.1", 8080),
+            side_effect=lambda fn, **kwargs: fn("127.0.0.1", 65530),
         ),
         patch.object(main, "run_query_descriptors", return_value={"ok": True}),
     ):
@@ -1024,7 +1024,7 @@ def test_cleanup_preview_allowed_outside_report_phase(context, monkeypatch):
         main.Context, "environment", classmethod(lambda cls, *a, **k: ctx)
     )
     with (
-        patch.object(main, "_endpoint_config", return_value=("localhost", 8080)),
+        patch.object(main, "_endpoint_config", return_value=("localhost", 65530)),
         patch.object(
             main, "run_cleanup_output", return_value={"ok": True, "deleted": []}
         ) as run,
@@ -1079,10 +1079,10 @@ def test_cleanup_budget_request_is_sent_with_short_read(context):
     session = requests.Session()
     session.mount("http://", adapter)
     with patch.object(HTTPAdapter, "send", transport):
-        with guard.endpoint_guard("localhost", 8080):
+        with guard.endpoint_guard("localhost", 65530):
             guard._local.deadline = time.monotonic() + 600
             with guard.cleanup_budget():
-                session.post("http://localhost:8080", json={"id": 1})
+                session.post("http://localhost:65530", json={"id": 1})
     assert len(sent) == 1
     connect, read = sent[0]
     assert read <= 8.0
@@ -1114,12 +1114,12 @@ def test_calculation_dispose_reaches_openlca_through_http(context, monkeypatch):
         "find_entity",
         lambda client, cls, name: cls(id=f"{name}-id", name=name),
     )
-    client = BoundedIPCClient(8080)
+    client = BoundedIPCClient(65530)
     with patch.object(HTTPAdapter, "send", transport):
-        with guard.endpoint_guard("localhost", 8080):
+        with guard.endpoint_guard("localhost", 65530):
             guard._local.deadline = time.monotonic() + 600
             out = workflow.calculate_product_system(
-                "localhost", 8080, "ps", "method", client=client
+                "localhost", 65530, "ps", "method", client=client
             )
     assert "result/dispose" in methods
     assert out["resource_released"] is True, out["error"]
