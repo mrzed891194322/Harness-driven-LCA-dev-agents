@@ -10,6 +10,7 @@ import olca_schema
 
 from backend.core.workflow.workspace.index import (
     record_openlca_cleanup,
+    record_openlca_unreachable,
     should_run_openlca_attempt_cleanup,
 )
 from backend.core.workflow.workspace.layout import accepted as load_accepted
@@ -41,7 +42,17 @@ def maybe_cleanup_before_openlca_write(
     ):
         return
     host, port = openlca_endpoint(project_root)
-    client = connect_ipc(host, port, olca_schema.ProductSystem)
+    try:
+        client = connect_ipc(host, port, olca_schema.ProductSystem)
+    except Exception as exc:
+        logger.error("openLCA IPC connect failed before cleanup: %s", exc)
+        record_openlca_unreachable(
+            workspace,
+            stage_id,
+            role=role,
+            attempt=attempt,
+        )
+        raise RuntimeError("openlca unreachable") from exc
 
     def fetch_entity(entity_type: str, entity_id: str) -> dict[str, Any] | None:
         model = _TYPE_MAP.get(entity_type)

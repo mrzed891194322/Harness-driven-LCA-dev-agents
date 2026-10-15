@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from backend.services.openlca_attempt_cleanup import maybe_cleanup_before_openlca_write
 from backend.core.workflow.workspace.index import (
     register_attempt,
@@ -72,3 +74,30 @@ def test_second_attempt_writes_openlca_deleted_to_attempts_json(tmp_path: Path) 
     assert not should_run_openlca_attempt_cleanup(
         ws, STAGE, role="executor", attempt=2
     )
+
+
+def test_unreachable_openlca_records_skip_and_raises(tmp_path: Path) -> None:
+    ws = tmp_path / "workspace"
+    register_attempt(ws, STAGE, "executor", 2, "run-b")
+
+    def _boom(*_a, **_k):
+        raise ConnectionError("ipc down")
+
+    with patch(
+        "backend.services.openlca_attempt_cleanup.connect_ipc",
+        side_effect=_boom,
+    ), patch(
+        "backend.services.openlca_attempt_cleanup.openlca_endpoint",
+        return_value=("127.0.0.1", 1),
+    ), pytest.raises(RuntimeError, match="openlca unreachable"):
+        maybe_cleanup_before_openlca_write(
+            tmp_path,
+            ws,
+            stage_id=STAGE,
+            role="executor",
+            attempt=2,
+        )
+
+    doc = json.loads((ws / "runs" / STAGE / "attempts.json").read_text(encoding="utf-8"))
+    row = next(r for r in doc["attempts"] if r["attempt"] == 2)
+    assert row.get("openlca_skipped") == [{"reason": "openlca_unreachable"}]
