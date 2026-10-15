@@ -40,7 +40,7 @@ CLEAN_TARGETS = [
         "name": "workspace",
         "path": PROJECT_ROOT / "workspace",
         "gitignore": PROJECT_ROOT / "workspace" / ".gitignore",
-        "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
+        "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
         "keep_patterns": ["**/README.md", ORCHESTRATOR_LOCK_KEEP],
     },
 ]

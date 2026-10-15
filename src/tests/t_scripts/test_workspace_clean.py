@@ -18,13 +18,16 @@ class CleanDirectoryTests(unittest.TestCase):
             root = Path(temp)
             workspace = root / "workspace"
             workspace.mkdir()
-            (workspace / "records").mkdir()
-            (workspace / "outputs").mkdir()
+            (workspace / "runs" / "_run").mkdir(parents=True)
+            (workspace / "artifacts").mkdir()
             (workspace / "tmp").mkdir()
-            (workspace / "records" / "old.json").write_text("{}", encoding="utf-8")
-            memory_readme = workspace / "records" / "README.md"
+            (workspace / "runs" / "01-intake-gate" / "reviewer-1").mkdir(parents=True)
+            (workspace / "runs" / "01-intake-gate" / "reviewer-1" / "old.json").write_text(
+                "{}", encoding="utf-8"
+            )
+            memory_readme = workspace / "runs" / "README.md"
             memory_readme.write_text("keep", encoding="utf-8")
-            (workspace / "outputs" / "old.json").write_text("{}", encoding="utf-8")
+            (workspace / "artifacts" / "old.json").write_text("{}", encoding="utf-8")
             (workspace / "tmp" / "cache.json").write_text("{}", encoding="utf-8")
             tmp_readme = workspace / "tmp" / "README.md"
             tmp_readme.write_text("keep", encoding="utf-8")
@@ -34,7 +37,7 @@ class CleanDirectoryTests(unittest.TestCase):
                     "name": "workspace",
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
-                    "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
+                    "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
                     "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
                 }
             ]
@@ -46,8 +49,10 @@ class CleanDirectoryTests(unittest.TestCase):
 
             self.assertTrue(memory_readme.exists())
             self.assertTrue(tmp_readme.exists())
-            self.assertFalse((workspace / "records" / "old.json").exists())
-            self.assertFalse((workspace / "outputs" / "old.json").exists())
+            self.assertFalse(
+                (workspace / "runs" / "01-intake-gate" / "reviewer-1" / "old.json").exists()
+            )
+            self.assertFalse((workspace / "artifacts" / "old.json").exists())
             self.assertFalse((workspace / "tmp" / "cache.json").exists())
 
     def test_clean_knowledge_staging_subdirs(self) -> None:
@@ -270,7 +275,7 @@ class CleanDirectoryTests(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_symlink_clean_roots_do_not_follow_external(self) -> None:
-        for dir_name in ("records", "outputs", "tmp"):
+        for dir_name in ("runs", "artifacts", "tmp"):
             with self.subTest(dir_name=dir_name), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 external = root / "external"
@@ -289,7 +294,7 @@ class CleanDirectoryTests(unittest.TestCase):
                         "name": "workspace",
                         "path": workspace,
                         "gitignore": workspace / ".gitignore",
-                        "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
+                        "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
                         "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
                     }
                 ]
@@ -307,21 +312,23 @@ class CleanDirectoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             workspace = root / "workspace"
-            memory = workspace / "records"
-            memory.mkdir(parents=True)
-            (workspace / "outputs").mkdir()
+            run_meta = workspace / "runs" / "_run"
+            run_meta.mkdir(parents=True)
+            (workspace / "artifacts").mkdir()
             (workspace / "tmp").mkdir()
-            lock_path = memory / "orchestrator.lock"
+            lock_path = run_meta / "orchestrator.lock"
             lock_path.write_text("owned", encoding="utf-8")
-            (memory / "old.json").write_text("{}", encoding="utf-8")
+            attempt = workspace / "runs" / "01-intake-gate" / "reviewer-1"
+            attempt.mkdir(parents=True)
+            (attempt / "old.json").write_text("{}", encoding="utf-8")
 
             targets = [
                 {
                     "name": "workspace",
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
-                    "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
-                    "keep_patterns": ["**/README.md"],
+                    "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
+                    "keep_patterns": ["**/README.md", "runs/_run/orchestrator.lock"],
                 }
             ]
             with (
@@ -332,7 +339,7 @@ class CleanDirectoryTests(unittest.TestCase):
 
             self.assertTrue(lock_path.exists())
             self.assertEqual(lock_path.read_text(encoding="utf-8"), "owned")
-            self.assertFalse((memory / "old.json").exists())
+            self.assertFalse((attempt / "old.json").exists())
 
     def test_run_clean_fails_when_workspace_lock_held(self) -> None:
         from backend.core.workflow.persistence.checkpoint import workspace_lock
@@ -352,7 +359,7 @@ class CleanDirectoryTests(unittest.TestCase):
                     "name": "workspace",
                     "path": workspace,
                     "gitignore": workspace / ".gitignore",
-                    "ignored_dirs": ["records/**", "outputs/**", "tmp/**"],
+                    "ignored_dirs": ["runs/**", "artifacts/**", "tmp/**"],
                     "keep_patterns": ["**/README.md", "records/orchestrator.lock"],
                 }
             ]
