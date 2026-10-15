@@ -1,5 +1,7 @@
 # Workflow Records
 
+> **迁移说明**：handoff/review 与尝试内证据已迁至 `workspace/runs/`；审查通过的 deliverable 在 `workspace/artifacts/`。详见 `workspace/runs/README.md` 与 `docs/PROJECT_LAYOUT.md`。下列条目描述迁移期仍可能存在的路径。
+
 Whole-LCA 运行时在此目录维护固定的运行证据：
 
 - `manifest.json`
