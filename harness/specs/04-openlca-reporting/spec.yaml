@@ -1,18 +1,37 @@
 version: 2
 id: 04-openlca-reporting
 inputs:
-- path: workspace/outputs/LCI
-  kind: directory
+- from: 03-dataset-mapping/LCI
+  path: LCI
+  kind: deliverable
+  path_kind: directory
   required: true
-- path: workspace/outputs/inventory/extracted-bom.json
+- from: 02-inventory-extraction/extracted-bom.json
+  path: extracted-bom.json
+  kind: deliverable
   required: true
-- path: workspace/outputs/inventory/process-mapping.json
+- from: 03-dataset-mapping/process-mapping.json
+  path: process-mapping.json
+  kind: deliverable
   required: true
 deliverables:
+- name: calculation-plan
+  path: calculation-plan.json
+  kind: deliverable
+  format: json
+  required: false
+  writer: agent
 - name: lca_report
-  path: workspace/outputs/reports/lca_report.md
+  path: lca_report.md
+  kind: deliverable
   format: text
   required: true
+  writer: agent
+- name: results
+  path: results.json
+  kind: deliverable
+  format: json
+  required: false
   writer: agent
 acceptance: acceptance.yaml
 permissions: permissions.yaml

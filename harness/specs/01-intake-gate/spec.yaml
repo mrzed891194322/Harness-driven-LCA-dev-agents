@@ -3,6 +3,7 @@ version: 2
 id: 01-intake-gate
 inputs:
 - path: harness/knowledge/plan/main_plan.md
+  kind: handoff
   required: true
 deliverables: []
 acceptance: acceptance.yaml

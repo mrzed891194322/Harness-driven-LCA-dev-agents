@@ -44,10 +44,25 @@ SPEC_TOP_KEYS = frozenset(
         "handoff",
     }
 )
-PATH_KEYS = frozenset({"path", "required", "kind", "format", "schema"})
-DELIVERABLE_KEYS = frozenset(
-    {"name", "path", "kind", "format", "required", "writer", "schema", "example"}
+PATH_KEYS = frozenset(
+    {"path", "required", "kind", "format", "schema", "from", "path_kind", "artifact_kind"}
 )
+DELIVERABLE_KEYS = frozenset(
+    {
+        "name",
+        "path",
+        "kind",
+        "path_kind",
+        "artifact_kind",
+        "format",
+        "required",
+        "writer",
+        "schema",
+        "example",
+    }
+)
+ARTIFACT_KINDS = frozenset({"handoff", "deliverable"})
+STORAGE_KINDS = frozenset({"file", "directory"})
 WRITERS = frozenset({"spec_mcp", "agent"})
 ACCEPTANCE_KEYS = frozenset({"version", "host_checks", "deliverables", "review_points"})
 SUBMIT_CHECK_KEYS = frozenset({"check", "params", "summary"})
@@ -224,17 +239,15 @@ def _parse_deliverables(items: Any, reader: _Reader, relative: str) -> list[Deli
         if name in seen:
             raise ValueError(f"{label}: duplicate deliverable name {name}")
         seen.add(name)
-        path = require_workspace_output(str(item.get("path") or ""), label=f"{label}.path")
-        kind = str(item.get("kind") or "file")
-        if kind not in {"file", "directory"}:
-            raise ValueError(f"{label}: kind must be file|directory")
+        path = _parse_contract_path(str(item.get("path") or ""), label=f"{label}.path")
+        artifact_kind, storage_kind = _parse_kind_fields(item, label)
         fmt = item.get("format")
         if fmt is not None and str(fmt) not in {"json", "yaml", "text"}:
             raise ValueError(f"{label}: unknown format {fmt!r}")
         writer = str(item.get("writer") or "spec_mcp")
         if writer not in WRITERS:
             raise ValueError(f"{label}: writer must be one of {sorted(WRITERS)}")
-        if writer == "spec_mcp" and kind != "file":
+        if writer == "spec_mcp" and storage_kind != "file":
             raise ValueError(f"{label}: spec_mcp can only write file deliverables")
         required = item.get("required", True)
         if not isinstance(required, bool):
@@ -262,12 +275,13 @@ def _parse_deliverables(items: Any, reader: _Reader, relative: str) -> list[Deli
             Deliverable(
                 name=name,
                 path=path,
-                kind=kind,
+                kind=storage_kind,
                 format=str(fmt) if fmt is not None else None,
                 required=required,
                 writer=writer,
                 schema=schema_eff,
                 example=example_eff,
+                artifact_kind=artifact_kind,
             )
         )
     return out
@@ -332,10 +346,15 @@ def _parse_paths(items: Any, label: str) -> list[PathContract]:
         if not isinstance(item, dict):
             raise ValueError(f"{label}[{index}]: must be a mapping")
         _reject_unknown(item, PATH_KEYS, f"{label}[{index}]")
-        path = require_relative_path(str(item.get("path") or ""), label=f"{label}[{index}].path")
-        kind = str(item.get("kind") or "file")
-        if kind not in {"file", "directory"}:
-            raise ValueError(f"{label}[{index}]: kind must be file|directory")
+        path = _parse_contract_path(
+            str(item.get("path") or ""), label=f"{label}[{index}].path"
+        )
+        from_ref = item.get("from")
+        if from_ref is not None:
+            from_ref = str(from_ref).strip()
+            if not from_ref:
+                raise ValueError(f"{label}[{index}]: from must not be empty")
+        artifact_kind, storage_kind = _parse_kind_fields(item, f"{label}[{index}]")
         fmt = item.get("format")
         if fmt is not None and str(fmt) not in {"json", "yaml", "text"}:
             raise ValueError(f"{label}[{index}]: unknown format {fmt!r}")
@@ -346,12 +365,50 @@ def _parse_paths(items: Any, label: str) -> list[PathContract]:
             PathContract(
                 path=path,
                 required=required,
-                kind=kind,
+                kind=storage_kind,
                 format=str(fmt) if fmt is not None else None,
                 schema=None,
+                artifact_kind=artifact_kind,
+                from_ref=from_ref,
             )
         )
     return out
+
+
+def _parse_contract_path(value: str, *, label: str) -> str:
+    text = require_relative_path(value, label=label)
+    normalized = text.replace("\\", "/")
+    if normalized.startswith("harness/") or normalized.startswith("workspace/"):
+        return text
+    return text
+
+
+def _parse_kind_fields(item: dict[str, Any], label: str) -> tuple[str | None, str]:
+    raw_kind = str(item.get("kind") or "").strip()
+    path_kind = str(item.get("path_kind") or "").strip()
+    artifact_kind = str(item.get("artifact_kind") or "").strip() or None
+
+    if raw_kind in ARTIFACT_KINDS:
+        if artifact_kind and artifact_kind != raw_kind:
+            raise ValueError(f"{label}: kind and artifact_kind conflict")
+        artifact_kind = raw_kind
+        storage = path_kind or "file"
+    elif raw_kind in STORAGE_KINDS:
+        storage = raw_kind
+        if not artifact_kind:
+            artifact_kind = "deliverable"
+    elif not raw_kind:
+        storage = path_kind or "file"
+        if not artifact_kind:
+            artifact_kind = None
+    else:
+        raise ValueError(f"{label}: kind must be handoff|deliverable|file|directory")
+
+    if storage not in STORAGE_KINDS:
+        raise ValueError(f"{label}: path_kind must be file|directory")
+    if artifact_kind is not None and artifact_kind not in ARTIFACT_KINDS:
+        raise ValueError(f"{label}: artifact_kind must be handoff|deliverable")
+    return artifact_kind, storage
 
 
 def _parse_action_refs(items: Any, label: str) -> list[HostActionRef]:

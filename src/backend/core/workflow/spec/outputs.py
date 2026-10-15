@@ -10,6 +10,8 @@ import yaml
 
 from backend.core.runtime.identifiers import resolve_project_path
 
+from backend.core.workflow.workspace.legacy_paths import resolve_declared_path
+
 from .models import PathContract, StageSpec
 
 try:
@@ -19,12 +21,19 @@ except ImportError:  # pragma: no cover - dependency declared in pyproject
 
 
 def _resolve_contract_path(
-    workspace_root: Path, project_root: Path, declared: str
+    workspace_root: Path,
+    project_root: Path,
+    declared: str,
+    *,
+    stage_id: str,
+    from_ref: str | None = None,
 ) -> Path:
-    text = declared.replace("\\", "/")
+    text = resolve_declared_path(
+        stage_id=stage_id, declared=declared, from_ref=from_ref
+    ).replace("\\", "/")
     if text.startswith("harness/"):
         return resolve_project_path(project_root, text, label="contract path")
-    return _resolve_workspace_path(workspace_root, declared)
+    return _resolve_workspace_path(workspace_root, text)
 
 
 def validate_path_contracts(
@@ -32,6 +41,7 @@ def validate_path_contracts(
     *,
     workspace_root: Path,
     project_root: Path,
+    stage_id: str,
 ) -> list[str]:
     """Validate PathContracts.
 
@@ -43,7 +53,13 @@ def validate_path_contracts(
     errors: list[str] = []
     for item in items:
         try:
-            target = _resolve_contract_path(workspace_root, project_root, item.path)
+            target = _resolve_contract_path(
+                workspace_root,
+                project_root,
+                item.path,
+                stage_id=stage_id,
+                from_ref=item.from_ref,
+            )
         except ValueError as exc:
             errors.append(str(exc))
             continue
@@ -69,6 +85,7 @@ def validate_inputs(
         spec.inputs,
         workspace_root=workspace_root,
         project_root=project_root,
+        stage_id=spec.spec_id,
     )
 
 
@@ -82,6 +99,7 @@ def validate_outputs(
         spec.outputs,
         workspace_root=workspace_root,
         project_root=project_root,
+        stage_id=spec.spec_id,
     )
 
 

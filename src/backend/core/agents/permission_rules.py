@@ -191,8 +191,13 @@ def resolve_permissions(
                 write.append(a)
     if SPEC_MCP_SERVER in bound and SPEC_MCP_TOOLS_PATTERN not in tools:
         tools.append(SPEC_MCP_TOOLS_PATTERN)
+    from backend.core.workflow.workspace.legacy_paths import resolve_declared_path
+
     deny = [
-        _abs_glob(project_root, d.path)
+        _abs_glob(
+            project_root,
+            resolve_declared_path(stage_id=stage_spec.spec_id, declared=d.path),
+        )
         for d in stage_spec.deliverables
         if d.writer == "spec_mcp"
     ]

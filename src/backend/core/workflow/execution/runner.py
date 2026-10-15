@@ -884,10 +884,20 @@ class OrchestratorRuntime:
         return UPSTREAM_REWORK_LIMIT_DEFAULT
 
     def _stage_outputs(self, stage: Stage) -> list[str]:
+        from backend.core.workflow.workspace.legacy_paths import resolve_declared_path
+
         for assignment_id in stage.steps:
             bundle = self.bundles.get(assignment_id)
             if bundle is not None:
-                return [item.path for item in bundle.stage_spec.outputs]
+                spec = bundle.stage_spec
+                return [
+                    resolve_declared_path(
+                        stage_id=spec.spec_id,
+                        declared=item.path,
+                        from_ref=item.from_ref,
+                    )
+                    for item in spec.outputs
+                ]
         return []
 
     def validate_upstream_request(

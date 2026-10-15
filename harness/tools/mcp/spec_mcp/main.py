@@ -40,6 +40,7 @@ from harness.tools.mcp.spec_mcp.spec_view import (
     read_spec,
     view_hash,
 )
+from harness.tools.shared.lca_artifacts.legacy_paths import resolve_declared_path
 from harness.tools.shared.lca_artifacts.store import Context
 from mcp.server import MCPServer
 
@@ -139,7 +140,8 @@ def _context(b: Binding) -> Context:
 
 
 def _official(b: Binding, d: Deliverable) -> Path:
-    path = (b.project_root / d.path).resolve()
+    rel = resolve_declared_path(stage_id=b.stage, declared=d.path)
+    path = (b.project_root / rel).resolve()
     ws = b.workspace.resolve()
     if path != ws and ws not in path.parents:
         raise SpecError(f"deliverable path escapes workspace: {d.path}")

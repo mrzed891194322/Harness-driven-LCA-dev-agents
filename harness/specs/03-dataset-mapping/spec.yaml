@@ -1,23 +1,34 @@
 version: 2
 id: 03-dataset-mapping
 inputs:
-- path: workspace/outputs/inventory/extracted-bom.json
+- from: 02-inventory-extraction/extracted-bom.json
+  path: extracted-bom.json
+  kind: deliverable
   required: true
 - path: harness/knowledge/plan/main_plan.md
+  kind: handoff
   required: true
 deliverables:
 - name: LCI
-  path: workspace/outputs/LCI
-  kind: directory
+  path: LCI
+  kind: deliverable
+  path_kind: directory
   required: true
   writer: agent
 - name: process-mapping
-  path: workspace/outputs/inventory/process-mapping.json
+  path: process-mapping.json
+  kind: deliverable
   format: json
   required: true
   writer: spec_mcp
   schema: deliverables/process-mapping.schema.json
   example: examples/process-mapping.json
+- name: human-readable-mapping
+  path: human_readable_mapping.md
+  kind: deliverable
+  format: text
+  required: false
+  writer: agent
 acceptance: acceptance.yaml
 permissions: permissions.yaml
 examples: examples/
