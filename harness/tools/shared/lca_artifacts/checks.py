@@ -855,7 +855,39 @@ def current_evidence_refs(ctx, profile: str, producer_stage: str) -> list[dict]:
 def check_path(ctx, profile):
     if profile not in INTERNAL_PROFILES:
         raise ValueError("unknown check profile")
-    return ctx.safe(ctx.memory / "checks" / f"{profile}.json")
+    primary = ctx.attempt_root() / "checks" / f"{profile}.json"
+    if primary.is_file():
+        return ctx.safe(primary)
+    stage_root = ctx.safe(ctx.workspace / "runs" / ctx.stage)
+    best: tuple[int, Path] | None = None
+    if stage_root.is_dir():
+        for candidate in stage_root.glob(f"*/checks/{profile}.json"):
+            role_attempt = candidate.parent.parent.name
+            if "-" not in role_attempt:
+                continue
+            try:
+                number = int(role_attempt.rsplit("-", 1)[1])
+            except ValueError:
+                continue
+            if number >= ctx.attempt:
+                continue
+            try:
+                payload = load(candidate)
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                continue
+            if payload.get("run_id") not in (None, ctx.run_id):
+                continue
+            if best is None or number > best[0]:
+                best = (number, candidate)
+    if best is not None:
+        return ctx.safe(best[1])
+    return ctx.safe(primary)
+
+
+def check_write_path(ctx, profile):
+    if profile not in INTERNAL_PROFILES:
+        raise ValueError("unknown check profile")
+    return ctx.safe(ctx.attempt_root() / "checks" / f"{profile}.json")
 
 
 def validation_state_for_run(ctx, profile):
@@ -932,6 +964,12 @@ def validation_state(ctx, profile):
             "status": "not_run",
         }
     record = load(path)
+    if record.get("run_id") not in (None, ctx.run_id):
+        return {
+            "check_id": profile,
+            "checker_version": CHECKER_VERSION,
+            "status": "not_run",
+        }
     stale = False
     if record.get("checker_version") != CHECKER_VERSION:
         stale = True
@@ -990,11 +1028,12 @@ def validate_for_run(ctx, profile):
         "stage": ctx.stage,
         "assignment": ctx.assignment,
         "attempt": ctx.attempt,
+        "run_id": ctx.run_id,
     }
-    path = check_path(ctx, profile)
+    path = check_write_path(ctx, profile)
     _write_json_atomic(path, record)
     history = ctx.safe(
-        ctx.memory
+        ctx.attempt_root()
         / "checks"
         / "history"
         / f"{profile}-{ctx.attempt}-{stable_hash(record)[:16]}.json"

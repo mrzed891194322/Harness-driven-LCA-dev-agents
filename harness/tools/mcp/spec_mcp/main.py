@@ -140,7 +140,9 @@ def _context(b: Binding) -> Context:
 
 
 def _official(b: Binding, d: Deliverable) -> Path:
-    rel = resolve_declared_path(stage_id=b.stage, declared=d.path)
+    rel = resolve_declared_path(
+        stage_id=b.stage, declared=d.path, role=b.role, attempt=b.attempt
+    )
     path = (b.project_root / rel).resolve()
     ws = b.workspace.resolve()
     if path != ws and ws not in path.parents:

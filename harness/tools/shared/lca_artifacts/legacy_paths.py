@@ -46,11 +46,20 @@ def legacy_input_path(from_ref: str) -> str | None:
     return _LEGACY_INPUT_FROM.get((stage, name))
 
 
+def attempt_workspace_path(
+    stage_id: str, role: str, attempt: int, declared: str
+) -> str:
+    name = str(declared or "").replace("\\", "/").lstrip("/")
+    return f"workspace/runs/{stage_id}/{role}-{attempt}/{name}"
+
+
 def resolve_declared_path(
     *,
     stage_id: str,
     declared: str,
     from_ref: str | None = None,
+    role: str | None = None,
+    attempt: int | None = None,
 ) -> str:
     text = str(declared or "").replace("\\", "/")
     if text.startswith("harness/") or text.startswith("workspace/"):
@@ -59,6 +68,8 @@ def resolve_declared_path(
         mapped = legacy_input_path(from_ref)
         if mapped:
             return mapped
+    if role and attempt:
+        return attempt_workspace_path(stage_id, role, attempt, text)
     mapped = legacy_workspace_path(stage_id, text)
     if mapped:
         return mapped

@@ -120,9 +120,26 @@ class Context:
         self.safe(self.workspace / _RECORDS_DIRNAME)
         self.safe(self.workspace / "outputs")
 
+    def attempt_root(self) -> Path:
+        return self.safe(
+            self.workspace / "runs" / self.stage / f"{self.role}-{self.attempt}"
+        )
+
+    def path(self, declared: str) -> Path:
+        from harness.tools.shared.lca_artifacts.legacy_paths import resolve_declared_path
+
+        rel = resolve_declared_path(
+            stage_id=self.stage,
+            declared=declared,
+            role=self.role,
+            attempt=self.attempt,
+        )
+        if rel.startswith("workspace/"):
+            rel = rel[len("workspace/") :]
+        return self.safe(self.workspace / rel)
+
     def sources_manifest_path(self) -> Path:
-        key = self.assignment or f"{self.stage}-{self.role}"
-        return self.safe(self.memory / "sources" / f"{key}.json")
+        return self.attempt_root() / "sources.json"
 
     def lca_phase(self) -> str | None:
         block = self.metadata.get("lca") if isinstance(self.metadata, dict) else None
@@ -274,15 +291,7 @@ class Context:
     def save_result(self, tool, result, arguments, snapshots=None):
         call_id = uuid.uuid4().hex
         path = self.safe(
-            self.workspace
-            / "outputs"
-            / "reports"
-            / "runs"
-            / self.run_id
-            / self.stage
-            / str(self.attempt)
-            / call_id
-            / "raw.json"
+            self.attempt_root() / "raw" / call_id / "raw.json"
         )
         # Complete raw domain result, without summarization.
         _write_json_atomic(path, result)
