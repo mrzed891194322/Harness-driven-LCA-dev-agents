@@ -7,7 +7,7 @@
 - 背景库里已有的 Flow、Process、ProductSystem 只写在交换的 `flow.@id`、`defaultProvider.@id` 里。不要在 `LCI/flows/`、`LCI/processes/`、`LCI/product_systems/` 再放一份以该 UUID 为文件自身 `@id` 的实体；导入会按这个 `@id` 覆盖原记录，并把分类改到本项目。为了记录单位或流属性而复制背景实体同样不允许，单位写在引用它的交换上。预检因「@id 已存在且不在本项目分类」失败时，停止导入，把该文件退回阶段 03 删掉，不要改成新 UUID 再导入。
 - 查询批次和长调用使用工具暴露的 `timeout_sec`（仅用于**降低**宿主 `OPENLCA_IPC_SESSION_BUDGET_SEC` 会话总预算，取 min(agent, host)；单次 HTTP 读超时由 `OPENLCA_TIMEOUT_*` 决定，与 agent 值无关），不用外层 shell timeout。busy 表示锁等待，不代表空库；超时不表示服务端取消，不自动重扫。`partial_failure` 时用 `reconcile_import` + `resume_import`（或 `import_lci(resume_operation_id=...)`），不要盲开新导入。
 - 工具结果含 `retryable: false` 或 `error_kind: openlca_unresponsive` 时，**禁止**再次调用 `import_lci`、`cleanup_output`、`calculate_product_system`；应停止并 `submit_handoff` 失败。此时 openLCA 可能处于不确定状态（`*.uncertain` 锁文件），需人工检查桌面或重启 IPC 后再开新运行。
-- 先读摘要、错误和 artifacts，详情按页或 `read_artifact` 读取。保留工具生成的 raw 路径、SHA-256 和调用身份，不手工复制响应造档，不全量塞入对话。
+- 先读摘要、错误和 artifacts，详情按页或 `read_artifact` 读取（只传 `path` 即可，工具按宿主记录的 SHA-256 自动校验）。保留工具生成的 raw 路径、SHA-256 和调用身份，不手工复制响应造档，不全量塞入对话。
 - `database_identity_verified=false` 不得写成已验证数据库名称/版本；`execution_mode=reused` 仅表示复用请求日志，不能证明当前数据库未被外部修改。
 - 工具失败、部分失败、断链、空 LCIA 结果或资源未释放如实报告，不等同于完成，不静默切换来源或工具。工具可调用不代表当前角色获准执行导入、清理或计算。
 

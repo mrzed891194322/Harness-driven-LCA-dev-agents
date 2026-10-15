@@ -85,3 +85,5 @@
 04 reviewer-1 用 `read_artifact` 读 `executor-1/raw/49078f9b…/raw.json` 时一直报 `artifact checksum mismatch`。文件本身没问题：宿主记录的 sha256（64 位）和文件字节一致，路径解析（reviewer 读 executor attempt）也正确。原因是 reviewer 手抄 sha 时漏了一个 `0`，传入的是 63 位（`…04a8a6b9b…`，正确为 `…04a8a06b9b…`），而工具对格式错误的 sha 也只报 mismatch，被误读成证据损坏。
 
 修复：`store.normalize_sha256` 先校验传入值必须是 64 位十六进制（容忍大小写和首尾空白），否则报 `invalid sha256: expected 64 hex characters, got N`；格式正确但不一致时仍报 mismatch，并提示从 handoff/evidence manifest 原样复制。回归测试 `src/tests/t_harness/tools/lca_artifacts/test_read_artifact_checksum.py` 断言宿主 `ref()` 记录的 sha 能被 reviewer 的 `resolve_ref` 验证通过。
+
+后续：`read_artifact` 支持只传路径。省略 `sha256` 时，工具在本轮 evidence manifest 的调用记录（同一路径以最后一次为准）、accepted 快照、文件所属 attempt 的 `handoff.json` 里查宿主为该路径记录的 sha，再按它校验文件；查不到就报 `no recorded sha256`，绝不跳过校验直接读。传了 `sha256` 时行为不变。`harness/rules/tools/` 已改为建议只传路径、不要手抄 sha。

@@ -64,13 +64,13 @@ def render_report_tables() -> dict[str, Any]:
 
 
 @mcp.tool(
-    description="Read a bounded UTF-8 slice of a checksummed workspace artifact (offset in characters).",
+    description="Read a bounded UTF-8 slice of a checksummed workspace artifact (offset in characters). sha256 is optional: omit it and the tool verifies the file against the sha the host recorded for that exact path (evidence manifest or owning attempt handoff); unrecorded files are refused. If you pass sha256 it must be the full 64-hex value.",
     annotations=AUDIT,
     structured_output=True,
 )
 def read_artifact(
     path: str,
-    sha256: str,
+    sha256: str | None = None,
     offset: int = 0,
     limit: int = 2000,
     json_pointer: str | None = None,

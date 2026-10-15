@@ -326,7 +326,17 @@ class Context:
 
     def resolve_ref(self, ref):
         path = self.resolve_read_path(str(ref["path"]))
-        expected = normalize_sha256(ref["sha256"])
+        supplied = ref.get("sha256")
+        if supplied is None or (isinstance(supplied, str) and not supplied.strip()):
+            expected = self.recorded_sha256(path)
+            if expected is None:
+                raise ValueError(
+                    f"no recorded sha256 for {ref['path']}: path-only reads need a "
+                    "sha recorded in the run evidence manifest or the owning "
+                    "attempt's handoff; pass sha256 explicitly"
+                )
+        else:
+            expected = normalize_sha256(supplied)
         if sha256_file(path) != expected:
             raise ValueError(
                 f"artifact checksum mismatch: {ref['path']} (the file's bytes do "
@@ -334,6 +344,68 @@ class Context:
                 "verbatim from the handoff or evidence manifest)"
             )
         return path
+
+    def recorded_sha256(self, path: Path) -> str | None:
+        """sha256 the host recorded for this exact file, or None.
+
+        Sources, in order: evidence manifest call artifacts (latest wins),
+        then any ``{path, sha256}`` record in the manifest's accepted
+        snapshots, then the owning attempt's ``handoff.json`` and this
+        context's handoff. Never computed from the file itself.
+        """
+        target = Path(path).resolve()
+        found: list[str] = []
+
+        def matches(entry) -> bool:
+            try:
+                if entry.get("scope") == "project":
+                    candidate = (self.project / str(entry["path"])).resolve()
+                else:
+                    candidate = self.resolve_read_path(str(entry["path"]))
+            except (ValueError, KeyError, TypeError):
+                return False
+            return candidate == target
+
+        def walk(value):
+            if isinstance(value, dict):
+                if isinstance(value.get("path"), str) and isinstance(
+                    value.get("sha256"), str
+                ):
+                    if matches(value):
+                        found.append(value["sha256"])
+                for item in value.values():
+                    walk(item)
+            elif isinstance(value, list):
+                for item in value:
+                    walk(item)
+
+        try:
+            manifest = self.load_manifest()
+        except (ValueError, OSError):
+            manifest = {"calls": [], "accepted": {}}
+        for call in manifest.get("calls") or []:
+            artifact = call.get("artifact") if isinstance(call, dict) else None
+            if isinstance(artifact, dict):
+                walk(artifact)
+        if found:
+            return normalize_sha256(found[-1])
+        walk(manifest.get("accepted") or {})
+        handoffs = []
+        try:
+            rel = target.relative_to(self.workspace.resolve()).parts
+            if len(rel) >= 3 and rel[0] == "runs":
+                handoffs.append(self.workspace / "runs" / rel[1] / rel[2] / "handoff.json")
+        except ValueError:
+            pass
+        if self.handoff_path:
+            handoffs.append(Path(self.handoff_path))
+        for handoff in handoffs:
+            if not found and handoff.is_file():
+                try:
+                    walk(load_json(handoff))
+                except (ValueError, OSError):
+                    pass
+        return normalize_sha256(found[-1]) if found else None
 
     def load_manifest(self):
         if not self.manifest.exists():

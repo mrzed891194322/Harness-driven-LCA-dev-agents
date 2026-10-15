@@ -84,18 +84,32 @@ def render_report_tables(
 @mcp.tool(annotations=READ, structured_output=True)
 def read_artifact(
     path: str,
-    sha256: str,
+    sha256: str | None = None,
     offset: int = 0,
     limit: int = 2000,
     json_pointer: str | None = None,
 ) -> dict[str, Any]:
-    """Read a checksummed UTF-8 file; offset and limit count characters."""
+    """Read a checksummed UTF-8 file; offset and limit count characters.
+
+    sha256 is optional: when omitted, the sha recorded by the host for this
+    exact path is used; unrecorded files are refused (never read unverified).
+    """
     if isinstance(offset, bool) or offset < 0 or not 1 <= limit <= 4000:
         raise ValueError("offset >= 0 and limit 1..4000 required")
     source = Path(path)
     from harness.tools.shared.lca_artifacts.store import normalize_sha256
 
-    if sha256_file(source) != normalize_sha256(sha256):
+    if sha256 is None or not str(sha256).strip():
+        from harness.tools.shared.lca_artifacts.store import Context
+
+        expected = Context.environment().recorded_sha256(source)
+        if expected is None:
+            raise ValueError(
+                f"no recorded sha256 for {path}: pass sha256 explicitly"
+            )
+    else:
+        expected = normalize_sha256(sha256)
+    if sha256_file(source) != expected:
         raise ValueError("artifact checksum mismatch")
     text = source.read_text(encoding="utf-8")
     if json_pointer is not None:
