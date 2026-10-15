@@ -2,7 +2,7 @@
 
 Per session, under ``.local/runs/<run>/sessions/<stage>.<role>.<attempt>/`` (kept per
 run; workspace cleaning does not touch ``.local/runs``). When the run ends, the same
-session tree is copied to ``workspace/records/sessions/`` so the results page can
+session tree is copied to ``workspace/runs/_run/sessions/`` so the results page can
 render it without reading ``.local``:
 
 - ``injection/intended.json``  host side (this module)
@@ -150,11 +150,11 @@ def runs_root(project_root: Path) -> Path:
 
 def workspace_sessions_dir(workspace_root: Path) -> Path:
     """Results-page copy of the current run's session snapshots."""
-    return workspace_root / "records" / "sessions"
+    return workspace_root / "runs" / "_run" / "sessions"
 
 
 def publish_workspace_sessions(project_root: Path, workspace_root: Path, run_id: str) -> None:
-    """Copy this run's session snapshots into ``workspace/records/sessions``.
+    """Copy this run's session snapshots into ``workspace/runs/_run/sessions``.
 
     ``.local/runs`` stays the durable archive. The results page only reads
     workspace, so the same files are placed there when the run ends. A later

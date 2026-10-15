@@ -108,7 +108,7 @@ def reconcile_workspace_run(project_root: Path, workspace_root: Path) -> bool:
 
 
 def orchestrator_lock_held(workspace_root: Path) -> bool:
-    """True when a live process holds ``records/orchestrator.lock`` (non-blocking probe)."""
+    """True when a live process holds ``runs/_run/orchestrator.lock`` (non-blocking probe)."""
     path = records_root(workspace_root) / "orchestrator.lock"
     if not path.is_file():
         return False

@@ -1,7 +1,7 @@
 """Structured worker activity log (one JSON object per line) for the run UI.
 
 Lives under ``.local/runs/<run_id>/events.jsonl`` because whole-lca preclean
-wipes ``workspace/records`` and ``workspace/tmp``.
+wipes ``workspace/runs`` (保留 ``runs/_run/orchestrator.lock``) 与 ``workspace/tmp``。
 """
 
 from __future__ import annotations

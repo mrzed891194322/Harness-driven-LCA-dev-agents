@@ -369,11 +369,27 @@ def clean_root_files(
 # Canonical workspace subdirectory names (formerly utils/workspace_layout.py)
 # ---------------------------------------------------------------------------
 
-RECORDS_DIRNAME = "records"
+RUN_LEVEL_DIRNAME = "_run"
+RUNS_DIRNAME = "runs"
+LEGACY_RECORDS_DIRNAME = "records"
+ORCHESTRATOR_LOCK_REL = "runs/_run/orchestrator.lock"
+
+# Kept for harness MCP and tests that still mention the old dirname in strings.
+RECORDS_DIRNAME = f"{RUNS_DIRNAME}/{RUN_LEVEL_DIRNAME}"
+
+
+def run_level_root(workspace_root: Path) -> Path:
+    """Run-scoped files (manifest, checkpoint, evidence, progress, …)."""
+    return workspace_root / RUNS_DIRNAME / RUN_LEVEL_DIRNAME
+
+
+def legacy_records_root(workspace_root: Path) -> Path:
+    """Pre-migration layout; read-only fallback for old workspaces."""
+    return workspace_root / LEGACY_RECORDS_DIRNAME
 
 
 def records_root(workspace_root: Path) -> Path:
-    return workspace_root / RECORDS_DIRNAME
+    return run_level_root(workspace_root)
 
 
 # ---------------------------------------------------------------------------

@@ -13,11 +13,21 @@ from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
     from ..execution.runner import WorkflowState
 
-from backend.settings import records_root
+from backend.settings import legacy_records_root, records_root
 
 
 def checkpoint_path(workspace_root: Path) -> Path:
     return records_root(workspace_root) / "orchestrator.sqlite"
+
+
+def resolve_checkpoint_path(workspace_root: Path) -> Path:
+    primary = checkpoint_path(workspace_root)
+    if primary.is_file():
+        return primary
+    legacy = legacy_records_root(workspace_root) / "orchestrator.sqlite"
+    if legacy.is_file():
+        return legacy
+    return primary
 
 
 class WorkspaceBusy(RuntimeError):
