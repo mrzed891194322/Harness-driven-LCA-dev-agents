@@ -37,12 +37,14 @@ def cleanup(
                     "reconcile the import-operations journal"
                 )
             root = Path(workspace)
-            reconcile_cleanup(
-                root / "records" / "import-operations",
-                host,
-                port,
-                category,
-            )
+            runs = root / "runs"
+            if runs.is_dir():
+                for journal_parent in sorted(runs.rglob("import-operations")):
+                    if not journal_parent.is_dir():
+                        continue
+                    if "_run" in journal_parent.parts:
+                        continue
+                    reconcile_cleanup(journal_parent, host, port, category)
         return result
 
     perform.__name__ = "cleanup_output_confirm" if confirm else "cleanup_output_preview"

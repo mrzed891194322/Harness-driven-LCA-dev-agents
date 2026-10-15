@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -44,10 +45,8 @@ CLEAN_TARGETS = [
             "runs/**",
             "artifacts/**",
             "tmp/**",
-            # legacy pre-refactor layout; removed on full run only
-            "outputs/**",
-            "records/**",
         ],
+        "legacy_dirs": ["outputs", "records"],
         "keep_patterns": ["**/README.md", ORCHESTRATOR_LOCK_KEEP],
     },
 ]
@@ -143,8 +142,25 @@ def _clean_filesystem_target(
             if child.is_dir() and child.name not in exclude_top_level
         ]
 
+    legacy_dirs = list(target_cfg.get("legacy_dirs") or [])
+    for legacy_name in legacy_dirs:
+        legacy_path = root_dir / legacy_name
+        if not legacy_path.exists():
+            continue
+        try:
+            ensure_path_within(legacy_path, allowed_root)
+        except ValueError as exc:
+            print(f"  拒绝越界清理遗留目录: {exc}", file=sys.stderr)
+            total_failed += 1
+            continue
+        print(f"  删除遗留目录: {legacy_name}/（不保留 README）")
+        if dry_run:
+            total_dirs += 1
+        else:
+            shutil.rmtree(legacy_path)
+
     if not ignored_dirs:
-        return 0, 0, 0, 0
+        return total_files, total_dirs, total_kept, total_failed
 
     print(f"\n开始清理 [{name}] 目录...")
     print(f"  忽略子目录: {', '.join(ignored_dirs)}")
