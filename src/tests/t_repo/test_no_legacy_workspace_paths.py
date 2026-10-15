@@ -26,8 +26,15 @@ LINE_ALLOWLIST: dict[str, list[str]] = {
         "outputs/",
         "records/",
     ],
+    # negative tests: files under legacy outputs/ must NOT be read
     "src/tests/t_harness/tools/lca_artifacts/test_artifact_paths.py": [
         "outputs/",
+        'legacy = ctx02.workspace / "outputs"',
+        'legacy = ctx.workspace / "outputs"',
+    ],
+    # docstring of the negative test asserting records/ is not created
+    "src/tests/t_harness/tools/control_openlca/test_health_service_reconcile.py": [
+        "must not create workspace/records/",
     ],
     "src/tests/t_harness/tools/control_openlca/test_cleanup_descriptor_only.py": [
         '"outputs"',
@@ -53,6 +60,8 @@ PATTERNS = [
     re.compile(r'["\']records/'),
     re.compile(r"/\s*[\"']outputs[\"']\s*/"),
     re.compile(r"/\s*[\"']records[\"']\s*/"),
+    re.compile(r"workspace\s*/\s*[\"']outputs[\"']"),
+    re.compile(r"workspace\s*/\s*[\"']records[\"']"),
     re.compile(r"outputs/inventory"),
     re.compile(r"outputs/LCI"),
     re.compile(r"outputs/reports"),

@@ -349,7 +349,7 @@ class CleanDirectoryTests(unittest.TestCase):
             workspace = root / "workspace"
             memory = workspace / "runs" / "_run"
             memory.mkdir(parents=True)
-            (workspace / "outputs").mkdir()
+            (workspace / "artifacts").mkdir()
             (workspace / "tmp").mkdir()
             victim = memory / "victim.json"
             victim.write_text("{}", encoding="utf-8")
@@ -374,7 +374,7 @@ class CleanDirectoryTests(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertTrue(victim.exists())
             self.assertTrue(memory.exists())
-            self.assertTrue((workspace / "outputs").exists())
+            self.assertTrue((workspace / "artifacts").exists())
             self.assertTrue((workspace / "tmp").exists())
             self.assertTrue((memory / "orchestrator.lock").exists())
 

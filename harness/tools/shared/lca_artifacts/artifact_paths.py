@@ -29,12 +29,25 @@ def _attempt_path(ctx, stage_id: str, role: str, name: str) -> Path:
     return ctx.safe(ctx.workspace / rel)
 
 
+def _reviewed_writer_path(ctx, stage_id: str, name: str) -> Path:
+    """Reviewer n reads the latest writer attempt <= n (reviser or executor).
+
+    Mirrors ``src/backend/core/workflow/workspace/layout.writer_dir``.
+    """
+    stage_root = ctx.workspace / "runs" / stage_id
+    for attempt in range(int(ctx.attempt), 0, -1):
+        for role in ("reviser", "executor"):
+            if (stage_root / f"{role}-{attempt}").is_dir():
+                return ctx.safe(stage_root / f"{role}-{attempt}" / name)
+    return _attempt_path(ctx, stage_id, "executor", name)
+
+
 def stage_file(ctx, stage_id: str, name: str) -> Path:
     """Current attempt when ``ctx.stage == stage_id``; else ``workspace/artifacts/``."""
     if getattr(ctx, "stage", None) == stage_id:
         role = getattr(ctx, "role", "executor")
         if role == "reviewer":
-            return _attempt_path(ctx, stage_id, "executor", name)
+            return _reviewed_writer_path(ctx, stage_id, name)
         if role == "reviser":
             return _attempt_path(ctx, stage_id, "reviser", name)
         return ctx.path(name)

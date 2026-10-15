@@ -96,3 +96,23 @@ def test_legacy_outputs_bom_ignored(tmp_path: Path) -> None:
     attempt = stage_file(ctx, "02-inventory-extraction", "extracted-bom.json")
     assert attempt != legacy
     assert not attempt.is_file()
+
+
+def test_reviewer_reads_latest_writer_including_reviser(tmp_path):
+    from types import SimpleNamespace
+
+    from harness.tools.shared.lca_artifacts.artifact_paths import STAGE_03, stage_file
+
+    ws = tmp_path / "workspace"
+    for d in ("executor-1", "reviser-2"):
+        (ws / "runs" / STAGE_03 / d).mkdir(parents=True)
+    ctx = SimpleNamespace(
+        workspace=ws, stage=STAGE_03, role="reviewer", attempt=3, safe=lambda p: p
+    )
+    assert stage_file(ctx, STAGE_03, "process-mapping.json") == (
+        ws / "runs" / STAGE_03 / "reviser-2" / "process-mapping.json"
+    )
+    ctx.attempt = 1
+    assert stage_file(ctx, STAGE_03, "process-mapping.json") == (
+        ws / "runs" / STAGE_03 / "executor-1" / "process-mapping.json"
+    )
