@@ -157,6 +157,53 @@ def test_target_inferred_from_artifacts(tmp_path, monkeypatch):
     assert [r["to"] for r in recs if r["kind"] == "rework_upstream"] == [S2]
 
 
+def test_upstream_rework_accepts_attempt_dir_path(tmp_path, monkeypatch):
+    script = dict(_happy_script())
+    script[(S4, "executor", 1)] = _ask_upstream(
+        rework_artifacts=[f"workspace/runs/{S2}/executor-1/extracted-bom.json"],
+    )
+    script.update(_ok(S2, 2))
+    script.update(_ok(S3, 2))
+    script.update(_ok(S4, 2))
+    final, _client, recs, _m = _run(tmp_path, script, monkeypatch)
+    assert final["status"] == "completed"
+    ev = [r for r in recs if r["kind"] == "rework_upstream"]
+    assert len(ev) == 1 and ev[0]["validated"] is True and ev[0]["to"] == S2
+
+
+def test_upstream_rework_accepts_relative_runs_path(tmp_path, monkeypatch):
+    script = dict(_happy_script())
+    script[(S4, "executor", 1)] = _ask_upstream(
+        rework_artifacts=[f"runs/{S2}/executor-1/extracted-bom.json"],
+    )
+    script.update(_ok(S2, 2))
+    script.update(_ok(S3, 2))
+    script.update(_ok(S4, 2))
+    final, _client, recs, _m = _run(tmp_path, script, monkeypatch)
+    assert final["status"] == "completed"
+    assert [r["to"] for r in recs if r["kind"] == "rework_upstream"] == [S2]
+
+
+def test_upstream_rework_rejects_undeclared_path(tmp_path, monkeypatch):
+    script = dict(_happy_script())
+    script[(S4, "executor", 1)] = _ask_upstream(
+        rework_target_stage=S2,
+        rework_artifacts=["workspace/tmp/not-a-deliverable.json"],
+    )
+    script[(S4, "executor", 2)] = _happy_script()[(S4, "executor", 1)]
+    script[(S4, "reviewer", 2)] = {"status": "passed"}
+    final, client, recs, _m = _run(tmp_path, script, monkeypatch)
+    assert final["status"] == "completed"
+    rej = [r for r in recs if r["kind"] == "rework_upstream"]
+    assert len(rej) == 1 and rej[0]["validated"] is False
+    assert any("未声明产出" in p for p in rej[0]["rejected"])
+    assert client.turns[order_index(client, S4, 1) + 1][1] == f"{S4}:executor:2"
+
+
+def order_index(client, stage: str, attempt: int) -> int:
+    return [t[1] for t in client.turns].index(f"{stage}:executor:{attempt}")
+
+
 @pytest.mark.parametrize(
     "extra, why",
     [

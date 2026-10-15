@@ -980,11 +980,14 @@ class OrchestratorRuntime:
             )
         producers: dict[str, list[int]] = {}
         for artifact in artifacts:
-            producers[artifact] = [
+            artifact_n = _norm_rel(artifact)
+            producers[artifact_n] = [
                 i
                 for i in range(stage_index)
                 if any(
-                    _path_covers(out, artifact)
+                    _artifact_matches_declared_output(
+                        self.workflow.stages[i].stage_id, out, artifact_n
+                    )
                     for out in self._stage_outputs(self.workflow.stages[i])
                 )
             ]
@@ -1371,6 +1374,36 @@ def _norm_rel(path: str) -> str:
 def _path_covers(declared: str, artifact: str) -> bool:
     d, a = _norm_rel(declared), _norm_rel(artifact)
     return a == d or a.startswith(d + "/")
+
+
+def _artifact_matches_declared_output(
+    stage_id: str, declared: str, artifact: str
+) -> bool:
+    """Match artifacts/ paths and attempt dirs under workspace/runs/<stage>/…."""
+    from backend.core.workflow.workspace.legacy_paths import resolve_declared_path
+
+    declared_n = _norm_rel(declared)
+    artifact_n = _norm_rel(artifact)
+    if _path_covers(declared_n, artifact_n):
+        return True
+    prefix = f"workspace/runs/{stage_id}/"
+    if not artifact_n.startswith(prefix):
+        return False
+    rest = artifact_n[len(prefix) :]
+    slash = rest.find("/")
+    if slash < 0:
+        return False
+    suffix = rest[slash + 1 :]
+    if not suffix:
+        return False
+    mapped = _norm_rel(resolve_declared_path(stage_id=stage_id, declared=suffix))
+    if _path_covers(declared_n, mapped):
+        return True
+    root = suffix.split("/")[0]
+    mapped_root = _norm_rel(resolve_declared_path(stage_id=stage_id, declared=root))
+    return _path_covers(declared_n, mapped_root) and (
+        suffix == root or suffix.startswith(root + "/")
+    )
 
 
 def _strip_transport_unit(root: Path) -> tuple[str, dict[str, Any]] | None:
