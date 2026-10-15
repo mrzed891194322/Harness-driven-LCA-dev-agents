@@ -34,9 +34,16 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function handoffWorkspacePath(item: Handoff): string {
+  if (item.name.includes("/")) {
+    return `workspace/${item.name}`;
+  }
+  return `workspace/records/handoffs/${item.name}`;
+}
+
 function knownPaths(data: Results): Set<string> {
   return new Set([
-    ...data.handoffs.map((item) => `workspace/records/handoffs/${item.name}`),
+    ...data.handoffs.map(handoffWorkspacePath),
     ...data.artifacts.map((item) => item.path),
     ...(data.records || []).map((item) => item.path),
   ]);

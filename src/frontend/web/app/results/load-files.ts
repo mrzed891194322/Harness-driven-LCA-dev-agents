@@ -109,32 +109,80 @@ function listArtifacts(root: string): Artifact[] {
   return items.concat([...grouped.values()].sort((a, b) => a.path.localeCompare(b.path)));
 }
 
-function listRecordFiles(root: string): Artifact[] {
-  if (!fs.existsSync(root)) return [];
+function listRunLevelFiles(workspace: string): Artifact[] {
   const items: Artifact[] = [];
+  for (const [root, prefix] of [
+    [path.join(workspace, "runs", "_run"), "workspace/runs/_run"],
+    [path.join(workspace, "records"), "workspace/records"],
+  ] as const) {
+    if (!fs.existsSync(root)) continue;
+    function walk(dir: string) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name.startsWith(".")) continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (path.relative(root, full) === "handoffs") continue;
+          walk(full);
+          continue;
+        }
+        if (!entry.isFile() || entry.name === "README.md") continue;
+        const relative = path.relative(root, full).split(path.sep);
+        const relPath = `${prefix}/${relative.join("/")}`;
+        if (items.some((item) => item.path === relPath)) continue;
+        items.push({
+          path: relPath,
+          size: fs.statSync(full).size,
+          count: 1,
+        });
+      }
+    }
+    walk(root);
+  }
+  items.sort((a, b) => a.path.localeCompare(b.path));
+  return items;
+}
 
+function listHandoffsFromRuns(workspace: string): Handoff[] {
+  const runs = path.join(workspace, "runs");
+  if (!fs.existsSync(runs)) return listHandoffs(path.join(workspace, "records", "handoffs"));
+  const rows: Handoff[] = [];
   function walk(dir: string) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name.startsWith(".")) continue;
+      if (entry.name.startsWith(".") || entry.name === "_run") continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (path.relative(root, full) === "handoffs") continue;
         walk(full);
         continue;
       }
-      if (!entry.isFile() || entry.name === "README.md") continue;
-      const relative = path.relative(root, full).split(path.sep);
-      items.push({
-        path: `workspace/records/${relative.join("/")}`,
-        size: fs.statSync(full).size,
-        count: 1,
-      });
+      if (!entry.isFile() || entry.name !== "handoff.json") continue;
+      const row: Handoff = {
+        name: path.relative(workspace, full).split(path.sep).join("/"),
+        stage: "",
+        role: "",
+        attempt: null,
+        status: "",
+        status_reason: "",
+        artifacts: [],
+      };
+      try {
+        const payload = JSON.parse(fs.readFileSync(full, "utf8")) as Record<string, unknown>;
+        row.stage = String(payload.stage || "");
+        row.role = String(payload.role || "");
+        row.attempt = typeof payload.attempt === "number" ? payload.attempt : null;
+        row.status = String(payload.status || "");
+        row.status_reason = String(payload.status_reason || "");
+        if (Array.isArray(payload.artifacts)) {
+          row.artifacts = payload.artifacts.filter((item): item is string => typeof item === "string");
+        }
+      } catch {
+        row.status_reason = "无法读取";
+      }
+      rows.push(row);
     }
   }
-
-  walk(root);
-  items.sort((a, b) => a.path.localeCompare(b.path));
-  return items;
+  walk(runs);
+  if (rows.length) return rows.sort((a, b) => a.name.localeCompare(b.name));
+  return listHandoffs(path.join(workspace, "records", "handoffs"));
 }
 
 const RESULT_PREFIXES = [
@@ -269,8 +317,8 @@ export async function loadResultFiles(): Promise<ResultFiles> {
   const runArtifacts = listRunArtifacts(path.join(workspace, "runs"));
   return {
     manifest,
-    handoffs: listHandoffs(path.join(workspace, "records", "handoffs")),
+    handoffs: listHandoffsFromRuns(workspace),
     artifacts: [...legacyOutputs, ...deliverables, ...runArtifacts],
-    records: listRecordFiles(path.join(workspace, "records")),
+    records: listRunLevelFiles(workspace),
   };
 }
