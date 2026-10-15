@@ -36,7 +36,18 @@ def _ensure_harness_plan_files_for_tests() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _install_orchestrator_hooks() -> None:
-    from backend.services.orchestrator_wiring import install
+def _isolate_orchestrator_hooks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests must not install the production openLCA cleanup hook or connect_ipc."""
+    from backend.core.workflow.hooks import set_before_openlca_write
 
-    install()
+    set_before_openlca_write(None)
+
+    def _forbid_connect_ipc(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("tests must not call connect_ipc (use a fake client)")
+
+    monkeypatch.setattr(
+        "backend.services.openlca_attempt_cleanup.connect_ipc",
+        _forbid_connect_ipc,
+    )
+    yield
+    set_before_openlca_write(None)
