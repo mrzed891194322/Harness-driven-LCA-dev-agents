@@ -59,6 +59,32 @@ def _start_import(tmp_path, client, run_id="run-one"):
     }
 
 
+def test_reimport_same_id_does_not_duplicate_entity_plan(lock_root, tmp_path):
+    client = FakeImportClient()
+    lci, kwargs = _start_import(tmp_path, client)
+    first = operations.import_request(
+        "localhost", 8080, lci, "project-a", "isolated-db", **kwargs
+    )
+    assert first["status"] == "success"
+    plan_ids = [entry["id"] for entry in first.get("entity_plan") or []]
+    assert len(plan_ids) == len(set(plan_ids))
+    second = operations.import_request(
+        "localhost",
+        8080,
+        lci,
+        "project-a",
+        "isolated-db",
+        run_id=kwargs["run_id"],
+        request_id="request-one",
+        preflight_id=kwargs["preflight_id"],
+        operation_dir=kwargs["operation_dir"],
+        client=client,
+    )
+    assert second.get("reuse_reason")
+    plan2 = [entry["id"] for entry in second.get("entity_plan") or []]
+    assert len(plan2) == len(set(plan2))
+
+
 def test_same_run_reimport_after_content_change_updates(lock_root, tmp_path):
     client = FakeImportClient()
     lci, kwargs = _start_import(tmp_path, client)

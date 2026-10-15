@@ -1,80 +1,282 @@
-"""Host-only cleanup of openLCA entities logged by superseded 04 attempts."""
+"""Host-only cleanup of openLCA entities logged by superseded stage-04 writer attempts."""
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Callable
 
+from harness.tools.shared.control_openlca.readonly import category_outside_project
+
 PROJECT_CATEGORY = "202606-harness-agent-LCA"
 DELETE_ORDER = ("ProductSystem", "Process", "Flow")
+WRITER_ROLES = frozenset({"executor", "reviser"})
+_ENTITY_ID_RE = re.compile(
+    r'"@id"\s*:\s*"([^"]+)"|"id"\s*:\s*"([^"]+)"'
+)
+_ENTITY_TYPE_RE = re.compile(
+    r'"@type"\s*:\s*"([^"]+)"|"entity_type"\s*:\s*"([^"]+)"'
+)
 
 
-def _journal_ids(operation_dir: Path) -> set[tuple[str, str]]:
+def first_category_segment(category: str | None) -> str:
+    if category is None:
+        return ""
+    text = str(category).strip().strip("/")
+    if not text:
+        return ""
+    return text.split("/")[0]
+
+
+def validate_target_category(category_path: str) -> None:
+    first = first_category_segment(category_path)
+    if first != PROJECT_CATEGORY:
+        raise ValueError(f"refusing non-project category: {category_path}")
+    if first.startswith(f"{PROJECT_CATEGORY}-old"):
+        raise ValueError("refusing legacy category suffix")
+
+
+def strict_project_category(category: str | None) -> tuple[bool, str]:
+    if category is None or not str(category).strip():
+        return False, "missing_category"
+    first = first_category_segment(str(category))
+    if first.startswith(f"{PROJECT_CATEGORY}-old") or first == f"{PROJECT_CATEGORY}-old":
+        return False, "legacy_category_prefix"
+    if first != PROJECT_CATEGORY:
+        return False, "outside_project_category"
+    if category_outside_project(
+        str(category) if category else None, PROJECT_CATEGORY
+    ):
+        return False, "background_or_outside_project"
+    return True, ""
+
+
+def _normalize_type(raw: str) -> str:
+    text = str(raw or "").strip()
+    if text in DELETE_ORDER:
+        return text
+    return text
+
+
+def _normalize_id(raw: str) -> str:
+    return str(raw or "").strip()
+
+
+def _salvage_entity_ids(text: str) -> set[tuple[str, str]]:
     ids: set[tuple[str, str]] = set()
-    operations = operation_dir / "operations"
-    if not operations.is_dir():
-        return ids
-    for path in sorted(operations.glob("*.json")):
+    types = [m.group(1) or m.group(2) for m in _ENTITY_TYPE_RE.finditer(text)]
+    id_values = [m.group(1) or m.group(2) for m in _ENTITY_ID_RE.finditer(text)]
+    for entity_type, entity_id in zip(types, id_values, strict=False):
+        entity_type = _normalize_type(entity_type)
+        entity_id = _normalize_id(entity_id)
+        if entity_type in DELETE_ORDER and entity_id:
+            ids.add((entity_type, entity_id))
+    return ids
+
+
+def _load_operation_payload(path: Path) -> dict[str, Any] | None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        loaded = json.loads(text)
+        return loaded if isinstance(loaded, dict) else None
+    except json.JSONDecodeError:
+        stripped = text.lstrip()
+        if not stripped:
+            return None
+        decoder = json.JSONDecoder()
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            loaded, _ = decoder.raw_decode(stripped)
+            return loaded if isinstance(loaded, dict) else None
+        except json.JSONDecodeError:
+            return {"entities": [{"@type": t, "@id": i} for t, i in _salvage_entity_ids(text)]}
+
+
+def journal_entity_ids(operation_dir: Path) -> set[tuple[str, str]]:
+    """Collect (type, id) pairs from an attempt's import-operations journal."""
+    ids: set[tuple[str, str]] = set()
+    root = operation_dir
+    operations = root / "operations"
+    paths: list[Path] = []
+    if operations.is_dir():
+        paths.extend(sorted(operations.glob("*.json")))
+    current = root / "current.json"
+    if current.is_file():
+        paths.append(current)
+    for path in paths:
+        payload = _load_operation_payload(path)
+        if not payload:
             continue
+        for entry in payload.get("entity_plan") or []:
+            if not isinstance(entry, dict):
+                continue
+            entity_type = _normalize_type(
+                str(entry.get("entity_type") or entry.get("@type") or "")
+            )
+            entity_id = _normalize_id(str(entry.get("id") or entry.get("@id") or ""))
+            if entity_type in DELETE_ORDER and entity_id:
+                ids.add((entity_type, entity_id))
         for entry in payload.get("entities") or []:
             if not isinstance(entry, dict):
                 continue
-            entity_id = str(entry.get("@id") or entry.get("id") or "").strip()
-            entity_type = str(entry.get("@type") or entry.get("type") or "").strip()
-            if entity_id and entity_type:
+            if entry.get("action") not in {None, "create_or_update"}:
+                continue
+            entity_type = _normalize_type(
+                str(
+                    entry.get("entity_type")
+                    or entry.get("@type")
+                    or entry.get("type")
+                    or ""
+                )
+            )
+            entity_id = _normalize_id(str(entry.get("id") or entry.get("@id") or ""))
+            if entity_type in DELETE_ORDER and entity_id:
                 ids.add((entity_type, entity_id))
     return ids
+
+
+def _writer_identity(row: dict[str, Any]) -> tuple[str, int] | None:
+    role = str(row.get("role") or "").strip()
+    if role not in WRITER_ROLES:
+        return None
+    try:
+        attempt = int(row.get("attempt") or 0)
+    except (TypeError, ValueError):
+        return None
+    if attempt < 1:
+        return None
+    return role, attempt
+
+
+def _attempt_import_dir(workspace: Path, stage_id: str, row: dict[str, Any]) -> Path | None:
+    rel = str(row.get("dir") or row.get("path") or "").strip()
+    if rel:
+        return (workspace / rel).resolve() if not Path(rel).is_absolute() else Path(rel)
+    identity = _writer_identity(row)
+    if identity is None:
+        return None
+    role, attempt = identity
+    return workspace / "runs" / stage_id / f"{role}-{attempt}"
+
+
+def _accepted_writer(
+    workspace: Path, stage_id: str, accepted: dict[str, Any]
+) -> tuple[str, int] | None:
+    for key in ("executor", "writer"):
+        rel = str(accepted.get(key) or "").strip()
+        if not rel:
+            continue
+        name = Path(rel.replace("\\", "/")).name
+        if "-" not in name:
+            continue
+        role, num = name.rsplit("-", 1)
+        if role in WRITER_ROLES:
+            try:
+                return role, int(num)
+            except ValueError:
+                continue
+    return None
+
+
+def _attempt_rows(workspace: Path, stage_id: str) -> list[dict[str, Any]]:
+    path = workspace / "runs" / stage_id / "attempts.json"
+    if not path.is_file():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if isinstance(raw, list):
+        return [r for r in raw if isinstance(r, dict)]
+    if isinstance(raw, dict):
+        items = raw.get("attempts")
+        if isinstance(items, list):
+            return [r for r in items if isinstance(r, dict)]
+    return []
 
 
 def cleanup_prior_attempt_imports(
     workspace: Path,
     *,
     stage_id: str,
+    current_role: str,
     current_attempt: int,
-    accepted_attempt: int | None,
-    delete_entity: Callable[[str, str], None],
-    protected_ids: set[tuple[str, str]] | None = None,
-) -> list[dict[str, Any]]:
-    """Delete entities from earlier non-accepted attempts' import logs only."""
-    protected = set(protected_ids or ())
-    stage_root = workspace / "runs" / stage_id
-    if not stage_root.is_dir():
-        return []
-    deleted: list[dict[str, Any]] = []
-    for attempt_dir in sorted(stage_root.glob("*-*")):
-        name = attempt_dir.name
-        if "-" not in name:
+    attempt_rows: list[dict[str, Any]] | None = None,
+    accepted: dict[str, Any] | None = None,
+    fetch_entity: Callable[[str, str], dict[str, Any] | None],
+    delete_entity: Callable[[str, str, str], None],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Delete entities logged by earlier non-accepted writer attempts (ordered PS→Process→Flow)."""
+    rows = list(attempt_rows if attempt_rows is not None else _attempt_rows(workspace, stage_id))
+    accepted_row = _accepted_writer(workspace, stage_id, accepted or {})
+    current_key = (current_role, current_attempt)
+
+    protected: set[tuple[str, str]] = set()
+    current_dir = workspace / "runs" / stage_id / f"{current_role}-{current_attempt}"
+    protected |= journal_entity_ids(current_dir / "import-operations")
+    if accepted_row is not None:
+        a_role, a_attempt = accepted_row
+        accepted_dir = workspace / "runs" / stage_id / f"{a_role}-{a_attempt}"
+        protected |= journal_entity_ids(accepted_dir / "import-operations")
+
+    skipped: list[dict[str, Any]] = []
+    candidates: dict[tuple[str, str], int] = {}
+    for row in rows:
+        identity = _writer_identity(row)
+        if identity is None:
             continue
-        try:
-            number = int(name.rsplit("-", 1)[1])
-        except ValueError:
+        if identity == current_key:
             continue
-        if number >= current_attempt:
+        if accepted_row is not None and identity == accepted_row:
             continue
-        if accepted_attempt is not None and number == accepted_attempt:
+        attempt_dir = _attempt_import_dir(workspace, stage_id, row)
+        if attempt_dir is None:
             continue
         journal = attempt_dir / "import-operations"
-        for entity_type, entity_id in _journal_ids(journal):
+        for entity_type, entity_id in journal_entity_ids(journal):
             if (entity_type, entity_id) in protected:
+                skipped.append(
+                    {"type": entity_type, "id": entity_id, "reason": "overlap"},
+                )
                 continue
-            if entity_type not in DELETE_ORDER:
-                continue
-            delete_entity(entity_type, entity_id)
-            deleted.append({"type": entity_type, "id": entity_id, "attempt": number})
-    ordered = sorted(
-        deleted,
-        key=lambda row: (DELETE_ORDER.index(row["type"]), row["attempt"], row["id"]),
+            key = (entity_type, entity_id)
+            prev = candidates.get(key)
+            attempt_no = identity[1]
+            if prev is None or attempt_no < prev:
+                candidates[key] = attempt_no
+
+    ordered_keys = sorted(
+        candidates,
+        key=lambda pair: (DELETE_ORDER.index(pair[0]), candidates[pair], pair[1]),
     )
-    return ordered
 
-
-def validate_target_category(category_path: str) -> None:
-    first = category_path.strip("/").split("/")[0] if category_path else ""
-    if first != PROJECT_CATEGORY:
-        raise ValueError(f"refusing non-project category: {category_path}")
-    if first.startswith(f"{PROJECT_CATEGORY}-old"):
-        raise ValueError("refusing legacy category suffix")
+    deleted: list[dict[str, Any]] = []
+    for entity_type, entity_id in ordered_keys:
+        if (entity_type, entity_id) in protected:
+            continue
+        live = fetch_entity(entity_type, entity_id)
+        if live is None:
+            skipped.append(
+                {"type": entity_type, "id": entity_id, "reason": "not_found"},
+            )
+            continue
+        category = live.get("category")
+        ok, reason = strict_project_category(
+            category if isinstance(category, str) else None
+        )
+        if not ok:
+            skipped.append(
+                {
+                    "type": entity_type,
+                    "id": entity_id,
+                    "reason": reason,
+                },
+            )
+            continue
+        name = str(live.get("name") or "")
+        delete_entity(entity_type, entity_id, name)
+        deleted.append({"type": entity_type, "id": entity_id, "name": name})
+    return deleted, skipped

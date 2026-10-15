@@ -57,6 +57,21 @@ def attempts(workspace: Path, stage: str) -> list[dict[str, Any]]:
     return []
 
 
+def _attempt_row_dir(workspace: Path, stage: str, row: dict[str, Any]) -> Path:
+    rel = str(row.get("dir") or row.get("path") or "").strip()
+    if rel:
+        text = rel.replace("\\", "/")
+        if text.startswith("workspace/"):
+            text = text[len("workspace/") :]
+        return inside(workspace, text)
+    return attempt_dir(
+        workspace,
+        stage,
+        str(row["role"]),
+        int(row["attempt"]),
+    )
+
+
 def writer_dir(workspace: Path, stage: str, attempt: int | None = None) -> Path:
     rows = [
         r
@@ -66,12 +81,7 @@ def writer_dir(workspace: Path, stage: str, attempt: int | None = None) -> Path:
     ]
     if rows:
         row = max(rows, key=lambda r: int(r.get("attempt") or 0))
-        return attempt_dir(
-            workspace,
-            stage,
-            str(row["role"]),
-            int(row["attempt"]),
-        )
+        return _attempt_row_dir(workspace, stage, row)
     return attempt_dir(workspace, stage, "executor", attempt or 1)
 
 

@@ -71,6 +71,10 @@ def _require_mcp_stdio_channel() -> None:
 CLEANUP_ALLOWED_PHASES = frozenset({"report"})
 
 
+def _import_operation_dir(context: Context) -> Path:
+    return context.safe(context.attempt_root() / "import-operations")
+
+
 def _require_cleanup_phase(context: Context) -> None:
     """Least privilege: only the report stage (04) may delete openLCA entities.
 
@@ -364,7 +368,7 @@ def preflight_import_lci(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
+        operation_dir=_import_operation_dir(context),
         run_id=context.run_id,
     )
 
@@ -411,7 +415,7 @@ def import_lci(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
+        operation_dir=_import_operation_dir(context),
         run_id=context.run_id,
         request_id=request_id,
         preflight_id=preflight_id,
@@ -435,7 +439,7 @@ def reconcile_import(operation_id: str, timeout_sec: int | None = None) -> dict[
     return operations.reconcile_import(
         host,
         port,
-        context.safe(context.workspace / "records" / "import-operations"),
+        _import_operation_dir(context),
         run_id=context.run_id,
         operation_id=operation_id,
     )
@@ -477,7 +481,7 @@ def resume_import(
         lci_dir=_workflow_lci_dir(lci_dir),
         target_category=_target_category(target_category),
         database_name=database_name,
-        operation_dir=context.safe(context.workspace / "records" / "import-operations"),
+        operation_dir=_import_operation_dir(context),
         run_id=context.run_id,
         request_id=request_id,
         preflight_id=preflight_id,
@@ -499,7 +503,7 @@ def import_status(
     """Job-style status for the current or specified import operation."""
     context = Context.environment()
     return operations.get_operation(
-        context.safe(context.workspace / "records" / "import-operations"),
+        _import_operation_dir(context),
         run_id=context.run_id,
         request_id=request_id,
         operation_id=operation_id,
@@ -521,7 +525,7 @@ def get_import_operation(
     """Read an import journal without writing to openLCA."""
     context = Context.environment()
     return operations.get_operation(
-        context.safe(context.workspace / "records" / "import-operations"),
+        _import_operation_dir(context),
         run_id=context.run_id,
         request_id=request_id,
         operation_id=operation_id,

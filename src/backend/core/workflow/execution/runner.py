@@ -246,12 +246,15 @@ class OrchestratorRuntime:
     def prepare(self, state: WorkflowState) -> dict[str, Any]:
         stage, assignment = self._current(state)
         bundle = self.bundles[assignment.assignment_id]
+        task = _state_str(state, "task")
+        origin = task if task in {"whole-lca", "revise-lca", "resume-lca"} else "whole-lca"
         register_attempt(
             self.workspace_root,
             stage.stage_id,
             assignment.role,
             _attempt(state),
             _state_str(state, "run_id"),
+            origin=origin,
         )
         # Stage entry: validate inputs before first assignment work (no retry bump).
         if _state_int(state, "step_index") == 0:
@@ -330,6 +333,21 @@ class OrchestratorRuntime:
         from .session_bind import build_session_config
 
         stage, assignment = self._current(state)
+        from backend.core.workflow.hooks import get_before_openlca_write
+
+        hook = get_before_openlca_write()
+        if (
+            callable(hook)
+            and assignment.role in WRITER_ROLES
+            and stage.stage_id == "04-openlca-reporting"
+        ):
+            hook(
+                self.project_root,
+                self.workspace_root,
+                stage_id=stage.stage_id,
+                role=assignment.role,
+                attempt=_attempt(state),
+            )
         model = model_for_assignment(
             self.project_root, assignment.assignment_id, self.model
         )

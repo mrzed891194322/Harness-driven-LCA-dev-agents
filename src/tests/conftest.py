@@ -33,3 +33,10 @@ def ensure_harness_plan_files(project_root: Path = PROJECT_ROOT) -> None:
 @pytest.fixture(autouse=True)
 def _ensure_harness_plan_files_for_tests() -> None:
     ensure_harness_plan_files()
+
+
+@pytest.fixture(autouse=True)
+def _install_orchestrator_hooks() -> None:
+    from backend.services.orchestrator_wiring import install
+
+    install()

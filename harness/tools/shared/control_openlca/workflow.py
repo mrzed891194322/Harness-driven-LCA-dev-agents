@@ -2259,14 +2259,20 @@ def _execute_import(
     return records, imported, failed, deleted, errors
 
 
-def _write_json_atomic(path: Path, value: dict[str, Any]) -> None:
+def _write_json_atomic(path: Path, value: dict[str, Any], *, durable: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     temporary.write_text(
         json.dumps(value, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    if durable:
+        with temporary.open("rb") as handle:
+            os.fsync(handle.fileno())
     temporary.replace(path)
+    if durable:
+        with path.open("rb") as handle:
+            os.fsync(handle.fileno())
 
 
 def get_import_operation(operation_dir: Path) -> dict[str, Any]:
@@ -2485,6 +2491,7 @@ def import_lci(
                     errors,
                     ended_at=None,
                 ),
+                durable=True,
             )
 
     records, imported, failed, deleted, errors = _execute_import(
