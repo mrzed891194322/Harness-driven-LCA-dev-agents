@@ -17,6 +17,7 @@ type Artifact = {
   path: string;
   size: number;
   count: number;
+  category?: "intermediate" | "deliverable";
 };
 
 export type ResultFiles = {
@@ -136,7 +137,12 @@ function listRecordFiles(root: string): Artifact[] {
   return items;
 }
 
-const RESULT_PREFIXES = ["workspace/outputs/", "workspace/records/"];
+const RESULT_PREFIXES = [
+  "workspace/outputs/",
+  "workspace/records/",
+  "workspace/artifacts/",
+  "workspace/runs/",
+];
 const MAX_RESULT_BYTES = 512_000;
 
 export type ResultFile = {
@@ -182,11 +188,75 @@ export async function readResultFile(relative: string): Promise<ResultFile> {
   return { path: rel, kind: "text", size, text };
 }
 
+function listDeliverables(root: string): Artifact[] {
+  if (!fs.existsSync(root)) return [];
+  const items: Artifact[] = [];
+  function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.isFile() || entry.name === "README.md") continue;
+      const relative = path.relative(root, full).split(path.sep);
+      items.push({
+        path: `workspace/artifacts/${relative.join("/")}`,
+        size: fs.statSync(full).size,
+        count: 1,
+        category: "deliverable",
+      });
+    }
+  }
+  walk(root);
+  return items.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+function listRunArtifacts(root: string): Artifact[] {
+  if (!fs.existsSync(root)) return [];
+  const items: Artifact[] = [];
+  const grouped = new Map<string, Artifact>();
+  function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || entry.name === "_run") continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.isFile() || entry.name === "README.md") continue;
+      const relative = path.relative(root, full).split(path.sep);
+      const size = fs.statSync(full).size;
+      if (entry.name === "raw.json" && relative.includes("raw")) {
+        const attemptKey = relative.slice(0, -2).join("/");
+        const key = `workspace/runs/${attemptKey}`;
+        const bucket = grouped.get(key) || { path: key, size: 0, count: 0, category: "intermediate" };
+        bucket.size += size;
+        bucket.count += 1;
+        grouped.set(key, bucket);
+        continue;
+      }
+      items.push({
+        path: `workspace/runs/${relative.join("/")}`,
+        size,
+        count: 1,
+        category: "intermediate",
+      });
+    }
+  }
+  walk(root);
+  return items.concat([...grouped.values()]).sort((a, b) => a.path.localeCompare(b.path));
+}
+
 export async function loadResultFiles(): Promise<ResultFiles> {
   const root = projectRoot();
   const workspace = path.join(root, "workspace");
   let manifest: ResultFiles["manifest"] = { status: "idle" };
-  const manifestPath = path.join(workspace, "records", "manifest.json");
+  let manifestPath = path.join(workspace, "runs", "_run", "manifest.json");
+  if (!fs.existsSync(manifestPath)) {
+    manifestPath = path.join(workspace, "records", "manifest.json");
+  }
   if (fs.existsSync(manifestPath)) {
     try {
       manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as ResultFiles["manifest"];
@@ -194,10 +264,13 @@ export async function loadResultFiles(): Promise<ResultFiles> {
       manifest = { status: "idle", status_reason: "无法读取运行摘要" };
     }
   }
+  const legacyOutputs = listArtifacts(path.join(workspace, "outputs"));
+  const deliverables = listDeliverables(path.join(workspace, "artifacts"));
+  const runArtifacts = listRunArtifacts(path.join(workspace, "runs"));
   return {
     manifest,
     handoffs: listHandoffs(path.join(workspace, "records", "handoffs")),
-    artifacts: listArtifacts(path.join(workspace, "outputs")),
+    artifacts: [...legacyOutputs, ...deliverables, ...runArtifacts],
     records: listRecordFiles(path.join(workspace, "records")),
   };
 }
