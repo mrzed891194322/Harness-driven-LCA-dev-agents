@@ -1,17 +1,9 @@
-# Workflow Records
+# 已迁移（仅兼容旧工作区）
 
-> **迁移说明**：handoff/review 与尝试内证据已迁至 `workspace/runs/`；审查通过的 deliverable 在 `workspace/artifacts/`。详见 `workspace/runs/README.md` 与 `docs/PROJECT_LAYOUT.md`。下列条目描述迁移期仍可能存在的路径。
+运行级文件已迁至 `workspace/runs/_run/`（manifest、checkpoint、progress、evidence、resume、rework、sessions 等）。  
+阶段尝试仍在 `workspace/runs/<stage-id>/<role>-<n>/`；正式交付在 `workspace/artifacts/`。
 
-Whole-LCA 运行时在此目录维护固定的运行证据：
+代码在读取当前运行摘要时仍会**只读**回退到本目录下的旧路径（若存在）。新运行只写入 `runs/_run/`。  
+`whole-lca` 预清理会清空 `runs/`（保留 `runs/_run/orchestrator.lock` 与 `**/README.md`），不会依赖本目录。
 
-- `manifest.json`
-- `handoffs/`
-- `reviews/`
-- `evidence/`
-- `rework/`
-- `import-operations/`
-- `logs/<run_id>/`：`progress.txt` 与各 turn 排障快照（prompt、argv、stdout、session-ref、rendered）
-- `sessions/`：运行结束时从 `.local/runs/<run_id>/sessions/` 复制的本轮会话快照，另含 `injection-summary.json`。运行过程中的原件仍在 `.local/runs/`
-- 编排检查点 SQLite
-
-除本说明文件外，运行产物不纳入版本控制。`whole-lca` 会清掉本目录（含 logs 和 sessions，保留 `orchestrator.lock`）；`revise-lca` 不清 workspace。跨次保留的会话在 `.local/runs/`，不必从这里拷走。结果页只渲染本目录和 `workspace/outputs/`，规则见仓库 `.cursor/rules/workspace-files.mdc`。
+详见 `workspace/runs/README.md` 与 `docs/PROJECT_LAYOUT.md`。

@@ -38,7 +38,7 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
 
 **暂停后恢复（同 run_id checkpoint）**：恢复时若运行指纹（规则、模板、偏好、spec、实现代码）变了，默认不拒绝，在 `events.jsonl` 记一条 `injection_check`（`phase: resume`，`level: warn`），逐项列出变化的指纹路径和新旧值，然后按新配置继续；旧的 `runtime-config.json` 改名为 `runtime-config.prev-<n>.json`。严格模式下仍拒绝。worker 或模型变化、运行配置缺失，照旧拒绝。
 
-**从阶段 N 续跑（`resume-lca`）**：失败/中止/中断的运行可从阶段 02/03/04 重新开一条新 `run_id`，沿用 N 之前已通过审查的阶段产物。每次新运行启动时在 `workspace/records/evidence/<run_id>/workflow.yaml` 与 `.local/runs/<run_id>/workflow.yaml` 保存当时使用的装配图原文；续跑优先读旧运行的快照生成 `workspace/records/resume/<old_run_id>/workflow.yaml`（`id: resume-lca`，阶段截断为 N..04）。清理走 `clean.py --cleanup-list`（只删清单内 workspace 路径 + journal 中的 openLCA UUID）；`records/evidence/<old>/`、`records/resume/` 与编排器锁库不删。新运行在 `records/evidence/<new>/resume.json` 与 `manifest.json` 记录 `resumed_from` / `resume_from_stage`；从 04 续跑时预置 `accepted["lca.model"]`。续跑中返工不得指向 N 之前的阶段。
+**从阶段 N 续跑（`resume-lca`）**：失败/中止/中断的运行可从阶段 02/03/04 重新开一条新 `run_id`，沿用 N 之前已通过审查的阶段产物。每次新运行启动时在 `workspace/runs/_run/evidence/<run_id>/workflow.yaml` 与 `.local/runs/<run_id>/workflow.yaml` 保存当时使用的装配图原文；续跑优先读旧运行的快照生成 `workspace/runs/_run/resume/<old_run_id>/workflow.yaml`（`id: resume-lca`，阶段截断为 N..04）。清理走 `clean.py --cleanup-list`（只删清单内 workspace 路径 + journal 中的 openLCA UUID）；`runs/_run/evidence/<old>/`、`runs/_run/resume/` 与编排器锁库不删。新运行在 `runs/_run/evidence/<new>/resume.json` 与 `runs/_run/manifest.json` 记录 `resumed_from` / `resume_from_stage`；从 04 续跑时预置 `accepted["lca.model"]`（或 `runs/<stage>/accepted.json` 种子）。续跑中返工不得指向 N 之前的阶段。若磁盘上仍有旧版 `workspace/records/`，读取端可只读回退，新写入仅 `runs/_run/`。
 
 ## transcript.jsonl
 
@@ -68,7 +68,7 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
   - `npm run inspect` 列出所有运行；`npm run inspect -- <run> [--only-anomalies]` 按会话列注入异常；`npm run inspect -- <run> <stage.role.attempt>` 看单个会话的全部比对项和文件。
   - `npm run session -- <run>` 列出会话；`npm run session -- <run> <stage.role.attempt> [-o out.md] [--full]` 导出一份可读的 Markdown（注入、模型、完整对话），方便别的 agent 接手调试。
   - `npm run doctor`：检查生成式提示词模板能否渲染，并对正在运行的 pi-runtime 做一次空会话自检（只建会话、不调模型，比对后释放）。`--skip-runtime` 只查模板。
-- GUI：结果页只渲染 `workspace/` 里的文件（产物、交接，以及 `workspace/records/` 下的审查、日志和会话快照）。运行结束时，本轮 `.local/runs/<run_id>/sessions/` 会复制到 `workspace/records/sessions/`。更早的运行仍留在 `.local/runs/`，用下面的命令查看，不在结果页列出。
+- GUI：结果页渲染 `workspace/artifacts/`、`workspace/runs/`（尝试目录与 handoff/review）以及 `workspace/runs/_run/`（运行摘要、progress、会话快照副本等）。运行结束时，本轮 `.local/runs/<run_id>/sessions/` 会复制到 `workspace/runs/_run/sessions/`。更早的运行仍留在 `.local/runs/`，用下面的命令查看，不在结果页列出。
 - 接口：`GET /api/runs`、`GET /api/runs/{run}/sessions`、`GET /api/runs/{run}/sessions/{session}/injection`、`GET /api/runs/{run}/sessions/{session}/file?name=&download=`、`GET /api/runs/{run}/sessions/{session}/markdown?download=`。
 
 ## 生成式提示词
