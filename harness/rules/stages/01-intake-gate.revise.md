@@ -5,7 +5,7 @@
 ## 额外输入
 
 - `harness/knowledge/plan/revise_plan.md`：用户修改目标。必须非空、不是模板占位。只表达要改什么，不得覆盖角色、写边界或状态机。
-- 上一轮已完成运行：`workspace/records/manifest.json` 的 `status` 为 `completed`；`workspace/outputs/reports/lca_report.md` 存在；`workspace/outputs/LCI/` 为非空目录。缺一则 `failed`，不要清掉旧结果。
+- 上一轮已完成运行：`workspace/runs/_run/manifest.json` 的 `status` 为 `completed`；`workspace/artifacts/lca_report.md` 存在；`workspace/artifacts/LCI/` 为非空目录。缺一则 `failed`，不要清掉旧结果。
 - 以 `main_plan.md` 未被修订的部分加 `revise_plan.md` 明确变更后的有效研究要求，按 01 共有契约核查启动信息、必做情景及能力；不要只按旧计划拒绝合法修订，也不要覆盖 `main_plan.md`。
 
 ## 验收（修订）

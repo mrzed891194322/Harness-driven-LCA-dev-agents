@@ -6,10 +6,10 @@
 
 - 输入：`harness/knowledge/plan/main_plan.md`（revise 另加 `harness/knowledge/plan/revise_plan.md`）
 - 知识：以工作流 YAML 绑定的 `knowledge_sources` / `source_manifest` 为准
-- 状态：`workspace/records/manifest.json`、`workspace/records/reviews/`、`workspace/records/handoffs/`；编排检查点在 `workspace/records/` 的 SQLite
-- 排障留档：`workspace/records/logs/<run_id>/`；运行时 MCP 渲染在 `workspace/tmp/mcp-render/`
+- 状态：`workspace/runs/_run/manifest.json`；每次尝试的 handoff / review 在 `workspace/runs/<stage>/<role>-<n>/`；编排检查点为 `workspace/runs/_run/orchestrator.sqlite`
+- 排障留档：`workspace/runs/_run/logs/<run_id>/`；运行时 MCP 渲染在 `workspace/tmp/mcp-render/`
 - 前景产物：`extracted-bom.json` / `.md`、`process-mapping.json`。GUI「工作细节」只渲染两份 JSON
-- LCI：`workspace/outputs/LCI/`（`flows/`、`processes/`、`product_systems/`，外加 `human_readable_mapping.md`）
+- LCI：`workspace/artifacts/LCI/`（`flows/`、`processes/`、`product_systems/`，外加 `human_readable_mapping.md`）
 - 报告：`lca_report.md`；MCP 完整业务结果在 `reports/runs/<run_id>/.../raw.json`。revise 覆盖该报告并追加修订三节
 
 ## 证据与返工政策
