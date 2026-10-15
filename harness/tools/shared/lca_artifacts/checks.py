@@ -15,6 +15,15 @@ from harness.tools.shared.control_openlca.workflow import (
 from harness.tools.shared.lca_artifacts import offline_checks as artifact_checks
 from harness.tools.shared.lca_artifacts.path_safety import require_relative_path
 
+from .artifact_paths import (
+    STAGE_02,
+    STAGE_03,
+    calculation_path,
+    canonical_lci_dir,
+    report_path,
+    stage03_lci_dir,
+    stage_file,
+)
 from .snapshot_io import check_snapshot, load_json, sha256_file
 
 CHECKER_VERSION = "3.0"
@@ -153,14 +162,13 @@ def upstream_files(ctx):
     plan_dir = ctx.project / "harness" / "knowledge" / "plan"
     paths = [
         plan_dir / "main_plan.md",
-        ctx.workspace / "outputs" / "inventory" / "extracted-bom.json",
-        ctx.workspace / "outputs" / "inventory" / "process-mapping.json",
+        stage_file(ctx, STAGE_02, "extracted-bom.json"),
+        stage_file(ctx, STAGE_03, "process-mapping.json"),
     ]
     revise_plan = plan_dir / "revise_plan.md"
     if revise_plan.exists():
         paths.append(revise_plan)
-    lci_root = ctx.workspace / "outputs" / "LCI"
-    paths.extend(_safe_lci_files(lci_root))
+    paths.extend(_safe_lci_files(stage03_lci_dir(ctx)))
     paths.extend(knowledge_files_from_manifest(ctx))
     return paths
 
@@ -222,8 +230,7 @@ def lci_fingerprint(ctx):
     matched on this fingerprint. Writing or editing process-mapping.json (e.g.
     spec_mcp staging it during submit) must not invalidate provider evidence.
     """
-    lci_root = ctx.workspace / "outputs" / "LCI"
-    return stable_hash(scoped_fingerprints(ctx, _safe_lci_files(lci_root)))
+    return stable_hash(scoped_fingerprints(ctx, _safe_lci_files(stage03_lci_dir(ctx))))
 
 
 def _provider_evidence_matches(ctx, call, model_fp=None, lci_fp=None) -> bool:
@@ -353,10 +360,6 @@ def snapshot_unchanged(ctx, snapshot: dict) -> bool:
     return True
 
 
-def calculation_path(ctx):
-    return ctx.safe(ctx.workspace / "outputs" / "reports" / "calculation-plan.json")
-
-
 def calculation_fingerprint(ctx):
     path = calculation_path(ctx)
     return sha256_file(path) if path.is_file() else "missing"
@@ -456,7 +459,7 @@ def require_calculation_plan(ctx, arguments):
 def require_import_directory(ctx, directory):
     if ctx.stage == "standalone":
         return
-    canonical = ctx.workspace / "outputs" / "LCI"
+    canonical = canonical_lci_dir(ctx)
 
     def contents(root):
         return {
@@ -535,9 +538,7 @@ def report_evidence_errors(ctx):
     data = evidence(ctx)
     systems = [
         load(p)["@id"]
-        for p in sorted(
-            (ctx.workspace / "outputs" / "LCI" / "product_systems").glob("*.json")
-        )
+        for p in sorted((canonical_lci_dir(ctx) / "product_systems").glob("*.json"))
     ]
     plans = load(calculation_path(ctx)).get("calculations", [])
     if not plans or not systems:
@@ -646,16 +647,7 @@ def prior_handoff_report(ctx):
     for role in ("executor", "reviser"):
         path = ctx.workspace / "runs" / ctx.stage / f"{role}-{ctx.attempt - 1}" / "handoff.json"
         if not path.is_file():
-            legacy = (
-                ctx.workspace
-                / "records"
-                / "handoffs"
-                / f"{ctx.stage}-{role}-{ctx.attempt - 1}.json"
-            )
-            if legacy.is_file():
-                path = legacy
-            else:
-                continue
+            continue
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -743,13 +735,13 @@ def _items(path):
 
 
 def inventory_errors(ctx):
-    rows = _items(ctx.workspace / "outputs" / "inventory" / "extracted-bom.json")
+    rows = _items(stage_file(ctx, STAGE_02, "extracted-bom.json"))
     return artifact_checks.inventory_errors(rows, declared_source_ids(ctx))
 
 
 def mapping_errors(ctx):
-    bom = _items(ctx.workspace / "outputs" / "inventory" / "extracted-bom.json")
-    mapping = _items(ctx.workspace / "outputs" / "inventory" / "process-mapping.json")
+    bom = _items(stage_file(ctx, STAGE_02, "extracted-bom.json"))
+    mapping = _items(stage_file(ctx, STAGE_03, "process-mapping.json"))
     # Preflight and exact-pair batch checks are accepted formal provider evidence.
     found = set()
     fingerprint = model_fingerprint(ctx)
@@ -774,9 +766,7 @@ def mapping_errors(ctx):
             found.discard(pair)
             if check.get("exists") and check.get("output_flow_match"):
                 found.add(pair)
-    return artifact_checks.mapping_errors(
-        bom, mapping, ctx.workspace / "outputs" / "LCI", found
-    )
+    return artifact_checks.mapping_errors(bom, mapping, stage03_lci_dir(ctx), found)
 
 
 def _source_manifest_ref(ctx) -> dict[str, str] | None:
@@ -791,18 +781,15 @@ def _source_manifest_ref(ctx) -> dict[str, str] | None:
 
 def dependencies(ctx, profile):
     paths = upstream_files(ctx)
+    lci_dir = stage03_lci_dir(ctx)
     if profile == "inventory":
         paths = [
             p
             for p in paths
-            if p.name != "process-mapping.json"
-            and ctx.workspace / "outputs" / "LCI" not in p.parents
+            if p.name != "process-mapping.json" and lci_dir not in p.parents and p != lci_dir
         ]
     if profile == "report":
-        paths += [
-            calculation_path(ctx),
-            ctx.workspace / "outputs" / "reports" / "lca_report.md",
-        ]
+        paths += [calculation_path(ctx), report_path(ctx)]
     refs = current_evidence_refs(ctx, profile, ctx.stage)
     paths += [ctx.safe(ctx.workspace / ref["path"]) for ref in refs]
     payload: dict = {
@@ -1013,9 +1000,7 @@ def validate_for_run(ctx, profile):
 
             errors = report_evidence_errors(ctx) + report_table_errors(ctx)
             warnings.extend(language_hints(ctx))
-            report = (
-                ctx.workspace / "outputs" / "reports" / "lca_report.md"
-            ).read_text(encoding="utf-8")
+            report = report_path(ctx).read_text(encoding="utf-8")
             if not re.search(r"[\u4e00-\u9fff]", report):
                 warnings.append(
                     "report has no Chinese text; reviewer must assess explanation language"

@@ -2,12 +2,13 @@
 
 from harness.tools.shared.lca_artifacts import offline_report as artifact_report
 
+from .artifact_paths import STAGE_02, STAGE_03, report_path, stage_file
 from .checks import _items, evidence, report_evidence_errors
 
 
 def _inputs(ctx):
-    bom = _items(ctx.workspace / "outputs" / "inventory" / "extracted-bom.json")
-    mapping = _items(ctx.workspace / "outputs" / "inventory" / "process-mapping.json")
+    bom = _items(stage_file(ctx, STAGE_02, "extracted-bom.json"))
+    mapping = _items(stage_file(ctx, STAGE_03, "process-mapping.json"))
     results = []
     for call, raw in evidence(ctx):
         if call["tool"] != "calculate_product_system":
@@ -36,20 +37,20 @@ def render(ctx):
     errors = report_evidence_errors(ctx)
     if errors:
         raise ValueError("; ".join(errors))
-    path = ctx.safe(ctx.workspace / "outputs" / "reports" / "lca_report.md")
+    path = report_path(ctx)
     result = artifact_report.render(path, *_inputs(ctx))
     result["report"] = ctx.ref(path)
     return result
 
 
 def report_table_errors(ctx):
-    path = ctx.safe(ctx.workspace / "outputs" / "reports" / "lca_report.md")
+    path = report_path(ctx)
     return artifact_report.report_table_errors(path, *_inputs(ctx))
 
 
 def language_hints(ctx):
-    path = ctx.safe(ctx.workspace / "outputs" / "reports" / "lca_report.md")
-    mapping = _items(ctx.workspace / "outputs" / "inventory" / "process-mapping.json")
+    path = report_path(ctx)
+    mapping = _items(stage_file(ctx, STAGE_03, "process-mapping.json"))
     return artifact_report.language_hints(path, mapping)
 
 

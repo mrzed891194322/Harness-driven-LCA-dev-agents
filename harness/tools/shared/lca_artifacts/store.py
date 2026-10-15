@@ -118,7 +118,6 @@ class Context:
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
         object.__setattr__(self, "handoff_path", str(self.handoff_path or ""))
         self.safe(self.workspace / _RUN_LEVEL_REL)
-        self.safe(self.workspace / "outputs")
 
     def attempt_root(self) -> Path:
         return self.safe(
