@@ -1,6 +1,6 @@
 # 运行产物与调试记录
 
-本文说明每次运行在 `.local/runs/<run_id>/` 下留下什么，以及怎么查。`.local/` 已在 `.gitignore` 里，`workspace` 清理（`whole-lca` 等预设）不碰它，所以这些记录按运行保留。
+Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`workspace/artifacts/`）。本文说明每次运行在 `.local/runs/<run_id>/` 下留下什么，以及怎么查。`.local/` 已在 `.gitignore` 里，`workspace` 清理（`whole-lca` 等预设）不碰它，所以这些记录按运行保留。
 
 ## 目录
 
