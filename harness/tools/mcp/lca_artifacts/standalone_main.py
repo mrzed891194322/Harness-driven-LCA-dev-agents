@@ -93,7 +93,9 @@ def read_artifact(
     if isinstance(offset, bool) or offset < 0 or not 1 <= limit <= 4000:
         raise ValueError("offset >= 0 and limit 1..4000 required")
     source = Path(path)
-    if sha256_file(source) != sha256:
+    from harness.tools.shared.lca_artifacts.store import normalize_sha256
+
+    if sha256_file(source) != normalize_sha256(sha256):
         raise ValueError("artifact checksum mismatch")
     text = source.read_text(encoding="utf-8")
     if json_pointer is not None:

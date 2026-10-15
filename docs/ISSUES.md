@@ -79,3 +79,9 @@
 ## knowledge 里的用户文件不再进 git
 
 `harness/knowledge/` 只保留各级 `README.md` 和 `.gitignore`。`main_plan.md`、`revise_plan.md`、`inputs/水瓶案例学习.md`，以及历史上放进该目录的手册和标准全文，已从版本库历史中移除。控制面板仍会在运行时写回计划和参考资料；`.gitignore` 的 `*` 让这些文件留在本地、不再被跟踪。已推送的远程历史还留着旧对象，需要强制推送才会从远端消失。
+
+## read_artifact 误报 checksum mismatch（b71d2dd7，已修）
+
+04 reviewer-1 用 `read_artifact` 读 `executor-1/raw/49078f9b…/raw.json` 时一直报 `artifact checksum mismatch`。文件本身没问题：宿主记录的 sha256（64 位）和文件字节一致，路径解析（reviewer 读 executor attempt）也正确。原因是 reviewer 手抄 sha 时漏了一个 `0`，传入的是 63 位（`…04a8a6b9b…`，正确为 `…04a8a06b9b…`），而工具对格式错误的 sha 也只报 mismatch，被误读成证据损坏。
+
+修复：`store.normalize_sha256` 先校验传入值必须是 64 位十六进制（容忍大小写和首尾空白），否则报 `invalid sha256: expected 64 hex characters, got N`；格式正确但不一致时仍报 mismatch，并提示从 handoff/evidence manifest 原样复制。回归测试 `src/tests/t_harness/tools/lca_artifacts/test_read_artifact_checksum.py` 断言宿主 `ref()` 记录的 sha 能被 reviewer 的 `resolve_ref` 验证通过。

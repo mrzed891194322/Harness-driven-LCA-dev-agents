@@ -37,6 +37,26 @@ _BOUND_CONTEXT_FILE: Path | None = None
 _CONTEXT_FILE_BOUND = False
 
 
+
+_SHA256_HEX = frozenset("0123456789abcdef")
+
+
+def normalize_sha256(value) -> str:
+    """Validate a caller-supplied sha256 before comparing it with file bytes.
+
+    Agents copy 64-hex digests by hand; a dropped or doubled character used to
+    surface as a misleading ``artifact checksum mismatch`` (b71d2dd7 04
+    reviewer-1 sent 63 characters). Report the malformed input explicitly.
+    """
+    text = str(value).strip().lower() if isinstance(value, str) else ""
+    if len(text) != 64 or not set(text) <= _SHA256_HEX:
+        raise ValueError(
+            "invalid sha256: expected 64 hex characters, got "
+            f"{len(str(value).strip()) if isinstance(value, str) else type(value).__name__}"
+            "; copy the recorded sha256 verbatim (no truncation or ellipsis)"
+        )
+    return text
+
 class HostContextError(ValueError):
     """Host bound a context file that is missing, unreadable, or standalone."""
 
@@ -305,9 +325,14 @@ class Context:
         }
 
     def resolve_ref(self, ref):
+        expected = normalize_sha256(ref["sha256"])
         path = self.resolve_read_path(str(ref["path"]))
-        if sha256_file(path) != ref["sha256"]:
-            raise ValueError(f"artifact checksum mismatch: {ref['path']}")
+        if sha256_file(path) != expected:
+            raise ValueError(
+                f"artifact checksum mismatch: {ref['path']} (the file's bytes do "
+                "not hash to the supplied sha256; re-copy the recorded value "
+                "verbatim from the handoff or evidence manifest)"
+            )
         return path
 
     def load_manifest(self):
