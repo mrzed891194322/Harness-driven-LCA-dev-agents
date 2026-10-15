@@ -142,6 +142,7 @@ class ScriptedSessionClient:
             )
             raise WorkerTransportError(message)
         self._write_outputs(payload, context)
+        self._seed_import_operations(payload, context)
         handoff_rel = context["handoff_path"]
         handoff_path = Path(handoff_rel)
         if not handoff_path.is_absolute():
@@ -203,6 +204,27 @@ class ScriptedSessionClient:
                 )
             else:
                 path.write_text("{}\n", encoding="utf-8")
+
+    def _seed_import_operations(self, payload: dict, context: dict) -> None:
+        entities = payload.get("import_operations")
+        if not entities:
+            return
+        stage = context["stage"]
+        role = context["role"]
+        attempt = int(context["attempt"])
+        ops = (
+            self.workspace
+            / "runs"
+            / stage
+            / f"{role}-{attempt}"
+            / "import-operations"
+            / "operations"
+        )
+        ops.mkdir(parents=True, exist_ok=True)
+        (ops / "1.json").write_text(
+            json.dumps({"entities": list(entities)}, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
 
 def context_from_prompt(prompt: str) -> dict:
