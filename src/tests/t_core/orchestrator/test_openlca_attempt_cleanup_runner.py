@@ -78,6 +78,13 @@ def test_second_attempt_writes_openlca_deleted_to_attempts_json(tmp_path: Path) 
 
 def test_unreachable_openlca_records_skip_and_raises(tmp_path: Path) -> None:
     ws = tmp_path / "workspace"
+    journal1 = ws / "runs" / STAGE / "executor-1" / "import-operations" / "operations"
+    journal1.mkdir(parents=True)
+    (journal1 / "a.json").write_text(
+        json.dumps({"entities": [{"@type": "Process", "@id": "p-old"}]}),
+        encoding="utf-8",
+    )
+    register_attempt(ws, STAGE, "executor", 1, "run-a")
     register_attempt(ws, STAGE, "executor", 2, "run-b")
 
     def _boom(*_a, **_k):
@@ -89,7 +96,9 @@ def test_unreachable_openlca_records_skip_and_raises(tmp_path: Path) -> None:
     ), patch(
         "backend.services.openlca_attempt_cleanup.openlca_endpoint",
         return_value=("127.0.0.1", 1),
-    ), pytest.raises(RuntimeError, match="openlca unreachable"):
+    ), patch(
+        "backend.services.openlca_attempt_cleanup.cleanup_prior_attempt_imports",
+    ) as cleanup_mock, pytest.raises(RuntimeError, match="openlca unreachable"):
         maybe_cleanup_before_openlca_write(
             tmp_path,
             ws,
@@ -98,6 +107,8 @@ def test_unreachable_openlca_records_skip_and_raises(tmp_path: Path) -> None:
             attempt=2,
         )
 
+    cleanup_mock.assert_not_called()
     doc = json.loads((ws / "runs" / STAGE / "attempts.json").read_text(encoding="utf-8"))
     row = next(r for r in doc["attempts"] if r["attempt"] == 2)
     assert row.get("openlca_skipped") == [{"reason": "openlca_unreachable"}]
+    assert row.get("openlca_deleted") is None
