@@ -23,7 +23,6 @@ export function resultKind(
   if (filePath.startsWith("workspace/artifacts/")) return "final";
   if (filePath.startsWith("workspace/runs/_run/")) return "work";
   if (filePath.startsWith("workspace/runs/")) return "intermediate";
-  if (filePath.startsWith("workspace/outputs/")) return "final";
   return "work";
 }
 
@@ -83,9 +82,9 @@ function navTitle(item: Artifact): string {
 
 function parentName(filePath: string): string {
   const trimmed = filePath
-    .replace(/^workspace\/outputs\//, "")
-    .replace(/^workspace\/records\//, "")
-    .replace(/^workspace\/runs\/_run\//, "");
+    .replace(/^workspace\/artifacts\//, "")
+    .replace(/^workspace\/runs\/_run\//, "")
+    .replace(/^workspace\/runs\//, "");
   const slash = trimmed.lastIndexOf("/");
   return slash >= 0 ? trimmed.slice(0, slash) : "";
 }

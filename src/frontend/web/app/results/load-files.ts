@@ -43,39 +43,6 @@ function projectRoot(): string {
   return dir;
 }
 
-function listArtifacts(root: string): Artifact[] {
-  if (!fs.existsSync(root)) return [];
-  const items: Artifact[] = [];
-  const grouped = new Map<string, Artifact>();
-
-  function walk(dir: string) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name.startsWith(".")) continue;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-        continue;
-      }
-      if (!entry.isFile() || entry.name === "README.md") continue;
-      const relative = path.relative(root, full).split(path.sep);
-      const size = fs.statSync(full).size;
-      if (entry.name === "raw.json" && relative.length >= 6 && relative[0] === "reports" && relative[1] === "runs") {
-        const key = `workspace/outputs/${relative.slice(0, 5).join("/")}`;
-        const bucket = grouped.get(key) || { path: key, size: 0, count: 0 };
-        bucket.size += size;
-        bucket.count += 1;
-        grouped.set(key, bucket);
-        continue;
-      }
-      items.push({ path: `workspace/outputs/${relative.join("/")}`, size, count: 1 });
-    }
-  }
-
-  walk(root);
-  items.sort((a, b) => a.path.localeCompare(b.path));
-  return items.concat([...grouped.values()].sort((a, b) => a.path.localeCompare(b.path)));
-}
-
 function listRunLevelFiles(workspace: string): Artifact[] {
   const root = path.join(workspace, "runs", "_run");
   const prefix = "workspace/runs/_run";
@@ -147,7 +114,6 @@ function listHandoffsFromRuns(workspace: string): Handoff[] {
 }
 
 const RESULT_PREFIXES = [
-  "workspace/outputs/",
   "workspace/artifacts/",
   "workspace/runs/",
 ];
@@ -237,7 +203,7 @@ function listRunArtifacts(root: string): Artifact[] {
       const relative = path.relative(root, full).split(path.sep);
       const size = fs.statSync(full).size;
       if (entry.name === "raw.json" && relative.includes("raw")) {
-        const attemptKey = relative.slice(0, -2).join("/");
+        const attemptKey = relative.slice(0, relative.indexOf("raw")).join("/");
         const key = `workspace/runs/${attemptKey}`;
         const bucket = grouped.get(key) || { path: key, size: 0, count: 0, category: "intermediate" };
         bucket.size += size;
@@ -269,13 +235,12 @@ export async function loadResultFiles(): Promise<ResultFiles> {
       manifest = { status: "idle", status_reason: "无法读取运行摘要" };
     }
   }
-  const legacyOutputs = listArtifacts(path.join(workspace, "outputs"));
   const deliverables = listDeliverables(path.join(workspace, "artifacts"));
   const runArtifacts = listRunArtifacts(path.join(workspace, "runs"));
   return {
     manifest,
     handoffs: listHandoffsFromRuns(workspace),
-    artifacts: [...legacyOutputs, ...deliverables, ...runArtifacts],
+    artifacts: [...deliverables, ...runArtifacts],
     records: listRunLevelFiles(workspace),
   };
 }
