@@ -135,12 +135,42 @@ class Context:
             role=self.role,
             attempt=self.attempt,
         )
+        if rel.startswith("harness/"):
+            raise ValueError(
+                f"harness path is not a workspace artifact: {rel}"
+            )
         if rel.startswith("workspace/"):
             rel = rel[len("workspace/") :]
         return self.safe(self.workspace / rel)
 
     def sources_manifest_path(self) -> Path:
-        return self.attempt_root() / "sources.json"
+        """Host-written source manifest for this assignment.
+
+        Core (``knowledge_providers/local_files.enrich_local_files``) writes it to
+        ``runs/_run/evidence/<run_id>/sources/<assignment>.json``; that is the only
+        location the host populates. ``<attempt>/sources.json`` is honoured first
+        when present (attempt-scoped override), but must not be the sole lookup:
+        that regression made every inventory citation "undeclared".
+        """
+        attempt_local = self.attempt_root() / "sources.json"
+        if attempt_local.is_file():
+            return attempt_local
+        key = self.assignment or f"{self.stage}.{self.role}"
+        return self.safe(self.memory / "sources" / f"{key}.json")
+
+    def resolve_read_path(self, relative: str) -> Path:
+        """Resolve a read-only reference: ``harness/...`` against the project root
+        (never under ``workspace/``), everything else against the workspace."""
+        text = str(relative or "").replace("\\", "/")
+        if text.startswith("workspace/"):
+            text = text[len("workspace/") :]
+        if text.startswith("harness/"):
+            root = (self.project / "harness").resolve()
+            resolved = (self.project / text).resolve()
+            if resolved != root and root not in resolved.parents:
+                raise ValueError("harness path escapes project harness/")
+            return resolved
+        return self.safe(self.workspace / text)
 
     def lca_phase(self) -> str | None:
         block = self.metadata.get("lca") if isinstance(self.metadata, dict) else None
@@ -275,7 +305,7 @@ class Context:
         }
 
     def resolve_ref(self, ref):
-        path = self.safe(self.workspace / ref["path"])
+        path = self.resolve_read_path(str(ref["path"]))
         if sha256_file(path) != ref["sha256"]:
             raise ValueError(f"artifact checksum mismatch: {ref['path']}")
         return path

@@ -35,6 +35,7 @@ workspace/
       manifest.json
       progress.txt
       rework/                # 返工记录 upstream-<n>.json
+      evidence/<run_id>/sources/<assignment>.json  # 宿主写的 source_manifest（inventory 验收的“已声明来源”）
     <stage-id>/
       <role>-<n>/            # 单次尝试（编号跨 revise/resume 连续）
         handoff.json
@@ -42,7 +43,7 @@ workspace/
         session/             # 运行结束从 .local 复制
         raw/<call_id>/raw.json
         checks/
-        sources.json
+        sources.json         # 可选覆盖；不存在时读 evidence/<run_id>/sources/<assignment>.json
         import-operations/   # 04：openLCA 导入日志
       attempts.json          # 宿主维护的尝试列表
       accepted.json          # 本阶段验收通过的 executor/reviewer 目录与指纹
@@ -59,6 +60,8 @@ workspace/
 ```
 
 - **run id** 只出现在 `.local/runs/<run_id>/`，不出现在 `workspace/runs/` 路径中。
+- **source_manifest**：Core 写到 `runs/_run/evidence/<run_id>/sources/<assignment>.json`；`Context.sources_manifest_path()` 先看尝试目录 `sources.json`，没有就读该文件（c6530023 回归：只看尝试目录导致已声明来源为空）。
+- **`harness/...` 引用**：只读，按项目根解析，永远不会落到 `workspace/harness/...`；`Context.path()` 拒绝把 `harness/` 当作 workspace 产物。
 - **handoff** 固定文件名 `handoff.json`；审查记录 `review.md`。
 - **03 `lca.model` 验收**写入 `accepted.json`（不再依赖 evidence manifest 的 `accepted` 键作为唯一真相）。
 

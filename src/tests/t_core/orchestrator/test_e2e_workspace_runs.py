@@ -26,6 +26,7 @@ from tests.support.scripted_session import (
     ScriptedSessionClient,
     _happy_script,
     _passing_run_host_action,
+    context_from_prompt,
 )
 
 STAGES = (
@@ -58,6 +59,56 @@ def _required_deliverable_names() -> set[str]:
     return names
 
 
+class _RealInventoryAcceptanceClient(ScriptedSessionClient):
+    """02 executor cites the plan and runs the REAL inventory acceptance.
+
+    Uses the source_manifest the orchestrator actually wrote (no stub), so a
+    reader/writer path mismatch for the manifest fails this test.
+    """
+
+    def __init__(self, workspace: Path, script) -> None:
+        super().__init__(workspace, script)
+        self.inventory_results: list[dict[str, Any]] = []
+        self.manifest_paths: list[Path] = []
+
+    def run_turn(self, ref, prompt, config):
+        result = super().run_turn(ref, prompt, config)
+        context = context_from_prompt(prompt)
+        if (context["stage"], context["role"]) != (
+            "02-inventory-extraction",
+            "executor",
+        ):
+            return result
+        from harness.tools.shared.lca_artifacts import checks
+        from harness.tools.shared.lca_artifacts.store import Context
+
+        ctx = Context(
+            PROJECT_ROOT,
+            self.workspace,
+            context["run_id"],
+            context["stage"],
+            int(context["attempt"]),
+            role=context["role"],
+            assignment=context["assignment"],
+            metadata={"lca": {"phase": "inventory"}},
+        )
+        bom = ctx.path("extracted-bom.json")
+        doc = json.loads(bom.read_text(encoding="utf-8"))
+        for row in doc["items"]:
+            row["source_locations"] = ["harness/knowledge/plan/main_plan.md#L1"]
+        bom.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        self.manifest_paths.append(ctx.sources_manifest_path())
+        self.inventory_results.append(checks.validate(ctx, "inventory"))
+        # A citation of an undeclared file must still be rejected.
+        doc["items"][0]["source_locations"] = ["nope/not-declared.md#L1"]
+        bom.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        self.inventory_results.append(checks.validate(ctx, "inventory"))
+        for row in doc["items"]:
+            row["source_locations"] = ["harness/knowledge/plan/main_plan.md#L1"]
+        bom.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return result
+
+
 class WorkspaceRunsE2ETests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -78,10 +129,11 @@ class WorkspaceRunsE2ETests(unittest.TestCase):
         script: dict[tuple[str, str, int], Any],
         *,
         before_openlca_write=None,
+        client: ScriptedSessionClient | None = None,
     ) -> dict[str, Any]:
         if before_openlca_write is not None:
             set_before_openlca_write(before_openlca_write)
-        client = ScriptedSessionClient(self.workspace, script)
+        client = client or ScriptedSessionClient(self.workspace, script)
         runtime = OrchestratorRuntime(
             self.workflow,
             project_root=PROJECT_ROOT,
@@ -227,3 +279,24 @@ class WorkspaceRunsE2ETests(unittest.TestCase):
         row2 = next(r for r in doc["attempts"] if r["attempt"] == 2)
         self.assertIsNone(row1.get("openlca_deleted"))
         self.assertTrue(row2.get("openlca_deleted"))
+
+
+    def test_02_inventory_acceptance_uses_host_source_manifest(self) -> None:
+        client = _RealInventoryAcceptanceClient(self.workspace, _whole_lca_script())
+        result = self._run(_whole_lca_script(), client=client)
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(client.inventory_results), 2)
+        manifest = client.manifest_paths[0]
+        self.assertTrue(manifest.is_file(), manifest)
+        self.assertEqual(
+            manifest.relative_to(self.workspace).parts[:4],
+            ("runs", "_run", "evidence", "run-e2e"),
+        )
+        passed, rejected = client.inventory_results
+        self.assertTrue(passed["ok"], passed["errors"])
+        self.assertFalse(rejected["ok"])
+        self.assertTrue(
+            any("undeclared source reference" in e for e in rejected["errors"])
+        )
+        # No harness/... path may ever be materialised under workspace/.
+        self.assertFalse((self.workspace / "harness").exists())
