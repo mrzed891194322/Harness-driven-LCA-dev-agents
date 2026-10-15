@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.agents.activity import activity_log_path, read_activity
-from backend.core.agents.archive import resolve_progress_log_path
-from backend.core.workflow.persistence.checkpoint import resolve_checkpoint_path
-from backend.core.workflow.persistence.manifest import resolve_manifest_path
-from backend.settings import legacy_records_root, records_root
+from backend.core.agents.archive import progress_log_path
+from backend.core.workflow.persistence.checkpoint import checkpoint_path
+from backend.core.workflow.persistence.manifest import manifest_path
+from backend.settings import run_root
 from backend.services.project_paths import PROJECT_ROOT
 
 
@@ -27,7 +27,7 @@ class WorkflowService:
 
     def manifest(self) -> dict[str, Any]:
         self._reconcile()
-        path = resolve_manifest_path(self.workspace_root)
+        path = manifest_path(self.workspace_root)
         if not path.is_file():
             return {"status": "idle"}
         return json.loads(path.read_text(encoding="utf-8"))
@@ -109,7 +109,7 @@ class WorkflowService:
         }
         if not run_id:
             return recorded
-        path = resolve_progress_log_path(self.workspace_root, run_id)
+        path = progress_log_path(self.workspace_root, run_id)
         if not path.is_file():
             return recorded
         recorded["text"] = path.read_text(encoding="utf-8", errors="replace")
@@ -120,7 +120,7 @@ class WorkflowService:
         """Attempt from the orchestrator snapshot when the manifest has none yet."""
         if not run_id:
             return None
-        path = resolve_checkpoint_path(self.workspace_root)
+        path = checkpoint_path(self.workspace_root)
         if not path.is_file():
             return None
         try:
@@ -257,7 +257,7 @@ def _handoff_row(path: Path, workspace_root: Path, payload: dict[str, Any] | Non
 def _list_handoffs_from_runs(workspace_root: Path) -> list[dict[str, Any]]:
     runs = workspace_root / "runs"
     if not runs.is_dir():
-        return _list_handoffs_legacy(workspace_root)
+        return []
     rows: list[dict[str, Any]] = []
     for handoff in sorted(runs.rglob("handoff.json")):
         if "_run" in handoff.parts:
@@ -269,27 +269,6 @@ def _list_handoffs_from_runs(workspace_root: Path) -> list[dict[str, Any]]:
         if payload is not None and not isinstance(payload, dict):
             payload = None
         rows.append(_handoff_row(handoff, workspace_root, payload))
-    if rows:
-        return rows
-    return _list_handoffs_legacy(workspace_root)
-
-
-def _list_handoffs_legacy(workspace_root: Path) -> list[dict[str, Any]]:
-    folder = legacy_records_root(workspace_root) / "handoffs"
-    if not folder.is_dir():
-        return []
-    rows: list[dict[str, Any]] = []
-    for path in sorted(folder.glob("*.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            payload = None
-        if payload is not None and not isinstance(payload, dict):
-            payload = None
-        row = _handoff_row(path, workspace_root, payload)
-        row["name"] = path.name
-        row["path"] = f"workspace/records/handoffs/{path.name}"
-        rows.append(row)
     return rows
 
 
@@ -332,40 +311,34 @@ def _list_artifacts(root: Path) -> list[dict[str, Any]]:
 
 
 def _list_run_level_files(workspace_root: Path) -> list[dict[str, Any]]:
-    """Files under workspace/runs/_run (legacy: workspace/records)."""
+    """Files under workspace/runs/_run."""
+    root = run_root(workspace_root)
+    if not root.is_dir():
+        return []
     items: list[dict[str, Any]] = []
-    for root, prefix in (
-        (records_root(workspace_root), "workspace/runs/_run"),
-        (legacy_records_root(workspace_root), "workspace/records"),
-    ):
-        if not root.is_dir():
+    base = root.resolve()
+    prefix = "workspace/runs/_run"
+    for path in sorted(base.rglob("*")):
+        if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
             continue
-        base = root.resolve()
-        for path in sorted(base.rglob("*")):
-            if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
-                continue
-            try:
-                relative = path.resolve().relative_to(base)
-            except ValueError:
-                continue
-            if relative.parts and relative.parts[0] == "handoffs":
-                continue
-            rel_path = f"{prefix}/{relative.as_posix()}"
-            if any(item["path"] == rel_path for item in items):
-                continue
-            items.append(
-                {
-                    "path": rel_path,
-                    "size": path.stat().st_size,
-                    "count": 1,
-                }
-            )
+        try:
+            relative = path.resolve().relative_to(base)
+        except ValueError:
+            continue
+        if relative.parts and relative.parts[0] == "handoffs":
+            continue
+        items.append(
+            {
+                "path": f"{prefix}/{relative.as_posix()}",
+                "size": path.stat().st_size,
+                "count": 1,
+            }
+        )
     return items
 
 
 _RESULT_PREFIXES = (
     "workspace/outputs/",
-    "workspace/records/",
     "workspace/runs/_run/",
     "workspace/artifacts/",
     "workspace/runs/",

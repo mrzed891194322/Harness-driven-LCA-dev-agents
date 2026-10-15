@@ -194,9 +194,6 @@ def _model_types(*, include_supporting: bool) -> list[type]:
 
 def _journal_paths(workspace: Path) -> list[Path]:
     paths: list[Path] = []
-    legacy = workspace / "records" / "import-operations" / "operations"
-    if legacy.is_dir():
-        paths.append(legacy)
     runs = workspace / "runs"
     if runs.is_dir():
         for journal in sorted(runs.rglob("import-operations/operations")):

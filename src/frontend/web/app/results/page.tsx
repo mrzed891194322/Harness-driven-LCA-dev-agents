@@ -38,7 +38,7 @@ function handoffWorkspacePath(item: Handoff): string {
   if (item.name.includes("/")) {
     return `workspace/${item.name}`;
   }
-  return `workspace/records/handoffs/${item.name}`;
+  return `workspace/runs/${item.name}`;
 }
 
 function knownPaths(data: Results): Set<string> {

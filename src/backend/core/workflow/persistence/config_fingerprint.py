@@ -16,7 +16,7 @@ from backend.core.runtime.knowledge_providers.local_files import discover_files_
 from backend.core.runtime.tool_runtime import write_json_atomic
 from backend.core.workflow.spec.models import StageSpec
 from backend.core.workflow.spec.view import spec_view, spec_view_hash
-from backend.settings import records_root
+from backend.settings import run_root
 
 from ..config.models import KnowledgeSource, Workflow
 from ..execution import generated_prompts
@@ -31,7 +31,7 @@ IMPLEMENTATION_ROOTS = (
 
 
 def runtime_config_path(workspace_root: Path, run_id: str) -> Path:
-    return records_root(workspace_root) / "evidence" / run_id / "runtime-config.json"
+    return run_root(workspace_root) / "evidence" / run_id / "runtime-config.json"
 
 
 def implementation_fingerprint(project_root: Path) -> str:

@@ -374,13 +374,9 @@ def _cleanup_list_refuse_path(
         "runs/_run/orchestrator.lock",
         "runs/_run/orchestrator.sqlite",
         "runs/_run/resume",
-        "records/orchestrator.lock",
-        "records/orchestrator.sqlite",
-        "records/resume",
     ]
     if old_run_id:
         protected.append(f"runs/_run/evidence/{old_run_id}")
-        protected.append(f"records/evidence/{old_run_id}")
     for keep in protected:
         if keep.startswith(rel + "/"):
             return f"禁止删除包含受保护路径（{keep}）的目录"
@@ -389,15 +385,11 @@ def _cleanup_list_refuse_path(
     if rel in {
         "runs/_run/orchestrator.sqlite",
         "runs/_run/orchestrator.lock",
-        "records/orchestrator.sqlite",
-        "records/orchestrator.lock",
     }:
         return "禁止删除编排器锁或检查点库"
     if old_run_id and rel.startswith(f"runs/_run/evidence/{old_run_id}"):
         return "禁止删除旧运行 evidence"
-    if old_run_id and rel.startswith(f"records/evidence/{old_run_id}"):
-        return "禁止删除旧运行 evidence"
-    if rel.startswith("runs/_run/resume/") or rel.startswith("records/resume/"):
+    if rel.startswith("runs/_run/resume/"):
         return "禁止删除 resume 计划目录"
     return None
 

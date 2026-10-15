@@ -17,7 +17,7 @@ from backend.core.workflow.execution.runner import (
 )
 from backend.core.workflow.persistence.checkpoint import open_store
 from backend.core.workflow.persistence.config_fingerprint import write_runtime_config
-from backend.settings import records_root
+from backend.settings import run_root
 from tests.conftest import PROJECT_ROOT, WORKFLOWS
 from tests.support.scripted_session import (
     ScriptedSessionClient,
@@ -82,7 +82,7 @@ def _run(tmp_path, script, monkeypatch, max_attempts=None):
         model="test-model",
     )
     # Pretend 03 recorded an acceptance earlier in this run.
-    manifest = records_root(workspace) / "evidence" / "run-up" / "manifest.json"
+    manifest = run_root(workspace) / "evidence" / "run-up" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         json.dumps(

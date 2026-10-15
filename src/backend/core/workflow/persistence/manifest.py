@@ -6,21 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.runtime.tool_runtime import write_json_atomic
-from backend.settings import legacy_records_root, records_root
+from backend.settings import run_root
 
 
 def manifest_path(workspace_root: Path) -> Path:
-    return records_root(workspace_root) / "manifest.json"
-
-
-def resolve_manifest_path(workspace_root: Path) -> Path:
-    primary = manifest_path(workspace_root)
-    if primary.is_file():
-        return primary
-    legacy = legacy_records_root(workspace_root) / "manifest.json"
-    if legacy.is_file():
-        return legacy
-    return primary
+    return run_root(workspace_root) / "manifest.json"
 
 
 def write_manifest(

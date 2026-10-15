@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from backend.settings import records_root
-
 from .context import RunContext
 
 CONTEXT_FILE_FLAG_DEFAULT = "--context-file"

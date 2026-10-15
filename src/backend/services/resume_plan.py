@@ -25,7 +25,7 @@ from backend.core.workflow.persistence.workflow_snapshot import (
 from backend.core.workflow.resume_stages import normalize_resume_code, stage_id_from_code
 from backend.services.project_paths import MAIN_WORKFLOW_REL
 from backend.services.run_reconcile import workflow_status_for_run
-from backend.settings import legacy_records_root, records_root
+from backend.settings import run_root
 from harness.tools.shared.control_openlca import cleanup as openlca_cleanup
 from harness.tools.shared.lca_artifacts.checks import snapshot_unchanged
 from harness.tools.shared.lca_artifacts.store import Context
@@ -86,20 +86,6 @@ def _latest_reviewer_handoff(workspace_root: Path, stage_id: str) -> Path | None
             if attempt >= best_attempt:
                 best_attempt = attempt
                 best = path
-    if best:
-        return best
-    folder = legacy_records_root(workspace_root) / "handoffs"
-    if not folder.is_dir():
-        return None
-    prefix = f"{stage_id}-reviewer-"
-    for path in sorted(folder.glob(f"{prefix}*.json"), key=lambda p: p.name):
-        m = re.search(r"-reviewer-(\d+)\.json$", path.name)
-        if not m:
-            continue
-        attempt = int(m.group(1))
-        if attempt >= best_attempt:
-            best_attempt = attempt
-            best = path
     return best
 
 
@@ -128,7 +114,7 @@ def _fingerprint_plan_inputs(project_root: Path) -> str:
 
 
 def _evidence_manifest(workspace_root: Path, run_id: str) -> dict[str, Any] | None:
-    path = records_root(workspace_root) / "evidence" / run_id / "manifest.json"
+    path = run_root(workspace_root) / "evidence" / run_id / "manifest.json"
     if not path.is_file():
         return None
     try:
@@ -216,7 +202,7 @@ def _inputs_unchanged(
                 return True, reasons
             reasons.append("计划或 inputs 相对上次验收快照已变化")
             return False, reasons
-    sources_dir = records_root(workspace_root) / "evidence" / old_run_id / "sources"
+    sources_dir = run_root(workspace_root) / "evidence" / old_run_id / "sources"
     if sources_dir.is_dir():
         recorded: dict[str, set[str]] = {}
         for path in sorted(sources_dir.glob("*.json")):
@@ -291,22 +277,14 @@ def _record_globs_for_stage(stage_id: str) -> list[str]:
         f"runs/{stage_id}/system-*",
         f"runs/_run/sessions/{stage_id}.*",
         f"runs/_run/sessions/{short}*",
-        f"records/handoffs/{stage_id}-*",
-        f"records/reviews/{stage_id}*",
-        f"records/reviews/{short}*",
-        f"records/sessions/{stage_id}.*",
-        f"records/sessions/{short}*",
     ]
 
 
 def _expand_glob(workspace_root: Path, pattern: str) -> list[Path]:
     rel = pattern.replace("\\", "/")
     if rel.startswith("runs/_run/"):
-        base = records_root(workspace_root)
+        base = run_root(workspace_root)
         glob_part = rel[len("runs/_run/") :]
-    elif rel.startswith("records/"):
-        base = legacy_records_root(workspace_root)
-        glob_part = rel[len("records/") :]
     else:
         base = workspace_root
         glob_part = rel
@@ -353,10 +331,6 @@ def cleanup_workspace_paths(workspace_root: Path, from_stage_id: str) -> list[st
                 except ValueError:
                     continue
                 paths.append(rel)
-        if stage_id == "04-openlca-reporting":
-            legacy_journal = workspace_root / "records" / "import-operations"
-            if legacy_journal.exists():
-                paths.append("records/import-operations")
     # de-dupe, preserve order
     seen: set[str] = set()
     out: list[str] = []
@@ -485,7 +459,7 @@ def _filter_workflow_document(document: dict[str, Any], from_stage_id: str) -> d
 
 
 def resume_plan_dir(workspace_root: Path, old_run_id: str) -> Path:
-    return records_root(workspace_root) / "resume" / old_run_id
+    return run_root(workspace_root) / "resume" / old_run_id
 
 
 def build_plan(

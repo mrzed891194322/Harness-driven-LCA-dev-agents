@@ -38,7 +38,7 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
 
 **暂停后恢复（同 run_id checkpoint）**：恢复时若运行指纹（规则、模板、偏好、spec、实现代码）变了，默认不拒绝，在 `events.jsonl` 记一条 `injection_check`（`phase: resume`，`level: warn`），逐项列出变化的指纹路径和新旧值，然后按新配置继续；旧的 `runtime-config.json` 改名为 `runtime-config.prev-<n>.json`。严格模式下仍拒绝。worker 或模型变化、运行配置缺失，照旧拒绝。
 
-**从阶段 N 续跑（`resume-lca`）**：失败/中止/中断的运行可从阶段 02/03/04 重新开一条新 `run_id`，沿用 N 之前已通过审查的阶段产物。每次新运行启动时在 `workspace/runs/_run/evidence/<run_id>/workflow.yaml` 与 `.local/runs/<run_id>/workflow.yaml` 保存当时使用的装配图原文；续跑优先读旧运行的快照生成 `workspace/runs/_run/resume/<old_run_id>/workflow.yaml`（`id: resume-lca`，阶段截断为 N..04）。清理走 `clean.py --cleanup-list`（只删清单内 workspace 路径 + journal 中的 openLCA UUID）；`runs/_run/evidence/<old>/`、`runs/_run/resume/` 与编排器锁库不删。新运行在 `runs/_run/evidence/<new>/resume.json` 与 `runs/_run/manifest.json` 记录 `resumed_from` / `resume_from_stage`；从 04 续跑时预置 `accepted["lca.model"]`（或 `runs/<stage>/accepted.json` 种子）。续跑中返工不得指向 N 之前的阶段。若磁盘上仍有旧版 `workspace/records/`，读取端可只读回退，新写入仅 `runs/_run/`。
+**从阶段 N 续跑（`resume-lca`）**：失败/中止/中断的运行可从阶段 02/03/04 重新开一条新 `run_id`，沿用 N 之前已通过审查的阶段产物。每次新运行启动时在 `workspace/runs/_run/evidence/<run_id>/workflow.yaml` 与 `.local/runs/<run_id>/workflow.yaml` 保存当时使用的装配图原文；续跑优先读旧运行的快照生成 `workspace/runs/_run/resume/<old_run_id>/workflow.yaml`（`id: resume-lca`，阶段截断为 N..04）。清理走 `clean.py --cleanup-list`（只删清单内 workspace 路径 + journal 中的 openLCA UUID）；`runs/_run/evidence/<old>/`、`runs/_run/resume/` 与编排器锁库不删。新运行在 `runs/_run/evidence/<new>/resume.json` 与 `runs/_run/manifest.json` 记录 `resumed_from` / `resume_from_stage`；从 04 续跑时预置 `accepted["lca.model"]`（或 `runs/<stage>/accepted.json` 种子）。续跑中返工不得指向 N 之前的阶段。
 
 ## transcript.jsonl
 
@@ -87,28 +87,28 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
 
 | 阶段 / 层级 | 产物 | 路径 | 格式 / 契约 | 写入方 | 校验 / 读取方 | GUI |
 | --- | --- | --- | --- | --- | --- | --- |
-| 01 reviewer | 交卷 handoff | `workspace/records/handoffs/01-intake-gate-reviewer-<n>.json` | JSON，`handoff.py` + `harness/specs/shared/lca-handoff-extension.schema.json` | agent 调 `lca_artifacts.submit_handoff` | 编排器 `advance()` | 仅事件流里的“已交卷”徽标 |
-| 01 | 审查记录 | `workspace/records/reviews/01-intake-gate-<n>.md` | Markdown | 宿主 `write_review_note` | 人工 | 不显示 |
+| 01 reviewer | 交卷 handoff | `workspace/runs/01-intake-gate/reviewer-<n>/handoff.json` | JSON，`handoff.py` + `harness/specs/shared/lca-handoff-extension.schema.json` | agent 调 `lca_artifacts.submit_handoff` | 编排器 `advance()` | 仅事件流里的“已交卷”徽标 |
+| 01 | 审查记录 | `workspace/runs/01-intake-gate/reviewer-<n>/review.md` | Markdown | 宿主 `write_review_note` | 人工 | 不显示 |
 | 02 executor | BOM 清单 | `workspace/outputs/inventory/extracted-bom.json` | JSON，`harness/specs/02-inventory-extraction/extracted-bom.schema.json`，顶层 `items[]` | agent 直接写文件 | `validate_outputs`（schema）→ host action `inventory_check`（`checks.inventory_errors`）→ 02 reviewer；03、04 读取 | 不显示 |
 | 02 executor | BOM 说明 | `workspace/outputs/inventory/extracted-bom.md` | Markdown（仅非空检查） | agent | `validate_outputs`、reviewer | 不显示 |
 | 03 executor | 过程映射 | `workspace/outputs/inventory/process-mapping.json` | JSON，`harness/specs/03-dataset-mapping/process-mapping.schema.json`，顶层 `items[]` | agent | schema → `mapping_check`（`checks.mapping_errors`，含 provider 正式证据）→ reviewer；04 读取 | 不显示 |
 | 03 executor | LCI 数据集 | `workspace/outputs/LCI/{flows,processes,product_systems}/` | openLCA JSON-LD 目录（只检查“是目录”） | agent | `mapping_check`、04 的 `import_lci` | 不显示 |
-| 03 reviewer 通过后 | 模型验收记录 | `workspace/records/evidence/<run>/manifest.json` 的 `accepted["lca.model"]` | JSON | host action `record_acceptance` | 04 工具 `require_approved_model`、`get_rework_status` | 不显示 |
+| 03 reviewer 通过后 | 模型验收记录 | `workspace/runs/_run/evidence/<run>/manifest.json` 的 `accepted["lca.model"]`；阶段 `runs/03-dataset-mapping/accepted.json` | JSON | host action `record_acceptance` | 04 工具 `require_approved_model`、`get_rework_status` | 不显示 |
 | 04 executor | 计算计划 | `workspace/outputs/reports/calculation-plan.json` | JSON（无 schema，`require_calculation_plan` 检查目标/方法各出现一次） | agent | `calculate_product_system` 前置检查；进入计算指纹 | 不显示 |
 | 04 executor | LCA 报告 | `workspace/outputs/reports/lca_report.md` | Markdown，表格由 `render_report_tables` 生成 | MCP `lca_artifacts.render_report_tables` 生成表格 + agent 补正文 | `report_check`（证据 + 表格一致性 + 中文提示）→ reviewer | 不显示 |
 | 各执行者 | MCP 调用原始结果 | `workspace/outputs/reports/runs/<run>/<stage>/<attempt>/<call_id>/raw.json` | JSON（领域结果全文） | MCP（`store.save_result`） | `checks.*` 经 manifest 引用 | 不显示 |
-| 各执行者 | 调用清单 / 证据 | `workspace/records/evidence/<run>/manifest.json`（`calls[]`、`accepted{}`、`invalidations[]`） | JSON，每条带 `model_fingerprint`、`calculation_fingerprint` | MCP 追加 `calls`；宿主写 `accepted`、`invalidations` | `checks.py` 全部证据判断 | 不显示 |
-| 检查结果 | 检查记录 | `workspace/records/evidence/<run>/checks/{inventory,mapping,report}.json` | JSON，含 `checker_version`、冻结的 `inputs` 指纹 | `checks.validate_for_run` | `validation_state`（过期则改写为 `stale`） | 不显示 |
-| 03/04 | 导入预检回执 | `workspace/records/import-operations/preflights/<preflight_id>.json` | JSON | `control_openlca` MCP（`operations.py`） | `import_lci` 引用 preflight | 不显示 |
-| 运行级 | 运行摘要 | `workspace/records/manifest.json` | JSON：`status`、`current_stage`、`status_reason`、`run_id` | 编排器 `publish_state` | `GET /api/workflow/manifest`、progress/activity 接口取 run_id | `/runs` 状态 |
-| 运行级 | 检查点 | `workspace/records/orchestrator.sqlite`（+ `orchestrator.lock`） | SQLite | `CheckpointStore` | 断点续跑 | 不显示 |
-| 运行级 | 运行配置指纹 | `workspace/records/evidence/<run>/runtime-config.json` | JSON：实现、rules、tools、knowledge、各阶段 spec + schema 的哈希 | 编排器 | 续跑时比对 | 不显示 |
-| 运行级 | 工作流快照 | `workspace/records/evidence/<run>/workflow.yaml`（镜像 `.local/runs/<run>/workflow.yaml`） | 启动时 workflow YAML 原文 | 编排器 `write_workflow_snapshot` | `resume-lca` 资格校验与过滤装配 | 不显示 |
-| 续跑计划 | 续跑元数据 | `workspace/records/resume/<old_run_id>/{workflow.yaml,cleanup.json,plan.json}`（镜像 `.local/runs/<old_run_id>/resume/`） | 过滤后的 `resume-lca` 装配、删除清单、摘要 | `resume_plan.build_plan` | `POST /api/workflow/resume` | 不显示 |
-| 续跑运行 | 续跑来源 | `workspace/records/evidence/<new_run>/resume.json`；`manifest.json` 的 `resumed_from` / `resume_from_stage` | JSON | 编排器 `--resumed-from` / `--from-stage` | 运行历史、排障 | `/runs` 续跑 UI |
-| 运行级 | 上游返工记录 | `workspace/records/rework/upstream-<n>.json` | JSON：`stale_stages`、`reason`、`at` | 编排器 `_invalidate_stages` | 人工 | 不显示 |
-| 运行级 | 进度文本 | `workspace/records/logs/<run>/progress.txt` | 带标签的文本块 | `pi_client` 活动处理 + 编排器 | `GET /api/workflow/progress` | `/runs` 的 `AgentStream` |
-| 每个 turn | 排障快照 | `workspace/records/logs/<run>/<stage>/<assignment>#<attempt>/`：`prompt.md`、`session-config.json`、`argv.json`、`stdout.jsonl`、`session-ref.json`、`rendered-manifest.json` | 文本 / JSON | `core/agents/archive.py` | 人工排障 | 不显示 |
+| 各执行者 | 调用清单 / 证据 | `workspace/runs/_run/evidence/<run>/manifest.json`（`calls[]`、`accepted{}`、`invalidations[]`） | JSON，每条带 `model_fingerprint`、`calculation_fingerprint` | MCP 追加 `calls`；宿主写 `accepted`、`invalidations` | `checks.py` 全部证据判断 | 不显示 |
+| 检查结果 | 检查记录 | `workspace/runs/_run/evidence/<run>/checks/{inventory,mapping,report}.json` | JSON，含 `checker_version`、冻结的 `inputs` 指纹 | `checks.validate_for_run` | `validation_state`（过期则改写为 `stale`） | 不显示 |
+| 03/04 | 导入预检回执 | `workspace/runs/<stage>/<role>-<n>/import-operations/preflights/<preflight_id>.json` | JSON | `control_openlca` MCP（`operations.py`） | `import_lci` 引用 preflight | 不显示 |
+| 运行级 | 运行摘要 | `workspace/runs/_run/manifest.json` | JSON：`status`、`current_stage`、`status_reason`、`run_id` | 编排器 `publish_state` | `GET /api/workflow/manifest`、progress/activity 接口取 run_id | `/runs` 状态 |
+| 运行级 | 检查点 | `workspace/runs/_run/orchestrator.sqlite`（+ `orchestrator.lock`） | SQLite | `CheckpointStore` | 断点续跑 | 不显示 |
+| 运行级 | 运行配置指纹 | `workspace/runs/_run/evidence/<run>/runtime-config.json` | JSON：实现、rules、tools、knowledge、各阶段 spec + schema 的哈希 | 编排器 | 续跑时比对 | 不显示 |
+| 运行级 | 工作流快照 | `workspace/runs/_run/evidence/<run>/workflow.yaml`（镜像 `.local/runs/<run>/workflow.yaml`） | 启动时 workflow YAML 原文 | 编排器 `write_workflow_snapshot` | `resume-lca` 资格校验与过滤装配 | 不显示 |
+| 续跑计划 | 续跑元数据 | `workspace/runs/_run/resume/<old_run_id>/{workflow.yaml,cleanup.json,plan.json}`（镜像 `.local/runs/<old_run_id>/resume/`） | 过滤后的 `resume-lca` 装配、删除清单、摘要 | `resume_plan.build_plan` | `POST /api/workflow/resume` | 不显示 |
+| 续跑运行 | 续跑来源 | `workspace/runs/_run/evidence/<new_run>/resume.json`；`manifest.json` 的 `resumed_from` / `resume_from_stage` | JSON | 编排器 `--resumed-from` / `--from-stage` | 运行历史、排障 | `/runs` 续跑 UI |
+| 运行级 | 上游返工记录 | `workspace/runs/_run/rework/upstream-<n>.json` | JSON：`stale_stages`、`reason`、`at` | 编排器 `_invalidate_stages` | 人工 | 不显示 |
+| 运行级 | 进度文本 | `workspace/runs/_run/progress.txt` | 带标签的文本块 | `pi_client` 活动处理 + 编排器 | `GET /api/workflow/progress` | `/runs` 的 `AgentStream` |
+| 每个 turn | 排障快照 | `workspace/runs/_run/logs/<run>/<stage>/<assignment>#<attempt>/`：`prompt.md`、`session-config.json`、`argv.json`、`stdout.jsonl`、`session-ref.json`、`rendered-manifest.json` | 文本 / JSON | `core/agents/archive.py` | 人工排障 | 不显示 |
 | 每个 turn | MCP 渲染配置 | `workspace/tmp/mcp-render/<run>/<stage>/<assignment>/` | 配置文件 | `archive.mcp_render_dir` | pi-runtime | 不显示 |
 | 运行级 | 结构化事件 | `.local/runs/<run>/events.jsonl` | JSONL：worker 的 `tool_call`/`tool_result`/`text`/`turn_end`/`permission`；编排器的 `retry`/`rework_upstream`/`fault_injected`（`source: orchestrator`） | `pi_client` + 编排器 `_emit` | `GET /api/workflow/activity`（+ `/stream`） | `/runs` 的 `ActivitySummary` |
 | 每个会话 | 路径拦截日志 | `.local/runs/<run>/pi/<session_key>.guard.jsonl` | JSONL：`tool`、`action`、`requested_path`、`resolved_path`、`reason` | pi-runtime `session_host.ts` | 人工 / 巡检 | 不显示 |
@@ -140,7 +140,7 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
 | --- | --- | --- | --- |
 | `/runs` → `ActivitySummary`（`components/runs/activity-summary.tsx`） | `GET /api/workflow/activity` | `.local/runs/<run>/events.jsonl` | 每个 assignment 的工具次数、错误数、最后工具、交卷状态 |
 | `/runs` → `AgentStream`（`components/runs/agent-stream.tsx`） | `GET /api/workflow/progress` | `progress.txt`（准备阶段用启动器的内存文本） | Agent 正文、工具调用、编排器提示 |
-| `/runs` 状态 | `GET /api/workflow/manifest` / progress | `workspace/records/manifest.json` | 运行状态、当前阶段、失败原因 |
+| `/runs` 状态 | `GET /api/workflow/manifest` / progress | `workspace/runs/_run/manifest.json` | 运行状态、当前阶段、失败原因 |
 | `/results`（`app/results/page.tsx`） | 无 | — | 只有一句写死的路径说明，**不展示任何产物** |
 | `/harness` | `GET /api/harness/catalog`、`/api/harness/document` | `harness/` 下文件 | 规则、spec、schema 原文（是配置，不是产物） |
 

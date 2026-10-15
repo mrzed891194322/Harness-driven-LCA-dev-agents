@@ -13,21 +13,11 @@ from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
     from ..execution.runner import WorkflowState
 
-from backend.settings import legacy_records_root, records_root
+from backend.settings import run_root
 
 
 def checkpoint_path(workspace_root: Path) -> Path:
-    return records_root(workspace_root) / "orchestrator.sqlite"
-
-
-def resolve_checkpoint_path(workspace_root: Path) -> Path:
-    primary = checkpoint_path(workspace_root)
-    if primary.is_file():
-        return primary
-    legacy = legacy_records_root(workspace_root) / "orchestrator.sqlite"
-    if legacy.is_file():
-        return legacy
-    return primary
+    return run_root(workspace_root) / "orchestrator.sqlite"
 
 
 class WorkspaceBusy(RuntimeError):
@@ -37,7 +27,7 @@ class WorkspaceBusy(RuntimeError):
 @contextmanager
 def workspace_lock(workspace_root: Path) -> Iterator[None]:
     """Fail immediately if another orchestrator owns this workspace."""
-    path = records_root(workspace_root) / "orchestrator.lock"
+    path = run_root(workspace_root) / "orchestrator.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as stream:
         if os.name == "nt":

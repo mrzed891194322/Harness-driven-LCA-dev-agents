@@ -100,6 +100,6 @@ workspace/
 
 - `harness/specs/*/spec.yaml`
 - `docs/ARTIFACTS.md`、`docs/PROJECT_LAYOUT.md`（本文）
-- `workspace/runs/README.md`（`workspace/records/README.md` 仅说明旧路径兼容）
+- `workspace/runs/README.md`
 - `.cursor/rules/workspace-files.mdc`
 - `harness/rules/project/paths.md`

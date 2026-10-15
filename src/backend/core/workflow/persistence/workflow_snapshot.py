@@ -7,13 +7,13 @@ import tempfile
 from pathlib import Path
 
 from backend.core.agents.injection import runs_root
-from backend.settings import records_root
+from backend.settings import run_root
 
 WORKFLOW_SNAPSHOT_NAME = "workflow.yaml"
 
 
 def evidence_workflow_path(workspace_root: Path, run_id: str) -> Path:
-    return records_root(workspace_root) / "evidence" / run_id / WORKFLOW_SNAPSHOT_NAME
+    return run_root(workspace_root) / "evidence" / run_id / WORKFLOW_SNAPSHOT_NAME
 
 
 def local_workflow_path(project_root: Path, run_id: str) -> Path:

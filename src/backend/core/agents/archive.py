@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.runtime.hashing import sha256_file
-from backend.settings import legacy_records_root, records_root
+from backend.settings import run_root
 
 from .session import SessionConfig, SessionRef
 
@@ -15,26 +15,12 @@ REDACTED = "<redacted>"
 
 
 def run_log_dir(workspace_root: Path, run_id: str) -> Path:
-    return records_root(workspace_root) / "logs" / run_id
+    return run_root(workspace_root) / "logs" / run_id
 
 
 def progress_log_path(workspace_root: Path, run_id: str) -> Path:
     del run_id  # workspace keeps a single current run; path has no run id segment
-    return records_root(workspace_root) / "progress.txt"
-
-
-def resolve_progress_log_path(workspace_root: Path, run_id: str) -> Path:
-    """Return the progress file to read, including legacy locations."""
-    primary = progress_log_path(workspace_root, run_id)
-    if primary.is_file():
-        return primary
-    for legacy in (
-        records_root(workspace_root) / "logs" / run_id / "progress.txt",
-        legacy_records_root(workspace_root) / "logs" / run_id / "progress.txt",
-    ):
-        if legacy.is_file():
-            return legacy
-    return primary
+    return run_root(workspace_root) / "progress.txt"
 
 
 def turn_archive_dir(

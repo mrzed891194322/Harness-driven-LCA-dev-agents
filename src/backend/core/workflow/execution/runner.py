@@ -21,7 +21,7 @@ from backend.core.workflow.spec.outputs import (
     validate_inputs,
     validate_outputs,
 )
-from backend.settings import records_root
+from backend.settings import run_root
 from backend.core.workflow.workspace.index import accept_stage, register_attempt
 from backend.core.workflow.workspace.layout import attempts, resolve_path
 
@@ -1164,7 +1164,7 @@ class OrchestratorRuntime:
         cannot treat the old model as approved.
         """
         run_id = _state_str(state, "run_id")
-        records = records_root(self.workspace_root)
+        records = run_root(self.workspace_root)
         write_json_atomic(
             records / "rework" / f"upstream-{rework_no}.json",
             {

@@ -43,39 +43,6 @@ function projectRoot(): string {
   return dir;
 }
 
-function listHandoffs(folder: string): Handoff[] {
-  if (!fs.existsSync(folder)) return [];
-  return fs
-    .readdirSync(folder)
-    .filter((name) => name.endsWith(".json"))
-    .sort()
-    .map((name) => {
-      const row: Handoff = {
-        name,
-        stage: "",
-        role: "",
-        attempt: null,
-        status: "",
-        status_reason: "",
-        artifacts: [],
-      };
-      try {
-        const payload = JSON.parse(fs.readFileSync(path.join(folder, name), "utf8")) as Record<string, unknown>;
-        row.stage = String(payload.stage || "");
-        row.role = String(payload.role || "");
-        row.attempt = typeof payload.attempt === "number" ? payload.attempt : null;
-        row.status = String(payload.status || "");
-        row.status_reason = String(payload.status_reason || "");
-        if (Array.isArray(payload.artifacts)) {
-          row.artifacts = payload.artifacts.filter((item): item is string => typeof item === "string");
-        }
-      } catch {
-        row.status_reason = "无法读取";
-      }
-      return row;
-    });
-}
-
 function listArtifacts(root: string): Artifact[] {
   if (!fs.existsSync(root)) return [];
   const items: Artifact[] = [];
@@ -110,41 +77,36 @@ function listArtifacts(root: string): Artifact[] {
 }
 
 function listRunLevelFiles(workspace: string): Artifact[] {
+  const root = path.join(workspace, "runs", "_run");
+  const prefix = "workspace/runs/_run";
+  if (!fs.existsSync(root)) return [];
   const items: Artifact[] = [];
-  for (const [root, prefix] of [
-    [path.join(workspace, "runs", "_run"), "workspace/runs/_run"],
-    [path.join(workspace, "records"), "workspace/records"],
-  ] as const) {
-    if (!fs.existsSync(root)) continue;
-    function walk(dir: string) {
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (entry.name.startsWith(".")) continue;
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          if (path.relative(root, full) === "handoffs") continue;
-          walk(full);
-          continue;
-        }
-        if (!entry.isFile() || entry.name === "README.md") continue;
-        const relative = path.relative(root, full).split(path.sep);
-        const relPath = `${prefix}/${relative.join("/")}`;
-        if (items.some((item) => item.path === relPath)) continue;
-        items.push({
-          path: relPath,
-          size: fs.statSync(full).size,
-          count: 1,
-        });
+  function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (path.relative(root, full) === "handoffs") continue;
+        walk(full);
+        continue;
       }
+      if (!entry.isFile() || entry.name === "README.md") continue;
+      const relative = path.relative(root, full).split(path.sep);
+      items.push({
+        path: `${prefix}/${relative.join("/")}`,
+        size: fs.statSync(full).size,
+        count: 1,
+      });
     }
-    walk(root);
   }
+  walk(root);
   items.sort((a, b) => a.path.localeCompare(b.path));
   return items;
 }
 
 function listHandoffsFromRuns(workspace: string): Handoff[] {
   const runs = path.join(workspace, "runs");
-  if (!fs.existsSync(runs)) return listHandoffs(path.join(workspace, "records", "handoffs"));
+  if (!fs.existsSync(runs)) return [];
   const rows: Handoff[] = [];
   function walk(dir: string) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -181,13 +143,11 @@ function listHandoffsFromRuns(workspace: string): Handoff[] {
     }
   }
   walk(runs);
-  if (rows.length) return rows.sort((a, b) => a.name.localeCompare(b.name));
-  return listHandoffs(path.join(workspace, "records", "handoffs"));
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 const RESULT_PREFIXES = [
   "workspace/outputs/",
-  "workspace/records/",
   "workspace/artifacts/",
   "workspace/runs/",
 ];
@@ -301,10 +261,7 @@ export async function loadResultFiles(): Promise<ResultFiles> {
   const root = projectRoot();
   const workspace = path.join(root, "workspace");
   let manifest: ResultFiles["manifest"] = { status: "idle" };
-  let manifestPath = path.join(workspace, "runs", "_run", "manifest.json");
-  if (!fs.existsSync(manifestPath)) {
-    manifestPath = path.join(workspace, "records", "manifest.json");
-  }
+  const manifestPath = path.join(workspace, "runs", "_run", "manifest.json");
   if (fs.existsSync(manifestPath)) {
     try {
       manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as ResultFiles["manifest"];
