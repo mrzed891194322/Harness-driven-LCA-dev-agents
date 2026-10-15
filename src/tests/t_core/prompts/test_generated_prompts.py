@@ -15,7 +15,7 @@ POLICY = PermissionPolicy(
     allowed_tools=["read", "mcp__spec_mcp__*"],
     allowed_read_globs=["workspace/inputs/**"],
     allowed_write_globs=["workspace/tmp/**"],
-    denied_write_globs=["workspace/outputs/inventory/process-mapping.json"],
+    denied_write_globs=["workspace/runs/03-dataset-mapping/executor-1/process-mapping.json"],
 )
 
 
@@ -33,7 +33,10 @@ def test_renders_permissions_and_language_in_fixed_order(project):
     perm = segs[0]["content"]
     assert "除非注入的上下文另有说明，只能按以下范围访问；越界会被拦截并记录；需要范围外的内容，就在 handoff 里写明，不要自己去试。" in perm
     assert "- workspace/inputs/**" in perm and "- mcp__spec_mcp__*" in perm
-    assert "- workspace/outputs/inventory/process-mapping.json" in perm and "submit" in perm
+    assert (
+        "- workspace/runs/03-dataset-mapping/executor-1/process-mapping.json" in perm
+        and "submit" in perm
+    )
     assert "{{" not in perm
     assert all(s["origin"] == "default" and s["file_sha256"] for s in segs)
     assert "中文" in segs[1]["content"]

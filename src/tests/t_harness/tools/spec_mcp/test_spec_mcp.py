@@ -268,7 +268,10 @@ def test_launch_binds_spec_mcp_first_context_and_guard(tmp_path, monkeypatch):
     assert (binding["stage"], binding["role"], binding["attempt"]) == ("03-dataset-mapping", "executor", 1)
     policy = spec.permission_policy
     assert "mcp__spec_mcp__*" in policy.allowed_tools
-    assert any(g.endswith("workspace/outputs/inventory/process-mapping.json") for g in policy.denied_write_globs)
+    assert any(
+        g.endswith("workspace/runs/03-dataset-mapping/executor-1/process-mapping.json")
+        for g in policy.denied_write_globs
+    )
 
 
 def test_bundle_hash_tracks_user_spec_override(tmp_path, monkeypatch):

@@ -68,7 +68,8 @@ control_openlca/
 - `cleanup_output`：预览或删除当前项目分类下的 ProductSystem、Process 和 Flow；`confirm=false` 只列范围，`confirm=true` 执行删除。
 
 `import_lci` 与 `cleanup_output` 标注为 destructive、non-idempotent；其余工具为只读。MCP 导入路径默认为
-`workspace/outputs/LCI`；连续改进运行可改用 `workspace/tmp/` 下的具体兼容 LCI 子目录。
+`workspace/artifacts/LCI`；04 也可传入宿主解析的上游 `workspace/runs/03-dataset-mapping/<role>-<n>/LCI`。
+连续改进运行可改用 `workspace/tmp/` 下的具体兼容 LCI 子目录。
 路径解析会拒绝 `workspace/tmp` 根目录、inputs、其他 workspace 目录、项目外路径及通过
 `..` 或符号链接逃逸的路径。实体解析、删除顺序、图结构和计算执行逻辑由
 `harness/tools/shared/control_openlca/workflow.py` 承担。

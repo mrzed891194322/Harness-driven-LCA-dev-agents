@@ -157,7 +157,7 @@ class WorkspaceRunsE2ETests(unittest.TestCase):
         script = _whole_lca_script()
         script[("04-openlca-reporting", "executor", 1)] = {
             "status": "ok",
-            "write": ["workspace/outputs/reports/lca_report.md"],
+            "write": ["lca_report.md"],
             "import_operations": [{"@type": "Process", "@id": "p-old"}],
         }
         script[("04-openlca-reporting", "reviewer", 1)] = {
@@ -167,7 +167,7 @@ class WorkspaceRunsE2ETests(unittest.TestCase):
         }
         script[("04-openlca-reporting", "executor", 2)] = {
             "status": "ok",
-            "write": ["workspace/outputs/reports/lca_report.md"],
+            "write": ["lca_report.md"],
         }
         script[("04-openlca-reporting", "reviewer", 2)] = {"status": "passed"}
 

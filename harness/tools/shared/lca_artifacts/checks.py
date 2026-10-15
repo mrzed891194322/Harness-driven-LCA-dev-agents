@@ -1125,7 +1125,7 @@ def exchange_unit_errors(ctx, lci_dir: Path | None = None) -> tuple[list[str], l
         load_lci_inventory,
     )
 
-    lci_dir = lci_dir or (ctx.workspace / "outputs" / "LCI")
+    lci_dir = lci_dir or (ctx.workspace / "artifacts" / "LCI")
     inventory, load_errors = load_lci_inventory(lci_dir)
     if load_errors:
         return list(load_errors), []

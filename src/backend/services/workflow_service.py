@@ -176,7 +176,7 @@ class WorkflowService:
         return {
             "manifest": self.manifest(),
             "handoffs": _list_handoffs_from_runs(self.workspace_root),
-            "artifacts": _list_artifacts(self.workspace_root / "outputs"),
+            "artifacts": _list_workspace_artifacts(self.workspace_root),
             "records": _list_run_level_files(self.workspace_root),
         }
 
@@ -204,8 +204,8 @@ class WorkflowService:
         return {"path": rel, "kind": kind, "size": size, "text": text}
 
     def archive_outputs(self) -> bytes:
-        """Zip every deliverable under workspace/outputs."""
-        root = (self.workspace_root / "outputs").resolve()
+        """Zip every deliverable under workspace/artifacts."""
+        root = (self.workspace_root / "artifacts").resolve()
         buffer = io.BytesIO()
         count = 0
         with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -217,7 +217,7 @@ class WorkflowService:
                         relative = path.resolve().relative_to(root)
                     except ValueError:
                         continue
-                    archive.write(path, f"outputs/{relative.as_posix()}")
+                    archive.write(path, f"artifacts/{relative.as_posix()}")
                     count += 1
         if count == 0:
             raise FileNotFoundError("还没有产出")
@@ -272,10 +272,32 @@ def _list_handoffs_from_runs(workspace_root: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def _list_artifacts(root: Path) -> list[dict[str, Any]]:
+def _list_deliverable_artifacts(root: Path) -> list[dict[str, Any]]:
     if not root.is_dir():
         return []
     base = root.resolve()
+    items: list[dict[str, Any]] = []
+    for path in sorted(base.rglob("*")):
+        if not path.is_file() or path.name == "README.md" or path.name.startswith("."):
+            continue
+        try:
+            relative = path.resolve().relative_to(base)
+        except ValueError:
+            continue
+        items.append(
+            {
+                "path": f"workspace/artifacts/{relative.as_posix()}",
+                "size": path.stat().st_size,
+                "count": 1,
+            }
+        )
+    return items
+
+
+def _list_run_attempt_artifacts(runs_root: Path) -> list[dict[str, Any]]:
+    if not runs_root.is_dir():
+        return []
+    base = runs_root.resolve()
     items: list[dict[str, Any]] = []
     grouped: dict[str, dict[str, int]] = {}
     for path in sorted(base.rglob("*")):
@@ -285,22 +307,19 @@ def _list_artifacts(root: Path) -> list[dict[str, Any]]:
             relative = path.resolve().relative_to(base)
         except ValueError:
             continue
+        if relative.parts and relative.parts[0] == "_run":
+            continue
         parts = relative.parts
-        # Tool dumps land one file per call; show the attempt folder once.
-        if (
-            path.name == "raw.json"
-            and len(parts) >= 6
-            and parts[0] == "reports"
-            and parts[1] == "runs"
-        ):
-            key = f"workspace/outputs/{Path(*parts[:5]).as_posix()}"
+        if path.name == "raw.json" and "raw" in parts:
+            attempt_key = Path(*parts[: parts.index("raw")]).as_posix()
+            key = f"workspace/runs/{attempt_key}"
             bucket = grouped.setdefault(key, {"size": 0, "count": 0})
             bucket["size"] += path.stat().st_size
             bucket["count"] += 1
             continue
         items.append(
             {
-                "path": f"workspace/outputs/{relative.as_posix()}",
+                "path": f"workspace/runs/{relative.as_posix()}",
                 "size": path.stat().st_size,
                 "count": 1,
             }
@@ -308,6 +327,12 @@ def _list_artifacts(root: Path) -> list[dict[str, Any]]:
     for path, bucket in sorted(grouped.items()):
         items.append({"path": path, "size": bucket["size"], "count": bucket["count"]})
     return items
+
+
+def _list_workspace_artifacts(workspace_root: Path) -> list[dict[str, Any]]:
+    return _list_deliverable_artifacts(workspace_root / "artifacts") + _list_run_attempt_artifacts(
+        workspace_root / "runs"
+    )
 
 
 def _list_run_level_files(workspace_root: Path) -> list[dict[str, Any]]:
@@ -338,7 +363,6 @@ def _list_run_level_files(workspace_root: Path) -> list[dict[str, Any]]:
 
 
 _RESULT_PREFIXES = (
-    "workspace/outputs/",
     "workspace/runs/_run/",
     "workspace/artifacts/",
     "workspace/runs/",

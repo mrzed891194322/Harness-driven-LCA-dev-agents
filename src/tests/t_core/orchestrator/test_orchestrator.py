@@ -178,8 +178,8 @@ class OrchestratorGraphTests(unittest.TestCase):
         script[("02-inventory-extraction", "executor", 2)] = {
             "status": "ok",
             "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
+                "extracted-bom.json",
+                "extracted-bom.md",
             ],
         }
         script[("02-inventory-extraction", "reviewer", 2)] = {"status": "passed"}
@@ -287,8 +287,8 @@ class OrchestratorGraphTests(unittest.TestCase):
         script[("02-inventory-extraction", "executor", 2)] = {
             "status": "ok",
             "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
+                "extracted-bom.json",
+                "extracted-bom.md",
             ],
         }
         script[("02-inventory-extraction", "reviewer", 2)] = {"status": "passed"}
@@ -341,8 +341,8 @@ class OrchestratorGraphTests(unittest.TestCase):
                 "status": "ok",
                 "status_reason": "ok",
                 "write": [
-                    "workspace/outputs/inventory/extracted-bom.json",
-                    "workspace/outputs/inventory/extracted-bom.md",
+                    "extracted-bom.json",
+                    "extracted-bom.md",
                 ],
             },
             ("02-inventory-extraction", "reviewer", 1): [transport]
@@ -371,8 +371,8 @@ class OrchestratorGraphTests(unittest.TestCase):
                 "status": "ok",
                 "status_reason": "ok",
                 "write": [
-                    "workspace/outputs/inventory/extracted-bom.json",
-                    "workspace/outputs/inventory/extracted-bom.md",
+                    "extracted-bom.json",
+                    "extracted-bom.md",
                 ],
             },
             ("02-inventory-extraction", "reviewer", 1): [
@@ -444,8 +444,8 @@ class OrchestratorGraphTests(unittest.TestCase):
             ("02-inventory-extraction", "executor", 1): {
                 "status": "ok",
                 "write": [
-                    "workspace/outputs/inventory/extracted-bom.json",
-                    "workspace/outputs/inventory/extracted-bom.md",
+                    "extracted-bom.json",
+                    "extracted-bom.md",
                 ],
             },
             ("02-inventory-extraction", "reviewer", 1): [invalid]
@@ -492,8 +492,8 @@ class OrchestratorGraphTests(unittest.TestCase):
         script[("03-dataset-mapping", "executor", 2)] = {
             "status": "ok",
             "write": [
-                "workspace/outputs/inventory/process-mapping.json",
-                "workspace/outputs/LCI/",
+                "process-mapping.json",
+                "LCI/",
             ],
         }
         script[("03-dataset-mapping", "reviewer", 2)] = {"status": "passed"}
@@ -688,8 +688,8 @@ class ReviseOrchestratorGraphTests(unittest.TestCase):
         script[("02-inventory-extraction", "reviser", 2)] = {
             "status": "ok",
             "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
+                "extracted-bom.json",
+                "extracted-bom.md",
             ],
         }
         script[("02-inventory-extraction", "reviewer", 2)] = {"status": "passed"}

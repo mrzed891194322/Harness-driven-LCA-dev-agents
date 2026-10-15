@@ -133,10 +133,7 @@ class HostCheckRetryTests(unittest.TestCase):
         script = _happy_script()
         script[("03-dataset-mapping", "executor", 2)] = {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/process-mapping.json",
-                "workspace/outputs/LCI/",
-            ],
+            "write": ["process-mapping.json", "LCI/"],
         }
         script[("03-dataset-mapping", "reviewer", 2)] = {"status": "passed"}
         with tempfile.TemporaryDirectory() as temp_dir:

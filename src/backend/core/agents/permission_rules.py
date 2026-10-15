@@ -144,6 +144,7 @@ def resolve_permissions(
     rule_refs: list[str] | None,
     mcp_servers: dict[str, Any] | None,
     stage_spec: StageSpec | None,
+    attempt: int | None = None,
 ) -> ResolvedPermissions:
     """Rules named by the assignment, else by the stage spec for this role.
 
@@ -191,16 +192,20 @@ def resolve_permissions(
                 write.append(a)
     if SPEC_MCP_SERVER in bound and SPEC_MCP_TOOLS_PATTERN not in tools:
         tools.append(SPEC_MCP_TOOLS_PATTERN)
-    from backend.core.workflow.workspace.legacy_paths import resolve_declared_path
+    from backend.core.workflow.workspace.legacy_paths import (
+        attempt_workspace_path,
+        resolve_declared_path,
+    )
 
-    deny = [
-        _abs_glob(
-            project_root,
-            resolve_declared_path(stage_id=stage_spec.spec_id, declared=d.path),
-        )
-        for d in stage_spec.deliverables
-        if d.writer == "spec_mcp"
-    ]
+    deny = []
+    for d in stage_spec.deliverables:
+        if d.writer != "spec_mcp":
+            continue
+        if attempt is not None:
+            rel = attempt_workspace_path(stage_spec.spec_id, role, attempt, d.path)
+        else:
+            rel = resolve_declared_path(stage_id=stage_spec.spec_id, declared=d.path)
+        deny.append(_abs_glob(project_root, rel))
     return ResolvedPermissions(
         rule_ids=[r.rule_id for r in chosen],
         tools=tools,

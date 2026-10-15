@@ -57,8 +57,8 @@ WRITER_ROLES = {"executor", "reviser"}
 HANDOFF_STATUSES = {"ok", "failed", "blocked", "passed"}
 MAX_SUBMIT_PATH_BYTES = 5 * 1024 * 1024
 _SUBMIT_PATH_HINT = (
-    "可选三种方式：1) data 内联完整内容；2) path 指向 workspace/outputs/ 或 "
-    "workspace/tmp/ 下的文件；3) path=该交付物正式路径以仅重新验收已有文件。"
+    "可选三种方式：1) data 内联完整内容；2) path 指向 workspace/tmp/ 下的文件；"
+    "3) path=该交付物正式路径以仅重新验收已有文件。"
 )
 
 
@@ -169,13 +169,13 @@ def _resolve_submit_path(b: Binding, d: Deliverable, path: str) -> Path:
         raise ValueError(f"path 解析后必须落在 workspace 内：{path}")
     official = _official(b, d)
     allowed_roots = [
-        (workspace / "outputs").resolve(),
         (workspace / "tmp").resolve(),
+        (workspace / "runs").resolve(),
         official,
     ]
     if not any(root == real or root in real.parents for root in allowed_roots):
         raise ValueError(
-            "path 必须位于 workspace/outputs/、workspace/tmp/ 下，"
+            "path 必须位于 workspace/tmp/、workspace/runs/ 下，"
             f"或等于正式路径 {d.path}"
         )
     if not real.is_file():
@@ -296,7 +296,7 @@ def get_spec() -> dict[str, Any]:
 @mcp.tool(
     description=(
         "提交一个交付物。writer=spec_mcp：用 data 内联完整内容，或用 path 指向 "
-        "workspace/outputs/、workspace/tmp/ 下的文件（大 payload 推荐 path），"
+        "workspace/tmp/ 下的文件（大 payload 推荐 path），"
         "或 path=正式路径仅重新验收；data 与 path 不可同时传。先做 schema 校验再跑验收，"
         "通过后由 spec_mcp 写到正式路径。writer=agent：不传 data/path，在正式路径原位验收。"
         "失败时返回可操作的错误清单，修正后重新提交。"

@@ -83,11 +83,17 @@ def test_repo_specs_resolve_for_every_stage_and_role():
         assert reviewer.write_globs == []
         assert not {"write", "edit", "bash"} & set(reviewer.tools)
     mapping = resolve_permissions(
-        project_root=REPO, role="executor", rule_refs=None, mcp_servers=MCP,
+        project_root=REPO,
+        role="executor",
+        rule_refs=None,
+        mcp_servers=MCP,
         stage_spec=_spec(REPO, "03-dataset-mapping"),
+        attempt=1,
     )
     # official spec_mcp-written path is write-denied; agent-written LCI dir is not
-    assert mapping.deny_write_globs == [f"{root}/workspace/outputs/inventory/process-mapping.json"]
+    assert mapping.deny_write_globs == [
+        f"{root}/workspace/runs/03-dataset-mapping/executor-1/process-mapping.json"
+    ]
 
 
 def test_stage_roles_pick_rules_and_unbound_mcp_dropped(tmp_path):

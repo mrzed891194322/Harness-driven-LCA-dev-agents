@@ -89,14 +89,14 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
 | --- | --- | --- | --- | --- | --- | --- |
 | 01 reviewer | 交卷 handoff | `workspace/runs/01-intake-gate/reviewer-<n>/handoff.json` | JSON，`handoff.py` + `harness/specs/shared/lca-handoff-extension.schema.json` | agent 调 `lca_artifacts.submit_handoff` | 编排器 `advance()` | 仅事件流里的“已交卷”徽标 |
 | 01 | 审查记录 | `workspace/runs/01-intake-gate/reviewer-<n>/review.md` | Markdown | 宿主 `write_review_note` | 人工 | 不显示 |
-| 02 executor | BOM 清单 | `workspace/outputs/inventory/extracted-bom.json` | JSON，`harness/specs/02-inventory-extraction/extracted-bom.schema.json`，顶层 `items[]` | agent 直接写文件 | `validate_outputs`（schema）→ host action `inventory_check`（`checks.inventory_errors`）→ 02 reviewer；03、04 读取 | 不显示 |
-| 02 executor | BOM 说明 | `workspace/outputs/inventory/extracted-bom.md` | Markdown（仅非空检查） | agent | `validate_outputs`、reviewer | 不显示 |
-| 03 executor | 过程映射 | `workspace/outputs/inventory/process-mapping.json` | JSON，`harness/specs/03-dataset-mapping/process-mapping.schema.json`，顶层 `items[]` | agent | schema → `mapping_check`（`checks.mapping_errors`，含 provider 正式证据）→ reviewer；04 读取 | 不显示 |
-| 03 executor | LCI 数据集 | `workspace/outputs/LCI/{flows,processes,product_systems}/` | openLCA JSON-LD 目录（只检查“是目录”） | agent | `mapping_check`、04 的 `import_lci` | 不显示 |
+| 02 executor | BOM 清单 | `workspace/runs/02-inventory-extraction/<role>-<n>/extracted-bom.json` → `workspace/artifacts/extracted-bom.json` | JSON，`harness/specs/02-inventory-extraction/extracted-bom.schema.json`，顶层 `items[]` | agent 直接写文件 | `validate_outputs`（schema）→ host action `inventory_check`（`checks.inventory_errors`）→ 02 reviewer；03、04 读取 | 不显示 |
+| 02 executor | BOM 说明 | 尝试目录内 `extracted-bom.md` → `workspace/artifacts/extracted-bom.md` | Markdown（仅非空检查） | agent | `validate_outputs`、reviewer | 不显示 |
+| 03 executor | 过程映射 | 尝试目录内 `process-mapping.json` → `workspace/artifacts/process-mapping.json` | JSON，`harness/specs/03-dataset-mapping/process-mapping.schema.json`，顶层 `items[]` | spec_mcp `submit` | schema → `mapping_check`（`checks.mapping_errors`，含 provider 正式证据）→ reviewer；04 读取 | 不显示 |
+| 03 executor | LCI 数据集 | 尝试目录内 `LCI/{flows,processes,product_systems}/` → `workspace/artifacts/LCI/` | openLCA JSON-LD 目录（只检查“是目录”） | agent | `mapping_check`、04 的 `import_lci` | 不显示 |
 | 03 reviewer 通过后 | 模型验收记录 | `workspace/runs/_run/evidence/<run>/manifest.json` 的 `accepted["lca.model"]`；阶段 `runs/03-dataset-mapping/accepted.json` | JSON | host action `record_acceptance` | 04 工具 `require_approved_model`、`get_rework_status` | 不显示 |
-| 04 executor | 计算计划 | `workspace/outputs/reports/calculation-plan.json` | JSON（无 schema，`require_calculation_plan` 检查目标/方法各出现一次） | agent | `calculate_product_system` 前置检查；进入计算指纹 | 不显示 |
-| 04 executor | LCA 报告 | `workspace/outputs/reports/lca_report.md` | Markdown，表格由 `render_report_tables` 生成 | MCP `lca_artifacts.render_report_tables` 生成表格 + agent 补正文 | `report_check`（证据 + 表格一致性 + 中文提示）→ reviewer | 不显示 |
-| 各执行者 | MCP 调用原始结果 | `workspace/outputs/reports/runs/<run>/<stage>/<attempt>/<call_id>/raw.json` | JSON（领域结果全文） | MCP（`store.save_result`） | `checks.*` 经 manifest 引用 | 不显示 |
+| 04 executor | 计算计划 | 尝试目录内 `calculation-plan.json` → `workspace/artifacts/calculation-plan.json` | JSON（无 schema，`require_calculation_plan` 检查目标/方法各出现一次） | agent | `calculate_product_system` 前置检查；进入计算指纹 | 不显示 |
+| 04 executor | LCA 报告 | 尝试目录内 `lca_report.md` → `workspace/artifacts/lca_report.md` | Markdown，表格由 `render_report_tables` 生成 | MCP `lca_artifacts.render_report_tables` 生成表格 + agent 补正文 | `report_check`（证据 + 表格一致性 + 中文提示）→ reviewer | 不显示 |
+| 各执行者 | MCP 调用原始结果 | `workspace/runs/<stage>/<role>-<n>/raw/<call_id>/raw.json` | JSON（领域结果全文） | MCP（`store.save_result`） | `checks.*` 经 manifest 引用 | 不显示 |
 | 各执行者 | 调用清单 / 证据 | `workspace/runs/_run/evidence/<run>/manifest.json`（`calls[]`、`accepted{}`、`invalidations[]`） | JSON，每条带 `model_fingerprint`、`calculation_fingerprint` | MCP 追加 `calls`；宿主写 `accepted`、`invalidations` | `checks.py` 全部证据判断 | 不显示 |
 | 检查结果 | 检查记录 | `workspace/runs/_run/evidence/<run>/checks/{inventory,mapping,report}.json` | JSON，含 `checker_version`、冻结的 `inputs` 指纹 | `checks.validate_for_run` | `validation_state`（过期则改写为 `stale`） | 不显示 |
 | 03/04 | 导入预检回执 | `workspace/runs/<stage>/<role>-<n>/import-operations/preflights/<preflight_id>.json` | JSON | `control_openlca` MCP（`operations.py`） | `import_lci` 引用 preflight | 不显示 |
@@ -125,7 +125,7 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
 - reviewer 只读审查；reviewer 判 passed 后，`_guard_reviewer_passed` 会再跑一次产物契约和检查。
 
 #### 03-dataset-mapping
-- executor 写 `process-mapping.json` 和 `outputs/LCI/`，并通过 `control_openlca` 调 `validate_providers_batch` / `preflight_import_lci`，调用结果进 `raw.json` 和 manifest。
+- executor 写尝试目录内的 `process-mapping.json` 和 `LCI/`，并通过 `control_openlca` 调 `validate_providers_batch` / `preflight_import_lci`，调用结果进 `raw/` 与 manifest。
 - `mapping_check` 只认**当前模型指纹**下的 provider 验证调用；LCI 或 mapping 改动后旧证据作废。
 - reviewer 通过后执行 `lifecycle.on_reviewer_passed` 的 `record_acceptance`，把冻结输入写进 `accepted["lca.model"]`。
 
@@ -148,10 +148,10 @@ GUI **不显示**：BOM、mapping、LCI、计算计划、报告正文、raw.json
 
 ### 4. 生命周期
 
-- **跨运行**：控制面板的 whole-lca / revise-lca 预设在执行前清理 `workspace/`（`workspace_clean.py`，忽略 `records/**`、`outputs/**`、`tmp/**` 的 gitignore 规则下全部清掉，只保留 `README.md` 和 `records/orchestrator.lock`）。所以 `workspace/` 只保留**最近一次运行**；`.local/runs/<run>/`（events、guard）不在清理范围内，跨运行保留。预设（whole-lca = openlca→workspace，revise-lca = openlca）**不清理 `harness/knowledge/`**：计划文件按原位原子替换，参考资料只增不删（已存在的同名文件拒绝上传，不覆盖）；`knowledge` 目标只在手动执行 `clean.py -t knowledge` 时使用。
-- **从阶段续跑（`resume-lca`）**：仅当 workspace 当前 `manifest.json` 的 `run_id` 对应一次 `failed` / `aborted` / `interrupted` 运行，且计划与 inputs 相对旧运行验收快照未变。`GET /api/runs/{id}/resume-preview` 返回精确删除清单；`POST /api/workflow/resume` 先 `build_plan`，再 `clean.py --cleanup-list`（不碰 `harness/knowledge`、`records/resume/`、旧 run 的 `records/evidence/<old>/`），然后以过滤后的 `resume-lca` YAML 启动新 run。阶段 N 之前的产物与 handoff 沿用；续跑运行内若 reviewer 返工指向 N 之前的阶段，编排器拒绝（`validate_upstream_request`）。从 04 续跑时会把旧 run 的 `accepted["lca.model"]` 种子写入新 run 的 evidence manifest。
-- **同一运行内的重试**：`outputs/` 下的交付文件固定路径，每次 attempt **原地覆盖**；handoff 与 review 文件名带 attempt 编号，不覆盖；raw.json 按 `<stage>/<attempt>/<call_id>` 分目录，manifest `calls[]` 只追加。
-- **上游返工**：`_invalidate_stages` 把目标阶段到当前阶段标为 `stale_stages`，写 `records/rework/upstream-<n>.json`，从 evidence manifest 的 `accepted` 中删掉这些阶段记下的验收并追加 `invalidations`。产物**留在原处**由目标执行者修改，不移动不删除。`checks/*.json` 不被直接删除，靠输入指纹变化在下次读取时变 `stale`。attempt 编号经 `stage_attempt_base` 继续递增，旧 handoff 不被覆盖。
+- **跨运行**：控制面板的 whole-lca / revise-lca 预设在执行前清理 `workspace/runs/`（保留 `orchestrator.lock` 与 `**/README.md`）、`workspace/artifacts/`、`workspace/tmp/`（`workspace_clean.py`）。所以 `workspace/` 只保留**最近一次运行**的可浏览产物；`.local/runs/<run>/`（events、guard）不在清理范围内，跨运行保留。预设**不清理 `harness/knowledge/`**。
+- **从阶段续跑（`resume-lca`）**：仅当 workspace 当前 `manifest.json` 的 `run_id` 对应一次 `failed` / `aborted` / `interrupted` 运行，且计划与 inputs 相对旧运行验收快照未变。`GET /api/runs/{id}/resume-preview` 返回精确删除清单；`POST /api/workflow/resume` 先 `build_plan`，再按清单清理（不碰 `harness/knowledge`、`.local` 历史），然后以过滤后的 `resume-lca` YAML 启动新 run。阶段 N 之前的产物与 handoff 沿用；续跑运行内若 reviewer 返工指向 N 之前的阶段，编排器拒绝（`validate_upstream_request`）。
+- **同一运行内的重试**：各阶段尝试目录 `workspace/runs/<stage>/<role>-<n>/` 独立；交付物在尝试目录内写入，审查通过后复制到 `workspace/artifacts/`；handoff 与 review 随尝试目录保留；`raw/` 按 call_id 分目录，manifest `calls[]` 只追加。
+- **上游返工**：`_invalidate_stages` 把目标阶段到当前阶段标为 `stale_stages`，写 `workspace/runs/_run/rework/upstream-<n>.json`，从 evidence manifest 的 `accepted` 中删掉这些阶段记下的验收并追加 `invalidations`。产物**留在原处**由目标执行者修改，不移动不删除。attempt 编号经 `stage_attempt_base` 继续递增，旧 handoff 不被覆盖。
 - **指纹**：
   - `runtime-config.json`：实现代码（`src/backend/core`、`settings.py`、`harness/tools`）、rules、tools、knowledge 内容、各阶段 `spec.yaml` 及其引用的 schema。
   - `model_fingerprint`：LCI 文件 + BOM + mapping（`checks.upstream_files`）的内容哈希；`calculation_fingerprint`：`calculation-plan.json` 哈希。两者写进每条 manifest `calls[]`，决定证据是否仍有效。
@@ -166,7 +166,7 @@ flowchart LR
   end
   subgraph S03[03 mapping]
     E3[executor] -->|写文件| MAP[process-mapping.json]
-    E3 -->|写文件| LCI[outputs/LCI/]
+    E3 -->|写文件| LCI[runs/03.../LCI → artifacts/LCI]
     E3 -->|MCP 调用| RAW[raw.json + evidence manifest calls]
   end
   subgraph S04[04 reporting]
@@ -183,18 +183,18 @@ flowchart LR
   RAW --> C3
   REP --> C3
   C1 & C2 & C3 -->|不过| RETRY[_retry_or_fail → events.jsonl retry]
-  E2 & E3 & E4 -->|submit_handoff| HO[records/handoffs/*.json]
-  HO --> ORCH[编排器] --> MAN[records/manifest.json]
+  E2 & E3 & E4 -->|submit_handoff| HO[runs/*/handoff.json]
+  HO --> ORCH[编排器] --> MAN[runs/_run/manifest.json]
   ORCH --> EV[.local/runs/run/events.jsonl]
   MAN --> GUI[/runs 状态/]
   EV --> GUI2[/runs ActivitySummary/]
-  PROG[records/logs/run/progress.txt] --> GUI3[/runs AgentStream/]
+  PROG[runs/_run/progress.txt] --> GUI3[/runs AgentStream/]
   REP -.不显示.-> RES[/results 页面/]
 ```
 
 ### 6. 已知问题与待优化
 
-1. **（部分解决，`refactor/p5-gui-relocate`：「结果与历史」已有产物、注入核对、会话记录）结果页是空壳**：`/results` 不读任何产物，报告、BOM、mapping、计算结果都只能去文件系统看。需要后端提供“本轮产物列表 + 读取”接口（只读、限定在 `workspace/outputs`、`records/handoffs`、`records/reviews`）。
+1. **（部分解决）结果页**：`/results` 读取 `workspace/artifacts/`、`workspace/runs/` 与 `workspace/runs/_run/`；更早的运行仍在 `.local/runs/`。
 2. **“已交卷”状态串到下一次 attempt**：`activity-summary.tsx` 在 attempt 递增时执行 `if (entry.handoff !== "ok") entry.handoff = "none"`，上一 attempt 的 `ok` 会保留，所以 04 第 2 次还没交卷也显示“已交卷”（巡检报告过的现象）。
 3. **编排器事件没被页面使用**：`retry`、`rework_upstream`、`fault_injected` 已写进 `events.jsonl`，但 `ActivitySummary` 只处理 `tool_call`/`tool_result`/`turn_end`，重排和退回原因在 GUI 上看不到。
 4. **guard 日志、handoff、审查记录、返工记录都不展示**，排障全靠读文件。

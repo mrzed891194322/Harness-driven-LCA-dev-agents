@@ -553,11 +553,11 @@ class MCPServerTests(unittest.TestCase):
             tools["preflight_import_lci"].input_schema["properties"]["lci_dir"][
                 "default"
             ],
-            "workspace/outputs/LCI",
+            "workspace/artifacts/LCI",
         )
         self.assertEqual(
             tools["import_lci"].input_schema["properties"]["lci_dir"]["default"],
-            "workspace/outputs/LCI",
+            "workspace/artifacts/LCI",
         )
         self.assertIn(
             "timeout_sec",
@@ -568,14 +568,25 @@ class MCPServerTests(unittest.TestCase):
             tools["query_descriptors"].input_schema["properties"],
         )
 
-    def test_workflow_lci_dir_accepts_canonical_and_tmp_subdirectory(self) -> None:
+    def test_workflow_lci_dir_accepts_artifacts_runs03_and_tmp(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir) / "project"
             outside = Path(temp_dir) / "outside"
-            canonical = project_root / "workspace" / "outputs" / "LCI"
+            canonical = project_root / "workspace" / "artifacts" / "LCI"
+            attempt = (
+                project_root
+                / "workspace"
+                / "runs"
+                / "03-dataset-mapping"
+                / "executor-1"
+                / "LCI"
+            )
             compatibility = project_root / "workspace" / "tmp" / "run-1" / "LCI"
             temporary_root = project_root / "workspace" / "tmp"
-            temporary_root.mkdir(parents=True)
+            canonical.mkdir(parents=True)
+            attempt.mkdir(parents=True)
+            compatibility.mkdir(parents=True)
+            temporary_root.mkdir(parents=True, exist_ok=True)
             outside.mkdir()
             (temporary_root / "unsafe-link").symlink_to(
                 outside,
@@ -588,38 +599,39 @@ class MCPServerTests(unittest.TestCase):
                 ),
             ):
                 self.assertEqual(
-                    mcp_module._workflow_lci_dir("workspace/outputs/LCI"),
+                    mcp_module._workflow_lci_dir("workspace/artifacts/LCI"),
                     canonical.resolve(),
+                )
+                self.assertEqual(
+                    mcp_module._workflow_lci_dir(
+                        "workspace/runs/03-dataset-mapping/executor-1/LCI"
+                    ),
+                    attempt.resolve(),
                 )
                 self.assertEqual(
                     mcp_module._workflow_lci_dir("workspace/tmp/run-1/LCI"),
                     compatibility.resolve(),
                 )
-                canonical.parent.mkdir(parents=True)
+                import shutil
+
+                if canonical.is_symlink() or canonical.is_dir():
+                    shutil.rmtree(canonical) if canonical.is_dir() else canonical.unlink()
                 canonical.symlink_to(outside, target_is_directory=True)
-                with self.assertRaisesRegex(
-                    ValueError, "subdirectory of workspace/tmp"
-                ):
+                with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
+                    mcp_module._workflow_lci_dir("workspace/artifacts/LCI")
+                with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
                     mcp_module._workflow_lci_dir("workspace/outputs/LCI")
-                with self.assertRaisesRegex(
-                    ValueError, "subdirectory of workspace/tmp"
-                ):
+                with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
                     mcp_module._workflow_lci_dir("workspace/LCI")
-                with self.assertRaisesRegex(
-                    ValueError, "subdirectory of workspace/tmp"
-                ):
+                with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
                     mcp_module._workflow_lci_dir("workspace/tmp")
-                with self.assertRaisesRegex(
-                    ValueError, "subdirectory of workspace/tmp"
-                ):
-                    mcp_module._workflow_lci_dir("workspace/tmp/../../workspace/inputs")
-                with self.assertRaisesRegex(
-                    ValueError, "subdirectory of workspace/tmp"
-                ):
+                with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
+                    mcp_module._workflow_lci_dir(
+                        "workspace/tmp/../../workspace/inputs"
+                    )
+                with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
                     mcp_module._workflow_lci_dir(str(outside))
-                with self.assertRaisesRegex(
-                    ValueError, "subdirectory of workspace/tmp"
-                ):
+                with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
                     mcp_module._workflow_lci_dir("workspace/tmp/unsafe-link")
 
     def test_health_tool_uses_configured_endpoint(self) -> None:

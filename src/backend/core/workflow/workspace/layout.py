@@ -131,6 +131,9 @@ def resolve_path(
     if candidate.exists():
         return candidate
 
+    if role and role != "reviewer":
+        return candidate
+
     legacy = legacy_workspace_path(stage, declared)
     if legacy:
         return _legacy_workspace_file(workspace, legacy)

@@ -85,6 +85,7 @@ def compile_permission_policy(
     workspace_root: Path | None = None,
     rule_refs: list[str] | None = None,
     stage_spec: StageSpec | None = None,
+    attempt: int | None = None,
 ) -> PermissionPolicy:
     """Tools + path scopes come from the stage spec's permissions.yaml (fail closed)."""
     del workspace_root  # scopes are rule-driven, relative to the project root
@@ -94,6 +95,7 @@ def compile_permission_policy(
         rule_refs=rule_refs,
         mcp_servers=mcp_servers,
         stage_spec=stage_spec,
+        attempt=attempt,
     )
     if resolved.error:
         logger.error("permission rules: %s; session gets no tools (fail closed)", resolved.error)
@@ -212,6 +214,7 @@ def build_session_launch_spec(
         workspace_root=workspace_root,
         rule_refs=assignment.permissions_decl,
         stage_spec=stage_spec,
+        attempt=attempt,
     )
     # Rendered fresh for every session (fixed order); a missing variable raises.
     generated = generated_prompts.render_session(project_root, policy)

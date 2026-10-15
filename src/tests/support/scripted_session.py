@@ -36,6 +36,18 @@ _MINIMAL_BOM = {
     ]
 }
 
+_MINIMAL_LCI_PROCESS = {
+    "exchanges": [
+        {"isInput": False, "unit": {"name": "kg"}},
+        {
+            "isInput": True,
+            "amount": 19.5,
+            "flow": {"@id": "f-tr", "name": "transport, lorry"},
+            "unit": {"name": "t*km"},
+        },
+    ]
+}
+
 _MINIMAL_MAPPING = {
     "items": [
         {
@@ -193,6 +205,13 @@ class ScriptedSessionClient:
             path.parent.mkdir(parents=True, exist_ok=True)
             if relative.endswith("/"):
                 path.mkdir(parents=True, exist_ok=True)
+                if path.name == "LCI":
+                    proc = path / "processes" / "p01.json"
+                    proc.parent.mkdir(parents=True, exist_ok=True)
+                    proc.write_text(
+                        json.dumps(_MINIMAL_LCI_PROCESS, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
                 continue
             if relative.endswith("extracted-bom.json"):
                 path.write_text(
@@ -249,23 +268,17 @@ def happy_script() -> HandoffScript:
         },
         ("02-inventory-extraction", "executor", 1): {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
-            ],
+            "write": ["extracted-bom.json", "extracted-bom.md"],
         },
         ("02-inventory-extraction", "reviewer", 1): {"status": "passed"},
         ("03-dataset-mapping", "executor", 1): {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/process-mapping.json",
-                "workspace/outputs/LCI/",
-            ],
+            "write": ["process-mapping.json", "LCI/"],
         },
         ("03-dataset-mapping", "reviewer", 1): {"status": "passed"},
         ("04-openlca-reporting", "executor", 1): {
             "status": "ok",
-            "write": ["workspace/outputs/reports/lca_report.md"],
+            "write": ["lca_report.md"],
         },
         ("04-openlca-reporting", "reviewer", 1): {"status": "passed"},
     }
@@ -282,23 +295,17 @@ def revise_happy_script() -> HandoffScript:
         },
         ("02-inventory-extraction", "reviser", 1): {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/extracted-bom.json",
-                "workspace/outputs/inventory/extracted-bom.md",
-            ],
+            "write": ["extracted-bom.json", "extracted-bom.md"],
         },
         ("02-inventory-extraction", "reviewer", 1): {"status": "passed"},
         ("03-dataset-mapping", "reviser", 1): {
             "status": "ok",
-            "write": [
-                "workspace/outputs/inventory/process-mapping.json",
-                "workspace/outputs/LCI/",
-            ],
+            "write": ["process-mapping.json", "LCI/"],
         },
         ("03-dataset-mapping", "reviewer", 1): {"status": "passed"},
         ("04-openlca-reporting", "reviser", 1): {
             "status": "ok",
-            "write": ["workspace/outputs/reports/lca_report.md"],
+            "write": ["lca_report.md"],
         },
         ("04-openlca-reporting", "reviewer", 1): {"status": "passed"},
     }

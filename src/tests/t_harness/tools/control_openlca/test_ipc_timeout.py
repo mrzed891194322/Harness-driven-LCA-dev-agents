@@ -97,7 +97,7 @@ def test_uncertain_leftover_rejects_import(monkeypatch, tmp_path):
     client = FakeClient()
     entity_id = "11111111-1111-1111-1111-111111111111"
     workspace = tmp_path / "workspace"
-    lci_dir = workspace / "outputs" / "LCI"
+    lci_dir = workspace / "artifacts" / "LCI"
     lci_dir.mkdir(parents=True)
     journal = workspace / "runs" / "04-openlca-reporting" / "executor-1" / "import-operations"
     journal.mkdir(parents=True, exist_ok=True)
@@ -163,7 +163,7 @@ def test_uncertain_leftover_rejects_import(monkeypatch, tmp_path):
             result = operations.import_request(
                 "127.0.0.1",
                 8080,
-                workspace / "outputs" / "LCI",
+                workspace / "artifacts" / "LCI",
                 "cat",
                 "db",
                 run_id=run_id,

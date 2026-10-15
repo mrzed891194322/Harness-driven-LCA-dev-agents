@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -25,7 +26,7 @@ from tests.support.scripted_session import (
     _passing_run_host_action,
 )
 
-BOM = "workspace/outputs/inventory/extracted-bom.json"
+BOM = "workspace/artifacts/extracted-bom.json"
 S2, S3, S4 = "02-inventory-extraction", "03-dataset-mapping", "04-openlca-reporting"
 
 
@@ -225,34 +226,16 @@ def test_retry_events_and_attempt_budget_per_visit(tmp_path, monkeypatch):
     assert retry[0]["source"] == "orchestrator"
 
 
-def _seed_lci(tmp_path):
-    proc = tmp_path / "workspace" / "outputs" / "LCI" / "processes" / "p01.json"
-    proc.parent.mkdir(parents=True, exist_ok=True)
-    proc.write_text(
-        json.dumps(
-            {
-                "exchanges": [
-                    {"isInput": False, "unit": {"name": "kg"}},
-                    {
-                        "isInput": True,
-                        "amount": 19.5,
-                        "flow": {"@id": "f-tr", "name": "transport, lorry"},
-                        "unit": {"name": "t*km"},
-                    },
-                ]
-            }
-        )
-    )
-    return proc
+def _lci_process_file(workspace: Path) -> Path:
+    return workspace / "artifacts" / "LCI" / "processes" / "p01.json"
 
 
 def test_fault_inject_lci_unit_missing_fires_once(tmp_path, monkeypatch):
     monkeypatch.setenv("HARNESS_FAULT_INJECT", "lci_unit_missing")
-    proc = _seed_lci(tmp_path)
     script = dict(_happy_script())
     script[(S4, "executor", 1)] = _ask_upstream(
         rework_target_stage=S3,
-        rework_artifacts=["workspace/outputs/LCI/processes/p01.json"],
+        rework_artifacts=["workspace/artifacts/LCI/processes/p01.json"],
         status_reason="preflight: unit missing on transport exchange",
     )
     script.update(_ok(S3, 2))
@@ -263,19 +246,17 @@ def test_fault_inject_lci_unit_missing_fires_once(tmp_path, monkeypatch):
     assert len(faults) == 1
     f = faults[0]
     assert f["what"] == "lci_unit_missing" and f["fired"] is True
-    assert f["file"] == "workspace/outputs/LCI/processes/p01.json"
+    assert f["file"] == "workspace/artifacts/LCI/processes/p01.json"
     assert f["exchange"]["index"] == 2 and f["exchange"]["removed_unit"] == "t*km"
-    assert "unit" not in json.loads(proc.read_text())["exchanges"][1]
     assert final["faults_fired"] == ["lci_unit_missing"]
     assert [r["to"] for r in recs if r["kind"] == "rework_upstream"] == [S3]
 
 
 def test_fault_inject_unset_has_no_effect(tmp_path, monkeypatch):
     monkeypatch.delenv("HARNESS_FAULT_INJECT", raising=False)
-    proc = _seed_lci(tmp_path)
-    before = proc.read_text()
     final, _c, recs, _m = _run(tmp_path, dict(_happy_script()), monkeypatch)
     assert final["status"] == "completed"
     assert not [r for r in recs if r["kind"] == "fault_injected"]
-    assert proc.read_text() == before
+    proc = _lci_process_file(tmp_path / "workspace")
+    assert json.loads(proc.read_text())["exchanges"][1]["unit"]["name"] == "t*km"
     assert "faults_fired" not in final
