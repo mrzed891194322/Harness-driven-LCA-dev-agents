@@ -317,19 +317,10 @@ def run_pre_workflow_console(
     from backend.services.file_sync import sync_files
 
     if task == "resume-lca":
-        if cleanup_list_path is None:
-            yield "[System] resume-lca 缺少 cleanup 清单。\n", "Failed"
-            return
-        latest_console = ""
-        latest_status = "Running"
-        for latest_console, latest_status in run_cleanup_list_console(
-            cleanup_list_path, old_run_id=cleanup_old_run_id
-        ):
-            yield latest_console, latest_status
-        if latest_status != "Finished":
-            return
-        latest_console += "[System] 续跑清理完成。\n"
-        yield render_terminal_text(latest_console), "Finished"
+        yield (
+            render_terminal_text("[System] 续跑将保留 workspace 与 openLCA，跳过清理。\n"),
+            "Finished",
+        )
         return
 
     preset = task if task in {"whole-lca", "revise-lca"} else None

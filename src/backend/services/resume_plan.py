@@ -297,6 +297,32 @@ def _expand_glob(workspace_root: Path, pattern: str) -> list[Path]:
     return sorted(base.glob(glob_part))
 
 
+def reused_accepted_attempts(workspace_root: Path, from_stage_id: str) -> list[dict[str, str]]:
+    """Accepted writer/reviewer dirs for stages before ``from_stage_id``."""
+    start = _stage_index(from_stage_id)
+    reused: list[dict[str, str]] = []
+    for stage_id in STAGE_ORDER[:start]:
+        path = workspace_root / "runs" / stage_id / "accepted.json"
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        reused.append(
+            {
+                "stage": stage_id,
+                "executor": str(
+                    payload.get("executor") or payload.get("writer") or ""
+                ),
+                "reviewer": str(payload.get("reviewer") or ""),
+            }
+        )
+    return reused
+
+
 def cleanup_workspace_paths(workspace_root: Path, from_stage_id: str) -> list[str]:
     """Workspace-relative paths to delete when resuming from ``from_stage_id``."""
     start = _stage_index(from_stage_id)
@@ -406,9 +432,6 @@ def eligibility(
     if not ok_inputs:
         reasons.extend(input_reasons)
 
-    ws_paths = cleanup_workspace_paths(workspace_root, from_stage_id)
-    ola_ids = openlca_cleanup_ids(workspace_root)
-
     eligible = not reasons and snapshot_text is not None
     return {
         "eligible": eligible,
@@ -416,7 +439,8 @@ def eligibility(
         "inherited_stages": inherited,
         "from_stage": code,
         "from_stage_id": from_stage_id,
-        "cleanup": {"workspace_paths": ws_paths, "openlca_ids": ola_ids},
+        "reused_attempts": reused_accepted_attempts(workspace_root, from_stage_id),
+        "cleanup": {"workspace_paths": [], "openlca_ids": []},
         "workflow_yaml": snapshot_text,
         "rework_note": f"续跑后，返工请求若指向 {from_stage_id} 之前的阶段将被拒绝",
     }
@@ -472,22 +496,16 @@ def build_plan(
     plan_root = resume_plan_dir(workspace_root, old_run_id)
     plan_root.mkdir(parents=True, exist_ok=True)
     workflow_path = plan_root / "workflow.yaml"
-    cleanup_path = plan_root / "cleanup.json"
     plan_path = plan_root / "plan.json"
 
     workflow_path.write_text(composed, encoding="utf-8")
-    cleanup_payload = preview["cleanup"]
-    cleanup_path.write_text(
-        json.dumps(cleanup_payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
     plan_payload = {
         "old_run_id": old_run_id,
         "from_stage": preview["from_stage"],
         "from_stage_id": from_stage_id,
         "inherited_stages": preview["inherited_stages"],
+        "reused_attempts": preview.get("reused_attempts") or [],
         "workflow_yaml": str(workflow_path.relative_to(project_root)),
-        "cleanup": cleanup_payload,
     }
     plan_path.write_text(
         json.dumps(plan_payload, ensure_ascii=False, indent=2) + "\n",
@@ -496,7 +514,7 @@ def build_plan(
 
     local_resume = injection.runs_root(project_root) / old_run_id / "resume"
     local_resume.mkdir(parents=True, exist_ok=True)
-    for name in ("workflow.yaml", "cleanup.json", "plan.json"):
+    for name in ("workflow.yaml", "plan.json"):
         dest = local_resume / name
         dest.write_text((plan_root / name).read_text(encoding="utf-8"), encoding="utf-8")
 

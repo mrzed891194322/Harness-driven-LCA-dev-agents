@@ -104,7 +104,7 @@ class WorkflowLauncher:
         is_resume = task == "resume-lca"
         try:
             if is_resume:
-                self._note("正在按续跑清单清理 workspace…")
+                self._note("正在准备续跑（保留 workspace 与 openLCA）…")
             else:
                 self._note("正在保存当前计划，并清理上一次运行…")
                 kept = snapshot_user_material(project_root)
@@ -306,7 +306,6 @@ def start_resume_workflow(
     plan = build_plan(project_root, old_run_id, from_stage)
     workspace = project_root / "workspace"
     plan_dir = resume_plan_dir(workspace, old_run_id)
-    cleanup_path = plan_dir / "cleanup.json"
     workflow_path = str(plan.get("workflow_yaml") or "")
     seed_path: Path | None = None
     code = str(from_stage).strip()[:2]
@@ -325,7 +324,6 @@ def start_resume_workflow(
         resume_context={
             "old_run_id": old_run_id,
             "from_stage": from_stage,
-            "cleanup_list_path": cleanup_path,
             "workflow_path": workflow_path.replace("\\", "/"),
             "seed_acceptance_path": seed_path,
         },
