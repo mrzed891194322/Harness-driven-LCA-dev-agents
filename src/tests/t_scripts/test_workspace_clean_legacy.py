@@ -13,7 +13,12 @@ def _targets(workspace: Path) -> list[dict]:
 
 
 def _seed(workspace: Path) -> None:
-    for rel in ("outputs/LCI/a.json", "records/handoffs/h.json", "runs/x/y.json"):
+    for rel in (
+        "outputs/LCI/a.json",
+        "outputs/reports/README.md",
+        "records/handoffs/h.json",
+        "runs/x/y.json",
+    ):
         p = workspace / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("{}", encoding="utf-8")
@@ -33,8 +38,8 @@ def test_whole_lca_removes_legacy_outputs_and_records(tmp_path: Path):
         patch.object(clean_main, "run_openlca_clean", return_value=(True, "ok", {})),
     ):
         assert clean_main.run_clean(yes=True, preset="whole-lca") == 0
-    assert not (ws / "outputs" / "LCI" / "a.json").exists()
-    assert not (ws / "records" / "handoffs" / "h.json").exists()
+    assert not (ws / "outputs").exists()
+    assert not (ws / "records").exists()
     assert not (ws / "runs" / "x" / "y.json").exists()
 
 
@@ -47,5 +52,5 @@ def test_workspace_untouched_when_openlca_clean_fails(tmp_path: Path):
         patch.object(clean_main, "run_openlca_clean", return_value=(False, "timeout", {})),
     ):
         assert clean_main.run_clean(yes=True, preset="whole-lca") != 0
-    assert (ws / "outputs" / "LCI" / "a.json").exists()
-    assert (ws / "records" / "handoffs" / "h.json").exists()
+    assert (ws / "outputs").is_dir()
+    assert (ws / "records").is_dir()

@@ -37,7 +37,6 @@ def _write_context(path: Path, **overrides: object) -> Path:
     workspace = Path(str(payload["workspace"]))
     workspace.mkdir(parents=True, exist_ok=True)
     (workspace / "runs" / "_run").mkdir(parents=True, exist_ok=True)
-    (workspace / "outputs").mkdir(exist_ok=True)
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
 

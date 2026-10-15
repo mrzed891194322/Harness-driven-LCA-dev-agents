@@ -564,17 +564,17 @@ class ReadHandoffTests(unittest.TestCase):
         return body
 
     def test_string_checks_ref(self) -> None:
-        path = self._write(self._base(checks_ref="records/checks.json"))
+        path = self._write(self._base(checks_ref="runs/02-inventory-extraction/executor-1/checks/inventory.json"))
         payload = read_handoff(
             path, role="reviewer", stage="02-inventory-extraction", attempt=1
         )
-        self.assertEqual(payload["checks_ref"], "records/checks.json")
+        self.assertEqual(payload["checks_ref"], "runs/02-inventory-extraction/executor-1/checks/inventory.json")
 
     def test_object_checks_ref_coerced_to_path(self) -> None:
         path = self._write(
             self._base(
                 checks_ref={
-                    "path": "records/checks.json",
+                    "path": "runs/02-inventory-extraction/executor-1/checks/inventory.json",
                     "sha256": "ab",
                     "size_bytes": 1,
                 }
@@ -583,7 +583,7 @@ class ReadHandoffTests(unittest.TestCase):
         payload = read_handoff(
             path, role="reviewer", stage="02-inventory-extraction", attempt=1
         )
-        self.assertEqual(payload["checks_ref"], "records/checks.json")
+        self.assertEqual(payload["checks_ref"], "runs/02-inventory-extraction/executor-1/checks/inventory.json")
 
     def test_object_without_path_rejected(self) -> None:
         path = self._write(self._base(checks_ref={"sha256": "ab"}))

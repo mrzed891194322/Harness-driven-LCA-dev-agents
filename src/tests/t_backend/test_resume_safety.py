@@ -24,7 +24,7 @@ def _list(tmp_path: Path, paths, ids=()):
 
 @pytest.mark.parametrize(
     "rel",
-    [".", "../outside", "outputs/../..", "runs/_run/orchestrator.sqlite",
+    [".", "../outside", "tmp/../..", "runs/_run/orchestrator.sqlite",
      "runs/_run/resume/x", "runs/_run/evidence/oldrun"],
 )
 def test_cleanup_list_refuses_dangerous_paths(tmp_path: Path, rel: str):

@@ -122,19 +122,19 @@ def test_cleanup_list_refuses_knowledge(tmp_path: Path) -> None:
 
 def test_cleanup_list_deletes_only_listed(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
-    target = workspace / "outputs" / "reports"
+    target = workspace / "artifacts" / "reports"
     target.mkdir(parents=True)
     keep = workspace / "runs" / "_run" / "evidence" / "oldrun"
     keep.mkdir(parents=True)
     (keep / "manifest.json").write_text("{}", encoding="utf-8")
     (target / "a.txt").write_text("x", encoding="utf-8")
-    payload = {"workspace_paths": ["outputs/reports"], "openlca_ids": []}
+    payload = {"workspace_paths": ["artifacts/reports"], "openlca_ids": []}
     list_path = tmp_path / "cleanup.json"
     list_path.write_text(json.dumps(payload), encoding="utf-8")
     with patch("backend.services.workspace_clean.PROJECT_ROOT", tmp_path):
         code, report = run_cleanup_list(list_path, yes=True, old_run_id="oldrun")
     assert code == 0
-    assert "outputs/reports" in report["workspace_deleted"]
+    assert "artifacts/reports" in report["workspace_deleted"]
     assert keep.is_dir()
 
 

@@ -47,7 +47,7 @@ def test_guard_stale_marker_is_prior_uncertain(lock_root):
 
 def _start_import(tmp_path, client, run_id="run-one"):
     workspace = tmp_path / "workspace"
-    lci = workspace / "outputs" / "LCI"
+    lci = workspace / "artifacts" / "LCI"
     write_product_system_fixture(lci)
     operation_dir = workspace / "runs" / "04-openlca-reporting" / "executor-1" / "import-operations"
     preflight = operations.preflight(

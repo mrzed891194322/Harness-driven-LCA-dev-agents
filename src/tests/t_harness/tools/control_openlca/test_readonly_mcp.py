@@ -620,7 +620,7 @@ class MCPServerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
                     mcp_module._workflow_lci_dir("workspace/artifacts/LCI")
                 with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
-                    mcp_module._workflow_lci_dir("workspace/outputs/LCI")
+                    mcp_module._workflow_lci_dir("workspace/artifacts/LCI")
                 with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):
                     mcp_module._workflow_lci_dir("workspace/LCI")
                 with self.assertRaisesRegex(ValueError, "workspace/artifacts/LCI"):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -42,7 +43,7 @@ def context(tmp_path, monkeypatch):
 
 
 def start_import(ctx, client) -> tuple[Path, dict[str, Any]]:
-    lci = ctx.workspace / "outputs" / "LCI"
+    lci = lci_for(ctx)
     write_flow(lci)
     operation_dir = ctx.attempt_root() / "import-operations"
     preflight = operations.preflight(
@@ -117,7 +118,7 @@ def test_stale_preflight_and_consumption(context):
 
 def test_resume_after_partial_product_system_failure(context):
     client = FakeImportClient()
-    root = context.workspace / "outputs" / "LCI"
+    root = lci_for(context)
     write_product_system_fixture(root)
     operation_dir = context.attempt_root() / "import-operations"
     preflight = operations.preflight(
@@ -304,6 +305,41 @@ def write_json(path, value):
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
+def workspace_artifacts(ws: Path) -> Path:
+    root = ws / "artifacts"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def lci_for(ctx: Context) -> Path:
+    if ctx.stage == "03-dataset-mapping":
+        target = ctx.path("LCI")
+    else:
+        target = workspace_artifacts(ctx.workspace) / "LCI"
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def continue_attempt(ctx: Context, attempt: int) -> Context:
+    """New attempt with stage-04 deliverables copied from attempt 1."""
+    retry = Context(
+        ctx.project,
+        ctx.workspace,
+        ctx.run_id,
+        ctx.stage,
+        attempt,
+        metadata=dict(ctx.metadata),
+    )
+    if ctx.stage == "04-openlca-reporting":
+        for name in ("calculation-plan.json", "lca_report.md"):
+            src = ctx.path(name)
+            if src.is_file():
+                dst = retry.path(name)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+    return retry
+
+
 def seed_passed_mapping_check(ctx):
     inputs = checks.dependencies(ctx, "mapping")
     path = checks.check_path(ctx, "mapping")
@@ -326,9 +362,9 @@ def seed_passed_mapping_check(ctx):
 
 
 def seed_report(ctx):
-    out = ctx.workspace / "outputs"
+    out = workspace_artifacts(ctx.workspace)
     write_json(
-        out / "inventory" / "extracted-bom.json",
+        out / "extracted-bom.json",
         {
             "items": [
                 {
@@ -341,10 +377,18 @@ def seed_report(ctx):
             ]
         },
     )
-    write_json(
-        out / "inventory" / "process-mapping.json",
-        {"items": [{"item_id": "b1", "selection_reason": "同功能"}]},
+    mapping_payload = {"items": [{"item_id": "b1", "selection_reason": "同功能"}]}
+    write_json(out / "process-mapping.json", mapping_payload)
+    mapping_executor = Context(
+        ctx.project,
+        ctx.workspace,
+        ctx.run_id,
+        "03-dataset-mapping",
+        1,
+        "executor",
+        metadata={"lca": {"phase": "mapping"}},
     )
+    write_json(mapping_executor.path("process-mapping.json"), mapping_payload)
     write_json(out / "LCI" / "product_systems" / "s.json", {"@id": "system-one"})
     write_json(
         checks.calculation_path(ctx),
@@ -408,22 +452,16 @@ def seed_report(ctx):
     text = "# 中文报告\n\n" + "\n".join(
         "\n".join(artifact_report.markers(n)) for n in ("inventory", "mapping", "lcia")
     )
-    (out / "reports" / "lca_report.md").write_text(text, encoding="utf-8")
+    checks.report_path(ctx).write_text(text, encoding="utf-8")
     report.render(ctx)
 
 
 def test_report_only_reuses_without_ipc_and_checks_tampering(context):
     seed_report(context)
     assert checks.validate(context, "report")["ok"]
-    retry = Context(
-        context.project,
-        context.workspace,
-        context.run_id,
-        context.stage,
-        2,
-        metadata=dict(context.metadata),
-    )
-    path = context.workspace / "outputs" / "reports" / "lca_report.md"
+    retry = continue_attempt(context, 2)
+    assert checks.validate(retry, "report")["ok"]
+    path = checks.report_path(retry)
     path.write_text(
         path.read_text().replace("中文报告", "修改后的中文说明"), encoding="utf-8"
     )
@@ -437,13 +475,16 @@ def test_report_only_reuses_without_ipc_and_checks_tampering(context):
         assert checks.validate(retry, "report")["ok"]
     path.write_text(path.read_text().replace("2.5", "999"))
     assert not checks.validate(retry, "report")["ok"]
-    new_run = Context(
-        context.project,
-        context.workspace,
-        "new-run",
-        context.stage,
+    new_run = continue_attempt(
+        Context(
+            context.project,
+            context.workspace,
+            "new-run",
+            context.stage,
+            1,
+            metadata=dict(context.metadata),
+        ),
         2,
-        metadata=dict(context.metadata),
     )
     assert checks.validation_state(new_run, "report")["status"] == "not_run"
     assert not checks.reuse_status(new_run)["eligible"]
@@ -454,18 +495,17 @@ def test_upstream_raw_and_checker_invalidation(context, monkeypatch):
     checks.validate(context, "report")
     monkeypatch.setattr(checks, "CHECKER_VERSION", "next")
     assert checks.validation_state(context, "report")["status"] == "stale"
-    path = context.workspace / "outputs" / "inventory" / "process-mapping.json"
+    accepted = context.load_manifest()["accepted"][checks.ACCEPTANCE_MODEL]
+    mapping_entry = next(
+        entry
+        for entry in accepted["inputs"]["files"]
+        if entry.get("path", "").endswith("process-mapping.json")
+    )
+    path = checks.resolve_snapshot_path(context, mapping_entry)
     path.write_text(path.read_text() + "\n")
     with pytest.raises(ValueError, match="stale"):
         checks.require_approved_model(context)
-    retry = Context(
-        context.project,
-        context.workspace,
-        context.run_id,
-        context.stage,
-        2,
-        metadata=dict(context.metadata),
-    )
+    retry = continue_attempt(context, 2)
     assert checks.reuse_status(retry)["rework_scope"] == "model_changed"
 
 
@@ -499,29 +539,15 @@ def test_error_after_success_invalidates_reuse(context):
         arguments={"product_system": "system-one", "impact_method": "method-one"},
         ctx=context,
     )
-    retry = Context(
-        context.project,
-        context.workspace,
-        context.run_id,
-        context.stage,
-        2,
-        metadata=dict(context.metadata),
-    )
+    retry = continue_attempt(context, 2)
     assert not checks.reuse_status(retry)["eligible"]
 
 
 def test_calculation_change_and_raw_corruption(context):
     seed_report(context)
-    retry = Context(
-        context.project,
-        context.workspace,
-        context.run_id,
-        context.stage,
-        2,
-        metadata=dict(context.metadata),
-    )
+    retry = continue_attempt(context, 2)
     write_json(
-        checks.calculation_path(context),
+        checks.calculation_path(retry),
         {
             "calculations": [
                 {
@@ -539,7 +565,7 @@ def test_calculation_change_and_raw_corruption(context):
             retry, {"product_system": "system-one", "impact_method": "method-one"}
         )
     write_json(
-        checks.calculation_path(context),
+        checks.calculation_path(retry),
         {
             "calculations": [
                 {"product_system": "system-one", "impact_method": "method-one"}
@@ -586,7 +612,7 @@ def test_ignored_source_manifest_and_inventory_dependency_scope(context):
             ],
         },
     )
-    bom = context.workspace / "outputs" / "inventory" / "extracted-bom.json"
+    bom = inventory.path("extracted-bom.json")
     row = {
         "item_id": "one",
         "name": "物料",
@@ -686,18 +712,19 @@ def test_mapping_checks_coverage_and_lci_semantics(context):
         1,
         metadata={"lca": {"phase": "mapping"}},
     )
-    root = context.workspace / "outputs"
-    write_product_system_fixture(root / "LCI")
-    (root / "LCI" / "human_readable_mapping.md").write_text("映射说明")
+    write_product_system_fixture(mapping_ctx.path("LCI"))
+    (mapping_ctx.path("LCI") / "human_readable_mapping.md").write_text("映射说明")
     write_json(
-        root / "inventory" / "extracted-bom.json", {"items": [{"item_id": "b1"}]}
+        workspace_artifacts(context.workspace) / "extracted-bom.json",
+        {"items": [{"item_id": "b1"}]},
     )
     write_json(
-        root / "inventory" / "process-mapping.json", {"items": [{"item_id": "b1"}]}
+        mapping_ctx.path("process-mapping.json"), {"items": [{"item_id": "b1"}]}
     )
     assert checks.validate(mapping_ctx, "mapping")["ok"]
     write_json(
-        root / "inventory" / "process-mapping.json", {"items": [{"item_id": "missing"}]}
+        mapping_ctx.path("process-mapping.json"),
+        {"items": [{"item_id": "missing"}]},
     )
     assert not checks.validate(mapping_ctx, "mapping")["ok"]
 
@@ -892,14 +919,7 @@ def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):
 @pytest.mark.parametrize("declared", ["model_changed", "calculation_changed"])
 def test_prior_handoff_defect_blocks_report_only(context, declared):
     seed_report(context)
-    retry = Context(
-        context.project,
-        context.workspace,
-        context.run_id,
-        context.stage,
-        2,
-        metadata=dict(context.metadata),
-    )
+    retry = continue_attempt(context, 2)
     assert checks.reuse_status(retry)["rework_scope"] == "report_only"
     handoff = context.workspace / "runs" / context.stage / "executor-1" / "handoff.json"
     handoff.parent.mkdir(parents=True, exist_ok=True)
@@ -922,14 +942,7 @@ def test_prior_handoff_defect_blocks_report_only(context, declared):
 
 def test_prior_handoff_none_keeps_fingerprint_result(context):
     seed_report(context)
-    retry = Context(
-        context.project,
-        context.workspace,
-        context.run_id,
-        context.stage,
-        2,
-        metadata=dict(context.metadata),
-    )
+    retry = continue_attempt(context, 2)
     handoff = context.workspace / "runs" / context.stage / "executor-1" / "handoff.json"
     handoff.parent.mkdir(parents=True, exist_ok=True)
     handoff.write_text(json.dumps({"status": "failed", "rework_scope": "report_only"}))
@@ -947,19 +960,19 @@ def test_provider_evidence_survives_mapping_write(context):
         1,
         metadata={"lca": {"phase": "mapping"}},
     )
-    root = context.workspace / "outputs"
-    write_product_system_fixture(root / "LCI")
+    lci_root = mapping_ctx.path("LCI")
+    write_product_system_fixture(lci_root)
     lci_before = checks.lci_fingerprint(mapping_ctx)
     model_before = checks.model_fingerprint(mapping_ctx)
     call = {"lci_fingerprint": lci_before, "model_fingerprint": model_before}
     write_json(
-        root / "inventory" / "process-mapping.json", {"items": [{"item_id": "b1"}]}
+        mapping_ctx.path("process-mapping.json"), {"items": [{"item_id": "b1"}]}
     )
     assert checks.model_fingerprint(mapping_ctx) != model_before
     assert checks.lci_fingerprint(mapping_ctx) == lci_before
     assert checks._provider_evidence_matches(mapping_ctx, call)
     # Editing the LCI does invalidate the evidence.
-    extra = root / "LCI" / "processes" / "zz_extra.json"
+    extra = lci_root / "processes" / "zz_extra.json"
     extra.parent.mkdir(parents=True, exist_ok=True)
     extra.write_text('{"@id": "zz"}', encoding="utf-8")
     assert not checks._provider_evidence_matches(mapping_ctx, call)

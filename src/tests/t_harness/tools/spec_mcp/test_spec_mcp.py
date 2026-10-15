@@ -46,10 +46,10 @@ def _project(root: Path) -> Path:
                 "version": 2,
                 "id": "s1",
                 "deliverables": [
-                    {"name": "bom", "path": "workspace/outputs/bom.json", "format": "json",
+                    {"name": "bom", "path": "bom.json", "format": "json",
                      "schema": "deliverables/bom.schema.json", "example": "examples/bom.json",
                      "writer": "spec_mcp"},
-                    {"name": "notes", "path": "workspace/outputs/notes.md", "format": "text",
+                    {"name": "notes", "path": "notes.md", "format": "text",
                      "writer": "spec_mcp"},
                 ],
                 "acceptance": "acceptance.yaml",
@@ -82,7 +82,7 @@ def _bind(monkeypatch, root: Path, role: str = "executor", **over) -> dict:
     entry = host.spec_mcp_server(
         project_root=root, workspace_root=root / "workspace", run_id="run-1", stage_id="s1",
         role=role, attempt=1, assignment_id=f"s1.{role}", spec_relative="harness/specs/s1/spec.yaml",
-        handoff_relative="records/handoffs/s1.json",
+        handoff_relative="runs/s1/executor-1/handoff.json",
     )
     env = dict(entry["env"])
     env.update(over)
@@ -117,10 +117,10 @@ def test_get_spec_matches_core_and_is_override_first(project):
 
 
 def test_submit_accepts_path_and_revalidates_official_file(project):
-    target = project / "workspace/outputs/bom.json"
+    target = project / "workspace/runs/s1/executor-1/bom.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(GOOD), encoding="utf-8")
-    rel = "outputs/bom.json"
+    rel = "runs/s1/executor-1/bom.json"
     out = server.submit("bom", path=rel)
     assert out["ok"] and out["status"] == "passed"
     both = server.submit("bom", data=GOOD, path=rel)
@@ -130,7 +130,7 @@ def test_submit_accepts_path_and_revalidates_official_file(project):
 
 
 def test_submit_rejects_invalid_then_accepts_corrected(project):
-    target = project / "workspace/outputs/bom.json"
+    target = project / "workspace/runs/s1/executor-1/bom.json"
     bad = server.submit("bom", {"items": [{"item_id": "a"}], "extra": 1})
     assert not bad["ok"] and bad["status"] == "failed"
     assert any("amount" in e for e in bad["errors"]) and any("extra" in e for e in bad["errors"])
@@ -143,23 +143,25 @@ def test_submit_rejects_invalid_then_accepts_corrected(project):
 
 
 def test_acceptance_failure_rolls_back_and_handoff_gated(project):
-    handoff = project / "workspace/records/handoffs/s1.json"
+    handoff = project / "workspace/runs/s1/executor-1/handoff.json"
     refused = server.submit_handoff(status="ok", status_reason="done")
     assert not refused["ok"] and set(refused["pending"]) == {"bom", "notes"}
     assert not handoff.exists()
     short = server.submit("notes", "short")
     assert not short["ok"] and "nonempty_text" in short["errors"][0]
-    assert not (project / "workspace/outputs/notes.md").exists()
+    assert not (project / "workspace/runs/s1/executor-1/notes.md").exists()
     assert server.submit("bom", GOOD)["ok"]
     assert not server.submit_handoff(status="ok", status_reason="done")["ok"]
     assert server.submit("notes", "这份说明写得足够长了，覆盖全部条目。")["ok"]
     assert server.status()["ready_for_handoff"]
-    done = server.submit_handoff(status="ok", status_reason="done", artifacts=["outputs/bom.json"])
+    done = server.submit_handoff(
+        status="ok", status_reason="done", artifacts=["runs/s1/executor-1/bom.json"]
+    )
     assert done["ok"], done
     body = json.loads(handoff.read_text(encoding="utf-8"))
     assert (body["stage"], body["role"], body["attempt"]) == ("s1", "executor", 1)
     # editing an accepted file afterwards makes it stale -> gate closes again
-    (project / "workspace/outputs/bom.json").write_text("{}", encoding="utf-8")
+    (project / "workspace/runs/s1/executor-1/bom.json").write_text("{}", encoding="utf-8")
     assert server.status()["pending"] == ["bom"]
 
 
