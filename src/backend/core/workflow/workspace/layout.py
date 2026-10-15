@@ -11,7 +11,6 @@ import yaml
 from backend.core.workflow.workspace.legacy_paths import (
     legacy_input_path,
     legacy_workspace_path,
-    resolve_declared_path,
 )
 
 
