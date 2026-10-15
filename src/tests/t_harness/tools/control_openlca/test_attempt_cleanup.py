@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from harness.tools.shared.control_openlca.attempt_cleanup import (
+    _salvage_entity_ids,
     cleanup_prior_attempt_imports,
     journal_entity_ids,
     strict_project_category,
@@ -236,3 +237,55 @@ def test_validate_target_category_rejects_old_prefix() -> None:
     validate_target_category(PROJECT)
     with pytest.raises(ValueError):
         validate_target_category(f"{PROJECT}-old/extra")
+
+
+def test_attempt_dir_rejects_absolute_and_parent_segments(tmp_path: Path) -> None:
+    ws = tmp_path / "workspace"
+    _write_ops(_journal(ws, "executor", 2), [{"@type": "Process", "@id": "safe"}])
+    _attempts_doc(
+        ws,
+        [
+            {"dir": "/etc/passwd", "role": "executor", "attempt": 1},
+            {"dir": f"runs/{STAGE}/executor-2", "role": "executor", "attempt": 2},
+        ],
+    )
+    deleted, _, removed = _run_cleanup(ws)
+    assert not removed
+    assert not deleted
+
+
+def test_attempt_dir_must_stay_under_stage_runs(tmp_path: Path) -> None:
+    ws = tmp_path / "workspace"
+    other = ws / "runs" / "03-dataset-mapping" / "executor-1" / "import-operations"
+    _write_ops(other, [{"@type": "Process", "@id": "foreign"}])
+    _attempts_doc(
+        ws,
+        [
+            {
+                "dir": "runs/03-dataset-mapping/executor-1",
+                "role": "executor",
+                "attempt": 1,
+            },
+            {"dir": f"runs/{STAGE}/executor-2", "role": "executor", "attempt": 2},
+        ],
+    )
+    _, _, removed = _run_cleanup(ws)
+    assert not removed
+
+
+def test_salvage_pairs_type_and_id_within_object_fragment() -> None:
+    text = (
+        '{"@type": "Process", "@id": "p1"} '
+        '{"@type": "Flow", "@id": "f1"} '
+        '{"@type": "Process"} '
+        '{"@id": "orphan"}'
+    )
+    salvaged = _salvage_entity_ids(text)
+    assert salvaged == {("Process", "p1"), ("Flow", "f1")}
+
+
+def test_salvage_does_not_zip_mismatched_global_order() -> None:
+    text = '{"@id": "first-id"}{"@type": "Process", "@id": "real-p"}'
+    salvaged = _salvage_entity_ids(text)
+    assert ("Process", "real-p") in salvaged
+    assert ("Process", "first-id") not in salvaged

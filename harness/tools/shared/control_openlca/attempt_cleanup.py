@@ -18,6 +18,7 @@ _ENTITY_ID_RE = re.compile(
 _ENTITY_TYPE_RE = re.compile(
     r'"@type"\s*:\s*"([^"]+)"|"entity_type"\s*:\s*"([^"]+)"'
 )
+_OBJECT_FRAGMENT_RE = re.compile(r"\{[^{}]*\}")
 
 
 def first_category_segment(category: str | None) -> str:
@@ -63,16 +64,44 @@ def _normalize_id(raw: str) -> str:
     return str(raw or "").strip()
 
 
+def _pair_entity_in_block(block: str) -> tuple[str, str] | None:
+    type_match = _ENTITY_TYPE_RE.search(block)
+    id_match = _ENTITY_ID_RE.search(block)
+    if not type_match or not id_match:
+        return None
+    entity_type = _normalize_type(type_match.group(1) or type_match.group(2))
+    entity_id = _normalize_id(id_match.group(1) or id_match.group(2))
+    if entity_type in DELETE_ORDER and entity_id:
+        return entity_type, entity_id
+    return None
+
+
 def _salvage_entity_ids(text: str) -> set[tuple[str, str]]:
     ids: set[tuple[str, str]] = set()
-    types = [m.group(1) or m.group(2) for m in _ENTITY_TYPE_RE.finditer(text)]
-    id_values = [m.group(1) or m.group(2) for m in _ENTITY_ID_RE.finditer(text)]
-    for entity_type, entity_id in zip(types, id_values, strict=False):
-        entity_type = _normalize_type(entity_type)
-        entity_id = _normalize_id(entity_id)
-        if entity_type in DELETE_ORDER and entity_id:
-            ids.add((entity_type, entity_id))
+    for fragment in _OBJECT_FRAGMENT_RE.finditer(text):
+        paired = _pair_entity_in_block(fragment.group(0))
+        if paired:
+            ids.add(paired)
+    if ids:
+        return ids
+    for match in re.finditer(r"\{", text):
+        tail = text[match.start() :]
+        end = tail.find("}", 1)
+        block = tail if end == -1 else tail[: end + 1]
+        paired = _pair_entity_in_block(block)
+        if paired:
+            ids.add(paired)
     return ids
+
+
+def _inside_workspace(root: Path, relative: str) -> Path:
+    text = str(relative).replace("\\", "/")
+    if not text or Path(text).is_absolute() or ".." in Path(text).parts:
+        raise ValueError(f"unsafe workspace path: {relative}")
+    path = (root / text).resolve()
+    if not path.is_relative_to(root.resolve()):
+        raise ValueError(f"path escapes workspace: {relative}")
+    return path
 
 
 def _load_operation_payload(path: Path) -> dict[str, Any] | None:
@@ -154,7 +183,17 @@ def _writer_identity(row: dict[str, Any]) -> tuple[str, int] | None:
 def _attempt_import_dir(workspace: Path, stage_id: str, row: dict[str, Any]) -> Path | None:
     rel = str(row.get("dir") or row.get("path") or "").strip()
     if rel:
-        return (workspace / rel).resolve() if not Path(rel).is_absolute() else Path(rel)
+        text = rel.replace("\\", "/")
+        if text.startswith("workspace/"):
+            text = text[len("workspace/") :]
+        try:
+            path = _inside_workspace(workspace, text)
+        except ValueError:
+            return None
+        rel_posix = path.relative_to(workspace.resolve()).as_posix()
+        if not rel_posix.startswith(f"runs/{stage_id}/"):
+            return None
+        return path
     identity = _writer_identity(row)
     if identity is None:
         return None
