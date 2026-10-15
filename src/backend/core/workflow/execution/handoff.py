@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.runtime.tool_runtime import write_json_atomic
-from backend.settings import records_root
+from backend.core.workflow.workspace.layout import handoff_file, attempt_dir
 
 SCHEMA_VERSION = 1
 WRITER_ROLES = frozenset({"executor", "reviser"})
@@ -31,10 +31,16 @@ def _path_ref(value: Any, *, field: str, path: Path) -> str:
     raise ValueError(f"{path}: {field} 必须是路径字符串")
 
 
-def handoff_path(workspace_root: Path, stage_id: str, role: str, attempt: int) -> Path:
-    return (
-        records_root(workspace_root) / "handoffs" / f"{stage_id}-{role}-{attempt}.json"
-    )
+def handoff_path(
+    workspace_root: Path,
+    stage_id: str,
+    role: str,
+    attempt: int,
+    *,
+    project_root: Path | None = None,
+) -> Path:
+    project = project_root if project_root is not None else workspace_root.parent
+    return handoff_file(workspace_root, project, stage_id, role, attempt)
 
 
 def validate_handoff_payload(
@@ -110,7 +116,7 @@ def read_handoff(
 
 
 def review_note_path(workspace_root: Path, stage_id: str, attempt: int) -> Path:
-    return records_root(workspace_root) / "reviews" / f"{stage_id}-{attempt}.md"
+    return attempt_dir(workspace_root, stage_id, "reviewer", attempt) / "review.md"
 
 
 def write_review_note(

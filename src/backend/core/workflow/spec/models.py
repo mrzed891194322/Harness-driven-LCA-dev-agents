@@ -94,17 +94,9 @@ class StageSpec:
     sources: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def output_paths(self) -> list[str]:
-        from backend.core.workflow.workspace.legacy_paths import resolve_declared_path
-
         out: list[str] = []
         for item in self.outputs:
             if not item.required:
                 continue
-            out.append(
-                resolve_declared_path(
-                    stage_id=self.spec_id,
-                    declared=item.path,
-                    from_ref=item.from_ref,
-                )
-            )
+            out.append(item.path)
         return out

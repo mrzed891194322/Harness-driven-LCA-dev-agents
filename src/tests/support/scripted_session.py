@@ -141,7 +141,7 @@ class ScriptedSessionClient:
                 or "test 模型连接失败：Connection error."
             )
             raise WorkerTransportError(message)
-        self._write_outputs(payload)
+        self._write_outputs(payload, context)
         handoff_rel = context["handoff_path"]
         handoff_path = Path(handoff_rel)
         if not handoff_path.is_absolute():
@@ -182,9 +182,13 @@ class ScriptedSessionClient:
     def release(self, ref: SessionRef) -> None:
         del ref
 
-    def _write_outputs(self, payload: dict) -> None:
+    def _write_outputs(self, payload: dict, context: dict) -> None:
         for relative in payload.get("write") or []:
-            path = self.workspace.joinpath(*Path(relative).parts[1:])
+            from backend.core.workflow.workspace.layout import resolve_path, stage_spec
+            stage = context['stage']
+            name = Path(relative.rstrip('/')).name
+            declared = next((d['path'] for d in stage_spec(PROJECT_ROOT, stage).get('deliverables', []) if Path(d['path']).name == name), relative)
+            path = resolve_path(self.workspace, PROJECT_ROOT, stage, declared, role=context['role'], attempt=context['attempt'])
             path.parent.mkdir(parents=True, exist_ok=True)
             if relative.endswith("/"):
                 path.mkdir(parents=True, exist_ok=True)

@@ -10,7 +10,11 @@ from unittest.mock import patch
 
 from backend.core.runtime.capabilities import base_capabilities
 from backend.core.workflow.config.loader import load_workflow
-from backend.core.workflow.execution.handoff import read_handoff
+from backend.core.workflow.execution.handoff import (
+    handoff_path,
+    read_handoff,
+    review_note_path,
+)
 from backend.core.workflow.execution.runner import (
     PROTOCOL_REPAIR_LIMIT,
     WORKER_TRANSPORT_RETRY_LIMIT,
@@ -316,9 +320,9 @@ class OrchestratorGraphTests(unittest.TestCase):
             if label == "02-inventory-extraction:reviewer:1"
         ][1]
         self.assertIn("契约", second_repair_prompt)
-        note = (
-            self.workspace / "records" / "reviews" / "02-inventory-extraction-1.md"
-        ).read_text(encoding="utf-8")
+        note = review_note_path(self.workspace, "02-inventory-extraction", 1).read_text(
+            encoding="utf-8"
+        )
         self.assertIn("缺一行", note)
         self.assertNotIn("不能为空", note)
 
@@ -385,10 +389,13 @@ class OrchestratorGraphTests(unittest.TestCase):
         ]
         self.assertEqual(len(review_turns), 3)
         handoff = read_handoff(
-            self.workspace
-            / "records"
-            / "handoffs"
-            / "02-inventory-extraction-reviewer-1.json",
+            handoff_path(
+                self.workspace,
+                "02-inventory-extraction",
+                "reviewer",
+                1,
+                project_root=PROJECT_ROOT,
+            ),
             role="reviewer",
             stage="02-inventory-extraction",
             attempt=1,

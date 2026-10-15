@@ -173,7 +173,13 @@ def build_session_launch_spec(
     stage_spec, spec_error = compile_stage_spec(bundle, project_root)
     view = spec_view(stage_spec, project_root) if stage_spec is not None else None
     view_hash = spec_view_hash(view) if view is not None else ""
-    handoff = handoff_path(workspace_root, stage.stage_id, assignment.role, attempt)
+    handoff = handoff_path(
+        workspace_root,
+        stage.stage_id,
+        assignment.role,
+        attempt,
+        project_root=project_root,
+    )
     session_servers: dict[str, dict[str, Any]] = dict(config.mcp_servers)
     if stage_spec is not None:
         try:

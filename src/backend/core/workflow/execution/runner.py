@@ -22,6 +22,8 @@ from backend.core.workflow.spec.outputs import (
     validate_outputs,
 )
 from backend.settings import records_root
+from backend.core.workflow.workspace.index import accept_stage, register_attempt
+from backend.core.workflow.workspace.layout import attempts, resolve_path
 
 from ..config.bundle import TaskBundle
 from ..config.models import Assignment, Stage, Workflow
@@ -244,6 +246,13 @@ class OrchestratorRuntime:
     def prepare(self, state: WorkflowState) -> dict[str, Any]:
         stage, assignment = self._current(state)
         bundle = self.bundles[assignment.assignment_id]
+        register_attempt(
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            _attempt(state),
+            _state_str(state, "run_id"),
+        )
         # Stage entry: validate inputs before first assignment work (no retry bump).
         if _state_int(state, "step_index") == 0:
             input_errors = validate_inputs(
@@ -265,7 +274,11 @@ class OrchestratorRuntime:
                     },
                 }
         handoff = handoff_path(
-            self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            _attempt(state),
+            project_root=self.project_root,
         )
         context = {
             "run_id": _state_str(state, "run_id"),
@@ -324,7 +337,11 @@ class OrchestratorRuntime:
         sessions = dict(state.get("sessions") or {})
         bundle = self.bundles[assignment.assignment_id]
         handoff = handoff_path(
-            self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            _attempt(state),
+            project_root=self.project_root,
         )
         run_context = {
             "run_id": _state_str(state, "run_id"),
@@ -432,7 +449,11 @@ class OrchestratorRuntime:
         sessions[key] = ref.to_dict()
         print_orchestrator(f"worker turn done session={ref.session_id}")
         handoff_file = handoff_path(
-            self.workspace_root, stage.stage_id, assignment.role, _attempt(state)
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            _attempt(state),
+            project_root=self.project_root,
         )
         if not handoff_file.is_file():
             print_orchestrator(
@@ -451,7 +472,11 @@ class OrchestratorRuntime:
         stage, assignment = self._current(state)
         attempt = _attempt(state)
         path = handoff_path(
-            self.workspace_root, stage.stage_id, assignment.role, attempt
+            self.workspace_root,
+            stage.stage_id,
+            assignment.role,
+            attempt,
+            project_root=self.project_root,
         )
         try:
             handoff = read_handoff(
@@ -513,7 +538,20 @@ class OrchestratorRuntime:
         bundle = self.bundles[assignment.assignment_id]
         missing = missing_expected_outputs(
             self.workspace_root,
-            bundle.expected_outputs,
+            [
+                str(
+                    resolve_path(
+                        self.workspace_root,
+                        self.project_root,
+                        stage.stage_id,
+                        item.path,
+                        role=assignment.role,
+                        attempt=_attempt(state),
+                    ).relative_to(self.workspace_root.resolve())
+                )
+                for item in bundle.stage_spec.outputs
+                if item.required
+            ],
         )
         status = handoff["status"]
         failed = status in {"failed", "blocked"} or bool(missing)
@@ -565,6 +603,8 @@ class OrchestratorRuntime:
             bundle.stage_spec,
             workspace_root=self.workspace_root,
             project_root=self.project_root,
+            role=assignment.role if assignment.role in WRITER_ROLES else None,
+            attempt=_attempt(state),
         )
         if output_errors:
             reason = "产物契约未通过：" + "; ".join(output_errors[:20])
@@ -711,6 +751,13 @@ class OrchestratorRuntime:
                             "status_reason": reason,
                         },
                     }
+            accept_stage(
+                self.workspace_root,
+                self.project_root,
+                bundle.stage_spec,
+                _attempt(state),
+                _state_str(state, "run_id"),
+            )
             write_review_note(
                 note_path,
                 handoff,
@@ -751,6 +798,7 @@ class OrchestratorRuntime:
             bundle.stage_spec,
             workspace_root=self.workspace_root,
             project_root=self.project_root,
+            attempt=_attempt(state),
         )
         if output_errors:
             return "审查期间产物或确定性检查状态已变化：" + "; ".join(
@@ -1213,7 +1261,13 @@ class OrchestratorRuntime:
         nxt = self.workflow.stages[next_stage]
         fired = self._maybe_inject_fault(state, stage)
         high = _record_high_water(state, stage.stage_id)
-        base = int(high.get(nxt.stage_id, 0))
+        base = max(
+            int(high.get(nxt.stage_id, 0)),
+            max(
+                (int(r["attempt"]) for r in attempts(self.workspace_root, nxt.stage_id)),
+                default=0,
+            ),
+        )
         stale = [s for s in (state.get("stale_stages") or []) if s != stage.stage_id]
         bases = dict(state.get("stage_attempt_base") or {})
         if base:
