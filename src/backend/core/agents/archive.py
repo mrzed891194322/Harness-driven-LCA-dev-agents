@@ -15,7 +15,8 @@ REDACTED = "<redacted>"
 
 
 def run_log_dir(workspace_root: Path, run_id: str) -> Path:
-    return run_root(workspace_root) / "logs" / run_id
+    del run_id  # workspace keeps a single current run; path has no run id segment
+    return run_root(workspace_root) / "logs"
 
 
 def progress_log_path(workspace_root: Path, run_id: str) -> Path:
