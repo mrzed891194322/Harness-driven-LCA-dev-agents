@@ -1001,12 +1001,9 @@ def test_cleanup_confirm_refused_outside_report_phase(
     monkeypatch.setattr(
         main.Context, "environment", classmethod(lambda cls, *a, **k: ctx)
     )
-    with patch.object(
-        main, "run_cleanup_output", side_effect=AssertionError("must not delete")
-    ):
-        value = main.cleanup_output(confirm=True)
+    value = main.cleanup_output(confirm=True)
     assert value["status"] == "failed"
-    assert "report phase" in value["errors"][0]["message"]
+    assert "host-only" in value["errors"][0]["message"]
 
 
 def test_cleanup_preview_allowed_outside_report_phase(context, monkeypatch):
@@ -1027,20 +1024,19 @@ def test_cleanup_preview_allowed_outside_report_phase(context, monkeypatch):
     assert run.call_args.kwargs["confirm"] is False
 
 
-def test_cleanup_confirm_allowed_in_report_phase(context, monkeypatch):
+def test_cleanup_confirm_rejected_in_report_phase(context, monkeypatch):
     import harness.tools.mcp.control_openlca.workflow_mcp as main
 
     monkeypatch.setenv(main.LCA_CONTROL_OPENLCA_MCP, "1")
     monkeypatch.setattr(
         main.Context, "environment", classmethod(lambda cls, *a, **k: context)
     )
-    with (
-        patch.object(main, "_endpoint_config", return_value=("localhost", 8080)),
-        patch.object(main, "serialized_ipc", lambda fn, **kw: fn),
-        patch.object(main, "run_cleanup_output", return_value={"ok": False}) as run,
+    with patch.object(
+        main, "run_cleanup_output", side_effect=AssertionError("must not delete")
     ):
-        main.cleanup_output(confirm=True)
-    assert run.call_args.kwargs["confirm"] is True
+        value = main.cleanup_output(confirm=True)
+    assert value["status"] == "failed"
+    assert "host-only" in value["errors"][0]["message"]
 
 
 def _fake_rpc_response(request, result):

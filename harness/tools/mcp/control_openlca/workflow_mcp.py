@@ -627,24 +627,25 @@ def cleanup_output(
 ) -> dict[str, Any]:
     """Clean workflow-imported entities from the active openLCA database."""
     if confirm:
-        _require_cleanup_phase(Context.environment())
+        return {
+            "status": "failed",
+            "errors": [
+                {
+                    "message": (
+                        "cleanup_output(confirm=true) is host-only; "
+                        "agents must use confirm=false preview"
+                    )
+                }
+            ],
+        }
     host, port = _endpoint_config()
-    result = run_cleanup_output(
+    return run_cleanup_output(
         host=host,
         port=port,
         target_category=_target_category(target_category),
         include_supporting=include_supporting,
-        confirm=confirm,
+        confirm=False,
     )
-    if confirm and result.get("ok"):
-        context = Context.environment()
-        operations.reconcile_cleanup(
-            context.safe(context.workspace / "records" / "import-operations"),
-            host,
-            port,
-            _target_category(target_category),
-        )
-    return result
 
 
 @mcp.tool(
