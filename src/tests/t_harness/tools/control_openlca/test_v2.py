@@ -1041,3 +1041,81 @@ def test_cleanup_confirm_allowed_in_report_phase(context, monkeypatch):
     ):
         main.cleanup_output(confirm=True)
     assert run.call_args.kwargs["confirm"] is True
+
+
+def _fake_rpc_response(request, result):
+    response = requests.Response()
+    response.status_code = 200
+    response.headers["Content-Type"] = "application/json"
+    body = json.loads(request.body or b"{}")
+    response._content = json.dumps(
+        {"jsonrpc": "2.0", "id": body.get("id"), "result": result}
+    ).encode()
+    response.request = request
+    response.url = request.url
+    return response
+
+
+def test_cleanup_budget_request_is_sent_with_short_read(context):
+    from requests.adapters import HTTPAdapter
+
+    from harness.tools.shared.control_openlca.connection import (
+        LONG_REQUEST_TIMEOUT,
+        _TimeoutHTTPAdapter,
+    )
+
+    sent: list[Any] = []
+
+    def transport(self, request, **kwargs):
+        sent.append(kwargs["timeout"])
+        return _fake_rpc_response(request, None)
+
+    adapter = _TimeoutHTTPAdapter(LONG_REQUEST_TIMEOUT)
+    session = requests.Session()
+    session.mount("http://", adapter)
+    with patch.object(HTTPAdapter, "send", transport):
+        with guard.endpoint_guard("localhost", 8080):
+            guard._local.deadline = time.monotonic() + 600
+            with guard.cleanup_budget():
+                session.post("http://localhost:8080", json={"id": 1})
+    assert len(sent) == 1
+    connect, read = sent[0]
+    assert read <= 8.0
+    assert connect + read <= guard.CLEANUP_WINDOW_SEC
+
+
+def test_calculation_dispose_reaches_openlca_through_http(context, monkeypatch):
+    from requests.adapters import HTTPAdapter
+
+    from harness.tools.shared.control_openlca import workflow
+    from harness.tools.shared.control_openlca.connection import BoundedIPCClient
+
+    methods: list[str] = []
+
+    def transport(self, request, **kwargs):
+        method = json.loads(request.body)["method"]
+        methods.append(method)
+        results = {
+            "result/calculate": {"@id": "r1", "isReady": True},
+            "result/state": {"@id": "r1", "isReady": True},
+            "result/total-impacts": [],
+            # openLCA answers dispose with the (disposed) ResultState object.
+            "result/dispose": {"@id": "r1", "isReady": False},
+        }
+        return _fake_rpc_response(request, results.get(method))
+
+    monkeypatch.setattr(
+        workflow,
+        "find_entity",
+        lambda client, cls, name: cls(id=f"{name}-id", name=name),
+    )
+    client = BoundedIPCClient(8080)
+    with patch.object(HTTPAdapter, "send", transport):
+        with guard.endpoint_guard("localhost", 8080):
+            guard._local.deadline = time.monotonic() + 600
+            out = workflow.calculate_product_system(
+                "localhost", 8080, "ps", "method", client=client
+            )
+    assert "result/dispose" in methods
+    assert out["resource_released"] is True, out["error"]
+    assert "dispose failed" not in (out["error"] or "")

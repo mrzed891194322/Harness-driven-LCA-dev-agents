@@ -89,14 +89,41 @@ def _write_guard_marker(uncertain: Path, endpoint: str) -> str:
     return token
 
 
+# Disposal gets its own short window after the main budget; each request in
+# it must use a read timeout that fits (connect + read + margin <= window).
+CLEANUP_WINDOW_SEC = 10.0
+CLEANUP_READ_SEC = 8.0
+CLEANUP_MARGIN_SEC = 0.5
+
+
+def cleanup_read_sec() -> float:
+    from .timeout_policy import DEFAULT_CONNECT_SEC
+
+    return max(
+        0.5,
+        min(
+            CLEANUP_READ_SEC,
+            CLEANUP_WINDOW_SEC - DEFAULT_CONNECT_SEC - CLEANUP_MARGIN_SEC,
+        ),
+    )
+
+
 @contextmanager
 def cleanup_budget():
-    """Reserve a bounded disposal attempt after the main request budget expires."""
+    """Reserve a bounded disposal attempt after the main request budget expires.
+
+    Besides the fresh deadline, cap the HTTP read timeout so requests are not
+    refused locally for needing the default 120 s read inside a 10 s window.
+    """
+    from .timeout_policy import ipc_read_cap_scope, ipc_read_scope
+
     previous = getattr(_local, "deadline", None)
     if previous is not None:
-        _local.deadline = time.monotonic() + 10.0
+        _local.deadline = time.monotonic() + CLEANUP_WINDOW_SEC
+    read = cleanup_read_sec()
     try:
-        yield
+        with ipc_read_scope(read), ipc_read_cap_scope(read):
+            yield
     finally:
         _local.deadline = previous
 

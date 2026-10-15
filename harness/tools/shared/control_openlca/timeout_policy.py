@@ -12,6 +12,8 @@ DEFAULT_HEALTH_PROBE_SEC = 10.0
 DEFAULT_CONNECT_SEC = 2.0
 
 _ipc_read_sec: ContextVar[float | None] = ContextVar("ipc_read_sec", default=None)
+# Hard upper bound on read timeout for every HTTP request (e.g. disposal window).
+_read_cap_sec: ContextVar[float | None] = ContextVar("read_cap_sec", default=None)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -55,6 +57,16 @@ def ipc_read_scope(read_sec: float):
         _ipc_read_sec.reset(token)
 
 
+@contextmanager
+def ipc_read_cap_scope(cap_sec: float):
+    """Cap the read timeout of every request (including fixed client tuples)."""
+    token = _read_cap_sec.set(cap_sec)
+    try:
+        yield
+    finally:
+        _read_cap_sec.reset(token)
+
+
 def resolve_http_read_timeout(
     *,
     read_sec: float | None = None,
@@ -64,6 +76,9 @@ def resolve_http_read_timeout(
     from .guard import remaining_budget
 
     configured = read_sec if read_sec is not None else active_read_sec()
+    cap = _read_cap_sec.get()
+    if cap is not None:
+        configured = min(configured, cap)
     remaining = remaining_budget()
     if remaining is None:
         return (connect_sec, configured)
