@@ -84,7 +84,7 @@ workspace/
 
 | 预设 | workspace | openLCA |
 | --- | --- | --- |
-| `whole-lca` | 删除 `runs/`（保留 `runs/_run/orchestrator.lock` 与 `**/README.md`）、`artifacts/`、`tmp/`，以及旧布局遗留的 `outputs/`、`records/` | 项目分类内实体（先于 workspace；openLCA 步失败则不清 workspace） |
+| `whole-lca` | 删除 `runs/`（保留 `runs/_run/orchestrator.lock` 与 `**/README.md`）、`artifacts/`、`tmp/`；**整目录**删除遗留的 `outputs/`、`records/`（不保留其中 README） | 项目分类内实体（先于 workspace；openLCA 步失败则不清 workspace） |
 | `revise-lca` | **不清理** | 同 whole-lca 的 openLCA 步 |
 | `resume-lca` | **不清理** | 不按整轮清理；04 在尝试开始前按 import 日志删未 accepted 的旧尝试实体 |
 

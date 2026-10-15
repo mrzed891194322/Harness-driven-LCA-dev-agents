@@ -313,7 +313,7 @@ def start_resume_workflow(
         blob = load_seed_acceptance(workspace, old_run_id)
         if not blob:
             raise ValueError("阶段 04 续跑缺少旧运行的 accepted[lca.model]")
-        # Kept with the plan (records/resume/<old>/), not in /tmp.
+        # Kept with the plan (runs/_run/resume/<old>/), not in /tmp.
         seed_path = plan_dir / "seed-acceptance.json"
         seed_path.write_text(json.dumps(blob, ensure_ascii=False), encoding="utf-8")
     fields = fields or PlanFields("", "", "", "")
