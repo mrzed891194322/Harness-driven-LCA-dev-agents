@@ -111,7 +111,9 @@ class TaskBundleResolveTests(unittest.TestCase):
             root = Path(temp_dir)
             workflow_path = write_minimal_workflow(root)
             payload = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-            payload["assignments"]["s1.executor"]["tools"] = {"mcp": ["missing_tool"]}
+            payload["assignments"]["s1.executor"]["tools"] = {
+                "mcp": {"add": ["missing_tool"]}
+            }
             workflow_path.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
             )

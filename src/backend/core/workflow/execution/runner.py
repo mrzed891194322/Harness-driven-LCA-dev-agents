@@ -372,7 +372,10 @@ class OrchestratorRuntime:
                 attempt=_attempt(state),
             )
         model = model_for_assignment(
-            self.project_root, assignment.assignment_id, self.model
+            self.project_root,
+            assignment.assignment_id,
+            self.model,
+            workflow=self.workflow,
         )
         key = session_key(assignment.assignment_id)
         sessions = dict(state.get("sessions") or {})

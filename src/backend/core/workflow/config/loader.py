@@ -28,11 +28,31 @@ from .resolve import attach_bundles
 from .yaml_strict import load_yaml_strict
 
 TOP_LEVEL_KEYS = frozenset(
-    {"id", "max_attempts", "registry", "defaults", "stages", "assignments"}
+    {
+        "id",
+        "max_attempts",
+        "registry",
+        "defaults",
+        "global",
+        "stages",
+        "assignments",
+        "plan",
+        "title",
+        "mode",
+        "models",
+    }
 )
-REGISTRY_KEYS = frozenset({"rules", "tools", "knowledge"})
+REGISTRY_KEYS = frozenset({"rules", "tools", "knowledge", "permissions"})
 FORBIDDEN_REGISTRY = frozenset({"checkers", "hooks", "handoff_validators"})
-DEFAULTS_KEYS = frozenset({"rules", "knowledge"})
+DEFAULTS_KEYS = frozenset(
+    {
+        "rules",
+        "knowledge",
+        "locked_rules",
+        "locked_rules_by_role",
+        "permissions",
+    }
+)
 TOOLS_REGISTRY_KEYS = frozenset({"mcp", "host_action"})
 MCP_TOOL_KEYS = frozenset(
     {
@@ -57,9 +77,24 @@ TOOL_RUNTIME_KEYS = frozenset(
 )
 KNOWLEDGE_KEYS = frozenset({"kind", "path", "provider"})
 STAGE_KEYS = frozenset(
-    {"id", "spec", "max_attempts", "steps", "knowledge", "rules", "tools", "context"}
+    {
+        "id",
+        "spec",
+        "max_attempts",
+        "steps",
+        "knowledge",
+        "rules",
+        "tools",
+        "context",
+        "title",
+        "short_title",
+        "resumable",
+        "phase_title",
+    }
 )
-ASSIGNMENT_KEYS = frozenset({"role", "tools", "rules", "knowledge", "permissions"})
+ASSIGNMENT_KEYS = frozenset(
+    {"role", "tools", "rules", "knowledge", "permissions", "model", "title", "spec"}
+)
 ASSIGNMENT_TOOLS_KEYS = frozenset({"mcp"})
 
 
@@ -290,8 +325,7 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             timeout_sec=timeout,
         )
 
-    defaults = raw.get("defaults") or {}
-    reject_unknown_keys(defaults, DEFAULTS_KEYS, f"{source_path}: defaults")
+    defaults = _merged_defaults(raw, label=str(source_path))
 
     assignments: dict[str, Assignment] = {}
     for assignment_id, spec in dict(raw.get("assignments") or {}).items():
@@ -313,9 +347,16 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             raise ValueError(
                 f"{source_path}: assignment {aid} has invalid role {role!r}"
             )
+        if "spec" in spec:
+            raise ValueError(
+                f"{source_path}: assignment {aid}: spec belongs on stage only"
+            )
+        model_ref = str(spec.get("model") or "").strip() or None
         assignments[aid] = Assignment(
             assignment_id=aid,
             role=role,
+            model=model_ref,
+            display_title=str(spec.get("title") or "").strip(),
             tools_decl=parse_mcp_tools_decl(
                 spec.get("tools"), label=f"{source_path}: assignment {aid} tools"
             )
@@ -374,6 +415,10 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 stage_id=stage_id,
                 spec=spec_relative_for(str(spec.get("spec") or "")),
                 max_attempts=stage_attempts,
+                display_title=str(spec.get("title") or "").strip(),
+                display_short_title=str(spec.get("short_title") or "").strip(),
+                resumable=bool(spec.get("resumable", False)),
+                phase_title=str(spec.get("phase_title") or "").strip(),
                 steps=steps,
                 knowledge_decl=parse_optional_list_field(spec["knowledge"])
                 if "knowledge" in spec
@@ -394,6 +439,51 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
             )
         )
 
+    locked_rules = [
+        require_identifier(str(item), label="locked rule id")
+        for item in defaults.get("locked_rules") or []
+    ]
+    locked_by_role: dict[str, list[str]] = {}
+    raw_locked_roles = defaults.get("locked_rules_by_role") or {}
+    if raw_locked_roles and not isinstance(raw_locked_roles, dict):
+        raise ValueError(f"{source_path}: locked_rules_by_role must be a mapping")
+    for role, ids in dict(raw_locked_roles).items():
+        locked_by_role[str(role)] = [
+            require_identifier(str(item), label="locked rule id") for item in ids or []
+        ]
+
+    perm_block = defaults.get("permissions") or {}
+    ceiling_ids: list[str] = []
+    if perm_block:
+        if not isinstance(perm_block, dict):
+            raise ValueError(f"{source_path}: defaults.permissions must be a mapping")
+        ceiling = perm_block.get("ceiling")
+        if ceiling is not None:
+            ceiling_ids = [
+                require_identifier(str(item), label="permission id")
+                for item in (ceiling if isinstance(ceiling, list) else [ceiling])
+            ]
+
+    registry_permissions: dict[str, str] = {}
+    for perm_id, perm_path in dict(registry.get("permissions") or {}).items():
+        pid = require_identifier(str(perm_id), label="permission id")
+        registry_permissions[pid] = require_relative_path(
+            str(perm_path), label=f"permission {pid} path"
+        )
+
+    models_block = raw.get("models") or {}
+    models_default = None
+    if models_block:
+        if not isinstance(models_block, dict):
+            raise ValueError(f"{source_path}: models must be a mapping")
+        if "default" in models_block:
+            models_default = str(models_block.get("default") or "").strip() or None
+
+    plan_path = require_relative_path(
+        str(raw.get("plan") or "harness/knowledge/plan/main_plan.md"),
+        label="plan path",
+    )
+
     return Workflow(
         workflow_id=workflow_id,
         max_attempts=default_attempts,
@@ -412,7 +502,30 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         stages=stages,
         assignments=assignments,
         source_path=source_path,
+        locked_rules=locked_rules,
+        locked_rules_by_role=locked_by_role,
+        plan_path=plan_path,
+        display_title=str(raw.get("title") or "").strip(),
+        display_mode=str(raw.get("mode") or "").strip(),
+        models_default=models_default,
+        permission_ceiling_ids=ceiling_ids,
+        registry_permissions=registry_permissions,
     )
+
+
+def _merged_defaults(raw: dict[str, Any], *, label: str) -> dict[str, Any]:
+    defaults = dict(raw.get("defaults") or {})
+    global_block = dict(raw.get("global") or {})
+    if defaults and global_block:
+        merged = {**defaults, **global_block}
+    elif global_block:
+        merged = global_block
+    else:
+        merged = defaults
+    if not isinstance(merged, dict):
+        raise ValueError(f"{label}: defaults/global must be a mapping")
+    reject_unknown_keys(merged, DEFAULTS_KEYS, f"{label}: defaults")
+    return merged
 
 
 def _parse_tool_runtime(spec: dict[str, Any], *, label: str) -> ToolRuntimeSpec | None:

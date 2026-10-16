@@ -113,6 +113,17 @@ defaults:
   knowledge:
   - workspace_knowledge
   - workflow_plan
+  locked_rules:
+  - workspace_boundary
+  - paths
+  - runtime
+  - openlca_usage
+  locked_rules_by_role:
+    reviewer:
+    - reviewer_readonly
+plan: harness/knowledge/plan/revise_plan.md
+title: 修订 LCA
+mode: revise
 stages:
 - id: 01-intake-gate
   spec: 01-intake-gate
@@ -171,7 +182,8 @@ assignments:
     role: reviewer
     tools:
       mcp:
-      - lca_artifacts
+        add:
+        - lca_artifacts
     rules:
       add:
       - reviewer_readonly
@@ -180,7 +192,8 @@ assignments:
     role: reviser
     tools:
       mcp:
-      - lca_artifacts
+        add:
+        - lca_artifacts
     rules:
       add:
       - assign_02_reviser
@@ -188,7 +201,8 @@ assignments:
     role: reviewer
     tools:
       mcp:
-      - lca_artifacts
+        add:
+        - lca_artifacts
     rules:
       add:
       - reviewer_readonly
@@ -197,8 +211,9 @@ assignments:
     role: reviser
     tools:
       mcp:
-      - control_openlca
-      - lca_artifacts
+        add:
+        - control_openlca
+        - lca_artifacts
     rules:
       add:
       - assign_03_reviser
@@ -206,8 +221,9 @@ assignments:
     role: reviewer
     tools:
       mcp:
-      - control_openlca
-      - lca_artifacts
+        add:
+        - control_openlca
+        - lca_artifacts
     rules:
       add:
       - reviewer_readonly
@@ -216,8 +232,9 @@ assignments:
     role: reviser
     tools:
       mcp:
-      - control_openlca
-      - lca_artifacts
+        add:
+        - control_openlca
+        - lca_artifacts
     rules:
       add:
       - assign_04_reviser
@@ -225,8 +242,9 @@ assignments:
     role: reviewer
     tools:
       mcp:
-      - control_openlca
-      - lca_artifacts
+        add:
+        - control_openlca
+        - lca_artifacts
     rules:
       add:
       - reviewer_readonly

@@ -869,6 +869,47 @@ def push_event(event: str, data: dict[str, Any]) -> None:
     _run_events.append({"id": _event_id, "event": event, "data": data})
 
 
+@app.get("/api/workflows")
+def list_workflows_api() -> dict[str, Any]:
+    from backend.services.workflow_manifest import list_workflows
+
+    root = PROJECT_ROOT / "harness" / "workflows"
+    return {"workflows": list_workflows(PROJECT_ROOT, root)}
+
+
+@app.get("/api/workflows/{name}/manifest")
+def workflow_manifest_api(name: str) -> dict[str, Any]:
+    from backend.services.workflow_manifest import workflow_manifest
+
+    path = PROJECT_ROOT / "harness" / "workflows" / f"{name}.yaml"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="workflow not found")
+    return workflow_manifest(PROJECT_ROOT, path)
+
+
+@app.get("/api/harness/injection")
+def harness_injection_preview(
+    workflow: str,
+    stage: str | None = None,
+    assignment: str | None = None,
+) -> dict[str, Any]:
+    from backend.services.injection_view import (
+        InjectionViewError,
+        build_injection_view,
+        injection_view_http_errors,
+    )
+
+    try:
+        return build_injection_view(
+            project_root=PROJECT_ROOT,
+            workflow_name=workflow,
+            stage_id=stage,
+            assignment_id=assignment,
+        )
+    except InjectionViewError as exc:
+        raise injection_view_http_errors(exc) from exc
+
+
 @app.get("/api/harness/catalog")
 def read_harness_catalog() -> dict[str, Any]:
     return harness_catalog(PROJECT_ROOT)
@@ -986,17 +1027,11 @@ def read_plan() -> dict[str, Any]:
 
 
 @app.put("/api/plan")
-def write_plan(body: PlanUpdate) -> dict[str, Any]:
-    save_plan(
-        PROJECT_ROOT,
-        PlanFields(
-            subject=body.subject,
-            functional_unit=body.functional_unit,
-            life_cycle_stages=body.life_cycle_stages,
-            conditions=body.conditions,
-        ),
+def write_plan(_body: PlanUpdate) -> dict[str, Any]:
+    raise HTTPException(
+        status_code=410,
+        detail="plan form autosave removed; edit harness/knowledge/plan via import or YAML path",
     )
-    return {"status": "saved", **read_plan_document(PROJECT_ROOT)}
 
 
 @app.get("/api/plan/template")

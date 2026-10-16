@@ -13,6 +13,7 @@ from pathlib import Path
 
 from backend.core.agents.catalog import split_pi_model_ref
 from backend.core.runtime.model_profiles import load_profiles
+from backend.core.workflow.config.models import Workflow
 
 ASSIGNMENT_MODELS_PATH = Path(".local/workflow-models.json")
 _ASSIGNMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$")
@@ -83,11 +84,58 @@ def save_assignment_models(project_root: Path, assignments: dict[str, str]) -> d
     return cleaned
 
 
-def model_for_assignment(project_root: Path, assignment_id: str, fallback: str) -> str:
-    """Return one assignment's model ref, or the run-wide model.
+def resolve_model_for_assignment(
+    project_root: Path,
+    workflow: Workflow,
+    assignment_id: str,
+    run_fallback: str,
+) -> tuple[str, str, str | None, str | None]:
+    """Return (effective, source, yaml_model, override_model).
 
-    A ref may be a saved profile id or ``provider/model_id`` from a connected catalog.
+    Precedence: assignment YAML model > workflow models.default > .local override > run_fallback.
     """
+    assignment = workflow.assignments.get(assignment_id)
+    yaml_model = (assignment.model or "").strip() if assignment else ""
+    yaml_default = (workflow.models_default or "").strip()
+    override = load_assignment_models(project_root).get(assignment_id, "").strip()
+    local_default = load_default_model(project_root)
+
+    if yaml_model:
+        _validate_model_ref(project_root, yaml_model)
+        return yaml_model, "yaml", yaml_model, override or None
+    if yaml_default:
+        _validate_model_ref(project_root, yaml_default)
+        return yaml_default, "yaml_default", None, override or None
+    if override:
+        _validate_model_ref(project_root, override)
+        return override, "override", None, override
+    if local_default:
+        _validate_model_ref(project_root, local_default)
+        return local_default, "override_default", None, None
+    return run_fallback, "run", None, None
+
+
+def _validate_model_ref(project_root: Path, model_ref: str) -> None:
+    if model_ref in load_profiles(project_root):
+        return
+    provider, model_id = split_pi_model_ref(model_ref)
+    if provider and model_id:
+        return
+    raise ValueError(f"unknown model name in workflow YAML: {model_ref!r}")
+
+
+def model_for_assignment(
+    project_root: Path,
+    assignment_id: str,
+    fallback: str,
+    workflow: Workflow | None = None,
+) -> str:
+    """Return one assignment's model ref, or the run-wide model."""
+    if workflow is not None:
+        effective, _, _, _ = resolve_model_for_assignment(
+            project_root, workflow, assignment_id, fallback
+        )
+        return effective
     chosen = load_assignment_models(project_root).get(assignment_id, "").strip()
     if not chosen:
         return fallback

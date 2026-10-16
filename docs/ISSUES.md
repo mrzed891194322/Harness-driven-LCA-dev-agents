@@ -77,6 +77,14 @@
 - **旧运行的续跑**：spec 文件哈希和 `get_spec` 视图都进了指纹，P5 之前开始的运行不能在 P5 代码上续跑，只能重开。
 
 
+## PR1：三层注入与权限收窄（2026-10-16）
+
+| 问题 | 状态 | 处理 |
+| --- | --- | --- |
+| plain list replacement bypasses red lines | ✅ 已关闭 | `config/compose.py`：global 以下仅 `{add,remove}`，plain list 报 `E-COMPOSE-PLAIN-LIST`；`locked_rules` / `locked_rules_by_role` |
+| assignment permissions can widen | ✅ 已关闭 | `permission_narrow.py`：ceiling（worker-default ∪ reviewer）→ stage → assignment 交集，扩权 `E-PERM-WIDEN` |
+| plan autosave overwrote form on import | ✅ 已关闭 | `PUT /api/plan` 返回 410；计划路径由 workflow `plan:` 声明 |
+
 ## PR0：工作流本地副本与 `harness/.user` 收敛（2026-10-16）
 
 - **已做（`feat/pr0-local-workflow-yaml`）**：默认 workflow 在 `harness/workflows/`；运行与编排读 `.local/harness/workflows/<name>.yaml`（首次启动复制，默认更新且本地未改时自动同步；`GET /api/diagnostics/environment` → `local_workflows`；`GET /api/harness/workflows/{name}/diff`、`POST …/restore-default`）。开跑快照仍写 `runs/_run/evidence/<run>/workflow.yaml`，`manifest.json` 增加 `workflow_snapshot`；同 run `--resume` 读快照而非当前 `.local`。

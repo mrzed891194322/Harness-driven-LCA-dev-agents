@@ -109,6 +109,17 @@ defaults:
   knowledge:
   - workspace_knowledge
   - workflow_plan
+  locked_rules:
+  - workspace_boundary
+  - paths
+  - runtime
+  - openlca_usage
+  locked_rules_by_role:
+    reviewer:
+    - reviewer_readonly
+plan: harness/knowledge/plan/main_plan.md
+title: 完整 LCA
+mode: main
 stages:
 - id: 01-intake-gate
   spec: 01-intake-gate
@@ -163,7 +174,8 @@ assignments:
     role: reviewer
     tools:
       mcp:
-      - lca_artifacts
+        add:
+        - lca_artifacts
     rules:
       add:
       - reviewer_readonly
@@ -172,7 +184,8 @@ assignments:
     role: executor
     tools:
       mcp:
-      - lca_artifacts
+        add:
+        - lca_artifacts
     rules:
       add:
       - assign_02_executor
@@ -180,7 +193,8 @@ assignments:
     role: reviewer
     tools:
       mcp:
-      - lca_artifacts
+        add:
+        - lca_artifacts
     rules:
       add:
       - reviewer_readonly
@@ -189,8 +203,9 @@ assignments:
     role: executor
     tools:
       mcp:
-      - control_openlca
-      - lca_artifacts
+        add:
+        - control_openlca
+        - lca_artifacts
     rules:
       add:
       - assign_03_executor
@@ -198,8 +213,9 @@ assignments:
     role: reviewer
     tools:
       mcp:
-      - control_openlca
-      - lca_artifacts
+        add:
+        - control_openlca
+        - lca_artifacts
     rules:
       add:
       - reviewer_readonly
@@ -208,8 +224,9 @@ assignments:
     role: executor
     tools:
       mcp:
-      - control_openlca
-      - lca_artifacts
+        add:
+        - control_openlca
+        - lca_artifacts
     rules:
       add:
       - assign_04_executor
@@ -217,8 +234,9 @@ assignments:
     role: reviewer
     tools:
       mcp:
-      - control_openlca
-      - lca_artifacts
+        add:
+        - control_openlca
+        - lca_artifacts
     rules:
       add:
       - reviewer_readonly

@@ -13,7 +13,7 @@ from typing import Any
 
 from backend.core.agents import spec_mcp
 from backend.core.agents.mcp import tool_entry_to_mcp
-from backend.core.agents.permission_rules import resolve_permissions
+from backend.core.agents.permission_narrow import resolve_permissions_narrowed
 from backend.core.agents.session import SessionConfig
 from backend.core.contracts.session_launch_spec import (
     KnowledgeBinding,
@@ -89,7 +89,7 @@ def compile_permission_policy(
 ) -> PermissionPolicy:
     """Tools + path scopes come from the stage spec's permissions.yaml (fail closed)."""
     del workspace_root  # scopes are rule-driven, relative to the project root
-    resolved = resolve_permissions(
+    resolved = resolve_permissions_narrowed(
         project_root=project_root,
         role=role,
         rule_refs=rule_refs,

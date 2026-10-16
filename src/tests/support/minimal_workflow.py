@@ -325,7 +325,9 @@ def write_minimal_workflow(
             f"{stage_id}.executor": {
                 "role": "executor",
                 "tools": {
-                    "mcp": executor_tools if executor_tools is not None else [tool_id]
+                    "mcp": {
+                        "add": executor_tools if executor_tools is not None else [tool_id]
+                    }
                 },
                 "rules": executor_rules
                 if executor_rules is not None
@@ -333,7 +335,7 @@ def write_minimal_workflow(
             },
             f"{stage_id}.reviewer": {
                 "role": "reviewer",
-                "tools": {"mcp": []},
+                "tools": {"mcp": {"add": []}},
             },
         },
     }

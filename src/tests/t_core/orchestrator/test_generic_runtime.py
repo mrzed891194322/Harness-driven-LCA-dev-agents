@@ -165,9 +165,9 @@ class GenericRuntimeTests(unittest.TestCase):
                 "assignments": {
                     "s1.executor": {
                         "role": "executor",
-                        "tools": {"mcp": ["fake_tool", "plain_tool"]},
+                        "tools": {"mcp": {"add": ["fake_tool", "plain_tool"]}},
                     },
-                    "s1.reviewer": {"role": "reviewer", "tools": {"mcp": []}},
+                    "s1.reviewer": {"role": "reviewer", "tools": {"mcp": {"add": []}}},
                 },
             }
             path = root / "harness" / "runtime-test.yaml"

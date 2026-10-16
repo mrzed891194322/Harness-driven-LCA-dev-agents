@@ -329,11 +329,11 @@ assert not loaded, loaded
             )
             payload["assignments"]["b.executor"] = {
                 "role": "executor",
-                "tools": {"mcp": ["probe"]},
+                "tools": {"mcp": {"add": ["probe"]}},
             }
             payload["assignments"]["b.reviewer"] = {
                 "role": "reviewer",
-                "tools": {"mcp": []},
+                "tools": {"mcp": {"add": []}},
             }
             two.write_text(
                 yaml.safe_dump(payload, allow_unicode=True), encoding="utf-8"
