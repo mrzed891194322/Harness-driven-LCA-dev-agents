@@ -10,11 +10,11 @@ specs/
 settings.yaml
 ```
 
-工作流装配图在 `src/backend/workflows/`（`LCA-main.yaml`、`LCA-revise.yaml`），由后端任务映射加载。
+工作流默认装配在 `harness/workflows/`（`LCA-main.yaml`、`LCA-revise.yaml`）；运行读 `.local/harness/workflows/` 副本。任务映射见 `workflow_cli.py`。
 
 | 路径 | 作用 |
 | --- | --- |
-| `src/backend/workflows/LCA-main.yaml` / `LCA-revise.yaml` | 完整独立装配图（无 reuse / stage_overrides） |
+| `harness/workflows/LCA-main.yaml` / `LCA-revise.yaml`（生效副本在 `.local/harness/workflows/`） | 完整独立装配图（无 reuse / stage_overrides） |
 | `specs/` | 机器契约：`spec.yaml` + JSON Schema + examples（无 Markdown） |
 | `rules/` | `prompts/`：Agent 自然语言提示词规则（project / lca / tools / stages / assignments）；`permissions/`：白名单权限规则（格式见 `specs/shared/permissions/README.md`，规则文件尚未落地） |
 | `tools/` | `mcp/`、`host_action/`、`shared/` 三层 |

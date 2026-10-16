@@ -243,7 +243,7 @@ def _launch(tmp_path, monkeypatch, stage_id: str, role: str = "executor"):
     key = tmp_path / "spec_mcp.key"
     key.write_bytes(b"k" * 64)
     monkeypatch.setattr(host, "ensure_key", lambda _root: key)  # never touch repo .local/
-    workflow = load_workflow(REPO / "src/backend/workflows/LCA-main.yaml", project_root=REPO,
+    workflow = load_workflow(REPO / "harness/workflows/LCA-main.yaml", project_root=REPO,
                              capabilities=base_capabilities())
     stage = workflow.stage_by_id(stage_id)
     assignment = workflow.assignments[f"{stage_id}.{role}"]

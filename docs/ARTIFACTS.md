@@ -103,7 +103,7 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
 | 运行级 | 运行摘要 | `workspace/runs/_run/manifest.json` | JSON：`status`、`current_stage`、`status_reason`、`run_id` | 编排器 `publish_state` | `GET /api/workflow/manifest`、progress/activity 接口取 run_id | `/runs` 状态 |
 | 运行级 | 检查点 | `workspace/runs/_run/orchestrator.sqlite`（+ `orchestrator.lock`） | SQLite | `CheckpointStore` | 断点续跑 | 不显示 |
 | 运行级 | 运行配置指纹 | `workspace/runs/_run/evidence/<run>/runtime-config.json` | JSON：实现、rules、tools、knowledge、各阶段 spec + schema 的哈希 | 编排器 | 续跑时比对 | 不显示 |
-| 运行级 | 工作流快照 | `workspace/runs/_run/evidence/<run>/workflow.yaml`（镜像 `.local/runs/<run>/workflow.yaml`） | 启动时 workflow YAML 原文 | 编排器 `write_workflow_snapshot` | `resume-lca` 资格校验与过滤装配 | 不显示 |
+| 运行级 | 工作流快照 | `workspace/runs/_run/evidence/<run>/workflow.yaml`（镜像 `.local/runs/<run>/workflow.yaml`） | 开跑时**当时生效**的 workflow YAML 原文（含 `.local/harness/workflows` 副本） | 编排器 `write_workflow_snapshot`；`runs/_run/manifest.json` 的 `workflow_snapshot` 指向相对路径 | 同 run 断点续跑读快照，不读当前 `.local`；`resume-lca` 资格校验 | 不显示 |
 | 续跑计划 | 续跑元数据 | `workspace/runs/_run/resume/<old_run_id>/{workflow.yaml,cleanup.json,plan.json}`（镜像 `.local/runs/<old_run_id>/resume/`） | 过滤后的 `resume-lca` 装配、删除清单、摘要 | `resume_plan.build_plan` | `POST /api/workflow/resume` | 不显示 |
 | 续跑运行 | 续跑来源 | `workspace/runs/_run/evidence/<new_run>/resume.json`；`manifest.json` 的 `resumed_from` / `resume_from_stage` | JSON | 编排器 `--resumed-from` / `--from-stage` | 运行历史、排障 | `/runs` 续跑 UI |
 | 运行级 | 上游返工记录 | `workspace/runs/_run/rework/upstream-<n>.json` | JSON：`stale_stages`、`reason`、`at` | 编排器 `_invalidate_stages` | 人工 | 不显示 |

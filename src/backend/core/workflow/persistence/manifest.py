@@ -23,6 +23,7 @@ def write_manifest(
     attempt: int | None = None,
     resumed_from: str | None = None,
     resume_from_stage: str | None = None,
+    workflow_snapshot: str | None = None,
 ) -> None:
     path = manifest_path(workspace_root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -38,4 +39,22 @@ def write_manifest(
         payload["resumed_from"] = resumed_from
     if resume_from_stage:
         payload["resume_from_stage"] = resume_from_stage
+    if workflow_snapshot:
+        payload["workflow_snapshot"] = workflow_snapshot
+    write_json_atomic(path, payload)
+
+
+def patch_manifest(workspace_root: Path, **fields: Any) -> None:
+    path = manifest_path(workspace_root)
+    payload: dict[str, Any] = {}
+    if path.is_file():
+        try:
+            import json
+
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                payload = raw
+        except (OSError, ValueError):
+            payload = {}
+    payload.update({k: v for k, v in fields.items() if v is not None})
     write_json_atomic(path, payload)

@@ -105,7 +105,10 @@ def _web_origins() -> list[str]:
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     from backend.services.run_reconcile import reconcile_project
 
+    from backend.services.local_workflows import sync_all
+
     await asyncio.to_thread(reconcile_project, PROJECT_ROOT)
+    await asyncio.to_thread(sync_all, PROJECT_ROOT)
     yield
     # Release this process's sessions (and their MCP servers) and disconnect from
     # the project's pi-runtime. The runtime itself is stopped by `npm run stop`.
@@ -879,6 +882,32 @@ def read_harness_file(path: str) -> dict[str, str]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="document not found") from exc
+
+
+@app.get("/api/harness/workflows/{name}/diff")
+def workflow_default_diff(name: str) -> dict[str, str]:
+    from backend.services.local_workflows import unified_diff_text
+
+    try:
+        diff = unified_diff_text(PROJECT_ROOT, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="workflow not found") from exc
+    return {"name": name, "diff": diff}
+
+
+@app.post("/api/harness/workflows/{name}/restore-default")
+def workflow_restore_default(name: str) -> dict[str, Any]:
+    from backend.services.local_workflows import restore_default, workflow_status
+
+    try:
+        item = restore_default(PROJECT_ROOT, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="workflow not found") from exc
+    return {"workflow": item.to_dict(), "status": workflow_status(PROJECT_ROOT)}
 
 
 class SpecPartBody(BaseModel):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from backend.services.project_paths import BACKEND_ROOT
+from backend.core.workflow import local_workflows
 
 _TEXT_SUFFIXES = {".md", ".yaml", ".yml", ".json"}
 _WORKFLOW_DOC_PREFIX = "workflows/"
@@ -55,8 +55,9 @@ def read_harness_document(project: Path, relative: str) -> dict:
         content = path.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
         raise HarnessPathError("document is not utf-8 text") from exc
-    workflows_root = (BACKEND_ROOT / "workflows").resolve()
-    if path.resolve().is_relative_to(workflows_root):
+    local_root = local_workflows.local_workflows_root(project).resolve()
+    default_root = (project / "harness" / "workflows").resolve()
+    if path.resolve().is_relative_to(local_root) or path.resolve().is_relative_to(default_root):
         rel = f"{_WORKFLOW_DOC_PREFIX}{path.name}"
     else:
         root = (project / "harness").resolve()
@@ -111,7 +112,7 @@ def _collect(root: Path, section_id: str, suffixes: set[str]) -> list[Path]:
         return []
     resolved_root = root.resolve()
     if section_id == "workflows":
-        workflow_dir = BACKEND_ROOT / "workflows"
+        workflow_dir = root / "workflows"
         if not workflow_dir.is_dir():
             return []
         found = [
@@ -146,15 +147,19 @@ def _resolve_document(project: Path, relative: str) -> Path:
         name = relative[len(_WORKFLOW_DOC_PREFIX) :]
         if "/" in name or name.startswith("."):
             raise HarnessPathError("invalid harness path")
-        candidate = (BACKEND_ROOT / "workflows" / name).resolve()
+        candidate = local_workflows.effective_workflow_path(project, name)
     else:
         candidate = (root / relative).resolve()
     if candidate.is_relative_to(root):
         pass
-    elif not (
-        relative.startswith(_WORKFLOW_DOC_PREFIX)
-        and candidate.is_relative_to((BACKEND_ROOT / "workflows").resolve())
-    ):
+    elif relative.startswith(_WORKFLOW_DOC_PREFIX):
+        default_root = (project / "harness" / "workflows").resolve()
+        local_root = local_workflows.local_workflows_root(project).resolve()
+        if not (
+            candidate.is_relative_to(default_root) or candidate.is_relative_to(local_root)
+        ):
+            raise HarnessPathError("invalid harness path")
+    else:
         raise HarnessPathError("invalid harness path")
     if candidate.suffix.lower() not in _TEXT_SUFFIXES:
         raise HarnessPathError("unsupported harness document")

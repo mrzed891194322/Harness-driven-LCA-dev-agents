@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend.core.workflow.main import main
+from backend.core.workflow.persistence.manifest import manifest_path
 from backend.core.workflow.persistence.workflow_snapshot import (
     evidence_workflow_path,
     local_workflow_path,
@@ -38,5 +39,7 @@ def test_write_workflow_snapshot_on_new_run(tmp_path: Path) -> None:
     assert code == 0
     assert evidence_workflow_path(workspace, run_id).read_text(encoding="utf-8") == expected
     assert local_workflow_path(PROJECT_ROOT, run_id).read_text(encoding="utf-8") == expected
+    rel = evidence_workflow_path(workspace, run_id).relative_to(workspace).as_posix()
+    assert manifest_path(workspace).read_text(encoding="utf-8").find(rel) >= 0
     local_workflow_path(PROJECT_ROOT, run_id).unlink()
     (local_workflow_path(PROJECT_ROOT, run_id).parent).rmdir()

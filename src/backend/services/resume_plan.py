@@ -23,7 +23,10 @@ from backend.core.workflow.persistence.workflow_snapshot import (
     local_workflow_path,
 )
 from backend.core.workflow.resume_stages import normalize_resume_code, stage_id_from_code
-from backend.services.project_paths import MAIN_WORKFLOW_REL
+from backend.core.workflow.local_workflows import (
+    MAIN_WORKFLOW_NAME,
+    effective_workflow_path,
+)
 from backend.services.run_reconcile import workflow_status_for_run
 from backend.settings import run_root
 from harness.tools.shared.control_openlca import cleanup as openlca_cleanup
@@ -155,9 +158,9 @@ def _resolve_snapshot_yaml(
     except (OSError, json.JSONDecodeError):
         reasons.append("runtime-config.json 无法读取")
         return None, reasons
-    main_path = project_root / MAIN_WORKFLOW_REL
+    main_path = effective_workflow_path(project_root, MAIN_WORKFLOW_NAME)
     if not main_path.is_file():
-        reasons.append("当前构建缺少默认 LCA-main.yaml")
+        reasons.append("当前构建缺少 LCA-main.yaml")
         return None, reasons
     workflow = load_workflow(
         main_path, project_root=project_root, capabilities=base_capabilities()

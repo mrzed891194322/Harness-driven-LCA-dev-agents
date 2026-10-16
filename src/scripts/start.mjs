@@ -50,12 +50,13 @@ function reportTimeout(label) {
   process.exit(1);
 }
 
-function run(command, args, { timeoutMs, stdio = "inherit" } = {}) {
+function run(command, args, { timeoutMs, stdio = "inherit", env } = {}) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd: root,
       stdio,
       shell: windows,
+      env: env ? { ...process.env, ...env } : process.env,
     });
     current = child;
     let settled = false;
@@ -78,8 +79,8 @@ function run(command, args, { timeoutMs, stdio = "inherit" } = {}) {
   });
 }
 
-async function runOrExit(command, args, { timeoutMs, timeoutLabel } = {}) {
-  const result = await run(command, args, { timeoutMs });
+async function runOrExit(command, args, { timeoutMs, timeoutLabel, env } = {}) {
+  const result = await run(command, args, { timeoutMs, env });
   if (result.timedOut) reportTimeout(timeoutLabel);
   if (result.error) fail(`Failed to run ${command}: ${result.error.message}`);
   if (result.code !== 0) process.exit(result.code ?? 1);
@@ -135,6 +136,13 @@ if (!fs.existsSync(path.join(root, "node_modules", "typescript", "bin", "tsc")))
 
 console.log("Building pi-runtime...");
 await runOrExit("npm", ["run", "build", "-w", "@harness/pi-runtime"]);
+
+console.log("Syncing local workflow copies...");
+await runOrExit("uv", ["run", "--no-sync", "python", "-m", "backend.services.local_workflows", "--sync"], {
+  timeoutMs: SYNC_TIMEOUT_MS,
+  env: { PYTHONPATH: [path.join(root, "src"), root, process.env.PYTHONPATH || ""].filter(Boolean).join(path.delimiter) },
+  timeoutLabel: "workflow sync",
+});
 
 console.log("Starting the control panel...");
 await runOrExit("npm", ["run", "dev", "--", ...process.argv.slice(2)]);

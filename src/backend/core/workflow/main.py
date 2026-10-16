@@ -6,6 +6,7 @@ import argparse
 import json
 import signal
 import sys
+import yaml
 import threading
 import uuid
 from pathlib import Path
@@ -56,7 +57,13 @@ from backend.core.workflow.persistence.config_fingerprint import (  # noqa: E402
     write_runtime_config,
 )
 from backend.core.workflow.persistence.workflow_snapshot import (  # noqa: E402
+    read_workflow_snapshot_text,
     write_workflow_snapshot,
+)
+from backend.core.workflow.local_workflows import (  # noqa: E402
+    DEFAULT_WORKFLOWS_DIR,
+    effective_workflow_path,
+    sync_all,
 )
 from backend.core.agents.injection import strict_mode as injection_strict_mode  # noqa: E402
 from backend.settings import parse_env_file  # noqa: E402
@@ -115,14 +122,27 @@ def _main(args: argparse.Namespace) -> int:
     project_root = args.project_root.resolve()
     workspace_root = (args.workspace or (project_root / "workspace")).resolve()
     ensure_uv_cache_dir(project_root)
+    sync_all(project_root)
     worker = (args.worker or _load_worker(project_root)).strip().lower()
     if worker not in WORKERS:
         print_orchestrator(f"unsupported worker: {worker}", file=sys.stderr)
         return 2
 
-    workflow_path = args.workflow.resolve()
-    workflow_text = workflow_path.read_text(encoding="utf-8")
-    document = read_workflow_document(workflow_path, project_root=project_root)
+    workflow_path = _resolve_workflow_cli_path(project_root, args.workflow)
+    snap = (
+        read_workflow_snapshot_text(project_root, workspace_root, args.run_id)
+        if args.run_id
+        else None
+    )
+    if snap:
+        workflow_text = snap
+        document = yaml.safe_load(snap)
+        if not isinstance(document, dict):
+            print_orchestrator("workflow snapshot is not a mapping", file=sys.stderr)
+            return 2
+    else:
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        document = read_workflow_document(workflow_path, project_root=project_root)
     capabilities = base_capabilities()
     task_label = str(workflow_path)
     workflow = load_workflow(
@@ -311,6 +331,20 @@ def _restore_handlers(previous: dict[int, object]) -> None:
             signal.signal(sig, handler)  # type: ignore[arg-type]
         except (ValueError, OSError, TypeError):
             pass
+
+
+def _resolve_workflow_cli_path(project_root: Path, workflow: Path) -> Path:
+    path = workflow
+    if not path.is_absolute():
+        path = (project_root / path).resolve()
+    default_root = (project_root / DEFAULT_WORKFLOWS_DIR).resolve()
+    try:
+        rel = path.relative_to(default_root)
+    except ValueError:
+        return path
+    if len(rel.parts) == 1 and rel.suffix.lower() in {".yaml", ".yml"}:
+        return effective_workflow_path(project_root, rel.name)
+    return path
 
 
 def peek_tool_ids(path: Path, *, project_root: Path) -> list[str]:
