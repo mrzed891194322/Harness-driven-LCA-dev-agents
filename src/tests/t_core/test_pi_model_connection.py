@@ -38,7 +38,7 @@ def _turn(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, result: dict[str, Any
 
 
 def test_model_connection_result_raises_transport_error(monkeypatch, tmp_path) -> None:
-    outcome = {"stop_reason": "error", "error_kind": "connection", "tool_calls": 0, "retries": 4}
+    outcome = {"stop_reason": "error", "error_kind": "connection", "tool_calls": 0, "sdk_retries": 4}
     with pytest.raises(WorkerTransportError) as info:
         _turn(monkeypatch, tmp_path, {
             "status": "error", "kind": "model_connection", "message": "Connection error.",
@@ -46,7 +46,7 @@ def test_model_connection_result_raises_transport_error(monkeypatch, tmp_path) -
         })
     assert "模型连接失败" in str(info.value)
     assert "Connection error." in str(info.value)
-    assert info.value.outcome["retries"] == 4
+    assert info.value.outcome["sdk_retries"] == 4
     assert info.value.outcome["started_at"] == "a"
 
 

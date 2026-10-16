@@ -61,7 +61,7 @@ def format_turn(rec: dict) -> str:
         f"    {TURN_MARK.get(kind, '?')} turn#{rec.get('turn')} {TURN_LABEL.get(kind, kind)}"
         f"  stop={rec.get('stop_reason')} err={rec.get('error_kind')}"
         f" tokens={rec.get('input_tokens')}/{rec.get('output_tokens')}"
-        f" tools={rec.get('tool_calls')} sdk_retries={rec.get('retries')}"
+        f" tools={rec.get('tool_calls')} sdk_retries={rec.get('sdk_retries', rec.get('retries'))}"
         f" {rec.get('started_at') or ''}→{rec.get('ended_at') or ''}{msg}"
     )
 

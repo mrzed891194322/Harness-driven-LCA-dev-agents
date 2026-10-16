@@ -24,7 +24,10 @@ export default function HarnessIndexPage() {
         if (cancelled) return;
         setCatalog(data);
         const first = data.sections[0]?.groups[0]?.entries[0]?.path;
-        if (first) router.replace(harnessHref(first));
+        // Only redirect while still on the index: never override a link the user
+        // already clicked while the catalog (or a dev-mode compile) was loading.
+        const onIndex = window.location.pathname.replace(/\/+$/, "") === "/harness";
+        if (first && onIndex) router.replace(harnessHref(first));
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "无法加载 Harness 目录");

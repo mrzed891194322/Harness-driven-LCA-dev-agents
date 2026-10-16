@@ -43,8 +43,9 @@
 | 35 | 🟢 | run `5e2bbc4f` 02/03：模型连接掉线（每次调用 `stopReason=error`、`Connection error.`、0 token），pi SDK 自动重试 4 次后放弃但 `session.prompt()` 正常返回，回合被报成 `ok`，编排器记为“worker turn ended without handoff file”并消耗协议返工额度（03 两分钟内 1/3→3/3）；日志里看不到掉线 | `session_host.ts`、`turn_outcome.ts`、`pi_client/client.py`、`process.py`、`runner.run_sdk` | 分支 `fix/model-connection-failure`：以 SDK 原生事件 `auto_retry_end{success:false, finalError}` 为主信号（兜底：末条 assistant `stopReason` error/aborted 且错误像连接类），本轮无成功工具调用时返回 `status:error, kind:model_connection`，后端转成 `WorkerTransportError` 走原有 5 次退避重试、同会话恢复，不计协议返工；用尽后失败原因“worker 模型连接失败”。`_TRANSIENT_RUNTIME_ERROR` 补 `connection error` 等兜底 |
 | 36 | 🟢 | 模型正常结束但本轮 0 工具调用、未交 handoff，直接计入协议返工 | `runner.run_sdk` | 同分支：同会话提醒继续并提交 handoff，最多 2 次（`WORKER_NUDGE_LIMIT`），独立计数，不计协议返工 |
 | 37 | 🟢 | “额度 3/3 后又 prepare”：不是越界，上限=最多 3 次返工（共 4 轮），显示方式易误解；且掉线与真协议错误共用同一额度 | `runner._rework_invalid_handoff` | 语义不变，日志改为 `protocol rework 1/3 (剩余 2 次)`；连接重试与提醒均不计入 |
-| 38 | 🟢 | 每轮 worker turn 无结构化记录；`pi-runtime.log` 只记连接开/关（单连接自 10:58 起不再写） | `runner._record_turn`、`inspect_run.py`、`agent-stream.tsx` | 同分支：每轮写 `worker_turn` 事件（stop_reason、error_kind=connection/timeout/429/5xx/none、error_message、input/output tokens、tool_calls、SDK retries、起止时间），backend.log 一行摘要；运行详情把“模型连接失败”显示为错误、与“agent 未交 handoff”分开；`npm run inspect` 按会话列出每轮 |
+| 38 | 🟢 | 每轮 worker turn 无结构化记录；`pi-runtime.log` 只记连接开/关（单连接自 10:58 起不再写） | `runner._record_turn`、`inspect_run.py`、`agent-stream.tsx` | 同分支：每轮写 `worker_turn` 事件（stop_reason、error_kind=connection/timeout/429/5xx/none、error_message、input/output tokens、tool_calls、`sdk_retries`（pi SDK `auto_retry_start` 次数，含已自愈的重试；≠ 后端 `transport_retry`、≠ `protocol_repairs`）、起止时间），backend.log 一行摘要；运行详情把“模型连接失败”显示为错误、与“agent 未交 handoff”分开；`npm run inspect` 按会话列出每轮 |
 | 39 | 🟡 | run `8ab95ee0`：各阶段 `attempts.json` 里已结束的尝试仍是 `status=running`、`ended_at=null`，但 01、02 已有 `accepted.json`，结束时这两个字段没回写（不影响运行，影响续跑判断和 inspect） | 尝试记录的结束回写路径（待查） | 待处理，并入近期测试整理：attempt 结束（accepted/failed/rework）时回写 status 和 ended_at，加回归测试 |
+| 40 | 🟢 | openLCA 中途无响应后 agent 一律被要求停下交失败（`stop_and_submit_failed`），即使导入状态能核对清楚也不能续导 | `ipc_failure.as_import_recoverable`、`operations.import_request`/`resume_import_request`/`reconcile_import`、`rules/tools/control_openlca.md` | 分支 `fix/run-page-signals`，按 Du Yuan 2026-10-16 决定：导入传输失败改回 `agent_action: reconcile_and_resume`（仍 `retryable:false`，事件与 `.uncertain` 保留）；`reconcile_import` 返回 `state_confirmed`，确认则 `resume_import`，对账自身传输失败/预检失效/核对有 issues 则 `stop_and_submit_failed`；cleanup/calculate 仍直接停 |
 | 18 | 🟢 P1 `5b89231` | `test_plan_form` 失败（解析 `main_plan.md` 的 CML 条件） | `src/tests` | 与 plan 文件内容有关 |
 
 ## 前端（GUI）
@@ -108,3 +109,14 @@
 修复：`store.normalize_sha256` 先校验传入值必须是 64 位十六进制（容忍大小写和首尾空白），否则报 `invalid sha256: expected 64 hex characters, got N`；格式正确但不一致时仍报 mismatch，并提示从 handoff/evidence manifest 原样复制。回归测试 `src/tests/t_harness/tools/lca_artifacts/test_read_artifact_checksum.py` 断言宿主 `ref()` 记录的 sha 能被 reviewer 的 `resolve_ref` 验证通过。
 
 后续：`read_artifact` 支持只传路径。省略 `sha256` 时，工具在本轮 evidence manifest 的调用记录（同一路径以最后一次为准）、accepted 快照、文件所属 attempt 的 `handoff.json` 里查宿主为该路径记录的 sha，再按它校验文件；查不到就报 `no recorded sha256`，绝不跳过校验直接读。传了 `sha256` 时行为不变。`harness/rules/tools/` 已改为建议只传路径、不要手抄 sha。
+
+## fix/run-page-signals（2026-10-16）
+
+| 问题 | 状态 | 处理 |
+| --- | --- | --- |
+| 运行页 openLCA 红条一旦出现就粘住（`current \|\| hit`），恢复/运行结束后仍红 | ✅ 已关闭 | `lib/openlca-signal.ts` 按活动事件折叠：最近一次 `openlca_unresponsive` 之后若有成功的 `control_openlca` 工具结果，或运行已结束，改为非红提示「HH:MM openLCA 曾无响应，已恢复」；不做前端持久化 |
+| 运行结束后「当前阶段」显示「准备开始」 | ✅ 已关闭 | completed 显示「全部完成」（附 status_reason）；failed/interrupted/aborted 显示状态与最后阶段（取自活动事件 `stage`）；仅未开始时「准备开始」 |
+| worker_turn `retries` 易误解 | ✅ 已关闭 | 改名 `sdk_retries`（pi-runtime TurnOutcome、runner、inspect_run；inspect_run 兼容旧事件的 `retries`） |
+| /harness 首页 `router.replace` 抢走用户已点的链接 | ✅ 已关闭 | 仅当地址仍是 `/harness` 时才跳到首个条目 |
+| ProductSystem 导入读超时实际 120 s 而非 `OPENLCA_TIMEOUT_PRODUCT_SYSTEM_S`=300 | ✅ 已修 | 原因：`connection._TimeoutHTTPAdapter.send` 把客户端创建时固化的 `(2, 120)` 作为显式 `read_sec` 传下去，`ipc_read_scope(300)` 不生效（run `ab4e721a` 16:37:59 超时）。修复：`create_ipc_client` 默认 `timeout=None`，adapter 每次请求用 `resolve_http_read_timeout()`（即 `active_read_sec()`，预算 fail-fast 不变）；显式 timeout（健康探测）不变。测试 `test_product_system_scope_sets_actual_read_timeout`、`test_explicit_client_timeout_ignores_scope`（不连网络） |
+

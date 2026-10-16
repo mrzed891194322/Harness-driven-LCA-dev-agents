@@ -21,7 +21,8 @@ export interface TurnOutcome {
   output_tokens: number;
   tool_calls: number;
   tool_calls_ok: number;
-  retries: number;
+  /** pi SDK auto_retry_start count in this turn (recovered or not). */
+  sdk_retries: number;
   /** "native" = auto_retry_end(success=false); "fallback" = last stopReason. */
   connection_signal: "native" | "fallback" | null;
   model_connection_failure: boolean;
@@ -98,7 +99,7 @@ export class TurnObserver {
       output_tokens: this.output,
       tool_calls: this.toolCalls,
       tool_calls_ok: this.toolOk,
-      retries: this.retries,
+      sdk_retries: this.retries,
       connection_signal: signal,
       // Only a turn that achieved nothing is reported as a connection failure;
       // a turn with successful tools keeps its progress and goes through the

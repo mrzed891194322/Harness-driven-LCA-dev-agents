@@ -149,7 +149,7 @@
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "118af90dc8ef193c4522008aa9b3aad79cd29c83b09e8185e42fb4ebc42063ff",
+      "content_sha256": "87b555d0e750e8473cc160b81f2b62f2b48e8a391c7761ed9af0a6f517b36d00",
       "id": "rule:openlca_usage",
       "section": "assignment_prompt"
     },
@@ -189,7 +189,7 @@
       "section": "generated_prompts"
     }
   ],
-  "system_prompt_hash": "6e99900e5004ff7b715d0fd94030f9a7e15a13254c76f67472653cbddeae433b",
+  "system_prompt_hash": "baa521768b79f1b818f9868b7b48da99842fbe618cf024494bfa38fe3c06f0ed",
   "tool_whitelist": [
     "find",
     "grep",
