@@ -8,6 +8,14 @@ import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { apiFetch } from "../../lib/api";
 import { fetchWorkflowList, workflowListItemForMode } from "../../lib/workflow-manifest";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
+import {
+  clockLabel,
+  foldOpenlcaSignal,
+  lastStageFromEvents,
+  settleOpenlcaSignal,
+  type ActivityEvent,
+  type OpenlcaSignal,
+} from "../../lib/openlca-signal";
 
 type Progress = {
   run_id?: string | null;
@@ -30,7 +38,8 @@ export default function RunsPage() {
   const [reasonOpen, setReasonOpen] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [restarting, setRestarting] = useState(false);
-  const [openlcaDown, setOpenlcaDown] = useState(false);
+  const [openlcaSignal, setOpenlcaSignal] = useState<OpenlcaSignal>({ state: "ok" });
+  const [lastStage, setLastStage] = useState("");
   const [activityAttempt, setActivityAttempt] = useState(0);
   const offset = useRef(0);
   const runId = useRef("");
@@ -156,7 +165,8 @@ export default function RunsPage() {
   useEffect(() => {
     const run = String(progress.run_id || "");
     if (!run) {
-      setOpenlcaDown(false);
+      setOpenlcaSignal({ state: "ok" });
+      setLastStage("");
       activityOffset.current = 0;
       return;
     }
@@ -170,14 +180,21 @@ export default function RunsPage() {
         const response = await apiFetch(`/api/workflow/activity?${query.toString()}`);
         if (!response.ok || cancelled) return;
         const data = (await response.json()) as {
-          events?: { kind?: string }[];
+          events?: ActivityEvent[];
           offset?: number;
           reset?: boolean;
         };
         if (data.reset) activityOffset.current = 0;
         activityOffset.current = Number(data.offset) || activityOffset.current;
-        const hit = (data.events || []).some((event) => event.kind === "openlca_unresponsive");
-        if (!cancelled) setOpenlcaDown((current) => current || hit);
+        const events = data.events || [];
+        if (cancelled) return;
+        if (data.reset) {
+          setOpenlcaSignal(foldOpenlcaSignal({ state: "ok" }, events));
+          setLastStage(lastStageFromEvents("", events));
+        } else {
+          setOpenlcaSignal((current) => foldOpenlcaSignal(current, events));
+          setLastStage((current) => lastStageFromEvents(current, events));
+        }
       } catch {
         // ignore
       }
@@ -190,6 +207,18 @@ export default function RunsPage() {
     };
   }, [progress.run_id]);
 
+  const shownSignal = settleOpenlcaSignal(openlcaSignal, status);
+  const stageText = (() => {
+    const current = (progress.current_stage || "").trim();
+    if (current) return current;
+    if (status === "completed") return reason ? `全部完成 · ${reason}` : "全部完成";
+    if (status === "failed" || status === "interrupted" || status === "aborted") {
+      return lastStage ? `${label} · 最后阶段 ${lastStage}` : label;
+    }
+    if (status === "running") return "准备开始";
+    return progress.run_id ? label : "准备开始";
+  })();
+
   return (
     <div className="plan-board">
       <section className="settings-card plan-card run-card">
@@ -201,8 +230,13 @@ export default function RunsPage() {
             </h2>
           </div>
         </div>
-        {openlcaDown ? (
+        {shownSignal.state === "down" ? (
           <p className="status-banner error">openLCA 无响应，请检查界面或重启 IPC</p>
+        ) : null}
+        {shownSignal.state === "recovered" ? (
+          <p className="status-banner">
+            {clockLabel(shownSignal.since) ? `${clockLabel(shownSignal.since)} ` : ""}openLCA 曾无响应，已恢复
+          </p>
         ) : null}
         {error ? <p className="status-banner error">{error}</p> : null}
         <div className="run-body">
@@ -241,7 +275,7 @@ export default function RunsPage() {
                   {label}
                 </span>
               </div>
-              <strong>{progress.current_stage || "准备开始"}</strong>
+              <strong>{stageText}</strong>
               {attempt > 0 || status === "running" || status === "failed" || status === "interrupted" ? (
                 <div className="run-stage-foot">
                   {attempt > 0 ? <span className="run-stage-attempt">第 {attempt} 次</span> : null}

@@ -19,7 +19,7 @@ test("native: SDK retries exhausted -> model connection failure", () => {
   assert.equal(r.model_connection_failure, true);
   assert.equal(r.connection_signal, "native");
   assert.equal(r.error_kind, "connection");
-  assert.equal(r.retries, 4);
+  assert.equal(r.sdk_retries, 4);
   assert.equal(r.tool_calls, 0);
   assert.equal(r.stop_reason, "error");
 });

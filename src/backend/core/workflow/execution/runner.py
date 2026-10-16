@@ -581,7 +581,7 @@ class OrchestratorRuntime:
             "input_tokens": o.get("input_tokens"),
             "output_tokens": o.get("output_tokens"),
             "tool_calls": o.get("tool_calls"),
-            "retries": o.get("retries"),
+            "sdk_retries": o.get("sdk_retries"),
             "connection_signal": o.get("connection_signal"),
             "transport_retry": transport_retry,
             "started_at": o.get("started_at") or started_at,
@@ -593,7 +593,7 @@ class OrchestratorRuntime:
             f"turn {assignment.assignment_id} #{turn_no} {label} "
             f"stop={record['stop_reason']} err={record['error_kind']} "
             f"tokens={record['input_tokens']}/{record['output_tokens']} "
-            f"tools={record['tool_calls']} sdk_retries={record['retries']}"
+            f"tools={record['tool_calls']} sdk_retries={record['sdk_retries']}"
             + (f" msg={record['error_message']}" if record["error_message"] else "")
         )
 
