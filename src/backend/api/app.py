@@ -927,6 +927,13 @@ def read_harness_catalog() -> dict[str, Any]:
     return harness_catalog(PROJECT_ROOT)
 
 
+@app.get("/api/harness/components")
+def read_harness_components() -> dict[str, Any]:
+    from backend.core.workflow.config.harness_registry import registry_catalog
+
+    return registry_catalog(PROJECT_ROOT)
+
+
 @app.get("/api/harness/document")
 def read_harness_file(path: str) -> dict[str, str]:
     try:

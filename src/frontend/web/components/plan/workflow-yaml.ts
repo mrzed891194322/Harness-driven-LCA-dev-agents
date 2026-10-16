@@ -185,17 +185,28 @@ function added(value: unknown): string[] {
 }
 
 function stringMap(value: unknown): { id: string; path: string }[] {
-  const source = record(value ?? {}, "registry");
+  const source = record(value ?? {}, "rules");
   return Object.entries(source).map(([id, path]) => ({ id, path: String(path) }));
 }
 
-export function readWorkflow(text: string, file: string): WorkflowGraph {
+/** Components discovered by the backend (`GET /api/harness/components`). */
+export type HarnessComponents = {
+  rules?: Record<string, unknown>;
+  mcp?: Record<string, unknown>;
+  host_action?: Record<string, unknown>;
+  knowledge?: Record<string, unknown>;
+};
+
+// Workflow YAML no longer carries `registry:`; components come from the backend scan.
+export function readWorkflow(
+  text: string,
+  file: string,
+  components: HarnessComponents = {},
+): WorkflowGraph {
   const raw = record(parseYamlSubset(text), file);
-  const registry = record(raw.registry, `${file} registry`);
-  const tools = record(registry.tools, `${file} tools`);
-  const mcpRaw = record(tools.mcp ?? {}, "mcp");
-  const hostRaw = record(tools.host_action ?? {}, "host_action");
-  const knowledgeRaw = record(registry.knowledge ?? {}, "knowledge");
+  const mcpRaw = record(components.mcp ?? {}, "mcp");
+  const hostRaw = record(components.host_action ?? {}, "host_action");
+  const knowledgeRaw = record(components.knowledge ?? {}, "knowledge");
   const defaults = record(raw.defaults ?? {}, "defaults");
   const stagesRaw = Array.isArray(raw.stages) ? raw.stages : [];
   const assignmentsRaw = record(raw.assignments ?? {}, "assignments");
@@ -276,7 +287,7 @@ export function readWorkflow(text: string, file: string): WorkflowGraph {
       rules: stringList(defaults.rules),
       knowledge: stringList(defaults.knowledge),
     },
-    rules: stringMap(registry.rules),
+    rules: stringMap(components.rules),
     mcp,
     hostActions,
     knowledge,
@@ -319,4 +330,12 @@ export function readSpec(text: string): SpecSummary {
     checks: actionList(acceptance.checks),
     afterPass: actionList(lifecycle.on_reviewer_passed),
   };
+}
+
+export async function fetchHarnessComponents(
+  fetcher: (path: string) => Promise<Response>,
+): Promise<HarnessComponents> {
+  const response = await fetcher("/api/harness/components");
+  if (!response.ok) throw new Error(`无法读取组件列表（HTTP ${response.status}）`);
+  return (await response.json()) as HarnessComponents;
 }

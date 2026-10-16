@@ -4,6 +4,7 @@ import { Bot, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-rea
 import { useEffect, useMemo, useState } from "react";
 import {
   readSpec,
+  fetchHarnessComponents,
   readWorkflow,
   type AssignmentNode,
   type SpecSummary,
@@ -271,7 +272,10 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
         cachedWorkflowList = list;
         setWorkflowList(list);
         const paths = list.map((item) => harnessWorkflowDocPath(item.file));
-        return Promise.all(paths.map(async (name) => readWorkflow(await fetchDoc(name), name)));
+        const components = await fetchHarnessComponents(apiFetch);
+        return Promise.all(
+          paths.map(async (name) => readWorkflow(await fetchDoc(name), name, components)),
+        );
       })
       .then(async (loaded) => {
         if (!loaded || cancelled) return;
