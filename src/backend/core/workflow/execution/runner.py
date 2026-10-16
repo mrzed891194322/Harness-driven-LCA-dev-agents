@@ -41,6 +41,15 @@ from .handoff import (
 RUNTIME_VERSION = 4
 PROTOCOL_REPAIR_LIMIT = 3
 WORKER_TRANSPORT_RETRY_LIMIT = 5
+# Same-session reminders when a turn ends normally with no tool call and no
+# handoff. Separate from protocol_repairs.
+WORKER_NUDGE_LIMIT = 2
+TURN_KIND_LABELS = {
+    "ok": "已交 handoff",
+    "no_handoff": "agent 未交 handoff",
+    "idle_no_handoff": "agent 未交 handoff（无工具调用）",
+    "model_connection_failed": "模型连接失败",
+}
 _WORKER_TRANSPORT_BACKOFF_SEC = (2, 4, 8, 16, 32)
 # Upstream rework (writer asks orchestrator to send work back to an earlier stage).
 UPSTREAM_REWORK_LIMIT_DEFAULT = 2
@@ -61,6 +70,8 @@ class WorkflowState(TypedDict):
     step_index: int
     attempt: int
     protocol_repairs: int
+    # Optional: same-session nudges used for the current attempt.
+    nudges: int
     next_action: Action
     in_flight: bool
     status: str
@@ -204,6 +215,18 @@ def _state_str(state: WorkflowState, key: str) -> str:
     if value is None:
         raise KeyError(key)
     return str(value)
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _nudge_prompt(handoff_file: Path) -> str:
+    return (
+        "上一轮你没有调用任何工具就结束了，也没有提交 handoff。"
+        "请继续完成本阶段任务，完成后调用 submit_handoff 提交 handoff"
+        f"（{handoff_file.name}）。不要只回复文字就结束。"
+    )
 
 
 def _state_int(state: WorkflowState, key: str, default: int | None = None) -> int:
@@ -409,18 +432,24 @@ class OrchestratorRuntime:
         config.launch_spec = launch_spec
         ref: SessionRef | None = None
         last_transport = ""
-        for transport_try in range(WORKER_TRANSPORT_RETRY_LIMIT):
+        prompt = _state_str(state, "prompt")
+        nudges = 0
+        transport_try = 0
+        turn_no = 0
+        fresh_session = key not in sessions
+        while True:
+            turn_no += 1
+            turn_started = _utc_now()
             try:
                 if key in sessions:
                     ref = SessionRef.from_dict(sessions[key])
                     ref = self.session_client.resume(ref, config)
                 else:
                     ref = self.session_client.create(config)
-                result = self.session_client.run_turn(
-                    ref, _state_str(state, "prompt"), config
-                )
+                # Keep the session so a transport retry or nudge resumes it.
+                sessions[key] = ref.to_dict()
+                result = self.session_client.run_turn(ref, prompt, config)
                 ref = result.session_ref
-                break
             except SessionResumeError as exc:
                 print_orchestrator(f"worker resume failed: {exc}")
                 return {
@@ -429,36 +458,78 @@ class OrchestratorRuntime:
                 }
             except WorkerTransportError as exc:
                 last_transport = str(exc)
-                attempt_no = transport_try + 1
-                if attempt_no >= WORKER_TRANSPORT_RETRY_LIMIT:
+                transport_try += 1
+                if fresh_session and ref is not None:
+                    # Resume only if the runtime already persisted the session;
+                    # otherwise recreate it as before.
+                    sf = str((ref.storage or {}).get("session_file") or "")
+                    if not sf or not Path(sf).is_file():
+                        sessions.pop(key, None)
+                self._record_turn(
+                    state, stage, assignment, turn_no, turn_started,
+                    getattr(exc, "outcome", None),
+                    turn_kind="model_connection_failed",
+                    error_message=last_transport,
+                    transport_retry=transport_try,
+                )
+                if transport_try >= WORKER_TRANSPORT_RETRY_LIMIT:
                     reason = (
                         f"worker 模型连接失败（{assignment.assignment_id}，"
                         f"agent={self.worker}）：{last_transport}"
                         f"（编排器已重试 {WORKER_TRANSPORT_RETRY_LIMIT} 次）"
                     )
                     print_orchestrator(reason)
-                    return {"status": "failed", "status_reason": reason}
+                    return {
+                        "status": "failed",
+                        "status_reason": reason,
+                        "sessions": sessions,
+                    }
                 delay = _WORKER_TRANSPORT_BACKOFF_SEC[
-                    min(transport_try, len(_WORKER_TRANSPORT_BACKOFF_SEC) - 1)
+                    min(transport_try - 1, len(_WORKER_TRANSPORT_BACKOFF_SEC) - 1)
                 ]
                 print_orchestrator(
-                    f"worker transport retry {attempt_no}/"
+                    f"worker transport retry {transport_try}/"
                     f"{WORKER_TRANSPORT_RETRY_LIMIT} ({self.worker}): {last_transport}"
+                    "（模型连接重试，不计入协议返工）"
                 )
                 time.sleep(delay)
+                continue
             except Exception as exc:
                 print_orchestrator(f"worker 调用失败：{exc}")
                 return {
                     "status": "failed",
                     "status_reason": f"worker 调用失败：{exc}",
                 }
-        else:
-            reason = (
-                f"worker 模型连接失败（{assignment.assignment_id}，"
-                f"agent={self.worker}）：{last_transport or 'unknown'}"
-                f"（编排器已重试 {WORKER_TRANSPORT_RETRY_LIMIT} 次）"
+            outcome = result.outcome
+            handoff_file = handoff_path(
+                self.workspace_root,
+                stage.stage_id,
+                assignment.role,
+                _attempt(state),
+                project_root=self.project_root,
             )
-            return {"status": "failed", "status_reason": reason}
+            has_handoff = handoff_file.is_file()
+            idle = (
+                outcome is not None
+                and int(outcome.get("tool_calls") or 0) == 0
+                and not has_handoff
+            )
+            self._record_turn(
+                state, stage, assignment, turn_no, turn_started, outcome,
+                turn_kind="idle_no_handoff" if idle else (
+                    "ok" if has_handoff else "no_handoff"
+                ),
+            )
+            if idle and nudges < WORKER_NUDGE_LIMIT:
+                nudges += 1
+                print_orchestrator(
+                    f"worker nudge {nudges}/{WORKER_NUDGE_LIMIT} "
+                    f"{assignment.assignment_id}: 本轮无工具调用且未交 handoff，"
+                    "同一会话提醒继续（不计入协议返工）"
+                )
+                prompt = _nudge_prompt(handoff_file)
+                continue
+            break
         if ref is None:
             return {
                 "status": "failed",
@@ -466,13 +537,6 @@ class OrchestratorRuntime:
             }
         sessions[key] = ref.to_dict()
         print_orchestrator(f"worker turn done session={ref.session_id}")
-        handoff_file = handoff_path(
-            self.workspace_root,
-            stage.stage_id,
-            assignment.role,
-            _attempt(state),
-            project_root=self.project_root,
-        )
         if not handoff_file.is_file():
             print_orchestrator(
                 f"worker turn ended without handoff file: {handoff_file} "
@@ -481,7 +545,54 @@ class OrchestratorRuntime:
         return {
             "sessions": sessions,
             "prompt": "",
+            "nudges": nudges,
         }
+
+    def _record_turn(
+        self,
+        state: WorkflowState,
+        stage: Stage,
+        assignment: Assignment,
+        turn_no: int,
+        started_at: str,
+        outcome: dict[str, Any] | None,
+        *,
+        turn_kind: str,
+        error_message: str = "",
+        transport_retry: int = 0,
+    ) -> None:
+        """Per-turn record: events.jsonl (worker_turn) + one backend.log line."""
+        o = dict(outcome or {})
+        record = {
+            "kind": "worker_turn",
+            "stage": stage.stage_id,
+            "assignment": assignment.assignment_id,
+            "role": assignment.role,
+            "attempt": _attempt(state),
+            "turn": turn_no,
+            "turn_kind": turn_kind,
+            "stop_reason": o.get("stop_reason"),
+            "error_kind": o.get("error_kind")
+            or ("connection" if turn_kind == "model_connection_failed" else "none"),
+            "error_message": o.get("error_message") or error_message or None,
+            "input_tokens": o.get("input_tokens"),
+            "output_tokens": o.get("output_tokens"),
+            "tool_calls": o.get("tool_calls"),
+            "retries": o.get("retries"),
+            "connection_signal": o.get("connection_signal"),
+            "transport_retry": transport_retry,
+            "started_at": o.get("started_at") or started_at,
+            "ended_at": o.get("ended_at") or _utc_now(),
+        }
+        self._emit(state, record)
+        label = TURN_KIND_LABELS.get(turn_kind, turn_kind)
+        print_orchestrator(
+            f"turn {assignment.assignment_id} #{turn_no} {label} "
+            f"stop={record['stop_reason']} err={record['error_kind']} "
+            f"tokens={record['input_tokens']}/{record['output_tokens']} "
+            f"tools={record['tool_calls']} sdk_retries={record['retries']}"
+            + (f" msg={record['error_message']}" if record["error_message"] else "")
+        )
 
     def advance(self, state: WorkflowState) -> dict[str, Any]:
         if state.get("status") == "failed" and state.get("status_reason"):
@@ -858,9 +969,10 @@ class OrchestratorRuntime:
             return {"status": "failed", "status_reason": reason}
         attempt_no = repairs + 1
         reason = f"handoff 无效（{assignment.assignment_id}）：{detail}"
+        left = PROTOCOL_REPAIR_LIMIT - attempt_no
         print_orchestrator(
-            f"protocol rework {assignment.assignment_id} "
-            f"repair={attempt_no}/{PROTOCOL_REPAIR_LIMIT}: {reason}"
+            f"protocol rework {attempt_no}/{PROTOCOL_REPAIR_LIMIT} "
+            f"(剩余 {left} 次) {assignment.assignment_id}: {reason}"
         )
         return {
             "protocol_repairs": repairs + 1,
@@ -871,7 +983,7 @@ class OrchestratorRuntime:
             ),
             "status": "running",
             "status_reason": (
-                f"协议返工 handoff（{attempt_no}/{PROTOCOL_REPAIR_LIMIT}）："
+                f"协议返工 handoff（{attempt_no}/{PROTOCOL_REPAIR_LIMIT}，剩余 {left} 次）："
                 f"{assignment.assignment_id}"
             ),
         }

@@ -37,6 +37,11 @@ _TRANSPORT_MARKERS = (
 class WorkerTransportError(SessionError):
     """Worker turn failed before substantive model output (retryable)."""
 
+    def __init__(self, message: str = "", *, outcome: dict | None = None) -> None:
+        super().__init__(message)
+        # Runtime per-turn record (stop_reason, error_kind, tokens...) when known.
+        self.outcome = outcome
+
 
 def detect_worker_transport_failure(
     worker: str,

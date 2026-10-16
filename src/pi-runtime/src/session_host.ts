@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { TurnObserver, type TurnOutcome } from "./turn_outcome.js";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -680,8 +681,14 @@ export async function handleRuntimeMethod(
       : null;
     if (turn && live.transcript) live.transcript.turns.push(turn as any);
     const turnStart = Date.now();
+    const observer = new TurnObserver();
     const unsub = session.subscribe((ev) => {
       const anyEv = ev as any;
+      try {
+        observer.handle(anyEv);
+      } catch {
+        // Outcome telemetry must never break the turn.
+      }
       if (live.transcript && (anyEv.type === "auto_retry_start" || anyEv.type === "auto_retry_end")) {
         live.transcript.retries.push({
           type: "retry",
@@ -705,10 +712,17 @@ export async function handleRuntimeMethod(
         // Activity is best-effort UI telemetry; never break the turn over it.
       }
     });
+    let outcome: TurnOutcome;
     try {
       await session.prompt(prompt);
-      relay.finish("ok");
-      if (turn) Object.assign(turn, { status: "ok" });
+      outcome = observer.outcome();
+      if (outcome.model_connection_failure) {
+        relay.finish("error", `模型连接失败：${outcome.error_message}`);
+        if (turn) Object.assign(turn, { status: "error", error: outcome.error_message, outcome });
+      } else {
+        relay.finish("ok");
+        if (turn) Object.assign(turn, { status: "ok", outcome });
+      }
     } catch (error) {
       relay.finish("error", error instanceof Error ? error.message : String(error));
       if (turn) Object.assign(turn, { status: "error", error: error instanceof Error ? error.message : String(error) });
@@ -720,7 +734,22 @@ export async function handleRuntimeMethod(
       if (live.guardSink) live.guardSink.emit = null;
       if (live.injectionSink) live.injectionSink.emit = null;
     }
-    return { status: "ok", text };
+    const started_at = new Date(turnStart).toISOString();
+    const ended_at = new Date().toISOString();
+    if (outcome.model_connection_failure) {
+      // SDK gave up after its own retries without throwing; report it so the
+      // backend retries the same session instead of treating it as a missing handoff.
+      return {
+        status: "error",
+        kind: "model_connection",
+        message: outcome.error_message ?? "model connection failed",
+        text,
+        outcome,
+        started_at,
+        ended_at,
+      };
+    }
+    return { status: "ok", text, outcome, started_at, ended_at };
   }
   if (method === "session.inspect") {
     // Re-read effective state of a live session (doctor / debugging), no model call.

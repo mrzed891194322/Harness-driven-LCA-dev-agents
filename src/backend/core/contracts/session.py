@@ -70,6 +70,10 @@ class TurnResult:
     status: str
     session_ref: SessionRef
     text: str = ""
+    # Per-turn telemetry from the runtime (stop_reason, error_kind, tokens,
+    # tool_calls, retries, started_at/ended_at). None when the runtime does
+    # not report it (mock / scripted clients).
+    outcome: dict[str, Any] | None = None
 
 
 class SessionClient(Protocol):
