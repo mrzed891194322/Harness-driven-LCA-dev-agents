@@ -83,7 +83,7 @@
 | --- | --- | --- |
 | plain list replacement bypasses red lines | ✅ 已关闭 | `config/compose.py`：global 以下仅 `{add,remove}`，plain list 报 `E-COMPOSE-PLAIN-LIST`；`locked_rules` / `locked_rules_by_role` |
 | assignment permissions can widen | ✅ 已关闭 | `permission_narrow.py`：ceiling（worker-default ∪ reviewer）→ stage → assignment 交集，扩权 `E-PERM-WIDEN` |
-| plan autosave overwrote form on import | ✅ 已关闭 | `PUT /api/plan` 返回 410；计划路径由 workflow `plan:` 声明 |
+| plan autosave overwrote form on import | ✅ 已关闭 | 计划页表单保留（与 master 相同字段与下拉）；自动保存仅在用户编辑后触发，`PUT /api/plan?workflow=` 由后端把表单渲染成 md，写到该 workflow YAML `plan:` 指向的路径（不再写死 `main_plan.md`）；`POST /api/plan/import` 目标已存在时返回 409，前端确认后带 `overwrite=true`，导入后字段填回表单且不触发自动保存；浏览器端无 localStorage/sessionStorage 持久化 |
 | GUI 硬编码 workflow/阶段/角色表 | ✅ 已关闭（PR1c） | `preview-board`/`workflow-board`/`run-history` 等经 `GET /api/workflows` + manifest；启动任务 id 用 API `id` 字段 |
 | 权限红线无专项回归 | ✅ 已关闭（PR1c） | `src/tests/t_core/agents/test_permission_narrow_redlines.py` |
 | injection API 无层标记/写盘隔离测 | ✅ 已关闭（PR1c） | `src/tests/t_backend/test_harness_injection_api.py` |

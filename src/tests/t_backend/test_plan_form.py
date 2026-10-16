@@ -193,7 +193,8 @@ class PlanApiTests(unittest.TestCase):
                         "conditions": "不截断",
                     },
                 )
-                self.assertEqual(saved.status_code, 410)
+                self.assertEqual(saved.status_code, 200)
+                self.assertIn("证据.md", saved.json()["content"])
 
                 template = client.get("/api/plan/template")
                 self.assertEqual(template.status_code, 200)

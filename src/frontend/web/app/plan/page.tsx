@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
-import { MarkdownView } from "../../components/markdown-view";
 import { PreviewBoard } from "../../components/plan/preview-board";
 import type { PlanFields } from "../../components/plan/plan-fields";
+import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
 import {
   fetchWorkflowList,
   workflowNameForMode,
@@ -162,6 +162,7 @@ export default function PlanPage() {
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
   const [formToken, setFormToken] = useState(0);
+  const [work, setWork] = useState<StudyWork>(() => emptyStudyWork());
   const [workflowList, setWorkflowList] = useState<WorkflowListItem[]>([]);
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -169,6 +170,12 @@ export default function PlanPage() {
   const [loaded, setLoaded] = useState(false);
   const [planContent, setPlanContent] = useState("");
   const [planPath, setPlanPath] = useState("");
+  const savedPlan = useRef("");
+  // Only save after the user actually changed something (edit). Loading, hydrating
+  // the form and importing must never rewrite the plan file (a stale tab rewrote it).
+  const dirty = useRef(false);
+  const saveChain = useRef<Promise<void>>(Promise.resolve());
+  const workflowName = workflowNameForMode(workflowList, workMode);
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
@@ -194,6 +201,7 @@ export default function PlanPage() {
         }>;
       })
       .then((data) => {
+        dirty.current = false;
         setForm({ ...emptyFields, ...data.fields });
         setFormToken((token) => token + 1);
         setReferences(data.references ?? []);
@@ -205,6 +213,41 @@ export default function PlanPage() {
         setError(reason instanceof Error ? reason.message : "无法读取计划");
       });
   }, [workMode, workflowList]);
+
+  // Autosave: persist field edits (incl. LCIA method) without executing. The
+  // backend writes the plan file named by the workflow YAML `plan:`.
+  useEffect(() => {
+    if (!loaded || !workflowName) return;
+    const body = JSON.stringify(work.plan);
+    if (!dirty.current) {
+      savedPlan.current = body;
+      return;
+    }
+    if (body === savedPlan.current) return;
+    const target = workflowName;
+    const timer = window.setTimeout(() => {
+      // Serialize PUTs so an older save can never land after a newer one.
+      saveChain.current = saveChain.current.then(async () => {
+        try {
+          const response = await apiFetch(`/api/plan?workflow=${encodeURIComponent(target)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: true,
+          });
+          if (!response.ok) throw new Error(await errorMessage(response));
+          const data = (await response.json()) as { content?: string; path?: string };
+          savedPlan.current = body;
+          if (typeof data.content === "string") setPlanContent(data.content);
+          if (data.path) setPlanPath(data.path);
+          setStatus("已自动保存");
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : "自动保存失败");
+        }
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [loaded, work.plan, workflowName]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -245,9 +288,13 @@ export default function PlanPage() {
 
   async function importPlan(file: File) {
     setError("");
-    const overwrite =
-      planContent.trim().length > 0 &&
-      window.confirm("将覆盖当前计划 Markdown（按工作流 YAML 中的 plan 路径）。继续？");
+    const overwrite = planContent.trim().length > 0;
+    if (
+      overwrite &&
+      !window.confirm(`将用导入的 Markdown 覆盖当前计划${planPath ? `（${planPath}）` : ""}。继续？`)
+    ) {
+      return;
+    }
     const body = new FormData();
     body.append("file", file);
     const query = new URLSearchParams({
@@ -262,6 +309,8 @@ export default function PlanPage() {
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { fields: PlanFields; path?: string };
       const next = { ...emptyFields, ...data.fields };
+      // The backend already wrote the imported file; don't autosave over it.
+      dirty.current = false;
       setForm(next);
       setFormToken((token) => token + 1);
       setPlanPath(data.path ?? planPath);
@@ -460,18 +509,17 @@ export default function PlanPage() {
         </div>
 
         <div className="plan-panel" role="tabpanel">
-          <div className="plan-fields" hidden={panel !== "fields"}>
-            <p className="settings-help">
-              计划正文只读，路径由工作流 YAML 的 <code>plan:</code> 指定
-              {planPath ? `（${planPath}）` : ""}。请通过下方导入更新。
-            </p>
-            <div className="plan-readonly-md harness-doc">
-              {planContent ? (
-                <MarkdownView source={planContent} />
-              ) : (
-                <p className="harness-status">尚无计划 Markdown，可下载模板后导入。</p>
-              )}
-            </div>
+          <div
+            className="plan-fields"
+            hidden={panel !== "fields"}
+            onChangeCapture={() => {
+              dirty.current = true;
+            }}
+            onClickCapture={(event) => {
+              if ((event.target as HTMLElement).closest(".plan-study button")) dirty.current = true;
+            }}
+          >
+            <StudyForm source={form} sourceKey={formToken} onWork={setWork} />
             <div className="row plan-actions plan-import">
                 {status ? <p className="plan-status">{status}</p> : null}
                 <p className="plan-import-hint">如果多次使用，可以先下载模板写好，再上传。</p>
@@ -596,7 +644,7 @@ export default function PlanPage() {
           ) : panel === "workflow" ? (
             <WorkflowBoard mode={workMode} />
           ) : panel === "preview" ? (
-            <PreviewBoard mode={workMode} plan={form} references={references} />
+            <PreviewBoard mode={workMode} work={work} references={references} />
           ) : null}
         </div>
 
