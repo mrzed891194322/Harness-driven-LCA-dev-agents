@@ -77,6 +77,11 @@
 - **旧运行的续跑**：spec 文件哈希和 `get_spec` 视图都进了指纹，P5 之前开始的运行不能在 P5 代码上续跑，只能重开。
 
 
+## PR0：工作流本地副本与 `harness/.user` 收敛（2026-10-16）
+
+- **已做（`feat/pr0-local-workflow-yaml`）**：默认 workflow 在 `harness/workflows/`；运行与编排读 `.local/harness/workflows/<name>.yaml`（首次启动复制，默认更新且本地未改时自动同步；`GET /api/diagnostics/environment` → `local_workflows`；`GET /api/harness/workflows/{name}/diff`、`POST …/restore-default`）。开跑快照仍写 `runs/_run/evidence/<run>/workflow.yaml`，`manifest.json` 增加 `workflow_snapshot`；同 run `--resume` 读快照而非当前 `.local`。
+- **待收敛**：GUI/loader 仍用 `harness/.user/<rel>` 覆盖规则、spec、settings 等（REFACTOR_PLAN §8.5）。计划统一到 `.local/harness/` 同一棵 overlay（与 workflow 副本并列），**不迁移**现有 `.user` 内容，仅在新功能中逐步改解析入口并文档化；合并前需评估与 `harness/.user` 并存的 doctor/指纹行为。
+
 ## database_identity_verified 一直为 false
 
 没有设置 `OPENLCA_DATABASE_NAME` 时，`database_identity_verified` 一直是 false，不影响运行。之后要么在 `.env` 里写明数据库名，要么让诊断里明确提示这一项。

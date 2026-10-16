@@ -40,6 +40,7 @@ HARNESS_ROOT_ALLOWLIST = frozenset(
         "tools",
         "rules",
         "specs",
+        "workflows",  # default LCA-main / LCA-revise YAML (tracked)
         "settings.yaml",  # user preferences for generated prompts (P5)
         ".user",  # gitignored user overrides (GUI edits), REFACTOR_PLAN §8.5
     }

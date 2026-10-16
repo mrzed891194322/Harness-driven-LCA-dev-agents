@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = PROJECT_ROOT / "src" / "backend"
 FRONTEND_ROOT = PROJECT_ROOT / "src" / "frontend"
 WEB_ROOT = FRONTEND_ROOT / "web"
-WORKFLOWS = PROJECT_ROOT / "src" / "backend" / "workflows"
+WORKFLOWS = PROJECT_ROOT / "harness" / "workflows"
 
 MAIN_PLAN_PATH = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "main_plan.md"
 REVISE_PLAN_PATH = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "revise_plan.md"
@@ -108,6 +108,18 @@ def _guarded_create_connection(address: object, *args: object, **kwargs: object)
 
 socket.socket.connect = _guarded_connect  # type: ignore[method-assign]
 socket.create_connection = _guarded_create_connection  # type: ignore[assignment]
+
+
+@pytest.fixture(autouse=True)
+def _isolate_local_workflows(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """Never read or write the developer's real ``.local/harness/workflows`` during tests."""
+    from backend.services.local_workflows import sync_all
+
+    local = tmp_path_factory.mktemp("local-harness-workflows")
+    monkeypatch.setenv("LCA_LOCAL_WORKFLOWS_DIR", str(local))
+    sync_all(PROJECT_ROOT)
 
 
 @pytest.fixture(autouse=True)

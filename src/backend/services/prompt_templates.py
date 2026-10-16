@@ -24,14 +24,17 @@ class PromptTemplates:
     def reset(self, rel: str) -> dict[str, Any]:
         return gp.reset_item(self.root, rel)
 
-    def preview(self, stage: str, role: str, workflow: str = "src/backend/workflows/LCA-main.yaml") -> dict[str, Any]:
+    def preview(self, stage: str, role: str, workflow: str = "harness/workflows/LCA-main.yaml") -> dict[str, Any]:
         """Render exactly what a new session for stage+role would get now (no session, no model)."""
         from backend.core.agents.injection import runtime_system_prompt
         from backend.core.runtime.capabilities import base_capabilities
         from backend.core.runtime.launch_spec import build_session_launch_spec
         from backend.core.workflow.config.loader import load_workflow
 
-        wf = load_workflow(self.root / workflow, project_root=self.root, capabilities=base_capabilities())
+        from backend.core.workflow.main import _resolve_workflow_cli_path
+
+        wf_path = _resolve_workflow_cli_path(self.root, Path(workflow))
+        wf = load_workflow(wf_path, project_root=self.root, capabilities=base_capabilities())
         st = wf.stage_by_id(stage)
         assignment = next(
             (wf.assignments[a] for a in st.steps if wf.assignments[a].role == role), None
