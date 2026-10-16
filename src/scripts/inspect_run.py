@@ -20,6 +20,50 @@ for _p in (_ROOT / "src", _ROOT):
 from backend.core.agents import injection  # noqa: E402
 
 MARK = {"ok": "✓", "warn": "!", "mismatch": "✗", "unknown": "?"}
+TURN_LABEL = {
+    "ok": "已交 handoff",
+    "no_handoff": "agent 未交 handoff",
+    "idle_no_handoff": "agent 未交 handoff（无工具调用）",
+    "model_connection_failed": "模型连接失败",
+}
+TURN_MARK = {"ok": "✓", "no_handoff": "!", "idle_no_handoff": "!", "model_connection_failed": "✗"}
+
+
+def worker_turns(root: Path, run_id: str) -> list[dict]:
+    """worker_turn records the orchestrator wrote to the run's events.jsonl."""
+    from backend.core.agents.activity import activity_log_path
+
+    try:
+        path = activity_log_path(root, run_id)
+    except ValueError:
+        return []
+    if not path.is_file():
+        return []
+    out: list[dict] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(rec, dict) and rec.get("kind") == "worker_turn":
+            out.append(rec)
+    return out
+
+
+def turn_session(rec: dict) -> str:
+    return f"{rec.get('stage')}.{rec.get('role')}.{rec.get('attempt')}"
+
+
+def format_turn(rec: dict) -> str:
+    kind = str(rec.get("turn_kind") or "")
+    msg = f" msg={rec['error_message']}" if rec.get("error_message") else ""
+    return (
+        f"    {TURN_MARK.get(kind, '?')} turn#{rec.get('turn')} {TURN_LABEL.get(kind, kind)}"
+        f"  stop={rec.get('stop_reason')} err={rec.get('error_kind')}"
+        f" tokens={rec.get('input_tokens')}/{rec.get('output_tokens')}"
+        f" tools={rec.get('tool_calls')} sdk_retries={rec.get('retries')}"
+        f" {rec.get('started_at') or ''}→{rec.get('ended_at') or ''}{msg}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -51,9 +95,13 @@ def main(argv: list[str] | None = None) -> int:
     if a.only_anomalies:
         sessions = [s for s in sessions if s["level"] not in ("ok",)]
     if a.json:
-        print(json.dumps({"summary": injection.run_summary(root, a.run), "sessions": sessions}, ensure_ascii=False, indent=2))
+        turns = [t for t in worker_turns(root, a.run) if not a.session or turn_session(t) == a.session]
+        print(json.dumps({"summary": injection.run_summary(root, a.run), "sessions": sessions, "worker_turns": turns}, ensure_ascii=False, indent=2))
         return 0
     summary = injection.run_summary(root, a.run)
+    turns_by_session: dict[str, list[dict]] = {}
+    for t in worker_turns(root, a.run):
+        turns_by_session.setdefault(turn_session(t), []).append(t)
     print(f"run {a.run}: {summary['sessions']} sessions, level={summary['level']}, mismatches={len(summary['mismatches'])}")
     for s in sessions:
         model = s.get("model") or {}
@@ -62,6 +110,10 @@ def main(argv: list[str] | None = None) -> int:
             extra = {k: v for k, v in i.items() if k not in ("item", "level", "kind", "critical")}
             crit = " (critical)" if i.get("critical") else ""
             print(f"    {MARK[i['level']]} {i['item']}: {i['kind']}{crit} {json.dumps(extra, ensure_ascii=False) if extra else ''}")
+        for t in turns_by_session.get(s["session"], []):
+            if a.only_anomalies and t.get("turn_kind") == "ok":
+                continue
+            print(format_turn(t))
         if a.session:
             d = injection.runs_root(root) / a.run / "sessions" / a.session
             diff = json.loads((d / "injection" / "diff.json").read_text(encoding="utf-8"))

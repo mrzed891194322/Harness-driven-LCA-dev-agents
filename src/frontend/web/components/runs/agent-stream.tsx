@@ -66,7 +66,9 @@ export function parseAgentLog(raw: string): AgentItem[] {
     if (!body) continue;
 
     if (meta.kind === "orchestrator") {
-      pushSystem(items, meta.time, systemText(body));
+      const text = systemText(body);
+      if (turnFailureKind(body) === "model_connection") pushError(items, meta.time, text);
+      else pushSystem(items, meta.time, text);
       continue;
     }
 
@@ -543,14 +545,35 @@ function parseTag(tag: string):
   };
 }
 
-function systemText(body: string): string {
+/** Classify an orchestrator per-turn summary line (runner._record_turn). */
+export function turnFailureKind(body: string): "model_connection" | "no_handoff" | null {
+  if (/^turn \S+ #\d+ 模型连接失败/.test(body) || /^worker 模型连接失败/.test(body)) return "model_connection";
+  if (/^turn \S+ #\d+ agent 未交 handoff/.test(body)) return "no_handoff";
+  return null;
+}
+
+export function systemText(body: string): string {
+  const turn = /^turn (\S+) #(\d+) (模型连接失败|agent 未交 handoff(?:（无工具调用）)?|已交 handoff) (.*)$/.exec(body);
+  if (turn) {
+    const msg = /msg=(.*)$/.exec(turn[4]);
+    const tools = /tools=(\S+)/.exec(turn[4]);
+    const tokens = /tokens=(\S+)/.exec(turn[4]);
+    const detail = [tools ? `工具 ${tools[1]}` : "", tokens ? `token ${tokens[1]}` : "", msg ? msg[1] : ""]
+      .filter(Boolean)
+      .join(" · ");
+    return `第 ${turn[2]} 轮 · ${turn[3]}${detail ? ` · ${detail}` : ""}`;
+  }
+  const nudge = /^worker nudge (\d+)\/(\d+) /.exec(body);
+  if (nudge) return `提醒继续 ${nudge[1]}/${nudge[2]} · 本轮无工具调用且未交 handoff（不计入协议返工）`;
+  const rework = /^protocol rework (\d+)\/(\d+) \(剩余 (\d+) 次\)/.exec(body);
+  if (rework) return `协议返工 ${rework[1]}/${rework[2]}（剩余 ${rework[3]} 次）`;
   const start = /^start run_id=\S+\s+task=\S+\s+worker=(\S+)/.exec(body);
   if (start) return `开始运行 · ${start[1]}`;
   const prepare = /^prepare (\S+) attempt=(\d+)/.exec(body);
   if (prepare) return `准备 ${prepare[1]} · 第 ${prepare[2]} 次`;
   if (body.startsWith("worker turn done")) return "本轮结束";
   const retry = /^worker transport retry (\d+)\/(\d+) \(([^)]+)\):\s*(.*)$/.exec(body);
-  if (retry) return `模型连接重试 ${retry[1]}/${retry[2]} · ${retry[4] || retry[3]}`;
+  if (retry) return `模型连接重试 ${retry[1]}/${retry[2]} · ${(retry[4] || retry[3]).replace(/（模型连接重试，不计入协议返工）$/, "")}`;
   const finished = /^finished status=(\S+)\s+reason=(.*)$/.exec(body);
   if (finished) {
     return finished[1] === "completed" ? "运行完成" : `运行结束 · ${finished[2]}`;
