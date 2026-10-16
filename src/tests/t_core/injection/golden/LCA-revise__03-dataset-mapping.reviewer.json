@@ -1,0 +1,210 @@
+{
+  "assignment_id": "03-dataset-mapping.reviewer",
+  "bundle_hash": "5d0d628a09d79b553d74780623d01688932a2aae50c1bb0721b88f5b537af978",
+  "knowledge": [
+    {
+      "content_hash": "a863ca21ad0d1d52d0ed8197144f91abb33330b5ac39b4aac3cd2d859c3a8570",
+      "id": "workspace_knowledge",
+      "summary": "local_dir"
+    },
+    {
+      "content_hash": "384cd246799ec5462c532ba53811365c22d32c1e582d419128c1ef1b4c6b9187",
+      "id": "workflow_plan",
+      "summary": "local_dir"
+    }
+  ],
+  "mcp": {
+    "control_openlca": {
+      "args": [
+        "harness/tools/mcp/control_openlca/workflow_mcp.py",
+        "--context-file",
+        "${WORKSPACE_ROOT}/tmp/mcp-context/golden-run/03-dataset-mapping/03-dataset-mapping.reviewer.json"
+      ],
+      "command": "${HOME}/Programming/202606-harness-agent-LCA/.venv/bin/python",
+      "env_names": [
+        "LCA_ASSIGNMENT",
+        "LCA_ATTEMPT",
+        "LCA_HANDOFF_PATH",
+        "LCA_METADATA_JSON",
+        "LCA_ROLE",
+        "LCA_RUN_ID",
+        "LCA_STAGE",
+        "LCA_WORKSPACE",
+        "OPENLCA_IPC_PORT",
+        "UV_CACHE_DIR"
+      ],
+      "exposure": "direct",
+      "timeout_ms": 7320000
+    },
+    "lca_artifacts": {
+      "args": [
+        "harness/tools/mcp/lca_artifacts/main.py",
+        "--context-file",
+        "${WORKSPACE_ROOT}/tmp/mcp-context/golden-run/03-dataset-mapping/03-dataset-mapping.reviewer.json"
+      ],
+      "command": "${HOME}/Programming/202606-harness-agent-LCA/.venv/bin/python",
+      "env_names": [
+        "LCA_ASSIGNMENT",
+        "LCA_ATTEMPT",
+        "LCA_HANDOFF_PATH",
+        "LCA_METADATA_JSON",
+        "LCA_ROLE",
+        "LCA_RUN_ID",
+        "LCA_STAGE",
+        "LCA_WORKSPACE",
+        "OPENLCA_IPC_PORT",
+        "UV_CACHE_DIR"
+      ],
+      "exposure": "direct",
+      "timeout_ms": 60000
+    },
+    "spec_mcp": {
+      "args": [
+        "harness/tools/mcp/spec_mcp/main.py"
+      ],
+      "command": "${HOME}/Programming/202606-harness-agent-LCA/.venv/bin/python",
+      "env_names": [
+        "OPENLCA_IPC_PORT",
+        "SPEC_MCP_BINDING",
+        "SPEC_MCP_KEY_FILE",
+        "SPEC_MCP_TOKEN",
+        "UV_CACHE_DIR"
+      ],
+      "exposure": "direct",
+      "timeout_ms": 300000
+    }
+  },
+  "permissions": {
+    "allowed_read_globs": [
+      "${PROJECT_ROOT}/workspace/**",
+      "${PROJECT_ROOT}/harness/knowledge/**"
+    ],
+    "allowed_tools": [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "mcp__lca_artifacts__*",
+      "mcp__control_openlca__*",
+      "mcp__spec_mcp__*"
+    ],
+    "allowed_write_globs": [],
+    "denied_write_globs": [
+      "${PROJECT_ROOT}/workspace/runs/03-dataset-mapping/reviewer-1/process-mapping.json"
+    ],
+    "deny_shell": true
+  },
+  "segments": [
+    {
+      "content_sha256": "e11365883eaf0f07e9537f374aa3d223a5f4cfda14cd20656a7e9043b87cd817",
+      "id": "spec_context",
+      "section": "spec_context"
+    },
+    {
+      "content_sha256": "da092725928cf35b96129085a8c4e4c80af958864e6319e0b067702ef9dccf1b",
+      "id": "runtime_protocol",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "32aaa40a2046d78aa0e7042ab3efb82fe6d44ab2b67fdd1c8865ca75aed3425f",
+      "id": "run_context",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "b63d0a17ae0127aa75b98ab7784d06383264cb032f280eeac21fe01c20df5f2f",
+      "id": "rule:workspace_boundary",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "a79dd9a12790d9efd41cf7c97d15dbf02fc3d9cea36fc430859e2d8af51097a6",
+      "id": "rule:runtime",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "4de79087dfeb69cbf9472302f316f6e75b04c05f420f10f43ca9611944e84973",
+      "id": "rule:runtime_loop",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "6c15c998ce48c5510fe7506b44aba729d87ba99781dc05a34cb89874aa799e55",
+      "id": "rule:paths",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "f63e559e2516f33a1183bfdb5c9ebe38e3ab0a1135fe9b995e37c260a6a4cd1e",
+      "id": "rule:lca_method",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "83b18ff4ccc3b27e783b08863640adf975184a98de035277e4a5c87ea98ec9e4",
+      "id": "rule:knowledge_files",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "1e9b13d61e6ba41c065a8982997a7fe3c4a4bba17420bdad8df4b429be01d28d",
+      "id": "rule:lca_inventory",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "e88b5ff6bfaba1da67543bf8ba7bb1602d433eb4ccbe8fe7771279c89dcabaa2",
+      "id": "rule:lca_mapping",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "ae52356cbcfac58c43993d111d1b1ef19e6478062e8dea3a727245a86ece474b",
+      "id": "rule:reviewer_readonly",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "118af90dc8ef193c4522008aa9b3aad79cd29c83b09e8185e42fb4ebc42063ff",
+      "id": "rule:openlca_usage",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "2800b619f989347960cac13f24654bbe0536e445c81d9510594e3f9efec1296d",
+      "id": "rule:artifact_usage",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "1642bf34d014fb1508d13dd9170670b6b2c614149f660c81b4de7698d65c857d",
+      "id": "rule:stage_03",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "0b704c9ac83a87cbfc2915fe3ad280f7757e13583be666803327dd6a29ea3c55",
+      "id": "rule:stage_03_revise",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "580d8c35bf6c8fb718863e4e93ceb54beff826b5d1ee98009a5686b5ff45a956",
+      "id": "rule:assign_03_reviewer",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "4c2e5622194ac869f0fad390c5430c58b4169c0543a7a251df1d8488e5f257ac",
+      "id": "submission_note",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "4293253da48c5e88d7ccdac6aca529429bb45bdda71df99489a521d0712ac3b2",
+      "id": "generated:permissions",
+      "section": "generated_prompts"
+    },
+    {
+      "content_sha256": "3d57f17fc9fc66760e2ded668ff3d7bff24e29b24eca86c62bc3a734f8d89aeb",
+      "id": "generated:language",
+      "section": "generated_prompts"
+    }
+  ],
+  "system_prompt_hash": "a1e4d658d1ea1677370ea2fc15f3c09de17a215cbbc49d966253e469aa2c66eb",
+  "tool_whitelist": [
+    "find",
+    "grep",
+    "ls",
+    "mcp__control_openlca__*",
+    "mcp__lca_artifacts__*",
+    "mcp__spec_mcp__*",
+    "read"
+  ],
+  "workflow": "LCA-revise"
+}

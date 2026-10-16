@@ -1,0 +1,199 @@
+{
+  "assignment_id": "04-openlca-reporting.executor",
+  "bundle_hash": "188219a9a9c2b508d6c95b6a1ab04e8df5be1330e3a07237746d2dd77c8420ae",
+  "knowledge": [
+    {
+      "content_hash": "a863ca21ad0d1d52d0ed8197144f91abb33330b5ac39b4aac3cd2d859c3a8570",
+      "id": "workspace_knowledge",
+      "summary": "local_dir"
+    },
+    {
+      "content_hash": "384cd246799ec5462c532ba53811365c22d32c1e582d419128c1ef1b4c6b9187",
+      "id": "workflow_plan",
+      "summary": "local_dir"
+    }
+  ],
+  "mcp": {
+    "control_openlca": {
+      "args": [
+        "harness/tools/mcp/control_openlca/workflow_mcp.py",
+        "--context-file",
+        "${WORKSPACE_ROOT}/tmp/mcp-context/golden-run/04-openlca-reporting/04-openlca-reporting.executor.json"
+      ],
+      "command": "${HOME}/Programming/202606-harness-agent-LCA/.venv/bin/python",
+      "env_names": [
+        "LCA_ASSIGNMENT",
+        "LCA_ATTEMPT",
+        "LCA_HANDOFF_PATH",
+        "LCA_METADATA_JSON",
+        "LCA_ROLE",
+        "LCA_RUN_ID",
+        "LCA_STAGE",
+        "LCA_WORKSPACE",
+        "OPENLCA_IPC_PORT",
+        "UV_CACHE_DIR"
+      ],
+      "exposure": "direct",
+      "timeout_ms": 7320000
+    },
+    "lca_artifacts": {
+      "args": [
+        "harness/tools/mcp/lca_artifacts/main.py",
+        "--context-file",
+        "${WORKSPACE_ROOT}/tmp/mcp-context/golden-run/04-openlca-reporting/04-openlca-reporting.executor.json"
+      ],
+      "command": "${HOME}/Programming/202606-harness-agent-LCA/.venv/bin/python",
+      "env_names": [
+        "LCA_ASSIGNMENT",
+        "LCA_ATTEMPT",
+        "LCA_HANDOFF_PATH",
+        "LCA_METADATA_JSON",
+        "LCA_ROLE",
+        "LCA_RUN_ID",
+        "LCA_STAGE",
+        "LCA_WORKSPACE",
+        "OPENLCA_IPC_PORT",
+        "UV_CACHE_DIR"
+      ],
+      "exposure": "direct",
+      "timeout_ms": 60000
+    },
+    "spec_mcp": {
+      "args": [
+        "harness/tools/mcp/spec_mcp/main.py"
+      ],
+      "command": "${HOME}/Programming/202606-harness-agent-LCA/.venv/bin/python",
+      "env_names": [
+        "OPENLCA_IPC_PORT",
+        "SPEC_MCP_BINDING",
+        "SPEC_MCP_KEY_FILE",
+        "SPEC_MCP_TOKEN",
+        "UV_CACHE_DIR"
+      ],
+      "exposure": "direct",
+      "timeout_ms": 300000
+    }
+  },
+  "permissions": {
+    "allowed_read_globs": [
+      "${PROJECT_ROOT}/workspace/**",
+      "${PROJECT_ROOT}/harness/knowledge/**"
+    ],
+    "allowed_tools": [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "write",
+      "edit",
+      "mcp__lca_artifacts__*",
+      "mcp__control_openlca__*",
+      "mcp__spec_mcp__*"
+    ],
+    "allowed_write_globs": [
+      "${PROJECT_ROOT}/workspace/**"
+    ],
+    "denied_write_globs": [],
+    "deny_shell": true
+  },
+  "segments": [
+    {
+      "content_sha256": "70c85b9397ba10fb3b8c12e8129c15dc1a57f3113c46e3a7b82de5ac8c6895c9",
+      "id": "spec_context",
+      "section": "spec_context"
+    },
+    {
+      "content_sha256": "da092725928cf35b96129085a8c4e4c80af958864e6319e0b067702ef9dccf1b",
+      "id": "runtime_protocol",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "32aaa40a2046d78aa0e7042ab3efb82fe6d44ab2b67fdd1c8865ca75aed3425f",
+      "id": "run_context",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "b63d0a17ae0127aa75b98ab7784d06383264cb032f280eeac21fe01c20df5f2f",
+      "id": "rule:workspace_boundary",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "a79dd9a12790d9efd41cf7c97d15dbf02fc3d9cea36fc430859e2d8af51097a6",
+      "id": "rule:runtime",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "4de79087dfeb69cbf9472302f316f6e75b04c05f420f10f43ca9611944e84973",
+      "id": "rule:runtime_loop",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "6c15c998ce48c5510fe7506b44aba729d87ba99781dc05a34cb89874aa799e55",
+      "id": "rule:paths",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "f63e559e2516f33a1183bfdb5c9ebe38e3ab0a1135fe9b995e37c260a6a4cd1e",
+      "id": "rule:lca_method",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "83b18ff4ccc3b27e783b08863640adf975184a98de035277e4a5c87ea98ec9e4",
+      "id": "rule:knowledge_files",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "a2d932f2ab1fbc3ecee0367252c5a9e696c556541b4c98f97bbd606e4a3eac80",
+      "id": "rule:lca_interpretation",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "118af90dc8ef193c4522008aa9b3aad79cd29c83b09e8185e42fb4ebc42063ff",
+      "id": "rule:openlca_usage",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "2800b619f989347960cac13f24654bbe0536e445c81d9510594e3f9efec1296d",
+      "id": "rule:artifact_usage",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "a9564858e91690adf81edb19a0d14755e5cef9351388f1681a6b2be913b39353",
+      "id": "rule:stage_04",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "f27d19f9c60f25e42515843c98606f6ea09e2e8d8de9de0c116c2ddd03b9192f",
+      "id": "rule:assign_04_executor",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "4c2e5622194ac869f0fad390c5430c58b4169c0543a7a251df1d8488e5f257ac",
+      "id": "submission_note",
+      "section": "assignment_prompt"
+    },
+    {
+      "content_sha256": "99552dd8d86844dd1b84eeb8cdd97180d9b3789a75d1e24fc0cab451631bca67",
+      "id": "generated:permissions",
+      "section": "generated_prompts"
+    },
+    {
+      "content_sha256": "3d57f17fc9fc66760e2ded668ff3d7bff24e29b24eca86c62bc3a734f8d89aeb",
+      "id": "generated:language",
+      "section": "generated_prompts"
+    }
+  ],
+  "system_prompt_hash": "a4162aabcca0c2fb5b3b0ccc6d1567614990d04bcda4cd5dd507c31c6cdbfaaa",
+  "tool_whitelist": [
+    "edit",
+    "find",
+    "grep",
+    "ls",
+    "mcp__control_openlca__*",
+    "mcp__lca_artifacts__*",
+    "mcp__spec_mcp__*",
+    "read",
+    "write"
+  ],
+  "workflow": "LCA-main"
+}
