@@ -44,6 +44,7 @@
 | 36 | 🟢 | 模型正常结束但本轮 0 工具调用、未交 handoff，直接计入协议返工 | `runner.run_sdk` | 同分支：同会话提醒继续并提交 handoff，最多 2 次（`WORKER_NUDGE_LIMIT`），独立计数，不计协议返工 |
 | 37 | 🟢 | “额度 3/3 后又 prepare”：不是越界，上限=最多 3 次返工（共 4 轮），显示方式易误解；且掉线与真协议错误共用同一额度 | `runner._rework_invalid_handoff` | 语义不变，日志改为 `protocol rework 1/3 (剩余 2 次)`；连接重试与提醒均不计入 |
 | 38 | 🟢 | 每轮 worker turn 无结构化记录；`pi-runtime.log` 只记连接开/关（单连接自 10:58 起不再写） | `runner._record_turn`、`inspect_run.py`、`agent-stream.tsx` | 同分支：每轮写 `worker_turn` 事件（stop_reason、error_kind=connection/timeout/429/5xx/none、error_message、input/output tokens、tool_calls、SDK retries、起止时间），backend.log 一行摘要；运行详情把“模型连接失败”显示为错误、与“agent 未交 handoff”分开；`npm run inspect` 按会话列出每轮 |
+| 39 | 🟡 | run `8ab95ee0`：各阶段 `attempts.json` 里已结束的尝试仍是 `status=running`、`ended_at=null`，但 01、02 已有 `accepted.json`，结束时这两个字段没回写（不影响运行，影响续跑判断和 inspect） | 尝试记录的结束回写路径（待查） | 待处理，并入近期测试整理：attempt 结束（accepted/failed/rework）时回写 status 和 ended_at，加回归测试 |
 | 18 | 🟢 P1 `5b89231` | `test_plan_form` 失败（解析 `main_plan.md` 的 CML 条件） | `src/tests` | 与 plan 文件内容有关 |
 
 ## 前端（GUI）
