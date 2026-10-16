@@ -8,14 +8,7 @@ import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { apiFetch } from "../../lib/api";
 import { fetchWorkflowList, workflowListItemForMode } from "../../lib/workflow-manifest";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
-import {
-  clockLabel,
-  foldOpenlcaSignal,
-  lastStageFromEvents,
-  settleOpenlcaSignal,
-  type ActivityEvent,
-  type OpenlcaSignal,
-} from "../../lib/openlca-signal";
+import { lastStageFromEvents, type ActivityEvent } from "../../lib/run-activity";
 
 type Progress = {
   run_id?: string | null;
@@ -38,7 +31,6 @@ export default function RunsPage() {
   const [reasonOpen, setReasonOpen] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [restarting, setRestarting] = useState(false);
-  const [openlcaSignal, setOpenlcaSignal] = useState<OpenlcaSignal>({ state: "ok" });
   const [lastStage, setLastStage] = useState("");
   const [activityAttempt, setActivityAttempt] = useState(0);
   const offset = useRef(0);
@@ -165,7 +157,6 @@ export default function RunsPage() {
   useEffect(() => {
     const run = String(progress.run_id || "");
     if (!run) {
-      setOpenlcaSignal({ state: "ok" });
       setLastStage("");
       activityOffset.current = 0;
       return;
@@ -189,10 +180,8 @@ export default function RunsPage() {
         const events = data.events || [];
         if (cancelled) return;
         if (data.reset) {
-          setOpenlcaSignal(foldOpenlcaSignal({ state: "ok" }, events));
           setLastStage(lastStageFromEvents("", events));
         } else {
-          setOpenlcaSignal((current) => foldOpenlcaSignal(current, events));
           setLastStage((current) => lastStageFromEvents(current, events));
         }
       } catch {
@@ -207,7 +196,6 @@ export default function RunsPage() {
     };
   }, [progress.run_id]);
 
-  const shownSignal = settleOpenlcaSignal(openlcaSignal, status);
   const stageText = (() => {
     const current = (progress.current_stage || "").trim();
     if (current) return current;
@@ -230,14 +218,6 @@ export default function RunsPage() {
             </h2>
           </div>
         </div>
-        {shownSignal.state === "down" ? (
-          <p className="status-banner error">openLCA 无响应，请检查界面或重启 IPC</p>
-        ) : null}
-        {shownSignal.state === "recovered" ? (
-          <p className="status-banner">
-            {clockLabel(shownSignal.since) ? `${clockLabel(shownSignal.since)} ` : ""}openLCA 曾无响应，已恢复
-          </p>
-        ) : null}
         {error ? <p className="status-banner error">{error}</p> : null}
         <div className="run-body">
           <div className="run-terminal">

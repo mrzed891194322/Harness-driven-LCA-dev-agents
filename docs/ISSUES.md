@@ -123,6 +123,7 @@
 | 问题 | 状态 | 处理 |
 | --- | --- | --- |
 | 运行页 openLCA 红条一旦出现就粘住（`current \|\| hit`），恢复/运行结束后仍红 | ✅ 已关闭 | `lib/openlca-signal.ts` 按活动事件折叠：最近一次 `openlca_unresponsive` 之后若有成功的 `control_openlca` 工具结果，或运行已结束，改为非红提示「HH:MM openLCA 曾无响应，已恢复」；不做前端持久化 |
+| 运行页不再显示任何 openLCA 连接/断开提示（Du Yuan 2026-10-16） | ✅ 已关闭 | 去掉「实时终端」上方红条「openLCA 无响应…」和「HH:MM openLCA 曾无响应，已恢复」，删除 `lib/openlca-signal.ts`（阶段辅助 `lastStageFromEvents` 移到 `lib/run-activity.ts`）；后端 `openlca_unresponsive` 事件与对账/续导策略不变 |
 | 运行结束后「当前阶段」显示「准备开始」 | ✅ 已关闭 | completed 显示「全部完成」（附 status_reason）；failed/interrupted/aborted 显示状态与最后阶段（取自活动事件 `stage`）；仅未开始时「准备开始」 |
 | worker_turn `retries` 易误解 | ✅ 已关闭 | 改名 `sdk_retries`（pi-runtime TurnOutcome、runner、inspect_run；inspect_run 兼容旧事件的 `retries`） |
 | /harness 首页 `router.replace` 抢走用户已点的链接 | ✅ 已关闭 | 仅当地址仍是 `/harness` 时才跳到首个条目 |
