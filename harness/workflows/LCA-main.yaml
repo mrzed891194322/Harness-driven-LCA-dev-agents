@@ -78,10 +78,10 @@ stages:
   - assignment: 03-dataset-mapping.reviewer
 - id: 04-openlca-reporting
   spec: 04-openlca-reporting
-  title: openLCA 计算与报告
+  title: 计算与报告
   short_title: 报告
   resumable: true
-  phase_title: 阶段 4 / 4：openLCA 计算与报告
+  phase_title: 阶段 4 / 4：计算与报告
   max_attempts: 3
   rules:
     add:
