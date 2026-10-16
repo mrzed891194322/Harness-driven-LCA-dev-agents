@@ -67,7 +67,7 @@ STORAGE_KINDS = frozenset({"file", "directory"})
 WRITERS = frozenset({"spec_mcp", "agent"})
 ACCEPTANCE_KEYS = frozenset({"version", "host_checks", "deliverables", "review_points"})
 SUBMIT_CHECK_KEYS = frozenset({"check", "params", "summary"})
-PERMISSIONS_KEYS = frozenset({"version", "roles"})
+PERMISSIONS_KEYS = frozenset({"version", "roles", "deny_write"})
 ROLES = frozenset({"executor", "reviser", "reviewer"})
 LIFECYCLE_KEYS = frozenset({"on_reviewer_passed"})
 HANDOFF_KEYS = frozenset({"schema", "checks"})
@@ -169,9 +169,9 @@ def load_stage_spec(path: Path, *, project_root: Path, relative: str) -> StageSp
     if not raw.get("permissions"):
         raise ValueError(f"{relative}: permissions (permissions.yaml) is required")
     perm_rel = reader.ref(raw["permissions"], f"{relative}: permissions")
-    role_permissions = parse_stage_permissions(
-        reader.yaml(perm_rel, f"{relative}: permissions"), label=f"harness/{perm_rel}"
-    )
+    perm_raw = reader.yaml(perm_rel, f"{relative}: permissions")
+    role_permissions = parse_stage_permissions(perm_raw, label=f"harness/{perm_rel}")
+    deny_write = parse_stage_deny_write(perm_raw, label=f"harness/{perm_rel}")
 
     if raw.get("examples") is not None:
         reader.ref(raw["examples"], f"{relative}: examples")
@@ -199,6 +199,7 @@ def load_stage_spec(path: Path, *, project_root: Path, relative: str) -> StageSp
             acceptance.get("review_points"), f"harness/{acc_rel}: review_points"
         ),
         role_permissions=role_permissions,
+        deny_write=deny_write,
         sources=dict(sorted(reader.sources.items())),
     )
 
@@ -221,6 +222,22 @@ def parse_stage_permissions(raw: Any, *, label: str) -> dict[str, list[str]]:
         if not isinstance(ids, list) or not ids or not all(isinstance(i, str) and i for i in ids):
             raise ValueError(f"{label}: roles.{role} must be a non-empty list of rule ids")
         out[str(role)] = [require_identifier(i, label=f"{label}: rule id") for i in ids]
+    return out
+
+
+def parse_stage_deny_write(raw: Any, *, label: str) -> list[str]:
+    """Optional stage-scoped write denies (project-relative globs), all roles."""
+    value = raw.get("deny_write") if isinstance(raw, dict) else None
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(v, str) and v.strip() for v in value):
+        raise ValueError(f"{label}: deny_write must be a list of path globs")
+    out: list[str] = []
+    for glob in value:
+        g = glob.strip()
+        if g.startswith(("/", "~")) or ".." in g.split("/"):
+            raise ValueError(f"{label}: deny_write {glob!r} must be relative to the project root")
+        out.append(g)
     return out
 
 

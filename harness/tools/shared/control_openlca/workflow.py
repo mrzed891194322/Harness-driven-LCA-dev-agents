@@ -23,7 +23,11 @@ from .ipc_failure import on_ipc_transport_failure
 from .timeout_policy import ipc_read_scope, product_system_read_sec
 from .entity import find_entity
 from .protocols import CalculationResult, OlcaDescriptor, OpenLcaClient
-from .readonly import category_outside_project, category_project_scope
+from .readonly import (
+    _provider_output_unit,
+    category_outside_project,
+    category_project_scope,
+)
 
 
 ENTITY_IMPORT_ORDER: tuple[str, ...] = (
@@ -1294,22 +1298,6 @@ def _norm_unit(name: Any) -> str | None:
         text = text.replace(sep, "*" if sep not in {" "} else "")
     text = text.replace("**", "*")
     return _UNIT_ALIASES.get(text, text)
-
-
-def _provider_output_unit(provider: Any, flow_id: str) -> dict[str, Any] | None:
-    for exchange in list(getattr(provider, "exchanges", None) or []):
-        if getattr(exchange, "is_input", None) is True:
-            continue
-        if getattr(getattr(exchange, "flow", None), "id", None) != flow_id:
-            continue
-        unit = getattr(exchange, "unit", None)
-        prop = getattr(exchange, "flow_property", None)
-        return {
-            "id": getattr(unit, "id", None),
-            "name": getattr(unit, "name", None),
-            "flow_property": getattr(prop, "name", None),
-        }
-    return None
 
 
 def _transport_unit_pass(

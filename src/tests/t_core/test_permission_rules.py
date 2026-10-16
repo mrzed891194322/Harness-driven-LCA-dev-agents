@@ -90,9 +90,11 @@ def test_repo_specs_resolve_for_every_stage_and_role():
         stage_spec=_spec(REPO, "03-dataset-mapping"),
         attempt=1,
     )
-    # official spec_mcp-written path is write-denied; agent-written LCI dir is not
+    # official spec_mcp-written path is write-denied; agent-written LCI dir is not;
+    # the stage's permissions.yaml deny_write keeps agents out of workspace/artifacts/
     assert mapping.deny_write_globs == [
-        f"{root}/workspace/runs/03-dataset-mapping/executor-1/process-mapping.json"
+        f"{root}/workspace/runs/03-dataset-mapping/executor-1/process-mapping.json",
+        f"{root}/workspace/artifacts/**",
     ]
 
 

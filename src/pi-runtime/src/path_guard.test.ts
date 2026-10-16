@@ -142,3 +142,18 @@ test("official deliverable paths are write-denied even inside workspace (spec_mc
   assert.equal(guard.onToolCall("write", { path: "workspace/tmp/process-mapping.json" }), undefined);
   assert.equal(records.length, 2);
 });
+
+test("stage deny_write glob workspace/artifacts/** blocks the whole subtree", () => {
+  const { root } = setup();
+  const guard = new PathGuard({
+    sessionKey: "s",
+    cwd: root,
+    readGlobs: [`${root}/workspace/**`],
+    writeGlobs: [`${root}/workspace/**`],
+    deniedWriteGlobs: [`${root}/workspace/artifacts/**`],
+    notify: () => {},
+  });
+  assert.equal(guard.onToolCall("write", { path: "workspace/artifacts/LCI/processes/p.json" })?.block, true);
+  assert.equal(guard.onToolCall("write", { path: "workspace/artifacts/LCI/human_readable_mapping.md" })?.block, true);
+  assert.equal(guard.onToolCall("write", { path: "workspace/runs/03-dataset-mapping/executor-1/LCI/p.json" }), undefined);
+});

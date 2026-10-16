@@ -230,7 +230,8 @@ def lci_fingerprint(ctx):
     matched on this fingerprint. Writing or editing process-mapping.json (e.g.
     spec_mcp staging it during submit) must not invalidate provider evidence.
     """
-    return stable_hash(scoped_fingerprints(ctx, _safe_lci_files(stage03_lci_dir(ctx))))
+    files = [p for p in _safe_lci_files(stage03_lci_dir(ctx)) if p.suffix.lower() == ".json"]
+    return stable_hash(scoped_fingerprints(ctx, files))
 
 
 def _provider_evidence_matches(ctx, call, model_fp=None, lci_fp=None) -> bool:
@@ -1156,7 +1157,9 @@ def exchange_unit_errors(ctx, lci_dir: Path | None = None) -> tuple[list[str], l
     if unverified:
         errors.append(
             "修法：以下 provider/flow 对还没有在【当前最终模型】上的 provider 单位记录，"
-            "无法核对单位组。请在 LCI 定稿后对最终模型调用 validate_providers_batch，再提交。"
+            "无法核对单位组。请在 LCI 定稿后（LCI/ 下 JSON 不再改动）对这些 provider/flow 对调用 "
+            "validate_providers_batch（或对本尝试 LCI 目录调用 preflight_import_lci），"
+            "结果里每对都应带 provider_unit，再提交。"
             f"共 {len(unverified)} 对：" + ", ".join(sorted(set(unverified))[:10])
         )
     return errors, notes

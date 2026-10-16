@@ -6,6 +6,7 @@
 
 - 响应为 schema_version=2、status、summary、counts、errors、warnings、artifacts、duration_ms；完整结果由工具写入 `reports/runs/<run>/<stage>/<attempt>/<call>/raw.json`，路径相对 workspace，并附 SHA-256 与字节数。响应最大 32 KiB；省略明细在附件。
 - `query_descriptors_batch(entity_type, searches, limit=20, offset=0)` 每批扫描一次描述符（最多 50 关键词）；`validate_providers_batch(requirements)` 最多 200 对 process_id/flow_id，可附 expected_geography；同 Process 只回读一次。无跨批缓存。
+- `validate_providers_batch` 每条 check 带 `provider_unit`（provider 对该 flow 的输出参考单位，与 `preflight_import_lci` 同字段，2026-10-16 起）；03 `submit("LCI")` 的 `exchange_unit_groups` 按 `lci_fingerprint`（只算 `LCI/**/*.json`）匹配这份记录，所以 LCI JSON 定稿后调一次即可，LCI/ 里的 md 不影响。
 - `preflight_import_lci` 返回 preflight_id 和声明库身份来源，不声称 IPC 已证明数据库名称/版本。Provider 证据含目标 Flow、输出数量、内容哈希和少量失败诊断。
 - `import_lci(request_id, preflight_id, lci_dir=..., target_category=..., database_name=...)` 要求显式请求身份。先查同请求的范围和内容，再复用日志；新请求须新预检。预检依据变化拒绝写入。
 - `get_import_operation(request_id=None, operation_id=None)` 两个 ID 二选一，可省略读取当前索引；不访问 IPC、不占用 endpoint 锁。running/indeterminate/部分失败不允许盲目重试。
