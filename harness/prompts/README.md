@@ -12,7 +12,7 @@
 | [generated/](generated/) | 生成式提示词模板 `*.md.tmpl`：`permissions`（本会话访问范围）、`language`（输出与文档语言） | 每次建会话自动渲染，不需要在工作流里绑定 |
 | [stages/](stages/) | 阶段行为：`<stage>.md`、修订 `<stage>.revise.md`、角色 `<stage>.<role>.md` | `stages[].rules.add`、`assignments.*.rules.add` |
 
-工作流 YAML 只引用规则 id 和 spec id（`stages[].spec`），不内嵌内容。PR2 之前写在 `registry.rules` 里的路径映射见 `src/backend/core/workflow/config/legacy_ids.py`（合并后一轮完整 LCA 通过后删除）。
+工作流 YAML 只引用规则 id 和 spec id（`stages[].spec`），不内嵌内容。组件 id 即文件路径（目录自动注册），不再支持 PR2 之前的旧 id。
 
 ## 提示词组装顺序
 

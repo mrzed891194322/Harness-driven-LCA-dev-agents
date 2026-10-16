@@ -1,6 +1,6 @@
 {
   "assignment_id": "02-inventory-extraction.reviser",
-  "bundle_hash": "8aa4380f1147edb3115633034e0ed6320b9dde5e068add3b0d4595ffa3484096",
+  "bundle_hash": "a1bf0958b4d560406377222adbcb86b64c9b07f3dd8c72cf1b176b257bacc03c",
   "knowledge": [
     {
       "content_hash": "a863ca21ad0d1d52d0ed8197144f91abb33330b5ac39b4aac3cd2d859c3a8570",
@@ -78,7 +78,7 @@
   },
   "segments": [
     {
-      "content_sha256": "5d77cac8ed63baf1d6300b4d778fd1b8ef2b53d5c4e215ed1d1b7c386d9958b7",
+      "content_sha256": "cb810a6bb2df98db6da4b8a3dc040ac1ef6f615eed94c6bb48f9b076065293e9",
       "id": "spec_context",
       "section": "spec_context"
     },
@@ -93,58 +93,69 @@
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "b63d0a17ae0127aa75b98ab7784d06383264cb032f280eeac21fe01c20df5f2f",
-      "id": "rule:workspace_boundary",
+      "content_sha256": "f72f9517d2a6829e105d7d27f6798b1b300ac397227c640ec2f6ba3ea81323e7",
+      "file_sha256": "e48ce92a316af53d4df2023fefac29faf788f60c3ca6892907472c671dda66fb",
+      "id": "rule:write-boundary",
       "section": "assignment_prompt"
     },
     {
       "content_sha256": "a79dd9a12790d9efd41cf7c97d15dbf02fc3d9cea36fc430859e2d8af51097a6",
+      "file_sha256": "9faf557b22d99d4340758cff276379f711b9aba227af7b5a1dcc6a95da3ccbfb",
       "id": "rule:runtime",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "4de79087dfeb69cbf9472302f316f6e75b04c05f420f10f43ca9611944e84973",
-      "id": "rule:runtime_loop",
+      "content_sha256": "f7f49f8b513e7fff3ff20adee411b06315a726743755a7d2709f760b2d084424",
+      "file_sha256": "31d521211f04b4299a2d21b5089c4f195ba258eb28f392cc79968d3de9479738",
+      "id": "rule:runtime-loop",
       "section": "assignment_prompt"
     },
     {
       "content_sha256": "6c15c998ce48c5510fe7506b44aba729d87ba99781dc05a34cb89874aa799e55",
+      "file_sha256": "2857c5b8bdc8959a27deed3542154e9b23eb3ac6b5932b2f71eb34d32a6bf32a",
       "id": "rule:paths",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "f63e559e2516f33a1183bfdb5c9ebe38e3ab0a1135fe9b995e37c260a6a4cd1e",
-      "id": "rule:lca_method",
+      "content_sha256": "00058a34128e57fb3fdbcf8de53a33e576e58c48cb39e5a1403cfb08dc726636",
+      "file_sha256": "88d3087213e33d6fdbcc8d432cddde7a8e08a8bdba1e080a6586efe9d1edddeb",
+      "id": "rule:lca-method",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "83b18ff4ccc3b27e783b08863640adf975184a98de035277e4a5c87ea98ec9e4",
-      "id": "rule:knowledge_files",
+      "content_sha256": "df766379781e9e0570541a7acae88e86f5cbb23d5b2ef9a46b05e91c3fe82ca1",
+      "file_sha256": "33b392c7c22b2ebf167d0e74f608384d6b96efd71842643b05c25f79d0219bea",
+      "id": "rule:lca-knowledge-files",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "1e9b13d61e6ba41c065a8982997a7fe3c4a4bba17420bdad8df4b429be01d28d",
-      "id": "rule:lca_inventory",
+      "content_sha256": "2a16caeceaecec61830a0f9432aa175a5c494ca6cbd9253842469e767c42ecbd",
+      "file_sha256": "2f7927125673299a5a1910b7840dbfdec38a2d263b510d074ecb03cfc1aa1c0f",
+      "id": "rule:lca-inventory",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "2800b619f989347960cac13f24654bbe0536e445c81d9510594e3f9efec1296d",
-      "id": "rule:artifact_usage",
+      "content_sha256": "dd3b9f0ece746448ef12729a57dc2d04d58eb1ae464b5b2983b9c824a3b05e8c",
+      "file_sha256": "270055706a9f5285e766029e020beb6dd586c031c79b1c08ea528d5c6734c133",
+      "id": "rule:tool-lca-artifacts",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "2b3281e96a3e07893fe7699471814f4dabd46511680e4411015a4c0528ae81f6",
-      "id": "rule:stage_02",
+      "content_sha256": "844d51e91b897b4547994fca0cf7de7cb9c2f594412be29496a688eacaa67d64",
+      "file_sha256": "93e9eda009ab5d5183645d3ad6cc7f1e83a0b5c5b603356c8819aaad7d582d0d",
+      "id": "rule:stage/02-inventory-extraction",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "ee282fe6cbe5b27f9fec62f47b74e755df53160588a2c517ac272d9a4272b0db",
-      "id": "rule:stage_02_revise",
+      "content_sha256": "ca93b60c18df78d9d8f15f8348f3c8e5dfdc9db69eb11ea90f7410f592525035",
+      "file_sha256": "14704c90b2196f9f0fb6efa912e21356f02bd155bde88865ea9dcefa19a2115a",
+      "id": "rule:stage/02-inventory-extraction.revise",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "51ca980428805faa5bceb3f40f5255b5ea5ab056dff1801ad67ba0f5b85d5913",
-      "id": "rule:assign_02_reviser",
+      "content_sha256": "30ad06e4a15db6e0f6d5ca4657550346abefff0742494f3bdb66823998aa4ebe",
+      "file_sha256": "a87bcb4f13e0ddfc2097ab207ab69b52be2ebc7071469f253cd82fd988bf8c78",
+      "id": "rule:stage/02-inventory-extraction.reviser",
       "section": "assignment_prompt"
     },
     {
@@ -154,16 +165,18 @@
     },
     {
       "content_sha256": "92284324021d0fc63dbc8e43422d4b59b040fcf62dbf79c4c1584f0e292e7fe5",
+      "file_sha256": "bc39c580095a9ff63bfa6316bdb8b3664eee4f979049d2f93f8afd3042673260",
       "id": "generated:permissions",
       "section": "generated_prompts"
     },
     {
       "content_sha256": "3d57f17fc9fc66760e2ded668ff3d7bff24e29b24eca86c62bc3a734f8d89aeb",
+      "file_sha256": "2e8d6dfd4c77ee889b58f8d8d5565e4769e461d49d259ffd79c155b108dd686b",
       "id": "generated:language",
       "section": "generated_prompts"
     }
   ],
-  "system_prompt_hash": "2f3f95b6ba48b610d763d0fcdaa5b30d602dc667c189116b76e8f7e057106bec",
+  "system_prompt_hash": "7931c453279572e0db824d12131000859424244db52e7cc10224546f9407b829",
   "tool_whitelist": [
     "edit",
     "find",

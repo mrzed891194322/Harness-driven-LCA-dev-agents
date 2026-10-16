@@ -5,7 +5,6 @@ global:
     ceiling:
     - worker-default
     - reviewer
-registry: {}
 defaults:
   rules:
   - write-boundary

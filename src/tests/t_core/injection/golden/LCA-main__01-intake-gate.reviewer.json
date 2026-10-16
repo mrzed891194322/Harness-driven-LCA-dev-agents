@@ -1,6 +1,6 @@
 {
   "assignment_id": "01-intake-gate.reviewer",
-  "bundle_hash": "6dd879b2f0785fb55a362c3c27d421c0a283a0e561ceb2643382f724c8b45bc9",
+  "bundle_hash": "28f9e7688898cdd1de29990b21f9936c45c488ef2d39bc7ea898013caeedc52f",
   "knowledge": [
     {
       "content_hash": "a863ca21ad0d1d52d0ed8197144f91abb33330b5ac39b4aac3cd2d859c3a8570",
@@ -86,53 +86,63 @@
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "b63d0a17ae0127aa75b98ab7784d06383264cb032f280eeac21fe01c20df5f2f",
-      "id": "rule:workspace_boundary",
+      "content_sha256": "f72f9517d2a6829e105d7d27f6798b1b300ac397227c640ec2f6ba3ea81323e7",
+      "file_sha256": "e48ce92a316af53d4df2023fefac29faf788f60c3ca6892907472c671dda66fb",
+      "id": "rule:write-boundary",
       "section": "assignment_prompt"
     },
     {
       "content_sha256": "a79dd9a12790d9efd41cf7c97d15dbf02fc3d9cea36fc430859e2d8af51097a6",
+      "file_sha256": "9faf557b22d99d4340758cff276379f711b9aba227af7b5a1dcc6a95da3ccbfb",
       "id": "rule:runtime",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "4de79087dfeb69cbf9472302f316f6e75b04c05f420f10f43ca9611944e84973",
-      "id": "rule:runtime_loop",
+      "content_sha256": "f7f49f8b513e7fff3ff20adee411b06315a726743755a7d2709f760b2d084424",
+      "file_sha256": "31d521211f04b4299a2d21b5089c4f195ba258eb28f392cc79968d3de9479738",
+      "id": "rule:runtime-loop",
       "section": "assignment_prompt"
     },
     {
       "content_sha256": "6c15c998ce48c5510fe7506b44aba729d87ba99781dc05a34cb89874aa799e55",
+      "file_sha256": "2857c5b8bdc8959a27deed3542154e9b23eb3ac6b5932b2f71eb34d32a6bf32a",
       "id": "rule:paths",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "f63e559e2516f33a1183bfdb5c9ebe38e3ab0a1135fe9b995e37c260a6a4cd1e",
-      "id": "rule:lca_method",
+      "content_sha256": "00058a34128e57fb3fdbcf8de53a33e576e58c48cb39e5a1403cfb08dc726636",
+      "file_sha256": "88d3087213e33d6fdbcc8d432cddde7a8e08a8bdba1e080a6586efe9d1edddeb",
+      "id": "rule:lca-method",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "83b18ff4ccc3b27e783b08863640adf975184a98de035277e4a5c87ea98ec9e4",
-      "id": "rule:knowledge_files",
+      "content_sha256": "df766379781e9e0570541a7acae88e86f5cbb23d5b2ef9a46b05e91c3fe82ca1",
+      "file_sha256": "33b392c7c22b2ebf167d0e74f608384d6b96efd71842643b05c25f79d0219bea",
+      "id": "rule:lca-knowledge-files",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "ae52356cbcfac58c43993d111d1b1ef19e6478062e8dea3a727245a86ece474b",
-      "id": "rule:reviewer_readonly",
+      "content_sha256": "d172d85acfb971a458c16f5561efd4e19ac88766ae45819cf2fb82eb66729107",
+      "file_sha256": "f586b47d9adf958cee2adb8e26dd178ab6df566ad66ec8d8a9be9a610f08adf4",
+      "id": "rule:reviewer-readonly",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "2800b619f989347960cac13f24654bbe0536e445c81d9510594e3f9efec1296d",
-      "id": "rule:artifact_usage",
+      "content_sha256": "dd3b9f0ece746448ef12729a57dc2d04d58eb1ae464b5b2983b9c824a3b05e8c",
+      "file_sha256": "270055706a9f5285e766029e020beb6dd586c031c79b1c08ea528d5c6734c133",
+      "id": "rule:tool-lca-artifacts",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "9e98c48b0a8be13d1ac4f70d00492ed18d9b533fcaa57783f5f2302ddf797dcf",
-      "id": "rule:stage_01",
+      "content_sha256": "80eeff0b0504b84074768b9c46127d26ab09450ea56cc721a8a0b6c7f1ea5b77",
+      "file_sha256": "ded2b11f63207d256625d52264cf5619620e8a1bc73420d888ba822148fef2be",
+      "id": "rule:stage/01-intake-gate",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "cc09c69d0549c4210bd285b53690f73297604028ad912be3b662812c9fbb8005",
-      "id": "rule:assign_01_reviewer",
+      "content_sha256": "b5f893eac43351d526202651c51fedcaa9a4a630d3e74662caecc92c375ceeff",
+      "file_sha256": "967bde17fa79190a69d6de7e23c784f02c10dac6cc49834397f956f5aa13b37c",
+      "id": "rule:stage/01-intake-gate.reviewer",
       "section": "assignment_prompt"
     },
     {
@@ -142,16 +152,18 @@
     },
     {
       "content_sha256": "274e1561d879b860c8c59c92d78fa8f67b2b1b150063ecc688d3e35cf7eb83ab",
+      "file_sha256": "bc39c580095a9ff63bfa6316bdb8b3664eee4f979049d2f93f8afd3042673260",
       "id": "generated:permissions",
       "section": "generated_prompts"
     },
     {
       "content_sha256": "3d57f17fc9fc66760e2ded668ff3d7bff24e29b24eca86c62bc3a734f8d89aeb",
+      "file_sha256": "2e8d6dfd4c77ee889b58f8d8d5565e4769e461d49d259ffd79c155b108dd686b",
       "id": "generated:language",
       "section": "generated_prompts"
     }
   ],
-  "system_prompt_hash": "8e7860ff0c4f629fec8d028129feabb1b9409a30a11a502bfa494fc0e5bdac1f",
+  "system_prompt_hash": "580ed2e7dd07913570fa3ecc7a21ebdea492abe9cb7a633aa15790cfd6815970",
   "tool_whitelist": [
     "find",
     "grep",

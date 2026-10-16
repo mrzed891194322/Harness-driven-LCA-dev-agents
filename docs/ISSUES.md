@@ -112,10 +112,10 @@
 
 ## PR2 harness 重命名与运行指纹（`feat/pr2-harness-rename`）
 
-- **目录**：`harness/rules/` → `harness/prompts/`；`harness/specs/shared/permissions/` → `harness/permissions/`。规则与 host action **组件 id** 已改名（见 `legacy_ids.py` 与 `docs/REFACTOR_PLAN.md` 台账）。
-- **不可续跑**：PR2 合并后，**旧 run_id 的 checkpoint 不能在同一套新代码上 resume**。原因包括：运行指纹纳入新路径/新 id、`spec_context` 段因验收 action id 变化而文本变化、workflow 快照与 `runtime-config.json` 中的组件键不一致。应从 whole-lca 或 `resume-lca`（新 run）重新开跑。
-- **legacy 别名**：加载器仍接受 PR2 之前的 rule id / host action id / 旧 harness 路径，并打 `DeprecationWarning`；golden 测试用 `legacy_ids` 把新 id 映射回旧键比对，**未改** `golden_export/*.json` 文件内容。
-- **删除时机**：`legacy_ids.py` 与别名逻辑在 PR2 合并且**至少一轮完整 LCA 真实运行通过**后删除；删除前勿在 YAML 中继续使用旧 id。
+- **目录**：`harness/rules/` → `harness/prompts/`；`harness/specs/shared/permissions/` → `harness/permissions/`。规则与 host action **组件 id** 已改名（见 `docs/REFACTOR_PLAN.md` 台账）。
+- **不可续跑旧运行**（Du Yuan 2026-10-16 定）：PR2 之前的 run_id 一律不续跑，从 whole-lca 或 `resume-lca`（新 run）重新开跑。PR2 之后的新运行中途停下仍可续跑（快照 `workflow.yaml` 优先于本地 YAML，`test_resume_prefers_snapshot_over_mutated_local` 覆盖）。
+- **legacy 别名已删除**：`legacy_ids.py`、加载器里的旧 rule id / host action id / 旧 harness 路径映射全部移除，旧 id 现在直接报未知组件；golden 改回逐字节比对，JSON 已按新 id（`check/*`、`write-boundary` 等）重新生成。
+- **遗留**：加载器仍接受 YAML 内联 `registry:`（测试 YAML 在用，带 DeprecationWarning，约 129 条警告）；发布的 `LCA-main.yaml`/`LCA-revise.yaml` 已删掉 `registry:`。`workspace/legacy_paths.py` 是 PR2 之前的工作区路径兼容，未动。
 
 ## fix/run-page-signals（2026-10-16）
 

@@ -1,6 +1,6 @@
 {
   "assignment_id": "04-openlca-reporting.reviser",
-  "bundle_hash": "732c6ae7fcca010f7ec5fbe6c7b74b5249594d66f634d72a111624359325cd4a",
+  "bundle_hash": "d3e2d8068265e3460e859266277f0e212cad3f2ff989f0a28e90782f38b7d89b",
   "knowledge": [
     {
       "content_hash": "a863ca21ad0d1d52d0ed8197144f91abb33330b5ac39b4aac3cd2d859c3a8570",
@@ -98,7 +98,7 @@
   },
   "segments": [
     {
-      "content_sha256": "70c85b9397ba10fb3b8c12e8129c15dc1a57f3113c46e3a7b82de5ac8c6895c9",
+      "content_sha256": "3ff2c57d69e9a5bba8629e739c02c9de18e5caf1e7af57c4418977b6352a646b",
       "id": "spec_context",
       "section": "spec_context"
     },
@@ -113,63 +113,75 @@
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "b63d0a17ae0127aa75b98ab7784d06383264cb032f280eeac21fe01c20df5f2f",
-      "id": "rule:workspace_boundary",
+      "content_sha256": "f72f9517d2a6829e105d7d27f6798b1b300ac397227c640ec2f6ba3ea81323e7",
+      "file_sha256": "e48ce92a316af53d4df2023fefac29faf788f60c3ca6892907472c671dda66fb",
+      "id": "rule:write-boundary",
       "section": "assignment_prompt"
     },
     {
       "content_sha256": "a79dd9a12790d9efd41cf7c97d15dbf02fc3d9cea36fc430859e2d8af51097a6",
+      "file_sha256": "9faf557b22d99d4340758cff276379f711b9aba227af7b5a1dcc6a95da3ccbfb",
       "id": "rule:runtime",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "4de79087dfeb69cbf9472302f316f6e75b04c05f420f10f43ca9611944e84973",
-      "id": "rule:runtime_loop",
+      "content_sha256": "f7f49f8b513e7fff3ff20adee411b06315a726743755a7d2709f760b2d084424",
+      "file_sha256": "31d521211f04b4299a2d21b5089c4f195ba258eb28f392cc79968d3de9479738",
+      "id": "rule:runtime-loop",
       "section": "assignment_prompt"
     },
     {
       "content_sha256": "6c15c998ce48c5510fe7506b44aba729d87ba99781dc05a34cb89874aa799e55",
+      "file_sha256": "2857c5b8bdc8959a27deed3542154e9b23eb3ac6b5932b2f71eb34d32a6bf32a",
       "id": "rule:paths",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "f63e559e2516f33a1183bfdb5c9ebe38e3ab0a1135fe9b995e37c260a6a4cd1e",
-      "id": "rule:lca_method",
+      "content_sha256": "00058a34128e57fb3fdbcf8de53a33e576e58c48cb39e5a1403cfb08dc726636",
+      "file_sha256": "88d3087213e33d6fdbcc8d432cddde7a8e08a8bdba1e080a6586efe9d1edddeb",
+      "id": "rule:lca-method",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "83b18ff4ccc3b27e783b08863640adf975184a98de035277e4a5c87ea98ec9e4",
-      "id": "rule:knowledge_files",
+      "content_sha256": "df766379781e9e0570541a7acae88e86f5cbb23d5b2ef9a46b05e91c3fe82ca1",
+      "file_sha256": "33b392c7c22b2ebf167d0e74f608384d6b96efd71842643b05c25f79d0219bea",
+      "id": "rule:lca-knowledge-files",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "a2d932f2ab1fbc3ecee0367252c5a9e696c556541b4c98f97bbd606e4a3eac80",
-      "id": "rule:lca_interpretation",
+      "content_sha256": "943388023676d48d59f4858c55a1317083dfa1577fa9ba7116d7bce6a008991b",
+      "file_sha256": "8d6cf12ed6ed87ff77a13b27766cb1b4c3174d979b8dd37f6872593f6c49e836",
+      "id": "rule:lca-interpretation",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "87b555d0e750e8473cc160b81f2b62f2b48e8a391c7761ed9af0a6f517b36d00",
-      "id": "rule:openlca_usage",
+      "content_sha256": "507dadd2b57c44ea5f5690c7d7a3ec73a60be13b4bcb3a3bb508401ab1ab71a3",
+      "file_sha256": "d9753a4507552ea16ec887e92d9dce9bc10e0a80d3079ba75be0e10deb41c4aa",
+      "id": "rule:tool-control-openlca",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "2800b619f989347960cac13f24654bbe0536e445c81d9510594e3f9efec1296d",
-      "id": "rule:artifact_usage",
+      "content_sha256": "dd3b9f0ece746448ef12729a57dc2d04d58eb1ae464b5b2983b9c824a3b05e8c",
+      "file_sha256": "270055706a9f5285e766029e020beb6dd586c031c79b1c08ea528d5c6734c133",
+      "id": "rule:tool-lca-artifacts",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "a9564858e91690adf81edb19a0d14755e5cef9351388f1681a6b2be913b39353",
-      "id": "rule:stage_04",
+      "content_sha256": "c597ffb76e60536f0430129a51f9098b3f3bb8d9c710e57b09f7a56f55a2a759",
+      "file_sha256": "0093bf8366a955ee82b475a68847cedc885d3fdd1f68aa4fb14f7d2bfd2d2fe8",
+      "id": "rule:stage/04-openlca-reporting",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "d0d071adbcee7128866d034b5ec948023de49782b32426190f4599514d0afc56",
-      "id": "rule:stage_04_revise",
+      "content_sha256": "f45e20133c9166150738b9e47b6cf7a3025be165d3d2ff751c4ad70456fd987d",
+      "file_sha256": "60e24c4307706c2d913760bcf6c28163978289f753a1ea3ca76d015f74675f55",
+      "id": "rule:stage/04-openlca-reporting.revise",
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "2cda217b49b8403403e799090793a2624c3bbb6c7364c2ba678f0c683abf1783",
-      "id": "rule:assign_04_reviser",
+      "content_sha256": "1bd9d22f7214a0a9371b5b9bf2073a17a6d449c6da3f4752e2ecb7bde62d6059",
+      "file_sha256": "dbb5c9c8310339d53474161a4207bf9e28aeff32de0c2ce8b82f85b0fc943fbb",
+      "id": "rule:stage/04-openlca-reporting.reviser",
       "section": "assignment_prompt"
     },
     {
@@ -179,16 +191,18 @@
     },
     {
       "content_sha256": "99552dd8d86844dd1b84eeb8cdd97180d9b3789a75d1e24fc0cab451631bca67",
+      "file_sha256": "bc39c580095a9ff63bfa6316bdb8b3664eee4f979049d2f93f8afd3042673260",
       "id": "generated:permissions",
       "section": "generated_prompts"
     },
     {
       "content_sha256": "3d57f17fc9fc66760e2ded668ff3d7bff24e29b24eca86c62bc3a734f8d89aeb",
+      "file_sha256": "2e8d6dfd4c77ee889b58f8d8d5565e4769e461d49d259ffd79c155b108dd686b",
       "id": "generated:language",
       "section": "generated_prompts"
     }
   ],
-  "system_prompt_hash": "816cd6ad50ccf2062349c7753cf1450dce5bf45e5c71ec08fb543b7e3519d737",
+  "system_prompt_hash": "08fb67d0fac4b4399482c4522cfd18cfab4a914fd6a2f9aed92342bfb974cc66",
   "tool_whitelist": [
     "edit",
     "find",

@@ -27,11 +27,6 @@ from .models import (
     Workflow,
 )
 from .harness_registry import discover_registry
-from .legacy_ids import (
-    canonical_host_action_id,
-    canonical_rule_id,
-    remap_harness_path,
-)
 from .resolve import attach_bundles
 from .yaml_strict import load_yaml_strict
 
@@ -255,10 +250,10 @@ def _parse_workflow(
     if registry.get("rules"):
         _warn_inline_registry(source_path, "rules")
         for rule_id, rule_path in dict(registry.get("rules") or {}).items():
-            rid = canonical_rule_id(
+            rid = (
                 require_component_id(str(rule_id), label="rule id")
             )
-            rel = remap_harness_path(
+            rel = (
                 require_relative_path(str(rule_path), label=f"rule {rid} path")
             )
             if rid in rules and rules[rid] != rel:
@@ -303,7 +298,7 @@ def _parse_workflow(
                 args=[str(item) for item in spec.get("args") or []],
                 env={str(k): str(v) for k, v in dict(spec.get("env") or {}).items()},
                 rules=[
-                    canonical_rule_id(
+                    (
                         require_component_id(str(item), label="rule id")
                     )
                     for item in spec.get("rules") or []
@@ -316,7 +311,7 @@ def _parse_workflow(
                 raise ValueError(
                     f"{source_path}: host_action {action_id} must be a mapping"
                 )
-            aid = canonical_host_action_id(
+            aid = (
                 require_component_id(str(action_id), label="host action id")
             )
             if aid in host_actions:
@@ -349,7 +344,7 @@ def _parse_workflow(
         _warn_inline_registry(source_path, "permissions")
         for perm_id, perm_path in dict(registry.get("permissions") or {}).items():
             pid = require_identifier(str(perm_id), label="permission id")
-            rel = remap_harness_path(
+            rel = (
                 require_relative_path(str(perm_path), label=f"permission {pid} path")
             )
             if pid in registry_permissions and registry_permissions[pid] != rel:
@@ -472,7 +467,7 @@ def _parse_workflow(
         )
 
     locked_rules = [
-        canonical_rule_id(require_component_id(str(item), label="locked rule id"))
+        (require_component_id(str(item), label="locked rule id"))
         for item in defaults.get("locked_rules") or []
     ]
     locked_by_role: dict[str, list[str]] = {}
@@ -481,7 +476,7 @@ def _parse_workflow(
         raise ValueError(f"{source_path}: locked_rules_by_role must be a mapping")
     for role, ids in dict(raw_locked_roles).items():
         locked_by_role[str(role)] = [
-            canonical_rule_id(require_component_id(str(item), label="locked rule id"))
+            (require_component_id(str(item), label="locked rule id"))
             for item in ids or []
         ]
 
@@ -518,7 +513,7 @@ def _parse_workflow(
         host_actions=host_actions,
         knowledge=knowledge,
         default_rules=[
-            canonical_rule_id(require_component_id(str(item), label="rule id"))
+            (require_component_id(str(item), label="rule id"))
             for item in resolve_list([], defaults.get("rules"))
         ],
         default_knowledge=[
