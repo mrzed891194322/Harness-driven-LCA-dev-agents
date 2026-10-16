@@ -70,6 +70,7 @@ from backend.services.plan_form import (
     import_plan_bytes,
     list_references,
     read_plan_document,
+    save_plan,
     save_reference_note,
     save_references,
     template_markdown,
@@ -1041,11 +1042,22 @@ def read_plan(workflow: str = "LCA-main") -> dict[str, Any]:
 
 
 @app.put("/api/plan")
-def write_plan(_body: PlanUpdate) -> dict[str, Any]:
-    raise HTTPException(
-        status_code=410,
-        detail="plan form autosave removed; edit harness/knowledge/plan via import or YAML path",
-    )
+def write_plan(body: PlanUpdate, workflow: str = "LCA-main") -> dict[str, Any]:
+    """Autosave the plan form; the file is the workflow YAML's ``plan:`` path."""
+    try:
+        save_plan(
+            PROJECT_ROOT,
+            PlanFields(
+                subject=body.subject,
+                functional_unit=body.functional_unit,
+                life_cycle_stages=body.life_cycle_stages,
+                conditions=body.conditions,
+            ),
+            workflow=workflow,
+        )
+        return {"status": "saved", **read_plan_document(PROJECT_ROOT, workflow=workflow)}
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/plan/template")

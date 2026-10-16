@@ -161,6 +161,43 @@ def test_plan_import_requires_overwrite_when_target_exists() -> None:
         assert "新内容" in plan.read_text(encoding="utf-8")
 
 
+def test_plan_autosave_writes_yaml_plan_path() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_plan_workflows(root)
+        main_yaml = root / "harness" / "workflows" / "LCA-main.yaml"
+        main_yaml.write_text(
+            main_yaml.read_text(encoding="utf-8").replace(
+                "plan: harness/knowledge/plan/main_plan.md",
+                "plan: harness/knowledge/plan/custom_plan.md",
+            ),
+            encoding="utf-8",
+        )
+        fields = {
+            "subject": "瓶子",
+            "functional_unit": "1000 瓶",
+            "life_cycle_stages": "原材料获取；制造",
+            "conditions": "",
+        }
+        local = root / "empty-local-workflows"
+        local.mkdir()
+        with patch.dict(os.environ, {"LCA_LOCAL_WORKFLOWS_DIR": str(local)}), patch(
+            "backend.api.app.PROJECT_ROOT", root
+        ):
+            client = TestClient(app)
+            saved = client.put("/api/plan", params={"workflow": "LCA-main"}, json=fields)
+            revised = client.put("/api/plan", params={"workflow": "LCA-revise"}, json=fields)
+            unknown = client.put("/api/plan", params={"workflow": "nope"}, json=fields)
+        assert saved.status_code == 200
+        assert saved.json()["path"] == "harness/knowledge/plan/custom_plan.md"
+        plans = root / "harness" / "knowledge" / "plan"
+        assert "1000 瓶" in (plans / "custom_plan.md").read_text(encoding="utf-8")
+        assert not (plans / "main_plan.md").exists()
+        assert revised.status_code == 200
+        assert revised.json()["path"] == "harness/knowledge/plan/revise_plan.md"
+        assert unknown.status_code == 400
+
+
 def test_harness_catalog_has_injection_entry() -> None:
     response = TestClient(app).get("/api/harness/catalog")
     assert response.status_code == 200

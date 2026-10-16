@@ -430,7 +430,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         "input_tokens": 0,
         "output_tokens": 0,
         "tool_calls": 0,
-        "retries": 4,
+        "sdk_retries": 4,
         "connection_signal": "native",
     }
 
@@ -461,7 +461,7 @@ class OrchestratorGraphTests(unittest.TestCase):
         self.assertEqual(kinds[:4], ["model_connection_failed"] * 4)
         self.assertEqual(turns[0]["error_kind"], "connection")
         self.assertEqual(turns[0]["stop_reason"], "error")
-        self.assertEqual(turns[0]["retries"], 4)
+        self.assertEqual(turns[0]["sdk_retries"], 4)
         self.assertEqual(turns[0]["error_message"], "Connection error.")
 
     @patch("backend.core.workflow.execution.runner.time.sleep")

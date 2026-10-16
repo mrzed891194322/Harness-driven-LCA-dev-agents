@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { readWorkflow, type WorkflowGraph } from "./workflow-yaml";
 import type { WorkMode } from "./workflow-board";
-import { missingPlanFields, PLAN_FIELD_ROWS, type PlanFields } from "./plan-fields";
+import type { PlanFields } from "./plan-fields";
+import type { StudyWork } from "./study-form";
 import { apiFetch } from "../../lib/api";
 import {
   assignmentTitle,
@@ -65,11 +66,11 @@ function isDiagnostics(value: unknown): value is Diagnostics {
 
 export function PreviewBoard({
   mode,
-  plan,
+  work,
   references,
 }: {
   mode: WorkMode;
-  plan: PlanFields;
+  work: StudyWork;
   references: ReferenceFile[];
 }) {
   const [diag, setDiag] = useState<Diagnostics | null>(null);
@@ -169,7 +170,7 @@ export function PreviewBoard({
   const checks = environmentChecks(diag);
   const shownChecks = checks.filter((item) => item.label !== "模型");
   const envReady = Boolean(diag) && checks.every((item) => item.ok);
-  const missingFields = missingPlanFields(plan);
+  const missingFields = work.rows.flatMap((row) => row.gaps);
   const taskId = workflow?.id ?? workflowTaskIdForMode(workflowList, mode) ?? manifest?.id ?? "";
   const ready =
     envReady && missingFields.length === 0 && !envError && Boolean(workflow) && Boolean(taskId);
@@ -199,13 +200,13 @@ export function PreviewBoard({
         <section className="preview-section" aria-labelledby="preview-work-title">
           <h3 id="preview-work-title">工作内容</h3>
           <dl className="preview-facts">
-            {PLAN_FIELD_ROWS.map((row) => (
-              <div key={row.key}>
+            {work.rows.map((row) => (
+              <div key={row.id}>
                 <dt>
                   {row.label}
-                  {row.required && !plan[row.key]?.trim() ? <span className="badge badge-warn">待填写</span> : null}
+                  {row.required && row.gaps.length > 0 ? <span className="badge badge-warn">待填写</span> : null}
                 </dt>
-                <dd>{plan[row.key]?.trim() || (row.required ? "这一项还空着" : "留空")}</dd>
+                <dd>{row.value || (row.required ? "这一项还空着" : "留空")}</dd>
               </div>
             ))}
           </dl>
@@ -272,7 +273,7 @@ export function PreviewBoard({
           className="primary"
           disabled={!ready || starting}
           onClick={() =>
-            void executeTask(taskId, plan, setStarting, setStartError, (href) => router.push(href))
+            void executeTask(taskId, work.plan, setStarting, setStartError, (href) => router.push(href))
           }
         >
           <Play className="launch-icon" aria-hidden="true" />

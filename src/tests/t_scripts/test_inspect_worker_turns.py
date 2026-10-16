@@ -15,7 +15,7 @@ def _seed(root: Path) -> None:
             "role": "executor", "attempt": 1, "assignment": "03-dataset-mapping.executor"}
     append_activity(path, {**base, "turn": 1, "turn_kind": "model_connection_failed", "stop_reason": "error",
                            "error_kind": "connection", "error_message": "Connection error.",
-                           "input_tokens": 0, "output_tokens": 0, "tool_calls": 0, "retries": 4})
+                           "input_tokens": 0, "output_tokens": 0, "tool_calls": 0, "sdk_retries": 4})
     append_activity(path, {**base, "turn": 2, "turn_kind": "idle_no_handoff", "stop_reason": "stop",
                            "error_kind": "none", "tool_calls": 0, "retries": 0})
     append_activity(path, {"kind": "text", "summary": "noise"})

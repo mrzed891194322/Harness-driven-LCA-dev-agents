@@ -190,15 +190,20 @@ def is_not_found_rpc_error(error: object) -> bool:
 class _TimeoutHTTPAdapter(HTTPAdapter):
     """Apply a default timeout without enabling automatic POST retries."""
 
-    def __init__(self, timeout: TimeoutValue) -> None:
+    def __init__(self, timeout: TimeoutValue | None) -> None:
+        # None = follow the active ipc_read_scope per request (e.g. the
+        # ProductSystem 300 s scope); an explicit value (health probes) is fixed.
         self.timeout = timeout
         super().__init__(max_retries=0)
 
     def send(self, request, **kwargs):
-        if kwargs.get("timeout") is None:
-            kwargs["timeout"] = self.timeout
         from .timeout_policy import resolve_http_read_timeout
 
+        if kwargs.get("timeout") is None:
+            if self.timeout is None:
+                kwargs["timeout"] = resolve_http_read_timeout()
+                return super().send(request, **kwargs)
+            kwargs["timeout"] = self.timeout
         value = kwargs["timeout"]
         if isinstance(value, tuple):
             connect, read = value[0], value[1]
@@ -217,7 +222,7 @@ class BoundedIPCClient(olca_ipc.Client):
         self,
         endpoint: str | int = 8080,
         *,
-        timeout: TimeoutValue = READ_REQUEST_TIMEOUT,
+        timeout: TimeoutValue | None = READ_REQUEST_TIMEOUT,
     ) -> None:
         guard_live_openlca(_endpoint_port(endpoint))
         super().__init__(endpoint)
@@ -358,11 +363,13 @@ def create_ipc_client(
 ) -> BoundedIPCClient:
     """Create a bounded IPC client without performing a database request.
 
-    Omit ``timeout`` to follow the current IPC session remaining budget. Health
-    probes must pass ``HEALTH_REQUEST_TIMEOUT`` explicitly.
+    Omit ``timeout`` to resolve the read timeout per request from the active
+    ``ipc_read_scope`` (default ``OPENLCA_TIMEOUT_REQUEST_S``; ProductSystem
+    create/put use ``OPENLCA_TIMEOUT_PRODUCT_SYSTEM_S``), still failing fast when
+    the session budget cannot fit it. Health probes must pass
+    ``HEALTH_REQUEST_TIMEOUT`` explicitly.
     """
-    resolved = session_request_timeout() if timeout is None else timeout
-    return BoundedIPCClient(build_endpoint(host, port), timeout=resolved)
+    return BoundedIPCClient(build_endpoint(host, port), timeout=timeout)
 
 
 def resolve_model_type(test_model_type: type | str) -> type:
