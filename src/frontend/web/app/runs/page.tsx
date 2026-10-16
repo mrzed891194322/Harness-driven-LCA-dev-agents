@@ -5,7 +5,6 @@ import { AlertCircle, CircleStop, Play, RefreshCw, Terminal } from "lucide-react
 import { useRouter } from "next/navigation";
 import { ActivitySummary } from "../../components/runs/activity-summary";
 import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
-import { RunHistoryList } from "../../components/runs/run-history";
 import { apiFetch } from "../../lib/api";
 import { fetchWorkflowList, workflowListItemForMode } from "../../lib/workflow-manifest";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
@@ -288,7 +287,6 @@ export default function RunsPage() {
               currentStage={String(progress.current_stage || "")}
               onStageAttempt={setActivityAttempt}
             />
-            <RunHistoryList highlightRunId={String(progress.run_id || "")} />
           </aside>
         </div>
       </section>
