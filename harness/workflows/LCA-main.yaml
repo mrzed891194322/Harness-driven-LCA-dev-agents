@@ -132,7 +132,7 @@ stages:
 - id: 01-intake-gate
   spec: 01-intake-gate
   title: 初始化检查
-  short_title: 初始化
+  short_title: 门禁
   resumable: false
   phase_title: 阶段 1 / 4：初始化检查
   max_attempts: 1
@@ -143,10 +143,10 @@ stages:
   - assignment: 01-intake-gate.reviewer
 - id: 02-inventory-extraction
   spec: 02-inventory-extraction
-  title: 清单提取
+  title: 前景清单
   short_title: 清单
   resumable: true
-  phase_title: 阶段 2 / 4：清单提取
+  phase_title: 阶段 2 / 4：前景清单
   max_attempts: 3
   rules:
     add:

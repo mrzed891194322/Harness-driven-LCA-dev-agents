@@ -2,6 +2,7 @@ import { apiFetch } from "./api";
 
 export type WorkflowListItem = {
   name: string;
+  id: string;
   title: string;
   mode: string;
   file: string;
@@ -24,6 +25,7 @@ export type ManifestStage = {
 
 export type WorkflowManifest = {
   name: string;
+  id: string;
   title: string;
   mode: string;
   plan: string;
@@ -56,7 +58,22 @@ export function workflowNameForMode(
   const want = mode === "revise" ? "revise" : "main";
   const hit = list.find((item) => item.mode === want);
   if (hit) return hit.name;
-  return mode === "revise" ? "LCA-revise" : "LCA-main";
+  return list[0]?.name ?? "";
+}
+
+export function workflowListItemForMode(
+  list: WorkflowListItem[],
+  mode: "new" | "revise",
+): WorkflowListItem | null {
+  const name = workflowNameForMode(list, mode);
+  return list.find((item) => item.name === name) ?? null;
+}
+
+export function workflowTaskIdForMode(
+  list: WorkflowListItem[],
+  mode: "new" | "revise",
+): string {
+  return workflowListItemForMode(list, mode)?.id ?? list[0]?.id ?? "";
 }
 
 export function stageTitle(manifest: WorkflowManifest | null, stageId: string): string {

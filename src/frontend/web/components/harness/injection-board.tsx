@@ -80,7 +80,7 @@ function RowList({
 
 export function InjectionBoard() {
   const [workflows, setWorkflows] = useState<WorkflowListItem[]>([]);
-  const [workflowName, setWorkflowName] = useState("LCA-main");
+  const [workflowName, setWorkflowName] = useState("");
   const [manifest, setManifest] = useState<WorkflowManifest | null>(null);
   const [nodes, setNodes] = useState<InjectionNode[]>([]);
   const [selected, setSelected] = useState<InjectionNode | null>(null);
@@ -92,14 +92,16 @@ export function InjectionBoard() {
     fetchWorkflowList()
       .then((list) => {
         setWorkflows(list);
-        if (list.length && !list.some((item) => item.name === workflowName)) {
-          setWorkflowName(list[0].name);
-        }
+        if (!list.length) return;
+        const preferred = list.find((item) => item.mode === "main") ?? list[0];
+        setWorkflowName((current) =>
+          current && list.some((item) => item.name === current) ? current : preferred.name,
+        );
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : "无法读取工作流");
       });
-  }, [workflowName]);
+  }, []);
 
   useEffect(() => {
     if (!workflowName) return;

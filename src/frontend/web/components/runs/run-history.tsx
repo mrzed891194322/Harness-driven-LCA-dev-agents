@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
 import { apiFetch } from "../../lib/api";
 import {
+  fetchWorkflowList,
   fetchWorkflowManifest,
   resumableStageIds,
   stageTitle,
@@ -41,8 +42,18 @@ export function RunHistoryList({ highlightRunId = "" }: { highlightRunId?: strin
   const [resuming, setResuming] = useState(false);
 
   useEffect(() => {
-    fetchWorkflowManifest("LCA-main")
+    fetchWorkflowList()
+      .then((list) => {
+        const name =
+          list.find((item) => item.mode === "main")?.name ?? list[0]?.name ?? "";
+        if (!name) return null;
+        return fetchWorkflowManifest(name);
+      })
       .then((data) => {
+        if (!data) {
+          setManifest(null);
+          return;
+        }
         setManifest(data);
         const resumable = resumableStageIds(data);
         if (resumable.length) setFromStage(resumable[0]);

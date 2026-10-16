@@ -26,6 +26,9 @@ class PermissionNarrowError(ValueError):
         super().__init__(message)
         self.code = code
 
+    def __str__(self) -> str:
+        return f"{self.code}: {super().__str__()}"
+
 
 @dataclass
 class _Effective:

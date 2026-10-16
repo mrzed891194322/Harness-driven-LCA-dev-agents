@@ -14,4 +14,4 @@
 - `assignments.<id>`：`title`（审查角色请写「审查」）
 - 合并算法与错误码见 `src/backend/core/workflow/config/compose.py`；权限逐层收窄见 `permission_narrow.py`
 - 模型优先级：assignment YAML `model` → `models.default` → `.local/workflow-models.json` → 运行默认
-- 只读 API：`GET /api/workflows`、`GET /api/workflows/{name}/manifest`、`GET /api/harness/injection`
+- 只读 API：`GET /api/workflows`（`name`、`id` 任务名、`title`、`mode`、`file`）、`GET /api/workflows/{name}/manifest`、`GET /api/harness/injection`

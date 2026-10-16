@@ -136,7 +136,7 @@ stages:
 - id: 01-intake-gate
   spec: 01-intake-gate
   title: 初始化检查
-  short_title: 初始化
+  short_title: 门禁
   resumable: false
   phase_title: 修订阶段 1 / 4：初始化检查
   max_attempts: 1

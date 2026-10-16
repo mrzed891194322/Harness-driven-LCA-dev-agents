@@ -4,18 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
 import { MarkdownView } from "../../components/markdown-view";
 import { PreviewBoard } from "../../components/plan/preview-board";
-import { emptyStudyWork, type StudyWork } from "../../components/plan/study-form";
-import { workflowNameForMode } from "../../lib/workflow-manifest";
+import type { PlanFields } from "../../components/plan/plan-fields";
+import {
+  fetchWorkflowList,
+  workflowNameForMode,
+  type WorkflowListItem,
+} from "../../lib/workflow-manifest";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
 import { reviseWorkLocked } from "../../lib/revise-lock";
-
-type PlanFields = {
-  subject: string;
-  functional_unit: string;
-  life_cycle_stages: string;
-  conditions: string;
-};
 
 type ReferenceFile = {
   name: string;
@@ -165,7 +162,7 @@ export default function PlanPage() {
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
   const [formToken, setFormToken] = useState(0);
-  const [work, setWork] = useState<StudyWork>(() => emptyStudyWork());
+  const [workflowList, setWorkflowList] = useState<WorkflowListItem[]>([]);
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -178,7 +175,14 @@ export default function PlanPage() {
   const noteDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    const name = workflowNameForMode([], workMode);
+    fetchWorkflowList()
+      .then((list) => setWorkflowList(list))
+      .catch(() => setWorkflowList([]));
+  }, []);
+
+  useEffect(() => {
+    const name = workflowNameForMode(workflowList, workMode);
+    if (!name) return;
     apiFetch(`/api/plan?workflow=${encodeURIComponent(name)}`)
       .then(async (response) => {
         if (!response.ok) throw new Error(await errorMessage(response));
@@ -195,16 +199,12 @@ export default function PlanPage() {
         setReferences(data.references ?? []);
         setPlanContent(data.content ?? "");
         setPlanPath(data.path ?? "");
-        setWork((current) => ({
-          ...current,
-          plan: { ...emptyFields, ...data.fields },
-        }));
         setLoaded(true);
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : "无法读取计划");
       });
-  }, [workMode]);
+  }, [workMode, workflowList]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -251,7 +251,7 @@ export default function PlanPage() {
     const body = new FormData();
     body.append("file", file);
     const query = new URLSearchParams({
-      workflow: workflowNameForMode([], workMode),
+      workflow: workflowNameForMode(workflowList, workMode),
     });
     if (overwrite) query.set("overwrite", "true");
     try {
@@ -267,7 +267,6 @@ export default function PlanPage() {
       setPlanPath(data.path ?? planPath);
       const text = await file.text();
       setPlanContent(text);
-      setWork((current) => ({ ...current, plan: next }));
       setPanel("fields");
       setStatus("计划 Markdown 已导入");
     } catch (reason) {
@@ -597,7 +596,7 @@ export default function PlanPage() {
           ) : panel === "workflow" ? (
             <WorkflowBoard mode={workMode} />
           ) : panel === "preview" ? (
-            <PreviewBoard mode={workMode} work={work} references={references} />
+            <PreviewBoard mode={workMode} plan={form} references={references} />
           ) : null}
         </div>
 

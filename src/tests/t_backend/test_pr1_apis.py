@@ -67,8 +67,9 @@ def test_workflow_manifest_has_declared_stage_and_assignment_titles() -> None:
     body = response.json()
     assert body["title"] == "完整 LCA"
     assert body["mode"] == "main"
+    assert body["id"] == "whole-lca"
     stage = next(item for item in body["stages"] if item["id"] == "02-inventory-extraction")
-    assert stage["title"] == "清单提取"
+    assert stage["title"] == "前景清单"
     assert stage["short_title"] == "清单"
     assert stage["resumable"] is True
     reviewer = next(item for item in stage["assignments"] if item["role"] == "reviewer")

@@ -19,6 +19,7 @@ def list_workflows(project_root: Path, workflows_dir: Path) -> list[dict[str, An
         items.append(
             {
                 "name": name,
+                "id": workflow.workflow_id,
                 "title": workflow.display_title,
                 "mode": workflow.display_mode,
                 "file": str(path.relative_to(project_root)),
@@ -54,6 +55,7 @@ def workflow_manifest(
         )
     return {
         "name": workflow_path.stem,
+        "id": workflow.workflow_id,
         "title": workflow.display_title,
         "mode": workflow.display_mode,
         "plan": workflow.plan_path,
