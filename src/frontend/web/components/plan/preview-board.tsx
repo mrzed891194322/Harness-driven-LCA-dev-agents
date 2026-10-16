@@ -2,18 +2,23 @@
 
 import { Bot, Play, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { readWorkflow, type WorkflowGraph } from "./workflow-yaml";
 import type { WorkMode } from "./workflow-board";
+import type { PlanFields } from "./plan-fields";
 import type { StudyWork } from "./study-form";
 import { apiFetch } from "../../lib/api";
-
-type PlanFields = {
-  subject: string;
-  functional_unit: string;
-  life_cycle_stages: string;
-  conditions: string;
-};
+import {
+  assignmentTitle,
+  fetchWorkflowList,
+  fetchWorkflowManifest,
+  harnessWorkflowDocPath,
+  stageTitle,
+  workflowListItemForMode,
+  workflowTaskIdForMode,
+  type WorkflowListItem,
+  type WorkflowManifest,
+} from "../../lib/workflow-manifest";
 
 type ReferenceFile = {
   name: string;
@@ -36,32 +41,9 @@ type Diagnostics = {
   };
 };
 
-const MODE_FILE: Record<WorkMode, string> = {
-  new: "workflows/LCA-main.yaml",
-  revise: "workflows/LCA-revise.yaml",
-};
-
 const MODE_LABEL: Record<WorkMode, string> = {
   new: "新工作",
   revise: "修改工作",
-};
-
-const FILE_LABEL: Record<string, string> = {
-  "workflows/LCA-main.yaml": "主流程",
-  "workflows/LCA-revise.yaml": "修订流程",
-};
-
-const STAGE_TITLE: Record<string, string> = {
-  "01-intake-gate": "初始化检查",
-  "02-inventory-extraction": "前景清单",
-  "03-dataset-mapping": "数据集映射",
-  "04-openlca-reporting": "计算与报告",
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  executor: "执行",
-  reviewer: "审阅",
-  reviser: "修订",
 };
 
 const PHASE_LABEL: Record<string, string> = {
@@ -94,11 +76,18 @@ export function PreviewBoard({
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [envError, setEnvError] = useState("");
   const [checking, setChecking] = useState(true);
+  const [workflowList, setWorkflowList] = useState<WorkflowListItem[]>([]);
+  const [manifest, setManifest] = useState<WorkflowManifest | null>(null);
   const [workflow, setWorkflow] = useState<WorkflowGraph | null>(null);
   const [workflowError, setWorkflowError] = useState("");
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState("");
   const router = useRouter();
+
+  const workflowItem = useMemo(
+    () => workflowListItemForMode(workflowList, mode),
+    [workflowList, mode],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -129,33 +118,62 @@ export function PreviewBoard({
   }, []);
 
   useEffect(() => {
-    const file = MODE_FILE[mode];
     let cancelled = false;
-    setWorkflow(null);
-    setWorkflowError("");
-    apiFetch(`/api/harness/document?path=${encodeURIComponent(file)}`)
-      .then(async (response) => {
-        const data = (await response.json()) as { content?: string; detail?: string };
-        if (!response.ok || !data.content) throw new Error(data.detail || "无法读取编排");
-        return readWorkflow(data.content, file);
+    fetchWorkflowList()
+      .then((list) => {
+        if (!cancelled) setWorkflowList(list);
       })
-      .then((graph) => {
-        if (!cancelled) setWorkflow(graph);
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setWorkflowError(reason instanceof Error ? reason.message : "无法读取编排");
+      .catch(() => {
+        if (!cancelled) setWorkflowList([]);
       });
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, []);
 
-  const shown = workflow?.file === MODE_FILE[mode] ? workflow : null;
+  useEffect(() => {
+    const item = workflowListItemForMode(workflowList, mode);
+    if (!item) {
+      setManifest(null);
+      setWorkflow(null);
+      return;
+    }
+    let cancelled = false;
+    setManifest(null);
+    setWorkflow(null);
+    setWorkflowError("");
+    const docPath = harnessWorkflowDocPath(item.file);
+    Promise.all([
+      fetchWorkflowManifest(item.name),
+      apiFetch(`/api/harness/document?path=${encodeURIComponent(docPath)}`).then(async (response) => {
+        const data = (await response.json()) as { content?: string; detail?: string };
+        if (!response.ok || !data.content) throw new Error(data.detail || "无法读取编排");
+        return readWorkflow(data.content, docPath);
+      }),
+    ])
+      .then(([manifestData, graph]) => {
+        if (!cancelled) {
+          setManifest(manifestData);
+          setWorkflow(graph);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) {
+          setWorkflowError(reason instanceof Error ? reason.message : "无法读取编排");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workflowList, mode]);
+
   const checks = environmentChecks(diag);
   const shownChecks = checks.filter((item) => item.label !== "模型");
   const envReady = Boolean(diag) && checks.every((item) => item.ok);
   const missingFields = work.rows.flatMap((row) => row.gaps);
-  const ready = envReady && missingFields.length === 0 && !envError;
+  const taskId = workflow?.id ?? workflowTaskIdForMode(workflowList, mode) ?? manifest?.id ?? "";
+  const ready =
+    envReady && missingFields.length === 0 && !envError && Boolean(workflow) && Boolean(taskId);
   const gateText = startError || gateMessage({ checking, envError, checks, missingFields, ready, starting });
 
   return (
@@ -211,18 +229,19 @@ export function PreviewBoard({
         <section className="preview-section" aria-labelledby="preview-flow-title">
           <h3 id="preview-flow-title">工作流</h3>
           <p className="preview-flow-meta">
-            {MODE_LABEL[mode]} · {FILE_LABEL[MODE_FILE[mode]]} · {MODE_FILE[mode]}
-            {shown ? ` · ${shown.id} · 最多 ${shown.maxAttempts} 次` : ""}
+            {MODE_LABEL[mode]}
+            {workflowItem ? ` · ${workflowItem.title} · ${workflowItem.file}` : ""}
+            {workflow ? ` · ${workflow.id} · 最多 ${workflow.maxAttempts} 次` : ""}
           </p>
           {workflowError ? <p className="status-banner error">{workflowError}</p> : null}
-          {!shown && !workflowError ? <p className="settings-help">正在读取编排…</p> : null}
-          {shown ? (
+          {!workflow && !workflowError ? <p className="settings-help">正在读取编排…</p> : null}
+          {workflow ? (
             <ol className="preview-stages">
-              {shown.stages.map((stage) => (
+              {workflow.stages.map((stage) => (
                 <li key={stage.id}>
                   <div className="preview-stage-head">
                     <span>{stage.id.slice(0, 2)}</span>
-                    <strong>{STAGE_TITLE[stage.id] ?? stage.id}</strong>
+                    <strong>{stageTitle(manifest, stage.id)}</strong>
                     <small>
                       最多 {stage.maxAttempts} 次
                       {stage.phase ? ` · ${PHASE_LABEL[stage.phase] ?? stage.phase}` : ""}
@@ -230,12 +249,12 @@ export function PreviewBoard({
                   </div>
                   <ul>
                     {stage.steps.map((step) => {
-                      const assignment = shown.assignments.find((item) => item.id === step.assignment);
+                      const assignment = workflow.assignments.find((item) => item.id === step.assignment);
                       const role = assignment?.role ?? "";
                       return (
                         <li key={step.assignment} data-role={role}>
                           <Bot size={13} strokeWidth={1.75} aria-hidden="true" />
-                          <em>{ROLE_LABEL[role] ?? role}</em>
+                          <em>{assignmentTitle(manifest, step.assignment, role)}</em>
                           <span>{assignment?.mcp.length ? assignment.mcp.join(" · ") : role}</span>
                         </li>
                       );
@@ -254,7 +273,7 @@ export function PreviewBoard({
           className="primary"
           disabled={!ready || starting}
           onClick={() =>
-            void executeTask(mode, work.plan, setStarting, setStartError, (href) => router.push(href))
+            void executeTask(taskId, work.plan, setStarting, setStartError, (href) => router.push(href))
           }
         >
           <Play className="launch-icon" aria-hidden="true" />
@@ -327,7 +346,7 @@ function gateMessage({
 }
 
 async function executeTask(
-  mode: WorkMode,
+  task: string,
   fields: PlanFields,
   setStarting: (value: boolean) => void,
   setStartError: (value: string) => void,
@@ -340,7 +359,7 @@ async function executeTask(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        task: mode === "revise" ? "revise-lca" : "whole-lca",
+        task,
         subject: fields.subject,
         functional_unit: fields.functional_unit,
         life_cycle_stages: fields.life_cycle_stages,

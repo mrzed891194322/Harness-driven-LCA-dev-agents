@@ -43,6 +43,7 @@
 | `feature/resume-from-stage` | `master`（worktree） | `e30d3ff`+ | 工作流 YAML 迁至 `src/backend/workflows/`；新运行保存 `workflow.yaml` 快照；`resume-lca` 任务 + `resume_plan` 资格校验/清单清理/过滤装配图；API `resume-preview` + `POST /api/workflow/resume`；运行页从阶段继续 UI；Python 549+ 全过（不含 pi-runtime 环境用例）、前端 build 通过 | 未合并 |
 | `refactor/workspace-runs-artifacts` | `master` `b49c3f1` | `004364f`+ | `workspace/runs` 尝试目录 + `accepted.json`；证据/checks 随尝试；whole-lca 清 runs/artifacts/tmp；MCP 禁止 `cleanup_output(confirm=true)`；Python 577 全过、`npm run build` 通过 | 未合并 |
 | `feat/pr0-local-workflow-yaml`（worktree） | `master` | （进行中） | 默认 workflow 迁至 `harness/workflows/`；`.local/harness/workflows` 副本 + sha 同步；开跑快照写入 manifest；注入 golden 14 assignment；pytest 685 全过 | 未合并 |
+| `feat/pr1-layered-injection`（worktree） | PR0 链 | （进行中） | PR1+PR1b+PR1c：`compose`/`permission_narrow`/YAML 展示字段；前端去硬编码（`/api/workflows`+manifest）；专项测试 `test_permission_narrow_redlines`·`test_harness_injection_api`；计划表单保留，表单→md 写到 YAML `plan:` 路径，导入覆盖前确认；Harness 节点注入只读；golden 14 不变 | 未合并 |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 

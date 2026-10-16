@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.core.agents.assignment_models import (
+    list_models_for_workflow,
     load_assignment_models,
     load_default_model,
     save_assignment_models,
@@ -63,9 +64,10 @@ from backend.services.harness_browser import (
 from backend.services.plan_form import (
     TEMPLATE_NAME,
     PlanFields,
+    PlanFormConflict,
     PlanFormError,
-    decode_plan_upload,
     delete_reference,
+    import_plan_bytes,
     list_references,
     read_plan_document,
     save_plan,
@@ -347,13 +349,23 @@ def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[st
 
 
 @app.get("/api/workflow/models")
-def workflow_models() -> dict[str, Any]:
+def workflow_models(workflow: str = "LCA-main") -> dict[str, Any]:
     stored = load_default_model(PROJECT_ROOT)
     models, warnings = _connected_models(PROJECT_ROOT)
+    try:
+        resolved = list_models_for_workflow(
+            PROJECT_ROOT,
+            workflow_name=workflow,
+            run_fallback=stored,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
+        "workflow": workflow,
         "default": stored,
         "default_ref": _selection_ref(PROJECT_ROOT, stored),
         "assignments": load_assignment_models(PROJECT_ROOT),
+        "resolved_assignments": resolved,
         "models": models,
         "warnings": warnings,
     }
@@ -869,6 +881,47 @@ def push_event(event: str, data: dict[str, Any]) -> None:
     _run_events.append({"id": _event_id, "event": event, "data": data})
 
 
+@app.get("/api/workflows")
+def list_workflows_api() -> dict[str, Any]:
+    from backend.services.workflow_manifest import list_workflows
+
+    root = PROJECT_ROOT / "harness" / "workflows"
+    return {"workflows": list_workflows(PROJECT_ROOT, root)}
+
+
+@app.get("/api/workflows/{name}/manifest")
+def workflow_manifest_api(name: str) -> dict[str, Any]:
+    from backend.services.workflow_manifest import workflow_manifest
+
+    path = PROJECT_ROOT / "harness" / "workflows" / f"{name}.yaml"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="workflow not found")
+    return workflow_manifest(PROJECT_ROOT, path)
+
+
+@app.get("/api/harness/injection")
+def harness_injection_preview(
+    workflow: str,
+    stage: str | None = None,
+    assignment: str | None = None,
+) -> dict[str, Any]:
+    from backend.services.injection_view import (
+        InjectionViewError,
+        build_injection_view,
+        injection_view_http_errors,
+    )
+
+    try:
+        return build_injection_view(
+            project_root=PROJECT_ROOT,
+            workflow_name=workflow,
+            stage_id=stage,
+            assignment_id=assignment,
+        )
+    except InjectionViewError as exc:
+        raise injection_view_http_errors(exc) from exc
+
+
 @app.get("/api/harness/catalog")
 def read_harness_catalog() -> dict[str, Any]:
     return harness_catalog(PROJECT_ROOT)
@@ -981,22 +1034,30 @@ def read_tutorial_asset(path: str) -> FileResponse:
 
 
 @app.get("/api/plan")
-def read_plan() -> dict[str, Any]:
-    return read_plan_document(PROJECT_ROOT)
+def read_plan(workflow: str = "LCA-main") -> dict[str, Any]:
+    try:
+        return read_plan_document(PROJECT_ROOT, workflow=workflow)
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.put("/api/plan")
-def write_plan(body: PlanUpdate) -> dict[str, Any]:
-    save_plan(
-        PROJECT_ROOT,
-        PlanFields(
-            subject=body.subject,
-            functional_unit=body.functional_unit,
-            life_cycle_stages=body.life_cycle_stages,
-            conditions=body.conditions,
-        ),
-    )
-    return {"status": "saved", **read_plan_document(PROJECT_ROOT)}
+def write_plan(body: PlanUpdate, workflow: str = "LCA-main") -> dict[str, Any]:
+    """Autosave the plan form; the file is the workflow YAML's ``plan:`` path."""
+    try:
+        save_plan(
+            PROJECT_ROOT,
+            PlanFields(
+                subject=body.subject,
+                functional_unit=body.functional_unit,
+                life_cycle_stages=body.life_cycle_stages,
+                conditions=body.conditions,
+            ),
+            workflow=workflow,
+        )
+        return {"status": "saved", **read_plan_document(PROJECT_ROOT, workflow=workflow)}
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/plan/template")
@@ -1009,13 +1070,24 @@ def download_plan_template() -> Response:
 
 
 @app.post("/api/plan/import")
-async def import_plan(file: UploadFile = File(...)) -> dict[str, Any]:
+async def import_plan(
+    file: UploadFile = File(...),
+    workflow: str = "LCA-main",
+    overwrite: bool = False,
+) -> dict[str, Any]:
     data = await file.read()
     try:
-        fields = decode_plan_upload(file.filename or "", data)
+        return import_plan_bytes(
+            PROJECT_ROOT,
+            workflow=workflow,
+            filename=file.filename or "",
+            data=data,
+            overwrite=overwrite,
+        )
+    except PlanFormConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except PlanFormError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"fields": fields.as_dict(), "filename": Path(file.filename or "").name}
 
 
 @app.get("/api/references")

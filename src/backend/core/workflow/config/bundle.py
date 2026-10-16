@@ -49,6 +49,9 @@ class TaskBundle:
     acceptance_checks: list[HostActionRef] = field(default_factory=list)
     on_reviewer_passed: list[HostActionRef] = field(default_factory=list)
     context: dict[str, object] = field(default_factory=dict)
+    # Per-component provenance (id -> layer); excluded from bundle_hash / injection.
+    component_provenance: dict[str, dict[str, str]] = field(default_factory=dict)
+    compose_notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)

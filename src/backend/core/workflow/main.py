@@ -186,6 +186,7 @@ def _main(args: argparse.Namespace) -> int:
                 project_root=project_root,
                 worker=worker,
                 model=model,
+                model_source="override_default" if model else "run",
             )
             write_workflow_snapshot(
                 workspace_root=workspace_root,
@@ -426,6 +427,7 @@ def _resume(
             project_root=project_root,
             worker=worker,
             model=model,
+            model_source="override_default" if model else "run",
             strict=injection_strict_mode(),
         )
     except ValueError as exc:

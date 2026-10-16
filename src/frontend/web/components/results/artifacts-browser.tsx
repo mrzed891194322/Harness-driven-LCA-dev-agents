@@ -54,12 +54,6 @@ const HANDOFF_STATUS: Record<string, string> = {
   passed: "通过",
 };
 
-const ROLE_LABEL: Record<string, string> = {
-  executor: "执行",
-  reviser: "修订",
-  reviewer: "审查",
-};
-
 function handoffPath(item: Handoff): string {
   if (item.name.includes("/")) {
     return `workspace/${item.name}`;
@@ -208,7 +202,7 @@ export function ArtifactsBrowser({
                           >
                             <strong>{item.stage || item.name}</strong>
                             <span>
-                              {ROLE_LABEL[item.role] || item.role || "交接"}
+                              {item.role || "交接"}
                               {item.attempt != null ? ` · 第 ${item.attempt} 次` : ""}
                               {item.status ? ` · ${HANDOFF_STATUS[item.status] || item.status}` : ""}
                             </span>

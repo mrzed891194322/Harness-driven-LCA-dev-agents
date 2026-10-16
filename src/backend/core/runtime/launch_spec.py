@@ -13,7 +13,7 @@ from typing import Any
 
 from backend.core.agents import spec_mcp
 from backend.core.agents.mcp import tool_entry_to_mcp
-from backend.core.agents.permission_rules import resolve_permissions
+from backend.core.agents.permission_narrow import resolve_permissions_narrowed
 from backend.core.agents.session import SessionConfig
 from backend.core.contracts.session_launch_spec import (
     KnowledgeBinding,
@@ -86,16 +86,18 @@ def compile_permission_policy(
     rule_refs: list[str] | None = None,
     stage_spec: StageSpec | None = None,
     attempt: int | None = None,
+    ceiling_ids: list[str] | None = None,
 ) -> PermissionPolicy:
     """Tools + path scopes come from the stage spec's permissions.yaml (fail closed)."""
     del workspace_root  # scopes are rule-driven, relative to the project root
-    resolved = resolve_permissions(
+    resolved = resolve_permissions_narrowed(
         project_root=project_root,
         role=role,
         rule_refs=rule_refs,
         mcp_servers=mcp_servers,
         stage_spec=stage_spec,
         attempt=attempt,
+        ceiling_ids=ceiling_ids,
     )
     if resolved.error:
         logger.error("permission rules: %s; session gets no tools (fail closed)", resolved.error)
@@ -215,6 +217,7 @@ def build_session_launch_spec(
         rule_refs=assignment.permissions_decl,
         stage_spec=stage_spec,
         attempt=attempt,
+        ceiling_ids=workflow.permission_ceiling_ids,
     )
     # Rendered fresh for every session (fixed order); a missing variable raises.
     generated = generated_prompts.render_session(project_root, policy)

@@ -77,6 +77,8 @@ class Assignment:
     knowledge_decl: Any | None = None
     # ids under harness/specs/<stage>/permissions.yaml; None => role default rule
     permissions_decl: list[str] | None = None
+    model: str | None = None
+    display_title: str = ""
 
 
 @dataclass
@@ -89,6 +91,10 @@ class Stage:
     rules_decl: Any | None = None
     tools_decl: Any | None = None  # {"mcp": list|patch} or None
     context: dict[str, object] = field(default_factory=dict)
+    display_title: str = ""
+    display_short_title: str = ""
+    resumable: bool = False
+    phase_title: str = ""
 
 
 @dataclass
@@ -104,6 +110,14 @@ class Workflow:
     stages: list[Stage]
     assignments: dict[str, Assignment]
     source_path: Path
+    locked_rules: list[str] = field(default_factory=list)
+    locked_rules_by_role: dict[str, list[str]] = field(default_factory=dict)
+    plan_path: str = "harness/knowledge/plan/main_plan.md"
+    display_title: str = ""
+    display_mode: str = ""
+    models_default: str | None = None
+    permission_ceiling_ids: list[str] = field(default_factory=list)
+    registry_permissions: dict[str, str] = field(default_factory=dict)
     bundles: dict[str, TaskBundle] = field(default_factory=dict)
 
     def stage_by_id(self, stage_id: str) -> Stage:

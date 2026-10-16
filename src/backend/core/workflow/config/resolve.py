@@ -12,6 +12,7 @@ from backend.core.workflow.spec.models import HostActionRef, StageSpec
 
 from ..execution.handoff import WRITER_ROLES
 from .bundle import KnowledgeBinding, TaskBundle
+from .compose import ComposeError, compose_component_list, finalize_rule_provenance
 from .lists import resolve_list
 from .models import Assignment, Stage, Workflow
 
@@ -46,11 +47,6 @@ def resolve_workflow(
                 f"{stage.stage_id}: spec id {stage_spec.spec_id!r} does not match stage"
             )
         _validate_host_action_refs(workflow, stage.stage_id, stage_spec)
-        stage_knowledge = resolve_list(
-            list(workflow.default_knowledge), stage.knowledge_decl
-        )
-        stage_rules = resolve_list(list(workflow.default_rules), stage.rules_decl)
-        stage_mcp = _mcp_decl(stage.tools_decl)
         for assignment_id in stage.steps:
             if assignment_id in bundles:
                 raise ValueError(f"duplicate assignment id {assignment_id}")
@@ -60,9 +56,6 @@ def resolve_workflow(
                 stage,
                 assignment,
                 stage_spec,
-                stage_knowledge,
-                stage_rules,
-                stage_mcp,
                 capabilities,
             )
     return bundles
@@ -141,21 +134,64 @@ def diagnose_assignment(
     }
 
 
+def _locked_rule_ids(workflow: Workflow, role: str) -> set[str]:
+    locked = set(workflow.locked_rules)
+    locked.update(workflow.locked_rules_by_role.get(role) or [])
+    return locked
+
+
 def _resolve_assignment(
     workflow: Workflow,
     stage: Stage,
     assignment: Assignment,
     stage_spec: StageSpec,
-    stage_knowledge: list[str],
-    stage_rules: list[str],
-    stage_mcp: Any,
     capabilities: HarnessCapabilities,
 ) -> TaskBundle:
-    knowledge_ids = resolve_list(stage_knowledge, assignment.knowledge_decl)
-    mcp_tool_ids = resolve_list(stage_mcp, _mcp_decl(assignment.tools_decl))
-    base_rules = resolve_list(stage_rules, assignment.rules_decl)
-    _reject_duplicate_ids(knowledge_ids, label=f"{assignment.assignment_id}: knowledge")
-    _reject_duplicate_ids(mcp_tool_ids, label=f"{assignment.assignment_id}: tools.mcp")
+    locked = _locked_rule_ids(workflow, assignment.role)
+    try:
+        knowledge_comp = compose_component_list(
+            component="knowledge",
+            global_ids=list(workflow.default_knowledge),
+            stage_decl=stage.knowledge_decl,
+            assignment_decl=assignment.knowledge_decl,
+            known_ids=set(workflow.knowledge),
+            locked_ids=locked,
+        )
+        mcp_comp = compose_component_list(
+            component="mcp",
+            global_ids=[],
+            stage_decl=_mcp_decl(stage.tools_decl),
+            assignment_decl=_mcp_decl(assignment.tools_decl),
+            known_ids=set(workflow.mcp_tools),
+            locked_ids=set(),
+        )
+        rules_comp = compose_component_list(
+            component="rules",
+            global_ids=list(workflow.default_rules),
+            stage_decl=stage.rules_decl,
+            assignment_decl=assignment.rules_decl,
+            known_ids=set(workflow.rules),
+            locked_ids=locked,
+        )
+    except ComposeError as exc:
+        raise ValueError(f"{assignment.assignment_id}: [{exc.code}] {exc}") from exc
+
+    knowledge_ids = knowledge_comp.ids
+    mcp_tool_ids = mcp_comp.ids
+    rule_ids, rule_prov = finalize_rule_provenance(
+        rules_comp,
+        workflow_rules=set(workflow.rules),
+        mcp_tool_ids=mcp_tool_ids,
+        mcp_tool_rules={
+            tid: list(workflow.mcp_tools[tid].rules) for tid in mcp_tool_ids
+        },
+    )
+    provenance = {
+        "knowledge": knowledge_comp.provenance,
+        "mcp": mcp_comp.provenance,
+        "rules": rule_prov,
+    }
+    notes = list(knowledge_comp.notes) + list(mcp_comp.notes) + list(rules_comp.notes)
     for kid in knowledge_ids:
         if kid not in workflow.knowledge:
             raise ValueError(f"{assignment.assignment_id}: unknown knowledge {kid}")
@@ -167,9 +203,6 @@ def _resolve_assignment(
     for tool_id in mcp_tool_ids:
         if tool_id not in workflow.mcp_tools:
             raise ValueError(f"{assignment.assignment_id}: unknown mcp tool {tool_id}")
-    rule_ids = _finalize_rule_ids(
-        workflow, assignment.assignment_id, base_rules, mcp_tool_ids
-    )
     expected_outputs = (
         list(stage_spec.output_paths()) if assignment.role in WRITER_ROLES else []
     )
@@ -197,6 +230,8 @@ def _resolve_assignment(
         acceptance_checks=list(stage_spec.acceptance_checks),
         on_reviewer_passed=list(stage_spec.on_reviewer_passed),
         context=dict(stage.context),
+        component_provenance=provenance,
+        compose_notes=notes,
     )
 
 

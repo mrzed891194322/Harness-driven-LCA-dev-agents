@@ -8,6 +8,11 @@ from backend.core.workflow import local_workflows
 
 _TEXT_SUFFIXES = {".md", ".yaml", ".yml", ".json"}
 _WORKFLOW_DOC_PREFIX = "workflows/"
+_INJECTION_VIEW_PATH = "__injection__"
+_INJECTION_HINT = (
+    "# 注入预览\n\n"
+    "此入口用于注入视图。请通过 `/api/harness/injection` 读取对应 workflow / stage / assignment 的组合结果。"
+)
 _SECTION_SPECS: tuple[tuple[str, str, set[str]], ...] = (
     ("rules", "规则", {".md", ".yaml", ".yml"}),
     ("specs", "规格", {".md", ".yaml", ".yml", ".json"}),
@@ -46,10 +51,33 @@ def harness_catalog(project: Path) -> dict:
         groups = _groups_for(root, section_id, suffixes)
         if groups:
             sections.append({"id": section_id, "label": label, "groups": groups})
+    sections.append(
+        {
+            "id": "injection",
+            "label": "注入",
+            "groups": [
+                {
+                    "id": "view",
+                    "label": "节点",
+                    "entries": [
+                        {"path": _INJECTION_VIEW_PATH, "label": "节点注入"},
+                    ],
+                }
+            ],
+        }
+    )
     return {"sections": sections}
 
 
 def read_harness_document(project: Path, relative: str) -> dict:
+    if relative == _INJECTION_VIEW_PATH:
+        return {
+            "path": _INJECTION_VIEW_PATH,
+            "label": "injection 预览",
+            "title": "注入预览",
+            "kind": "markdown",
+            "content": _INJECTION_HINT,
+        }
     path = _resolve_document(project, relative)
     try:
         content = path.read_text(encoding="utf-8")
@@ -86,6 +114,10 @@ def _groups_for(root: Path, section_id: str, suffixes: set[str]) -> list[dict]:
             rest = parts[1:] if group_id else parts
             label = _entry_label(rest)
         buckets.setdefault(group_id, []).append({"path": rel, "label": label})
+    if section_id == "workflows":
+        buckets.setdefault("", []).append(
+            {"path": _INJECTION_VIEW_PATH, "label": "injection 预览"}
+        )
 
     order = _GROUP_ORDER.get(section_id, [])
 

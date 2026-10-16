@@ -15,7 +15,7 @@
 
 ## 2. Harness 如何组装 workflow
 
-1. **Workflow YAML**：git 默认在 `harness/workflows/LCA-main.yaml`、`LCA-revise.yaml`；运行读 `.local/harness/workflows/` 副本（`npm start` / 后端启动时同步，见 `backend/core/workflow/local_workflows.py`）。定义 `registry`（rules、knowledge、MCP、host_action）与 `stages[].spec`。
+1. **Workflow YAML**：git 默认在 `harness/workflows/LCA-main.yaml`、`LCA-revise.yaml`；运行读 `.local/harness/workflows/` 副本（`npm start` / 后端启动时同步，见 `backend/core/workflow/local_workflows.py`）。定义 `registry`（rules、knowledge、MCP、host_action）与 `stages[].spec`。展示用 `title`/`short_title` 等由 YAML 声明；GUI 经 `GET /api/workflows` 与 manifest 读取，不维护本地阶段表。计划 Markdown 路径仅允许 workflow `plan:` 字段（缺省回退 `harness/knowledge/plan/main_plan.md` 在 loader 中定义，业务代码勿再硬编码）。
 2. **`load_workflow`**（`config/resolve.py`）解析每个 `spec:` 为 `harness/specs/<stage>/spec.yaml`，得到 `StageSpec`（`spec/loader.py`）。
 3. **阶段契约** `spec.yaml` v2 清单字段：
    - `inputs` / `deliverables`：每项 `kind: handoff|deliverable`；存储形状用 `path_kind: file|directory`（目录型交付如 LCI）。

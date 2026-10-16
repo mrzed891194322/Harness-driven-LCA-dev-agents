@@ -67,9 +67,9 @@ def _workflow(tmp_path, server):
                 "assignments": {
                     "writer": {
                         "role": "executor",
-                        "tools": {"mcp": ["external.echo"]},
+                        "tools": {"mcp": {"add": ["external.echo"]}},
                     },
-                    "reviewer": {"role": "reviewer", "tools": {"mcp": []}},
+                    "reviewer": {"role": "reviewer", "tools": {"mcp": {"add": []}}},
                 },
             }
         )

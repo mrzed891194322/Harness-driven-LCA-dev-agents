@@ -9,11 +9,31 @@ import os
 import tempfile
 from pathlib import Path
 
+from backend.core.runtime.identifiers import require_relative_path
+from backend.core.workflow.config.loader import read_workflow_document
+from backend.services.local_workflows import effective_workflow_path
+
 PLAN_RELATIVE = Path("harness/knowledge/plan/main_plan.md")
+REVISE_PLAN_RELATIVE = Path("harness/knowledge/plan/revise_plan.md")
 INPUTS_RELATIVE = Path("harness/knowledge/inputs")
 TEMPLATE_NAME = "lca-plan-template.md"
 NOTES_NAME = "reference-notes.json"
 _LEGACY_NOTES_NAME = ".reference-notes.json"
+DEFAULT_WORKFLOW_NAME = "LCA-main"
+DEFAULT_WORKFLOW_FILE = "LCA-main.yaml"
+REVISE_WORKFLOW_FILE = "LCA-revise.yaml"
+WORKFLOW_PLAN_ALIASES = {
+    "whole-lca": DEFAULT_WORKFLOW_FILE,
+    "LCA-main": DEFAULT_WORKFLOW_FILE,
+    DEFAULT_WORKFLOW_FILE: DEFAULT_WORKFLOW_FILE,
+    "revise-lca": REVISE_WORKFLOW_FILE,
+    "LCA-revise": REVISE_WORKFLOW_FILE,
+    REVISE_WORKFLOW_FILE: REVISE_WORKFLOW_FILE,
+}
+_FALLBACK_PLAN_BY_WORKFLOW_FILE = {
+    DEFAULT_WORKFLOW_FILE: PLAN_RELATIVE,
+    REVISE_WORKFLOW_FILE: REVISE_PLAN_RELATIVE,
+}
 MAX_PLAN_BYTES = 2 * 1024 * 1024
 PLAN_SUFFIXES = {".md", ".markdown", ".txt"}
 FIELD_KEYS = ("研究对象", "功能单位", "生命周期阶段", "附加条件")
@@ -27,6 +47,10 @@ _BOLD = re.compile(r"^-\s+\*\*(.+?)\*\*\s*[：:]\s*(.*)$", re.MULTILINE)
 
 class PlanFormError(ValueError):
     """Rejected plan or reference upload."""
+
+
+class PlanFormConflict(PlanFormError):
+    """Import refused because a plan already exists and overwrite is false."""
 
 
 @dataclass(frozen=True)
@@ -176,16 +200,43 @@ def render_plan(fields: PlanFields, reference_names: list[str]) -> str:
     )
 
 
-def plan_path(root: Path) -> Path:
-    return root / PLAN_RELATIVE
+def _workflow_filename(workflow: str | None) -> str:
+    key = (workflow or DEFAULT_WORKFLOW_NAME).strip() or DEFAULT_WORKFLOW_NAME
+    name = WORKFLOW_PLAN_ALIASES.get(key)
+    if name is None:
+        raise PlanFormError(f"未知工作流：{key}")
+    return name
+
+
+def plan_relative_path(root: Path, *, workflow: str | None = None) -> Path:
+    workflow_file = _workflow_filename(workflow)
+    try:
+        workflow_path = effective_workflow_path(root, workflow_file)
+    except ValueError as exc:
+        raise PlanFormError(str(exc)) from exc
+    if not workflow_path.is_file():
+        return _FALLBACK_PLAN_BY_WORKFLOW_FILE.get(workflow_file, PLAN_RELATIVE)
+    try:
+        document = read_workflow_document(workflow_path, project_root=root)
+    except (OSError, ValueError) as exc:
+        raise PlanFormError(f"无法读取工作流：{workflow_file} ({exc})") from exc
+    relative = require_relative_path(
+        str(document.get("plan") or PLAN_RELATIVE.as_posix()), label="plan path"
+    )
+    return Path(relative)
+
+
+def plan_path(root: Path, *, workflow: str | None = None) -> Path:
+    return root / plan_relative_path(root, workflow=workflow)
 
 
 def inputs_dir(root: Path) -> Path:
     return root / INPUTS_RELATIVE
 
 
-def read_plan_document(root: Path) -> dict[str, object]:
-    path = plan_path(root)
+def read_plan_document(root: Path, *, workflow: str | None = None) -> dict[str, object]:
+    relative = plan_relative_path(root, workflow=workflow)
+    path = root / relative
     if not path.is_file():
         fields = PlanFields("", "", "", "")
         content = ""
@@ -194,7 +245,7 @@ def read_plan_document(root: Path) -> dict[str, object]:
         fields = parse_plan(content)
     references = list_references(root)
     return {
-        "path": PLAN_RELATIVE.as_posix(),
+        "path": relative.as_posix(),
         "content": content,
         "fields": fields.as_dict(),
         "references": references,
@@ -216,10 +267,34 @@ def write_text_atomic(path: Path, text: str) -> None:
         raise
 
 
-def save_plan(root: Path, fields: PlanFields) -> None:
-    path = plan_path(root)
+def save_plan(root: Path, fields: PlanFields, *, workflow: str | None = None) -> None:
+    path = plan_path(root, workflow=workflow)
     names = [item["name"] for item in list_references(root)]
     write_text_atomic(path, render_plan(fields, names))
+
+
+def import_plan_bytes(
+    root: Path,
+    *,
+    workflow: str | None,
+    filename: str,
+    data: bytes,
+    overwrite: bool = False,
+) -> dict[str, object]:
+    text = _decode_plan_text(filename, data)
+    fields = parse_plan(text)
+    relative = plan_relative_path(root, workflow=workflow)
+    path = root / relative
+    if path.is_file() and not overwrite:
+        existing = path.read_text(encoding="utf-8")
+        if existing.strip() and existing != text:
+            raise PlanFormConflict("计划文件已存在；如需覆盖请设置 overwrite=true")
+    write_text_atomic(path, text)
+    return {
+        "path": relative.as_posix(),
+        "fields": fields.as_dict(),
+        "filename": Path(filename or "").name,
+    }
 
 
 def list_references(root: Path) -> list[dict[str, object]]:
@@ -299,17 +374,20 @@ def delete_reference(root: Path, filename: str) -> None:
         _write_notes(root, notes)
 
 
-def decode_plan_upload(filename: str, data: bytes) -> PlanFields:
+def _decode_plan_text(filename: str, data: bytes) -> str:
     suffix = Path(filename or "").suffix.lower()
     if suffix not in PLAN_SUFFIXES:
         raise PlanFormError("请上传 .md 文档")
     if len(data) > MAX_PLAN_BYTES:
         raise PlanFormError("Markdown 超过 2MB")
     try:
-        text = data.decode("utf-8-sig")
+        return data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise PlanFormError("文件不是 UTF-8 文本") from exc
-    return parse_plan(text)
+
+
+def decode_plan_upload(filename: str, data: bytes) -> PlanFields:
+    return parse_plan(_decode_plan_text(filename, data))
 
 
 def _is_reference_file(folder: Path, path: Path) -> bool:

@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
 import { apiFetch } from "../../lib/api";
+import {
+  fetchWorkflowList,
+  fetchWorkflowManifest,
+  resumableStageIds,
+  stageTitle,
+  type WorkflowManifest,
+} from "../../lib/workflow-manifest";
 type RunRow = {
   run_id: string;
   sessions?: number;
@@ -20,25 +27,39 @@ type ResumePreview = {
   rework_note?: string;
 };
 
-const RESUME_STAGES = ["02", "03", "04"] as const;
-const STAGE_LABELS: Record<string, string> = {
-  "01-intake-gate": "01 门禁",
-  "02-inventory-extraction": "02 清单",
-  "03-dataset-mapping": "03 映射",
-  "04-openlca-reporting": "04 报告",
-};
-
 const RESUMABLE = new Set(["failed", "aborted", "interrupted"]);
 
 export function RunHistoryList({ highlightRunId = "" }: { highlightRunId?: string }) {
   const [rows, setRows] = useState<RunRow[]>([]);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState("");
-  const [fromStage, setFromStage] = useState<string>("02");
+  const [manifest, setManifest] = useState<WorkflowManifest | null>(null);
+  const resumeStages = resumableStageIds(manifest);
+  const [fromStage, setFromStage] = useState<string>("02-inventory-extraction");
   const [preview, setPreview] = useState<ResumePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [resuming, setResuming] = useState(false);
+
+  useEffect(() => {
+    fetchWorkflowList()
+      .then((list) => {
+        const name =
+          list.find((item) => item.mode === "main")?.name ?? list[0]?.name ?? "";
+        if (!name) return null;
+        return fetchWorkflowManifest(name);
+      })
+      .then((data) => {
+        if (!data) {
+          setManifest(null);
+          return;
+        }
+        setManifest(data);
+        const resumable = resumableStageIds(data);
+        if (resumable.length) setFromStage(resumable[0]);
+      })
+      .catch(() => setManifest(null));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,7 +184,7 @@ export function RunHistoryList({ highlightRunId = "" }: { highlightRunId?: strin
         <div className="run-resume-panel">
           <p className="settings-help">选择从哪一阶段重新执行（之前阶段将沿用）。</p>
           <div className="run-resume-stages">
-            {RESUME_STAGES.map((code) => (
+            {resumeStages.map((code) => (
               <label key={code}>
                 <input
                   type="radio"
@@ -172,7 +193,7 @@ export function RunHistoryList({ highlightRunId = "" }: { highlightRunId?: strin
                   checked={fromStage === code}
                   onChange={() => setFromStage(code)}
                 />
-                阶段 {code}
+                {stageTitle(manifest, code)}
               </label>
             ))}
           </div>
@@ -180,7 +201,7 @@ export function RunHistoryList({ highlightRunId = "" }: { highlightRunId?: strin
             <div className="run-resume-inherited">
               {(preview.inherited_stages || []).map((sid) => (
                 <span key={sid} className="badge badge-ok" data-testid="stage-inherited">
-                  {STAGE_LABELS[sid] || sid} 沿用
+                  {stageTitle(manifest, sid)} 沿用
                 </span>
               ))}
             </div>
@@ -220,7 +241,7 @@ export function RunHistoryList({ highlightRunId = "" }: { highlightRunId?: strin
             <ul data-testid="resume-delete-list">
               {(preview?.reused_attempts || []).map((item) => (
                 <li key={item.stage} data-testid="resume-delete-item">
-                  {STAGE_LABELS[item.stage] || item.stage}
+                  {stageTitle(manifest, item.stage)}
                   {item.executor ? ` · 执行 ${item.executor}` : ""}
                   {item.reviewer ? ` · 审查 ${item.reviewer}` : ""}
                 </li>

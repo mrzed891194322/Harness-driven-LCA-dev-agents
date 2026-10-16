@@ -3,17 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
 import { PreviewBoard } from "../../components/plan/preview-board";
+import type { PlanFields } from "../../components/plan/plan-fields";
 import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
+import {
+  fetchWorkflowList,
+  workflowNameForMode,
+  type WorkflowListItem,
+} from "../../lib/workflow-manifest";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
 import { reviseWorkLocked } from "../../lib/revise-lock";
-
-type PlanFields = {
-  subject: string;
-  functional_unit: string;
-  life_cycle_stages: string;
-  conditions: string;
-};
 
 type ReferenceFile = {
   name: string;
@@ -164,58 +163,83 @@ export default function PlanPage() {
   const [panel, setPanel] = useState<Panel>("fields");
   const [formToken, setFormToken] = useState(0);
   const [work, setWork] = useState<StudyWork>(() => emptyStudyWork());
+  const [workflowList, setWorkflowList] = useState<WorkflowListItem[]>([]);
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [planContent, setPlanContent] = useState("");
+  const [planPath, setPlanPath] = useState("");
   const savedPlan = useRef("");
-  // Only save after the user actually changed something (upload or edit). Loading
-  // and hydrating the form must never write main_plan.md (a stale tab rewrote it).
+  // Only save after the user actually changed something (edit). Loading, hydrating
+  // the form and importing must never rewrite the plan file (a stale tab rewrote it).
   const dirty = useRef(false);
   const saveChain = useRef<Promise<void>>(Promise.resolve());
+  const workflowName = workflowNameForMode(workflowList, workMode);
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const noteDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    apiFetch("/api/plan")
+    fetchWorkflowList()
+      .then((list) => setWorkflowList(list))
+      .catch(() => setWorkflowList([]));
+  }, []);
+
+  useEffect(() => {
+    const name = workflowNameForMode(workflowList, workMode);
+    if (!name) return;
+    apiFetch(`/api/plan?workflow=${encodeURIComponent(name)}`)
       .then(async (response) => {
         if (!response.ok) throw new Error(await errorMessage(response));
-        return response.json() as Promise<{ fields?: PlanFields; references?: ReferenceFile[] }>;
+        return response.json() as Promise<{
+          fields?: PlanFields;
+          references?: ReferenceFile[];
+          content?: string;
+          path?: string;
+        }>;
       })
       .then((data) => {
+        dirty.current = false;
         setForm({ ...emptyFields, ...data.fields });
         setFormToken((token) => token + 1);
         setReferences(data.references ?? []);
+        setPlanContent(data.content ?? "");
+        setPlanPath(data.path ?? "");
         setLoaded(true);
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : "无法读取计划");
       });
-  }, []);
+  }, [workMode, workflowList]);
 
-  // Autosave: persist uploads and field edits (incl. LCIA method) without executing.
+  // Autosave: persist field edits (incl. LCIA method) without executing. The
+  // backend writes the plan file named by the workflow YAML `plan:`.
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !workflowName) return;
     const body = JSON.stringify(work.plan);
     if (!dirty.current) {
       savedPlan.current = body;
       return;
     }
     if (body === savedPlan.current) return;
+    const target = workflowName;
     const timer = window.setTimeout(() => {
       // Serialize PUTs so an older save can never land after a newer one.
       saveChain.current = saveChain.current.then(async () => {
         try {
-          const response = await apiFetch("/api/plan", {
+          const response = await apiFetch(`/api/plan?workflow=${encodeURIComponent(target)}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body,
             keepalive: true,
           });
           if (!response.ok) throw new Error(await errorMessage(response));
+          const data = (await response.json()) as { content?: string; path?: string };
           savedPlan.current = body;
+          if (typeof data.content === "string") setPlanContent(data.content);
+          if (data.path) setPlanPath(data.path);
           setStatus("已自动保存");
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : "自动保存失败");
@@ -223,7 +247,7 @@ export default function PlanPage() {
       });
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [loaded, work.plan]);
+  }, [loaded, work.plan, workflowName]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -264,19 +288,36 @@ export default function PlanPage() {
 
   async function importPlan(file: File) {
     setError("");
+    const overwrite = planContent.trim().length > 0;
+    if (
+      overwrite &&
+      !window.confirm(`将用导入的 Markdown 覆盖当前计划${planPath ? `（${planPath}）` : ""}。继续？`)
+    ) {
+      return;
+    }
     const body = new FormData();
     body.append("file", file);
+    const query = new URLSearchParams({
+      workflow: workflowNameForMode(workflowList, workMode),
+    });
+    if (overwrite) query.set("overwrite", "true");
     try {
-      const response = await apiFetch("/api/plan/import", { method: "POST", body });
+      const response = await apiFetch(`/api/plan/import?${query.toString()}`, {
+        method: "POST",
+        body,
+      });
       if (!response.ok) throw new Error(await errorMessage(response));
-      const data = (await response.json()) as { fields: PlanFields };
+      const data = (await response.json()) as { fields: PlanFields; path?: string };
       const next = { ...emptyFields, ...data.fields };
-      dirty.current = true;
+      // The backend already wrote the imported file; don't autosave over it.
+      dirty.current = false;
       setForm(next);
       setFormToken((token) => token + 1);
-      const filled = fields.some((field) => next[field.key].trim());
+      setPlanPath(data.path ?? planPath);
+      const text = await file.text();
+      setPlanContent(text);
       setPanel("fields");
-      setStatus(filled ? "已从 Markdown 载入" : "模板已载入");
+      setStatus("计划 Markdown 已导入");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Markdown 载入失败");
     }

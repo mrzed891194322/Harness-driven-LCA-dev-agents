@@ -7,6 +7,7 @@ import { ActivitySummary } from "../../components/runs/activity-summary";
 import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { RunHistoryList } from "../../components/runs/run-history";
 import { apiFetch } from "../../lib/api";
+import { fetchWorkflowList, workflowListItemForMode } from "../../lib/workflow-manifest";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
 
 type Progress = {
@@ -95,7 +96,15 @@ export default function RunsPage() {
   }, [status]);
 
   async function restartFromScratch() {
-    const ok = confirm("确定要从头重跑吗？将按当前计划重新执行 whole-lca 任务。");
+    const list = await fetchWorkflowList().catch(() => []);
+    const mainWorkflow = workflowListItemForMode(list, "new") ?? list[0];
+    const mainTitle = mainWorkflow?.title ?? "当前";
+    const taskId = mainWorkflow?.id ?? "";
+    if (!taskId) {
+      setError("无法读取工作流任务 id");
+      return;
+    }
+    const ok = confirm(`确定要从头重跑吗？将按当前计划重新执行「${mainTitle}」工作流。`);
     if (!ok) return;
     setRestarting(true);
     setError("");
@@ -111,7 +120,7 @@ export default function RunsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          task: "whole-lca",
+          task: taskId,
           subject: fields.subject || "",
           functional_unit: fields.functional_unit || "",
           life_cycle_stages: fields.life_cycle_stages || "",

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { MarkdownView } from "../../../components/markdown-view";
+import { InjectionBoard } from "../../../components/harness/injection-board";
 import {
   HarnessShell,
   findHarnessEntry,
@@ -107,16 +108,23 @@ export default function HarnessDocPage() {
       title={doc?.path === selected ? doc.title : undefined}
       crumbPath={selected}
     >
-      {catalogError ? <p className="harness-status">{catalogError}</p> : null}
-      {catalog && catalog.sections.length === 0 ? (
+      {selected === "__injection__" ? <InjectionBoard /> : null}
+      {selected !== "__injection__" && catalogError ? (
+        <p className="harness-status">{catalogError}</p>
+      ) : null}
+      {selected !== "__injection__" && catalog && catalog.sections.length === 0 ? (
         <p className="harness-status">harness 目录里没有可显示的文档。</p>
       ) : null}
-      {documentError ? <p className="harness-status">{documentError}</p> : null}
-      {loadingDoc && doc?.path !== selected ? <p className="harness-status">正在读取…</p> : null}
-      {doc && doc.path === selected && doc.kind === "markdown" ? (
+      {selected !== "__injection__" && documentError ? (
+        <p className="harness-status">{documentError}</p>
+      ) : null}
+      {selected !== "__injection__" && loadingDoc && doc?.path !== selected ? (
+        <p className="harness-status">正在读取…</p>
+      ) : null}
+      {selected !== "__injection__" && doc && doc.path === selected && doc.kind === "markdown" ? (
         <MarkdownView source={doc.content} onOpen={openRelative} />
       ) : null}
-      {doc && doc.path === selected && doc.kind !== "markdown" ? (
+      {selected !== "__injection__" && doc && doc.path === selected && doc.kind !== "markdown" ? (
         <pre className="harness-source">
           <code>{doc.content}</code>
         </pre>

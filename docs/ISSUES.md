@@ -77,6 +77,17 @@
 - **旧运行的续跑**：spec 文件哈希和 `get_spec` 视图都进了指纹，P5 之前开始的运行不能在 P5 代码上续跑，只能重开。
 
 
+## PR1：三层注入与权限收窄（2026-10-16）
+
+| 问题 | 状态 | 处理 |
+| --- | --- | --- |
+| plain list replacement bypasses red lines | ✅ 已关闭 | `config/compose.py`：global 以下仅 `{add,remove}`，plain list 报 `E-COMPOSE-PLAIN-LIST`；`locked_rules` / `locked_rules_by_role` |
+| assignment permissions can widen | ✅ 已关闭 | `permission_narrow.py`：ceiling（worker-default ∪ reviewer）→ stage → assignment 交集，扩权 `E-PERM-WIDEN` |
+| plan autosave overwrote form on import | ✅ 已关闭 | 计划页表单保留（与 master 相同字段与下拉）；自动保存仅在用户编辑后触发，`PUT /api/plan?workflow=` 由后端把表单渲染成 md，写到该 workflow YAML `plan:` 指向的路径（不再写死 `main_plan.md`）；`POST /api/plan/import` 目标已存在时返回 409，前端确认后带 `overwrite=true`，导入后字段填回表单且不触发自动保存；浏览器端无 localStorage/sessionStorage 持久化 |
+| GUI 硬编码 workflow/阶段/角色表 | ✅ 已关闭（PR1c） | `preview-board`/`workflow-board`/`run-history` 等经 `GET /api/workflows` + manifest；启动任务 id 用 API `id` 字段 |
+| 权限红线无专项回归 | ✅ 已关闭（PR1c） | `src/tests/t_core/agents/test_permission_narrow_redlines.py` |
+| injection API 无层标记/写盘隔离测 | ✅ 已关闭（PR1c） | `src/tests/t_backend/test_harness_injection_api.py` |
+
 ## PR0：工作流本地副本与 `harness/.user` 收敛（2026-10-16）
 
 - **已做（`feat/pr0-local-workflow-yaml`）**：默认 workflow 在 `harness/workflows/`；运行与编排读 `.local/harness/workflows/<name>.yaml`（首次启动复制，默认更新且本地未改时自动同步；`GET /api/diagnostics/environment` → `local_workflows`；`GET /api/harness/workflows/{name}/diff`、`POST …/restore-default`）。开跑快照仍写 `runs/_run/evidence/<run>/workflow.yaml`，`manifest.json` 增加 `workflow_snapshot`；同 run `--resume` 读快照而非当前 `.local`。
