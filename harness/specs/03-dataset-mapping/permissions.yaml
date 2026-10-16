@@ -5,3 +5,5 @@ roles:
   executor: [worker-default]
   reviser: [worker-default]
   reviewer: [reviewer]
+# 本阶段只在自己的尝试目录里写 LCI；workspace/artifacts/ 由宿主在验收后提升，agent 不得写。
+deny_write: ["workspace/artifacts/**"]

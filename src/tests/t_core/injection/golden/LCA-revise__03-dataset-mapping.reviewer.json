@@ -90,7 +90,8 @@
     ],
     "allowed_write_globs": [],
     "denied_write_globs": [
-      "${PROJECT_ROOT}/workspace/runs/03-dataset-mapping/reviewer-1/process-mapping.json"
+      "${PROJECT_ROOT}/workspace/runs/03-dataset-mapping/reviewer-1/process-mapping.json",
+      "${PROJECT_ROOT}/workspace/artifacts/**"
     ],
     "deny_shell": true
   },
@@ -200,7 +201,7 @@
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "4293253da48c5e88d7ccdac6aca529429bb45bdda71df99489a521d0712ac3b2",
+      "content_sha256": "13b51b21ff2d894cbac7c641bababfda2b9cf894f593cf8c972c70efdaf237c2",
       "file_sha256": "bc39c580095a9ff63bfa6316bdb8b3664eee4f979049d2f93f8afd3042673260",
       "id": "generated:permissions",
       "section": "generated_prompts"
@@ -212,7 +213,7 @@
       "section": "generated_prompts"
     }
   ],
-  "system_prompt_hash": "1cf5bedb2008a3aabe6dc16b3e252836ed92f60834032e0e3da2548ff868d12a",
+  "system_prompt_hash": "3140a12fcb548369815874d76eabbd7b9f20b4bc14521b9e6da3e554f6a821f1",
   "tool_whitelist": [
     "find",
     "grep",

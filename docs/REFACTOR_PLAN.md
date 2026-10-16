@@ -46,6 +46,7 @@
 | `feat/pr1-layered-injection`（worktree） | PR0 链 | `49b9014`、`51768b0`、`7b00ec5`、`8388274` | PR1+PR1b+PR1c：`compose`/`permission_narrow`/YAML 展示字段；前端去硬编码（`/api/workflows`+manifest）；专项测试 `test_permission_narrow_redlines`·`test_harness_injection_api`；计划表单保留，表单→md 写到 YAML `plan:` 路径，导入覆盖前确认；Harness 节点注入只读；golden 14 不变；合并后 pytest 708、pi-runtime 50、tsc 全过 | 已合并（`--no-ff` `427ec92`，2026-10-16） |
 | `feat/pr2-harness-rename`（worktree） | PR1 链 | `40568da`、`25e2a2d`、`e60c125`、合并 master `61a9e04`、收尾（本提交） | PR2：`harness/prompts` + `harness/permissions`；组件 id = 文件名；`discover_registry` + `mcp.yaml`；host action 改为 `check/*`；阶段 04 显示名「计算与报告」；按 Du Yuan 2026-10-16 决定删除 `legacy_ids.py` 与全部旧 id/路径别名（不续跑任何旧运行，新运行续跑保留），golden 按新 id 重生成并恢复逐字节比对；发布的 `LCA-main.yaml`/`LCA-revise.yaml` 去掉 `registry:`；pytest 713、pi-runtime 50、tsc 通过；**未真实 LCA** | 已合并（2026-10-16） |
 | `fix/run-page-signals`（worktree） | `master` `cb2f770` | `cd8e41c`、`58b57fc`、`b527602` | 运行页红条/阶段文字/`sdk_retries`/`/harness` 跳转；Product System 读超时按 scope 取 300 s；openLCA 无响应策略：导入传输失败先 `reconcile_import`，`state_confirmed` 则续导，对账失败停下交失败（ISSUES #40）；pytest 713、pi-runtime 50、tsc 通过 | 已合并（`--no-ff` `2bae6fc`，2026-10-16） |
+| `fix/provider-unit-evidence`（worktree） | `master` `0b7edb1` | （本分支） | ISSUES #42：validate_providers_batch 记录 provider_unit；单位组报错指向正确工具；lci_fingerprint 只算 JSON；spec permissions.yaml 新增 `deny_write`，03 禁写 `workspace/artifacts/**` | 见合并记录 |
 
 待办：带 `HARNESS_FAULT_INJECT=lci_unit_missing` 的回归，留到 P5 改完后一起跑。
 

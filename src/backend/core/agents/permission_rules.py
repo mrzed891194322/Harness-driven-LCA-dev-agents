@@ -206,6 +206,10 @@ def resolve_permissions(
         else:
             rel = resolve_declared_path(stage_id=stage_spec.spec_id, declared=d.path)
         deny.append(_abs_glob(project_root, rel))
+    for glob in getattr(stage_spec, "deny_write", None) or []:
+        a = _abs_glob(project_root, glob)
+        if a not in deny:
+            deny.append(a)
     return ResolvedPermissions(
         rule_ids=[r.rule_id for r in chosen],
         tools=tools,

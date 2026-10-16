@@ -90,6 +90,8 @@ class StageSpec:
     review_points: list[str] = field(default_factory=list)
     # role -> permission rule ids (harness/specs/shared/permissions/<id>.yaml)
     role_permissions: dict[str, list[str]] = field(default_factory=dict)
+    # permissions.yaml deny_write: project-relative globs no role of this stage may write
+    deny_write: list[str] = field(default_factory=list)
     # harness-relative file -> {"source": "default"|"user", "sha256": ...}
     sources: dict[str, dict[str, str]] = field(default_factory=dict)
 

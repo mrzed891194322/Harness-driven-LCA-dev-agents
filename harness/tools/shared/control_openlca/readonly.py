@@ -284,6 +284,23 @@ def query_descriptors_batch(
         close_ipc_client(client)
 
 
+# Shared with workflow._provider_checks (preflight); defined here to avoid an import cycle.
+def _provider_output_unit(provider: Any, flow_id: str) -> dict[str, Any] | None:
+    for exchange in list(getattr(provider, "exchanges", None) or []):
+        if getattr(exchange, "is_input", None) is True:
+            continue
+        if getattr(getattr(exchange, "flow", None), "id", None) != flow_id:
+            continue
+        unit = getattr(exchange, "unit", None)
+        prop = getattr(exchange, "flow_property", None)
+        return {
+            "id": getattr(unit, "id", None),
+            "name": getattr(unit, "name", None),
+            "flow_property": getattr(prop, "name", None),
+        }
+    return None
+
+
 def validate_providers_batch(host, port, requirements, target_category: str = ""):
     if not isinstance(requirements, list) or not 1 <= len(requirements) <= 200:
         raise ValueError("requirements must contain 1..200 process/flow pairs")
@@ -315,6 +332,11 @@ def validate_providers_batch(host, port, requirements, target_category: str = ""
                 "flow_id": flow_id,
                 "exists": process is not None,
                 "output_flow_match": flow_id in outputs,
+                # Reference unit of the provider's output flow: exchange_unit_groups
+                # reads it from this formal evidence (same field as preflight).
+                "provider_unit": (
+                    _provider_output_unit(process, flow_id) if process is not None else None
+                ),
                 "location": location,
                 "geography_match": not expected
                 or expected in {str(v).casefold() for v in (location or {}).values()},

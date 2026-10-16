@@ -94,7 +94,8 @@
       "${PROJECT_ROOT}/workspace/**"
     ],
     "denied_write_globs": [
-      "${PROJECT_ROOT}/workspace/runs/03-dataset-mapping/reviser-1/process-mapping.json"
+      "${PROJECT_ROOT}/workspace/runs/03-dataset-mapping/reviser-1/process-mapping.json",
+      "${PROJECT_ROOT}/workspace/artifacts/**"
     ],
     "deny_shell": true
   },
@@ -198,7 +199,7 @@
       "section": "assignment_prompt"
     },
     {
-      "content_sha256": "16dd2abc8f74b2d405dbb0dc9ab3c6ad0c557069a13e45b9743687ba54194024",
+      "content_sha256": "4d422e2f44b7ba691375848a2a32ddf7963b77c44a500c394fa263a57b435260",
       "file_sha256": "bc39c580095a9ff63bfa6316bdb8b3664eee4f979049d2f93f8afd3042673260",
       "id": "generated:permissions",
       "section": "generated_prompts"
@@ -210,7 +211,7 @@
       "section": "generated_prompts"
     }
   ],
-  "system_prompt_hash": "162ba84186fc591c1bdf989b333754a55690d9f6bb0768034542c6c82e4d3171",
+  "system_prompt_hash": "180086c06010aa6e88e06af7c878b7c8e2cdaab1d949f4b08ad4c81180db4df0",
   "tool_whitelist": [
     "edit",
     "find",
