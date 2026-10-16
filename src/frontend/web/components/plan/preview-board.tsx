@@ -3,7 +3,7 @@
 import { Bot, Play, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { readWorkflow, type WorkflowGraph } from "./workflow-yaml";
+import { fetchHarnessComponents, readWorkflow, type WorkflowGraph } from "./workflow-yaml";
 import type { WorkMode } from "./workflow-board";
 import type { PlanFields } from "./plan-fields";
 import type { StudyWork } from "./study-form";
@@ -145,10 +145,13 @@ export function PreviewBoard({
     const docPath = harnessWorkflowDocPath(item.file);
     Promise.all([
       fetchWorkflowManifest(item.name),
-      apiFetch(`/api/harness/document?path=${encodeURIComponent(docPath)}`).then(async (response) => {
+      Promise.all([
+        apiFetch(`/api/harness/document?path=${encodeURIComponent(docPath)}`),
+        fetchHarnessComponents(apiFetch),
+      ]).then(async ([response, components]) => {
         const data = (await response.json()) as { content?: string; detail?: string };
         if (!response.ok || !data.content) throw new Error(data.detail || "无法读取编排");
-        return readWorkflow(data.content, docPath);
+        return readWorkflow(data.content, docPath, components);
       }),
     ])
       .then(([manifestData, graph]) => {
@@ -174,7 +177,10 @@ export function PreviewBoard({
   const taskId = workflow?.id ?? workflowTaskIdForMode(workflowList, mode) ?? manifest?.id ?? "";
   const ready =
     envReady && missingFields.length === 0 && !envError && Boolean(workflow) && Boolean(taskId);
-  const gateText = startError || gateMessage({ checking, envError, checks, missingFields, ready, starting });
+  const gateText =
+    startError ||
+    (workflowError ? `编排读取失败：${workflowError}` : "") ||
+    gateMessage({ checking, envError, checks, missingFields, ready, starting });
 
   return (
     <div className="preview-board">

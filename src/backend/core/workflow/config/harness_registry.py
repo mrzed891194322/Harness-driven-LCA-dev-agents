@@ -193,3 +193,37 @@ def discover_registry(project_root: Path) -> dict[str, Any]:
         "host_action": discover_host_actions(project_root),
         "knowledge": discover_knowledge(project_root),
     }
+
+
+def registry_catalog(project_root: Path) -> dict[str, Any]:
+    """JSON view of the discovered components (for the GUI; YAML has no registry)."""
+    from dataclasses import asdict
+
+    found = discover_registry(project_root)
+    return {
+        "rules": dict(found["rules"]),
+        "permissions": dict(found["permissions"]),
+        "mcp": {
+            tid: {
+                "transport": spec.transport,
+                "command": spec.command or "",
+                "args": list(spec.args),
+                "rules": list(spec.rules),
+                "tool_timeout_sec": spec.tool_timeout_sec,
+                "runtime": asdict(spec.runtime) if spec.runtime else {},
+            }
+            for tid, spec in found["mcp"].items()
+        },
+        "host_action": {
+            aid: {
+                "command": spec.command,
+                "args": list(spec.args),
+                "timeout_sec": spec.timeout_sec,
+            }
+            for aid, spec in found["host_action"].items()
+        },
+        "knowledge": {
+            kid: {"kind": src.kind, "path": src.path, "provider": src.provider}
+            for kid, src in found["knowledge"].items()
+        },
+    }
