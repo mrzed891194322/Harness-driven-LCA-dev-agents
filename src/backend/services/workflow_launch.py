@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from backend.services.plan_form import PlanFields, render_plan, save_plan
+from backend.services.plan_form import PlanFields, save_plan
 from backend.services.workflow_cli import WORKFLOW_YAML_BY_TASK
 
 Console = Callable[..., Iterator[tuple[str, str]]]
@@ -236,16 +236,8 @@ def restore_user_material(project_root: Path, snapshot: Path) -> None:
 
 
 def _write_plan(project_root: Path, fields: PlanFields, task: str) -> None:
-    save_plan(project_root, fields)
-    if task != "revise-lca":
-        return
-    from backend.services.plan_form import list_references
-
-    names = [str(item["name"]) for item in list_references(project_root)]
-    from backend.services.plan_form import write_text_atomic
-
-    path = project_root / "harness" / "knowledge" / "plan" / "revise_plan.md"
-    write_text_atomic(path, render_plan(fields, names))
+    workflow = task if task in {"whole-lca", "revise-lca"} else "whole-lca"
+    save_plan(project_root, fields, workflow=workflow)
 
 
 def _consume(

@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.core.agents.assignment_models import (
+    list_models_for_workflow,
     load_assignment_models,
     load_default_model,
     save_assignment_models,
@@ -63,12 +64,12 @@ from backend.services.harness_browser import (
 from backend.services.plan_form import (
     TEMPLATE_NAME,
     PlanFields,
+    PlanFormConflict,
     PlanFormError,
-    decode_plan_upload,
     delete_reference,
+    import_plan_bytes,
     list_references,
     read_plan_document,
-    save_plan,
     save_reference_note,
     save_references,
     template_markdown,
@@ -347,13 +348,23 @@ def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[st
 
 
 @app.get("/api/workflow/models")
-def workflow_models() -> dict[str, Any]:
+def workflow_models(workflow: str = "LCA-main") -> dict[str, Any]:
     stored = load_default_model(PROJECT_ROOT)
     models, warnings = _connected_models(PROJECT_ROOT)
+    try:
+        resolved = list_models_for_workflow(
+            PROJECT_ROOT,
+            workflow_name=workflow,
+            run_fallback=stored,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
+        "workflow": workflow,
         "default": stored,
         "default_ref": _selection_ref(PROJECT_ROOT, stored),
         "assignments": load_assignment_models(PROJECT_ROOT),
+        "resolved_assignments": resolved,
         "models": models,
         "warnings": warnings,
     }
@@ -1022,8 +1033,11 @@ def read_tutorial_asset(path: str) -> FileResponse:
 
 
 @app.get("/api/plan")
-def read_plan() -> dict[str, Any]:
-    return read_plan_document(PROJECT_ROOT)
+def read_plan(workflow: str = "LCA-main") -> dict[str, Any]:
+    try:
+        return read_plan_document(PROJECT_ROOT, workflow=workflow)
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.put("/api/plan")
@@ -1044,13 +1058,24 @@ def download_plan_template() -> Response:
 
 
 @app.post("/api/plan/import")
-async def import_plan(file: UploadFile = File(...)) -> dict[str, Any]:
+async def import_plan(
+    file: UploadFile = File(...),
+    workflow: str = "LCA-main",
+    overwrite: bool = False,
+) -> dict[str, Any]:
     data = await file.read()
     try:
-        fields = decode_plan_upload(file.filename or "", data)
+        return import_plan_bytes(
+            PROJECT_ROOT,
+            workflow=workflow,
+            filename=file.filename or "",
+            data=data,
+            overwrite=overwrite,
+        )
+    except PlanFormConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except PlanFormError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"fields": fields.as_dict(), "filename": Path(file.filename or "").name}
 
 
 @app.get("/api/references")

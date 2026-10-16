@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
+import { MarkdownView } from "../../components/markdown-view";
 import { PreviewBoard } from "../../components/plan/preview-board";
-import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
+import { emptyStudyWork, type StudyWork } from "../../components/plan/study-form";
+import { workflowNameForMode } from "../../lib/workflow-manifest";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
 import { reviseWorkLocked } from "../../lib/revise-lock";
@@ -168,62 +170,41 @@ export default function PlanPage() {
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const savedPlan = useRef("");
-  // Only save after the user actually changed something (upload or edit). Loading
-  // and hydrating the form must never write main_plan.md (a stale tab rewrote it).
-  const dirty = useRef(false);
-  const saveChain = useRef<Promise<void>>(Promise.resolve());
+  const [planContent, setPlanContent] = useState("");
+  const [planPath, setPlanPath] = useState("");
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const noteDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    apiFetch("/api/plan")
+    const name = workflowNameForMode([], workMode);
+    apiFetch(`/api/plan?workflow=${encodeURIComponent(name)}`)
       .then(async (response) => {
         if (!response.ok) throw new Error(await errorMessage(response));
-        return response.json() as Promise<{ fields?: PlanFields; references?: ReferenceFile[] }>;
+        return response.json() as Promise<{
+          fields?: PlanFields;
+          references?: ReferenceFile[];
+          content?: string;
+          path?: string;
+        }>;
       })
       .then((data) => {
         setForm({ ...emptyFields, ...data.fields });
         setFormToken((token) => token + 1);
         setReferences(data.references ?? []);
+        setPlanContent(data.content ?? "");
+        setPlanPath(data.path ?? "");
+        setWork((current) => ({
+          ...current,
+          plan: { ...emptyFields, ...data.fields },
+        }));
         setLoaded(true);
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : "无法读取计划");
       });
-  }, []);
-
-  // Autosave: persist uploads and field edits (incl. LCIA method) without executing.
-  useEffect(() => {
-    if (!loaded) return;
-    const body = JSON.stringify(work.plan);
-    if (!dirty.current) {
-      savedPlan.current = body;
-      return;
-    }
-    if (body === savedPlan.current) return;
-    const timer = window.setTimeout(() => {
-      // Serialize PUTs so an older save can never land after a newer one.
-      saveChain.current = saveChain.current.then(async () => {
-        try {
-          const response = await apiFetch("/api/plan", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body,
-            keepalive: true,
-          });
-          if (!response.ok) throw new Error(await errorMessage(response));
-          savedPlan.current = body;
-          setStatus("已自动保存");
-        } catch (reason) {
-          setError(reason instanceof Error ? reason.message : "自动保存失败");
-        }
-      });
-    }, 400);
-    return () => window.clearTimeout(timer);
-  }, [loaded, work.plan]);
+  }, [workMode]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -264,19 +245,31 @@ export default function PlanPage() {
 
   async function importPlan(file: File) {
     setError("");
+    const overwrite =
+      planContent.trim().length > 0 &&
+      window.confirm("将覆盖当前计划 Markdown（按工作流 YAML 中的 plan 路径）。继续？");
     const body = new FormData();
     body.append("file", file);
+    const query = new URLSearchParams({
+      workflow: workflowNameForMode([], workMode),
+    });
+    if (overwrite) query.set("overwrite", "true");
     try {
-      const response = await apiFetch("/api/plan/import", { method: "POST", body });
+      const response = await apiFetch(`/api/plan/import?${query.toString()}`, {
+        method: "POST",
+        body,
+      });
       if (!response.ok) throw new Error(await errorMessage(response));
-      const data = (await response.json()) as { fields: PlanFields };
+      const data = (await response.json()) as { fields: PlanFields; path?: string };
       const next = { ...emptyFields, ...data.fields };
-      dirty.current = true;
       setForm(next);
       setFormToken((token) => token + 1);
-      const filled = fields.some((field) => next[field.key].trim());
+      setPlanPath(data.path ?? planPath);
+      const text = await file.text();
+      setPlanContent(text);
+      setWork((current) => ({ ...current, plan: next }));
       setPanel("fields");
-      setStatus(filled ? "已从 Markdown 载入" : "模板已载入");
+      setStatus("计划 Markdown 已导入");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Markdown 载入失败");
     }
@@ -468,17 +461,18 @@ export default function PlanPage() {
         </div>
 
         <div className="plan-panel" role="tabpanel">
-          <div
-            className="plan-fields"
-            hidden={panel !== "fields"}
-            onChangeCapture={() => {
-              dirty.current = true;
-            }}
-            onClickCapture={(event) => {
-              if ((event.target as HTMLElement).closest(".plan-study button")) dirty.current = true;
-            }}
-          >
-            <StudyForm source={form} sourceKey={formToken} onWork={setWork} />
+          <div className="plan-fields" hidden={panel !== "fields"}>
+            <p className="settings-help">
+              计划正文只读，路径由工作流 YAML 的 <code>plan:</code> 指定
+              {planPath ? `（${planPath}）` : ""}。请通过下方导入更新。
+            </p>
+            <div className="plan-readonly-md harness-doc">
+              {planContent ? (
+                <MarkdownView source={planContent} />
+              ) : (
+                <p className="harness-status">尚无计划 Markdown，可下载模板后导入。</p>
+              )}
+            </div>
             <div className="row plan-actions plan-import">
                 {status ? <p className="plan-status">{status}</p> : null}
                 <p className="plan-import-hint">如果多次使用，可以先下载模板写好，再上传。</p>

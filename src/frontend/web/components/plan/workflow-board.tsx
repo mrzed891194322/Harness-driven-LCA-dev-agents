@@ -10,39 +10,17 @@ import {
   type WorkflowGraph,
 } from "./workflow-yaml";
 import { apiFetch } from "../../lib/api";
+import {
+  fetchWorkflowList,
+  fetchWorkflowManifest,
+  harnessWorkflowDocPath,
+  stageTitle,
+  workflowNameForMode,
+  type WorkflowListItem,
+  type WorkflowManifest,
+} from "../../lib/workflow-manifest";
 
-const FILES = ["workflows/LCA-main.yaml", "workflows/LCA-revise.yaml"] as const;
-
-const MODE_FILE = {
-  new: "workflows/LCA-main.yaml",
-  revise: "workflows/LCA-revise.yaml",
-} as const;
-
-export type WorkMode = keyof typeof MODE_FILE;
-
-const FILE_LABEL: Record<string, string> = {
-  "workflows/LCA-main.yaml": "主流程",
-  "workflows/LCA-revise.yaml": "修订流程",
-};
-
-const STAGE_TITLE: Record<string, string> = {
-  "01-intake-gate": "初始化检查",
-  "02-inventory-extraction": "前景清单",
-  "03-dataset-mapping": "数据集映射",
-  "04-openlca-reporting": "计算与报告",
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  executor: "执行",
-  reviewer: "审阅",
-  reviser: "修订",
-};
-
-const PHASE_LABEL: Record<string, string> = {
-  inventory: "清单",
-  mapping: "映射",
-  report: "报告",
-};
+export type WorkMode = "new" | "revise";
 
 type ModelOption = {
   id: string;
@@ -218,8 +196,34 @@ function harnessPath(path: string): string {
 
 let cachedWorkflows: WorkflowGraph[] | null = null;
 let cachedSpecs: Record<string, SpecSummary> | null = null;
+let cachedWorkflowList: WorkflowListItem[] | null = null;
+
+function assignmentRoleTitle(
+  manifest: WorkflowManifest | null,
+  assignmentId: string,
+  role: string,
+): string {
+  if (!manifest) return role;
+  for (const stage of manifest.stages) {
+    const row = stage.assignments.find((item) => item.id === assignmentId);
+    if (row) return row.title || row.role;
+  }
+  return role;
+}
+
+function phaseLabel(
+  manifest: WorkflowManifest | null,
+  stageId: string,
+  fallback?: string,
+): string {
+  if (!manifest) return fallback ?? "";
+  const stage = manifest.stages.find((item) => item.id === stageId);
+  return stage?.phase_title || fallback || "";
+}
 
 export function WorkflowBoard({ mode }: { mode: WorkMode }) {
+  const [workflowList, setWorkflowList] = useState<WorkflowListItem[]>(cachedWorkflowList ?? []);
+  const [manifest, setManifest] = useState<WorkflowManifest | null>(null);
   const [workflows, setWorkflows] = useState<WorkflowGraph[]>(cachedWorkflows ?? []);
   const [specs, setSpecs] = useState<Record<string, SpecSummary>>(cachedSpecs ?? {});
   const [selection, setSelection] = useState<Selection>({ kind: "workflow" });
@@ -229,20 +233,48 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [defaultModel, setDefaultModel] = useState("");
   const [assignmentModels, setAssignmentModels] = useState<Record<string, string>>({});
+  const [resolvedModels, setResolvedModels] = useState<
+    Record<string, { model?: string; source?: string; yaml_model?: string | null }>
+  >({});
   const [modelNote, setModelNote] = useState("");
   const [assignmentNote, setAssignmentNote] = useState("");
-  const file = MODE_FILE[mode];
+  const workflowName = workflowNameForMode(workflowList, mode);
+  const file =
+    workflowList.find((item) => item.name === workflowName)?.file ??
+    `workflows/${workflowName}.yaml`;
 
   useEffect(() => {
-    if (cachedWorkflows) {
+    let cancelled = false;
+    fetchWorkflowManifest(workflowName)
+      .then((data) => {
+        if (!cancelled) setManifest(data);
+      })
+      .catch(() => {
+        if (!cancelled) setManifest(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workflowName]);
+
+  useEffect(() => {
+    if (cachedWorkflows && cachedWorkflowList) {
       setWorkflows(cachedWorkflows);
+      setWorkflowList(cachedWorkflowList);
       setSpecs(cachedSpecs ?? {});
       return;
     }
     let cancelled = false;
-    Promise.all(FILES.map(async (name) => readWorkflow(await fetchDoc(name), name)))
-      .then(async (loaded) => {
+    fetchWorkflowList()
+      .then(async (list) => {
         if (cancelled) return;
+        cachedWorkflowList = list;
+        setWorkflowList(list);
+        const paths = list.map((item) => harnessWorkflowDocPath(item.file));
+        return Promise.all(paths.map(async (name) => readWorkflow(await fetchDoc(name), name)));
+      })
+      .then(async (loaded) => {
+        if (!loaded || cancelled) return;
         cachedWorkflows = loaded;
         setWorkflows(loaded);
         const specPaths = [...new Set(loaded.flatMap((item) => item.stages.map((stage) => stage.spec)))];
@@ -271,12 +303,16 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch("/api/workflow/models")
+    apiFetch(`/api/workflow/models?workflow=${encodeURIComponent(workflowName)}`)
       .then(async (response) => {
         const data = (await response.json()) as {
           default?: string;
           default_ref?: string;
           assignments?: Record<string, string>;
+          resolved_assignments?: Record<
+            string,
+            { model?: string; source?: string; yaml_model?: string | null }
+          >;
           models?: ModelOption[];
           detail?: string;
         };
@@ -288,6 +324,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
         setModels(data.models ?? []);
         setDefaultModel(data.default_ref || data.default || "");
         setAssignmentModels(data.assignments ?? {});
+        setResolvedModels(data.resolved_assignments ?? {});
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
@@ -299,7 +336,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workflowName]);
 
   const workflow = workflows.find((item) => item.file === file) ?? workflows[0];
   const other = workflows.find((item) => item !== workflow);
@@ -420,10 +457,10 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                   }}
                 >
                   <span className="flow-stage-index">{stage.id.slice(0, 2)}</span>
-                  <strong>{STAGE_TITLE[stage.id] ?? stage.id}</strong>
+                  <strong>{stageTitle(manifest, stage.id)}</strong>
                   <small>
                     最多 {stage.maxAttempts} 次
-                    {stage.phase ? ` · ${PHASE_LABEL[stage.phase] ?? stage.phase}` : ""}
+                    {stage.phase ? ` · ${phaseLabel(manifest, stage.id, stage.phase)}` : ""}
                   </small>
                 </button>
                 <div
@@ -434,7 +471,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                     const assignment = assignmentOf(workflow, step.assignment);
                     const role = assignment?.role ?? "";
                     const chosen = assignmentModels[step.assignment] ?? "";
-                    const roleLabel = ROLE_LABEL[role] ?? role;
+                    const roleLabel = assignmentRoleTitle(manifest, step.assignment, role);
                     return (
                       <button
                         key={step.assignment}
@@ -470,12 +507,15 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
         <Inspector
           workflow={workflow}
           other={other}
+          workflowList={workflowList}
+          manifest={manifest}
           specs={specs}
           selection={selection}
           models={models}
           modelsLoaded={modelsLoaded}
           defaultModel={defaultModel}
           assignmentModels={assignmentModels}
+          resolvedModels={resolvedModels}
           modelNote={modelNote}
           assignmentNote={assignmentNote}
           onSelect={choose}
@@ -491,12 +531,15 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 function Inspector({
   workflow,
   other,
+  workflowList,
+  manifest,
   specs,
   selection,
   models,
   modelsLoaded,
   defaultModel,
   assignmentModels,
+  resolvedModels,
   modelNote,
   assignmentNote,
   onSelect,
@@ -506,12 +549,15 @@ function Inspector({
 }: {
   workflow: WorkflowGraph;
   other?: WorkflowGraph;
+  workflowList: WorkflowListItem[];
+  manifest: WorkflowManifest | null;
   specs: Record<string, SpecSummary>;
   selection: Selection;
   models: ModelOption[];
   modelsLoaded: boolean;
   defaultModel: string;
   assignmentModels: Record<string, string>;
+  resolvedModels: Record<string, { yaml_model?: string | null; source?: string }>;
   modelNote: string;
   assignmentNote: string;
   onSelect: (selection: Selection) => void;
@@ -545,6 +591,8 @@ function Inspector({
         <StageDetail
           workflow={workflow}
           other={other}
+          workflowList={workflowList}
+          manifest={manifest}
           stageId={selection.id}
           specs={specs}
           onSelect={onSelect}
@@ -553,19 +601,31 @@ function Inspector({
       {selection.kind === "assignment" ? (
         <AssignmentDetail
           workflow={workflow}
+          manifest={manifest}
           assignmentId={selection.id}
           models={models}
           defaultModel={defaultModel}
           chosen={assignmentModels[selection.id] ?? ""}
+          yamlLocked={Boolean(resolvedModels[selection.id]?.yaml_model)}
           modelNote={assignmentNote}
           onSelect={onSelect}
           onChangeModel={(profileId) => onChangeAssignment(selection.id, profileId)}
         />
       ) : null}
-      {selection.kind === "rule" ? <RuleDetail workflow={workflow} ruleId={selection.id} onSelect={onSelect} /> : null}
-      {selection.kind === "mcp" ? <McpDetail workflow={workflow} toolId={selection.id} onSelect={onSelect} /> : null}
+      {selection.kind === "rule" ? (
+        <RuleDetail workflow={workflow} manifest={manifest} ruleId={selection.id} onSelect={onSelect} />
+      ) : null}
+      {selection.kind === "mcp" ? (
+        <McpDetail workflow={workflow} manifest={manifest} toolId={selection.id} onSelect={onSelect} />
+      ) : null}
       {selection.kind === "host" ? (
-        <HostDetail workflow={workflow} specs={specs} actionId={selection.id} onSelect={onSelect} />
+        <HostDetail
+          workflow={workflow}
+          manifest={manifest}
+          specs={specs}
+          actionId={selection.id}
+          onSelect={onSelect}
+        />
       ) : null}
       {selection.kind === "knowledge" ? <KnowledgeDetail workflow={workflow} knowledgeId={selection.id} /> : null}
     </aside>
@@ -669,12 +729,16 @@ function GlobalRules({
 function StageDetail({
   workflow,
   other,
+  workflowList,
+  manifest,
   stageId,
   specs,
   onSelect,
 }: {
   workflow: WorkflowGraph;
   other?: WorkflowGraph;
+  workflowList: WorkflowListItem[];
+  manifest: WorkflowManifest | null;
   stageId: string;
   specs: Record<string, SpecSummary>;
   onSelect: (selection: Selection) => void;
@@ -683,12 +747,14 @@ function StageDetail({
   if (!stage) return null;
   const spec = specs[stage.spec];
   const otherStage = other?.stages.find((item) => item.id === stage.id);
-  const otherLabel = other ? FILE_LABEL[other.file] ?? other.id : "";
+  const otherLabel = other
+    ? workflowList.find((item) => item.file === other.file)?.title ?? other.id
+    : "";
   const extraRules = otherStage ? otherStage.rules.filter((id) => !stage.rules.includes(id)) : [];
   return (
     <>
       <Kicker>阶段</Kicker>
-      <h3>{STAGE_TITLE[stage.id] ?? stage.id}</h3>
+      <h3>{stageTitle(manifest, stage.id)}</h3>
       <p className="flow-lead">{stage.id}</p>
       <dl className="flow-facts">
         <div>
@@ -698,7 +764,7 @@ function StageDetail({
         {stage.phase ? (
           <div>
             <dt>上下文</dt>
-            <dd>{PHASE_LABEL[stage.phase] ?? stage.phase}</dd>
+            <dd>{phaseLabel(manifest, stage.id, stage.phase)}</dd>
           </div>
         ) : null}
         <div>
@@ -710,7 +776,10 @@ function StageDetail({
         label="分工"
         items={stage.steps.map((step) => {
           const role = assignmentOf(workflow, step.assignment)?.role ?? "";
-          return { id: step.assignment, text: `${ROLE_LABEL[role] ?? role} · ${step.assignment}` };
+          return {
+            id: step.assignment,
+            text: `${assignmentRoleTitle(manifest, step.assignment, role)} · ${step.assignment}`,
+          };
         })}
         onPick={(id) => onSelect({ kind: "assignment", id })}
       />
@@ -744,19 +813,23 @@ function StageDetail({
 
 function AssignmentDetail({
   workflow,
+  manifest,
   assignmentId,
   models,
   defaultModel,
   chosen,
+  yamlLocked,
   modelNote,
   onSelect,
   onChangeModel,
 }: {
   workflow: WorkflowGraph;
+  manifest: WorkflowManifest | null;
   assignmentId: string;
   models: ModelOption[];
   defaultModel: string;
   chosen: string;
+  yamlLocked: boolean;
   modelNote: string;
   onSelect: (selection: Selection) => void;
   onChangeModel: (profileId: string) => void;
@@ -768,7 +841,7 @@ function AssignmentDetail({
   return (
     <>
       <Kicker>分工</Kicker>
-      <h3>{ROLE_LABEL[assignment.role] ?? assignment.role}</h3>
+      <h3>{assignmentRoleTitle(manifest, assignment.id, assignment.role)}</h3>
       <p className="flow-lead">{assignment.id}</p>
       <div className="flow-block">
         <h3>模型</h3>
@@ -776,18 +849,21 @@ function AssignmentDetail({
           className="flow-model"
           aria-label="分工模型"
           value={chosen}
-          disabled={!models.length}
+          disabled={yamlLocked || !models.length}
           onChange={(event) => onChangeModel(event.target.value)}
         >
           <option value="">{defaultLabel ? `默认 · ${defaultLabel}` : "未选择"}</option>
           <ModelOptions models={models} />
           {chosen && !models.some((item) => item.id === chosen) ? <option value={chosen}>{chosen}</option> : null}
         </select>
+        {yamlLocked ? (
+          <p className="flow-model-note">YAML 已指定，本地设置不生效</p>
+        ) : null}
         {modelNote ? <p className="flow-model-note">{modelNote}</p> : null}
       </div>
       <JumpList
         label="所在阶段"
-        items={[{ id: stageId, text: STAGE_TITLE[stageId] ?? stageId }]}
+        items={[{ id: stageId, text: stageTitle(manifest, stageId) }]}
         onPick={(id) => onSelect({ kind: "stage", id })}
       />
       <JumpList
@@ -806,10 +882,12 @@ function AssignmentDetail({
 
 function RuleDetail({
   workflow,
+  manifest,
   ruleId,
   onSelect,
 }: {
   workflow: WorkflowGraph;
+  manifest: WorkflowManifest | null;
   ruleId: string;
   onSelect: (selection: Selection) => void;
 }) {
@@ -825,14 +903,14 @@ function RuleDetail({
       {inDefaults ? <p className="flow-note">每个阶段都会附带这条规则。</p> : null}
       <JumpList
         label="阶段附加"
-        items={stages.map((stage) => ({ id: stage.id, text: STAGE_TITLE[stage.id] ?? stage.id }))}
+        items={stages.map((stage) => ({ id: stage.id, text: stageTitle(manifest, stage.id) }))}
         onPick={(id) => onSelect({ kind: "stage", id })}
       />
       <JumpList
         label="分工附加"
         items={assignments.map((item) => ({
           id: item.id,
-          text: `${ROLE_LABEL[item.role] ?? item.role} · ${item.id}`,
+          text: `${assignmentRoleTitle(manifest, item.id, item.role)} · ${item.id}`,
         }))}
         onPick={(id) => onSelect({ kind: "assignment", id })}
       />
@@ -847,10 +925,12 @@ function RuleDetail({
 
 function McpDetail({
   workflow,
+  manifest,
   toolId,
   onSelect,
 }: {
   workflow: WorkflowGraph;
+  manifest: WorkflowManifest | null;
   toolId: string;
   onSelect: (selection: Selection) => void;
 }) {
@@ -868,7 +948,7 @@ function McpDetail({
         label="使用这条工具的分工"
         items={users.map((item) => ({
           id: item.id,
-          text: `${ROLE_LABEL[item.role] ?? item.role} · ${item.id}`,
+          text: `${assignmentRoleTitle(manifest, item.id, item.role)} · ${item.id}`,
         }))}
         onPick={(id) => onSelect({ kind: "assignment", id })}
       />
@@ -883,11 +963,13 @@ function McpDetail({
 
 function HostDetail({
   workflow,
+  manifest,
   specs,
   actionId,
   onSelect,
 }: {
   workflow: WorkflowGraph;
+  manifest: WorkflowManifest | null;
   specs: Record<string, SpecSummary>;
   actionId: string;
   onSelect: (selection: Selection) => void;
@@ -906,7 +988,7 @@ function HostDetail({
       {action.timeoutSec ? <p className="flow-note">超时 {action.timeoutSec} 秒</p> : null}
       <JumpList
         label="触发阶段"
-        items={stages.map((stage) => ({ id: stage.id, text: STAGE_TITLE[stage.id] ?? stage.id }))}
+        items={stages.map((stage) => ({ id: stage.id, text: stageTitle(manifest, stage.id) }))}
         onPick={(id) => onSelect({ kind: "stage", id })}
       />
     </>

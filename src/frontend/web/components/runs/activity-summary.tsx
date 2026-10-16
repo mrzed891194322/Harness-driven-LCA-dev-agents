@@ -37,12 +37,6 @@ export type AssignmentActivity = {
   turnEnded: boolean;
 };
 
-const ROLE_LABEL: Record<string, string> = {
-  reviewer: "审查",
-  executor: "执行",
-  reviser: "修订",
-};
-
 const HANDOFF_LABEL: Record<Handoff, string> = {
   none: "未交卷",
   pending: "交卷中",
@@ -209,7 +203,7 @@ export function ActivitySummary({
   return (
     <ul className="activity-summary" aria-label="各分工活动概览">
       {items.map((item) => {
-        const role = ROLE_LABEL[item.role] || item.role;
+        const role = item.role;
         const tone =
           item.handoff === "ok"
             ? "ok"

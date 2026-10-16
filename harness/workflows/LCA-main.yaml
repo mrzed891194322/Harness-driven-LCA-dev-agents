@@ -1,5 +1,10 @@
 id: whole-lca
 max_attempts: 3
+global:
+  permissions:
+    ceiling:
+    - worker-default
+    - reviewer
 registry:
   rules:
     workspace_boundary: harness/rules/project/write-boundary.md
@@ -98,6 +103,9 @@ registry:
       kind: local_dir
       path: harness/knowledge/plan/
       provider: local_files
+  permissions:
+    worker-default: harness/specs/shared/permissions/worker-default.yaml
+    reviewer: harness/specs/shared/permissions/reviewer.yaml
 defaults:
   rules:
   - workspace_boundary
@@ -123,6 +131,10 @@ mode: main
 stages:
 - id: 01-intake-gate
   spec: 01-intake-gate
+  title: 初始化检查
+  short_title: 初始化
+  resumable: false
+  phase_title: 阶段 1 / 4：初始化检查
   max_attempts: 1
   rules:
     add:
@@ -131,6 +143,10 @@ stages:
   - assignment: 01-intake-gate.reviewer
 - id: 02-inventory-extraction
   spec: 02-inventory-extraction
+  title: 清单提取
+  short_title: 清单
+  resumable: true
+  phase_title: 阶段 2 / 4：清单提取
   max_attempts: 3
   rules:
     add:
@@ -144,6 +160,10 @@ stages:
   - assignment: 02-inventory-extraction.reviewer
 - id: 03-dataset-mapping
   spec: 03-dataset-mapping
+  title: 数据集映射
+  short_title: 映射
+  resumable: true
+  phase_title: 阶段 3 / 4：数据集映射
   max_attempts: 3
   rules:
     add:
@@ -158,6 +178,10 @@ stages:
   - assignment: 03-dataset-mapping.reviewer
 - id: 04-openlca-reporting
   spec: 04-openlca-reporting
+  title: openLCA 计算与报告
+  short_title: 报告
+  resumable: true
+  phase_title: 阶段 4 / 4：openLCA 计算与报告
   max_attempts: 3
   rules:
     add:
@@ -172,6 +196,7 @@ stages:
 assignments:
   01-intake-gate.reviewer:
     role: reviewer
+    title: 审查
     tools:
       mcp:
         add:
@@ -182,6 +207,7 @@ assignments:
       - assign_01_reviewer
   02-inventory-extraction.executor:
     role: executor
+    title: 执行
     tools:
       mcp:
         add:
@@ -191,6 +217,7 @@ assignments:
       - assign_02_executor
   02-inventory-extraction.reviewer:
     role: reviewer
+    title: 审查
     tools:
       mcp:
         add:
@@ -201,6 +228,7 @@ assignments:
       - assign_02_reviewer
   03-dataset-mapping.executor:
     role: executor
+    title: 执行
     tools:
       mcp:
         add:
@@ -211,6 +239,7 @@ assignments:
       - assign_03_executor
   03-dataset-mapping.reviewer:
     role: reviewer
+    title: 审查
     tools:
       mcp:
         add:
@@ -222,6 +251,7 @@ assignments:
       - assign_03_reviewer
   04-openlca-reporting.executor:
     role: executor
+    title: 执行
     tools:
       mcp:
         add:
@@ -232,6 +262,7 @@ assignments:
       - assign_04_executor
   04-openlca-reporting.reviewer:
     role: reviewer
+    title: 审查
     tools:
       mcp:
         add:

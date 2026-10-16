@@ -315,6 +315,7 @@ def run_pre_workflow_console(
 ) -> Generator[tuple[str, str], None, None]:
     """Clean, then sync GUI inputs before launching whole-lca or revise-lca."""
     from backend.services.file_sync import sync_files
+    from backend.services.plan_form import plan_path
 
     if task == "resume-lca":
         yield (
@@ -337,11 +338,7 @@ def run_pre_workflow_console(
 
     sync_target = "plan" if task == "whole-lca" else "revise"
     root = find_project_root()
-    doc_path = (
-        root / "harness" / "knowledge" / "plan" / "main_plan.md"
-        if sync_target == "plan"
-        else root / "harness" / "knowledge" / "plan" / "revise_plan.md"
-    )
+    doc_path = plan_path(root, workflow=task)
 
     knowledge_result = sync_files("knowledge", uploads=ref_upload_file)
     latest_console += _format_sync_lines(knowledge_result)

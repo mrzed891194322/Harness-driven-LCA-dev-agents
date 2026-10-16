@@ -104,6 +104,7 @@ def build_runtime_config(
     project_root: Path,
     worker: str = "",
     model: str = "",
+    model_source: str = "",
 ) -> dict[str, Any]:
     stage_specs = _stage_specs_by_id(workflow)
     payload = {
@@ -199,6 +200,7 @@ def build_runtime_config(
         "execution": {
             "worker": str(worker),
             "model": str(model),
+            "model_source": str(model_source),
         },
         "config": payload,
     }
@@ -212,6 +214,7 @@ def write_runtime_config(
     project_root: Path,
     worker: str,
     model: str,
+    model_source: str = "",
 ) -> Path:
     path = runtime_config_path(workspace_root, run_id)
     write_json_atomic(
@@ -221,6 +224,7 @@ def write_runtime_config(
             project_root=project_root,
             worker=worker,
             model=model,
+            model_source=model_source,
         ),
     )
     return path
@@ -234,6 +238,7 @@ def assert_runtime_config_matches(
     project_root: Path,
     worker: str,
     model: str,
+    model_source: str = "",
 ) -> None:
     path = runtime_config_path(workspace_root, run_id)
     if not path.is_file():
@@ -244,6 +249,7 @@ def assert_runtime_config_matches(
         project_root=project_root,
         worker=worker,
         model=model,
+        model_source=model_source,
     )
     if stored.get("fingerprint") != current["fingerprint"]:
         raise ValueError("workflow configuration changed; start a new run")
@@ -291,6 +297,7 @@ def check_runtime_config(
     project_root: Path,
     worker: str,
     model: str,
+    model_source: str = "",
     strict: bool = False,
 ) -> list[dict[str, Any]]:
     """Resume check. Returns config changes (empty when unchanged).
@@ -304,7 +311,13 @@ def check_runtime_config(
     if not path.is_file():
         raise ValueError("missing runtime configuration; start a new run")
     stored = json.loads(path.read_text(encoding="utf-8"))
-    current = build_runtime_config(workflow, project_root=project_root, worker=worker, model=model)
+    current = build_runtime_config(
+        workflow,
+        project_root=project_root,
+        worker=worker,
+        model=model,
+        model_source=model_source,
+    )
     stored_exec = stored.get("execution") or {}
     if (
         stored_exec.get("worker") != current["execution"]["worker"]

@@ -37,12 +37,6 @@ export type AgentItem =
     }
   | { type: "error"; time: string; text: string; count: number };
 
-const ROLE_LABEL: Record<string, string> = {
-  reviewer: "审查",
-  executor: "执行",
-  reviser: "修订",
-};
-
 const TOOL_ICON = {
   bash: Terminal,
   shell: Terminal,
@@ -184,7 +178,7 @@ export function AgentStream({
 function AgentRow({ item, model }: { item: AgentItem; model: string }) {
   if (item.type === "system") return <SystemRow item={item} />;
   if (item.type === "turn") {
-    const role = ROLE_LABEL[item.role] || item.role;
+    const role = item.role;
     const attempt = item.attempt ? `第 ${item.attempt} 次` : "";
     return (
       <h3 className="agent-turn" data-role={item.role}>

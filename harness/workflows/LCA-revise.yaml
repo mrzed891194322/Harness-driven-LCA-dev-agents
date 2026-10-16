@@ -1,5 +1,10 @@
 id: revise-lca
 max_attempts: 3
+global:
+  permissions:
+    ceiling:
+    - worker-default
+    - reviewer
 registry:
   rules:
     workspace_boundary: harness/rules/project/write-boundary.md
@@ -102,6 +107,9 @@ registry:
       kind: local_dir
       path: harness/knowledge/plan/
       provider: local_files
+  permissions:
+    worker-default: harness/specs/shared/permissions/worker-default.yaml
+    reviewer: harness/specs/shared/permissions/reviewer.yaml
 defaults:
   rules:
   - workspace_boundary
@@ -127,6 +135,10 @@ mode: revise
 stages:
 - id: 01-intake-gate
   spec: 01-intake-gate
+  title: 初始化检查
+  short_title: 初始化
+  resumable: false
+  phase_title: 修订阶段 1 / 4：初始化检查
   max_attempts: 1
   rules:
     add:
@@ -136,6 +148,10 @@ stages:
   - assignment: 01-intake-gate.reviewer
 - id: 02-inventory-extraction
   spec: 02-inventory-extraction
+  title: 清单修订
+  short_title: 清单修订
+  resumable: true
+  phase_title: 修订阶段 2 / 4：清单修订
   max_attempts: 3
   rules:
     add:
@@ -150,6 +166,10 @@ stages:
   - assignment: 02-inventory-extraction.reviewer
 - id: 03-dataset-mapping
   spec: 03-dataset-mapping
+  title: 映射修订
+  short_title: 映射修订
+  resumable: true
+  phase_title: 修订阶段 3 / 4：映射修订
   max_attempts: 3
   rules:
     add:
@@ -165,6 +185,10 @@ stages:
   - assignment: 03-dataset-mapping.reviewer
 - id: 04-openlca-reporting
   spec: 04-openlca-reporting
+  title: 报告修订
+  short_title: 报告修订
+  resumable: true
+  phase_title: 修订阶段 4 / 4：报告修订
   max_attempts: 3
   rules:
     add:
@@ -180,6 +204,7 @@ stages:
 assignments:
   01-intake-gate.reviewer:
     role: reviewer
+    title: 审查
     tools:
       mcp:
         add:
@@ -190,6 +215,7 @@ assignments:
       - assign_01_reviewer
   02-inventory-extraction.reviser:
     role: reviser
+    title: 修订
     tools:
       mcp:
         add:
@@ -199,6 +225,7 @@ assignments:
       - assign_02_reviser
   02-inventory-extraction.reviewer:
     role: reviewer
+    title: 审查
     tools:
       mcp:
         add:
@@ -209,6 +236,7 @@ assignments:
       - assign_02_reviewer
   03-dataset-mapping.reviser:
     role: reviser
+    title: 修订
     tools:
       mcp:
         add:
@@ -219,6 +247,7 @@ assignments:
       - assign_03_reviser
   03-dataset-mapping.reviewer:
     role: reviewer
+    title: 审查
     tools:
       mcp:
         add:
@@ -230,6 +259,7 @@ assignments:
       - assign_03_reviewer
   04-openlca-reporting.reviser:
     role: reviser
+    title: 修订
     tools:
       mcp:
         add:
@@ -240,6 +270,7 @@ assignments:
       - assign_04_reviser
   04-openlca-reporting.reviewer:
     role: reviewer
+    title: 审查
     tools:
       mcp:
         add:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,7 @@ from fastapi.testclient import TestClient
 from backend.api.app import app
 from backend.core.agents.assignment_models import model_for_assignment
 from backend.services.diagnostics_service import _model_status
+from tests.support.minimal_workflow import write_minimal_workflow
 
 
 class AssignmentModelTests(unittest.TestCase):
@@ -68,6 +70,12 @@ class AssignmentModelTests(unittest.TestCase):
                 json.dumps({"default": "anthropic/claude-haiku-4-5", "assignments": {}}),
                 encoding="utf-8",
             )
+            write_minimal_workflow(
+                root,
+                workflow_id="whole-lca",
+                filename="workflows/LCA-main.yaml",
+                stage_id="s1",
+            )
 
             def catalog(_root: Path, provider: str) -> dict:
                 if provider == "anthropic":
@@ -80,8 +88,14 @@ class AssignmentModelTests(unittest.TestCase):
                     }
                 return {"ok": False, "models": [], "message": "无法连接端点"}
 
+            local_wf = root / ".local" / "harness" / "workflows"
+            local_wf.mkdir(parents=True, exist_ok=True)
             with (
                 patch("backend.api.app.PROJECT_ROOT", root),
+                patch.dict(
+                    os.environ,
+                    {"LCA_LOCAL_WORKFLOWS_DIR": str(local_wf)},
+                ),
                 patch(
                     "backend.api.app.available_providers",
                     return_value=[{"id": "anthropic", "name": "Anthropic", "auth": "api_key"}],

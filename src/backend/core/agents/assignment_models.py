@@ -12,11 +12,22 @@ import re
 from pathlib import Path
 
 from backend.core.agents.catalog import split_pi_model_ref
+from backend.core.runtime.capabilities import base_capabilities
 from backend.core.runtime.model_profiles import load_profiles
+from backend.core.workflow.config.loader import load_workflow
+from backend.core.workflow.local_workflows import effective_workflow_path
 from backend.core.workflow.config.models import Workflow
 
 ASSIGNMENT_MODELS_PATH = Path(".local/workflow-models.json")
 _ASSIGNMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$")
+_WORKFLOW_ALIASES = {
+    "whole-lca": "LCA-main.yaml",
+    "LCA-main": "LCA-main.yaml",
+    "LCA-main.yaml": "LCA-main.yaml",
+    "revise-lca": "LCA-revise.yaml",
+    "LCA-revise": "LCA-revise.yaml",
+    "LCA-revise.yaml": "LCA-revise.yaml",
+}
 
 
 def _path(project_root: Path) -> Path:
@@ -115,6 +126,29 @@ def resolve_model_for_assignment(
     return run_fallback, "run", None, None
 
 
+def list_models_for_workflow(
+    project_root: Path,
+    *,
+    workflow_name: str,
+    run_fallback: str,
+) -> dict[str, dict[str, str | None]]:
+    workflow = _load_workflow_for_name(project_root, workflow_name)
+    if workflow is None:
+        return {}
+    rows: dict[str, dict[str, str | None]] = {}
+    for assignment_id in sorted(workflow.assignments):
+        effective, source, yaml_model, override_model = resolve_model_for_assignment(
+            project_root, workflow, assignment_id, run_fallback
+        )
+        rows[assignment_id] = {
+            "model": effective,
+            "source": source,
+            "yaml_model": yaml_model,
+            "override_model": override_model,
+        }
+    return rows
+
+
 def _validate_model_ref(project_root: Path, model_ref: str) -> None:
     if model_ref in load_profiles(project_root):
         return
@@ -122,6 +156,21 @@ def _validate_model_ref(project_root: Path, model_ref: str) -> None:
     if provider and model_id:
         return
     raise ValueError(f"unknown model name in workflow YAML: {model_ref!r}")
+
+
+def _load_workflow_for_name(project_root: Path, workflow_name: str) -> Workflow | None:
+    key = workflow_name.strip()
+    filename = _WORKFLOW_ALIASES.get(key)
+    if not filename:
+        raise ValueError(f"unknown workflow name: {workflow_name}")
+    path = effective_workflow_path(project_root, filename)
+    if not path.is_file():
+        return None
+    return load_workflow(
+        path,
+        project_root=project_root,
+        capabilities=base_capabilities(),
+    )
 
 
 def model_for_assignment(
