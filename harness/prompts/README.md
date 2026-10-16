@@ -1,6 +1,8 @@
-# Harness 规则（只放给模型看的提示词）
+# Harness 提示词（只放给模型看的规则）
 
-`harness/rules/` 只放自然语言提示词（Markdown）。机器注入或机器检查的内容——交付物 schema、验收、权限白名单与读写路径——都在 `harness/specs/`，不在这里。两者冲突时以 spec 为准。
+`harness/prompts/` 只放自然语言提示词（Markdown）与生成式模板 `generated/*.md.tmpl`。机器注入或机器检查的内容——交付物 schema、验收、权限白名单——分别在 `harness/specs/` 与 `harness/permissions/`。两者冲突时以 spec 为准。
+
+**组件 id** = 相对 `harness/prompts/` 的文件名（无扩展名），例如 `write-boundary`、`lca-method`、`stage/03-dataset-mapping.executor`。工作流 YAML 的 `rules.add` / `defaults.rules` 只写这些 id；`registry.rules` 块已移除，由 `discover_registry()` 按目录约定自动注册。用户覆盖写在 `harness/.user/prompts/...`（与默认树同相对路径）。
 
 | 目录 | 内容 | 绑定 |
 | --- | --- | --- |
@@ -10,7 +12,7 @@
 | [generated/](generated/) | 生成式提示词模板 `*.md.tmpl`：`permissions`（本会话访问范围）、`language`（输出与文档语言） | 每次建会话自动渲染，不需要在工作流里绑定 |
 | [stages/](stages/) | 阶段行为：`<stage>.md`、修订 `<stage>.revise.md`、角色 `<stage>.<role>.md` | `stages[].rules.add`、`assignments.*.rules.add` |
 
-工作流 YAML 只引用规则 ID（`registry.rules`）和 spec ID（`stages[].spec`），不内嵌内容。
+工作流 YAML 只引用规则 id 和 spec id（`stages[].spec`），不内嵌内容。PR2 之前写在 `registry.rules` 里的路径映射见 `src/backend/core/workflow/config/legacy_ids.py`（合并后一轮完整 LCA 通过后删除）。
 
 ## 提示词组装顺序
 
@@ -35,4 +37,4 @@ GUI 接口：`GET/PUT/DELETE /api/prompts/generated`（读取、保存用户版�
 
 GUI 编辑只写 `harness/.user/<相对路径>`（不进 git），读取时用户版本优先、默认版本兜底；删除用户版本即恢复默认。
 
-新增规则：先写 Markdown，在工作流 YAML 的 `registry.rules` 注册 ID，再绑定到需要的阶段或角色。绑定回归用 `uv run pytest src/tests/t_core -q`。
+新增规则：在 `harness/prompts/` 下按约定路径新建 `.md`（id 即路径去扩展名），再在工作流 YAML 绑定到阶段或角色。绑定回归用 `python -m pytest src/tests/t_core -q -p no:cacheprovider`。
