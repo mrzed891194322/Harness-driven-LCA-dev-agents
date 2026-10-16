@@ -11,7 +11,7 @@ from backend.core.agents import injection
 from backend.core.agents.activity import activity_log_path, append_activity
 from backend.core.agents.progress import format_assistant, format_tool_end, format_tool_start, print_session
 from backend.core.agents.providers.store import StoredSessionProvider, session_dir, write_ref
-from backend.core.agents.session import SessionConfig, SessionRef, SessionResumeError, TurnResult
+from backend.core.agents.session import SessionConfig, SessionRef, SessionResumeError, TurnResult, WorkerTransportError
 from backend.core.contracts.session_launch_spec import SessionLaunchSpec
 
 from .process import shared_runtime
@@ -140,8 +140,21 @@ class PiRuntimeSessionClient(StoredSessionProvider):
                 self._runtime.remove_event_handler(handler)
         text = str(result.get("text") or "")
         status = str(result.get("status") or "ok")
+        outcome = result.get("outcome")
+        outcome = dict(outcome) if isinstance(outcome, dict) else None
+        if outcome is not None:
+            for k in ("started_at", "ended_at"):
+                if result.get(k):
+                    outcome[k] = result[k]
         ref.last_turn_status = status
-        return TurnResult(status=status, session_ref=ref, text=text)
+        if status == "error" and result.get("kind") == "model_connection":
+            # pi SDK exhausted its own retries (auto_retry_end success=false) and
+            # resolved normally; surface it as a retryable transport failure.
+            raise WorkerTransportError(
+                f"pi 模型连接失败：{result.get('message') or 'unknown'}",
+                outcome=outcome,
+            )
+        return TurnResult(status=status, session_ref=ref, text=text, outcome=outcome)
 
     def _activity_handler(
         self, session_key: str, spec: SessionLaunchSpec | None

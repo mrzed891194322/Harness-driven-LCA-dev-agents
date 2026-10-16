@@ -53,7 +53,10 @@ EventHandler = Callable[[str, dict[str, Any]], None]
 _TRANSIENT_RUNTIME_ERROR = re.compile(
     r"ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|EPIPE|socket hang up"
     r"|fetch failed|network|timed? ?out|\b(429|500|502|503|504)\b|overloaded"
-    r"|rate.?limit",
+    r"|rate.?limit"
+    # Safety net for SDK/provider wording (pi-ai isRetryableAssistantError family).
+    r"|connection.?(error|refused|reset|lost|closed)|other side closed"
+    r"|upstream.?connect|stream ended|service.?unavailable|\b(520|524)\b",
     re.IGNORECASE,
 )
 

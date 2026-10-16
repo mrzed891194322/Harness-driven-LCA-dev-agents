@@ -108,6 +108,7 @@ class ScriptedSessionClient:
         self.resume_count = 0
         self.configs: list[SessionConfig] = []
         self._call_counts: dict[tuple[str, str, int], int] = {}
+        self._last_context: dict = {}
         from tests.conftest import ensure_harness_plan_files
 
         ensure_harness_plan_files()
@@ -134,7 +135,12 @@ class ScriptedSessionClient:
     ) -> TurnResult:
         self.configs.append(config)
         self.prompts.append(prompt)
-        context = context_from_prompt(prompt)
+        try:
+            context = context_from_prompt(prompt)
+        except ValueError:
+            # Same-session follow-up (e.g. orchestrator nudge) carries no context.
+            context = self._last_context
+        self._last_context = context
         stage = context["stage"]
         role = context["role"]
         attempt = int(context["attempt"])
@@ -152,7 +158,8 @@ class ScriptedSessionClient:
                 payload.get("transport_message")
                 or "test 模型连接失败：Connection error."
             )
-            raise WorkerTransportError(message)
+            raise WorkerTransportError(message, outcome=payload.get("outcome"))
+        outcome = payload.get("outcome")
         self._write_outputs(payload, context)
         self._seed_import_operations(payload, context)
         handoff_rel = context["handoff_path"]
@@ -164,7 +171,7 @@ class ScriptedSessionClient:
                 handoff_path = PROJECT_ROOT / handoff_rel
         handoff_path.parent.mkdir(parents=True, exist_ok=True)
         if payload.get("skip_handoff"):
-            return TurnResult(status="completed", session_ref=ref, text="ok")
+            return TurnResult(status="completed", session_ref=ref, text="ok", outcome=outcome)
         if payload.get("handoff") is not None:
             body = dict(payload["handoff"])
         else:
@@ -190,7 +197,7 @@ class ScriptedSessionClient:
                 if extra in payload:
                     body[extra] = payload[extra]
         handoff_path.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
-        return TurnResult(status="completed", session_ref=ref, text="ok")
+        return TurnResult(status="completed", session_ref=ref, text="ok", outcome=outcome)
 
     def release(self, ref: SessionRef) -> None:
         del ref

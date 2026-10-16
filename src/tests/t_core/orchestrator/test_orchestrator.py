@@ -17,6 +17,7 @@ from backend.core.workflow.execution.handoff import (
 )
 from backend.core.workflow.execution.runner import (
     PROTOCOL_REPAIR_LIMIT,
+    WORKER_NUDGE_LIMIT,
     WORKER_TRANSPORT_RETRY_LIMIT,
     OrchestratorRuntime,
     initial_state,
@@ -402,6 +403,132 @@ class OrchestratorGraphTests(unittest.TestCase):
         )
         self.assertEqual(handoff["status"], "passed")
         self.assertNotIn("handoff 无效", result.get("status_reason") or "")
+
+    def _turn_events(self, run_id: str = "run-test") -> list[dict]:
+        from backend.core.agents.activity import activity_log_path
+
+        path = activity_log_path(PROJECT_ROOT, run_id)
+        if not path.is_file():
+            return []
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+        return [r for r in rows if r.get("kind") == "worker_turn"]
+
+    def _clear_events(self) -> None:
+        from backend.core.agents.activity import activity_log_path
+
+        path = activity_log_path(PROJECT_ROOT, "run-test")
+        if path.is_file():
+            path.unlink()
+
+    _CONN_OUTCOME = {
+        "stop_reason": "error",
+        "error_kind": "connection",
+        "error_message": "Connection error.",
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "tool_calls": 0,
+        "retries": 4,
+        "connection_signal": "native",
+    }
+
+    @patch("backend.core.workflow.execution.runner.time.sleep")
+    def test_model_connection_failure_retried_without_protocol_repair(self, _sleep: Any) -> None:
+        self._clear_events()
+        conn = {"raise_transport": True, "transport_message": "pi 模型连接失败：Connection error.",
+                "outcome": self._CONN_OUTCOME}
+        script = {
+            ("01-intake-gate", "reviewer", 1): {"status": "passed", "status_reason": "计划可启动"},
+            ("02-inventory-extraction", "executor", 1): [
+                conn, conn, conn, conn,
+                {"status": "ok", "status_reason": "ok",
+                 "write": ["extracted-bom.json", "extracted-bom.md"]},
+            ],
+            ("02-inventory-extraction", "reviewer", 1): {"status": "failed", "status_reason": "stop here",
+                                                          "fix_instructions": "x"},
+        }
+        with patch(
+            "backend.core.workflow.execution.runner.OrchestratorRuntime._rework_invalid_handoff",
+            side_effect=AssertionError("protocol rework must not run for connection failures"),
+        ):
+            _result, client = self._run(script)
+        labels = [l for _s, l in client.turns if l == "02-inventory-extraction:executor:1"]
+        self.assertEqual(len(labels), 5)
+        turns = [t for t in self._turn_events() if t["assignment"] == "02-inventory-extraction.executor"]
+        kinds = [t["turn_kind"] for t in turns]
+        self.assertEqual(kinds[:4], ["model_connection_failed"] * 4)
+        self.assertEqual(turns[0]["error_kind"], "connection")
+        self.assertEqual(turns[0]["stop_reason"], "error")
+        self.assertEqual(turns[0]["retries"], 4)
+        self.assertEqual(turns[0]["error_message"], "Connection error.")
+
+    @patch("backend.core.workflow.execution.runner.time.sleep")
+    def test_model_connection_failure_exhausted_reason(self, _sleep: Any) -> None:
+        conn = {"raise_transport": True, "transport_message": "pi 模型连接失败：Connection error.",
+                "outcome": self._CONN_OUTCOME}
+        script = {
+            ("01-intake-gate", "reviewer", 1): [conn] * WORKER_TRANSPORT_RETRY_LIMIT,
+        }
+        result, client = self._run(script)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("worker 模型连接失败", result["status_reason"])
+        self.assertNotIn("handoff 无效", result["status_reason"])
+        self.assertEqual(int(result.get("protocol_repairs") or 0), 0)
+        self.assertEqual(len(client.turns), WORKER_TRANSPORT_RETRY_LIMIT)
+
+    def test_idle_turn_is_nudged_in_same_session(self) -> None:
+        idle = {"status": "ok", "skip_handoff": True,
+                "outcome": {"stop_reason": "stop", "tool_calls": 0, "error_kind": "none"}}
+        script = {
+            ("01-intake-gate", "reviewer", 1): [
+                idle, idle, {"status": "passed", "status_reason": "计划可启动"},
+            ],
+            ("02-inventory-extraction", "executor", 1): {"status": "failed", "status_reason": "stop",
+                                                          "fix_instructions": "x"},
+        }
+        with patch(
+            "backend.core.workflow.execution.runner.OrchestratorRuntime._rework_invalid_handoff",
+            side_effect=AssertionError("nudge must not consume protocol rework"),
+        ):
+            _result, client = self._run(script)
+        sessions = {sid for sid, l in client.turns if l == "01-intake-gate:reviewer:1"}
+        self.assertEqual(len([1 for _s, l in client.turns if l == "01-intake-gate:reviewer:1"]), 3)
+        self.assertEqual(len(sessions), 1)
+        nudge_prompts = [p for p in client.prompts if "没有调用任何工具" in p]
+        self.assertEqual(len(nudge_prompts), WORKER_NUDGE_LIMIT)
+
+    def test_idle_turn_nudges_capped_then_protocol_rework(self) -> None:
+        idle = {"status": "ok", "skip_handoff": True,
+                "outcome": {"stop_reason": "stop", "tool_calls": 0, "error_kind": "none"}}
+        script = {
+            ("01-intake-gate", "reviewer", 1): [idle] * (WORKER_NUDGE_LIMIT + 1)
+            + [{"status": "passed", "status_reason": "计划可启动"}],
+            ("02-inventory-extraction", "executor", 1): {"status": "failed", "status_reason": "stop",
+                                                          "fix_instructions": "x"},
+        }
+        from io import StringIO
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            _result, client = self._run(script)
+        self.assertEqual(len([1 for _s, l in client.turns if l == "01-intake-gate:reviewer:1"]),
+                         WORKER_NUDGE_LIMIT + 2)
+        out = buf.getvalue()
+        self.assertIn(f"protocol rework 1/{PROTOCOL_REPAIR_LIMIT} (剩余 {PROTOCOL_REPAIR_LIMIT - 1} 次)", out)
+        self.assertIn("agent 未交 handoff（无工具调用）", out)
+
+    def test_protocol_rework_budget_boundary_wording(self) -> None:
+        skip = {"status": "ok", "skip_handoff": True}
+        script = {
+            ("01-intake-gate", "reviewer", 1): {"status": "passed", "status_reason": "计划可启动"},
+            ("02-inventory-extraction", "executor", 1): [skip] * (PROTOCOL_REPAIR_LIMIT + 1),
+        }
+        from io import StringIO
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            result, _client = self._run(script)
+        out = buf.getvalue()
+        self.assertIn(f"protocol rework {PROTOCOL_REPAIR_LIMIT}/{PROTOCOL_REPAIR_LIMIT} (剩余 0 次)", out)
+        self.assertNotIn(f"protocol rework {PROTOCOL_REPAIR_LIMIT + 1}/", out)
+        self.assertEqual(result["status"], "failed")
 
     def test_executor_missing_handoff_protocol_rework_exhausted_fails(self) -> None:
         skip = {"status": "ok", "skip_handoff": True}
