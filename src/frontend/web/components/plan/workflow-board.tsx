@@ -306,6 +306,9 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   }, []);
 
   useEffect(() => {
+    // The workflow list loads asynchronously; asking with an empty name only yields
+    // "unknown workflow name:" and that note used to stick on the page.
+    if (!workflowName) return;
     let cancelled = false;
     apiFetch(`/api/workflow/models?workflow=${encodeURIComponent(workflowName)}`)
       .then(async (response) => {
@@ -325,6 +328,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
       })
       .then((data) => {
         if (cancelled) return;
+        setModelNote("");
         setModels(data.models ?? []);
         setDefaultModel(data.default_ref || data.default || "");
         setAssignmentModels(data.assignments ?? {});
