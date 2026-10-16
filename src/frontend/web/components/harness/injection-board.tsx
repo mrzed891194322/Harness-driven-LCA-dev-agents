@@ -185,7 +185,7 @@ export function InjectionBoard() {
   }, [nodes]);
 
   function openRule(ruleId: string) {
-    window.open(`/harness/rules/${encodeURIComponent(ruleId)}.md`, "_blank", "noopener");
+    window.open(`/harness/prompts/${encodeURIComponent(ruleId)}.md`, "_blank", "noopener");
   }
 
   return (
@@ -276,7 +276,7 @@ export function InjectionBoard() {
               ) : null}
               <p className="settings-help">
                 规则原文：
-                <Link href="/harness/rules/project/runtime.md">Harness 文档浏览器</Link>
+                <Link href="/harness/prompts/project/runtime.md">Harness 文档浏览器</Link>
               </p>
             </>
           )}

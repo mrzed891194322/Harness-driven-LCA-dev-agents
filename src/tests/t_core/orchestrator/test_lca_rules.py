@@ -19,30 +19,30 @@ from tests.conftest import PROJECT_ROOT, WORKFLOWS
 
 def _expected_rules(workflow_file: str, bundle) -> set[str]:
     common = {
-        "workspace_boundary",
+        "write-boundary",
         "runtime",
-        "runtime_loop",
+        "runtime-loop",
         "paths",
-        "lca_method",
-        "knowledge_files",
+        "lca-method",
+        "lca-knowledge-files",
     }
     methods_by_stage = {
         "01-intake-gate": set(),
-        "02-inventory-extraction": {"lca_inventory"},
-        "03-dataset-mapping": {"lca_inventory", "lca_mapping"},
-        "04-openlca-reporting": {"lca_interpretation"},
+        "02-inventory-extraction": {"lca-inventory"},
+        "03-dataset-mapping": {"lca-inventory", "lca-mapping"},
+        "04-openlca-reporting": {"lca-interpretation"},
     }
-    tools = {"lca_artifacts": "artifact_usage", "control_openlca": "openlca_usage"}
-    stage_num = bundle.stage_id.split("-", 1)[0]
-    expected = common | methods_by_stage[bundle.stage_id] | {f"stage_{stage_num}"}
+    tools = {
+        "lca_artifacts": "tool-lca-artifacts",
+        "control_openlca": "tool-control-openlca",
+    }
+    expected = common | methods_by_stage[bundle.stage_id] | {f"stage/{bundle.stage_id}"}
     if workflow_file == "LCA-revise.yaml":
-        expected |= {f"stage_{stage_num}_revise"}
+        expected |= {f"stage/{bundle.stage_id}.revise"}
     if bundle.role == "reviewer":
-        expected |= {"reviewer_readonly"}
+        expected |= {"reviewer-readonly"}
     expected |= {tools[tool] for tool in bundle.mcp_tool_ids}
-    # assignment role rule
-    role = bundle.role
-    expected |= {f"assign_{stage_num}_{role}"}
+    expected |= {f"stage/{bundle.stage_id}.{bundle.role}"}
     return expected
 
 
@@ -66,7 +66,7 @@ def test_stage_and_role_rules_reach_each_prompt_once(workflow_file):
             run_context={"task": workflow.workflow_id, "role": bundle.role},
         )
         headers = re.findall(r"^# 规则 (\S+)$", prompt, flags=re.MULTILINE)
-        stage_rules = [r for r in bundle.rule_ids if workflow.rules[r].startswith("harness/rules/stages/")]
+        stage_rules = [r for r in bundle.rule_ids if workflow.rules[r].startswith("harness/prompts/stages/")]
         general = [r for r in bundle.rule_ids if r not in stage_rules]
         # P5 order: run protocol -> rules prompts -> stage rules -> submission note
         assert headers == general + stage_rules, assignment_id

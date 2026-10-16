@@ -14,7 +14,8 @@ _INJECTION_HINT = (
     "此入口用于注入视图。请通过 `/api/harness/injection` 读取对应 workflow / stage / assignment 的组合结果。"
 )
 _SECTION_SPECS: tuple[tuple[str, str, set[str]], ...] = (
-    ("rules", "规则", {".md", ".yaml", ".yml"}),
+    ("prompts", "提示词", {".md", ".yaml", ".yml"}),
+    ("permissions", "权限", {".yaml", ".yml"}),
     ("specs", "规格", {".md", ".yaml", ".yml", ".json"}),
     ("workflows", "工作流", {".yaml", ".yml"}),
     ("knowledge", "知识", {".md", ".yaml", ".yml"}),
@@ -34,7 +35,7 @@ _GROUP_LABELS = {
     "shared": "共享",
 }
 _GROUP_ORDER = {
-    "rules": ["", "project", "lca", "tools", "stages"],
+    "prompts": ["", "project", "lca", "tools", "stages", "generated"],
     "workflows": [""],
     "knowledge": ["", "plan", "inputs"],
 }

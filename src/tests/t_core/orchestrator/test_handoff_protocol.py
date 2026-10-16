@@ -30,7 +30,7 @@ class ListInheritTests(unittest.TestCase):
             rules = workflow.bundles["s1.executor"].rule_ids
             self.assertIn("extra_rule", rules)
             self.assertNotIn("paths", rules)
-            self.assertIn("workspace_boundary", rules)
+            self.assertIn("write-boundary", rules)
 
     def test_empty_list_clears_inherited(self) -> None:
         self.assertEqual(resolve_list(["a", "b"], []), [])
@@ -45,8 +45,8 @@ class ListInheritTests(unittest.TestCase):
             capabilities=base_capabilities(),
         )
         reviser = workflow.bundles["03-dataset-mapping.reviser"]
-        self.assertIn("assign_03_reviser", reviser.rule_ids)
-        self.assertIn("stage_03_revise", reviser.rule_ids)
+        self.assertIn("stage/03-dataset-mapping.reviser", reviser.rule_ids)
+        self.assertIn("stage/03-dataset-mapping.revise", reviser.rule_ids)
 
 
 class HandoffIoTests(unittest.TestCase):

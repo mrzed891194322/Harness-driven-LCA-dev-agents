@@ -23,6 +23,7 @@ from backend.core.runtime.identifiers import (
 )
 from backend.core.workflow.config.yaml_strict import load_yaml_strict
 
+
 from .models import Deliverable, HostActionRef, PathContract, StageSpec, SubmitCheck
 
 try:
@@ -428,7 +429,7 @@ def _parse_action_refs(items: Any, label: str) -> list[HostActionRef]:
                 )
         _reject_unknown(item, HOST_ACTION_REF_KEYS, f"{label}[{index}]")
         call_id = str(item.get("id") or "").strip()
-        action = str(item.get("action") or "").strip()
+        action = (str(item.get("action") or "").strip())
         if not call_id or not action:
             raise ValueError(f"{label}[{index}]: id and action are required")
         if call_id in seen:

@@ -5,126 +5,25 @@ global:
     ceiling:
     - worker-default
     - reviewer
-registry:
-  rules:
-    workspace_boundary: harness/rules/project/write-boundary.md
-    runtime: harness/rules/project/runtime.md
-    runtime_loop: harness/rules/project/runtime-loop.md
-    paths: harness/rules/project/paths.md
-    lca_method: harness/rules/lca/method.md
-    knowledge_files: harness/rules/lca/knowledge-files.md
-    lca_inventory: harness/rules/lca/inventory.md
-    lca_mapping: harness/rules/lca/mapping.md
-    lca_interpretation: harness/rules/lca/interpretation.md
-    artifact_usage: harness/rules/tools/lca_artifacts.md
-    openlca_usage: harness/rules/tools/control_openlca.md
-    reviewer_readonly: harness/rules/project/reviewer-readonly.md
-    stage_01: harness/rules/stages/01-intake-gate.md
-    stage_02: harness/rules/stages/02-inventory-extraction.md
-    stage_03: harness/rules/stages/03-dataset-mapping.md
-    stage_04: harness/rules/stages/04-openlca-reporting.md
-    assign_01_reviewer: harness/rules/stages/01-intake-gate.reviewer.md
-    assign_02_executor: harness/rules/stages/02-inventory-extraction.executor.md
-    assign_02_reviewer: harness/rules/stages/02-inventory-extraction.reviewer.md
-    assign_03_executor: harness/rules/stages/03-dataset-mapping.executor.md
-    assign_03_reviewer: harness/rules/stages/03-dataset-mapping.reviewer.md
-    assign_04_executor: harness/rules/stages/04-openlca-reporting.executor.md
-    assign_04_reviewer: harness/rules/stages/04-openlca-reporting.reviewer.md
-  tools:
-    mcp:
-      lca_artifacts:
-        transport: stdio
-        command: uv
-        args:
-        - run
-        - python
-        - harness/tools/mcp/lca_artifacts/main.py
-        rules:
-        - artifact_usage
-        runtime:
-          use_host_python: true
-          run_context_env: true
-          context_file: true
-          env_prefix: LCA
-      control_openlca:
-        transport: stdio
-        command: uv
-        args:
-        - run
-        - python
-        - harness/tools/mcp/control_openlca/workflow_mcp.py
-        tool_timeout_sec: 7320
-        rules:
-        - openlca_usage
-        runtime:
-          use_host_python: true
-          run_context_env: true
-          context_file: true
-          env_prefix: LCA
-    host_action:
-      inventory_check:
-        command: uv
-        args:
-        - run
-        - python
-        - harness/tools/host_action/lca_artifacts/main.py
-        - inventory-check
-        timeout_sec: 60
-      mapping_check:
-        command: uv
-        args:
-        - run
-        - python
-        - harness/tools/host_action/lca_artifacts/main.py
-        - mapping-check
-        timeout_sec: 60
-      report_check:
-        command: uv
-        args:
-        - run
-        - python
-        - harness/tools/host_action/lca_artifacts/main.py
-        - report-check
-        timeout_sec: 60
-      record_acceptance:
-        command: uv
-        args:
-        - run
-        - python
-        - harness/tools/host_action/lca_artifacts/main.py
-        - record-acceptance
-        timeout_sec: 60
-  knowledge:
-    workspace_knowledge:
-      kind: local_dir
-      path: harness/knowledge/inputs/
-      provider: local_files
-    workflow_plan:
-      kind: local_dir
-      path: harness/knowledge/plan/
-      provider: local_files
-  permissions:
-    worker-default: harness/specs/shared/permissions/worker-default.yaml
-    reviewer: harness/specs/shared/permissions/reviewer.yaml
 defaults:
   rules:
-  - workspace_boundary
+  - write-boundary
   - runtime
-  - runtime_loop
+  - runtime-loop
   - paths
-  - lca_method
-  - knowledge_files
+  - lca-method
+  - lca-knowledge-files
   knowledge:
   - workspace_knowledge
   - workflow_plan
   locked_rules:
-  - workspace_boundary
+  - write-boundary
   - paths
   - runtime
-  - openlca_usage
+  - tool-control-openlca
   locked_rules_by_role:
     reviewer:
-    - reviewer_readonly
+    - reviewer-readonly
 plan: harness/knowledge/plan/main_plan.md
 title: 完整 LCA
 mode: main
@@ -138,7 +37,7 @@ stages:
   max_attempts: 1
   rules:
     add:
-    - stage_01
+    - stage/01-intake-gate
   steps:
   - assignment: 01-intake-gate.reviewer
 - id: 02-inventory-extraction
@@ -150,8 +49,8 @@ stages:
   max_attempts: 3
   rules:
     add:
-    - lca_inventory
-    - stage_02
+    - lca-inventory
+    - stage/02-inventory-extraction
   context:
     lca:
       phase: inventory
@@ -167,9 +66,9 @@ stages:
   max_attempts: 3
   rules:
     add:
-    - lca_inventory
-    - lca_mapping
-    - stage_03
+    - lca-inventory
+    - lca-mapping
+    - stage/03-dataset-mapping
   context:
     lca:
       phase: mapping
@@ -178,15 +77,15 @@ stages:
   - assignment: 03-dataset-mapping.reviewer
 - id: 04-openlca-reporting
   spec: 04-openlca-reporting
-  title: openLCA 计算与报告
+  title: 计算与报告
   short_title: 报告
   resumable: true
-  phase_title: 阶段 4 / 4：openLCA 计算与报告
+  phase_title: 阶段 4 / 4：计算与报告
   max_attempts: 3
   rules:
     add:
-    - lca_interpretation
-    - stage_04
+    - lca-interpretation
+    - stage/04-openlca-reporting
   context:
     lca:
       phase: report
@@ -203,8 +102,8 @@ assignments:
         - lca_artifacts
     rules:
       add:
-      - reviewer_readonly
-      - assign_01_reviewer
+      - reviewer-readonly
+      - stage/01-intake-gate.reviewer
   02-inventory-extraction.executor:
     role: executor
     title: 执行
@@ -214,7 +113,7 @@ assignments:
         - lca_artifacts
     rules:
       add:
-      - assign_02_executor
+      - stage/02-inventory-extraction.executor
   02-inventory-extraction.reviewer:
     role: reviewer
     title: 审查
@@ -224,8 +123,8 @@ assignments:
         - lca_artifacts
     rules:
       add:
-      - reviewer_readonly
-      - assign_02_reviewer
+      - reviewer-readonly
+      - stage/02-inventory-extraction.reviewer
   03-dataset-mapping.executor:
     role: executor
     title: 执行
@@ -236,7 +135,7 @@ assignments:
         - lca_artifacts
     rules:
       add:
-      - assign_03_executor
+      - stage/03-dataset-mapping.executor
   03-dataset-mapping.reviewer:
     role: reviewer
     title: 审查
@@ -247,8 +146,8 @@ assignments:
         - lca_artifacts
     rules:
       add:
-      - reviewer_readonly
-      - assign_03_reviewer
+      - reviewer-readonly
+      - stage/03-dataset-mapping.reviewer
   04-openlca-reporting.executor:
     role: executor
     title: 执行
@@ -259,7 +158,7 @@ assignments:
         - lca_artifacts
     rules:
       add:
-      - assign_04_executor
+      - stage/04-openlca-reporting.executor
   04-openlca-reporting.reviewer:
     role: reviewer
     title: 审查
@@ -270,5 +169,5 @@ assignments:
         - lca_artifacts
     rules:
       add:
-      - reviewer_readonly
-      - assign_04_reviewer
+      - reviewer-readonly
+      - stage/04-openlca-reporting.reviewer

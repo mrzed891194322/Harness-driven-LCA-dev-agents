@@ -144,7 +144,7 @@ class HookFailClosedTests(unittest.TestCase):
             timeout_sec=None,
             **kwargs,
         ):
-            if getattr(action, "action_id", None) == "record_acceptance":
+            if getattr(action, "action_id", None) == "check/record-acceptance":
                 return HostActionResult(
                     ok=False, status="failed", summary="boom", errors=["boom"]
                 )

@@ -108,7 +108,14 @@
 
 修复：`store.normalize_sha256` 先校验传入值必须是 64 位十六进制（容忍大小写和首尾空白），否则报 `invalid sha256: expected 64 hex characters, got N`；格式正确但不一致时仍报 mismatch，并提示从 handoff/evidence manifest 原样复制。回归测试 `src/tests/t_harness/tools/lca_artifacts/test_read_artifact_checksum.py` 断言宿主 `ref()` 记录的 sha 能被 reviewer 的 `resolve_ref` 验证通过。
 
-后续：`read_artifact` 支持只传路径。省略 `sha256` 时，工具在本轮 evidence manifest 的调用记录（同一路径以最后一次为准）、accepted 快照、文件所属 attempt 的 `handoff.json` 里查宿主为该路径记录的 sha，再按它校验文件；查不到就报 `no recorded sha256`，绝不跳过校验直接读。传了 `sha256` 时行为不变。`harness/rules/tools/` 已改为建议只传路径、不要手抄 sha。
+后续：`read_artifact` 支持只传路径。省略 `sha256` 时，工具在本轮 evidence manifest 的调用记录（同一路径以最后一次为准）、accepted 快照、文件所属 attempt 的 `handoff.json` 里查宿主为该路径记录的 sha，再按它校验文件；查不到就报 `no recorded sha256`，绝不跳过校验直接读。传了 `sha256` 时行为不变。`harness/prompts/tools/` 已改为建议只传路径、不要手抄 sha。
+
+## PR2 harness 重命名与运行指纹（`feat/pr2-harness-rename`）
+
+- **目录**：`harness/rules/` → `harness/prompts/`；`harness/specs/shared/permissions/` → `harness/permissions/`。规则与 host action **组件 id** 已改名（见 `docs/REFACTOR_PLAN.md` 台账）。
+- **不可续跑旧运行**（Du Yuan 2026-10-16 定）：PR2 之前的 run_id 一律不续跑，从 whole-lca 或 `resume-lca`（新 run）重新开跑。PR2 之后的新运行中途停下仍可续跑（快照 `workflow.yaml` 优先于本地 YAML，`test_resume_prefers_snapshot_over_mutated_local` 覆盖）。
+- **legacy 别名已删除**：`legacy_ids.py`、加载器里的旧 rule id / host action id / 旧 harness 路径映射全部移除，旧 id 现在直接报未知组件；golden 改回逐字节比对，JSON 已按新 id（`check/*`、`write-boundary` 等）重新生成。
+- **遗留**：加载器仍接受 YAML 内联 `registry:`（测试 YAML 在用，带 DeprecationWarning，约 129 条警告）；发布的 `LCA-main.yaml`/`LCA-revise.yaml` 已删掉 `registry:`。`workspace/legacy_paths.py` 是 PR2 之前的工作区路径兼容，未动。
 
 ## fix/run-page-signals（2026-10-16）
 

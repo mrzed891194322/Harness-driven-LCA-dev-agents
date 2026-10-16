@@ -46,7 +46,7 @@ class CapabilitiesAndResumeTests(unittest.TestCase):
 
     def test_peek_tools_from_main(self) -> None:
         ids = peek_tool_ids(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
-        self.assertEqual(ids, ["control_openlca", "lca_artifacts"])
+        self.assertEqual(set(ids), {"control_openlca", "lca_artifacts", "spec_mcp"})
 
     def test_runtime_config_round_trip(self) -> None:
         workflow = load_workflow(

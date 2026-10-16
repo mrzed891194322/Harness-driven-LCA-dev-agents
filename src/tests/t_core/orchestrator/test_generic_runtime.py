@@ -105,9 +105,9 @@ class GenericRuntimeTests(unittest.TestCase):
                 "id": "runtime-test",
                 "registry": {
                     "rules": {
-                        "workspace_boundary": "harness/rules/project/write-boundary.md",
-                        "runtime": "harness/rules/project/runtime.md",
-                        "paths": "harness/rules/project/paths.md",
+                        "workspace_boundary": "harness/prompts/project/write-boundary.md",
+                        "runtime": "harness/prompts/project/runtime.md",
+                        "paths": "harness/prompts/project/paths.md",
                     },
                     "tools": {
                         "mcp": {
@@ -224,7 +224,7 @@ class GenericRuntimeTests(unittest.TestCase):
         report = workflow.bundles["04-openlca-reporting.reviewer"]
         self.assertEqual(inventory.on_reviewer_passed, [])
         self.assertEqual(len(mapping.on_reviewer_passed), 1)
-        self.assertEqual(mapping.on_reviewer_passed[0].action, "record_acceptance")
+        self.assertEqual(mapping.on_reviewer_passed[0].action, "check/record-acceptance")
         self.assertEqual(report.on_reviewer_passed, [])
 
 

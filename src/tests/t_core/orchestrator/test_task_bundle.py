@@ -23,7 +23,7 @@ class TaskBundleResolveTests(unittest.TestCase):
         self.assertEqual(len(workflow.bundles), 7)
         executor = workflow.bundles["03-dataset-mapping.executor"]
         self.assertEqual(executor.mcp_tool_ids, ["control_openlca", "lca_artifacts"])
-        self.assertIn("openlca_usage", executor.rule_ids)
+        self.assertIn("tool-control-openlca", executor.rule_ids)
         self.assertIn("workspace_knowledge", executor.knowledge_ids)
         self.assertIn("workflow_plan", executor.knowledge_ids)
         self.assertEqual(
@@ -31,7 +31,7 @@ class TaskBundleResolveTests(unittest.TestCase):
             "harness/specs/03-dataset-mapping/spec.yaml",
         )
         self.assertEqual(executor.acceptance_checks[0].id, "mapping")
-        self.assertEqual(executor.acceptance_checks[0].action, "mapping_check")
+        self.assertEqual(executor.acceptance_checks[0].action, "check/mapping")
 
     def test_writer_outputs_and_checks(self) -> None:
         workflow = load_workflow(
@@ -48,7 +48,7 @@ class TaskBundleResolveTests(unittest.TestCase):
                 "extracted-bom.md",
             ],
         )
-        self.assertEqual(writer.acceptance_checks[0].action, "inventory_check")
+        self.assertEqual(writer.acceptance_checks[0].action, "check/inventory")
         self.assertEqual(writer.acceptance_checks[0].arguments, {})
         self.assertEqual(reviewer.expected_outputs, [])
         self.assertEqual(reviewer.acceptance_checks[0].id, "inventory")
@@ -62,13 +62,13 @@ class TaskBundleResolveTests(unittest.TestCase):
         reviser = revise.bundles["03-dataset-mapping.reviser"]
         reviewer = revise.bundles["03-dataset-mapping.reviewer"]
         self.assertEqual(reviser.role, "reviser")
-        self.assertIn("lca_method", reviser.rule_ids)
-        self.assertIn("stage_03_revise", reviser.rule_ids)
-        self.assertIn("reviewer_readonly", reviewer.rule_ids)
-        self.assertIn("lca_method", reviewer.rule_ids)
+        self.assertIn("lca-method", reviser.rule_ids)
+        self.assertIn("stage/03-dataset-mapping.revise", reviser.rule_ids)
+        self.assertIn("reviewer-readonly", reviewer.rule_ids)
+        self.assertIn("lca-method", reviewer.rule_ids)
         intake = revise.stage_by_id("01-intake-gate")
         self.assertEqual(intake.steps, ["01-intake-gate.reviewer"])
-        self.assertIn("stage_01_revise", revise.bundles[intake.steps[0]].rule_ids)
+        self.assertIn("stage/01-intake-gate.revise", revise.bundles[intake.steps[0]].rule_ids)
 
     def test_diagnose_assignment_keys(self) -> None:
         workflow = load_workflow(

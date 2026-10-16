@@ -82,12 +82,15 @@ class OrchestratorGraphTests(unittest.TestCase):
         ):
             del project_root, timeout_sec
             # Acceptance Host Actions may use the optional validate hook.
-            if validate is not None and str(getattr(action, "action_id", "")).endswith(
-                "_check"
-            ):
+            action_id = str(getattr(action, "action_id", ""))
+            is_check = action_id.endswith("_check") or action_id.startswith("check/")
+            if validate is not None and is_check:
                 profile = str((arguments or {}).get("profile") or "")
                 if not profile:
-                    profile = str(action.action_id).removesuffix("_check")
+                    if action_id.startswith("check/"):
+                        profile = action_id.split("/", 1)[1]
+                    else:
+                        profile = action_id.removesuffix("_check")
                 checker_id = f"lca.{profile}" if profile else action.action_id
                 payload = validate(run_ctx, checker_id)
                 from backend.core.runtime.host_action import HostActionResult

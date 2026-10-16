@@ -78,15 +78,18 @@ def record_from_intended(
     project_root: Path,
     workspace_root: Path,
 ) -> dict[str, Any]:
-    segments = [
-        {
+    segments = []
+    for seg in intended.get("segments") or []:
+        if "content_sha256" not in seg:
+            continue
+        entry: dict[str, Any] = {
             "id": seg["id"],
             "section": seg["section"],
             "content_sha256": seg["content_sha256"],
         }
-        for seg in intended.get("segments") or []
-        if "content_sha256" in seg
-    ]
+        if seg.get("file_sha256"):
+            entry["file_sha256"] = seg["file_sha256"]
+        segments.append(entry)
     payload: dict[str, Any] = {
         "workflow": workflow,
         "assignment_id": assignment_id,

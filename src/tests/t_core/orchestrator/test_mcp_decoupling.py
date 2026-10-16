@@ -23,6 +23,15 @@ from tests.conftest import PROJECT_ROOT
 
 
 def _workflow(tmp_path, server):
+    (tmp_path / "harness" / "knowledge" / "inputs").mkdir(parents=True)
+    (tmp_path / "harness" / "knowledge" / "plan").mkdir(parents=True)
+    perms = tmp_path / "harness" / "permissions"
+    perms.mkdir(parents=True)
+    for name in ("worker-default.yaml", "reviewer.yaml"):
+        (perms / name).write_text(
+            (PROJECT_ROOT / "harness" / "permissions" / name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
     specs = tmp_path / "harness" / "specs" / "work"
     specs.mkdir(parents=True)
     (specs / "acceptance.yaml").write_text("version: 1\nhost_checks: []\n", encoding="utf-8")

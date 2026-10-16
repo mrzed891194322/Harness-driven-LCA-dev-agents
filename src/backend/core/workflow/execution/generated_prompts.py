@@ -1,4 +1,4 @@
-"""Generated prompts: ``harness/rules/generated/*.md.tmpl`` rendered per session.
+"""Generated prompts: ``harness/prompts/generated/*.md.tmpl`` rendered per session.
 
 Templates hold fixed wording plus ``{{var}}``; each has a default and an optional
 ``harness/.user/`` override (same overlay as rules). Variables come from the
@@ -19,7 +19,7 @@ import yaml
 
 from backend.core.runtime import harness_fs
 
-GENERATED_DIR = "harness/rules/generated"
+GENERATED_DIR = "harness/prompts/generated"
 SETTINGS = "harness/settings.yaml"
 TEMPLATE_ORDER = ("permissions", "language")
 _VAR = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")

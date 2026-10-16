@@ -15,14 +15,14 @@
 
 ## 2. Harness 如何组装 workflow
 
-1. **Workflow YAML**：git 默认在 `harness/workflows/LCA-main.yaml`、`LCA-revise.yaml`；运行读 `.local/harness/workflows/` 副本（`npm start` / 后端启动时同步，见 `backend/core/workflow/local_workflows.py`）。定义 `registry`（rules、knowledge、MCP、host_action）与 `stages[].spec`。展示用 `title`/`short_title` 等由 YAML 声明；GUI 经 `GET /api/workflows` 与 manifest 读取，不维护本地阶段表。计划 Markdown 路径仅允许 workflow `plan:` 字段（缺省回退 `harness/knowledge/plan/main_plan.md` 在 loader 中定义，业务代码勿再硬编码）。
+1. **Workflow YAML**：git 默认在 `harness/workflows/LCA-main.yaml`、`LCA-revise.yaml`；运行读 `.local/harness/workflows/` 副本（`npm start` / 后端启动时同步，见 `backend/core/workflow/local_workflows.py`）。`registry:` 可为空对象；`discover_registry()`（`config/harness_registry.py`）按目录约定注册 **prompts**（`harness/prompts/**/*.md`）、**permissions**（`harness/permissions/*.yaml`）、**MCP**（`harness/tools/mcp/<id>/mcp.yaml`）、**host_action**（`harness/tools/host_action/...`）、**knowledge**。工作流只按 **组件 id** 引用规则与权限，不再内嵌 `registry.rules` 路径表。展示用 `title`/`short_title` 等由 YAML 声明；GUI 经 `GET /api/workflows` 与 manifest 读取，不维护本地阶段表。计划 Markdown 路径仅允许 workflow `plan:` 字段（缺省回退 `harness/knowledge/plan/main_plan.md` 在 loader 中定义，业务代码勿再硬编码）。
 2. **`load_workflow`**（`config/resolve.py`）解析每个 `spec:` 为 `harness/specs/<stage>/spec.yaml`，得到 `StageSpec`（`spec/loader.py`）。
 3. **阶段契约** `spec.yaml` v2 清单字段：
    - `inputs` / `deliverables`：每项 `kind: handoff|deliverable`；存储形状用 `path_kind: file|directory`（目录型交付如 LCI）。
    - 路径写在**尝试目录内**（如 `extracted-bom.json`、`LCI/`），不再写 `workspace/outputs/...`。
    - 跨阶段输入用 `from: <stage-id>/<file>`，由宿主在审查通过后根据 `accepted.json` 解析为磁盘路径。
 4. **注入**：`compile_turn` / `launch_spec` 把规则、知识、MCP、`spec_mcp` binding 写入 Pi 会话；`get_spec()` 提供交付物路径、schema、验收摘要（`spec_mcp/spec_view.py`）。
-5. **权限**：`permissions.yaml` + `harness/specs/shared/permissions/`；路径白名单与 spec 声明对齐。
+5. **权限**：各阶段 `harness/specs/<stage>/permissions.yaml` 引用 `harness/permissions/<id>.yaml`（组件 id = 文件名无扩展名）；路径白名单与 spec 声明对齐。用户覆盖：`harness/.user/permissions/`。
 
 ## 3. Workspace 布局（目标）
 
@@ -107,4 +107,4 @@ openLCA 清理（开跑前预览/删除、04 尝试前清理）**只用 descript
 - `docs/ARTIFACTS.md`、`docs/PROJECT_LAYOUT.md`（本文）
 - `workspace/runs/README.md`
 - `.cursor/rules/workspace-files.mdc`
-- `harness/rules/project/paths.md`
+- `harness/prompts/project/paths.md`

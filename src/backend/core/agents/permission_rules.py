@@ -1,6 +1,6 @@
 """Permission rules come from the stage spec (P5 spec channels).
 
-- Cross-stage rule definitions: ``harness/specs/shared/permissions/<id>.yaml``.
+- Cross-stage rule definitions: ``harness/permissions/<id>.yaml``.
 - Per stage: ``harness/specs/<stage>/permissions.yaml`` maps role -> rule ids.
 - An assignment may still name ``permissions: [<id>, ...]`` in workflow YAML; the
   ids must exist under ``shared/permissions``.
@@ -26,7 +26,7 @@ from backend.core.runtime import harness_fs
 if TYPE_CHECKING:
     from backend.core.workflow.spec.models import StageSpec
 
-SHARED_PERMISSIONS_DIR = "specs/shared/permissions"
+SHARED_PERMISSIONS_DIR = "permissions"
 BUILTIN_TOOLS = frozenset({"read", "bash", "edit", "write", "grep", "find", "ls"})
 SPEC_MCP_SERVER = "spec_mcp"
 SPEC_MCP_TOOLS_PATTERN = f"mcp__{SPEC_MCP_SERVER}__*"

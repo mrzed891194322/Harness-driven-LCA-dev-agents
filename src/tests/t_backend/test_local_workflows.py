@@ -157,5 +157,5 @@ def test_resume_prefers_snapshot_over_mutated_local(tmp_path: Path, monkeypatch:
     assert code == 0
     assert documents
     assert isinstance(documents[0], dict)
-    assert documents[0].get("registry") is not None
+    assert documents[0].get("stages")
     assert documents[0].get("id") != "mutated-local"

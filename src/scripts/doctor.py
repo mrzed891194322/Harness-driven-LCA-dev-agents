@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """npm run doctor -- project self-checks that need no model call.
 
-- prompt templates render (harness/rules/generated, harness/settings.yaml)
+- prompt templates render (harness/prompts/generated, harness/settings.yaml)
 - injection empty-session self-check against the running pi-runtime
   (creates a session, compares intended vs effective, releases it)
 """

@@ -75,7 +75,8 @@ def _validate_host_action_refs(
 def _require_action(
     workflow: Workflow, stage_id: str, kind: str, ref: HostActionRef
 ) -> None:
-    if ref.action not in workflow.host_actions:
+    action_key = (ref.action)
+    if action_key not in workflow.host_actions:
         raise ValueError(
             f"stage {stage_id!r}: {kind} {ref.id!r} references unknown "
             f"host action {ref.action!r}"
@@ -269,10 +270,11 @@ def _finalize_rule_ids(
 ) -> list[str]:
     ordered: list[str] = []
     for rule_id in base_rules:
-        if rule_id not in workflow.rules:
+        rid = (rule_id)
+        if rid not in workflow.rules:
             raise ValueError(f"{assignment_id}: unknown rule {rule_id}")
-        if rule_id not in ordered:
-            ordered.append(rule_id)
+        if rid not in ordered:
+            ordered.append(rid)
     for tool_id in mcp_tool_ids:
         for rule_id in workflow.mcp_tools[tool_id].rules:
             if rule_id not in workflow.rules:

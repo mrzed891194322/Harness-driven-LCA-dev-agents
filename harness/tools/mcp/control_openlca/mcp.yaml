@@ -1,0 +1,16 @@
+id: control_openlca
+description: openLCA IPC workflow MCP
+transport: stdio
+command: uv
+args:
+  - run
+  - python
+  - harness/tools/mcp/control_openlca/workflow_mcp.py
+tool_timeout_sec: 7320
+rules:
+  - tool-control-openlca
+runtime:
+  use_host_python: true
+  run_context_env: true
+  context_file: true
+  env_prefix: LCA

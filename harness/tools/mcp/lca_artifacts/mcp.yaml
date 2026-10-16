@@ -1,0 +1,15 @@
+id: lca_artifacts
+description: LCA artifacts MCP (handoff, report tables, read artifact)
+transport: stdio
+command: uv
+args:
+  - run
+  - python
+  - harness/tools/mcp/lca_artifacts/main.py
+rules:
+  - tool-lca-artifacts
+runtime:
+  use_host_python: true
+  run_context_env: true
+  context_file: true
+  env_prefix: LCA

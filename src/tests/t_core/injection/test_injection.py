@@ -46,7 +46,7 @@ def _launch(tmp: Path) -> SessionLaunchSpec:
     )
     spec.prompt_segments = [
         {"id": "runtime_protocol", "kind": "builtin", "source": "x.py", "origin": "builtin", "content": "# 通用\nA"},
-        {"id": "rule:r", "kind": "rule", "source": "harness/rules/r.md", "origin": "user", "file_sha256": "f", "content": "# 规则 r\nB"},
+        {"id": "rule:r", "kind": "rule", "source": "harness/prompts/r.md", "origin": "user", "file_sha256": "f", "content": "# 规则 r\nB"},
     ]
     spec.spec_view = {"spec_id": "03-x"}
     return spec
@@ -134,7 +134,7 @@ def test_snapshots_written_and_no_planted_secret_leaks(tmp_path, monkeypatch):
     intended = json.loads((d / "injection" / "intended.json").read_text(encoding="utf-8"))
     assert intended["first_user_prompt"]["chars"] > 0
     seg = next(s for s in intended["segments"] if s["id"] == "rule:r")
-    assert seg["origin"] == "user" and seg["source"] == "harness/rules/r.md"
+    assert seg["origin"] == "user" and seg["source"] == "harness/prompts/r.md"
     events = [json.loads(x) for x in (tmp_path / ".local/runs/r1/events.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [e["phase"] for e in events if e["kind"] == "injection_check"] == ["create", "first_request"]
     summary = injection.run_summary(tmp_path, "r1")

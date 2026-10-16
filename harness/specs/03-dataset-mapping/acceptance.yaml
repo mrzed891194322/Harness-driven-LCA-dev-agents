@@ -1,7 +1,7 @@
 version: 1
 host_checks:
 - id: mapping
-  action: mapping_check
+  action: check/mapping
   summary: 交卷后编排器重新核对 mapping 覆盖、LCI 合法与 provider 正式验证记录。
 deliverables:
   LCI:

@@ -16,7 +16,7 @@ from backend.core.runtime import harness_fs
 
 from ..config.bundle import TaskBundle
 
-STAGE_RULES_PREFIX = "harness/rules/stages/"
+STAGE_RULES_PREFIX = "harness/prompts/stages/"
 SUBMISSION_NOTE = "以 spec_mcp 为准，用 submit 交付"
 
 _RUNTIME_PROTOCOL = """\

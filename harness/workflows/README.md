@@ -9,7 +9,8 @@
 ## 展示字段（PR1，不进注入哈希）
 
 - 根级：`title`、`mode`、`plan`（计划 Markdown 路径）
-- `global.permissions.ceiling`：权限上限规则 id 列表（如 `worker-default`、`reviewer`）；`registry.permissions` 声明组件路径
+- `global.permissions.ceiling`：权限上限规则 id 列表（如 `worker-default`、`reviewer`）；权限组件在 `harness/permissions/<id>.yaml`，由目录约定自动发现（`registry: {}`）
+- **规则 id**（PR2）：如 `write-boundary`、`runtime-loop`、`stage/<stage-id>`、`stage/<stage-id>.revise`、`stage/<stage-id>.<role>`；对应 `harness/prompts/` 下同名 `.md` 路径
 - `stages[]`：`title`、`short_title`、`resumable`、`phase_title`
 - `assignments.<id>`：`title`（审查角色请写「审查」）
 - 合并算法与错误码见 `src/backend/core/workflow/config/compose.py`；权限逐层收窄见 `permission_narrow.py`
