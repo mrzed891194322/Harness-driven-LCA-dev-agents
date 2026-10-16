@@ -84,6 +84,32 @@ def build_non_retryable_error(
     return payload
 
 
+IMPORT_RECOVER_ACTION = "reconcile_and_resume"
+IMPORT_RECOVER_MESSAGE = (
+    "openLCA IPC failed during import. Do not start a fresh import and do not "
+    "call cleanup/calculate. Call reconcile_import(operation_id): if it returns "
+    "state_confirmed=true, resume with resume_import(operation_id) using a new "
+    "request_id and preflight_id; if reconcile fails or state_confirmed=false, "
+    "stop and submit_handoff with failed status."
+)
+
+
+def as_import_recoverable(payload: dict[str, Any]) -> dict[str, Any]:
+    """Import transport failure: reconcile first; resume only when state is confirmed.
+
+    ``retryable`` stays False (no blind retry / fresh import); the event and
+    ``*.uncertain`` marker written by ``on_ipc_transport_failure`` are kept.
+    """
+    out = dict(payload)
+    out["agent_action"] = IMPORT_RECOVER_ACTION
+    out["agent_message"] = IMPORT_RECOVER_MESSAGE
+    out["structured_errors"] = [
+        {**item, "agent_action": IMPORT_RECOVER_ACTION}
+        for item in payload.get("structured_errors") or []
+    ]
+    return out
+
+
 def on_ipc_transport_failure(
     host: str,
     port: int,

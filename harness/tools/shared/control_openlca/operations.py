@@ -16,7 +16,12 @@ from .connection import (
     is_transport_error,
 )
 from .guard import mark_uncertain, prior_uncertain_marker
-from .ipc_failure import NON_RETRYABLE_KIND, on_ipc_transport_failure
+from .ipc_failure import (
+    AGENT_STOP_MESSAGE,
+    NON_RETRYABLE_KIND,
+    as_import_recoverable,
+    on_ipc_transport_failure,
+)
 
 IDENTITY_SCOPE_KEYS = (
     "run_id",
@@ -330,6 +335,30 @@ def reconcile_import(
     target_category = identity["category"]
     ipc = client or create_ipc_client(host, port)
     try:
+        return _reconcile_import_checked(
+            host, port, path, report, lci_dir, target_category, identity, ipc, run_id
+        )
+    finally:
+        if client is None:
+            close_ipc_client(ipc)
+
+
+def _reconcile_stop(payload: dict, reason: str) -> dict:
+    """Reconcile could not confirm openLCA state: the agent must stop (policy 2026-10-16)."""
+    return {
+        **payload,
+        "state_confirmed": False,
+        "retryable": False,
+        "agent_action": "stop_and_submit_failed",
+        "agent_message": f"reconcile_import could not confirm import state ({reason}). "
+        + AGENT_STOP_MESSAGE,
+    }
+
+
+def _reconcile_import_checked(
+    host, port, path, report, lci_dir, target_category, identity, ipc, run_id
+):
+    try:
         current, inventory, _ = w._inspect_import(
             host,
             port,
@@ -339,10 +368,10 @@ def reconcile_import(
             ipc,
         )
         if not current["ok"]:
-            return {
-                "status": "rejected",
-                "errors": ["preflight_stale", *current["errors"]],
-            }
+            return _reconcile_stop(
+                {"status": "rejected", "errors": ["preflight_stale", *current["errors"]]},
+                "preflight_stale",
+            )
         plan = list(
             report.get("entity_plan") or w.build_entity_plan(inventory)
         )
@@ -357,10 +386,26 @@ def reconcile_import(
         elif all(entry.get("status") == "done" for entry in updated):
             report["status"] = "success"
         w._write_json_atomic(path, report)
-        return report
-    finally:
-        if client is None:
-            close_ipc_client(ipc)
+    except Exception as exc:
+        if not is_transport_error(exc):
+            raise
+        failure = on_ipc_transport_failure(
+            host, port, exc, operation="reconcile_import", run_id=run_id
+        )
+        return _reconcile_stop({**report, **failure}, "openLCA unreachable")
+    if issues:
+        return _reconcile_stop(report, "; ".join(issues)[:500])
+    if report["status"] == "success":
+        return {**report, "state_confirmed": True, "agent_action": "none"}
+    return {
+        **report,
+        "state_confirmed": True,
+        "agent_action": "resume_import",
+        "agent_message": (
+            "Import state confirmed. Call resume_import(operation_id) with a new "
+            "request_id and preflight_id."
+        ),
+    }
 
 
 def resume_import_request(
@@ -522,6 +567,7 @@ def resume_import_request(
                 operation="resume_import_request",
                 run_id=run_id,
             )
+            failure = as_import_recoverable(failure)
             return {**report, **failure}
         raise
     finally:
@@ -785,6 +831,7 @@ def import_request(
                 operation="import_request",
                 run_id=run_id,
             )
+            failure = as_import_recoverable(failure)
             return {**report, **failure} if report is not None else failure
         raise
     finally:

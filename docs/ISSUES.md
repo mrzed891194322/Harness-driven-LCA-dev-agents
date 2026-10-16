@@ -45,6 +45,7 @@
 | 37 | 🟢 | “额度 3/3 后又 prepare”：不是越界，上限=最多 3 次返工（共 4 轮），显示方式易误解；且掉线与真协议错误共用同一额度 | `runner._rework_invalid_handoff` | 语义不变，日志改为 `protocol rework 1/3 (剩余 2 次)`；连接重试与提醒均不计入 |
 | 38 | 🟢 | 每轮 worker turn 无结构化记录；`pi-runtime.log` 只记连接开/关（单连接自 10:58 起不再写） | `runner._record_turn`、`inspect_run.py`、`agent-stream.tsx` | 同分支：每轮写 `worker_turn` 事件（stop_reason、error_kind=connection/timeout/429/5xx/none、error_message、input/output tokens、tool_calls、`sdk_retries`（pi SDK `auto_retry_start` 次数，含已自愈的重试；≠ 后端 `transport_retry`、≠ `protocol_repairs`）、起止时间），backend.log 一行摘要；运行详情把“模型连接失败”显示为错误、与“agent 未交 handoff”分开；`npm run inspect` 按会话列出每轮 |
 | 39 | 🟡 | run `8ab95ee0`：各阶段 `attempts.json` 里已结束的尝试仍是 `status=running`、`ended_at=null`，但 01、02 已有 `accepted.json`，结束时这两个字段没回写（不影响运行，影响续跑判断和 inspect） | 尝试记录的结束回写路径（待查） | 待处理，并入近期测试整理：attempt 结束（accepted/failed/rework）时回写 status 和 ended_at，加回归测试 |
+| 40 | 🟢 | openLCA 中途无响应后 agent 一律被要求停下交失败（`stop_and_submit_failed`），即使导入状态能核对清楚也不能续导 | `ipc_failure.as_import_recoverable`、`operations.import_request`/`resume_import_request`/`reconcile_import`、`rules/tools/control_openlca.md` | 分支 `fix/run-page-signals`，按 Du Yuan 2026-10-16 决定：导入传输失败改回 `agent_action: reconcile_and_resume`（仍 `retryable:false`，事件与 `.uncertain` 保留）；`reconcile_import` 返回 `state_confirmed`，确认则 `resume_import`，对账自身传输失败/预检失效/核对有 issues 则 `stop_and_submit_failed`；cleanup/calculate 仍直接停 |
 | 18 | 🟢 P1 `5b89231` | `test_plan_form` 失败（解析 `main_plan.md` 的 CML 条件） | `src/tests` | 与 plan 文件内容有关 |
 
 ## 前端（GUI）

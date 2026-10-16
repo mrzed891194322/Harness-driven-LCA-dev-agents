@@ -178,7 +178,7 @@ def test_resume_after_partial_product_system_failure(context):
         operation_dir=operation_dir,
         client=client,
     )
-    operations.reconcile_import(
+    reconciled = operations.reconcile_import(
         "localhost",
         65530,
         operation_dir,
@@ -186,6 +186,8 @@ def test_resume_after_partial_product_system_failure(context):
         operation_id=first["operation_id"],
         client=client,
     )
+    assert reconciled["state_confirmed"] is True
+    assert reconciled["agent_action"] == "resume_import"
     resumed = operations.resume_import_request(
         "localhost",
         65530,
@@ -1174,3 +1176,93 @@ def test_calculation_dispose_reaches_openlca_through_http(context, monkeypatch):
     assert "result/dispose" in methods
     assert out["resource_released"] is True, out["error"]
     assert "dispose failed" not in (out["error"] or "")
+
+
+# --- openLCA unresponsive policy (Du Yuan 2026-10-16): reconcile then resume, else stop.
+
+
+@pytest.fixture
+def quiet_ipc_failure():
+    from harness.tools.shared.control_openlca import ipc_failure
+
+    with patch.object(
+        ipc_failure, "health_probe_responsive", return_value=(False, "timeout")
+    ), patch.object(
+        ipc_failure, "capture_openlca_timeout_diagnostics", return_value=None
+    ), patch.object(ipc_failure, "append_run_event") as event:
+        yield event
+
+
+def _partial_import(context, client):
+    root = lci_for(context)
+    write_product_system_fixture(root)
+    operation_dir = context.attempt_root() / "import-operations"
+    preflight = operations.preflight(
+        "localhost", 65530, root, "project-a", "isolated-db",
+        run_id=context.run_id, operation_dir=operation_dir, client=client,
+    )
+    client.fail_create_product_system = True
+    first = operations.import_request(
+        "localhost", 65530, root, "project-a", "isolated-db",
+        run_id=context.run_id, request_id="request-one",
+        preflight_id=preflight["preflight_id"], operation_dir=operation_dir,
+        client=client,
+    )
+    client.fail_create_product_system = False
+    assert first["status"] == "partial_failure"
+    return operation_dir, first
+
+
+def test_import_transport_failure_asks_reconcile_not_stop(context, quiet_ipc_failure):
+    from harness.tools.shared.control_openlca import workflow as wflow
+
+    client = FakeImportClient()
+    lci, kwargs = start_import(context, client)
+    with patch.object(
+        wflow, "_inspect_import", side_effect=requests.ConnectionError("refused")
+    ):
+        result = operations.import_request(
+            "localhost", 65530, lci, "project-a", "isolated-db", **kwargs
+        )
+    assert result["error_kind"] == "openlca_unresponsive"
+    assert result["retryable"] is False
+    assert result["agent_action"] == "reconcile_and_resume"
+    assert all(
+        e["agent_action"] == "reconcile_and_resume" for e in result["structured_errors"]
+    )
+    assert quiet_ipc_failure.called  # banner event still emitted
+
+
+def test_reconcile_transport_failure_stops(context, quiet_ipc_failure):
+    from harness.tools.shared.control_openlca import workflow as wflow
+
+    client = FakeImportClient()
+    operation_dir, first = _partial_import(context, client)
+    with patch.object(
+        wflow, "_inspect_import", side_effect=requests.ConnectionError("refused")
+    ):
+        result = operations.reconcile_import(
+            "localhost", 65530, operation_dir,
+            run_id=context.run_id, operation_id=first["operation_id"], client=client,
+        )
+    assert result["state_confirmed"] is False
+    assert result["agent_action"] == "stop_and_submit_failed"
+    assert result["retryable"] is False
+
+
+def test_reconcile_unconfirmed_state_stops(context):
+    from harness.tools.shared.control_openlca import workflow as wflow
+
+    client = FakeImportClient()
+    operation_dir, first = _partial_import(context, client)
+    with patch.object(
+        wflow,
+        "reconcile_entity_plan",
+        side_effect=lambda ipc, plan, inv, cat: (plan, ["ProductSystem x looks incomplete"]),
+    ):
+        result = operations.reconcile_import(
+            "localhost", 65530, operation_dir,
+            run_id=context.run_id, operation_id=first["operation_id"], client=client,
+        )
+    assert result["state_confirmed"] is False
+    assert result["agent_action"] == "stop_and_submit_failed"
