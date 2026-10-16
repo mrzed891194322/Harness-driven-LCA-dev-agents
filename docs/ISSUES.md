@@ -117,5 +117,5 @@
 | 运行结束后「当前阶段」显示「准备开始」 | ✅ 已关闭 | completed 显示「全部完成」（附 status_reason）；failed/interrupted/aborted 显示状态与最后阶段（取自活动事件 `stage`）；仅未开始时「准备开始」 |
 | worker_turn `retries` 易误解 | ✅ 已关闭 | 改名 `sdk_retries`（pi-runtime TurnOutcome、runner、inspect_run；inspect_run 兼容旧事件的 `retries`） |
 | /harness 首页 `router.replace` 抢走用户已点的链接 | ✅ 已关闭 | 仅当地址仍是 `/harness` 时才跳到首个条目 |
-| ProductSystem 导入读超时实际 120 s 而非 `OPENLCA_TIMEOUT_PRODUCT_SYSTEM_S`=300 | 🟡 待修 | `connection._TimeoutHTTPAdapter.send` 把客户端创建时固化的 `(2, 120)` 作为显式 `read_sec` 传给 `resolve_http_read_timeout`，`ipc_read_scope(300)` 不生效（run `ab4e721a` 16:37:59 超时）。建议 adapter 在未显式传 timeout 时用 `active_read_sec()` |
+| ProductSystem 导入读超时实际 120 s 而非 `OPENLCA_TIMEOUT_PRODUCT_SYSTEM_S`=300 | ✅ 已修 | 原因：`connection._TimeoutHTTPAdapter.send` 把客户端创建时固化的 `(2, 120)` 作为显式 `read_sec` 传下去，`ipc_read_scope(300)` 不生效（run `ab4e721a` 16:37:59 超时）。修复：`create_ipc_client` 默认 `timeout=None`，adapter 每次请求用 `resolve_http_read_timeout()`（即 `active_read_sec()`，预算 fail-fast 不变）；显式 timeout（健康探测）不变。测试 `test_product_system_scope_sets_actual_read_timeout`、`test_explicit_client_timeout_ignores_scope`（不连网络） |
 

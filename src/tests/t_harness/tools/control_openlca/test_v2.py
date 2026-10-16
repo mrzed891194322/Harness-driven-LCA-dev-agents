@@ -891,8 +891,58 @@ def test_create_ipc_client_defaults_to_per_request_read(tmp_path, monkeypatch):
         create_ipc_client("localhost", 65530)
     factory.assert_called_once_with(
         "http://localhost:65530",
-        timeout=(2.0, 120.0),
+        timeout=None,
     )
+
+
+def _sent_read_timeout(client, monkeypatch):
+    """Send one request through the client's adapter without touching the network."""
+    import requests
+    from requests.adapters import HTTPAdapter
+
+    captured = {}
+
+    def fake_send(self, request, **kwargs):
+        captured["timeout"] = kwargs.get("timeout")
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b"{}"
+        return response
+
+    monkeypatch.setattr(HTTPAdapter, "send", fake_send)
+    client._s.post("http://localhost:65530", json={})
+    return captured["timeout"]
+
+
+def test_product_system_scope_sets_actual_read_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
+    monkeypatch.setenv("OPENLCA_TIMEOUT_REQUEST_S", "120")
+    monkeypatch.setenv("OPENLCA_TIMEOUT_PRODUCT_SYSTEM_S", "300")
+    from harness.tools.shared.control_openlca.connection import create_ipc_client
+    from harness.tools.shared.control_openlca.timeout_policy import (
+        ipc_read_scope,
+        product_system_read_sec,
+    )
+
+    client = create_ipc_client("localhost", 65530)
+    assert _sent_read_timeout(client, monkeypatch) == (2.0, 120.0)
+    with ipc_read_scope(product_system_read_sec()):
+        assert _sent_read_timeout(client, monkeypatch) == (2.0, 300.0)
+    assert _sent_read_timeout(client, monkeypatch) == (2.0, 120.0)
+
+
+def test_explicit_client_timeout_ignores_scope(tmp_path, monkeypatch):
+    monkeypatch.setenv("LCA_IPC_LOCK_ROOT", str(tmp_path / "locks"))
+    from harness.tools.shared.control_openlca.connection import (
+        HEALTH_REQUEST_TIMEOUT,
+        create_ipc_client,
+    )
+    from harness.tools.shared.control_openlca.timeout_policy import ipc_read_scope
+
+    client = create_ipc_client("localhost", 65530, timeout=HEALTH_REQUEST_TIMEOUT)
+    with ipc_read_scope(300.0):
+        connect, read = _sent_read_timeout(client, monkeypatch)
+    assert (connect, read) == tuple(HEALTH_REQUEST_TIMEOUT)
 
 
 def test_query_descriptors_reports_applied_timeout_sec(context, monkeypatch):
