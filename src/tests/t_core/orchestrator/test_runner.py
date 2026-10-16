@@ -181,7 +181,7 @@ def test_lifecycle_crash_is_not_replayed(run_case):
         timeout_sec=None,
         **kwargs,
     ):
-        if getattr(action, "action_id", None) == "record_acceptance":
+        if getattr(action, "action_id", None) == "check/record-acceptance":
             return boom()
         return original(action, run_ctx=run_ctx, arguments=arguments)
 
@@ -212,7 +212,7 @@ def test_lifecycle_error_publishes_failure_after_commit(run_case):
         timeout_sec=None,
         **kwargs,
     ):
-        if getattr(action, "action_id", None) == "record_acceptance":
+        if getattr(action, "action_id", None) == "check/record-acceptance":
             return HostActionResult(
                 ok=False, status="failed", summary="hook failed", errors=["hook failed"]
             )

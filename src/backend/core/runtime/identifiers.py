@@ -6,11 +6,20 @@ import re
 from pathlib import Path
 
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+_COMPONENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./-]{0,127}$")
 
 
 def require_identifier(value: str, *, label: str) -> str:
     text = str(value)
     if not _ID_RE.fullmatch(text):
+        raise ValueError(f"invalid {label}: {value!r}")
+    return text
+
+
+def require_component_id(value: str, *, label: str) -> str:
+    """Harness component id (may contain ``/`` for stage/* and check/*)."""
+    text = str(value).strip()
+    if ".." in text or not _COMPONENT_ID_RE.fullmatch(text):
         raise ValueError(f"invalid {label}: {value!r}")
     return text
 

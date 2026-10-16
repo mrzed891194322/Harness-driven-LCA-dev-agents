@@ -143,13 +143,18 @@ def specs_health(project_root: Path) -> dict[str, Any]:
         for s in list_specs(project_root)["stages"]
         if s["id"] != "shared"
     ]
-    shared = project_root / "harness" / "specs" / "shared" / "permissions"
+    perms = project_root / "harness" / "permissions"
     errors = [e for r in results for e in r["errors"]]
-    if not shared.is_dir():
-        errors.append("missing harness/specs/shared/permissions/")
+    if not perms.is_dir():
+        errors.append("missing harness/permissions/")
     legacy = [
-        p for p in ("harness/rules/permissions", "harness/rules/prompts")
+        p
+        for p in (
+            "harness/rules",
+            "harness/specs/shared/permissions",
+            "harness/prompts/permissions",
+        )
         if (project_root / p).exists()
     ]
-    errors.extend(f"legacy path still present: {p} (moved in P5)" for p in legacy)
+    errors.extend(f"legacy path still present: {p} (moved in PR2)" for p in legacy)
     return {"ok": not errors, "errors": errors, "stages": results}

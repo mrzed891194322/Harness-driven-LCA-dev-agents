@@ -1,7 +1,7 @@
 version: 1
 host_checks:
 - id: report
-  action: report_check
+  action: check/report
   summary: 交卷后编排器重新核对报告引用的计算证据与表格一致性。
 deliverables:
   lca_report:

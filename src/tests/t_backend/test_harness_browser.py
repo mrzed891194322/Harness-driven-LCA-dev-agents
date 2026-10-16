@@ -22,14 +22,14 @@ class HarnessBrowserTests(unittest.TestCase):
     def test_catalog_lists_rules_specs_and_related_docs(self) -> None:
         catalog = harness_catalog(PROJECT_ROOT)
         index = _index(catalog)
-        self.assertEqual(index["rules/README.md"], ("rules", "overview", "说明"))
-        self.assertEqual(index["rules/project/runtime.md"][:2], ("rules", "project"))
+        self.assertEqual(index["prompts/README.md"], ("prompts", "overview", "说明"))
+        self.assertEqual(index["prompts/project/runtime.md"][:2], ("prompts", "project"))
         self.assertEqual(
-            index["rules/stages/01-intake-gate.reviewer.md"],
-            ("rules", "stages", "01-intake-gate.reviewer"),
+            index["prompts/stages/01-intake-gate.reviewer.md"],
+            ("prompts", "stages", "01-intake-gate.reviewer"),
         )
         self.assertEqual(
-            index["specs/shared/permissions/reviewer.yaml"][:2], ("specs", "shared")
+            index["permissions/reviewer.yaml"][:2], ("permissions", "overview")
         )
         self.assertIn("specs/03-dataset-mapping/acceptance.yaml", index)
         self.assertEqual(index["specs/01-intake-gate/spec.yaml"][:2], ("specs", "01-intake-gate"))
@@ -37,25 +37,29 @@ class HarnessBrowserTests(unittest.TestCase):
         self.assertIn("knowledge/plan/main_plan.md", index)
         self.assertTrue(all(not path.endswith(".py") for path in index))
 
-        rules = next(section for section in catalog["sections"] if section["id"] == "rules")
-        group_ids = [group["id"] for group in rules["groups"]]
+        prompts = next(section for section in catalog["sections"] if section["id"] == "prompts")
+        group_ids = [group["id"] for group in prompts["groups"]]
         self.assertLess(group_ids.index("project"), group_ids.index("stages"))
-        self.assertNotIn("permissions", group_ids)
 
     def test_read_markdown_title(self) -> None:
-        document = read_harness_document(PROJECT_ROOT, "rules/stages/01-intake-gate.md")
+        document = read_harness_document(PROJECT_ROOT, "prompts/stages/01-intake-gate.md")
         self.assertEqual(document["title"], "01 初始化检查")
         self.assertEqual(document["kind"], "markdown")
         self.assertIn("启动门禁", document["content"])
 
     def test_rejects_escape_and_non_documents(self) -> None:
-        for relative in ("../README.md", "/etc/passwd", "rules/../../README.md", "tools/mcp/control_openlca/main.py"):
+        for relative in (
+            "../README.md",
+            "/etc/passwd",
+            "prompts/../../README.md",
+            "tools/mcp/control_openlca/main.py",
+        ):
             with self.assertRaises(HarnessPathError):
                 read_harness_document(PROJECT_ROOT, relative)
 
     def test_missing_document(self) -> None:
         with self.assertRaises(FileNotFoundError):
-            read_harness_document(PROJECT_ROOT, "rules/missing.md")
+            read_harness_document(PROJECT_ROOT, "prompts/missing.md")
 
 
 class HarnessBrowserApiTests(unittest.TestCase):
@@ -68,9 +72,9 @@ class HarnessBrowserApiTests(unittest.TestCase):
         denied = client.get("/api/harness/document", params={"path": "../README.md"})
         self.assertEqual(denied.status_code, 400)
 
-        missing = client.get("/api/harness/document", params={"path": "rules/missing.md"})
+        missing = client.get("/api/harness/document", params={"path": "prompts/missing.md"})
         self.assertEqual(missing.status_code, 404)
 
-        document = client.get("/api/harness/document", params={"path": "rules/README.md"})
+        document = client.get("/api/harness/document", params={"path": "prompts/README.md"})
         self.assertEqual(document.status_code, 200)
-        self.assertIn("规则", document.json()["content"])
+        self.assertIn("提示词", document.json()["content"])

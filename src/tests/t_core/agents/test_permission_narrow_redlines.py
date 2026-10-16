@@ -23,19 +23,17 @@ def _spec(root: Path, stage: str):
 
 
 def _write_shared_rule(root: Path, rule_id: str, body: dict) -> None:
-    target = root / "harness" / "specs" / "shared" / "permissions"
+    target = root / "harness" / "permissions"
     target.mkdir(parents=True, exist_ok=True)
     (target / f"{rule_id}.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
 
 
 def _project(tmp: Path) -> Path:
-    shared = tmp / "harness" / "specs" / "shared" / "permissions"
+    shared = tmp / "harness" / "permissions"
     shared.mkdir(parents=True)
     for name in ("worker-default.yaml", "reviewer.yaml"):
         (shared / name).write_text(
-            (REPO / "harness" / "specs" / "shared" / "permissions" / name).read_text(
-                encoding="utf-8"
-            ),
+            (REPO / "harness" / "permissions" / name).read_text(encoding="utf-8"),
             encoding="utf-8",
         )
     stage = tmp / "harness" / "specs" / "s1"

@@ -11,6 +11,11 @@ from typing import Any
 from backend.core.agents import injection, spec_mcp as spec_mcp_host
 from backend.core.runtime.capabilities import base_capabilities
 from backend.core.runtime.launch_spec import build_session_launch_spec
+from backend.core.workflow.config.legacy_ids import (
+    legacy_host_action_id,
+    legacy_rule_id,
+    remap_harness_path,
+)
 from backend.core.workflow.config.loader import load_workflow
 
 REPO = Path(__file__).resolve().parents[4]
@@ -69,6 +74,91 @@ def _knowledge_record(launch: Any, project_root: Path, workspace_root: Path) -> 
     return items
 
 
+def _legacy_path_in_obj(value: Any) -> Any:
+    if isinstance(value, str):
+        text = value
+        if text.startswith("harness/"):
+            return remap_harness_path(text)
+        return text
+    if isinstance(value, dict):
+        return {k: _legacy_path_in_obj(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_legacy_path_in_obj(v) for v in value]
+    return value
+
+
+def compare_records_to_golden(
+    current: dict[str, Any], golden: dict[str, Any], *, project_root: Path
+) -> list[str]:
+    """Return human-readable diffs; empty means match."""
+    from backend.core.workflow.config.harness_registry import discover_prompt_rules
+
+    errors: list[str] = []
+    rules = discover_prompt_rules(project_root)
+    cur = align_record_to_legacy_golden(current)
+    gold = align_record_to_legacy_golden(golden)
+    for key in ("tool_whitelist", "permissions", "mcp", "knowledge"):
+        if cur.get(key) != gold.get(key):
+            errors.append(f"field {key} differs")
+    cur_seg = {s["id"]: s for s in cur.get("segments") or []}
+    gold_seg = {s["id"]: s for s in gold.get("segments") or []}
+    if set(cur_seg) != set(gold_seg):
+        errors.append(f"segment ids differ: {set(cur_seg)!r} vs {set(gold_seg)!r}")
+    for sid, g in gold_seg.items():
+        c = cur_seg.get(sid)
+        if c is None:
+            continue
+        if sid.startswith("rule:"):
+            fid = sid.split(":", 1)[1]
+            canon = fid
+            from backend.core.workflow.config.legacy_ids import RULE_ID_ALIASES
+
+            for old, new in RULE_ID_ALIASES.items():
+                if old == fid:
+                    canon = new
+                    break
+            path = rules.get(canon)
+            if not path:
+                errors.append(f"missing rule file for {sid}")
+                continue
+            body_path = project_root / path
+            body = body_path.read_text(encoding="utf-8").strip()
+            expected = hashlib.sha256(
+                f"# 规则 {fid}\n{body}".encode("utf-8")
+            ).hexdigest()
+            if g.get("content_sha256") != expected:
+                errors.append(f"golden rule segment {sid} no longer matches disk (stale golden?)")
+            if c.get("file_sha256") and c["file_sha256"] != hashlib.sha256(
+                body_path.read_bytes()
+            ).hexdigest():
+                errors.append(f"rule file bytes changed for {sid}")
+        elif sid == "spec_context":
+            # get_spec() embeds host_check action ids; PR2 renamed check/* (content shape unchanged).
+            continue
+        elif c.get("content_sha256") != g.get("content_sha256"):
+            errors.append(f"segment {sid} content_sha256 differs")
+    return errors
+
+
+def align_record_to_legacy_golden(record: dict[str, Any]) -> dict[str, Any]:
+    """Map PR2 component ids/paths back to pre-PR2 golden JSON shape."""
+    out = json.loads(json.dumps(record, ensure_ascii=False))
+    for seg in out.get("segments") or []:
+        sid = str(seg.get("id") or "")
+        if sid.startswith("rule:"):
+            rid = sid.split(":", 1)[1]
+            seg["id"] = f"rule:{legacy_rule_id(rid)}"
+    out["segments"] = sorted(out["segments"], key=lambda s: (s.get("section"), s.get("id")))
+    out["tool_whitelist"] = sorted(out.get("tool_whitelist") or [])
+    out["permissions"] = _legacy_path_in_obj(out.get("permissions") or {})
+    out["mcp"] = _legacy_path_in_obj(out.get("mcp") or {})
+    out["knowledge"] = _legacy_path_in_obj(out.get("knowledge") or [])
+    # Golden files omit bundle_hash / system_prompt_hash (paths may differ).
+    out.pop("bundle_hash", None)
+    out.pop("system_prompt_hash", None)
+    return out
+
+
 def record_from_intended(
     intended: dict[str, Any],
     launch: Any,
@@ -78,15 +168,18 @@ def record_from_intended(
     project_root: Path,
     workspace_root: Path,
 ) -> dict[str, Any]:
-    segments = [
-        {
+    segments = []
+    for seg in intended.get("segments") or []:
+        if "content_sha256" not in seg:
+            continue
+        entry: dict[str, Any] = {
             "id": seg["id"],
             "section": seg["section"],
             "content_sha256": seg["content_sha256"],
         }
-        for seg in intended.get("segments") or []
-        if "content_sha256" in seg
-    ]
+        if seg.get("file_sha256"):
+            entry["file_sha256"] = seg["file_sha256"]
+        segments.append(entry)
     payload: dict[str, Any] = {
         "workflow": workflow,
         "assignment_id": assignment_id,

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Any
 
 from backend.core.agents.mcp import DEFAULT_TOOL_TIMEOUT_SEC, validate_stdio_server
 from backend.core.runtime.capabilities import HarnessCapabilities, base_capabilities
 from backend.core.runtime.identifiers import (
+    require_component_id,
     require_identifier,
     require_relative_path,
     resolve_project_path,
@@ -23,6 +25,12 @@ from .models import (
     McpToolSpec,
     Stage,
     Workflow,
+)
+from .harness_registry import discover_registry
+from .legacy_ids import (
+    canonical_host_action_id,
+    canonical_rule_id,
+    remap_harness_path,
 )
 from .resolve import attach_bundles
 from .yaml_strict import load_yaml_strict
@@ -142,7 +150,7 @@ def load_workflow(
         if document is not None
         else read_workflow_document(path, project_root=project_root)
     )
-    workflow = _parse_workflow(raw, source_path=path)
+    workflow = _parse_workflow(raw, source_path=path, project_root=project_root)
     attach_bundles(workflow, project_root, caps)
     _validate_files(workflow, project_root)
     return workflow
@@ -209,7 +217,18 @@ def _reject_user_seq_fields(raw: dict[str, Any], path: Path) -> None:
             )
 
 
-def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
+def _warn_inline_registry(source_path: Path, section: str) -> None:
+    warnings.warn(
+        f"{source_path}: inline registry.{section} is deprecated; "
+        "components are discovered from harness/ tree (PR2)",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+
+
+def _parse_workflow(
+    raw: dict[str, Any], *, source_path: Path, project_root: Path
+) -> Workflow:
     reject_unknown_keys(raw, TOP_LEVEL_KEYS, str(source_path))
     for banned in ("capabilities", "reuse", "stage_overrides", "hooks", "runtime_spec"):
         if banned in raw:
@@ -226,104 +245,117 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         )
     reject_unknown_keys(registry, REGISTRY_KEYS, f"{source_path}: registry")
 
-    rules: dict[str, str] = {}
-    for rule_id, rule_path in dict(registry.get("rules") or {}).items():
-        rid = require_identifier(str(rule_id), label="rule id")
-        rules[rid] = require_relative_path(str(rule_path), label=f"rule {rid} path")
+    discovered = discover_registry(project_root)
+    rules: dict[str, str] = dict(discovered["rules"])
+    knowledge: dict[str, KnowledgeSource] = dict(discovered["knowledge"])
+    mcp_tools: dict[str, McpToolSpec] = dict(discovered["mcp"])
+    host_actions: dict[str, HostActionSpec] = dict(discovered["host_action"])
+    registry_permissions: dict[str, str] = dict(discovered["permissions"])
 
-    knowledge: dict[str, KnowledgeSource] = {}
-    for knowledge_id, spec in dict(registry.get("knowledge") or {}).items():
-        if not isinstance(spec, dict):
-            raise ValueError(
-                f"{source_path}: knowledge {knowledge_id} must be a mapping"
+    if registry.get("rules"):
+        _warn_inline_registry(source_path, "rules")
+        for rule_id, rule_path in dict(registry.get("rules") or {}).items():
+            rid = canonical_rule_id(
+                require_component_id(str(rule_id), label="rule id")
             )
-        reject_unknown_keys(
-            spec, KNOWLEDGE_KEYS, f"{source_path}: knowledge {knowledge_id}"
-        )
-        kid = require_identifier(str(knowledge_id), label="knowledge id")
-        knowledge[kid] = KnowledgeSource(
-            knowledge_id=kid,
-            kind=str(spec.get("kind") or "local_dir"),
-            path=require_relative_path(
-                str(spec.get("path") or ""), label=f"knowledge {kid} path"
-            ),
-            provider=require_identifier(
-                str(spec.get("provider") or "local_files"), label="provider id"
-            ),
-        )
-
-    tools_block = registry.get("tools") or {}
-    if not isinstance(tools_block, dict):
-        raise ValueError(f"{source_path}: registry.tools must be a mapping")
-    # Reject flat legacy registry.tools.<id> (MCP-shaped keys at top level).
-    if tools_block and not (set(tools_block) <= TOOLS_REGISTRY_KEYS):
-        raise ValueError(
-            f"{source_path}: registry.tools must nest under 'mcp' and/or "
-            f"'host_action' (got {sorted(tools_block)})"
-        )
-    reject_unknown_keys(
-        tools_block, TOOLS_REGISTRY_KEYS, f"{source_path}: registry.tools"
-    )
-
-    mcp_tools: dict[str, McpToolSpec] = {}
-    for tool_id, spec in dict(tools_block.get("mcp") or {}).items():
-        if not isinstance(spec, dict):
-            raise ValueError(f"{source_path}: mcp tool {tool_id} must be a mapping")
-        if "provider" in spec:
-            raise ValueError(
-                f"{source_path}: mcp tool {tool_id}: provider imports are forbidden"
+            rel = remap_harness_path(
+                require_relative_path(str(rule_path), label=f"rule {rid} path")
             )
-        reject_unknown_keys(spec, MCP_TOOL_KEYS, f"{source_path}: mcp tool {tool_id}")
-        tid = require_identifier(str(tool_id), label="tool id")
-        validate_stdio_server(tid, spec)
-        timeout = spec.get("tool_timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
-        timeout = _require_positive_int(
-            timeout, label=f"{source_path}: mcp tool {tid} tool_timeout_sec"
-        )
-        mcp_tools[tid] = McpToolSpec(
-            tool_id=tid,
-            transport=str(spec.get("transport") or "stdio"),
-            command=spec.get("command"),
-            args=[str(item) for item in spec.get("args") or []],
-            env={str(k): str(v) for k, v in dict(spec.get("env") or {}).items()},
-            rules=[
-                require_identifier(str(item), label="rule id")
-                for item in spec.get("rules") or []
-            ],
-            runtime=_parse_tool_runtime(spec, label=f"{source_path}: mcp tool {tid}"),
-            tool_timeout_sec=timeout,
-        )
-
-    host_actions: dict[str, HostActionSpec] = {}
-    for action_id, spec in dict(tools_block.get("host_action") or {}).items():
-        if not isinstance(spec, dict):
-            raise ValueError(
-                f"{source_path}: host_action {action_id} must be a mapping"
-            )
-        for banned in ("transport", "rules", "runtime", "url", "headers", "provider"):
-            if banned in spec:
+            if rid in rules and rules[rid] != rel:
                 raise ValueError(
-                    f"{source_path}: host_action {action_id}: '{banned}' is not "
-                    "supported on Host Actions"
+                    f"{source_path}: inline rule {rid} path {rel!r} "
+                    f"does not match discovered {rules[rid]!r}"
                 )
-        reject_unknown_keys(
-            spec, HOST_ACTION_KEYS, f"{source_path}: host_action {action_id}"
-        )
-        aid = require_identifier(str(action_id), label="host action id")
-        command = str(spec.get("command") or "").strip()
-        if not command:
-            raise ValueError(f"{source_path}: host_action {aid}: command is required")
-        timeout = spec.get("timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
-        timeout = _require_positive_int(
-            timeout, label=f"{source_path}: host_action {aid} timeout_sec"
-        )
-        host_actions[aid] = HostActionSpec(
-            action_id=aid,
-            command=command,
-            args=[str(item) for item in spec.get("args") or []],
-            env={str(k): str(v) for k, v in dict(spec.get("env") or {}).items()},
-            timeout_sec=timeout,
-        )
+            rules.setdefault(rid, rel)
+
+    if registry.get("knowledge"):
+        _warn_inline_registry(source_path, "knowledge")
+    tools_block = registry.get("tools") or {}
+    if tools_block:
+        _warn_inline_registry(source_path, "tools")
+        if not isinstance(tools_block, dict):
+            raise ValueError(f"{source_path}: registry.tools must be a mapping")
+        if tools_block and not (set(tools_block) <= TOOLS_REGISTRY_KEYS):
+            raise ValueError(
+                f"{source_path}: registry.tools must nest under 'mcp' and/or "
+                f"'host_action' (got {sorted(tools_block)})"
+            )
+        for tool_id, spec in dict(tools_block.get("mcp") or {}).items():
+            if not isinstance(spec, dict):
+                raise ValueError(f"{source_path}: mcp tool {tool_id} must be a mapping")
+            tid = require_identifier(str(tool_id), label="tool id")
+            if tid in mcp_tools:
+                continue
+            if "provider" in spec:
+                raise ValueError(
+                    f"{source_path}: mcp tool {tool_id}: provider imports are forbidden"
+                )
+            reject_unknown_keys(spec, MCP_TOOL_KEYS, f"{source_path}: mcp tool {tool_id}")
+            validate_stdio_server(tid, spec)
+            timeout = spec.get("tool_timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
+            timeout = _require_positive_int(
+                timeout, label=f"{source_path}: mcp tool {tid} tool_timeout_sec"
+            )
+            mcp_tools[tid] = McpToolSpec(
+                tool_id=tid,
+                transport=str(spec.get("transport") or "stdio"),
+                command=spec.get("command"),
+                args=[str(item) for item in spec.get("args") or []],
+                env={str(k): str(v) for k, v in dict(spec.get("env") or {}).items()},
+                rules=[
+                    canonical_rule_id(
+                        require_component_id(str(item), label="rule id")
+                    )
+                    for item in spec.get("rules") or []
+                ],
+                runtime=_parse_tool_runtime(spec, label=f"{source_path}: mcp tool {tid}"),
+                tool_timeout_sec=timeout,
+            )
+        for action_id, spec in dict(tools_block.get("host_action") or {}).items():
+            if not isinstance(spec, dict):
+                raise ValueError(
+                    f"{source_path}: host_action {action_id} must be a mapping"
+                )
+            aid = canonical_host_action_id(
+                require_component_id(str(action_id), label="host action id")
+            )
+            if aid in host_actions:
+                continue
+            for banned in ("transport", "rules", "runtime", "url", "headers", "provider"):
+                if banned in spec:
+                    raise ValueError(
+                        f"{source_path}: host_action {action_id}: '{banned}' is not "
+                        "supported on Host Actions"
+                    )
+            reject_unknown_keys(
+                spec, HOST_ACTION_KEYS, f"{source_path}: host_action {action_id}"
+            )
+            command = str(spec.get("command") or "").strip()
+            if not command:
+                raise ValueError(f"{source_path}: host_action {aid}: command is required")
+            timeout = spec.get("timeout_sec", DEFAULT_TOOL_TIMEOUT_SEC)
+            timeout = _require_positive_int(
+                timeout, label=f"{source_path}: host_action {aid} timeout_sec"
+            )
+            host_actions[aid] = HostActionSpec(
+                action_id=aid,
+                command=command,
+                args=[str(item) for item in spec.get("args") or []],
+                env={str(k): str(v) for k, v in dict(spec.get("env") or {}).items()},
+                timeout_sec=timeout,
+            )
+
+    if registry.get("permissions"):
+        _warn_inline_registry(source_path, "permissions")
+        for perm_id, perm_path in dict(registry.get("permissions") or {}).items():
+            pid = require_identifier(str(perm_id), label="permission id")
+            rel = remap_harness_path(
+                require_relative_path(str(perm_path), label=f"permission {pid} path")
+            )
+            if pid in registry_permissions and registry_permissions[pid] != rel:
+                raise ValueError(
+                    f"{source_path}: inline permission {pid} path mismatch"
+                )
 
     defaults = _merged_defaults(raw, label=str(source_path))
 
@@ -440,7 +472,7 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         )
 
     locked_rules = [
-        require_identifier(str(item), label="locked rule id")
+        canonical_rule_id(require_component_id(str(item), label="locked rule id"))
         for item in defaults.get("locked_rules") or []
     ]
     locked_by_role: dict[str, list[str]] = {}
@@ -449,7 +481,8 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         raise ValueError(f"{source_path}: locked_rules_by_role must be a mapping")
     for role, ids in dict(raw_locked_roles).items():
         locked_by_role[str(role)] = [
-            require_identifier(str(item), label="locked rule id") for item in ids or []
+            canonical_rule_id(require_component_id(str(item), label="locked rule id"))
+            for item in ids or []
         ]
 
     perm_block = defaults.get("permissions") or {}
@@ -463,13 +496,6 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
                 require_identifier(str(item), label="permission id")
                 for item in (ceiling if isinstance(ceiling, list) else [ceiling])
             ]
-
-    registry_permissions: dict[str, str] = {}
-    for perm_id, perm_path in dict(registry.get("permissions") or {}).items():
-        pid = require_identifier(str(perm_id), label="permission id")
-        registry_permissions[pid] = require_relative_path(
-            str(perm_path), label=f"permission {pid} path"
-        )
 
     models_block = raw.get("models") or {}
     models_default = None
@@ -492,7 +518,7 @@ def _parse_workflow(raw: dict[str, Any], *, source_path: Path) -> Workflow:
         host_actions=host_actions,
         knowledge=knowledge,
         default_rules=[
-            require_identifier(str(item), label="rule id")
+            canonical_rule_id(require_component_id(str(item), label="rule id"))
             for item in resolve_list([], defaults.get("rules"))
         ],
         default_knowledge=[

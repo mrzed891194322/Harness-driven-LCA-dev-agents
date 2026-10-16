@@ -38,7 +38,8 @@ HARNESS_ROOT_ALLOWLIST = frozenset(
     {
         "knowledge",
         "tools",
-        "rules",
+        "prompts",
+        "permissions",
         "specs",
         "workflows",  # default LCA-main / LCA-revise YAML (tracked)
         "settings.yaml",  # user preferences for generated prompts (P5)
@@ -250,19 +251,19 @@ assert not loaded, loaded
         )
 
     def test_harness_rules_hold_only_prompts(self) -> None:
-        """P5: rules/ is natural-language prompts only; permissions live in specs."""
-        names = {p.name for p in (HARNESS_ROOT / "rules").iterdir()}
+        """PR2: prompts/ is natural-language only; permissions live in harness/permissions/."""
+        names = {p.name for p in (HARNESS_ROOT / "prompts").iterdir()}
         unexpected = sorted(names - {"project", "lca", "tools", "stages", "generated", "README.md"})
-        self.assertEqual(unexpected, [], f"unexpected in harness/rules/: {unexpected}")
+        self.assertEqual(unexpected, [], f"unexpected in harness/prompts/: {unexpected}")
         non_md = sorted(
             str(p)
-            for p in (HARNESS_ROOT / "rules").rglob("*")
+            for p in (HARNESS_ROOT / "prompts").rglob("*")
             if p.is_file()
             and p.suffix != ".md"
             and not (p.parent.name == "generated" and p.name.endswith(".md.tmpl"))
         )
-        self.assertEqual(non_md, [], "harness/rules/ may only hold .md prompts (.md.tmpl in generated/)")
-        self.assertTrue((HARNESS_ROOT / "specs" / "shared" / "permissions").is_dir())
+        self.assertEqual(non_md, [], "harness/prompts/ may only hold .md prompts (.md.tmpl in generated/)")
+        self.assertTrue((HARNESS_ROOT / "permissions").is_dir())
 
     def test_main_and_revise_load_independently_without_reuse(self) -> None:
         for name in ("LCA-main.yaml", "LCA-revise.yaml"):

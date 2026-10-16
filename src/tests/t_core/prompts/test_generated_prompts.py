@@ -21,8 +21,7 @@ POLICY = PermissionPolicy(
 
 @pytest.fixture()
 def project(tmp_path: Path) -> Path:
-    (tmp_path / "harness" / "rules").mkdir(parents=True)
-    shutil.copytree(REPO / "harness/rules/generated", tmp_path / "harness/rules/generated")
+    shutil.copytree(REPO / "harness/prompts/generated", tmp_path / "harness/prompts/generated")
     shutil.copy(REPO / "harness/settings.yaml", tmp_path / "harness/settings.yaml")
     return tmp_path
 
@@ -43,28 +42,28 @@ def test_renders_permissions_and_language_in_fixed_order(project):
 
 
 def test_missing_variable_is_an_error(project):
-    tmpl = project / "harness/.user/rules/generated/language.md.tmpl"
+    tmpl = project / "harness/.user/prompts/generated/language.md.tmpl"
     tmpl.parent.mkdir(parents=True)
     tmpl.write_text("语言：{{output_language}} {{nope}}\n", encoding="utf-8")
     with pytest.raises(gp.TemplateError, match="nope"):
         gp.render_session(project, POLICY)
     assert gp.doctor_check(project)
-    (project / "harness/.user/rules/generated/language.md.tmpl").unlink()
+    (project / "harness/.user/prompts/generated/language.md.tmpl").unlink()
     (project / "harness/.user/settings.yaml").write_text("version: 1\nlanguage: {output: 中文}\n", encoding="utf-8")
     with pytest.raises(gp.TemplateError, match="document_language"):
         gp.render_session(project, POLICY)
 
 
 def test_user_override_and_reset(project):
-    gp.save_item(project, "harness/rules/generated/permissions.md.tmpl", "范围：{{readable_paths}}\n")
+    gp.save_item(project, "harness/prompts/generated/permissions.md.tmpl", "范围：{{readable_paths}}\n")
     seg = gp.render_session(project, POLICY)[0]
     assert seg["origin"] == "user" and seg["content"].startswith("范围：")
     with pytest.raises(gp.TemplateError, match="未知变量"):
-        gp.save_item(project, "harness/rules/generated/permissions.md.tmpl", "{{bogus}}")
-    gp.reset_item(project, "harness/rules/generated/permissions.md.tmpl")
+        gp.save_item(project, "harness/prompts/generated/permissions.md.tmpl", "{{bogus}}")
+    gp.reset_item(project, "harness/prompts/generated/permissions.md.tmpl")
     assert gp.render_session(project, POLICY)[0]["origin"] == "default"
     with pytest.raises(gp.TemplateError):
-        gp.read_item(project, "harness/rules/stages/x.md")
+        gp.read_item(project, "harness/prompts/stages/x.md")
     assert gp.doctor_check(project) == []
 
 

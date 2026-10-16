@@ -24,7 +24,7 @@ def _spec(root: Path, stage: str):
 
 
 def _project(tmp: Path, roles: dict | None = None, **files: str) -> Path:
-    shared = tmp / "harness" / "specs" / "shared" / "permissions"
+    shared = tmp / "harness" / "permissions"
     shared.mkdir(parents=True)
     for name, text in files.items():
         (shared / f"{name}.yaml").write_text(text, encoding="utf-8")
@@ -120,10 +120,12 @@ def test_assignment_reference_overrides_stage_default(tmp_path):
 
 
 def test_user_override_of_shared_rule_wins(tmp_path):
-    root = _project(tmp_path, worker=EXEC)
-    user = root / "harness" / ".user" / "specs" / "shared" / "permissions"
+    root = _project(tmp_path, **{"worker-default": EXEC})
+    user = root / "harness" / ".user" / "permissions"
     user.mkdir(parents=True)
-    (user / "worker.yaml").write_text(EXEC.replace("read, bash, write", "read"), encoding="utf-8")
+    (user / "worker-default.yaml").write_text(
+        EXEC.replace("read, bash, write", "read"), encoding="utf-8"
+    )
     res = resolve_permissions(
         project_root=root, role="executor", rule_refs=None, mcp_servers={}, stage_spec=_spec(root, "s1")
     )

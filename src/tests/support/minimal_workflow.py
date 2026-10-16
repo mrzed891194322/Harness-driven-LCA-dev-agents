@@ -15,7 +15,7 @@ def write_tree(root: Path) -> None:
     (knowledge / "inputs").mkdir(parents=True, exist_ok=True)
     (knowledge / "plan").mkdir(parents=True, exist_ok=True)
     (knowledge / "README.md").write_text("# k\n", encoding="utf-8")
-    rules = root / "harness" / "rules" / "project"
+    rules = root / "harness" / "prompts" / "project"
     rules.mkdir(parents=True, exist_ok=True)
     for name in ("write-boundary.md", "runtime.md", "paths.md", "extra.md"):
         (rules / name).write_text(f"# {name}\n", encoding="utf-8")
@@ -35,8 +35,8 @@ STAGE_ROLES = {
 
 
 def write_shared_permissions(root: Path) -> None:
-    """Shared permission rules under harness/specs/shared/permissions/."""
-    target = root / "harness" / "specs" / "shared" / "permissions"
+    """Shared permission rules under harness/permissions/."""
+    target = root / "harness" / "permissions"
     target.mkdir(parents=True, exist_ok=True)
     rules = {
         "worker-default": {
@@ -278,10 +278,10 @@ def write_minimal_workflow(
         "id": workflow_id,
         "registry": {
             "rules": {
-                "workspace_boundary": "harness/rules/project/write-boundary.md",
-                "runtime": "harness/rules/project/runtime.md",
-                "paths": "harness/rules/project/paths.md",
-                "extra_rule": "harness/rules/project/extra.md",
+                "write-boundary": "harness/prompts/project/write-boundary.md",
+                "runtime": "harness/prompts/project/runtime.md",
+                "paths": "harness/prompts/project/paths.md",
+                "extra_rule": "harness/prompts/project/extra.md",
             },
             "tools": {
                 "mcp": {tool_id: tool_entry},
@@ -307,7 +307,7 @@ def write_minimal_workflow(
             },
         },
         "defaults": {
-            "rules": ["workspace_boundary", "runtime", "paths"],
+            "rules": ["write-boundary", "runtime", "paths"],
             "knowledge": ["workspace_knowledge", "workflow_plan"],
         },
         "stages": [

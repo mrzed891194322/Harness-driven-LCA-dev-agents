@@ -350,13 +350,15 @@ def _resolve_workflow_cli_path(project_root: Path, workflow: Path) -> Path:
 
 def peek_tool_ids(path: Path, *, project_root: Path) -> list[str]:
     """Return registered Agent-facing MCP tool ids (tests / diagnostics)."""
+    from backend.core.workflow.config.harness_registry import discover_mcp_tools
+
     document = read_workflow_document(path, project_root=project_root)
     registry = document.get("registry") or {}
     tools = registry.get("tools") or {}
     mcp = tools.get("mcp") if isinstance(tools, dict) else None
-    if not isinstance(mcp, dict):
-        return []
-    return sorted(str(key) for key in mcp)
+    if isinstance(mcp, dict) and mcp:
+        return sorted(str(key) for key in mcp)
+    return sorted(discover_mcp_tools(project_root))
 
 
 def _record_resume_config_change(project_root: Path, run_id: str, changes: list[dict]) -> None:

@@ -88,14 +88,14 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertEqual(len(intake.steps), 1)
         self.assertEqual(intake.steps[0], "01-intake-gate.reviewer")
         self.assertEqual(revise.assignments[intake.steps[0]].role, "reviewer")
-        self.assertIn("stage_01_revise", revise.bundles[intake.steps[0]].rule_ids)
+        self.assertIn("stage/01-intake-gate.revise", revise.bundles[intake.steps[0]].rule_ids)
         for stage_id in STAGE_PACKAGES[1:]:
             stage = revise.stage_by_id(stage_id)
             roles = [revise.assignments[item].role for item in stage.steps]
             self.assertEqual(roles, ["reviser", "reviewer"], stage_id)
             self.assertTrue(
                 any(
-                    rid.endswith("_revise")
+                    rid.endswith(".revise")
                     for rid in revise.bundles[stage.steps[0]].rule_ids
                 ),
                 stage_id,
@@ -114,9 +114,9 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertIn(
             "control_openlca", workflow.bundles[reviser.assignment_id].mcp_tool_ids
         )
-        self.assertIn("lca_method", assignment_rule_ids(workflow, reviser))
-        self.assertIn("lca_method", assignment_rule_ids(workflow, reviewer))
-        self.assertIn("reviewer_readonly", assignment_rule_ids(workflow, reviewer))
+        self.assertIn("lca-method", assignment_rule_ids(workflow, reviser))
+        self.assertIn("lca-method", assignment_rule_ids(workflow, reviewer))
+        self.assertIn("reviewer-readonly", assignment_rule_ids(workflow, reviewer))
         prompt = assemble_prompt(
             workflow,
             project_root=PROJECT_ROOT,
@@ -131,10 +131,10 @@ class WorkflowYamlTests(unittest.TestCase):
             assignment=reviewer,
             run_context={"run_id": "r", "role": "reviewer", "task": "revise-lca"},
         )
-        self.assertIn("# 规则 lca_method", prompt)
-        self.assertIn("# 规则 assign_03_reviser", prompt)
-        self.assertIn("# 规则 lca_method", review_prompt)
-        self.assertIn("# 规则 stage_03_revise", review_prompt)
+        self.assertIn("# 规则 lca-method", prompt)
+        self.assertIn("# 规则 stage/03-dataset-mapping.reviser", prompt)
+        self.assertIn("# 规则 lca-method", review_prompt)
+        self.assertIn("# 规则 stage/03-dataset-mapping.revise", review_prompt)
         intake = workflow.stage_by_id("01-intake-gate")
         intake_reviewer = workflow.assignments[intake.steps[0]]
         intake_prompt = assemble_prompt(
@@ -144,8 +144,8 @@ class WorkflowYamlTests(unittest.TestCase):
             assignment=intake_reviewer,
             run_context={"run_id": "r", "role": "reviewer", "task": "revise-lca"},
         )
-        self.assertIn("# 规则 stage_01_revise", intake_prompt)
-        self.assertIn("# 规则 assign_01_reviewer", intake_prompt)
+        self.assertIn("# 规则 stage/01-intake-gate.revise", intake_prompt)
+        self.assertIn("# 规则 stage/01-intake-gate.reviewer", intake_prompt)
 
     def test_whole_lca_assembly_excludes_revise_rules(self) -> None:
         workflow = load_workflow(
@@ -169,12 +169,12 @@ class WorkflowYamlTests(unittest.TestCase):
                 for rid in assignment_rule_ids(workflow, executor)
             )
         )
-        self.assertIn("# 规则 assign_03_executor", prompt)
-        self.assertNotIn("stage_03_revise", prompt)
+        self.assertIn("# 规则 stage/03-dataset-mapping.executor", prompt)
+        self.assertNotIn("stage/03-dataset-mapping.revise", prompt)
 
     def test_stage_packages_use_spec_yaml_and_rules(self) -> None:
         spec_root = PROJECT_ROOT / "harness" / "specs"
-        rules_root = PROJECT_ROOT / "harness" / "rules"
+        rules_root = PROJECT_ROOT / "harness" / "prompts"
         self.assertTrue((spec_root / "01-intake-gate" / "spec.yaml").is_file())
         self.assertFalse((spec_root / "01-intake-gate" / "executor.md").exists())
         self.assertTrue((rules_root / "stages" / "01-intake-gate.reviewer.md").is_file())
@@ -224,13 +224,13 @@ class WorkflowYamlTests(unittest.TestCase):
             self.assertNotIn('"$schema"', prompt)
             self.assertTrue(prompt.rstrip().endswith("以 spec_mcp 为准，用 submit 交付"))
         self.assertIn(
-            (PROJECT_ROOT / workflow.rules["openlca_usage"])
+            (PROJECT_ROOT / workflow.rules["tool-control-openlca"])
             .read_text(encoding="utf-8")
             .strip(),
             exec_prompt,
         )
         self.assertIn(
-            (PROJECT_ROOT / workflow.rules["reviewer_readonly"])
+            (PROJECT_ROOT / workflow.rules["reviewer-readonly"])
             .read_text(encoding="utf-8")
             .strip(),
             review_prompt,
@@ -238,9 +238,9 @@ class WorkflowYamlTests(unittest.TestCase):
         self.assertIn(
             "control_openlca", workflow.bundles[executor.assignment_id].mcp_tool_ids
         )
-        self.assertIn("reviewer_readonly", assignment_rule_ids(workflow, reviewer))
-        self.assertNotIn("reviewer_readonly", assignment_rule_ids(workflow, executor))
-        self.assertIn("openlca_usage", assignment_rule_ids(workflow, executor))
+        self.assertIn("reviewer-readonly", assignment_rule_ids(workflow, reviewer))
+        self.assertNotIn("reviewer-readonly", assignment_rule_ids(workflow, executor))
+        self.assertIn("tool-control-openlca", assignment_rule_ids(workflow, executor))
 
     def test_session_config_binds_specs_rules_and_tools(self) -> None:
         workflow = load_workflow(
@@ -314,7 +314,7 @@ class WorkflowYamlTests(unittest.TestCase):
             config.tool_ids, list(workflow.bundles[executor.assignment_id].mcp_tool_ids)
         )
         self.assertIn("control_openlca", config.tool_ids)
-        self.assertIn("openlca_usage", config.rule_ids)
+        self.assertIn("tool-control-openlca", config.rule_ids)
         self.assertEqual(
             config.spec_paths,
             [workflow.bundles[executor.assignment_id].stage_spec.source_path],
@@ -383,13 +383,13 @@ class WorkflowYamlTests(unittest.TestCase):
         for relative in (
             "harness/specs/01-intake-gate/spec.yaml",
             "harness/specs/02-inventory-extraction/spec.yaml",
-            "harness/rules/stages/02-inventory-extraction.revise.md",
-            "harness/rules/stages/03-dataset-mapping.reviser.md",
-            "harness/rules/stages/04-openlca-reporting.reviser.md",
+            "harness/prompts/stages/02-inventory-extraction.revise.md",
+            "harness/prompts/stages/03-dataset-mapping.reviser.md",
+            "harness/prompts/stages/04-openlca-reporting.reviser.md",
         ):
             content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
-            self.assertNotIn("harness/rules/lca/exec/", content, relative)
-            self.assertNotIn("harness/rules/lca/eval/", content, relative)
+            self.assertNotIn("harness/prompts/lca/exec/", content, relative)
+            self.assertNotIn("harness/prompts/lca/eval/", content, relative)
 
 
 class PlatformAdapterTests(unittest.TestCase):
@@ -459,7 +459,7 @@ class PlatformAdapterTests(unittest.TestCase):
             (PROJECT_ROOT / relative).read_text(encoding="utf-8")
             for relative in (
                 "harness/workflows/LCA-main.yaml",
-                "harness/rules/tools/control_openlca.md",
+                "harness/prompts/tools/control_openlca.md",
                 "docs/lang_CN/harness.md",
             )
         )

@@ -35,7 +35,7 @@ examples: examples/
 lifecycle:
   on_reviewer_passed:
   - id: record_acceptance
-    action: record_acceptance
+    action: check/record-acceptance
 handoff:
   schema: ../shared/handoff.schema.json
   checks: []

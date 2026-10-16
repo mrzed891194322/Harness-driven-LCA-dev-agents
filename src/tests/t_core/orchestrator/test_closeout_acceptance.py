@@ -39,7 +39,7 @@ class CapabilitiesCompositionTests(unittest.TestCase):
 
     def test_peek_tool_ids_not_providers(self) -> None:
         ids = peek_tool_ids(WORKFLOWS / "LCA-main.yaml", project_root=PROJECT_ROOT)
-        self.assertEqual(ids, ["control_openlca", "lca_artifacts"])
+        self.assertEqual(set(ids), {"control_openlca", "lca_artifacts", "spec_mcp"})
 
 
 class ReviewerPassGuardTests(unittest.TestCase):
@@ -95,7 +95,7 @@ class ReviewerPassGuardTests(unittest.TestCase):
                     store,
                 )
         self.assertEqual(result["status"], "completed")
-        self.assertIn("record_acceptance", calls)
+        self.assertIn("check/record-acceptance", calls)
 
 
 class HostCheckRetryTests(unittest.TestCase):
@@ -117,7 +117,7 @@ class HostCheckRetryTests(unittest.TestCase):
             **kwargs,
         ):
             action_id = str(getattr(action, "action_id", "") or "")
-            if action_id == "mapping_check":
+            if action_id == "check/mapping":
                 mapping_validate["n"] += 1
                 if mapping_validate["n"] == 1:
                     return HostActionResult(

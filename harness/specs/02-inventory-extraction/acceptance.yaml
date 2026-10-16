@@ -1,7 +1,7 @@
 version: 1
 host_checks:
 - id: inventory
-  action: inventory_check
+  action: check/inventory
   summary: 交卷后编排器重新跑清单检查（item_id 唯一、必填字段、数量、来源格式）。
 deliverables:
   extracted-bom:
