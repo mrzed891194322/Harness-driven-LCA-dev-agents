@@ -63,3 +63,11 @@
   `POST /api/v5/resume`. Old engine code still reachable from the plan form, diagnostics and the old pi client stays;
   its full deletion (01, LCA-revise, spec_mcp, host_action, old resume, golden, config_fingerprint, settings.yaml,
   old prompts/permissions) is a separate commit after C8, C9 and the real LCA run.
+- C8 (done): specs `paragraph`, `summary`, `lca-intake`, `lca-bom` (schema), `lca-mapping` (schema), `lca-report`;
+  nodes `write-paragraph`, `summarize`, `lca-intake`, `lca-bom`, `lca-mapping`, `lca-report`; workflows `demo-write`,
+  `demo-swapped`, `demo-single`, `full-lca` (4 stages). LCA method rules moved to `harness/rules/lca/` (+ new
+  `openlca.md` for the standalone openLCA MCP). openLCA path arguments (`lci_dir` read, `operation_dir` write) are
+  checked against the agent's v5 scope inside the MCP (`path_scope.py`, globs passed as `V5_*_GLOBS` env).
+  Acceptance tests `t_v5/test_acceptance.py`, `t_v5/test_openlca_path_scope.py`.
+  Known gap vs. the old engine: no inventory/mapping/report machine-check profiles yet (schema checks only); the
+  report node saves raw calculation output itself (standalone MCP has no render_report_tables / reconcile_import).

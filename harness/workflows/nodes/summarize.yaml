@@ -1,0 +1,17 @@
+id: summarize
+title: 概括计划要点（示例）
+produces:
+  - {spec: summary, path: summary/summary.md}
+agents:
+  executor: {role: executor}
+  reviewer: {role: reviewer}
+flow:
+  start: executor
+  max_rounds: 3
+  edges:
+    - {from: executor, "on": submitted, to: reviewer}
+    - {from: executor, "on": checks_failed, to: executor}
+    - {from: executor, "on": stop, to: failed}
+    - {from: reviewer, "on": pass, to: done}
+    - {from: reviewer, "on": reject, to: executor}
+    - {from: reviewer, "on": stop, to: failed}

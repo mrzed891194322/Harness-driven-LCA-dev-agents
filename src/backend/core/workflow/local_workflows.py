@@ -71,7 +71,8 @@ def list_workflow_names(project_root: Path) -> list[str]:
     default_dir = project_root / DEFAULT_WORKFLOWS_DIR
     if default_dir.is_dir():
         for path in sorted(default_dir.iterdir()):
-            if path.is_file() and path.suffix.lower() in {".yaml", ".yml"} and not path.name.startswith("."):
+            # v5 workflows share this dir; the old engine only manages its own two files.
+            if path.is_file() and path.name in _KNOWN_WORKFLOWS:
                 names.append(path.name)
     return names or list(_KNOWN_WORKFLOWS)
 

@@ -1,0 +1,42 @@
+# openLCA 导入、计算与报告
+
+在已审模型上预检、导入、读回、计算并解释结果。reviewer 不补做写入和计算。
+
+## 步骤
+
+1. 核对全部必做情景和分析；缺模型以 `status=stop` 提交（需上游返工）。首次访问 IPC 调 `health_check`。
+2. `preflight_import_lci`：`lci_dir` = `workspace/artifacts/mapping/LCI`，`operation_dir` = `workspace/runs/lca-report/import-operations`，`scope_id` 用本次运行固定值。
+3. `import_lci`（稳定 `request_id` + 本次 `preflight_id`）。超时用 `get_import_operation` 查询，不盲目重导；`partial_failure` 时 `import_lci(resume_operation_id=...)`。模型或范围变化必须停止。
+4. 导入后用 `get_model_graph` 核对每个 Product System、新建前景实体及连接；按需回读参考过程与流，核实数量基准。
+5. 写计算计划 `calculation-plan.json`，逐项调用 `calculate_product_system`，把每次调用的完整返回原样保存为 `raw/<product_system_uuid>__<method_uuid>.json`，汇总到 `results.json`。
+6. 写 `lca_report.md`。
+
+## 计算计划与报告
+
+
+首次计算前写计算计划，保持 calculations 数组；每项含 product_system、impact_method 和 amount，可选 allocation、regionalized、costs、parameters 与接口一致。同一 Product System+方法唯一；不同模型情景对应在 mapping 节点已审的不同 Product System。覆盖全部声明系统和必做分析，不仅覆盖已经算过的目标。
+
+product_system 使用导入后正式确认的 UUID，impact_method 必须正式查询并符合用户指定要求。amount 是实现功能单位所需的参考流数量，依据 mapping 换算链及已核实的默认参考单位填写，不能机械复制 1.0。将实际调用、raw 设置和报告分母逐项核对；单位无法核实或设置不对应功能单位则不计算/不通过。不要把 Product System 的 targetAmount 当成实际调用已使用的 amount。
+
+报告须包含：
+
+- 研究要求落实表：要求及计划/修订位置、必做/可选、情景或分析、完成情况和证据位置（可指向出处表或 raw；完成情况可标 `tool_backed` / `llm_inferred`）。
+- 功能单位—参考流—amount 对照及模型范围，前景清单与映射回指 item_id。
+- 主情景比较、必做敏感性结果、完整性/一致性与不确定性讨论；限制、代理、排除和未解决项。
+- 出处表：主张、provenance（仅 `tool_backed` 或 `llm_inferred`）、依据路径、局限。
+
+额外计算和解释写在正文并保留公式与 raw 来源，不能用事后缩放掩盖错误的原始计算量。当前工具只提供 LCIA 类别汇总，不提供过程贡献分解；贡献/热点类主张无分解 raw 时写者按规则填 `llm_inferred` 出处表行，不得伪装成工具测得的贡献百分比或过程贡献分解表。LCIA 类别总量本身仍必须来自工具 raw，不能用叙述顶替计算失败。
+
+## 验收与返工
+
+报告须准确可读、中文解释完整，数值能回链本 run 的正式 raw，全部必做要求有证据落实（解释类可经出处表）。导入失败、断链、空结果、resource_released 不为 true、错误计算基准、硬计算类缺口，或出处表缺失/provenance 越界，均不得通过。完成表格不等于完成研究解释。
+
+
+
+
+
+## 交付物（本节点产出目录 `workspace/artifacts/report/`）
+
+- `lca_report.md`（必需）、`calculation-plan.json`、`results.json`、`raw/`（每次计算的完整工具返回）。
+
+上游：`workspace/artifacts/bom/`、`workspace/artifacts/mapping/`（只读）。

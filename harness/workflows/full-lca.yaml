@@ -1,0 +1,2 @@
+id: full-lca
+nodes: [lca-intake, lca-bom, lca-mapping, lca-report]

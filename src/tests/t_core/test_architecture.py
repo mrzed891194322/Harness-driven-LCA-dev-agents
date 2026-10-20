@@ -230,7 +230,11 @@ assert not loaded, loaded
         self.assertFalse((HARNESS_ROOT / "index.yaml").exists())
 
     def test_harness_specs_have_no_markdown(self) -> None:
-        md_files = sorted(HARNESS_ROOT.joinpath("specs").rglob("*.md"))
+        # v5 specs are specs/<deliverable>/{spec.md, schema.json, checks.yaml}; only that file is allowed.
+        md_files = sorted(
+            p for p in HARNESS_ROOT.joinpath("specs").rglob("*.md")
+            if not (p.name == "spec.md" and p.parent.parent.name == "specs")
+        )
         self.assertEqual(md_files, [], "\n".join(str(p) for p in md_files))
 
     def test_harness_root_allowlist(self) -> None:

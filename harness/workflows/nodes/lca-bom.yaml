@@ -1,0 +1,19 @@
+id: lca-bom
+title: 前景清单（BOM）
+requires: [intake/intake.md]
+produces:
+  - {spec: lca-bom, path: bom/bom.json}
+inject: [rules/lca/method.md, rules/lca/knowledge-files.md, rules/lca/inventory.md]
+agents:
+  executor: {role: executor}
+  reviewer: {role: reviewer}
+flow:
+  start: executor
+  max_rounds: 3
+  edges:
+    - {from: executor, "on": submitted, to: reviewer}
+    - {from: executor, "on": checks_failed, to: executor}
+    - {from: executor, "on": stop, to: failed}
+    - {from: reviewer, "on": pass, to: done}
+    - {from: reviewer, "on": reject, to: executor}
+    - {from: reviewer, "on": stop, to: failed}

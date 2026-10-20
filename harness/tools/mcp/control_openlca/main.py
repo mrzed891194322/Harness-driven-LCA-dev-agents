@@ -29,6 +29,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 from harness.tools.shared.control_openlca import operations, readonly
 from harness.tools.shared.control_openlca.cleanup import run_cleanup_output
+from harness.tools.shared.control_openlca.path_scope import check_path_args
 from harness.tools.shared.control_openlca.connection import (
     describe_ipc_session_budget,
     ipc_budget_scope,
@@ -66,6 +67,7 @@ def ipc_tool(name):
             bound = inspect.signature(function).bind(*args, **kwargs)
             bound.apply_defaults()
             params = dict(bound.arguments)
+            check_path_args(params)
             timeout = params.pop("timeout_sec", None)
             profile = ipc_tool_profile(name)
             if profile == "none":

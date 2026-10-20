@@ -57,6 +57,7 @@ def compute_scope(root: Path, node: Node, role: str, role_access: Access) -> Sco
         str(art / "plan") + "/**",  # lock 1
         str(layout.node_dir(ws, node.id)) + "/**",
         str(root / layout.TOOLS_SKILLS) + "/**",
+        str(root / layout.SPECS) + "/**",  # full schema.json referenced from <deliverable_X>
     }
     for req in node.requires:
         read.add(str(art / req))

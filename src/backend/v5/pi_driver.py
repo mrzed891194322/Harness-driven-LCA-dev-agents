@@ -108,6 +108,14 @@ class PiDriver:
         default_ws = str(self.root / layout.WORKSPACE)
         remap = (lambda g: g.replace(default_ws, str(ws), 1)) if str(ws) != default_ws else (lambda g: g)
         bindings, mcp_allowed = self._mcp_bindings(req, submit_file)
+        scope_env = {
+            "V5_READ_GLOBS": json.dumps([remap(g) for g in scope.read_globs]),
+            "V5_WRITE_GLOBS": json.dumps([remap(g) for g in scope.write_globs]),
+            "V5_DENIED_WRITE_GLOBS": json.dumps([remap(g) for g in scope.denied_write_globs]),
+        }
+        for name, binding in bindings.items():
+            if name != "submit":
+                binding["env"] = {**binding["env"], **scope_env}
         file_tools = FILE_TOOLS_EXEC if req.role == "executor" else FILE_TOOLS_REVIEW
         system = req.extra.get("system", "")
         storage = ws / "tmp" / "pi-v5" / req.session_key

@@ -1,0 +1,19 @@
+id: lca-mapping
+title: 背景映射与 LCI
+requires: [bom/bom.json]
+produces:
+  - {spec: lca-mapping, path: mapping/mapping.json}
+inject: [rules/lca/method.md, rules/lca/inventory.md, rules/lca/mapping.md, rules/lca/openlca.md]
+agents:
+  executor: {role: executor, tools: {mcp: [control_openlca]}}
+  reviewer: {role: reviewer, tools: {mcp: [control_openlca]}}
+flow:
+  start: executor
+  max_rounds: 3
+  edges:
+    - {from: executor, "on": submitted, to: reviewer}
+    - {from: executor, "on": checks_failed, to: executor}
+    - {from: executor, "on": stop, to: failed}
+    - {from: reviewer, "on": pass, to: done}
+    - {from: reviewer, "on": reject, to: executor}
+    - {from: reviewer, "on": stop, to: failed}
