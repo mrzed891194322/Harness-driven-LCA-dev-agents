@@ -19,8 +19,8 @@ PLAN_DIR = ARTIFACTS / "plan"
 RUNS = WORKSPACE / "runs"
 RUN_META = RUNS / "_run"
 
-# Host lock 3: openLCA writes only inside this category.
-OPENLCA_PROJECT_CATEGORY = "202606-harness-agent-LCA"
+# Host lock 3: openLCA writes only inside this category (single definition).
+from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY  # noqa: E402,F401
 
 
 def node_dir(workspace: Path, node: str) -> Path:

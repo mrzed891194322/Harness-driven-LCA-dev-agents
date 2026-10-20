@@ -34,7 +34,9 @@ def _endpoint_config() -> tuple[str, int]:
 
 
 def _target_category() -> str:
-    return PROJECT_ROOT.name
+    from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY
+
+    return OPENLCA_PROJECT_CATEGORY
 
 
 def _workspace_root() -> Path:

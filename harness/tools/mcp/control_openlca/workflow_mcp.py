@@ -1,6 +1,8 @@
 # ruff: noqa: E402
 from __future__ import annotations
 
+from harness.tools.shared.control_openlca.category import locked_category
+
 import functools
 import inspect
 import os
@@ -208,10 +210,7 @@ def _workflow_lci_dir(lci_dir: str) -> Path:
 
 
 def _target_category(target_category: str) -> str:
-    category = target_category.strip() or PROJECT_ROOT.name
-    if any(character in category for character in "\r\n\0"):
-        raise ValueError("target_category contains invalid characters")
-    return category
+    return locked_category(target_category)
 
 
 @mcp.tool(

@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from harness.tools.shared.control_openlca.readonly import category_outside_project
 
-PROJECT_CATEGORY = "202606-harness-agent-LCA"
+from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY as PROJECT_CATEGORY
 DELETE_ORDER = ("ProductSystem", "Process", "Flow")
 WRITER_ROLES = frozenset({"executor", "reviser"})
 _ENTITY_ID_RE = re.compile(
