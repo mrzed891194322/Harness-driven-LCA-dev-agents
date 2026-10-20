@@ -1,0 +1,4 @@
+read:
+  knowledge: true
+  artifacts: true
+write: {}

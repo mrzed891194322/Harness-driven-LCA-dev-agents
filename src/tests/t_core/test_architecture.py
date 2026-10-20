@@ -36,6 +36,7 @@ BANNED_IMPORT_PREFIXES = (
 HARNESS_BANNED_CORE = ("core", "backend")
 HARNESS_ROOT_ALLOWLIST = frozenset(
     {
+        "rules",
         "knowledge",
         "tools",
         "prompts",
@@ -46,7 +47,7 @@ HARNESS_ROOT_ALLOWLIST = frozenset(
         ".user",  # gitignored user overrides (GUI edits), REFACTOR_PLAN §8.5
     }
 )
-HARNESS_TOOLS_ALLOWLIST = frozenset({"mcp", "host_action", "shared"})
+HARNESS_TOOLS_ALLOWLIST = frozenset({"mcp", "host_action", "shared", "skills"})
 
 
 def _src_env() -> dict[str, str]:

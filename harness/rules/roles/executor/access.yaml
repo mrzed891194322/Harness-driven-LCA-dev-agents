@@ -1,0 +1,5 @@
+# 执行者默认权限（宿主锁优先，见 rules/global/00-redlines.md）
+read:
+  knowledge: true
+  artifacts: true
+write: {}

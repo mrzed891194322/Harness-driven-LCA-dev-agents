@@ -1,0 +1,50 @@
+# harness v5 最小版本：9 个提交（与 harness-v5-design-draft-v2 对齐）
+
+分支 `refactor/harness-v5-minimal`，从 master `da96ab1` 拉出；worktree 放在 `.local/wt/202606-harness-agent-LCA`（目录名与 openLCA 分类一致；.local 已被 gitignore）。测试只用临时目录，不碰真实 workspace、.local 或 openLCA；不推送，不合并。
+
+## 贯穿原则
+- **宿主 3 把锁优先实现**，任何配置都改不了：①计划只读且永远可读；②只能写 produces 对应的 artifacts 子目录 + 本节点 `runs/<节点>/`；③openLCA 增删改只在 `202606-harness-agent-LCA`（常量）。
+- **日志原则**：开跑/加锁/节点开始与结束/requires 失败/审核结论/计划导入、保存与解析/模型鉴权预检，每条都带时间写入 `runs/_run/events.jsonl` 和后端日志；鉴权错误直接致命。
+- 取消 settings.yaml，改为固定的中文语言规则；不注入 AGENTS.md（关掉 pi 自动加载，使用项目专用 agentDir）。
+- spec 不支持用户定制，GUI 只能整套选择。
+
+## 提交
+**C1 文档与目录骨架**
+- 目标：写 docs/refactor/V5_DESIGN.md；harness/ 只留 rules/{global,roles/<角色>/{prompt.md,access.yaml}}、specs/<交付>/{spec.md,schema.json,checks.yaml}、knowledge/（扁平）、tools/{mcp,skills}、workflows/{*.yaml,nodes/}。v5 代码放在新包 `src/backend/v5/`，旧代码暂不动。
+- 测试：t_v5/test_layout（只能有这 5 个目录、knowledge 无子目录）。
+- 验收：测试通过，旧测试不受影响。
+
+**C2 配置模型**
+- 目标：`v5/config.py`（pydantic）解析 workflow、node（requires/produces/inject/agents/flow/accept）、角色、spec。flow 是有向图：edges 由 from/on/to 组成，必须能到达 done 或 failed，含 max_rounds；v1 只支持 executor + reviewer；结论 pass/reject/stop。
+- 测试：解析通过；未知节点、到不了终点、重复边、未知角色都报错。
+
+**C3 宿主锁与权限**
+- 目标：`v5/access.py` 计算 默认（只读）+ 角色 access.yaml + 节点覆盖 + 3 把锁；`OPENLCA_PROJECT_CATEGORY` 常量放进 control_openlca 共享模块并替换现有 3 处推导；pi-runtime 新增 tool_call 拦截（read/write/edit/bash 的路径都检查），拦截写日志。
+- 测试：锁不可覆盖、produces 授予写权限、越界读写被拦；pi-runtime 拦截单测。
+
+**C4 线性执行器 + 逐节点续跑**
+- 目标：`v5/runner.py`。开跑先清空 workspace，再生成计划；对每个节点：检查 requires（为空、缺失或解析失败直接报错）→ 执行者会话 → 宿主 checks → 审核者会话 → 读固定 `submit` 的结论 → 按流程图走，受 max_rounds 限制。反馈写 `runs/<节点>/feedback/round_N.md`。状态写 `runs/<节点>/status.json` 和 `runs/_run/manifest.json`。续跑：已通过的节点跳过，中途停的节点清空本节点目录和 produces 后整体重跑。用 agent_settled（含 aborted）判断结束并写日志。
+- 测试：用 scripted session 覆盖 pass、reject→pass、超轮、stop、requires 缺失、续跑跳过/重跑。
+
+**C5 注入**
+- 目标：`v5/inject.py` 按顺序组装：global 规则（含知识库读取说明、中文规则）→ 角色 prompt.md → 工具/技能清单 → `<plan>`（全文）+ `<inputs>`（路径+简述）→ `<deliverable_X>`（spec.md + 从 schema 生成的摘要）→ `<rework>`（第 2 轮起）。权限不进提示词。
+- 测试：prompt 快照（新写，替代 golden）。
+
+**C6 pi 会话接入**
+- 目标：pi-runtime 支持 v5 launch：noContextFiles、项目 agentDir、inMemory settings、skillsOverride、显式 tools、model+thinkingLevel；MCP 用 createMcpExtension（direct 暴露）+ bindExtensions，首轮前做工具就绪预检；固定 `submit` 工具；先写一个续跑工具恢复测试；模型鉴权预检（失败即致命）。
+- 测试：pi-runtime 单测（注入顺序、无 AGENTS.md、submit、拦截、预检）。
+
+**C7 删除旧编排**
+- 目标：v5 接管 `/api/workflow/start`；删除 01、LCA-revise、spec_mcp、host_action、旧 resume（只删旧实现）、golden、config_fingerprint、settings.yaml、旧 prompts/permissions；计划改到 artifacts/plan/（revise_plan 一起），knowledge 扁平化；tools/shared 并入 mcp。
+- 测试：pytest、pi 测试、tsc 全绿；旧测试只删除对应部分。
+
+**C8 示例节点与验收**
+- 目标：nodes/write-paragraph、summarize；workflows/demo-*.yaml；LCA 节点 bom、mapping、report（对应原 02–04）拼成 full-lca.yaml。
+- 测试（集成，用假模型）：两个节点跑通；调换顺序跑通；删掉一个跑通；删掉前置产物立即报错；停止后续跑（已通过节点跳过）。
+
+**C9 GUI 最简版**
+- 目标：/plan 保留用户填写表单（开跑时写 artifacts/plan/main_plan.md）；工作流下拉 `data-testid="workflow-select"`；开始按钮 `run-start`；/runs 页节点表 `node-table`、`node-row-<id>`（带 data-status）、`node-error-<id>`、`run-status`；节点详情可按轮次看反馈。agent 卡片只读显示 模型+思考深度 / 角色 / 权限 / 工具 / 规则，spec 挂在节点层。
+- 测试：API 测试 + tsc；GUI 端到端由 模拟操作员 做。
+
+## 完成标准
+9 个提交全部通过测试后先汇报，不切换服务；之后由 Grok Bot 协调重启，在 v5 上跑一次完整 4 阶段 LCA，GWP 与基线一致（Case1 223.67 / Case2 790.09 / Case3 787.93 / Case3-S 786.58）才算完成。
