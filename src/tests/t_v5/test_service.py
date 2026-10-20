@@ -19,7 +19,11 @@ def _ok_driver(root):
 def test_start_status_and_plan(v5_root):
     _project(v5_root)
     svc = V5Service(v5_root, driver_factory=_ok_driver)
-    assert svc.workflows() == [{"id": "demo", "nodes": ["a"]}]
+    wfs = svc.workflows()
+    assert wfs[0]["id"] == "demo" and wfs[0]["nodes"] == ["a"]
+    card = wfs[0]["details"][0]
+    assert card["produces"] == [{"spec": "paragraph", "path": "a/p.md"}]
+    assert card["agents"]["reviewer"]["write"] == ["workspace/runs/a/reviewer/**"]
     svc.start("demo", plan_text="# 计划\n")
     svc.wait(10)
     st = svc.status()

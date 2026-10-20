@@ -71,3 +71,5 @@
   Acceptance tests `t_v5/test_acceptance.py`, `t_v5/test_openlca_path_scope.py`.
   Known gap vs. the old engine: no inventory/mapping/report machine-check profiles yet (schema checks only); the
   report node saves raw calculation output itself (standalone MCP has no render_report_tables / reconcile_import).
+- C9 (done): `/runs` = v5 run panel with the agreed testids; `/api/v5/workflows` carries read-only node/agent cards;
+  API test `t_v5/test_api.py`. See `docs/refactor/v5/GUI.md`.

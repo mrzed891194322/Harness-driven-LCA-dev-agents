@@ -46,8 +46,26 @@ class V5Service:
         out = []
         for wid in list_workflows(self.root):
             wf, nodes = load_workflow(self.root, wid)
-            out.append({"id": wid, "nodes": [n.id for n in nodes]})
+            out.append({"id": wid, "nodes": [n.id for n in nodes],
+                        "details": [self._node_card(n) for n in nodes]})
         return out
+
+    def _node_card(self, node: Any) -> dict[str, Any]:
+        """Read-only GUI card: spec at node level; per agent model+thinking / role / access / tools / rules."""
+        from backend.v5.access import compute_scope
+        from backend.v5.config import load_role
+
+        agents = {}
+        for name, agent in node.agents.items():
+            scope = compute_scope(self.root, node, name, load_role(self.root, agent.role)[1])
+            rel = lambda g: g.replace(str(self.root) + "/", "")  # noqa: E731
+            agents[name] = {"role": agent.role, "model": agent.model or "默认模型", "thinking": agent.thinking or "默认",
+                            "tools": {"mcp": agent.tools.mcp, "skills": agent.tools.skills},
+                            "rules": list(node.inject) + list(agent.rules),
+                            "read": [rel(g) for g in scope.read_globs], "write": [rel(g) for g in scope.write_globs]}
+        return {"id": node.id, "title": node.title, "requires": node.requires,
+                "produces": [{"spec": p.spec, "path": p.path} for p in node.produces],
+                "max_rounds": node.flow.max_rounds, "agents": agents}
 
     def start(self, workflow: str, *, plan_text: str = "", resume: bool = False,
               extra_plans: dict[str, str] | None = None) -> dict[str, Any]:
