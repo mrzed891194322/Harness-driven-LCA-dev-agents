@@ -216,6 +216,9 @@ class Runner:
             req = TurnRequest(node=node, role=role, round=rnd, prompt=prompt, workspace=self.ws,
                               run_id=self.run_id, session_key=key,
                               resume=(role == "executor" and key in sessions_started))
+            system_fn = getattr(self.prompt_builder, "system", None)
+            if system_fn is not None:
+                req.extra["system"] = system_fn(node, role)
             self.events.emit("turn_start", node=node.id, role=role, round=rnd, resume=req.resume)
             result = self.driver.run_turn(req)
             sessions_started.add(key)

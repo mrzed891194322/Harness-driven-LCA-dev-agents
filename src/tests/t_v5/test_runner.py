@@ -105,6 +105,16 @@ def test_resume_skips_passed_and_reruns_interrupted(v5_root):
     assert d2.calls[0][2] == 1
 
 
+def test_runner_with_injector_prompts(v5_root):
+    from backend.v5.inject import Injector
+
+    wf, nodes = _setup(v5_root)
+    d = FakeDriver()
+    assert Runner(v5_root, wf, nodes, d, prompt_builder=Injector(v5_root)).run(plans=PLAN) == "completed"
+    assert "<plan>" in d.prompts[0] and "写一段话再总结" in d.prompts[0]
+    assert d.systems[0].startswith("# 红线")
+
+
 def test_lock_prevents_parallel_run(v5_root):
     import fcntl
 

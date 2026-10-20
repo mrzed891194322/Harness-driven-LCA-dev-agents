@@ -14,11 +14,13 @@ class FakeDriver:
         self.script = {k: list(v) for k, v in (script or {}).items()}
         self.calls: list[tuple[str, str, int, bool]] = []
         self.prompts: list[str] = []
+        self.systems: list[str] = []
         self.on_turn = on_turn
 
     def run_turn(self, req: TurnRequest) -> TurnResult:
         self.calls.append((req.node.id, req.role, req.round, req.resume))
         self.prompts.append(req.prompt)
+        self.systems.append(req.extra.get("system", ""))
         if self.on_turn:
             self.on_turn(req)
         queue = self.script.get((req.node.id, req.role))
