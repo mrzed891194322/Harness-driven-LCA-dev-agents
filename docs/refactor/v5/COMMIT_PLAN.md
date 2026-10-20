@@ -48,3 +48,13 @@
 
 ## 完成标准
 9 个提交全部通过测试后先汇报，不切换服务；之后由 Grok Bot 协调重启，在 v5 上跑一次完整 4 阶段 LCA，GWP 与基线一致（Case1 223.67 / Case2 790.09 / Case3 787.93 / Case3-S 786.58）才算完成。
+
+## Progress log
+
+- C7a (done): `backend/v5/service.py` (V5Service: start/stop/resume/status/events/feedback in one thread);
+  `POST /api/workflow/start` and `/stop` now run v5 (`workflow` + `plan`, or the old form fields rendered into the plan;
+  `task` whole-lca → full-lca). New: `POST /api/v5/resume`, `GET /api/v5/workflows|status|events`,
+  `GET /api/v5/nodes/{node}/feedback/{round}`. Model auth preflight runs inside the run lock, logged as `model_preflight`.
+- C7b (pending, needs scope decision): deleting the old engine. Import-graph check: plan_form, diagnostics_service,
+  pi_client.client still import backend.core.workflow/*, so removal is ~20k lines across core/agents, core/runtime,
+  core/workflow, services and ~40 test modules, not a few files.

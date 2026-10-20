@@ -185,7 +185,9 @@ class PlanUpdate(BaseModel):
 
 
 class WorkflowStart(BaseModel):
-    task: str
+    task: str = ""
+    workflow: str = ""
+    plan: str = ""
     subject: str = ""
     functional_unit: str = ""
     life_cycle_stages: str = ""
@@ -831,20 +833,36 @@ async def workflow_activity_stream(
     )
 
 
+_V5_TASK_ALIASES = {"whole-lca": "full-lca", "LCA-main": "full-lca"}
+
+
+def _v5() -> Any:
+    global _v5_service
+    if _v5_service is None:
+        from backend.v5.service import V5Service
+
+        _v5_service = V5Service(PROJECT_ROOT)
+    return _v5_service
+
+
+_v5_service: Any = None
+
+
 @app.post("/api/workflow/start")
-def start_workflow(body: WorkflowStart) -> dict[str, str]:
+def start_workflow(body: WorkflowStart) -> dict[str, Any]:
+    """v5: one whole workflow; the plan (form or imported text) becomes artifacts/plan/main_plan.md."""
+    from backend.services.plan_form import list_references, render_plan
+    from backend.v5.config import ConfigError
+
+    workflow = body.workflow or _V5_TASK_ALIASES.get(body.task, body.task)
+    plan = body.plan
+    if not plan.strip() and body.subject.strip():
+        fields = PlanFields(subject=body.subject, functional_unit=body.functional_unit,
+                            life_cycle_stages=body.life_cycle_stages, conditions=body.conditions)
+        plan = render_plan(fields, [str(r["name"]) for r in list_references(PROJECT_ROOT)])
     try:
-        return launcher.start(
-            task=body.task,
-            fields=PlanFields(
-                subject=body.subject,
-                functional_unit=body.functional_unit,
-                life_cycle_stages=body.life_cycle_stages,
-                conditions=body.conditions,
-            ),
-            project_root=PROJECT_ROOT,
-        )
-    except ValueError as exc:
+        return _v5().start(workflow, plan_text=plan)
+    except (ValueError, ConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -853,9 +871,50 @@ def start_workflow(body: WorkflowStart) -> dict[str, str]:
 @app.post("/api/workflow/stop")
 def stop_workflow() -> dict[str, str]:
     try:
-        return launcher.stop()
+        return _v5().stop()
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class V5Resume(BaseModel):
+    workflow: str
+
+
+@app.post("/api/v5/resume")
+def v5_resume(body: V5Resume) -> dict[str, Any]:
+    from backend.v5.config import ConfigError
+
+    try:
+        return _v5().start(body.workflow, resume=True)
+    except (ValueError, ConfigError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/api/v5/workflows")
+def v5_workflows() -> dict[str, Any]:
+    return {"workflows": _v5().workflows()}
+
+
+@app.get("/api/v5/status")
+def v5_status() -> dict[str, Any]:
+    return _v5().status()
+
+
+@app.get("/api/v5/events")
+def v5_events(offset: int = 0) -> dict[str, Any]:
+    return _v5().events(offset)
+
+
+@app.get("/api/v5/nodes/{node}/feedback/{round_no}")
+def v5_feedback(node: str, round_no: int) -> dict[str, Any]:
+    try:
+        return {"node": node, "round": round_no, "text": _v5().feedback(node, round_no)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="反馈不存在") from exc
 
 
 @app.get("/api/events")

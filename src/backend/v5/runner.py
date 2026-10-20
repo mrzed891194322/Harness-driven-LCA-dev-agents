@@ -166,6 +166,13 @@ class Runner:
             self.events.emit("run_start", run_id=self.run_id, workflow=self.workflow.id,
                              nodes=[n.id for n in self.nodes], resume=resume)
             self._manifest(status="running", status_reason="", started_at=time.time())
+            pre = getattr(self.driver, "preflight", None)
+            err = pre(self.ws) if callable(pre) else None
+            if err:
+                reason = f"模型鉴权预检失败：{err}"
+                self.events.emit("run_end", status="failed", reason=reason)
+                self._manifest(status="failed", status_reason=reason, ended_at=time.time())
+                return "failed"
             try:
                 for node in self.nodes:
                     self._run_node(node, resume=resume)

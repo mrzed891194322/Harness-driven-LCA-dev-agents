@@ -1,0 +1,129 @@
+"""v5 run control for the API: start / stop / resume / status, one run at a time in a thread."""
+from __future__ import annotations
+
+import json
+import threading
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from backend.v5 import layout
+from backend.v5.config import list_workflows, load_workflow
+from backend.v5.events import EventLog
+from backend.v5.inject import Injector
+from backend.v5.runner import AgentDriver, Runner
+
+DriverFactory = Callable[[Path], AgentDriver]
+
+
+def _default_driver(root: Path) -> AgentDriver:
+    from backend.core.agents.assignment_models import load_default_model
+    from backend.core.runtime.model_profiles import resolve_model_profile
+    from backend.v5.pi_driver import PiDriver
+
+    ref = load_default_model(root)
+    if not ref:
+        raise ValueError("尚未选择模型：请先在模型页选择默认模型")
+    return PiDriver(root, resolve_model_profile(ref, project_root=root))
+
+
+class V5Service:
+    def __init__(self, root: Path, *, workspace: Path | None = None,
+                 driver_factory: DriverFactory = _default_driver) -> None:
+        self.root = root
+        self.ws = workspace or (root / layout.WORKSPACE)
+        self.driver_factory = driver_factory
+        self._lock = threading.Lock()
+        self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self.last_error = ""
+
+    @property
+    def running(self) -> bool:
+        return bool(self._thread and self._thread.is_alive())
+
+    def workflows(self) -> list[dict[str, Any]]:
+        out = []
+        for wid in list_workflows(self.root):
+            wf, nodes = load_workflow(self.root, wid)
+            out.append({"id": wid, "nodes": [n.id for n in nodes]})
+        return out
+
+    def start(self, workflow: str, *, plan_text: str = "", resume: bool = False,
+              extra_plans: dict[str, str] | None = None) -> dict[str, Any]:
+        wf, nodes = load_workflow(self.root, workflow)  # ConfigError -> 400 at API
+        if not resume and not plan_text.strip():
+            raise ValueError("计划为空：请先填写计划表单或导入计划")
+        with self._lock:
+            if self.running:
+                raise RuntimeError("已有运行在进行中")
+            driver = self.driver_factory(self.root)
+            self._stop.clear()
+            self.last_error = ""
+            plans = {"main_plan.md": plan_text, **(extra_plans or {})} if not resume else None
+            runner = Runner(self.root, wf, nodes, driver, workspace=self.ws,
+                            prompt_builder=Injector(self.root, self.ws), stop_requested=self._stop.is_set)
+
+            def work() -> None:
+                try:
+                    runner.run(plans=plans, resume=resume)
+                except Exception as exc:  # noqa: BLE001
+                    self.last_error = str(exc)
+                    EventLog(self.ws).emit("run_end", status="failed", reason=str(exc))
+                finally:
+                    release = getattr(driver, "release_all", None)
+                    if release:
+                        release()
+
+            self._thread = threading.Thread(target=work, name="v5-run", daemon=True)
+            self._thread.start()
+        return {"status": "started", "workflow": workflow, "resume": resume}
+
+    def stop(self) -> dict[str, str]:
+        if not self.running:
+            raise RuntimeError("当前没有运行")
+        self._stop.set()
+        return {"status": "stopping"}
+
+    def wait(self, timeout: float | None = None) -> None:
+        if self._thread:
+            self._thread.join(timeout)
+
+    def status(self) -> dict[str, Any]:
+        run_dir = self.ws / "runs" / "_run"
+        manifest = _read_json(run_dir / "manifest.json")
+        nodes = []
+        for item in manifest.get("nodes") or []:
+            nid = item["id"] if isinstance(item, dict) else str(item)
+            st = _read_json(layout.node_dir(self.ws, nid) / "status.json")
+            fb = layout.node_dir(self.ws, nid) / "feedback"
+            nodes.append({"id": nid, "status": st.get("status", "pending"), "round": st.get("round", 0),
+                          "error": st.get("error", ""),
+                          "feedback_rounds": sorted(int(p.stem.split("_")[1]) for p in fb.glob("round_*.md"))
+                          if fb.is_dir() else []})
+        status = manifest.get("status") or "idle"
+        if self.running and status not in ("running",):
+            status = "running"
+        return {"status": status, "reason": manifest.get("status_reason") or self.last_error,
+                "run_id": manifest.get("run_id", ""), "workflow": manifest.get("workflow", ""),
+                "current_node": manifest.get("current_node"), "nodes": nodes, "running": self.running}
+
+    def feedback(self, node: str, rnd: int) -> str:
+        if not node.replace("-", "").replace("_", "").isalnum():
+            raise ValueError("bad node id")
+        path = layout.node_dir(self.ws, node) / "feedback" / f"round_{int(rnd)}.md"
+        if not path.is_file():
+            raise FileNotFoundError(str(path))
+        return path.read_text(encoding="utf-8")
+
+    def events(self, offset: int = 0) -> dict[str, Any]:
+        rows = EventLog(self.ws).read()
+        return {"events": rows[offset:], "offset": len(rows)}
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
