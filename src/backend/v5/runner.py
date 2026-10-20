@@ -12,9 +12,10 @@ import json
 import shutil
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from backend.v5 import layout
 from backend.v5.access import produce_dir

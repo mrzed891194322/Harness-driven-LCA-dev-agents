@@ -377,6 +377,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     sessionManager: SessionManager.open(sessionFile, path.dirname(sessionFile), cwd),
     tools: tools.length ? tools : undefined,
     noTools: tools.length === 0 ? "all" : undefined,
+    thinkingLevel: thinkingLevelOf(spec),
   });
   // Emits session_start: the MCP extension only connects its servers (and registers
   // mcp__<server>__<tool>) on that event; the first prompt then waits for direct tools.
@@ -570,6 +571,14 @@ export function runtimeInfo(): Record<string, unknown> {
       role: s.spec.role,
     })),
   };
+}
+
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
+/** v5: model_profile.parameters.thinking selects pi's thinkingLevel; unknown values are ignored. */
+export function thinkingLevelOf(spec: SessionLaunchSpec): any {
+  const raw = String((spec.model_profile?.parameters as Record<string, unknown> | undefined)?.thinking ?? "").trim();
+  return THINKING_LEVELS.has(raw) ? raw : undefined;
 }
 
 export async function handleRuntimeMethod(

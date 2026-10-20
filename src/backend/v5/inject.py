@@ -8,7 +8,6 @@ Knowledge is not injected; a global rule explains where it is and when to read i
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from backend.v5 import layout

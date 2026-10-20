@@ -40,7 +40,10 @@ def test_reviewer_cannot_write_artifacts(v5_root):
 def test_openlca_category_lock():
     import pytest
 
-    from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY, locked_category
+    from harness.tools.shared.control_openlca.category import (
+        OPENLCA_PROJECT_CATEGORY,
+        locked_category,
+    )
 
     assert locked_category("") == OPENLCA_PROJECT_CATEGORY
     assert locked_category(OPENLCA_PROJECT_CATEGORY + "/sub") == OPENLCA_PROJECT_CATEGORY + "/sub"

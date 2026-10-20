@@ -84,7 +84,7 @@ class Node(_Strict):
     accept: list[str] = Field(default_factory=list)  # spec ids whose checks gate the reviewer
 
     @model_validator(mode="after")
-    def _validate(self) -> "Node":
+    def _validate(self) -> Node:
         if set(self.agents) - set(ROLES):
             raise ValueError(f"unknown agent keys: {sorted(set(self.agents) - set(ROLES))}")
         if "executor" not in self.agents:

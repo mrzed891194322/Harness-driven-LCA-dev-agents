@@ -1,7 +1,7 @@
 """Scripted AgentDriver for v5 tests: no model, no pi, writes files like an agent would."""
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from backend.v5.access import produce_dir
 from backend.v5.runner import TurnRequest, TurnResult

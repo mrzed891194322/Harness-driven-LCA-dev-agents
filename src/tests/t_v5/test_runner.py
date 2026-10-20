@@ -24,7 +24,7 @@ def _run(root, driver, resume=False, **kw):
 
 def _events(root):
     path = root / "workspace/runs/_run/events.jsonl"
-    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines()]
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 def test_pass_through(v5_root):

@@ -20,7 +20,9 @@ RUNS = WORKSPACE / "runs"
 RUN_META = RUNS / "_run"
 
 # Host lock 3: openLCA writes only inside this category (single definition).
-from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY  # noqa: E402,F401
+from harness.tools.shared.control_openlca.category import (  # noqa: E402
+    OPENLCA_PROJECT_CATEGORY,  # noqa: E402,F401
+)
 
 
 def node_dir(workspace: Path, node: str) -> Path:

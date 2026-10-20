@@ -33,3 +33,20 @@
 - workflows：宿主本身；agent_settled 判结束，tool_call 拦越权写，agent_before_settle 做产出检查。
 
 未证实：SessionManager.inMemory 的 entries 规范构造方式；新 loader 续跑时分段差异的实际表现（需实测）。
+
+## C6 implementation (v5 PiDriver)
+
+- `src/backend/v5/pi_driver.py` calls pi-runtime `session.create/resume/run_turn/release` directly with a `SessionLaunchSpec`
+  (bypasses the old injection snapshot enforcement in `PiRuntimeSessionClient`).
+- System prompt = one section `v5_system` (Injector.system). Tools are explicit: executor `read ls grep find write edit`,
+  reviewer `read ls grep find write`; no bash (`deny_shell`). PathGuard globs come from `v5.access.compute_scope`.
+- MCP: `harness/tools/mcp/<name>/v5.yaml` (fallback `mcp.yaml`), launched with the host python, `exposure: direct`; the
+  runtime does createMcpExtension + bindExtensions + readiness check before the first prompt.
+  `deny_tools` (control_openlca: `cleanup_output`) are never exposed; reviewers get `readonly_tools` only.
+- Fixed `submit` MCP (`harness/tools/mcp/submit/main.py`, bound by the host, not in the catalog): writes
+  `runs/<node>/<role>/submit.json`; the driver moves it to `submit_round_N.json` after the turn.
+- Resume: a live session is reused; after a host restart an existing session file is reopened with `session.resume` and a
+  freshly built launch spec, so tools and MCP are restored (test `test_resume_restores_tools_from_new_launch_spec`).
+- Model auth preflight (`PiDriver.preflight`): one no-tool turn, logged as `model_preflight`; auth errors (401/403/api key)
+  are fatal for the run. `outcome.stop_reason == aborted` is reported as `TurnResult.aborted`.
+- `agent.thinking` → `model_profile.parameters.thinking` → pi `thinkingLevel` (off…max; unknown ignored).
