@@ -1,10 +1,10 @@
-# v5 binding for the openLCA MCP: the standalone server with explicit paths.
-# Agents never get cleanup_output (host-only). Writes are locked to the project category.
+# v5 binding for the openLCA MCP: the standalone server with explicit paths (endpoint from .env OPENLCA_IPC_*).
+# Agents never get cleanup_output (host-only). Writes are locked to the project category (category.py).
 id: control_openlca
 command: uv
 args: [run, python, harness/tools/mcp/control_openlca/main.py]
 tool_timeout_sec: 7320
 deny_tools: [cleanup_output]
 readonly_tools: [health_check, query_descriptors, query_descriptors_batch, get_process_details,
-  get_flow_providers, validate_providers_batch, preflight_import_lci, get_import_operation,
-  get_model_graph, calculate_product_system]
+  get_flow_providers, validate_providers_batch, preflight_import_lci, get_import_operation, get_model_graph]
+write_tools: [import_lci, calculate_product_system]
