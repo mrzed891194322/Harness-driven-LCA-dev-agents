@@ -17,8 +17,9 @@ logs/
 # Virtual environments
 .venv
 
-# uv package cache (project-local; not workspace/tmp)
+# package caches (project-local; not workspace/tmp)
 .uv-cache/
+.npm-cache/
 
 # .env file
 .env

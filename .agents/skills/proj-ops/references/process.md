@@ -4,6 +4,10 @@
 
 `npm start` 与 `npm run dev` 把后端、唯一的 pi-runtime、前端放到后台后，自己打印 `Ready.` 并退出。关掉终端不会停这些服务。停止只用 `npm run stop`。
 
+启动器把 uv 与 npm 的包缓存固定在仓库内（`.uv-cache/`、`.npm-cache/`），沙箱里也不需要额外设置环境变量。
+
+沙箱里的 agent 注意：服务是在启动它们的那条命令 / 后台作业里活着。`npm run stop`、`npm run status` 要跟启动放在同一条命令里做；换一条命令常看不到这些进程，`stop` 会打印 `nothing was running.` 却仍占着端口。
+
 ## 禁止
 
 - 不要手写 `uvicorn`、`next dev`、`node src/pi-runtime/dist/main.js`，也不要再起一个 pi-runtime。整个项目只有一个。
@@ -68,6 +72,7 @@ npm run status
 | `Node.js 22+ is required` | 本机 Node 版本低于 22 |
 | `uv was not found` | 未安装 uv，或不在 PATH 里 |
 | `uv sync timed out`、`npm install timed out`，或同步、安装非 0 退出 | 依赖下载或安装。超时说明里若有更换下载源的提示，一并告诉用户 |
+| `Failed to initialize cache`、`Read-only file system` | 包缓存目录不可写。走 `npm start` / `npm run dev`（启动器已固定仓库内缓存），不要直接跑 `uv sync` |
 | `Building pi-runtime` 之后非 0，或 `pi-runtime is not built` | pi-runtime 构建 |
 | `请检查是否将Git for Windows安装在默认路径` | Windows 上找不到 Git for Windows 的 `bash.exe` |
 | `already running`、`already in use`、`already listening` | 已有一份控制面板，或 web / api 端口被占用。读 `.env` 里的端口。不要再启动 |

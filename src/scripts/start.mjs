@@ -7,9 +7,14 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureProjectCaches } from "./tool_caches.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const windows = process.platform === "win32";
+
+// A sandbox that can only write inside the checkout turns uv/npm's default caches
+// into read-only paths, so `uv sync` / `npm install` fail before anything starts.
+ensureProjectCaches(root);
 const SYNC_TIMEOUT_MS = 5 * 60 * 1000;
 const MIRROR_HINT = "如果你是中国用户，请考虑更换合适的node或uv下载源";
 

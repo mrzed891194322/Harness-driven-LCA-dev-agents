@@ -45,6 +45,12 @@ import { parseListenEndpoint } from "./endpoint.mjs";
 import { findGitBash, prependPath } from "./platform.mjs";
 import { allocateLoopbackPort } from "./endpoint.mjs";
 import { stopAll } from "./stop_lib.mjs";
+import { ensureProjectCaches } from "./tool_caches.mjs";
+
+// `npm run dev` must pin the same caches as `npm start`: uv is spawned below to
+// compute the pi-runtime environment and to run the backend, and a sandbox with a
+// read-only ~/.cache/uv fails there too.
+ensureProjectCaches(root);
 
 const foreground = process.argv.includes("--foreground") || process.argv.includes("-f");
 const OPENLCA_PORT = 8080;
