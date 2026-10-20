@@ -1,6 +1,7 @@
 """V5Service + API takeover, FakeDriver and temp project only."""
 from __future__ import annotations
 
+from backend.v5.config import ConfigError
 from backend.v5.service import V5Service
 from tests.t_v5.conftest import make_node, write_yaml
 from tests.t_v5.fake_driver import FakeDriver
@@ -34,7 +35,7 @@ def test_empty_plan_and_unknown_workflow_rejected(v5_root):
 
     with pytest.raises(ValueError):
         svc.start("demo", plan_text="  ")
-    with pytest.raises(Exception):
+    with pytest.raises(ConfigError):
         svc.start("nope", plan_text="x")
 
 
