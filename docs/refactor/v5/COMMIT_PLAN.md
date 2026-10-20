@@ -58,3 +58,8 @@
 - C7b (pending, needs scope decision): deleting the old engine. Import-graph check: plan_form, diagnostics_service,
   pi_client.client still import backend.core.workflow/*, so removal is ~20k lines across core/agents, core/runtime,
   core/workflow, services and ~40 test modules, not a few files.
+- C7b (done, option b): the old engine is detached from the run path. `/api/workflow/start|stop` run v5; the old
+  from-stage resume (`/api/workflow/resume`, `resume-preview`) is disabled (410 / not eligible) in favour of
+  `POST /api/v5/resume`. Old engine code still reachable from the plan form, diagnostics and the old pi client stays;
+  its full deletion (01, LCA-revise, spec_mcp, host_action, old resume, golden, config_fingerprint, settings.yaml,
+  old prompts/permissions) is a separate commit after C8, C9 and the real LCA run.
