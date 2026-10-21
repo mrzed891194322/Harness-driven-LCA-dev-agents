@@ -569,3 +569,19 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
   (previous/ files now listed under 最终交付 with their `previous/` path), 节点结论 → 交接; /harness refresh button and
   error-count badge; v5 agent-table / tab CSS. testid mapping: GUI.md.
 - Needs Du Yuan approval (hidden now): 上一版 tab, per-agent thinking, injection preview, /runs resume button.
+
+## I-45 Du Yuan decisions after the 1:1 restore (2026-10-21) + revise-lca redesign (LATER)
+Done now:
+- Per-agent thinking level select back in /plan 工作流编排 agent card, under the model select (`agent-thinking-select`).
+- Resume: the old /runs 失败原因 popup button 重跑本轮 (disabled in 599ed0a) is wired to `POST /api/v5/resume`
+  (skips passed nodes, reruns the interrupted/failed node). `/api/workflow/progress` now returns `workflow`.
+- Prompt preview kept: /plan 预览执行 → 组合注入, using the 599ed0a InjectionBoard markup (tree of node.role on the
+  left, 系统提示 / 用户消息 on the right), fed by `/api/v5/preview`. (599ed0a had no injection-specific CSS.)
+
+To implement LATER (after the frontend review, not now) — revise-lca redesign:
+- Stop moving artifacts to `artifacts/previous/`; the original files stay untouched.
+- A revision writes new files next to the originals with a suffix before the extension: `<name>.rev<N>.<ext>`
+  (e.g. `bom.rev1.json`, `lca_report.rev2.md`), N = 1 + the highest existing rev of that file (original = rev 0).
+- Revision N reads the latest version of each input (highest rev, else the original).
+- /results 上一版 tab removed for good (already hidden in I-44).
+- Touches: runner revise setup, inject inputs/deliverable paths, produces/checks/spec paths, submit tool, results listing, tests.

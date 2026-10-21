@@ -150,7 +150,7 @@ def test_old_runs_feed_from_v5_session_files(monkeypatch, v5_root):
     sess.write_text("\n".join(_json.dumps(r) for r in rows), encoding="utf-8")
     before = sorted(str(p) for p in v5_root.rglob("*"))
     p = client.get("/api/workflow/progress").json()
-    assert p["status"] == "completed" and p["reset"] is True and p["epoch"] == p["run_id"]
+    assert p["status"] == "completed" and p["reset"] is True and p["epoch"] == p["run_id"] and p["workflow"] == "full-lca"
     assert "[a(executor#1)-m_1-" in p["text"] and "→ read x.md" in p["text"] and "✗ read: not found" in p["text"]
     again = client.get("/api/workflow/progress", params={"offset": p["offset"], "epoch": p["epoch"]}).json()
     assert again["text"] == "" and again["reset"] is False

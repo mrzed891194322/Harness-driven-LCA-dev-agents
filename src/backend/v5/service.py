@@ -207,7 +207,8 @@ class V5Service:
         start = 0 if reset else offset
         return {"run_id": run_id or None, "status": status, "current_stage": cur or None,
                 "attempt": (node or {}).get("round") or None, "status_reason": reason, "model": self._default_model()[0],
-                "text": text[start:], "offset": len(text), "reset": reset, "epoch": run_id}
+                "text": text[start:], "offset": len(text), "reset": reset, "epoch": run_id,
+                "workflow": st.get("workflow") or None}
 
     def activity(self, offset: int = 0) -> dict[str, Any]:
         _, _, activity = self._feed()

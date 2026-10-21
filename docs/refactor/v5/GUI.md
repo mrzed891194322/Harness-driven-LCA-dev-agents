@@ -65,7 +65,7 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | `workflow-board`, `flow-node-<id>`, `flow-agent-<node>-<role>`, `flow-inspector`, `agent-model-select` | /plan 工作流编排 | per-agent model = old per-assignment model |
 | `harness-viewer`, `harness-tab-<section>`, `harness-file-<path>`, `harness-fields`, `harness-raw`, `harness-file-error` | /harness | |
 | **removed** `run-start` | → `preview-start` on /plan | |
-| **removed** `run-resume` | none (old page had no resume; checkpoint resume awaits Du Yuan) | |
+| `run-resume` | /runs 失败原因 popup → 重跑本轮 (the old disabled button, now wired) | `POST /api/v5/resume` with the run's workflow: passed nodes skipped, interrupted/failed node rerun |
 | **removed** `workflow-select` | workflow follows /plan mode (新工作 = full-lca, 修改工作 = revise-lca) | |
 | **removed** `model-select`, `model-note` | /plan 工作流编排 默认模型 (`.flow-model`) | |
 | **removed** `node-table`, `node-row-*`, `node-open-*`, `node-detail-*`, `node-error-*`, `node-feedback-*`, `feedback-view`, `agent-card-*` | stages show in 实时终端 / 活动概览; feedback in /results 工作记录 | |
@@ -73,5 +73,5 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | **removed** `plan-go-run` | none (Du Yuan: removed) | |
 | **removed** `results-run-line` | none (not in 599ed0a) | |
 | **removed** `harness-error-count` | per-file `harness-file-error` + ⚠ in nav | |
-| **removed** `agent-thinking-select` | none (not in 599ed0a; needs approval) | |
-| **removed** `preview-injection`, `preview-agent-*` | none (not in 599ed0a; `/api/v5/preview` kept, UI hidden) | |
+| `agent-thinking-select` | /plan 工作流编排 agent card, under 模型 | Du Yuan approved (I-45 decisions) |
+| `preview-injection`, `preview-agent-<node>.<role>` | /plan 预览执行 → 组合注入 (599ed0a InjectionBoard markup) | Du Yuan approved; fed by `/api/v5/preview` |

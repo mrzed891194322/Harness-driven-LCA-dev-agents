@@ -10,6 +10,7 @@ import type { PlanFields } from "./plan-fields";
 import type { StudyWork } from "./study-form";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
+import { InjectionPreview } from "./injection-preview";
 import { workflowForMode, type V5Workflow } from "../../lib/v5-workflow";
 
 type Preview = { nodes: { id: string; title: string; agents: { role: string; system: string; user: string }[] }[]; plan_present: boolean; plan_source?: string };
@@ -220,6 +221,13 @@ export function PreviewBoard({
             </ol>
           ) : null}
         </section>
+
+        {preview ? (
+          <section className="preview-section" aria-labelledby="preview-inject-title">
+            <h3 id="preview-inject-title">组合注入</h3>
+            <InjectionPreview preview={preview} />
+          </section>
+        ) : null}
 
       </div>
       <div className="preview-bar">

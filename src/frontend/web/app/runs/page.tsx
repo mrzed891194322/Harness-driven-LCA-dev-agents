@@ -21,6 +21,7 @@ type Progress = {
   offset?: number;
   reset?: boolean;
   epoch?: string;
+  workflow?: string | null;
 };
 
 export default function RunsPage() {
@@ -31,6 +32,7 @@ export default function RunsPage() {
   const [reasonOpen, setReasonOpen] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [lastStage, setLastStage] = useState("");
   const [activityAttempt, setActivityAttempt] = useState(0);
   const offset = useRef(0);
@@ -141,6 +143,25 @@ export default function RunsPage() {
     }
   }
 
+  async function resumeRun() {
+    setResuming(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/v5/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workflow: progress.workflow }),
+      });
+      const data = (await response.json()) as { detail?: string };
+      if (!response.ok) throw new Error(data.detail || `无法续跑（HTTP ${response.status}）`);
+      setReasonOpen(false);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "无法续跑");
+    } finally {
+      setResuming(false);
+    }
+  }
+
   async function stopWork() {
     setStopping(true);
     setError("");
@@ -238,7 +259,13 @@ export default function RunsPage() {
                   )}
                 </div>
                 <div className="run-reason-foot">
-                  <button type="button" disabled title="计划从检查点续跑本阶段，尚未接入">
+                  <button
+                    type="button"
+                    data-testid="run-resume"
+                    disabled={resuming || !progress.workflow}
+                    title="从中断处续跑：已通过的阶段跳过，本阶段重跑"
+                    onClick={() => void resumeRun()}
+                  >
                     <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
                     重跑本轮
                   </button>
