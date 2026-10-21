@@ -3,8 +3,8 @@ title: 计划核对
 produces:
   - {spec: lca-intake, path: intake/intake.md}
 agents:
-  executor: {role: executor, rules: [rules/lca/method.md, rules/lca/knowledge-files.md]}
-  reviewer: {role: reviewer, rules: [rules/lca/method.md, rules/lca/knowledge-files.md]}
+  executor: {role: executor, rules: [rules/lca/method.yaml, rules/lca/knowledge-files.yaml]}
+  reviewer: {role: reviewer, rules: [rules/lca/method.yaml, rules/lca/knowledge-files.yaml]}
 flow:
   start: executor
   max_rounds: 2

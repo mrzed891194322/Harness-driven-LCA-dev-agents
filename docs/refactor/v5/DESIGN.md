@@ -99,3 +99,7 @@
 2. openLCA MCP 工具清单待导出、逐个定去留。
 3. MCP 工具白名单的粒度（按 MCP 还是按单个工具）。
 4. 待办：GUI 模型设置加思考深度（thinkingLevel）下拉。
+
+
+## Update (Commit A)
+Rules, roles and specs are YAML files, not Markdown: see COMMIT_PLAN.md › Commit A.

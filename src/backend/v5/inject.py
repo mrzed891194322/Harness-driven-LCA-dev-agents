@@ -3,7 +3,7 @@
 System prompt: 1 global rules -> (2 permissions: host interception, not text) -> 3 role prompt
 -> 4 tools and skills list.
 User message: 5 <plan> (full) + <inputs> (paths + short notes) -> 6 <deliverable_X>
-(spec.md + schema summary) -> 7 <rework> (round 2+ only, "only change these").
+(spec description + schema summary) -> 7 <rework> (round 2+ only, "only change these").
 Knowledge is not injected; a global rule explains where it is and when to read it.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.v5 import layout
-from backend.v5.config import Node, Spec, load_role
+from backend.v5.config import Node, Spec, load_global_rules, load_role_def, load_rule
 
 MAX_SCHEMA_SUMMARY = 4000
 
@@ -51,12 +51,14 @@ class Injector:
     # ---- system prompt (1, 3, 4) ----
     def system(self, node: Node, role: str) -> str:
         parts = []
-        for path in sorted((self.root / layout.RULES_GLOBAL).glob("*.md")):
-            parts.append(path.read_text(encoding="utf-8").strip())
+        for rule in load_global_rules(self.root, role):
+            parts.append(f"# {rule.title}\n{rule.prompt.strip()}")
         for extra in node.inject + node.agents[role].rules:
-            parts.append((self.root / "harness" / extra).read_text(encoding="utf-8").strip())
-        prompt, _access = load_role(self.root, role)
-        parts.append(prompt.strip())
+            rule = load_rule(self.root, extra)
+            if rule.enabled and (rule.applies_to is None or role in rule.applies_to):
+                parts.append(f"# {rule.title}\n{rule.prompt.strip()}")
+        role_def = load_role_def(self.root, node.agents[role].role)
+        parts.append(f"# {role_def.title}\n{role_def.prompt.strip()}" if role_def.title else role_def.prompt.strip())
         tools = node.agents[role].tools
         lines = ["# 工具与技能", "- 文件工具：read、ls、grep、find" + ("、write、edit" if role == "executor" else "") + "；完成时调用 submit。"]
         if tools.mcp:
@@ -86,7 +88,7 @@ class Injector:
             body = [f"交付路径：`{art / prod.path}`", spec.prompt.strip()]
             summary = schema_summary(spec.schema_)
             if summary:
-                body.append(f"结构摘要（完整 schema：`harness/specs/{spec.id}/schema.json`）：\n{summary}")
+                body.append(f"结构摘要（完整 schema：`harness/specs/{spec.id}.yaml` 的 schema）：\n{summary}")
             if role == "reviewer":
                 body.insert(0, "审核对象：")
             out.append(_section(f"deliverable_{spec.id}", "\n\n".join(body)))

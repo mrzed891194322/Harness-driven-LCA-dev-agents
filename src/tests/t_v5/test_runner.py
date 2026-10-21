@@ -75,8 +75,7 @@ def test_requires_missing_fails_immediately(v5_root):
 
 
 def test_checks_failed_feedback(v5_root):
-    import json as _j
-    (v5_root / "harness/specs/summary/schema.json").write_text(_j.dumps({"type": "object"}))
+    write_yaml(v5_root / "harness/specs/summary.yaml", {"description": "x", "schema": {"type": "object"}})
     make_node(v5_root, "j", produces=[{"spec": "summary", "path": "j/out.json"}])
     write_yaml(v5_root / "harness/workflows/dj.yaml", {"nodes": ["j"]})
     wf, nodes = load_workflow(v5_root, "dj")

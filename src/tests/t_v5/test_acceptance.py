@@ -117,3 +117,10 @@ def test_full_lca_shape_and_schema_gate(proj):
     assert status == "failed"
     assert _status(proj, "lca-intake") == "passed" and _status(proj, "lca-bom") == "failed"
     assert not any(c[0] == "lca-bom" and c[1] == "reviewer" for c in d.calls)
+
+
+def test_demo_missing_input_workflow(proj):
+    status, d = _run(proj, "demo-missing-input")
+    assert status == "failed" and d.calls == []
+    st = json.loads((proj / "workspace/runs/demo-needs-input/status.json").read_text(encoding="utf-8"))
+    assert st["status"] == "error" and "missing-input/input.md" in st["error"]

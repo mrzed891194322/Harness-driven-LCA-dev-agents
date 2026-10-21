@@ -7,12 +7,11 @@ ROOT = Path(__file__).resolve().parents[3]
 
 def test_rules_layout():
     g = ROOT / "harness/rules/global"
-    assert sorted(p.name for p in g.glob("*.md"))
+    assert sorted(p.name for p in g.glob("*.yaml")) and not list(g.glob("*.md"))
     for role in ("executor", "reviewer"):
-        d = ROOT / "harness/rules/roles" / role
-        assert (d / "prompt.md").read_text(encoding="utf-8").strip()
-        data = yaml.safe_load((d / "access.yaml").read_text(encoding="utf-8"))
-        assert set(data) <= {"read", "write"}
+        data = yaml.safe_load((ROOT / "harness/rules/roles" / f"{role}.yaml").read_text(encoding="utf-8"))
+        assert data["prompt"].strip() and set(data["access"]) <= {"read", "write"}
+        assert data["deliver"]["submit"] in ("artifact", "verdict")
 
 
 def test_skills_dir_exists():

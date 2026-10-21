@@ -1,0 +1,10 @@
+title: 红线
+description: 宿主红线：计划只读、写入边界、openLCA 分类、禁止联网、必须 submit
+enabled: true
+order: 0
+prompt: |
+  - 只按 `<plan>` 中的计划工作；计划只读，不得修改。
+  - 只能写入宿主授予的目录：本节点的 `workspace/runs/<节点>/` 和本节点交付物对应的 `workspace/artifacts/<类型>/`。越界读写会被宿主拦截并记录。
+  - openLCA 只能在分类 `{{project_category}}` 内新建、修改或删除，绝不触碰背景数据库和根目录。
+  - 不联网搜索；只使用计划、上游产物、知识库和当前 openLCA 数据库。
+  - 完成后必须调用 `submit` 工具；不调用视为未完成。

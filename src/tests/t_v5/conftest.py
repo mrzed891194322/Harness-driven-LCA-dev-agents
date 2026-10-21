@@ -48,9 +48,8 @@ def v5_root(tmp_path: Path) -> Path:
     shutil.copytree(REPO / "harness/rules", root / "harness/rules")
     (root / "harness/knowledge").mkdir(parents=True)
     (root / "harness/tools/skills").mkdir(parents=True)
+    (root / "harness/specs").mkdir(parents=True)
     for spec in ("paragraph", "summary"):
-        d = root / "harness/specs" / spec
-        d.mkdir(parents=True)
-        (d / "spec.md").write_text(f"写一份 {spec}。\n", encoding="utf-8")
+        write_yaml(root / "harness/specs" / f"{spec}.yaml", {"description": f"写一份 {spec}。\n", "schema": None, "checks": []})
     (root / "workspace").mkdir()
     return root

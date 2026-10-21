@@ -73,3 +73,9 @@
   report node saves raw calculation output itself (standalone MCP has no render_report_tables / reconcile_import).
 - C9 (done): `/runs` = v5 run panel with the agreed testids; `/api/v5/workflows` carries read-only node/agent cards;
   API test `t_v5/test_api.py`. See `docs/refactor/v5/GUI.md`.
+- Commit A (rules as YAML): `harness/rules/global/*.yaml` (title, description, enabled, order, applies_to, prompt),
+  `harness/rules/lca/*.yaml`, `harness/rules/roles/<role>.yaml` (prompt, access, deliver{submit artifact|verdict, spec,
+  max_nudges, max_turns, timeout_min}), `harness/specs/<id>.yaml` (description, schema, checks). `{{var}}` templating
+  with values from `config.DEFAULT_VARS` + `project_category`; undefined variable = load error naming file and variable.
+  YAML errors report `file:line:col`. `produces[].spec` defaults to the executor role's `deliver.spec`.
+  New demo workflow `demo-missing-input` (requires preflight error in the GUI). Workspace clear keeps tracked README.md.

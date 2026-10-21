@@ -1,0 +1,6 @@
+title: 语言
+description: 输出语言
+enabled: true
+order: 10
+prompt: |
+  - 说明、结论、反馈和交付文档一律使用{{language}}；专有名词、数据集名称、UUID 和代码保持原文。

@@ -6,6 +6,7 @@ whose edges (from, on, to) must reach ``done`` or ``failed``; v1 supports execut
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -69,7 +70,7 @@ class Flow(_Strict):
 
 
 class Produce(_Strict):
-    spec: str
+    spec: str = ""  # empty: the executor role's deliver.spec
     path: str  # relative to workspace/artifacts, e.g. "bom" or "bom/bom.json"
 
 
@@ -145,9 +146,65 @@ class Workflow(_Strict):
 
 class Spec(_Strict):
     id: str
-    prompt: str
+    prompt: str  # the spec's description (shared by executor and reviewer)
     schema_: dict | None = None
     checks: list[dict] = Field(default_factory=list)
+
+
+class Deliver(_Strict):
+    submit: Literal["artifact", "verdict"]
+    spec: str | None = None
+    max_nudges: int = Field(default=2, ge=0)
+    max_turns: int = Field(default=80, ge=1)
+    timeout_min: float = Field(default=45, gt=0)
+
+
+class RoleDef(_Strict):
+    title: str = ""
+    prompt: str
+    access: Access = Field(default_factory=Access)
+    deliver: Deliver
+
+
+class Rule(_Strict):
+    id: str = ""
+    title: str
+    description: str = ""
+    enabled: bool = True
+    order: int = 100
+    applies_to: list[Literal["executor", "reviewer"]] | None = None
+    prompt: str
+
+
+class SpecFile(_Strict):
+    description: str
+    schema_: dict | None = Field(default=None, alias="schema")
+    checks: list[dict] = Field(default_factory=list)
+
+
+# {{var}} values; later from project settings.
+DEFAULT_VARS: dict[str, str] = {"language": "中文"}
+
+
+def template_vars() -> dict[str, str]:
+    from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY
+
+    return {**DEFAULT_VARS, "project_category": OPENLCA_PROJECT_CATEGORY}
+
+
+_VAR = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+
+
+def render(text: str, source: Path | str, variables: dict[str, str] | None = None) -> str:
+    values = template_vars() if variables is None else variables
+
+    def sub(match: re.Match) -> str:
+        name = match.group(1)
+        if name not in values:
+            raise ConfigError(f"{source}: undefined template variable {{{{{name}}}}}")
+        return values[name]
+
+    return _VAR.sub(sub, text)
 
 
 def _load_yaml(path: Path) -> dict:
@@ -156,7 +213,10 @@ def _load_yaml(path: Path) -> dict:
     except FileNotFoundError as exc:
         raise ConfigError(f"missing file: {path}") from exc
     except yaml.YAMLError as exc:
-        raise ConfigError(f"invalid YAML {path}: {exc}") from exc
+        mark = getattr(exc, "problem_mark", None)
+        where = f"{path}:{mark.line + 1}:{mark.column + 1}" if mark is not None else str(path)
+        problem = getattr(exc, "problem", None) or str(exc)
+        raise ConfigError(f"invalid YAML {where}: {problem}") from exc
     if not isinstance(data, dict):
         raise ConfigError(f"{path}: top level must be a mapping")
     return data
@@ -169,9 +229,17 @@ def load_node(root: Path, node_id: str) -> Node:
     if data["id"] != node_id:
         raise ConfigError(f"{path}: id {data['id']!r} != file name {node_id!r}")
     try:
-        return Node.model_validate(data)
+        node = Node.model_validate(data)
     except ValueError as exc:
         raise ConfigError(f"{path}: {exc}") from exc
+    for produce in node.produces:
+        if not produce.spec:
+            executor = node.agents.get("executor")
+            default = load_role_def(root, executor.role).deliver.spec if executor else None
+            if not default:
+                raise ConfigError(f"{path}: produces {produce.path!r} has no spec and the executor role has no deliver.spec")
+            produce.spec = default
+    return node
 
 
 def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
@@ -202,33 +270,44 @@ def list_workflows(root: Path) -> list[str]:
     return names
 
 
-def load_spec(root: Path, spec_id: str) -> Spec:
-    folder = root / layout.SPECS / spec_id
-    prompt_path = folder / "spec.md"
-    if not prompt_path.is_file():
-        raise ConfigError(f"spec {spec_id!r}: missing {prompt_path}")
-    schema = None
-    schema_path = folder / "schema.json"
-    if schema_path.is_file():
-        import json
+def _validate(model, data: dict, path: Path):
+    try:
+        return model.model_validate(data)
+    except ValueError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
 
-        try:
-            schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ConfigError(f"spec {spec_id!r}: invalid schema.json: {exc}") from exc
-    checks: list[dict] = []
-    checks_path = folder / "checks.yaml"
-    if checks_path.is_file():
-        raw = yaml.safe_load(checks_path.read_text(encoding="utf-8")) or {}
-        checks = list(raw.get("checks") or []) if isinstance(raw, dict) else []
-    return Spec(id=spec_id, prompt=prompt_path.read_text(encoding="utf-8"), schema_=schema, checks=checks)
+
+def load_spec(root: Path, spec_id: str) -> Spec:
+    path = root / layout.SPECS / f"{spec_id}.yaml"
+    if not path.is_file():
+        raise ConfigError(f"spec {spec_id!r}: missing {path}")
+    raw = _validate(SpecFile, _load_yaml(path), path)
+    return Spec(id=spec_id, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks)
+
+
+def load_role_def(root: Path, role: str) -> RoleDef:
+    path = root / layout.RULES_ROLES / f"{role}.yaml"
+    role_def = _validate(RoleDef, _load_yaml(path), path)
+    role_def.prompt = render(role_def.prompt, path)
+    return role_def
 
 
 def load_role(root: Path, role: str) -> tuple[str, Access]:
-    folder = root / layout.RULES_ROLES / role
-    prompt = (folder / "prompt.md").read_text(encoding="utf-8")
-    access_path = folder / "access.yaml"
-    access = Access()
-    if access_path.is_file():
-        access = Access.model_validate(yaml.safe_load(access_path.read_text(encoding="utf-8")) or {})
-    return prompt, access
+    role_def = load_role_def(root, role)
+    return role_def.prompt, role_def.access
+
+
+def load_rule(root: Path, rel: str) -> Rule:
+    """``rel`` is harness-relative, e.g. ``rules/lca/method.yaml``."""
+    path = root / "harness" / rel
+    rule = _validate(Rule, _load_yaml(path), path)
+    rule.id = rule.id or rel
+    rule.prompt = render(rule.prompt, path)
+    return rule
+
+
+def load_global_rules(root: Path, role: str) -> list[Rule]:
+    folder = root / layout.RULES_GLOBAL
+    rules = [load_rule(root, str(p.relative_to(root / "harness"))) for p in sorted(folder.glob("*.yaml"))]
+    rules = [r for r in rules if r.enabled and (r.applies_to is None or role in r.applies_to)]
+    return sorted(rules, key=lambda r: (r.order, r.id))

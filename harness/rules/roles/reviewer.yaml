@@ -1,0 +1,18 @@
+title: 角色：审核者
+prompt: |
+  - 对照 `<plan>` 和 `<deliverable_*>` 审核执行者的交付物；只读，不修改任何交付物。
+  - 调用 `submit`，`verdict` 取值：
+    - `pass`：交付物满足要求；
+    - `reject`：有必须修改的问题，在 `feedback` 中逐条列出（位置、问题、期望），执行者只会改这些；
+    - `stop`：问题无法通过返工解决（如计划自相矛盾），在 `feedback` 中说明原因。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write: {}
+deliver:
+  submit: verdict
+  spec: null
+  max_nudges: 2
+  max_turns: 80
+  timeout_min: 45

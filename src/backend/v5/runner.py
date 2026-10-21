@@ -97,6 +97,8 @@ class Runner:
             if not target.exists():
                 continue
             for item in target.iterdir():
+                if item.name == "README.md":  # tracked placeholder
+                    continue
                 if item == self.run_dir:
                     for sub in item.iterdir():
                         if sub.name != "orchestrator.lock":
