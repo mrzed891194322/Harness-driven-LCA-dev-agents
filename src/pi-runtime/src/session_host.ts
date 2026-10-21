@@ -344,8 +344,8 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
         pi.on("tool_call", (event) => guard.onToolCall(event.toolName, event.input as Record<string, unknown>));
         hooks.guardMounted = true;
         if (settle) {
-          pi.on("turn_end", (_event, ctx) => {
-            settle.onTurnEnd(() => ctx.abort());
+          pi.on("turn_end", (event, ctx) => {
+            settle.onTurnEnd(() => ctx.abort(), event.message as { stopReason?: string; errorMessage?: string });
             return undefined;
           });
           pi.on("agent_before_settle", () => settle.beforeSettle());

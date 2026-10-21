@@ -217,7 +217,7 @@ class PiDriver:
         settle = result.get("settle") if isinstance(result, dict) else None
         settle = settle if isinstance(settle, dict) else {}
         for item in settle.get("log") or []:
-            kind = {"nudge": "nudge", "rejected_retry": "rejected_retry", "no_submit": "no_submit", "abort": "turn_aborted"}.get(item.get("kind"), "settle")
+            kind = {"nudge": "nudge", "rejected_retry": "rejected_retry", "no_submit": "no_submit", "abort": "turn_aborted", "model_retry": "model_retry"}.get(item.get("kind"), "settle")
             events.emit(kind, node=req.node.id, role=req.role, round=req.round, detail=item.get("detail"),
                         at=item.get("ts"))
         for line in _read_lines(rejections)[seen_rejections:]:

@@ -74,3 +74,8 @@
   log) and continues.
 - When the count reaches `max_rejections` without an accepted submit, the turn is aborted (checked at `turn_end` and
   at settle); `abort_reason = too_many_rejections`, event `too_many_rejections`, node fails with that reason.
+
+## Provider errors (I-28)
+`turn_end` hands the assistant message to SettleGuard. A turn ending with `stopReason: "error"` is retried from
+`agent_before_settle` after a wait (`model_retry_delays_s`, default `[10, 30, 60]`), without spending a nudge, and
+logged as `model_retry`. When the waits are used up the turn ends with `abort_reason: "model_error"`.

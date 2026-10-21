@@ -21,10 +21,11 @@ export const NOTABLE: Record<string, string> = {
   stop_requested: "请求停止",
   stop_cancel_failed: "停止未能中断回合",
   model_preflight: "模型预检",
+  model_retry: "模型请求失败，重试",
 };
 
 const BAD = new Set(["requires_failed", "too_many_rejections", "no_submit", "turn_aborted", "stop_cancel_failed"]);
-const WARN = new Set(["nudge", "rejected_retry", "submit_rejected", "stop_requested"]);
+const WARN = new Set(["model_retry", "nudge", "rejected_retry", "submit_rejected", "stop_requested"]);
 
 export function eventTone(e: RunEvent): "ok" | "warn" | "fail" | "off" {
   if (BAD.has(e.kind)) return "fail";

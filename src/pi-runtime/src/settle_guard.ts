@@ -15,13 +15,16 @@ export interface SettlePolicy {
   /** Rejected submits on this node before it fails with too_many_rejections. */
   max_rejections: number;
   nudge_text?: string;
+  /** Provider errors (stopReason "error", e.g. "Connection error.") retried per host turn, with these waits (s). */
+  model_retry_delays_s: number[];
 }
 
 export interface SettleSummary {
   submitted: boolean;
   nudges: number;
   turns: number;
-  abort_reason: "" | "max_turns" | "timeout" | "too_many_rejections";
+  abort_reason: "" | "max_turns" | "timeout" | "too_many_rejections" | "model_error";
+  model_errors: number;
   rejections: number;
   log: { ts: string; kind: string; detail?: string }[];
 }
@@ -37,6 +40,7 @@ export function settlePolicyOf(turnContext: Record<string, unknown> | undefined)
     rejections_file: typeof raw.rejections_file === "string" ? raw.rejections_file : undefined,
     max_rejections: Number(raw.max_rejections ?? 5),
     nudge_text: raw.nudge_text,
+    model_retry_delays_s: Array.isArray(raw.model_retry_delays_s) ? raw.model_retry_delays_s.map(Number) : [10, 30, 60],
   };
 }
 
@@ -47,6 +51,8 @@ export class SettleGuard {
   private timer: NodeJS.Timeout | null = null;
   private log: SettleSummary["log"] = [];
   private seenRejections = 0;
+  private modelErrors = 0;
+  private lastError = "";
 
   constructor(
     private policy: SettlePolicy,
@@ -58,6 +64,7 @@ export class SettleGuard {
         return 0;
       }
     },
+    private sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {}
 
   /** Rejected submits recorded for this node+role so far (all rounds). */
@@ -75,6 +82,8 @@ export class SettleGuard {
     this.turns = 0;
     this.abortReason = "";
     this.log = [];
+    this.modelErrors = 0;
+    this.lastError = "";
     this.seenRejections = this.rejections();
     this.clear();
     const ms = this.policy.timeout_min * 60_000;
@@ -104,8 +113,9 @@ export class SettleGuard {
     }
   }
 
-  onTurnEnd(abort: () => void): void {
+  onTurnEnd(abort: () => void, message?: { stopReason?: string; errorMessage?: string }): void {
     this.turns += 1;
+    this.lastError = message?.stopReason === "error" ? message.errorMessage || "provider error" : "";
     if (this.tooManyRejections()) this.abort("too_many_rejections", abort);
     else if (this.turns >= this.policy.max_turns && !this.submitted()) this.abort("max_turns", abort);
   }
@@ -115,8 +125,27 @@ export class SettleGuard {
   }
 
   /** agent_before_settle handler body. */
-  beforeSettle(): { entries?: any[]; continue?: boolean } | undefined {
+  async beforeSettle(): Promise<{ entries?: any[]; continue?: boolean } | undefined> {
     if (this.abortReason || this.submitted()) return undefined;
+    if (this.lastError) {
+      // A provider error is not a missing submit: retry after a wait without spending a nudge.
+      const err = this.lastError;
+      this.lastError = "";
+      const delays = this.policy.model_retry_delays_s;
+      if (this.modelErrors >= delays.length) {
+        this.abortReason = "model_error";
+        this.note("abort", `model_error: ${err}`);
+        return undefined;
+      }
+      const wait = delays[this.modelErrors];
+      this.modelErrors += 1;
+      this.note("model_retry", `${this.modelErrors}/${delays.length} after ${wait}s: ${err}`);
+      await this.sleep(wait * 1000);
+      return {
+        entries: [{ type: "custom_message", customType: "v5_nudge", content: `上一次模型请求失败（${err}）。从中断处继续完成任务，完成后调用 submit。`, display: true }],
+        continue: true,
+      };
+    }
     if (this.tooManyRejections()) {
       this.abortReason = "too_many_rejections";
       this.note("abort", "too_many_rejections");
@@ -154,6 +183,7 @@ export class SettleGuard {
       turns: this.turns,
       abort_reason: this.abortReason,
       rejections: this.rejections(),
+      model_errors: this.modelErrors,
       log: [...this.log],
     };
   }

@@ -359,3 +359,18 @@ be visual breakage this static pass cannot see.
   `page-2-4.png` (no matching shot; the retaken `page-3.png` is the /runs screenshot). `openlca-ipc.png` kept.
 - Copied 模拟操作员's 5 retaken shots (`page-1`, `page-2-1`, `page-2-2`, `page-3`, `page-4`) over the old images.
 - `panel/overview.md`, `panel/run-lca.md`: 继续 → 续跑, 模型设置 → 设置 (match the UI).
+
+## I-28 Provider "Connection error." burned all nudges in 48 s (fixed)
+- What happened: full-lca run 4825c79d on serve 741325c (16:13 UTC+8). Preflight ok, then the lca-intake executor's
+  turns ended with `stopReason: "error"` / "Connection error." three times in a row (16:13:25–16:14:13). The settle
+  guard treated each errored turn as "no submit": nudge 1, nudge 2, then `no_submit` → node failed, run failed.
+  The network to opencode.ai was flaky at the time (1 of 3 curl probes timed out; `/api/models/test` ok right after).
+- Cause: SettleGuard only knew "submitted or not"; a provider error looked like an agent that forgot to submit, and
+  nudges fire immediately with no wait.
+- Fix: `turn_end` passes the assistant message to the guard. If the last turn ended with `stopReason: "error"`,
+  `beforeSettle` waits (`model_retry_delays_s`, default 10/30/60 s), then continues with a "上一次模型请求失败…继续"
+  message — no nudge spent; logged as `model_retry`. After the delays are used up the turn ends with
+  `abort_reason: "model_error"` (node reason `model_error`, not `no_submit`). `beforeSettle` is now async (pi awaits
+  boundary handlers). Events panel label 模型请求失败，重试. Tests: two new cases in `settle_guard.test.ts`.
+- Pending Du Yuan: retry count and waits (code default, not yet a deliver field); errored turns still count toward
+  `max_turns`.
