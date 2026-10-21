@@ -224,6 +224,8 @@ class PiDriver:
         for line in _read_lines(rejections)[seen_rejections:]:
             events.emit("submit_rejected", node=req.node.id, role=req.role, round=req.round, **line)
         abort_reason = str(settle.get("abort_reason") or "")
+        if not abort_reason and submit is None and err.startswith("MCP 服务未就绪"):
+            abort_reason = "mcp_not_ready"  # the agent never had a submit tool; not its fault
         if abort_reason == "too_many_rejections":
             events.emit("too_many_rejections", node=req.node.id, role=req.role, round=req.round,
                         rejections=int(settle.get("rejections") or 0))

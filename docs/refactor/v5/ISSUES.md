@@ -385,3 +385,15 @@ be visual breakage this static pass cannot see.
   Test: `test_preflight_retries_transient_errors_only`.
 - Pending: serve not switched to this commit and no third run started (the one allowed rerun was used by c17274f2);
   waiting for the go-ahead. Network flakiness to opencode.ai should be checked by Du Yuan.
+
+## I-30 submit MCP intermittently not ready → node failed as no_submit (fixed)
+- What happened: full-lca run 85e9e615 on serve ce1c217 (16:24:25 UTC+8). Preflight hit a 503 on attempt 1 and passed
+  on attempt 2 (I-29 worked). lca-intake passed in round 1 (executor 2:41, reviewer 0:41, 0 nudges). Creating the
+  lca-bom executor session then waited the full 90 s (16:28:22 → 16:29:53) for the `submit` MCP server to register
+  tools, failed, and the node was reported as `no_submit`. The error pointed to a `*.mcp.log` that pi-mcp never
+  writes. Started by hand with the same mcp.json, the submit server answers initialize in 0.4 s, so the server is
+  fine; the hang is on the pi-mcp connect side and did not repeat for intake. Root cause not found.
+- Fix: pi-runtime retries session creation once when an MCP server is not ready (`withMcpRetry`, logged to the
+  pi-runtime stderr as `mcp_retry`); the message no longer points to the non-existent log; Python maps it to node
+  reason `mcp_not_ready` instead of `no_submit`. Tests: `mcp_retry.test.ts`, `test_mcp_not_ready_is_its_own_reason`.
+- Pending: root cause in pi-mcp (connect race?) — keep an eye on `mcp_retry` lines in the serve log.

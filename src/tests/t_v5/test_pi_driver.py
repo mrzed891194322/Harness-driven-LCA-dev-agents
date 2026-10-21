@@ -168,3 +168,10 @@ def test_submit_mcp_lists_role_specific_tool(tmp_path):
                            env=env, capture_output=True, text=True, timeout=60)
         assert p.returncode == 0, p.stderr
         assert json.loads(out.read_text())["role"] == role
+
+
+def test_mcp_not_ready_is_its_own_reason(v5_root):
+    node = _setup(v5_root)
+    rt = FakeRuntime(result={"status": "error", "message": "MCP 服务未就绪（90 秒内未注册任何工具）：submit"})
+    res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(_req(v5_root, node))
+    assert res.submit is None and res.abort_reason == "mcp_not_ready" and not res.fatal

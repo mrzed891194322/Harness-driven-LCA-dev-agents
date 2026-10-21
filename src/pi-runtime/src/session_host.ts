@@ -279,11 +279,30 @@ async function assertMcpServersReady(
     await new Promise((r) => setTimeout(r, 250));
   }
   throw new Error(
-    `MCP 服务未就绪（未注册任何工具）：${missing.join(", ")}；详见 ${mcpLogPath(spec)}`,
+    `${MCP_NOT_READY}（${MCP_READY_TIMEOUT_MS / 1000} 秒内未注册任何工具）：${missing.join(", ")}；pi-runtime 日志见服务输出`,
   );
 }
 
+export const MCP_NOT_READY = "MCP 服务未就绪";
+
+/** Retry session creation once when an MCP server registered no tools (seen intermittently, I-30). */
+export async function withMcpRetry<T>(create: () => Promise<T>, attempts = 2, log: (msg: string) => void = () => {}): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await create();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (i >= attempts || !msg.startsWith(MCP_NOT_READY)) throw error;
+      log(`mcp_retry ${i}/${attempts - 1}: ${msg}`);
+    }
+  }
+}
+
 async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
+  return withMcpRetry(() => createPiSessionOnce(spec), 2, (msg) => console.error(`[pi-runtime] ${spec.session_key} ${msg}`));
+}
+
+async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession> {
   if (isMockMode()) {
     prepareAgentDir(spec);
     return {
