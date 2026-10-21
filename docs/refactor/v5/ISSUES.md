@@ -397,3 +397,16 @@ be visual breakage this static pass cannot see.
   pi-runtime stderr as `mcp_retry`); the message no longer points to the non-existent log; Python maps it to node
   reason `mcp_not_ready` instead of `no_submit`. Tests: `mcp_retry.test.ts`, `test_mcp_not_ready_is_its_own_reason`.
 - Pending: root cause in pi-mcp (connect race?) — keep an eye on `mcp_retry` lines in the serve log.
+- Update (rerun fac7df55 on serve 59a95e3, 16:33:10–16:40:11 UTC+8): **not intermittent**. Preflight blip again
+  (attempt 1 "Connection error.", attempt 2 ok), lca-intake passed round 1 (executor 2:17, reviewer 0:57, 0 nudges),
+  then the lca-bom executor's `submit` MCP again never registered: attempt 1 timed out after 90 s (`mcp_retry 1/1`
+  in `.local/logs/pi-runtime.log`), attempt 2 ran past the Python 180 s `session.create` timeout, so the node again
+  ended as `no_submit` ("pi-runtime 请求超时: session.create"), not `mcp_not_ready`.
+- Ruled out: the server itself (same mcp.json by hand: initialize and tools/list answer in <0.5 s for both intake
+  and bom), env size (bom 1.2 KB vs intake 0.2 KB). pi-mcp writes nothing to the configured log, so no client-side
+  trace. Pattern: the first node's sessions (executor + reviewer, both with a `submit` server) work; the next
+  node's first session in the same pi-runtime process cannot connect its `submit` server. demo-write (2 nodes)
+  passed at 16:07 on 741325c, so it may depend on timing/what the previous sessions left behind.
+- Next steps (not done, rerun budget used): enable pi-mcp debug output or wrap the server command with a stderr
+  tee to see whether pi spawns it at all; check whether shutting down the previous node's sessions closes a shared
+  MCP manager; raise the Python `session.create` timeout above 2×90 s so `mcp_not_ready` is reported correctly.
