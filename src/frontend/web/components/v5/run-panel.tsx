@@ -6,6 +6,7 @@ import { LABEL } from "../../lib/labels";
 import { modelLine } from "../../lib/agent-card";
 import { initialWorkflow } from "../../lib/initial-workflow";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
+import { RunSide } from "../runs/run-side";
 import { describeEvent, eventTone, isNotable, mergeEvents, statusTone, type RunEvent } from "../../lib/run-events";
 
 type AgentCard = {
@@ -290,6 +291,7 @@ export function V5RunPanel() {
             {error}
           </p>
         ) : null}
+        <RunSide run={run} events={events} onStop={() => void act("stop")} stopping={busy} />
         <div className="agent-table">
           <table data-testid="node-table">
             <thead>

@@ -542,3 +542,11 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
 - Tests: `test_preview_is_read_only_injection`, `test_agent_model_setting_applies_at_run_start` (temp project), `v5-workflow.test.ts`.
 - Old 599ed0a pieces not restored (no v5 equivalent): per-stage phase labels, host actions/knowledge nodes and the
   "related" highlighting in the inspector, injection merge notes / lock badges.
+
+## I-42 /runs 当前阶段 panel, 失败原因 popup, activity summary restored (599ed0a markup + CSS)
+- `components/runs/run-side.tsx`: 当前阶段 card (status badge, live dot, 第 N 轮, 中止工作, 显示原因) and the
+  run-reason-panel popup. Reason text = run reason + node errors + last `turn_aborted` details (incl. the Q14 message).
+- `components/runs/activity-summary.tsx` + `lib/run-activity.ts`: one chip per node.role.round from `/api/v5/events`.
+  v5 has no per-tool events, so the chip shows model retries / rejections / nudges instead of "N 次工具调用", and the
+  running chip says 执行中 instead of the tool name. Only the last 500 events kept by run-panel are summarized.
+- Not built (awaiting Du Yuan): agent output stream, the disabled 重跑本轮 (checkpoint resume) button, 从头重跑.

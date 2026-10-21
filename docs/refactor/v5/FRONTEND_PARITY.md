@@ -7,12 +7,12 @@
 |---|---|---|---|---|
 | 顶栏 | Harness 按钮、设置、教程入口 | — | — | 已恢复 |
 | /runs | 运行头：状态徽标、开始/停止 | `/api/workflow/progress`、`start`、`stop` | `/api/v5/status`、`/api/workflow/start`、`stop`、`/api/v5/resume` | 已有（run-panel） |
-| /runs | 右侧阶段列表 run-side（阶段卡、实时点、第 N 次、阶段动作按钮） | `/api/workflow/progress` | `/api/v5/status` 的 nodes（status、rounds） | v5 用节点表代替；样式未按旧版恢复 → **待恢复** |
+| /runs | 右侧阶段列表 run-side（阶段卡、实时点、第 N 次、阶段动作按钮） | `/api/workflow/progress` | `/api/v5/status` 的 nodes（status、rounds） | 已恢复（I-42），节点表保留 |
 | /runs | 阶段动作「从检查点续跑本阶段」 | 旧版本就未接入（按钮 disabled） | 无 | **无数据，待决定** |
-| /runs | 活动概览 activity-summary（各分工 chip、正在执行/历史、最后一条细节） | `/api/workflow/activity`（轮询） | `/api/v5/events`（node、role、kind、ts、detail） | 可由事件流重建 → **待恢复** |
+| /runs | 活动概览 activity-summary（各分工 chip、正在执行/历史、最后一条细节） | `/api/workflow/activity`（轮询） | `/api/v5/events`（node、role、kind、ts、detail） | 已恢复（I-42）；工具调用次数无数据，改显示模型重试/被拒/提醒次数 |
 | /runs | 代理输出流 agent-stream（逐条消息、工具调用、思考、AgentProse 渲染） | `/api/workflow/activity` 返回的代理日志文本（parseAgentLog） | 无接口。数据在磁盘 `.local/runs/<run>/sessions/<node.role>.<n>/transcript.jsonl` | **无 v5 接口**：需新增只读会话输出接口（如 `/api/v5/sessions/<node>/<role>/<round>`，可选 SSE）后才能恢复，待决定 |
-| /runs | 失败/中断原因弹窗 run-reason-panel | progress 的 reason | `/api/v5/status` 的 reason、节点 error、`turn_aborted` 事件 detail | 有数据（现为行内文字）→ **待恢复弹窗样式** |
-| /runs | turnFailureKind（模型连接失败 / 没有交接） | 代理日志文本 | `model_retry`、`turn_aborted`(model_error) 事件 | 有数据 → 待恢复 |
+| /runs | 失败/中断原因弹窗 run-reason-panel | progress 的 reason | `/api/v5/status` 的 reason、节点 error、`turn_aborted` 事件 detail | 已恢复弹窗（I-42） |
+| /runs | turnFailureKind（模型连接失败 / 没有交接） | 代理日志文本 | `model_retry`、`turn_aborted`(model_error) 事件 | 已并入失败原因弹窗（I-42） |
 | /plan | 研究表单 StudyForm | `/api/plan` | `/api/plan` | 已有 |
 | /plan | PreviewBoard：环境 | `/api/diagnostics/environment` | 同左 | 已恢复（I-41） |
 | /plan | PreviewBoard：工作流 / 工作内容 | `/api/harness/document` | `/api/v5/workflows`、`/api/v5/harness` | 已恢复（I-41） |
