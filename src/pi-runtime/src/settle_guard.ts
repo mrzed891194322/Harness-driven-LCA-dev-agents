@@ -36,7 +36,7 @@ export function settlePolicyOf(turnContext: Record<string, unknown> | undefined)
     submit_file: raw.submit_file,
     max_nudges: Number(raw.max_nudges ?? 2),
     max_turns: Number(raw.max_turns ?? 80),
-    timeout_min: Number(raw.timeout_min ?? 45),
+    timeout_min: Number(raw.timeout_min ?? 60),
     rejections_file: typeof raw.rejections_file === "string" ? raw.rejections_file : undefined,
     max_rejections: Number(raw.max_rejections ?? 5),
     nudge_text: raw.nudge_text,

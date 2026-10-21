@@ -80,7 +80,7 @@ def test_driver_passes_settle_policy_and_logs(v5_root):
     assert res.submit is None and res.aborted and res.abort_reason == "max_turns" and res.nudges == 2
     spec = rt.calls[0][1]["launch_spec"]
     pol = spec["turn_context"]["settle"]
-    assert pol["max_nudges"] == 2 and pol["max_turns"] == 80 and pol["timeout_min"] == 45
+    assert pol["max_nudges"] == 2 and pol["max_turns"] == 80 and pol["timeout_min"] == 60
     assert pol["submit_file"].endswith("runs/a/executor/submit.json")
     produces = json.loads(Path(spec["mcp_bindings"]["submit"]["env"]["V5_PRODUCES_FILE"]).read_text())
     assert produces[0]["path"].endswith("artifacts/a/p.md")

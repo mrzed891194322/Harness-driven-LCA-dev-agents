@@ -182,10 +182,11 @@ def _list_run_attempt_artifacts(runs_root: Path) -> list[dict[str, Any]]:
                 "path": f"workspace/runs/{relative.as_posix()}",
                 "size": path.stat().st_size,
                 "count": 1,
+                "category": "intermediate",  # per-node work files (I-34)
             }
         )
     for path, bucket in sorted(grouped.items()):
-        items.append({"path": path, "size": bucket["size"], "count": bucket["count"]})
+        items.append({"path": path, "size": bucket["size"], "count": bucket["count"], "category": "intermediate"})
     return items
 
 

@@ -46,3 +46,16 @@ def test_node_verdicts_and_previous_group(tmp_path: Path) -> None:
     assert "workspace/artifacts/plan/main_plan.md" not in cats
     # Every verdict row is readable through the file endpoint path rules.
     assert Results(tmp_path).read_result_file("workspace/" + out["handoffs"][0]["name"])["kind"] == "json"
+
+
+def test_run_files_are_intermediate(tmp_path):
+    from backend.v5.results import _list_workspace_artifacts
+    (tmp_path / "artifacts" / "bom").mkdir(parents=True)
+    (tmp_path / "artifacts" / "bom" / "bom.md").write_text("x")
+    (tmp_path / "runs" / "lca-bom" / "executor").mkdir(parents=True)
+    (tmp_path / "runs" / "lca-bom" / "executor" / "submit_round_1.json").write_text("{}")
+    (tmp_path / "runs" / "lca-bom" / "status.json").write_text("{}")
+    cats = {a["path"]: a.get("category") for a in _list_workspace_artifacts(tmp_path)}
+    assert cats["workspace/artifacts/bom/bom.md"] == "deliverable"
+    assert cats["workspace/runs/lca-bom/status.json"] == "intermediate"
+    assert all(c for c in cats.values())

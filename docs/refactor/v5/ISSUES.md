@@ -48,7 +48,7 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
 - Pending: where variables should come from long-term (plan, settings page, `.env`).
 
 ## I-07 deliver defaults need tuning
-- What: `max_nudges=2`, `max_turns=80`, `timeout_min=45`, `max_rejections=5` are guesses.
+- What: `max_nudges=2`, `max_turns=80`, `timeout_min=60` (was 45; raised 2026-10-21, see I-35), `max_rejections=5` are guesses.
 - Cause: no LCA run yet under the new end-of-node decision.
 - Fix: defaults in `Deliver`; overridable per role in `rules/roles/<role>.yaml`.
 - Pending: tune after the next full LCA run (look at `nudge`, `rejected_retry`, `turn_aborted` events).
@@ -445,3 +445,64 @@ be visual breakage this static pass cannot see.
 - Fix: when the submit was accepted the driver clears the turn error (the 503 stays only in the `model_retry`
   event). Frontend: `agent_settled` with `submitted: true` is tone ok and described as 已提交, never as an error.
   Tests: the driver test above; `run-events.test.ts`.
+
+## I-33 "1200 km" in ps_case1.json after revise aa54d98f: incidental, not a scope leak
+- What: after the Case 2 rail revision (1200 km), `artifacts/mapping/LCI/product_systems/ps_case1.json` contained "1200 km".
+- Finding: the only change to that file vs `artifacts/previous/` is one sentence added to `description`:
+  "本次修订（Case 2 铁路段 1,200 km）不涉及本系统。" Case 1 flow files (`bottle_at_pos_case1.json`,
+  `pet_components_case1.json`) are byte-identical to previous/. In `report/results.json`, Case 1 Climate change =
+  338.8508 kg CO2-Eq both before and after, and Case 3 main/sens200 are unchanged too. Only Case 2 moved
+  (1006.20 → 994.35, −1.18 %).
+- Fix: none needed.
+- Pending (minor): the revise run rewrote the `results.json` layout (e.g. `comparisons.*.percentage_by_category` became
+  `comparisons.*.<category>.{delta, rel_pct}`, and `revision_diff_vs_previous_round` was added). Old and new are not
+  key-comparable. Consider pinning the results.json shape in the report spec.
+
+## I-34 /api/results: workspace/runs/ files had no category
+- What: in aa54d98f, 21 artifacts (`workspace/runs/<node>/…` such as submit_round_N.json, review-notes.md,
+  status.json, change_log.md) came back with no `category`. The frontend only placed them by a path fallback.
+- Cause: `_list_run_attempt_artifacts` never set `category`; only `_list_deliverable_artifacts` did.
+- Fix: run files and grouped raw buckets get `category: "intermediate"`. Test: `test_run_files_are_intermediate`.
+
+## I-35 Per-node pi turn counts vs limits (timeout_min raised 45 → 60)
+Pi turns = assistant messages in each host turn, from `.local/runs/<run>/sessions/<node.role>.<n>/transcript.jsonl`.
+They include messages that ended in a provider error and were retried. Limits are `max_turns 80` and `timeout_min`
+per host turn, now 60. Format: pi turns / wall time, per round.
+
+| run | node | executor r1 | executor r2 | reviewer r1 | reviewer r2 |
+|---|---|---|---|---|---|
+| 93ea3f68 full-lca | lca-intake | 20 / 1.7 min | – | 20 / 2.7 min | – |
+| 93ea3f68 | lca-bom | 38 / 7.1 min | 12 / 2.6 min | 19 / 2.4 min | 10 / 1.2 min |
+| 93ea3f68 | lca-mapping | **80** / 18.8 min | – | 53 / 6.2 min | – |
+| 93ea3f68 | lca-report | 46 / 18.5 min | – | 36 / 14.6 min | – |
+| aa54d98f revise-lca | lca-bom-revise | 32 / 3.2 min | – | 34 / 2.9 min | – |
+| aa54d98f | lca-mapping-revise | 46 / 8.1 min | – | 36 / 3.3 min | – |
+| aa54d98f | lca-report-revise | 56 / 10.4 min | – | 38 / 3.6 min | – |
+
+Node wall time (first to last event): 93ea3f68 intake 4.5, bom 13.4, mapping 25.0, report 33.0 min (run 16:52–18:08);
+aa54d98f bom 6.1, mapping 11.4, report 14.1 min (run 18:09–18:41). All UTC+8. No nudges in either run.
+- Finding: lca-mapping executor hit exactly 80 assistant messages. That included 14 SDK-level retries; the turn
+  submitted and was not aborted. Wall time peaked at 18.8 min, well under the limit.
+- Change: default `timeout_min` 45 → 60 in `config.py`, `settle_guard.ts`, and `rules/roles/{executor,reviewer}.yaml`;
+  test updated. `max_turns` stays 80.
+- Pending: mapping is at the max_turns edge. Decide whether errored/retried messages should count toward `max_turns`,
+  or raise it for mapping only.
+
+## I-36 /runs node detail agent table: role broke mid-word, columns squeezed
+- What: role names wrapped as "execut/or"; the tools and writable columns were squeezed while readable took most of the width.
+- Cause: `overflow-wrap: anywhere` on every cell, auto table layout, and globs joined into one long string.
+- Fix: fixed table layout with column widths (agent 11 %, model 17 %, tools 16 %, rules 14 %, writable and readable
+  21 % each), min-width 760 px with horizontal scroll. Name and role on separate no-break lines. Read/write globs
+  rendered as a list that wraps per path. CSS only; no test.
+
+## I-37 Agent table model column showed "默认模型 / 思考 默认"
+- Fix: `_node_card` resolves the saved default model and its profile's thinking level (`model_source` default|agent).
+  The cell shows e.g. "opencode-go/deepseek-v4.1-flash（默认） · 思考 high", or "未选择模型" when none is saved.
+  Tests: `test_card_shows_resolved_default_model`, `lib/agent-card.test.ts`.
+
+## I-38 /results status line showed English "completed"
+- Fix: `runLine` uses the shared `label()` map (完成 / 运行中 / 失败 …). Test in `result-kind.test.ts`.
+
+## I-39 /results tab bar wrapped "上一版" to a second line
+- Cause: `.results-kind-tabs` was a fixed 3-column grid, so a 4th tab (上一版) wrapped.
+- Fix: column auto-flow, `minmax(max-content, 1fr)`, `white-space: nowrap`, `overflow-x: auto`. CSS only.
