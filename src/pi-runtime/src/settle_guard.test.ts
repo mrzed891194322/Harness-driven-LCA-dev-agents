@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SettleGuard, settlePolicyOf } from "./settle_guard.js";
 
-const policy = { submit_file: "/x/submit.json", max_nudges: 2, max_turns: 3, timeout_min: 45 };
+const policy = { submit_file: "/x/submit.json", max_nudges: 2, max_turns: 3, timeout_min: 45, max_rejections: 5 };
 
 test("nudges up to max_nudges then lets it settle without submit", () => {
   const g = new SettleGuard(policy, () => false);
