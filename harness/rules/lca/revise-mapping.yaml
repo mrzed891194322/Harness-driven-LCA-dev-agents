@@ -3,5 +3,5 @@ description: revise-lca 映射修订节点
 enabled: true
 order: 320
 prompt: |
-  读取本轮已审 `bom/`、`revise_plan.md` 及 `previous/mapping/`（mapping.json 与 LCI/），提交完整新 `mapping/mapping.json` 和完整 `mapping/LCI/`，不得只提交差分文件。
+  读取本轮已审 BOM（`<inputs>` 中最新版）、`revise_plan.md` 及上一版映射（`<inputs>` 中的 mapping JSON 与 LCI 目录），提交完整新版 mapping JSON 和完整新版 LCI 目录（带 `.rev<N>` 后缀），不得只提交差分文件。
   受修订影响的背景实体重新经正式工具核查；仍适用的前景实体保持 UUID，新建前景实体按映射规则生成。定稿后重新做 Provider 验证。本节点禁止导入。

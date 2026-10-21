@@ -1,6 +1,7 @@
 id: revise-lca
 title: 修订 LCA
-# Revises the last completed full-lca (or revise-lca) run: its artifacts are moved to artifacts/previous/ at start.
+# Revises the latest artifacts in place (I-45): originals stay untouched; each node writes <name>.rev<N>.<ext>
+# next to them (N = 1 + highest existing rev) and reads the latest version of every input.
 revise_of: full-lca
 plan_file: revise_plan.md
 nodes: [lca-bom-revise, lca-mapping-revise, lca-report-revise]

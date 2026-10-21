@@ -95,8 +95,8 @@ def _list_deliverable_artifacts(root: Path) -> list[dict[str, Any]]:
                 "path": f"workspace/artifacts/{rel}",
                 "size": path.stat().st_size,
                 "count": 1,
-                # Revise runs keep the base run's deliverables under artifacts/previous/.
-                "category": "previous" if rel.startswith("previous/") else "deliverable",
+                # revise-lca rev files (<name>.rev<N>.<ext>) list next to the originals (I-45).
+                "category": "deliverable",
             }
         )
     return items

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from backend.v5 import layout
+from backend.v5 import layout, revisions
 from backend.v5.access import produce_dir
 from backend.v5.checks import produce_errors, requires_errors
 from backend.v5.config import Node, Spec, Workflow, load_spec
@@ -94,37 +94,27 @@ class Runner:
         self.stop_requested = stop_requested
         self.specs = {p.spec: load_spec(root, p.spec) for n in nodes for p in n.produces}
         self.run_id = ""
+        self.revs: dict[str, int] = {}  # revise-lca: {produce path: N} (runs/_run/revisions.json)
 
     # ---------- workspace ----------
-    def _snapshot_previous(self) -> None:
-        """Revise mode: move the earlier run's artifacts to artifacts/previous/ (plan stays in place).
-
-        The base is replaced only after a completed run (full-lca or a completed revise). After a failed or
-        stopped revise, the existing previous/ is the base again and the half-revised artifacts are dropped.
-        """
-        prev_dir = self.art / "previous"
-        manifest = self.run_dir / "manifest.json"
-        last = json.loads(manifest.read_text(encoding="utf-8")) if manifest.is_file() else {}
-        keep_base = prev_dir.is_dir() and not (last.get("status") == "completed")
-        if not keep_base:
-            shutil.rmtree(prev_dir, ignore_errors=True)
-            if self.art.is_dir():
-                movable = [i for i in self.art.iterdir() if i.name not in ("plan", "previous", "README.md")]
-                if movable:
-                    prev_dir.mkdir(parents=True, exist_ok=True)
-                    for item in movable:
-                        shutil.move(str(item), str(prev_dir / item.name))
-        self.events.emit("previous_snapshot", kept_existing=keep_base, base_workflow=last.get("workflow"),
-                         base_status=last.get("status"), base_run=last.get("run_id"))
+    def _drop_unfinished_revisions(self) -> None:
+        """Before a fresh revise: delete the rev files of nodes that did not pass in the last revise run,
+        so "latest" never points at a half-written revision. Passed revisions stay."""
+        old = revisions.load(self.run_dir)
+        for node in self.nodes:
+            n = revisions.node_rev(node, old)
+            if n and self.node_status(node).get("status") != "passed":
+                revisions.clear(self.art, node, n)
+                self.events.emit("revision_dropped", node=node.id, revision=n)
 
     def prepare_fresh(self, plans: dict[str, str]) -> None:
         """Clear the workspace (keep the lock file), then write the plan files.
 
-        Revise workflows keep artifacts/plan/ and artifacts/previous/ (see ``_snapshot_previous``).
+        Revise workflows (I-45) keep every artifact untouched and allocate the revision numbers here.
         """
         revise = bool(self.workflow.revise_of)
         if revise:
-            self._snapshot_previous()
+            self._drop_unfinished_revisions()
         for child in ("artifacts", "runs", "tmp"):
             target = self.ws / child
             if not target.exists():
@@ -132,8 +122,8 @@ class Runner:
             for item in target.iterdir():
                 if item.name == "README.md":  # tracked placeholder
                     continue
-                if revise and child == "artifacts" and item.name in ("plan", "previous"):
-                    continue
+                if revise and child == "artifacts":
+                    continue  # originals and earlier revs stay; the node writes <name>.rev<N>.<ext>
                 if item == self.run_dir:
                     for sub in item.iterdir():
                         if sub.name != "orchestrator.lock":
@@ -142,12 +132,19 @@ class Runner:
                 shutil.rmtree(item) if item.is_dir() and not item.is_symlink() else item.unlink()
         plan_dir = self.art / "plan"
         plan_dir.mkdir(parents=True, exist_ok=True)
+        if revise:
+            self.revs = revisions.allocate(self.art, self.nodes)
+            revisions.save(self.run_dir, self.revs)
+            self.events.emit("revisions_allocated", revisions=self.revs)
         for name, text in plans.items():
             (plan_dir / name).write_text(text, encoding="utf-8")
         self.events.emit("plan_written", files=sorted(plans), bytes={k: len(v.encode()) for k, v in plans.items()})
 
     def _clear_node(self, node: Node) -> None:
         shutil.rmtree(layout.node_dir(self.ws, node.id), ignore_errors=True)
+        if node.revision:
+            revisions.clear(self.art, node, node.revision)  # only this run's rev N; originals untouched
+            return
         for prod in node.produces:
             shutil.rmtree(self.art / produce_dir(prod.path), ignore_errors=True)
 
@@ -199,10 +196,16 @@ class Runner:
                 old = self.run_dir / "manifest.json"
                 prev = json.loads(old.read_text(encoding="utf-8")) if old.is_file() else {}
                 self.run_id = prev.get("run_id") or uuid.uuid4().hex
+                if self.workflow.revise_of:
+                    self.revs = revisions.load(self.run_dir)  # resume reuses the same N
+                    if not self.revs:
+                        self.revs = revisions.allocate(self.art, self.nodes)
+                        revisions.save(self.run_dir, self.revs)
             self.events.emit("lock_acquired", path=str(lock_path))
             self.events.emit("run_start", run_id=self.run_id, workflow=self.workflow.id,
                              nodes=[n.id for n in self.nodes], resume=resume)
-            self._manifest(status="running", status_reason="", started_at=time.time())
+            self._manifest(status="running", status_reason="", started_at=time.time(),
+                           **({"revisions": self.revs} if self.revs else {}))
             pre = getattr(self.driver, "preflight", None)
             # Every distinct model actually configured: default + per-agent overrides (GUI or YAML).
             agent_models = sorted({a.model for n in self.nodes for a in n.agents.values() if a.model})
@@ -249,6 +252,11 @@ class Runner:
         return path
 
     def _run_node(self, node: Node, *, resume: bool) -> None:
+        if self.revs:
+            # rev'd produces + latest inputs; resolved at node start so earlier nodes' new revs are seen
+            node = revisions.effective(self.art, node, self.revs)
+            self.events.emit("node_paths", node=node.id, revision=node.revision, requires=node.requires,
+                             produces=[p.path for p in node.produces])
         prev = self.node_status(node)
         if resume and prev.get("status") == "passed":
             self.events.emit("node_skip", node=node.id, reason="already passed")

@@ -1,4 +1,4 @@
-"""v5 results view: per-node verdicts and the previous/ group (temp dirs only)."""
+"""v5 results view: per-node verdicts and revise rev files listed next to originals (temp dirs only)."""
 
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ def _w(path: Path, data) -> None:
     path.write_text(json.dumps(data) if not isinstance(data, str) else data, encoding="utf-8")
 
 
-def test_node_verdicts_and_previous_group(tmp_path: Path) -> None:
+def test_node_verdicts_and_rev_files(tmp_path: Path) -> None:
     runs = tmp_path / "workspace/runs"
     _w(runs / "_run/manifest.json", {"status": "running", "current_node": "b",
                                      "nodes": [{"id": "b"}, {"id": "a"}]})
@@ -24,7 +24,7 @@ def test_node_verdicts_and_previous_group(tmp_path: Path) -> None:
     _w(runs / "b/executor/submit_round_1.json", {"role": "executor", "status": "ok"})
     _w(tmp_path / "workspace/artifacts/report/report.md", "# r")
     _w(tmp_path / "workspace/artifacts/plan/main_plan.md", "# plan")
-    _w(tmp_path / "workspace/artifacts/previous/report/report.md", "# old")
+    _w(tmp_path / "workspace/artifacts/report/report.rev1.md", "# rev1")
 
     out = Results(tmp_path).results()
 
@@ -41,7 +41,7 @@ def test_node_verdicts_and_previous_group(tmp_path: Path) -> None:
     assert out["handoffs"][3]["node_status"] == "passed"
     assert out["handoffs"][0]["name"] == "runs/b/executor/submit_round_1.json"
     cats = {a["path"]: a.get("category") for a in out["artifacts"]}
-    assert cats["workspace/artifacts/previous/report/report.md"] == "previous"
+    assert cats["workspace/artifacts/report/report.rev1.md"] == "deliverable"
     assert cats["workspace/artifacts/report/report.md"] == "deliverable"
     assert "workspace/artifacts/plan/main_plan.md" not in cats
     # Every verdict row is readable through the file endpoint path rules.

@@ -84,6 +84,7 @@ class Node(_Strict):
     agents: dict[str, Agent]
     flow: Flow
     accept: list[str] = Field(default_factory=list)  # spec ids whose checks gate the reviewer
+    revision: int = 0  # host-set (revise-lca, I-45): this node writes <name>.rev<N>.<ext>; never in YAML
 
     @model_validator(mode="after")
     def _validate(self) -> Node:
@@ -136,7 +137,7 @@ class Workflow(_Strict):
     nodes: list[str]
     # Plan file the GUI/API writes under artifacts/plan/ (revise workflows use revise_plan.md).
     plan_file: str = "main_plan.md"
-    # Revise mode: a fresh run keeps the earlier run's artifacts under artifacts/previous/ instead of deleting them.
+    # Revise mode (I-45): a fresh run keeps all artifacts; each node writes <name>.rev<N>.<ext> next to the originals.
     revise_of: str | None = None
 
     @field_validator("nodes")
@@ -249,6 +250,8 @@ def load_node(root: Path, node_id: str) -> Node:
     if data["id"] != node_id:
         raise ConfigError(f"{path}: id {data['id']!r} != file name {node_id!r}")
     try:
+        if isinstance(data, dict) and "revision" in data:
+            raise ConfigError(f"{path}: revision is host-set (revise-lca), not a YAML key")
         node = Node.model_validate(data)
     except ValueError as exc:
         raise ConfigError(f"{path}: {exc}") from exc

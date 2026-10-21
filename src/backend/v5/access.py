@@ -2,7 +2,8 @@
 
 Host locks (cannot be changed by any configuration):
   1. the plan (workspace/artifacts/plan/**) is always readable and never writable;
-  2. writes only to the node's own runs dir and the artifacts subdirs of its ``produces``;
+  2. writes only to the node's own runs dir and the artifacts subdirs of its ``produces``
+     (revise-lca: existing originals / other revs there are write-denied, I-45);
   3. openLCA writes only inside ``OPENLCA_PROJECT_CATEGORY`` (enforced in control_openlca).
 
 The result feeds pi-runtime's PathGuard (tool_call interception) as glob lists; nothing here
@@ -47,8 +48,8 @@ def merge_toggles(*layers: Access) -> dict[str, bool]:
     return toggles
 
 
-def compute_scope(root: Path, node: Node, role: str, role_access: Access) -> Scope:
-    ws = root / layout.WORKSPACE
+def compute_scope(root: Path, node: Node, role: str, role_access: Access, workspace: Path | None = None) -> Scope:
+    ws = workspace or (root / layout.WORKSPACE)
     art = ws / "artifacts"
     agent = node.agents[role]
     toggles = merge_toggles(role_access, agent.access)
@@ -78,4 +79,13 @@ def compute_scope(root: Path, node: Node, role: str, role_access: Access) -> Sco
         # reviewer writes only its notes dir inside the node runs dir
         write.add(str(layout.node_dir(ws, node.id) / "reviewer") + "/**")
     denied = [str(art / "plan") + "/**"]  # lock 1 beats everything
+    if node.revision:
+        # revise-lca (I-45): originals and other revs in the produce dirs are write-denied; only rev N is writable
+        from backend.v5.revisions import split
+
+        for d in sorted({produce_dir(p.path) for p in node.produces}):
+            parent = art / d
+            for item in sorted(parent.iterdir()) if parent.is_dir() else []:
+                if split(item.name)[1] != node.revision:
+                    denied.append(str(item) + ("/**" if item.is_dir() else ""))
     return Scope(sorted(read), sorted(write), denied, toggles)

@@ -4,5 +4,5 @@ enabled: true
 order: 330
 prompt: |
   按 lca-report 规格完整执行导入、计算并覆盖提交完整新报告；不复用上一轮的 raw 结果或检查状态。
-  在报告第 7 节之后追加修订三节（格式见 `harness/tools/shared/lca_artifacts/templates/revision-report-sections.md`）：§8 本轮修订摘要、§9 用户意见落实矩阵（覆盖 `revise_plan.md` 每条可执行意见，`REV-*` 指向 BOM item_id、mapping 行或证据）、§10 与上一轮结果的差异（数值回链 `previous/report/raw/` 与本轮 raw；先核对功能单位、范围、方法是否可比，不可比时说明原因）。
+  在报告第 7 节之后追加修订三节（格式见 `harness/tools/shared/lca_artifacts/templates/revision-report-sections.md`）：§8 本轮修订摘要、§9 用户意见落实矩阵（覆盖 `revise_plan.md` 每条可执行意见，`REV-*` 指向 BOM item_id、mapping 行或证据）、§10 与上一轮结果的差异（数值回链上一版报告同目录的 raw（`<inputs>` 中报告的同版本 `raw`/`raw.rev<K>/`）与本轮 raw；先核对功能单位、范围、方法是否可比，不可比时说明原因）。
   openLCA 写入仍只在项目类别内；不手改 raw。

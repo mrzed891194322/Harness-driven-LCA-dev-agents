@@ -106,7 +106,7 @@ class PiDriver:
         role_dir = node_dir / req.role
         submit_file = role_dir / "submit.json"  # stable path: a live session keeps its MCP env
         _prompt, role_access = load_role(self.root, req.role)
-        scope = compute_scope(self.root, req.node, req.role, role_access)
+        scope = compute_scope(self.root, req.node, req.role, role_access, workspace=ws)
         # compute_scope uses root/workspace; remap if the runner uses another workspace
         default_ws = str(self.root / layout.WORKSPACE)
         remap = (lambda g: g.replace(default_ws, str(ws), 1)) if str(ws) != default_ws else (lambda g: g)

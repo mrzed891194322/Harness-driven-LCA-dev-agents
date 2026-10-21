@@ -55,7 +55,7 @@ description: |
   ```
 
   - `results` 每项对应一次计算，(`case`, `scenario`, `product_system`) 唯一；数值只来自对应 raw。
-  - 修订运行与上一轮比较时，按 (`case`, `scenario`, 影响类别) 对齐 `previous/report/results.json` 与本轮 `results.json`；需要的额外字段只能新增，不能改名或改层级。
+  - 修订运行与上一轮比较时，按 (`case`, `scenario`, 影响类别) 对齐上一版 `results(.rev<K>).json` 与本轮 `results.rev<N>.json`；需要的额外字段只能新增，不能改名或改层级。
 
   ## 交付物（本节点产出目录 `workspace/artifacts/report/`）
 

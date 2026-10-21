@@ -99,6 +99,6 @@
   YAML errors report `file:line:col`. `produces[].spec` defaults to the executor role's `deliver.spec`.
   New demo workflow `demo-missing-input` (requires preflight error in the GUI). Workspace clear keeps tracked README.md.
 
-- R1 (done): `revise-lca` — workflow `revise_of`/`plan_file`, `artifacts/previous/` snapshot, nodes
+- R1 (done): `revise-lca` — workflow `revise_of`/`plan_file`, `artifacts/previous/` snapshot (replaced by `.rev<N>` files in I-45), nodes
   `lca-bom-revise` (清单修订), `lca-mapping-revise` (映射修订), `lca-report-revise` (报告修订), rules
   `rules/lca/revise*.yaml`, GUI start uses the saved revise plan. Details and open points: ISSUES.md I-16.

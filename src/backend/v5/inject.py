@@ -84,12 +84,18 @@ class Injector:
             target = art / req
             kind = "目录" if target.is_dir() else "文件"
             count = f"，{sum(1 for p in target.rglob('*') if p.is_file())} 个文件" if target.is_dir() else ""
-            inputs.append(f"- `{target}`（{kind}{count}，上游产物，只读）")
+            note = "，最新版本" if node.revision and ".rev" in req else ""
+            inputs.append(f"- `{target}`（{kind}{count}{note}，上游产物，只读）")
         out.append(_section("inputs", "\n".join(inputs) or "（本节点没有上游产物）"))
         runs = layout.node_dir(self.ws, node.id)
         for prod in node.produces:
             spec = specs[prod.spec]
             body = [f"交付路径：`{art / prod.path}`", spec.prompt.strip()]
+            if node.revision:
+                n = node.revision
+                body.insert(1, f"本次是第 {n} 版修订：原文件和更早版本保持不动（只读）。本节点在产出目录写的每个文件/目录都在扩展名前加 "
+                               f"`.rev{n}`（如 `bom.rev{n}.md`、`LCI.rev{n}/`、`results.rev{n}.json`、`raw.rev{n}/`），"
+                               f"规格里写的无后缀文件名都按此改名；文件内互相引用的路径也用改名后的。")
             summary = schema_summary(spec.schema_)
             if summary:
                 body.append(f"结构摘要（完整 schema：`harness/specs/{spec.id}.yaml` 的 schema）：\n{summary}")

@@ -136,10 +136,6 @@ export function ArtifactsBrowser({
       artifacts.filter((item) => resultKind(item.path, item.category) === "final"),
     [artifacts],
   );
-  const previous = useMemo(
-    () => artifacts.filter((item) => resultKind(item.path, item.category) === "previous"),
-    [artifacts],
-  );
   const visibleIntermediate = intermediate.slice(0, MAX_ARTIFACT_ROWS);
   const omittedIntermediate = Math.max(0, intermediate.length - visibleIntermediate.length);
 
@@ -152,7 +148,7 @@ export function ArtifactsBrowser({
     <div className="results-columns">
       <div className="results-side">
         <div className="results-kind-tabs" role="tablist" aria-label="结果分类">
-          {(Object.keys(KIND_LABEL) as ResultKind[]).filter((item) => item !== "previous").map((item) => (
+          {(Object.keys(KIND_LABEL) as ResultKind[]).map((item) => (
             <button
               key={item}
               type="button"
@@ -222,13 +218,6 @@ export function ArtifactsBrowser({
               </>
             ) : (
               <p className="settings-help">还没有中间产物。这里列出 flow、process、product system 和计算调用记录。</p>
-            )
-          ) : null}
-          {kind === "previous" ? (
-            previous.length ? (
-              <FileList items={previous} selected={selected} formatSize={formatSize} onOpen={onOpen} />
-            ) : (
-              <p className="settings-help">没有上一版产出。修订运行会把基准产出放在 artifacts/previous/。</p>
             )
           ) : null}
           {kind === "final" ? (

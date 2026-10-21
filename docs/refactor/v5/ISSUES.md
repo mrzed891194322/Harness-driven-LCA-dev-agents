@@ -135,7 +135,7 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
   starts, so a revise node could not read and rewrite the same `bom/`, `mapping/`, `report/` paths.
 - Fix taken:
   - Workflow fields `revise_of` and `plan_file`. A fresh `revise-lca` run moves the earlier artifacts to
-    `artifacts/previous/` (event `previous_snapshot`), keeps `artifacts/plan/` (original `main_plan.md`) and writes
+    `artifacts/previous/` (event `previous_snapshot`; superseded by I-45 `.rev<N>` files), keeps `artifacts/plan/` (original `main_plan.md`) and writes
     `revise_plan.md`. Revise nodes produce the normal paths with the unchanged `lca-bom`/`lca-mapping`/`lca-report`
     specs and require `previous/<dir>`; `previous/` is read-only (only `requires` grants read).
   - Base rule: the base is replaced only after a completed run (full-lca or revise-lca). After a failed/stopped
@@ -579,13 +579,26 @@ Done now:
   modal using the settings modal's `settings-dialog` frame and CSS (系统提示 / 用户消息 on the left; the prompt scrolls
   inside, max-height 60vh). Data: `/api/v5/preview`. testids `preview-agent-<node>.<role>`, `prompt-modal`, `prompt-modal-close`.
 
-To implement LATER (after the frontend review, not now) — revise-lca redesign:
-- Stop moving artifacts to `artifacts/previous/`; the original files stay untouched.
-- A revision writes new files next to the originals with a suffix before the extension: `<name>.rev<N>.<ext>`
-  (e.g. `bom.rev1.json`, `lca_report.rev2.md`), N = 1 + the highest existing rev of that file (original = rev 0).
-- Revision N reads the latest version of each input (highest rev, else the original).
-- /results 上一版 tab removed for good (already hidden in I-44).
-- Touches: runner revise setup, inject inputs/deliverable paths, produces/checks/spec paths, submit tool, results listing, tests.
+revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFACTS.md`):
+- No more `artifacts/previous/` (event `previous_snapshot` and `_snapshot_previous` removed); a fresh revise keeps every
+  artifact untouched and clears only `runs/` and `tmp/`.
+- A revision writes `<name>.rev<N>.<ext>` next to the original (dirs: `LCI.rev<N>/`, `raw.rev<N>/`); N = 1 + highest
+  existing rev of each produce entry (original = rev 0), companions in the dir share N. Saved in
+  `runs/_run/revisions.json` + manifest `revisions`; resume reuses the same N (rev-N entries of the resumed node are
+  cleared and rewritten). A fresh revise first drops rev-N entries of nodes that did not pass in the last revise run.
+- `requires` resolve at node start to the latest version (highest rev, else original); inside the node's own produce dir,
+  the latest below its N. Node YAMLs no longer require `previous/<dir>`: bom-revise `bom/bom.json`; mapping-revise
+  `mapping/mapping.json`, `mapping/LCI`; report-revise `report/lca_report.md`.
+- produces/checks/schema/submit tool/`<deliverable_*>` use the rev'd produce path (node copy with `revision=N`);
+  `<deliverable_*>` states the renaming rule for companions. Write guard: existing originals/other revs in the produce
+  dirs go to `denied_write_globs`. `revision:` in node YAML is a config error.
+- Rules `revise*.yaml` and `lca-report` spec text no longer mention `previous/`.
+- /results: all artifacts are `deliverable`; `previous` category, 上一版 tab code and its empty-state text removed
+  (rev files list with the originals under 最终交付, 599ed0a style).
+- Tests (temp dirs): `src/tests/t_v5/test_revise.py` (names/latest, N allocation rev1→rev2, latest-read per node,
+  resume reuses N and does not read its own half rev, drop of unfinished rev, originals byte-identical, scope deny,
+  YAML guard), `test_results.py`, `lib/result-kind.test.ts`.
+- Note: openLCA side unchanged (report-revise still imports/calculates in the project category).
 
 ## I-46 模拟操作员 review of serve 9dbb7cf (screenshots .local/ui-op/v5/cmp/) — CSS fixes
 - /harness: detail pane fills the width (the old `.tutorial-body .harness-doc { max-width: 52rem }` reading width is lifted

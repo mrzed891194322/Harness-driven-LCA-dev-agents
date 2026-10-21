@@ -9,6 +9,8 @@
 
 ## revise-lca
 
-`revise_of: full-lca`, `plan_file: revise_plan.md`. A fresh run moves the last completed run's artifacts to
-`artifacts/previous/` (read-only via `requires`), keeps `artifacts/plan/main_plan.md`, writes `revise_plan.md`, then runs
-清单修订 → 映射修订 → 报告修订 into the normal `bom/`, `mapping/`, `report/` paths. See `docs/refactor/v5/ISSUES.md` I-16.
+`revise_of: full-lca`, `plan_file: revise_plan.md`. A fresh run keeps every artifact untouched, keeps
+`artifacts/plan/main_plan.md`, writes `revise_plan.md`, then runs 清单修订 → 映射修订 → 报告修订. Each node writes revision
+files next to the originals: `<name>.rev<N>.<ext>` (`bom/bom.rev1.json`, `mapping/LCI.rev1/`, `report/raw.rev1/`), N = 1 +
+the highest existing rev of that produce entry, saved in `runs/_run/revisions.json` (a resume reuses it). `requires`
+resolve to the latest version (highest rev, else original). See `docs/refactor/v5/ARTIFACTS.md` and ISSUES I-45.

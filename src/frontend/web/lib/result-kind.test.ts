@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resultKind } from "./result-kind.ts";
 
-test("previous/ deliverables stay under 最终交付 (no 上一版 tab)", () => {
-  assert.equal(resultKind("workspace/artifacts/previous/report/report.md", "previous"), "final");
-  assert.equal(resultKind("workspace/artifacts/previous/bom/bom.json"), "final");
+test("revise rev files list under 最终交付 next to originals (no 上一版 tab)", () => {
+  assert.equal(resultKind("workspace/artifacts/bom/bom.rev1.json", "deliverable"), "final");
+  assert.equal(resultKind("workspace/artifacts/report/lca_report.rev2.md"), "final");
   assert.equal(resultKind("workspace/artifacts/report/report.md", "deliverable"), "final");
   assert.equal(resultKind("workspace/runs/lca-bom/status.json"), "intermediate");
 });
