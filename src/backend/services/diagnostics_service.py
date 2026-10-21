@@ -14,9 +14,7 @@ from backend.services.credentials_service import (
     credentials_status_bool,
 )
 from backend.services.diagnostics import openlca_check
-from backend.services.local_workflows import sync_all, workflow_status
 from backend.services.project_paths import PROJECT_ROOT
-from backend.services.spec_service import specs_health
 from backend.settings import (
     DEFAULT_OPENLCA_IPC_PORT,
     OPENLCA_IPC_PORT_KEY,
@@ -97,8 +95,6 @@ def environment_report(project_root: Path | None = None) -> dict:
     credentials = credentials_status_bool(root)
     model = _model_status(root, selected, credentials)
     olca = openlca_status(root)
-    sync_all(root)
-    workflows = workflow_status(root)
     return {
         "node": {"ok": bool(node_ok), "message": node_msg},
         "pi_agents": {"ok": bool(pi_ok), "message": pi_msg},
@@ -117,8 +113,6 @@ def environment_report(project_root: Path | None = None) -> dict:
         "credentials": credentials,
         "available_providers": available_providers(root),
         "model": model,
-        "harness_specs": specs_health(root),
-        "local_workflows": workflows,
     }
 
 

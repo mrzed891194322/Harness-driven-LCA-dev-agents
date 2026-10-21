@@ -36,7 +36,6 @@ def _run(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[s
 @pytest.mark.parametrize(
     "script",
     [
-        "src/scripts/workflow.py",
         "src/scripts/clean.py",
         "src/scripts/check_status.py",
     ],

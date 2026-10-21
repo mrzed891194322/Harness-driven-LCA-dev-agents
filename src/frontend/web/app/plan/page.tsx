@@ -1,16 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
-import { PreviewBoard } from "../../components/plan/preview-board";
+import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Trash2, Upload } from "lucide-react";
 import type { PlanFields } from "../../components/plan/plan-fields";
 import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
-import {
-  fetchWorkflowList,
-  workflowNameForMode,
-  type WorkflowListItem,
-} from "../../lib/workflow-manifest";
-import { WorkflowBoard } from "../../components/plan/workflow-board";
 import { apiFetch } from "../../lib/api";
 import { reviseWorkLocked } from "../../lib/revise-lock";
 
@@ -32,17 +25,20 @@ const emptyFields: PlanFields = {
   conditions: "",
 };
 
-type Panel = "fields" | "references" | "workflow" | "preview";
+type Panel = "fields" | "references";
 
 const panels: { id: Panel; label: string }[] = [
   { id: "fields", label: "用户填写" },
   { id: "references", label: "参考资料" },
-  { id: "workflow", label: "工作流编排" },
-  { id: "preview", label: "预览执行" },
 ];
 
+// Plan file alias per work mode (the backend maps it to a fixed plan path).
+function planWorkflow(mode: "new" | "revise"): string {
+  return mode === "revise" ? "LCA-revise" : "LCA-main";
+}
+
 function PanelIcon({ id }: { id: Panel }) {
-  const Icon = id === "fields" ? PenLine : id === "references" ? FileText : id === "workflow" ? Workflow : Play;
+  const Icon = id === "fields" ? PenLine : FileText;
   return <Icon className="launch-icon" aria-hidden="true" />;
 }
 
@@ -163,7 +159,6 @@ export default function PlanPage() {
   const [panel, setPanel] = useState<Panel>("fields");
   const [formToken, setFormToken] = useState(0);
   const [work, setWork] = useState<StudyWork>(() => emptyStudyWork());
-  const [workflowList, setWorkflowList] = useState<WorkflowListItem[]>([]);
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -175,21 +170,14 @@ export default function PlanPage() {
   // the form and importing must never rewrite the plan file (a stale tab rewrote it).
   const dirty = useRef(false);
   const saveChain = useRef<Promise<void>>(Promise.resolve());
-  const workflowName = workflowNameForMode(workflowList, workMode);
+  const workflowName = planWorkflow(workMode);
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const noteDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    fetchWorkflowList()
-      .then((list) => setWorkflowList(list))
-      .catch(() => setWorkflowList([]));
-  }, []);
-
-  useEffect(() => {
-    const name = workflowNameForMode(workflowList, workMode);
-    if (!name) return;
+    const name = planWorkflow(workMode);
     apiFetch(`/api/plan?workflow=${encodeURIComponent(name)}`)
       .then(async (response) => {
         if (!response.ok) throw new Error(await errorMessage(response));
@@ -212,7 +200,7 @@ export default function PlanPage() {
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : "无法读取计划");
       });
-  }, [workMode, workflowList]);
+  }, [workMode]);
 
   // Autosave: persist field edits (incl. LCIA method) without executing. The
   // backend writes the plan file named by the workflow YAML `plan:`.
@@ -298,7 +286,7 @@ export default function PlanPage() {
     const body = new FormData();
     body.append("file", file);
     const query = new URLSearchParams({
-      workflow: workflowNameForMode(workflowList, workMode),
+      workflow: planWorkflow(workMode),
     });
     if (overwrite) query.set("overwrite", "true");
     try {
@@ -641,10 +629,6 @@ export default function PlanPage() {
                 </section>
               </div>
             </div>
-          ) : panel === "workflow" ? (
-            <WorkflowBoard mode={workMode} />
-          ) : panel === "preview" ? (
-            <PreviewBoard mode={workMode} work={work} references={references} />
           ) : null}
         </div>
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,14 +14,18 @@ from harness.tools.shared.control_openlca.connection import (
     _TimeoutHTTPAdapter,
     session_request_timeout,
 )
-from harness.tools.shared.control_openlca.diagnostics import capture_openlca_timeout_diagnostics
+from harness.tools.shared.control_openlca.diagnostics import (
+    capture_openlca_timeout_diagnostics,
+)
 from harness.tools.shared.control_openlca.guard import endpoint_uncertain_marker
 from harness.tools.shared.control_openlca.ipc_failure import (
     NON_RETRYABLE_KIND,
     on_ipc_transport_failure,
 )
 from harness.tools.shared.control_openlca.run_events import activity_log_path
-from harness.tools.shared.control_openlca.timeout_policy import resolve_http_read_timeout
+from harness.tools.shared.control_openlca.timeout_policy import (
+    resolve_http_read_timeout,
+)
 from tests.support.openlca_fakes import FakeClient
 
 

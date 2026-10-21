@@ -731,17 +731,6 @@ def test_mapping_checks_coverage_and_lci_semantics(context):
     assert not checks.validate(mapping_ctx, "mapping")["ok"]
 
 
-def test_raw_pointer_read_uses_checksum(context, monkeypatch):
-    from harness.tools.mcp.lca_artifacts import main
-
-    monkeypatch.setenv("LCA_WORKSPACE", str(context.workspace))
-    ref, _ = context.save_result("example", {"queries": [{"count": 31}]}, {})
-    result = main.read_artifact(
-        ref["path"], ref["sha256"], json_pointer="/queries/0/count"
-    )
-    assert result["items"] == [{"text": "31"}]
-    broken = main.read_artifact(ref["path"], "wrong", json_pointer="/queries/0/count")
-    assert broken["status"] == "failed"
 
 
 def test_request_deadline_reserves_disposal(context):

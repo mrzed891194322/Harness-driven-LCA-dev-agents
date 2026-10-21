@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import json
-import re
-from dataclasses import dataclass
 import os
+import re
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
-
-from backend.core.runtime.identifiers import require_relative_path
-from backend.core.workflow.config.loader import read_workflow_document
-from backend.services.local_workflows import effective_workflow_path
 
 PLAN_RELATIVE = Path("harness/knowledge/plan/main_plan.md")
 REVISE_PLAN_RELATIVE = Path("harness/knowledge/plan/revise_plan.md")
@@ -209,21 +205,9 @@ def _workflow_filename(workflow: str | None) -> str:
 
 
 def plan_relative_path(root: Path, *, workflow: str | None = None) -> Path:
-    workflow_file = _workflow_filename(workflow)
-    try:
-        workflow_path = effective_workflow_path(root, workflow_file)
-    except ValueError as exc:
-        raise PlanFormError(str(exc)) from exc
-    if not workflow_path.is_file():
-        return _FALLBACK_PLAN_BY_WORKFLOW_FILE.get(workflow_file, PLAN_RELATIVE)
-    try:
-        document = read_workflow_document(workflow_path, project_root=root)
-    except (OSError, ValueError) as exc:
-        raise PlanFormError(f"无法读取工作流：{workflow_file} ({exc})") from exc
-    relative = require_relative_path(
-        str(document.get("plan") or PLAN_RELATIVE.as_posix()), label="plan path"
-    )
-    return Path(relative)
+    """Fixed plan file per plan alias (v5 has no plan path in workflow YAML)."""
+    del root
+    return _FALLBACK_PLAN_BY_WORKFLOW_FILE.get(_workflow_filename(workflow), PLAN_RELATIVE)
 
 
 def plan_path(root: Path, *, workflow: str | None = None) -> Path:

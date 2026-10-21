@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from .providers.registry import WORKERS
+WORKERS = ("pi",)
 
 WhichFn = Callable[[str], str | None]
 

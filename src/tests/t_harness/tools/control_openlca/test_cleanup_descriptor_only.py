@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import olca_schema as o
-import pytest
 
 from harness.tools.shared.control_openlca import cleanup
 

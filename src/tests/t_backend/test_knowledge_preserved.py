@@ -8,7 +8,6 @@ from unittest.mock import patch
 
 import pytest
 
-from backend.services import executor_console
 from backend.services.plan_form import (
     PlanFormError,
     save_references,
@@ -21,10 +20,6 @@ def test_presets_never_include_knowledge():
     assert CLEAN_PRESETS == {"whole-lca": ["openlca", "workspace"], "revise-lca": ["openlca"]}
 
 
-def test_pre_run_clean_command_has_no_knowledge_target():
-    for task in ("whole-lca", "revise-lca"):
-        command = executor_console.clean_dir_command(preset=task)
-        assert "knowledge" not in command
 
 
 def test_write_text_atomic_creates_then_replaces(tmp_path: Path):

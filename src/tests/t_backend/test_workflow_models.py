@@ -1,18 +1,10 @@
 from __future__ import annotations
 
-import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
-from fastapi.testclient import TestClient
-
-from backend.api.app import app
-from backend.core.agents.assignment_models import model_for_assignment
 from backend.services.diagnostics_service import _model_status
-from tests.support.minimal_workflow import write_minimal_workflow
 
 
 class AssignmentModelTests(unittest.TestCase):
@@ -24,137 +16,7 @@ class AssignmentModelTests(unittest.TestCase):
 
             self.assertEqual(load_default_model(root), "")
 
-    def test_unknown_override_falls_back_to_run_model(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            local = root / ".local"
-            local.mkdir()
-            (local / "workflow-models.json").write_text(
-                json.dumps({"assignments": {"02-inventory-extraction.executor": "missing"}}),
-                encoding="utf-8",
-            )
-            (root / "src/backend/core/runtime").mkdir(parents=True)
-            (root / "src/backend/core/runtime/model_profiles.json").write_text(
-                json.dumps({"default": {"provider": "anthropic", "model_id": "claude-sonnet-4-5"}}),
-                encoding="utf-8",
-            )
-            self.assertEqual(
-                model_for_assignment(root, "02-inventory-extraction.executor", "default"),
-                "default",
-            )
 
-    def test_routes_keep_only_known_profiles(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "src/backend/core/runtime").mkdir(parents=True)
-            (root / "src/backend/core/runtime/model_profiles.json").write_text(
-                json.dumps(
-                    {
-                        "default": {
-                            "display_name": "项目默认",
-                            "provider": "anthropic",
-                            "model_id": "claude-sonnet-4-5",
-                        },
-                        "fast": {
-                            "display_name": "快速模型",
-                            "provider": "anthropic",
-                            "model_id": "claude-haiku-4-5",
-                        },
-                    }
-                ),
-                encoding="utf-8",
-            )
-            (root / ".env").write_text('PI_MODEL="fast"\n', encoding="utf-8")
-            (root / ".local").mkdir()
-            (root / ".local/workflow-models.json").write_text(
-                json.dumps({"default": "anthropic/claude-haiku-4-5", "assignments": {}}),
-                encoding="utf-8",
-            )
-            write_minimal_workflow(
-                root,
-                workflow_id="whole-lca",
-                filename="workflows/LCA-main.yaml",
-                stage_id="s1",
-            )
-
-            def catalog(_root: Path, provider: str) -> dict:
-                if provider == "anthropic":
-                    return {
-                        "ok": True,
-                        "models": [
-                            {"id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5"},
-                            {"id": "claude-haiku-4-5", "name": "Claude Haiku 4.5"},
-                        ],
-                    }
-                return {"ok": False, "models": [], "message": "无法连接端点"}
-
-            local_wf = root / ".local" / "harness" / "workflows"
-            local_wf.mkdir(parents=True, exist_ok=True)
-            with (
-                patch("backend.api.app.PROJECT_ROOT", root),
-                patch.dict(
-                    os.environ,
-                    {"LCA_LOCAL_WORKFLOWS_DIR": str(local_wf)},
-                ),
-                patch(
-                    "backend.api.app.available_providers",
-                    return_value=[{"id": "anthropic", "name": "Anthropic", "auth": "api_key"}],
-                ),
-                patch("backend.api.app._provider_catalog", side_effect=catalog),
-            ):
-                client = TestClient(app)
-                listed = client.get("/api/workflow/models")
-                self.assertEqual(listed.status_code, 200)
-                body = listed.json()
-                self.assertEqual(body["default"], "anthropic/claude-haiku-4-5")
-                self.assertEqual(body["default_ref"], "anthropic/claude-haiku-4-5")
-                self.assertEqual((root / ".env").read_text(encoding="utf-8"), 'PI_MODEL="fast"\n')
-                self.assertEqual(
-                    {item["id"] for item in body["models"]},
-                    {"anthropic/claude-sonnet-4-5", "anthropic/claude-haiku-4-5"},
-                )
-                self.assertNotIn("项目默认", {item["label"] for item in body["models"]})
-
-                selected = client.post(
-                    "/api/models/selection",
-                    json={"profile_id": "anthropic/claude-sonnet-4-5"},
-                )
-                self.assertEqual(selected.status_code, 200)
-                self.assertEqual(selected.json()["profile_id"], "anthropic/claude-sonnet-4-5")
-                stored = json.loads((root / ".local/workflow-models.json").read_text(encoding="utf-8"))
-                self.assertEqual(stored["default"], "anthropic/claude-sonnet-4-5")
-                self.assertEqual((root / ".env").read_text(encoding="utf-8"), 'PI_MODEL="fast"\n')
-
-                cleared = client.post("/api/models/selection", json={"profile_id": ""})
-                self.assertEqual(cleared.status_code, 200)
-                self.assertEqual(cleared.json()["profile_id"], "")
-
-                saved = client.put(
-                    "/api/workflow/models",
-                    json={
-                        "assignments": {
-                            "02-inventory-extraction.executor": "anthropic/claude-sonnet-4-5",
-                            "ignored": "",
-                        }
-                    },
-                )
-                self.assertEqual(saved.status_code, 200)
-                self.assertEqual(
-                    saved.json()["assignments"],
-                    {"02-inventory-extraction.executor": "anthropic/claude-sonnet-4-5"},
-                )
-                self.assertEqual(
-                    model_for_assignment(root, "02-inventory-extraction.executor", "fast"),
-                    "anthropic/claude-sonnet-4-5",
-                )
-                kept = json.loads((root / ".local/workflow-models.json").read_text(encoding="utf-8"))
-                self.assertEqual(kept["default"], "")
-
-                rejected = client.put(
-                    "/api/workflow/models",
-                    json={"assignments": {"02-inventory-extraction.executor": "nope"}},
-                )
-                self.assertEqual(rejected.status_code, 400)
 
     def test_provider_model_ref_uses_that_providers_credential(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -28,8 +28,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-from backend.core.agents.session import SessionError
-from backend.core.agents.turn_transport import WorkerTransportError
+from backend.core.agents.errors import SessionError, WorkerTransportError
 
 from .env import runtime_env
 

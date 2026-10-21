@@ -436,7 +436,7 @@ def normalize_harness_agent(value: object) -> str:
     """Return a supported harness worker name, defaulting to Pi."""
     # Lazy import: backend.core imports backend.settings, so a module-level
     # import here would form a backend.core -> backend.settings -> backend.core cycle.
-    from backend.core.agents.providers.registry import WORKERS as HARNESS_AGENTS
+    from backend.core.agents.inspect import WORKERS as HARNESS_AGENTS
 
     agent = str(value or "").strip().lower()
     if agent in HARNESS_AGENTS:

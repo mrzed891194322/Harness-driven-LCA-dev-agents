@@ -8,18 +8,10 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from backend.api.app import app
-from backend.core.runtime.knowledge_providers.local_files import discover_files_at
 from backend.services.plan_form import (
     PlanFields,
-    PlanFormError,
-    decode_plan_upload,
-    delete_reference,
-    list_references,
     parse_plan,
     render_plan,
-    save_plan,
-    save_reference,
-    save_reference_note,
     template_markdown,
 )
 
@@ -77,72 +69,6 @@ class PlanFormParseTests(unittest.TestCase):
         fields = parse_plan("# 随便写的计划\n\n只要比较两个情景。\n")
         self.assertEqual(fields.subject, "")
         self.assertIn("只要比较两个情景", fields.conditions)
-
-
-class PlanReferenceTests(unittest.TestCase):
-    def test_save_lists_uploaded_references_and_rejects_unsafe_names(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            saved = save_reference(root, "资料.md", b"# ref\n")
-            self.assertEqual(saved["name"], "资料.md")
-            save_plan(root, PlanFields("对象", "1 kg", "生产", ""))
-            text = (root / "harness/knowledge/plan/main_plan.md").read_text(encoding="utf-8")
-            self.assertIn("harness/knowledge/inputs/资料.md", text)
-            self.assertEqual([item["name"] for item in list_references(root)], ["资料.md"])
-            delete_reference(root, "资料.md")
-            self.assertEqual(list_references(root), [])
-            with self.assertRaises(PlanFormError):
-                save_reference(root, "../escape.md", b"x")
-            saved_binary = save_reference(root, "script.exe", b"x")
-            self.assertEqual(saved_binary["name"], "script.exe")
-            with self.assertRaises(PlanFormError) as duplicate:
-                save_reference(root, "script.exe", b"changed")
-            self.assertIn("不能上传同名文件", str(duplicate.exception))
-            self.assertEqual((root / "harness/knowledge/inputs/script.exe").read_bytes(), b"x")
-            self.assertEqual(save_reference(root, "无扩展名", b"")["size"], 0)
-            noted = save_reference_note(root, "script.exe", "  按表格中的距离建模  ")
-            self.assertEqual(noted["note"], "按表格中的距离建模")
-            listed = {item["name"]: item["note"] for item in list_references(root)}
-            self.assertEqual(listed["script.exe"], "按表格中的距离建模")
-            notes_path = root / "harness/knowledge/inputs/reference-notes.json"
-            self.assertEqual(
-                notes_path.read_text(encoding="utf-8"),
-                '{\n  "script.exe": "按表格中的距离建模"\n}\n',
-            )
-            self.assertNotIn("reference-notes.json", listed)
-            discovered = {
-                item["path"]
-                for item in discover_files_at(root, "harness/knowledge/inputs/")["files"]
-            }
-            self.assertIn("harness/knowledge/inputs/reference-notes.json", discovered)
-            notes_path.unlink()
-            legacy = root / "harness/knowledge/inputs/.reference-notes.json"
-            legacy.write_text('{"script.exe": "旧注释"}\n', encoding="utf-8")
-            migrated = {item["name"]: item["note"] for item in list_references(root)}
-            self.assertEqual(migrated["script.exe"], "旧注释")
-            self.assertFalse(legacy.exists())
-            self.assertTrue(notes_path.is_file())
-            delete_reference(root, "script.exe")
-            self.assertNotIn("script.exe", {item["name"] for item in list_references(root)})
-            save_reference(root, "案例/证据.md", b"# nested\n")
-            save_reference(root, "其他/证据.md", b"# other\n")
-            nested = {item["name"]: item["path"] for item in list_references(root)}
-            self.assertEqual(
-                nested["案例/证据.md"],
-                "harness/knowledge/inputs/案例/证据.md",
-            )
-            self.assertIn("其他/证据.md", nested)
-            noted_nested = save_reference_note(root, "案例/证据.md", "只读运输表")
-            self.assertEqual(noted_nested["note"], "只读运输表")
-            delete_reference(root, "案例/证据.md")
-            self.assertFalse((root / "harness/knowledge/inputs/案例").exists())
-            self.assertIn("其他/证据.md", {item["name"] for item in list_references(root)})
-            with self.assertRaises(PlanFormError):
-                save_reference(root, "../escape.md", b"x")
-            with self.assertRaises(PlanFormError):
-                save_reference(root, "案例/../escape.md", b"x")
-            with self.assertRaises(PlanFormError):
-                decode_plan_upload("plan.pdf", b"not markdown")
 
 
 class PlanApiTests(unittest.TestCase):

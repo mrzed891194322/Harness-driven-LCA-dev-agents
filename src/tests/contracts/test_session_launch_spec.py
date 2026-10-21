@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import jsonschema
-import pytest
 
 from backend.core.contracts.session_launch_spec import (
     ModelProfile,

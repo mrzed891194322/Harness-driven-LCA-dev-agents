@@ -25,22 +25,10 @@ function isTutorialPath(path: string) {
   return path === "/tutorial" || path.startsWith("/tutorial/");
 }
 
-function isHarnessPath(path: string) {
-  return path === "/harness" || path.startsWith("/harness/");
-}
-
 export function rememberTutorialReturn(path: string) {
   rememberReturn("tutorial-return-to", path, isTutorialPath);
 }
 
 export function readTutorialReturn() {
   return readReturn("tutorial-return-to", isTutorialPath);
-}
-
-export function rememberHarnessReturn(path: string) {
-  rememberReturn("harness-return-to", path, isHarnessPath);
-}
-
-export function readHarnessReturn() {
-  return readReturn("harness-return-to", isHarnessPath);
 }

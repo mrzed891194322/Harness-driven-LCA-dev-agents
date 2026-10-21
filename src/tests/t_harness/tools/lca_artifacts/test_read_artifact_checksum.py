@@ -126,13 +126,3 @@ def test_path_only_tampered_mismatch(project: Path) -> None:
         _ctx(project, "reviewer", 1).resolve_ref({"path": RAW})
 
 
-def test_mcp_read_artifact_path_only(project: Path, monkeypatch) -> None:
-    _record(project)
-    monkeypatch.setenv("LCA_WORKSPACE", str(project / "workspace"))
-    monkeypatch.setenv("LCA_RUN_ID", "run-x")
-    monkeypatch.setenv("LCA_STAGE", "04-openlca-reporting")
-    monkeypatch.setenv("LCA_ROLE", "reviewer")
-    from harness.tools.mcp.lca_artifacts import standalone_main
-
-    out = standalone_main.read_artifact(str(project / "workspace" / RAW))
-    assert out["ok"] and "Case 1" in out["items"][0]["text"]

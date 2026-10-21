@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from backend.services.diagnostics_service import database_name_from_paths, locked_openlca_database
+from backend.services.diagnostics_service import (
+    database_name_from_paths,
+    locked_openlca_database,
+)
 
 
 def test_database_name_from_open_files():

@@ -137,12 +137,5 @@ if (!fs.existsSync(path.join(root, "node_modules", "typescript", "bin", "tsc")))
 console.log("Building pi-runtime...");
 await runOrExit("npm", ["run", "build", "-w", "@harness/pi-runtime"]);
 
-console.log("Syncing local workflow copies...");
-await runOrExit("uv", ["run", "--no-sync", "python", "-m", "backend.services.local_workflows", "--sync"], {
-  timeoutMs: SYNC_TIMEOUT_MS,
-  env: { PYTHONPATH: [path.join(root, "src"), root, process.env.PYTHONPATH || ""].filter(Boolean).join(path.delimiter) },
-  timeoutLabel: "workflow sync",
-});
-
 console.log("Starting the control panel...");
 await runOrExit("npm", ["run", "dev", "--", ...process.argv.slice(2)]);

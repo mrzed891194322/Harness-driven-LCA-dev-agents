@@ -37,24 +37,6 @@ def _ensure_harness_plan_files_for_tests() -> None:
     ensure_harness_plan_files()
 
 
-@pytest.fixture(autouse=True)
-def _isolate_orchestrator_hooks(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests must not install the production openLCA cleanup hook or connect_ipc."""
-    from backend.core.workflow.hooks import set_before_openlca_write
-
-    set_before_openlca_write(None)
-
-    def _forbid_connect_ipc(*_args: object, **_kwargs: object) -> None:
-        raise RuntimeError("tests must not call connect_ipc (use a fake client)")
-
-    monkeypatch.setattr(
-        "backend.services.openlca_attempt_cleanup.connect_ipc",
-        _forbid_connect_ipc,
-    )
-    yield
-    set_before_openlca_write(None)
-
-
 # ---------------------------------------------------------------------------
 # 测试隔离：绝不碰真实 openLCA（8080 / .env 配置端口）和真实 workspace。
 # ---------------------------------------------------------------------------
@@ -108,18 +90,6 @@ def _guarded_create_connection(address: object, *args: object, **kwargs: object)
 
 socket.socket.connect = _guarded_connect  # type: ignore[method-assign]
 socket.create_connection = _guarded_create_connection  # type: ignore[assignment]
-
-
-@pytest.fixture(autouse=True)
-def _isolate_local_workflows(
-    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
-) -> None:
-    """Never read or write the developer's real ``.local/harness/workflows`` during tests."""
-    from backend.services.local_workflows import sync_all
-
-    local = tmp_path_factory.mktemp("local-harness-workflows")
-    monkeypatch.setenv("LCA_LOCAL_WORKFLOWS_DIR", str(local))
-    sync_all(PROJECT_ROOT)
 
 
 @pytest.fixture(autouse=True)

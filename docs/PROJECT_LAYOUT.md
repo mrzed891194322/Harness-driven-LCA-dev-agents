@@ -1,3 +1,5 @@
+> **v5 注意**：旧引擎（`backend/core/workflow`、`LCA-main/LCA-revise.yaml`、`harness/prompts|permissions`、`spec_mcp`、`host_action`、`settings.yaml`）已在 C7c 删除。下文 1–5 条描述的是旧布局，仅作历史参考；现行布局见 `docs/refactor/v5/DESIGN.md`。
+
 # 项目布局与 Harness 装配（workspace runs / artifacts）
 
 面向改 harness、Python core 与 Web 控制面板的开发者。路径均相对仓库根，除非注明为「尝试目录内相对路径」。

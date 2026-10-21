@@ -27,6 +27,6 @@ def test_start_status_feedback_and_old_resume(monkeypatch, v5_root):
     assert st["status"] == "completed" and st["nodes"][0]["id"] == "a"
     assert client.get("/api/v5/nodes/a/feedback/1").status_code == 404
     assert client.get("/api/v5/nodes/..%2Fx/feedback/1").status_code in (400, 404)
-    assert client.post("/api/workflow/resume", json={"run_id": "x", "from_stage": "y"}).status_code == 410
+    assert client.post("/api/workflow/resume", json={"run_id": "x", "from_stage": "y"}).status_code == 404
     assert client.post("/api/workflow/start", json={"workflow": "full-lca", "plan": " "}).status_code == 400
     assert client.post("/api/workflow/stop").status_code == 409

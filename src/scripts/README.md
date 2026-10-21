@@ -7,7 +7,7 @@
 - **`stop_lib.mjs`**：stop / restart / 前台 Ctrl-C 共用的停止逻辑。
 - **`service_files.mjs`**：共用的 pid / 日志 / 套接字路径与工具函数。
 - **环境引导**：`proj_init/`（首次仓库准备）。
-- **编排器内部入口**：`workflow.py`、`clean.py`、`check_status.py` 供控制面板后端 / 测试 / 引导子进程调用，**不是**面向用户的控制方式。
+- **编排器内部入口**：`clean.py`、`check_status.py`、`doctor.py`（v5 配置自检） 供控制面板后端 / 测试 / 引导子进程调用，**不是**面向用户的控制方式。
 - **`gitee_upload/`**：发布辅助，与 LCA 控制无关。
 
 业务 HTTP 在 `src/backend/api/`；编排逻辑在 `src/backend/core/`。用户操作一律走 Web 控制面板。

@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import backend.services.workspace_clean as clean_main
-from backend.services import executor_console as executor_utils
 from backend.services.workspace_clean import CLEAN_PRESETS
 
 
@@ -342,7 +341,7 @@ class CleanDirectoryTests(unittest.TestCase):
             self.assertFalse((attempt / "old.json").exists())
 
     def test_run_clean_fails_when_workspace_lock_held(self) -> None:
-        from backend.core.workflow.persistence.checkpoint import workspace_lock
+        from backend.services.workspace_clean import workspace_lock
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -377,182 +376,6 @@ class CleanDirectoryTests(unittest.TestCase):
             self.assertTrue((workspace / "artifacts").exists())
             self.assertTrue((workspace / "tmp").exists())
             self.assertTrue((memory / "orchestrator.lock").exists())
-
-
-class RunCleanWorkspaceConsoleTests(unittest.TestCase):
-    def test_run_clean_workspace_reports_failure_on_nonzero_exit(self) -> None:
-        def fake_stream(command_args):
-            del command_args
-            yield "[System] Process finished with exit code 1.\n"
-
-        with patch.object(executor_utils, "execute_command_stream", fake_stream):
-            outputs = list(executor_utils.run_clean_workspace_console())
-
-        self.assertGreaterEqual(len(outputs), 2)
-        console, status = outputs[-1]
-        self.assertEqual(status, "Failed")
-        self.assertIn("exit code 1", console)
-
-    def test_run_clean_workspace_uses_clean_dir_command(self) -> None:
-        captured: list[list[str]] = []
-
-        def fake_stream(command_args):
-            captured.append(command_args)
-            yield "[System] Process finished with exit code 0.\n"
-
-        with patch.object(executor_utils, "execute_command_stream", fake_stream):
-            list(executor_utils.run_clean_workspace_console())
-
-        self.assertEqual(
-            captured[0],
-            executor_utils.clean_dir_command(target="workspace", clean_staging=True),
-        )
-
-    def test_clean_dir_command_adds_no_staging_when_disabled(self) -> None:
-        command = executor_utils.clean_dir_command(
-            preset="whole-lca",
-            clean_staging=False,
-        )
-        self.assertIn("--preset", command)
-        self.assertIn("whole-lca", command)
-        self.assertIn("--no-staging", command)
-
-    def test_run_clean_preset_console_passes_no_staging(self) -> None:
-        captured: list[list[str]] = []
-
-        def fake_stream(command_args):
-            captured.append(command_args)
-            yield "[System] Process finished with exit code 0.\n"
-
-        with patch.object(executor_utils, "execute_command_stream", fake_stream):
-            list(
-                executor_utils.run_clean_preset_console(
-                    "whole-lca",
-                    clean_staging=False,
-                )
-            )
-
-        self.assertEqual(
-            captured[0],
-            executor_utils.clean_dir_command(
-                preset="whole-lca",
-                clean_staging=False,
-            ),
-        )
-
-
-class RunPreWorkflowConsoleTests(unittest.TestCase):
-    def test_pre_workflow_whole_lca_uses_preset_then_sync(self) -> None:
-        preset_calls: list[str] = []
-
-        def fake_preset(preset: str):
-            preset_calls.append(preset)
-            yield "[System] clean ok\n", "Finished"
-
-        sync_calls: list[str] = []
-
-        class FakeResult:
-            def __init__(self, target: str):
-                self.target = target
-                self.ok = True
-                self.message = "ok"
-                self.details = []
-
-        def fake_sync(target, **kwargs):
-            del kwargs
-            sync_calls.append(target)
-            return FakeResult(target)
-
-        with (
-            patch.object(executor_utils, "run_clean_preset_console", fake_preset),
-            patch("backend.services.file_sync.sync_files", fake_sync),
-        ):
-            outputs = list(
-                executor_utils.run_pre_workflow_console(
-                    "whole-lca",
-                    document_values=[],
-                    source_text="# plan\n",
-                    ref_upload_file=None,
-                )
-            )
-
-        self.assertEqual(preset_calls, ["whole-lca"])
-        self.assertEqual(sync_calls, ["knowledge", "plan"])
-        self.assertEqual(outputs[-1][1], "Finished")
-
-    def test_pre_workflow_whole_lca_clean_command_includes_staging(self) -> None:
-        captured: list[list[str]] = []
-        sync_calls: list[str] = []
-
-        def fake_stream(command_args):
-            captured.append(list(command_args))
-            yield "[System] Process finished with exit code 0.\n"
-
-        class FakeResult:
-            def __init__(self, target: str):
-                self.target = target
-                self.ok = True
-                self.message = "ok"
-                self.details = []
-
-        def fake_sync(target, **kwargs):
-            del kwargs
-            sync_calls.append(target)
-            return FakeResult(target)
-
-        with (
-            patch.object(executor_utils, "execute_command_stream", fake_stream),
-            patch("backend.services.file_sync.sync_files", fake_sync),
-        ):
-            outputs = list(
-                executor_utils.run_pre_workflow_console(
-                    "whole-lca",
-                    document_values=[],
-                    source_text="# plan\n",
-                    ref_upload_file=None,
-                )
-            )
-
-        self.assertEqual(len(captured), 1)
-        command = captured[0]
-        self.assertEqual(
-            command,
-            executor_utils.clean_dir_command(preset="whole-lca", clean_staging=True),
-        )
-        self.assertIn("--preset", command)
-        self.assertIn("whole-lca", command)
-        self.assertNotIn("--no-staging", command)
-        self.assertEqual(sync_calls, ["knowledge", "plan"])
-        self.assertEqual(outputs[-1][1], "Finished")
-
-    def test_pre_workflow_stops_when_clean_fails(self) -> None:
-        def fake_preset(preset: str):
-            del preset
-            yield "[System] fail\n", "Failed"
-
-        workflow_called = False
-
-        def fake_workflow(task: str):
-            nonlocal workflow_called
-            workflow_called = True
-            del task
-            yield "", "Finished"
-
-        with (
-            patch.object(executor_utils, "run_clean_preset_console", fake_preset),
-            patch.object(executor_utils, "run_workflow_command_console", fake_workflow),
-        ):
-            outputs = list(
-                executor_utils.run_pre_workflow_console(
-                    "whole-lca",
-                    document_values=[],
-                    source_text="# plan\n",
-                    ref_upload_file=None,
-                )
-            )
-
-        self.assertFalse(workflow_called)
-        self.assertEqual(outputs[-1][1], "Failed")
 
 
 if __name__ == "__main__":

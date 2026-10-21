@@ -20,7 +20,7 @@ npm run stop     # 后端 → pi-runtime → 前端依次停止，并清理本�
 npm run restart  # stop + start，不会叠出第二个 pi-runtime
 ```
 
-日常停止用 `npm run stop`，不要靠 Ctrl-C。整个项目只有一个 pi-runtime（Linux / macOS 为 Unix 套接字 `.local/run/pi-runtime.sock`，Windows 为 `tcp://127.0.0.1:<端口>`）；后端和 `workflow.py` 只连接它，不会自己起。Windows 需安装 Git for Windows。
+日常停止用 `npm run stop`，不要靠 Ctrl-C。整个项目只有一个 pi-runtime（Linux / macOS 为 Unix 套接字 `.local/run/pi-runtime.sock`，Windows 为 `tcp://127.0.0.1:<端口>`）；后端（v5 runner 在后端进程内运行）只连接它，不会自己起。Windows 需安装 Git for Windows。
 
 单独起 API（开发用）：
 

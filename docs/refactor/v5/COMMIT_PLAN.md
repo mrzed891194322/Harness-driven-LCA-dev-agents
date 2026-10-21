@@ -63,6 +63,25 @@
   `POST /api/v5/resume`. Old engine code still reachable from the plan form, diagnostics and the old pi client stays;
   its full deletion (01, LCA-revise, spec_mcp, host_action, old resume, golden, config_fingerprint, settings.yaml,
   old prompts/permissions) is a separate commit after C8, C9 and the real LCA run.
+- C7c (done): old engine fully deleted. Backend: `backend/core/workflow/**`, old `core/agents` (session, injection,
+  activity, progress, providers, transcript, probe/run, permission_narrow, …), `core/runtime` except `model_profiles`,
+  `pi_client/client.py`, services `workflow_service`, `session_snapshots`, `prompt_templates`, `spec_service`,
+  `local_workflows`, `harness_browser`, `injection_view`, `run_reconcile`, `workflow_launch`, `resume_plan`,
+  `orchestrator_wiring`, `openlca_attempt_cleanup`, `executor_console`, `file_sync`, `workflow_cli`, `workflow_manifest`.
+  Routes removed (no 410 kept, the frontend no longer calls them): `/api/workflow/manifest|resume|progress|activity*`,
+  `PUT /api/workflow/models`, `/api/prompts/generated*`, `/api/runs*`, `/api/events`, `/api/workflows*`, `/api/harness/*`,
+  `/api/specs/*`. `GET /api/workflow/models` now returns only `default`, `default_ref`, `models`, `warnings`.
+  `/api/results*` is served by `backend/v5/results.py`. Plan path is fixed per alias (LCA-main → main_plan.md,
+  LCA-revise → revise_plan.md). Kept small pieces: `core/agents/{assignment_models (default model only), catalog,
+  inspect, errors}`, `core/contracts/session_launch_spec`, `core/runtime/model_profiles`; the workspace lock moved into
+  `services/workspace_clean.py` (same `runs/_run/orchestrator.lock` the v5 runner holds). Harness: `prompts/`,
+  `permissions/`, `settings.yaml`, `specs/01..04` + `specs/shared`, `workflows/LCA-*.yaml`, `tools/mcp/spec_mcp`,
+  `tools/mcp/lca_artifacts`, `tools/host_action`. Scripts: `workflow.py`, `inspect_run.py`, `session_export.py`
+  (`npm run inspect|session` removed); `doctor.py` is now a v5 config self-check; `npm start` no longer syncs
+  workflow copies. Frontend: `/harness` pages + header button, plan-page "工作流编排"/"预览执行" tabs
+  (workflow-board, preview-board, workflow-yaml), `components/runs/*`, `lib/{run-activity,run-status,workflow-manifest}`.
+  Kept on purpose: `harness/tools/shared/**` and `control_openlca/workflow_mcp.py` + `mcp.yaml` (proj_init and the
+  pi_driver fallback still point at them); pi-runtime TS untouched.
 - C8 (done): specs `paragraph`, `summary`, `lca-intake`, `lca-bom` (schema), `lca-mapping` (schema), `lca-report`;
   nodes `write-paragraph`, `summarize`, `lca-intake`, `lca-bom`, `lca-mapping`, `lca-report`; workflows `demo-write`,
   `demo-swapped`, `demo-single`, `full-lca` (4 stages). LCA method rules moved to `harness/rules/lca/` (+ new

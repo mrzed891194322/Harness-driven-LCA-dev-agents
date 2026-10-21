@@ -10,7 +10,7 @@ import threading
 import uuid
 from typing import Any
 
-from backend.core.agents.turn_transport import WorkerTransportError
+from backend.core.agents.errors import WorkerTransportError
 from backend.pi_client.process import shared_runtime
 from backend.services.credentials_service import credentials_dir, credentials_status
 from backend.services.project_paths import PROJECT_ROOT

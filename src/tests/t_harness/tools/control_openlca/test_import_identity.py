@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import olca_schema
 import pytest
-from unittest.mock import MagicMock, patch
 
 from harness.tools.shared.control_openlca import guard, operations
 from harness.tools.shared.control_openlca.guard import endpoint_uncertain_marker
 from tests.support.openlca_fakes import (
     FLOW_ID,
-    FakeImportClient,
     PROCESS_ID,
     PRODUCT_SYSTEM_ID,
+    FakeImportClient,
     write_flow,
     write_product_system_fixture,
 )

@@ -6,8 +6,6 @@ import json
 import shutil
 from pathlib import Path
 
-import pytest
-
 from harness.tools.shared.lca_artifacts import checks
 from harness.tools.shared.lca_artifacts.artifact_paths import stage_file
 from harness.tools.shared.lca_artifacts.store import Context

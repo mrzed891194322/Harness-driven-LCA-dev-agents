@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from backend.core.workflow.persistence.checkpoint import WorkspaceBusy, workspace_lock
 from backend.settings import (
     clean_ignored_dir,
     clean_root_files,
     ensure_path_within,
     parse_gitignore,
+    run_root,
 )
 from harness.tools.shared.control_openlca.cleanup_service import run_openlca_clean
 
@@ -23,10 +26,50 @@ PROJECT_ROOT = next(
     if (parent / "pyproject.toml").is_file()
 )
 
+# Same lock file the v5 runner holds (workspace/runs/_run/orchestrator.lock).
+class WorkspaceBusy(RuntimeError):
+    pass
+
+
+@contextmanager
+def workspace_lock(workspace_root: Path) -> Iterator[None]:
+    """Fail immediately if another orchestrator owns this workspace."""
+    path = run_root(workspace_root) / "orchestrator.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as stream:
+        if os.name == "nt":
+            import msvcrt
+
+            if path.stat().st_size == 0:
+                stream.write(b"0")
+                stream.flush()
+            stream.seek(0)
+            try:
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                raise WorkspaceBusy(f"workspace busy: {workspace_root}") from exc
+        else:
+            import fcntl
+
+            try:
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise WorkspaceBusy(f"workspace busy: {workspace_root}") from exc
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+    # Keep the lock file: unlinking it can let processes lock different inodes.
+
+
 STAGING_TARGETS = ("knowledge",)
 # Targets that must not race an active orchestrator process.
 LOCKED_CLEAN_TARGETS = frozenset({"workspace", "openlca"})
-# Never unlink the process lock inode; see checkpoint.workspace_lock.
+# Never unlink the process lock inode; see workspace_lock above.
 ORCHESTRATOR_LOCK_KEEP = "runs/_run/orchestrator.lock"
 
 CLEAN_TARGETS = [
@@ -487,15 +530,14 @@ def run_cleanup_list(
         return 1, report
 
     if openlca_ids:
+        from backend.services.diagnostics_service import openlca_endpoint
         from harness.tools.shared.control_openlca.cleanup import (
+            _model_types,
             _resolve_uuid_targets,
-            connect_ipc,
             close_ipc_client,
+            connect_ipc,
             delete_entities,
         )
-        from backend.services.diagnostics_service import openlca_endpoint
-        from harness.tools.shared.control_openlca.cleanup import _model_types
-
         from harness.tools.shared.control_openlca.cleanup_service import (
             _target_category,
         )

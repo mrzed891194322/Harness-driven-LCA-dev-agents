@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from .providers.registry import WORKERS
+from .inspect import WORKERS
 
 WhichFn = Callable[[str], str | None]
 RunnerFn = Callable[..., Any]
