@@ -93,7 +93,7 @@ def test_resume_restores_tools_from_new_launch_spec(v5_root):
     d = PiDriver(v5_root, MODEL, runtime=FakeRuntime())
     spec, _ = d.launch_spec(_req(v5_root, node, resume=True))
     sf = Path(spec.session_storage["session_file"])
-    sf.parent.mkdir(parents=True)
+    sf.parent.mkdir(parents=True, exist_ok=True)
     sf.write_text("{}\n")
     rt = FakeRuntime(submit={"status": "ok", "summary": "s"})
     d2 = PiDriver(v5_root, MODEL, runtime=rt)

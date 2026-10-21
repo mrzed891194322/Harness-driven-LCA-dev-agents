@@ -116,7 +116,12 @@ class PiDriver:
             for prod in req.node.produces:
                 spec = load_spec(self.root, prod.spec)
                 produces.append({"path": str(ws / "artifacts" / prod.path), "schema": spec.schema_})
-            bindings["submit"]["env"]["V5_PRODUCES"] = json.dumps(produces, ensure_ascii=False)
+            # Pass the produces list (with JSON schemas) as a file, never inline: pi resolves MCP env values as
+            # templates, so "$schema"/"$id" became missing env vars and the server never started (I-30).
+            produces_file = ws / "tmp" / "pi-v5" / req.session_key / "produces.json"
+            produces_file.parent.mkdir(parents=True, exist_ok=True)
+            produces_file.write_text(json.dumps(produces, ensure_ascii=False), encoding="utf-8")
+            bindings["submit"]["env"]["V5_PRODUCES_FILE"] = str(produces_file)
         bindings["submit"]["env"]["V5_REJECTIONS_FILE"] = str(role_dir / "submit_rejections.jsonl")
         scope_env = {
             "V5_READ_GLOBS": json.dumps([remap(g) for g in scope.read_globs]),
@@ -126,6 +131,7 @@ class PiDriver:
         for name, binding in bindings.items():
             if name != "submit":
                 binding["env"] = {**binding["env"], **scope_env}
+        check_mcp_env(bindings)
         file_tools = FILE_TOOLS_EXEC if req.role == "executor" else FILE_TOOLS_REVIEW
         system = req.extra.get("system", "")
         storage = ws / "tmp" / "pi-v5" / req.session_key
@@ -183,10 +189,10 @@ class PiDriver:
             if req.resume and spec.session_key in self.live:
                 pass  # same live session keeps its context
             elif req.resume and Path(spec.session_storage["session_file"]).is_file():
-                self.runtime.request("session.resume", {"session_key": spec.session_key, **payload}, timeout=180.0)
+                self.runtime.request("session.resume", {"session_key": spec.session_key, **payload}, timeout=CREATE_TIMEOUT_S)
                 self.live.add(spec.session_key)
             else:
-                self.runtime.request("session.create", payload, timeout=180.0)
+                self.runtime.request("session.create", payload, timeout=CREATE_TIMEOUT_S)
                 self.live.add(spec.session_key)
             events.emit("session_ready", node=req.node.id, role=req.role, round=req.round,
                         session_key=spec.session_key, tools=spec.permission_policy.allowed_tools,
@@ -298,6 +304,26 @@ class PiDriver:
         err = explain_model_error(err) if err else err
         events.emit("model_preflight", ok=ok, model=self.model.profile_id, error=err[:300], attempt=attempt)
         return None if ok else (err or "model preflight failed")
+
+
+# pi-runtime waits up to 90 s for MCP tools and retries create once: stay above 2 x 90 s so its own
+# "MCP 服务未就绪" error (node reason mcp_not_ready) arrives instead of a client timeout (I-30).
+CREATE_TIMEOUT_S = 240.0
+
+
+class McpEnvError(ValueError):
+    pass
+
+
+def check_mcp_env(bindings: dict[str, dict[str, Any]]) -> None:
+    """pi resolves MCP env values: "$NAME"/"${NAME}" are env references and a leading "!" runs a shell command.
+    A value like that would silently keep the server from starting, so refuse it up front (I-30)."""
+    for name, binding in bindings.items():
+        for key, value in (binding.get("env") or {}).items():
+            text = str(value)
+            if "$" in text or text.startswith("!"):
+                raise McpEnvError(f"MCP {name} env {key} contains '$' or starts with '!' "
+                                  f"(pi would resolve it as a template/command): {text[:80]}")
 
 
 TRANSIENT_RE = re.compile(

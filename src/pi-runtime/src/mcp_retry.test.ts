@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MCP_NOT_READY, withMcpRetry } from "./session_host.js";
+import { MCP_NOT_READY, mcpEnvProblems, withMcpRetry } from "./session_host.js";
 
 test("MCP not ready is retried once, other errors are not", async () => {
   let n = 0;
@@ -18,4 +18,12 @@ test("MCP not ready is retried once, other errors are not", async () => {
   n = 0;
   await assert.rejects(withMcpRetry(async () => { n += 1; throw new Error("模型不可用"); }), /模型不可用/);
   assert.equal(n, 1);
+});
+
+test("MCP env values pi would resolve are reported (I-30)", () => {
+  assert.deepEqual(
+    mcpEnvProblems({ submit: { env: { V5_PRODUCES: '[{"$schema": "x"}]', OK: "/a/b" } }, o: { env: { C: "!echo" } } }),
+    ["submit.env.V5_PRODUCES", "o.env.C"],
+  );
+  assert.deepEqual(mcpEnvProblems({ submit: { env: { V5_PRODUCES_FILE: "/w/tmp/produces.json" } } }), []);
 });

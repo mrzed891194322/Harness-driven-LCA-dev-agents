@@ -11,7 +11,7 @@ import pytest
 
 from backend.core.contracts.session_launch_spec import ModelProfile
 from backend.v5.config import load_node, load_workflow
-from backend.v5.pi_driver import PiDriver
+from backend.v5.pi_driver import McpEnvError, PiDriver, check_mcp_env
 from backend.v5.runner import Runner, TurnRequest, TurnResult
 from tests.t_v5.conftest import REPO, make_node, write_yaml
 from tests.t_v5.fake_driver import FakeDriver
@@ -82,7 +82,7 @@ def test_driver_passes_settle_policy_and_logs(v5_root):
     pol = spec["turn_context"]["settle"]
     assert pol["max_nudges"] == 2 and pol["max_turns"] == 80 and pol["timeout_min"] == 45
     assert pol["submit_file"].endswith("runs/a/executor/submit.json")
-    produces = json.loads(spec["mcp_bindings"]["submit"]["env"]["V5_PRODUCES"])
+    produces = json.loads(Path(spec["mcp_bindings"]["submit"]["env"]["V5_PRODUCES_FILE"]).read_text())
     assert produces[0]["path"].endswith("artifacts/a/p.md")
     kinds = [e["kind"] for e in _events(v5_root)]
     assert kinds.count("nudge") == 2 and "turn_aborted" in kinds and "submit_rejected" in kinds
@@ -93,7 +93,9 @@ def _submit(tmp_path, role, args, produces=None):
     rej = tmp_path / f"{role}.rej.jsonl"
     env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_ROLE": role, "V5_REJECTIONS_FILE": str(rej)}
     if produces is not None:
-        env["V5_PRODUCES"] = json.dumps(produces)
+        pf = tmp_path / f"{role}.produces.json"
+        pf.write_text(json.dumps(produces))
+        env["V5_PRODUCES_FILE"] = str(pf)
     code = ("import asyncio,runpy,sys,json;g=runpy.run_path(sys.argv[1],run_name='m');"
             "r=asyncio.run(g['mcp'].call_tool('submit', json.loads(sys.argv[2])));print(r)")
     p = subprocess.run([sys.executable, "-c", code, str(REPO / "harness/tools/mcp/submit/main.py"), json.dumps(args)],
@@ -143,3 +145,25 @@ def test_max_rejections_is_configurable():
     assert Deliver(submit="artifact", max_rejections=2).max_rejections == 2
     with pytest.raises(ValueError):
         Deliver(submit="artifact", max_rejections=0)
+
+
+def test_mcp_env_has_no_pi_template_syntax(v5_root):
+    """Regression I-30: a spec schema with "$schema"/"$id" went into MCP env inline; pi resolves env values as
+    templates, the "$..." references were missing, and the submit server never started."""
+    (v5_root / "harness/specs/dollar.yaml").write_text(
+        'description: d\nschema:\n  $schema: "https://json-schema.org/draft/2020-12/schema"\n'
+        '  $id: "urn:x"\n  type: object\n', encoding="utf-8")
+    make_node(v5_root, "b", produces=[{"spec": "dollar", "path": "b/bom.json"}])
+    node = load_node(v5_root, "b")
+    req = TurnRequest(node=node, role="executor", round=1, prompt="p", workspace=v5_root / "workspace",
+                      run_id="r1234567", session_key="b.executor", resume=False, extra={"system": "S"})
+    spec, _ = PiDriver(v5_root, MODEL, runtime=Rt({"status": "ok"})).launch_spec(req)
+    for name, binding in spec.mcp_bindings.items():
+        for key, value in binding["env"].items():
+            assert "$" not in value and not value.startswith("!"), (name, key)
+    produces = json.loads(Path(spec.mcp_bindings["submit"]["env"]["V5_PRODUCES_FILE"]).read_text())
+    assert produces[0]["schema"]["$schema"].startswith("https://")
+    with pytest.raises(McpEnvError):
+        check_mcp_env({"x": {"env": {"A": "a$b"}}})
+    with pytest.raises(McpEnvError):
+        check_mcp_env({"x": {"env": {"A": "!cmd"}}})

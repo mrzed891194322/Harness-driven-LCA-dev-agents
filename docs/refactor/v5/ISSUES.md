@@ -410,3 +410,22 @@ be visual breakage this static pass cannot see.
 - Next steps (not done, rerun budget used): enable pi-mcp debug output or wrap the server command with a stderr
   tee to see whether pi spawns it at all; check whether shutting down the previous node's sessions closes a shared
   MCP manager; raise the Python `session.create` timeout above 2×90 s so `mcp_not_ready` is reported correctly.
+- **Root cause found (16:5x UTC+8):** pi 1.3.0's MCP extension resolves every MCP `env` value as a config value
+  (`pi-coding-agent/dist/extensions/mcp/runtime.js` → `resolveConfigValueOrThrow`): `$NAME`/`${NAME}` are env
+  references and a leading `!` runs a shell command. Commit 9aaf493 (B, after 6cc34b4) started passing the executor's
+  produces list inline as `V5_PRODUCES`, including the spec's JSON schema. The lca-bom schema has `"$schema"` and
+  `"$id"`, so pi looked for env vars `schema`/`id`, failed to resolve them, and never started the submit server,
+  silently: no tools ever registered, hence the 90 s wait. lca-intake's spec has no schema and the demo specs have
+  no `$`, so they worked; that is why it looked like "the second node". The serve path length played no part:
+  pi-mcp uses stdio, not per-session sockets (checked), and bom's paths are shorter than intake's.
+- Cheap repro without a model or openLCA: `.local/tmp/repro_mcp.py <root> <sessions>` (private pi-runtime, temp
+  workspace, `session.create` only). Before: `lca-bom.executor` alone fails after 90 s. After: all 8 full-lca
+  sessions create in < 1 s each.
+- Fix: the produces list goes to `workspace/tmp/pi-v5/<session>/produces.json`, passed as `V5_PRODUCES_FILE`;
+  `check_mcp_env` (Python) refuses any MCP env value containing `$` or starting with `!`, and pi-runtime does the same
+  in `session.create` (`mcpEnvProblems`) so a bad value fails at once with the server/key named instead of after
+  90 s. Logging: pi-runtime logs `<session> create: mcp=<servers>` and `mcp_retry` to `.local/logs/pi-runtime.log`.
+  Python `session.create`/`resume` timeout raised 180 → 240 s (`CREATE_TIMEOUT_S`, above 2 × 90 s), so a real
+  not-ready case reports `mcp_not_ready`. `PI_MCP_CREATE_ATTEMPTS` (default 2) controls the create retry.
+- Regression tests: `test_settle.py::test_mcp_env_has_no_pi_template_syntax` (a spec with `$schema`/`$id` → no `$`
+  in any MCP env; produces file keeps the schema), `mcp_retry.test.ts` (`mcpEnvProblems`).

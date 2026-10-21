@@ -285,6 +285,22 @@ async function assertMcpServersReady(
 
 export const MCP_NOT_READY = "MCP 服务未就绪";
 
+/**
+ * pi resolves each MCP env value as a config value: "$NAME"/"${NAME}" read env vars and a leading "!" runs a
+ * shell command. An unresolvable value makes pi skip the server silently (it never registers tools), so fail
+ * fast with the server and key instead of waiting for the ready timeout (I-30).
+ */
+export function mcpEnvProblems(bindings: Record<string, { env?: Record<string, string> }>): string[] {
+  const problems: string[] = [];
+  for (const [name, binding] of Object.entries(bindings ?? {})) {
+    for (const [key, value] of Object.entries(binding.env ?? {})) {
+      const text = String(value);
+      if (text.includes("$") || text.startsWith("!")) problems.push(`${name}.env.${key}`);
+    }
+  }
+  return problems;
+}
+
 /** Retry session creation once when an MCP server registered no tools (seen intermittently, I-30). */
 export async function withMcpRetry<T>(create: () => Promise<T>, attempts = 2, log: (msg: string) => void = () => {}): Promise<T> {
   for (let i = 1; ; i++) {
@@ -299,10 +315,15 @@ export async function withMcpRetry<T>(create: () => Promise<T>, attempts = 2, lo
 }
 
 async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
-  return withMcpRetry(() => createPiSessionOnce(spec), 2, (msg) => console.error(`[pi-runtime] ${spec.session_key} ${msg}`));
+  return withMcpRetry(() => createPiSessionOnce(spec), Number(process.env.PI_MCP_CREATE_ATTEMPTS ?? 2), (msg) => console.error(`[pi-runtime] ${spec.session_key} ${msg}`));
 }
 
 async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession> {
+  const envProblems = mcpEnvProblems(spec.mcp_bindings as any);
+  if (envProblems.length) {
+    throw new Error(`MCP env 含有 pi 会解析的 '$' 或以 '!' 开头，服务不会启动：${envProblems.join(", ")}`);
+  }
+  console.error(`[pi-runtime] ${spec.session_key} create: mcp=${Object.keys(spec.mcp_bindings ?? {}).join(",") || "-"}`);
   if (isMockMode()) {
     prepareAgentDir(spec);
     return {

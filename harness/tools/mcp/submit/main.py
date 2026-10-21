@@ -31,7 +31,8 @@ def _reject(errors: list[str]) -> dict:
 
 def _check_produces() -> list[str]:
     """Executor deliverables must exist (non-empty) and match the spec schema."""
-    raw = os.environ.get("V5_PRODUCES")
+    file = os.environ.get("V5_PRODUCES_FILE")
+    raw = Path(file).read_text(encoding="utf-8") if file else os.environ.get("V5_PRODUCES")
     if not raw:
         return []
     errors: list[str] = []
