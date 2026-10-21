@@ -609,3 +609,26 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   (old_plan_工作流编排.png shows only the "后端未连接" error; .local/ui-op/ holds only v5-era shots). Agent line split into
   tokens (默认 / model / 思考 X), each `white-space: nowrap`, wrapping only between tokens.
 - Prompt modal: code wraps (`pre-wrap`, `overflow-wrap: anywhere`), scrolls inside at max-height 60vh (`.prompt-modal-source`).
+
+## I-47 full-lca run cd1a032c saw revise_plan.md (1200 km) — saved-plan store was readable (fixed in dev)
+- Finding (serve eaf1a17, run cd1a032c, read-only): the workspace was clean at run start (`plan_written` only
+  `main_plan.md`; `artifacts/` had no `previous/`, `revise_plan.md` or rev files). The source was
+  `harness/knowledge/plan/revise_plan.md` (written 2026-10-21 18:09 by the GUI plan form for revise run aa54d98f;
+  `plan_form.py` saves plans there, git-ignored). The `knowledge` read toggle granted `harness/knowledge/**`, so the
+  agents ran `ls harness/knowledge/plan` + `read .../revise_plan.md` (sessions lca-intake.executor/reviewer,
+  lca-bom.executor/reviewer; lca-mapping.executor read `.../main_plan.md` there). The rule `rules/lca/method.yaml`
+  even named `harness/knowledge/plan/main_plan.md` as the research requirement.
+- Fix: `access.compute_scope` grants knowledge per top-level entry and never `harness/knowledge/plan/`
+  (`KNOWLEDGE_HIDDEN`); the run's plan reaches agents only via `<plan>` / `workspace/artifacts/plan/` (locked
+  readable). `method.yaml` now says the research requirement is only the injected `<plan>`. full-lca start already
+  clears `artifacts/` (incl. `previous/`, rev files, `plan/revise_plan.md`) and `runs/_run/revisions.json`.
+- Tests: `src/tests/t_v5/test_plan_isolation.py` (store unreadable for every full-lca agent, inputs/README still
+  readable, prepare_fresh leaves only `plan/main_plan.md`).
+- Note: `ls harness/knowledge` itself is now outside the read roots (entries inside stay readable).
+
+## I-48 get_model_graph reports false "broken" on the first call while the openLCA lock is waited on (RECORD ONLY)
+- Seen in run cd1a032c (lca-report): the first `get_model_graph` returned broken/unknown graph while another IPC call
+  held the guard lock; an immediate retry returned success (broken_links = []).
+- Proposed fix (not done): in `control_openlca` make `get_model_graph` wait for the guard lock (bounded by its
+  timeout_s) instead of returning a partial result, or retry once inside the tool when the read hit lock wait /
+  timeout; report `status=retry_needed` rather than `broken` when the graph read was incomplete.
