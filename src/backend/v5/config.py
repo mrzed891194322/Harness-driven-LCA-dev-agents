@@ -189,6 +189,7 @@ class SpecFile(_Strict):
 
 
 # {{var}} values come from .env (Q4): template variable -> env key. A missing key fails at load.
+ENV_FILE = Path(__file__).resolve().parents[3] / ".env"  # tests point this at a temp file
 TEMPLATE_ENV_KEYS: dict[str, str] = {"language": "HARNESS_LANGUAGE", "project_category": "OPENLCA_PROJECT_CATEGORY"}
 
 
@@ -198,7 +199,7 @@ def template_vars(env_file: Path | None = None) -> dict[str, str]:
     from backend.settings import parse_env_file
     from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY
 
-    path = env_file or Path(__file__).resolve().parents[3] / ".env"
+    path = env_file or ENV_FILE
     file_values = parse_env_file(path) if path.is_file() else {}
     out: dict[str, str] = {}
     for var, key in TEMPLATE_ENV_KEYS.items():

@@ -386,7 +386,8 @@ def model_retry_delays_s() -> list[int]:
     if raw is None:
         try:
             from backend.settings import parse_env_file
-            raw = parse_env_file(Path(__file__).resolve().parents[3] / ".env").get("PI_MODEL_RETRY_DELAYS_S")
+            from backend.v5 import config as _cfg
+            raw = parse_env_file(_cfg.ENV_FILE).get("PI_MODEL_RETRY_DELAYS_S")
         except Exception:  # noqa: BLE001
             raw = None
     if raw:

@@ -53,3 +53,16 @@ def v5_root(tmp_path: Path) -> Path:
         write_yaml(root / "harness/specs" / f"{spec}.yaml", {"description": f"写一份 {spec}。\n", "schema": None, "checks": []})
     (root / "workspace").mkdir()
     return root
+
+
+@pytest.fixture(autouse=True)
+def _isolated_env_file(tmp_path, monkeypatch):
+    """Template vars / retry schedule come from a temp .env, never the repo's real one (Q4)."""
+    from backend.v5 import config
+
+    env = tmp_path / "test.env"
+    env.write_text('HARNESS_LANGUAGE="中文"\nOPENLCA_PROJECT_CATEGORY="202606-harness-agent-LCA"\n', encoding="utf-8")
+    monkeypatch.setattr(config, "ENV_FILE", env)
+    for key in ("HARNESS_LANGUAGE", "OPENLCA_PROJECT_CATEGORY", "PI_MODEL_RETRY_DELAYS_S"):
+        monkeypatch.delenv(key, raising=False)
+    return env
