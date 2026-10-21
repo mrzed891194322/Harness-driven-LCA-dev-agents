@@ -1,11 +1,15 @@
 "use client";
 
+// Q8: read-only v5 YAML viewer laid out like the original Harness page (master 599ed0a harness-shell):
+// left settings/tutorial nav with section and group labels, crumb + title header with close button, doc body.
 import { useEffect, useMemo, useState } from "react";
-import { FileCode2, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { RefreshCw, X } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { fieldRows, rawLines, type HarnessFile, type HarnessSection } from "../../lib/harness-view";
 
 export default function HarnessPage() {
+  const router = useRouter();
   const [sections, setSections] = useState<HarnessSection[]>([]);
   const [errors, setErrors] = useState(0);
   const [section, setSection] = useState("rules");
@@ -31,130 +35,142 @@ export default function HarnessPage() {
 
   useEffect(() => {
     void load();
+    document.documentElement.classList.add("status-fit");
+    return () => document.documentElement.classList.remove("status-fit");
   }, []);
 
-  const files = useMemo(() => sections.find((s) => s.id === section)?.files || [], [sections, section]);
+  useEffect(() => {
+    document.querySelector(".tutorial-body")?.scrollTo(0, 0);
+  }, [selected, section]);
+
+  const current = sections.find((s) => s.id === section);
+  const files = useMemo(() => current?.files || [], [current]);
   const file: HarnessFile | undefined = files.find((f) => f.path === selected) || files[0];
-  const groups = useMemo(() => [...new Set(files.map((f) => f.group))], [files]);
+  const crumb = ["Harness", current?.title, file?.group].filter(Boolean).join(" / ");
 
   return (
-    <div className="plan-board">
-      <section className="settings-card plan-card results-card" data-testid="harness-viewer">
-        <div className="section-head plan-head">
-          <div className="plan-intro">
-            <h2>
-              <FileCode2 className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
-              Harness（只读）
-            </h2>
-            <p className="settings-meta">
-              harness/ 下的 v5 YAML：规则、角色、规格、工作流。
-              {errors ? (
-                <span className="badge badge-fail" data-testid="harness-error-count"> {errors} 个文件加载失败</span>
-              ) : sections.length ? (
-                <span className="badge badge-ok"> 全部加载成功</span>
-              ) : null}
-            </p>
-          </div>
-          <div className="run-meta">
-            <button type="button" onClick={() => void load()} disabled={busy}>
-              <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-              {busy ? "刷新中…" : "刷新"}
-            </button>
-          </div>
-        </div>
-        {loadError ? <p className="status-banner error">{loadError}</p> : null}
-        <div className="results-columns">
-          <div className="results-side">
-            <div className="results-kind-tabs" role="tablist" aria-label="Harness 分类">
-              {sections.map((s) => (
+    <section className="tutorial-panel settings-card" data-testid="harness-viewer">
+      <div className="tutorial-frame">
+        <nav className="settings-nav harness-nav tutorial-nav" aria-label="Harness">
+          <p className="settings-nav-label">Harness（只读）</p>
+          {sections.map((s) => {
+            const groups = [...new Set(s.files.map((f) => f.group))];
+            return (
+              <div key={s.id}>
                 <button
-                  key={s.id}
                   type="button"
-                  role="tab"
+                  className="harness-nav-section"
                   data-testid={`harness-tab-${s.id}`}
                   aria-selected={section === s.id}
-                  className={section === s.id ? "is-active" : ""}
                   onClick={() => {
                     setSection(s.id);
                     setSelected("");
                   }}
+                  style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}
                 >
                   {s.title}
                   {s.files.some((f) => f.error) ? " ⚠" : ""}
                 </button>
-              ))}
-            </div>
-            <nav className="results-pane results-nav" aria-label="文件">
-              {groups.map((g) => (
-                <section key={g}>
-                  {groups.length > 1 ? <h3>{g}</h3> : null}
-                  <ul>
-                    {files
+                {groups.map((g) => (
+                  <div key={g}>
+                    {groups.length > 1 ? <p className="harness-nav-group">{g}</p> : null}
+                    {s.files
                       .filter((f) => f.group === g)
-                      .map((f) => (
-                        <li key={f.path}>
-                          <button
-                            type="button"
+                      .map((f) => {
+                        const active = section === s.id && file?.path === f.path;
+                        return (
+                          <a
+                            key={f.path}
+                            href="#"
                             data-testid={`harness-file-${f.path}`}
-                            aria-current={file?.path === f.path ? "page" : undefined}
-                            onClick={() => setSelected(f.path)}
+                            aria-current={active ? "page" : undefined}
+                            data-active={active ? "true" : undefined}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSection(s.id);
+                              setSelected(f.path);
+                            }}
                           >
-                            <strong>{f.name}</strong>
-                            <span>{f.error ? <span className="badge badge-fail">错误</span> : f.path}</span>
-                          </button>
-                        </li>
-                      ))}
-                  </ul>
-                </section>
-              ))}
-              {!files.length ? <p className="settings-help">这一类还没有文件。</p> : null}
-            </nav>
-          </div>
-          <section className="results-pane results-view" aria-label="文件内容">
+                            {f.name}
+                            {f.error ? " ⚠" : ""}
+                          </a>
+                        );
+                      })}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+          {!sections.length && !loadError ? <p className="harness-status">加载目录…</p> : null}
+        </nav>
+        <div className="settings-main tutorial-main">
+          <header className="settings-main-head tutorial-main-head">
+            <div>
+              <p className="settings-crumb">
+                {crumb}
+                {errors ? (
+                  <span className="badge badge-fail" data-testid="harness-error-count"> {errors} 个文件加载失败</span>
+                ) : null}
+              </p>
+              <h2>{file?.name || "Harness"}</h2>
+              {file ? <p className="harness-path mono">{file.path}</p> : null}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button type="button" onClick={() => void load()} disabled={busy} title="刷新">
+                <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="tutorial-close"
+                aria-label="关闭 Harness"
+                title="返回上一页"
+                onClick={() => (window.history.length > 1 ? router.back() : router.push("/"))}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+          </header>
+          <div className="settings-body tutorial-body">
+            {loadError ? <p className="status-banner error">{loadError}</p> : null}
             {file ? (
-              <>
-                <header className="results-view-head">
-                  <strong className="results-path">{file.path}</strong>
-                </header>
-                <div className="results-view-body">
-                  {file.error ? (
-                    <p className="status-banner error" data-testid="harness-file-error">
-                      {file.error.line ? `${file.path}:${file.error.line} — ` : ""}
-                      {file.error.message}
-                    </p>
-                  ) : null}
-                  {file.fields ? (
-                    <div className="agent-table">
-                      <table data-testid="harness-fields">
-                        <tbody>
-                          {fieldRows(file.fields).map(([key, text, multi]) => (
-                            <tr key={key}>
-                              <th>{key}</th>
-                              <td>{multi ? <pre className="results-source"><code>{text}</code></pre> : text}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : null}
-                  <h3>原始 YAML</h3>
-                  <pre className="results-source" data-testid="harness-raw">
-                    <code>
-                      {rawLines(file.raw, file.error?.line).map((l) => (
-                        <span key={l.n} className={l.bad ? "status-banner error" : undefined} style={{ display: "block" }}>
-                          {String(l.n).padStart(3, " ")}  {l.text}
-                        </span>
-                      ))}
-                    </code>
-                  </pre>
-                </div>
-              </>
-            ) : (
-              <p className="settings-help">选择左侧文件查看内容。</p>
-            )}
-          </section>
+              <article className="harness-doc">
+                {file.error ? (
+                  <p className="status-banner error" data-testid="harness-file-error">
+                    {file.error.line ? `${file.path}:${file.error.line} — ` : ""}
+                    {file.error.message}
+                  </p>
+                ) : null}
+                {file.fields ? (
+                  <div className="harness-table-wrap">
+                    <table data-testid="harness-fields">
+                      <tbody>
+                        {fieldRows(file.fields).map(([key, text, multi]) => (
+                          <tr key={key}>
+                            <th>{key}</th>
+                            <td>{multi ? <pre className="harness-source"><code>{text}</code></pre> : text}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                <h3>原始 YAML</h3>
+                <pre className="harness-source" data-testid="harness-raw">
+                  <code>
+                    {rawLines(file.raw, file.error?.line).map((l) => (
+                      <span key={l.n} className={l.bad ? "status-banner error" : undefined} style={{ display: "block" }}>
+                        {String(l.n).padStart(3, " ")}  {l.text}
+                      </span>
+                    ))}
+                  </code>
+                </pre>
+              </article>
+            ) : sections.length ? (
+              <p className="settings-help">这一类还没有文件。</p>
+            ) : null}
+          </div>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }

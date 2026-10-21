@@ -517,7 +517,7 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
    (environment first, then repo `.env`); missing key fails at load; category must still equal the locked constant.
    `.env.example` updated; both worktrees' and the main repo's `.env` got the two keys.
 5/6/7. 同意 — keep as is: no revise intake check, no auto-cleanup of removed entities, any completed run can be the base.
-8. /harness 只读页 CSS 参考初始版本 — see FRONTEND_PARITY.md; reference = master 599ed0a.
+8. /harness 只读页 CSS 参考初始版本 — rebuilt on the old harness-shell layout (tutorial-frame, harness-nav, crumb/title/close); full page-by-page table in FRONTEND_PARITY.md (reference master 599ed0a), no-data blocks listed for Du Yuan.
 9. 同意 — tests are added back only when a bug appears.
 10. 同意（破坏性重构，不考虑旧内容）— results.json shape pinned in `harness/specs/lca-report.yaml`; revise compares
     by (case, scenario, category) and may only add keys. No old-format compatibility.
