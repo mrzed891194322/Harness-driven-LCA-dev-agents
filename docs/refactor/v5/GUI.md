@@ -26,3 +26,11 @@ which v5 maps to `full-lca`. At run start the form content is rendered into `wor
 
 Each node shows its deliverables (spec → artifacts path), requires and max rounds; each agent shows model + thinking,
 role, tools, rules, and read/write scopes (read-only).
+
+## Model dropdown (/runs)
+
+- `model-select`: lists `GET /api/workflow/models` (`models`, current `default_ref`); changing it calls
+  `POST /api/models/selection {profile_id}` and applies to the next run (the v5 service reads the saved default at
+  start). Disabled while a run is live. `model-note` shows "已保存" or the error; on error the old value is restored.
+- `workflow-select` follows the current/latest run's workflow after a page refresh until the user picks another.
+- Frontend unit tests: `npm test -w @harness/web` (node:test on `lib/*.test.ts`).

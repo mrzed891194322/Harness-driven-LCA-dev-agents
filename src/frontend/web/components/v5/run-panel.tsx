@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { initialWorkflow } from "../../lib/initial-workflow";
+import { modelChoices, type ModelRow } from "../../lib/model-options";
 
 type AgentCard = {
   role: string;
@@ -60,6 +61,40 @@ export function V5RunPanel() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ node: string; round: number; text: string } | null>(null);
+  const [models, setModels] = useState<ModelRow[]>([]);
+  const [model, setModel] = useState("");
+  const [modelNote, setModelNote] = useState("");
+
+  useEffect(() => {
+    apiFetch("/api/workflow/models")
+      .then((r) => readJson<{ default_ref?: string; default?: string; models: ModelRow[]; warnings?: string[] }>(r))
+      .then((data) => {
+        setModels(data.models || []);
+        setModel(data.default_ref || data.default || "");
+        if (data.warnings?.length) setModelNote(data.warnings.join("；"));
+      })
+      .catch((e: unknown) => setModelNote(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  async function chooseModel(value: string) {
+    const previous = model;
+    setModel(value);
+    setModelNote("");
+    try {
+      await readJson(
+        await apiFetch("/api/models/selection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profile_id: value }),
+        }),
+      );
+      setModelNote("已保存，下次运行生效");
+    } catch (e: unknown) {
+      setModel(previous);
+      setModelNote(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   // After a refresh, show the current/latest run's workflow instead of the default (until the user picks one).
   const picked = useRef(false);
   const runWorkflow = useRef<string | undefined>(undefined);
@@ -170,6 +205,22 @@ export function V5RunPanel() {
             ))}
           </select>
         </label>
+        <label>
+          模型{" "}
+          <select
+            data-testid="model-select"
+            value={modelChoices(models, model).value}
+            onChange={(e) => void chooseModel(e.target.value)}
+            disabled={run?.running}
+          >
+            {modelChoices(models, model).choices.map((c) => (
+              <option key={c.value || "none"} value={c.value} disabled={!c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {modelNote ? <small data-testid="model-note">{modelNote}</small> : null}
         <button data-testid="run-start" type="button" onClick={() => void act("start")} disabled={busy || run?.running}>
           开始运行
         </button>
