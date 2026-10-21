@@ -175,3 +175,44 @@ def test_mcp_not_ready_is_its_own_reason(v5_root):
     rt = FakeRuntime(result={"status": "error", "message": "MCP 服务未就绪（90 秒内未注册任何工具）：submit"})
     res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(_req(v5_root, node))
     assert res.submit is None and res.abort_reason == "mcp_not_ready" and not res.fatal
+
+
+class StreamingRuntime(FakeRuntime):
+    """Streams a model_retry entry during run_turn, like pi-runtime's turn.event, then reports it again in the log."""
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.handlers = []
+        self.log_at_stream = None
+
+    def add_event_handler(self, h):
+        self.handlers.append(h)
+
+    def remove_event_handler(self, h):
+        self.handlers.remove(h)
+
+    def request(self, method, params=None, *, timeout=0):
+        if method == "session.run_turn":
+            key = params["session_key"]
+            for h in list(self.handlers):
+                h("turn.event", {"session_key": key, "kind": "settle", "settle_kind": "model_retry",
+                                 "detail": "1/3 after 10s: 503", "ts": "T1"})
+            self.log_at_stream = self.events_file.read_text() if self.events_file.is_file() else ""
+            self.result = {**self.result, "message": "503 Service Unavailable",
+                           "settle": {"log": [{"ts": "T1", "kind": "model_retry", "detail": "1/3 after 10s: 503"}],
+                                      "model_errors": 1}}
+        return super().request(method, params, timeout=timeout)
+
+
+def test_model_retry_written_live_once_and_error_cleared_on_submit(v5_root):
+    """I-31: model_retry reaches the event log while the turn runs, not at settle, and only once.
+    I-32: a turn that recovered and submitted has no error."""
+    node = _setup(v5_root)
+    rt = StreamingRuntime(submit={"role": "executor", "status": "ok", "summary": "s"})
+    rt.events_file = v5_root / "workspace/runs/_run/events.jsonl"
+    res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(_req(v5_root, node))
+    assert '"model_retry"' in rt.log_at_stream
+    log = rt.events_file.read_text()
+    assert log.count('"model_retry"') == 1
+    assert res.submit is not None and res.error == ""
+    assert rt.handlers == []

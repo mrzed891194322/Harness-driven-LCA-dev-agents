@@ -429,3 +429,19 @@ be visual breakage this static pass cannot see.
   not-ready case reports `mcp_not_ready`. `PI_MCP_CREATE_ATTEMPTS` (default 2) controls the create retry.
 - Regression tests: `test_settle.py::test_mcp_env_has_no_pi_template_syntax` (a spec with `$schema`/`$id` → no `$`
   in any MCP env; produces file keeps the schema), `mcp_retry.test.ts` (`mcpEnvProblems`).
+
+## I-31 model_retry events written only at agent_settled (fixed in dev, serve still f466878)
+- What happened: in run 93ea3f68 the settle-guard entries (model_retry, nudges) reached `events.jsonl` only when
+  the whole agent turn settled, so during a long turn the events panel showed nothing about a provider retry.
+- Cause: the guard log was returned in the `session.run_turn` result and replayed by the driver afterwards.
+- Fix: `SettleGuard.notify` streams each entry; pi-runtime sends it as `turn.event` `{kind: "settle", settle_kind,
+  detail, ts}` during the turn; `PiDriver` registers a per-turn event handler that writes the event at once and
+  skips it in the end-of-turn replay (dedupe by kind+ts). Tests: `settle_guard.test.ts` (streamed before the wait),
+  `test_model_retry_written_live_once_and_error_cleared_on_submit`.
+
+## I-32 agent_settled carried the recovered 503 as an error (fixed in dev)
+- What happened: a turn that hit a 503, retried and then submitted showed `agent_settled.error = "503 …"`, and the
+  events view could read it as an errored turn.
+- Fix: when the submit was accepted the driver clears the turn error (the 503 stays only in the `model_retry`
+  event). Frontend: `agent_settled` with `submitted: true` is tone ok and described as 已提交, never as an error.
+  Tests: the driver test above; `run-events.test.ts`.

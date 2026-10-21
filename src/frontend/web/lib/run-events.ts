@@ -28,6 +28,7 @@ const BAD = new Set(["requires_failed", "too_many_rejections", "no_submit", "tur
 const WARN = new Set(["model_retry", "nudge", "rejected_retry", "submit_rejected", "stop_requested"]);
 
 export function eventTone(e: RunEvent): "ok" | "warn" | "fail" | "off" {
+  if (e.kind === "agent_settled") return e.submitted ? "ok" : e.error || e.aborted ? "fail" : "warn";
   if (BAD.has(e.kind)) return "fail";
   if (WARN.has(e.kind)) return "warn";
   if (e.kind === "model_preflight") return e.ok === false ? "fail" : "ok";
@@ -45,7 +46,11 @@ export function isNotable(e: RunEvent): boolean {
 
 /** One-line description: label plus the most useful detail field. */
 export function describeEvent(e: RunEvent): string {
-  const label = NOTABLE[e.kind] || e.kind;
+  const label = NOTABLE[e.kind] || (e.kind === "agent_settled" ? "回合结束" : e.kind);
+  if (e.kind === "agent_settled" && e.submitted) {
+    // A submitted turn succeeded; a recovered provider error is shown by its model_retry event (I-32).
+    return [label, [e.node, e.role, e.round ? `第 ${e.round} 轮` : ""].filter(Boolean).join(" · "), "已提交"].filter(Boolean).join(" — ");
+  }
   const where = [e.node, e.role, e.round ? `第 ${e.round} 轮` : ""].filter(Boolean).join(" · ");
   const state = [e.verdict, e.status].find((v) => typeof v === "string" && v) as string | undefined;
   const text = [e.reason, e.error, e.detail, e.message].find((v) => typeof v === "string" && v)?.toString().slice(0, 200);

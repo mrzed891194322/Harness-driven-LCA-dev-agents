@@ -34,3 +34,10 @@ test("verdicts and end states are shown in Chinese", () => {
   assert.equal(describeEvent({ kind: "run_end", status: "stopped" }), "运行结束 — 已停止");
   assert.equal(describeEvent({ kind: "node_end", node: "a", status: "failed" }), "节点结束 — a — 失败");
 });
+
+test("a submitted turn is never shown as errored (I-32)", () => {
+  const e = { kind: "agent_settled", node: "lca-bom", role: "executor", round: 1, submitted: true, error: "503: upstream" };
+  assert.equal(eventTone(e), "ok");
+  assert.equal(describeEvent(e), "回合结束 — lca-bom · executor · 第 1 轮 — 已提交");
+  assert.equal(eventTone({ kind: "agent_settled", submitted: false, error: "x" }), "fail");
+});

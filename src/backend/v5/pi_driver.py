@@ -198,11 +198,13 @@ class PiDriver:
                         session_key=spec.session_key, tools=spec.permission_policy.allowed_tools,
                         mcp=sorted(spec.mcp_bindings))
             self.active = spec.session_key
+            streamed = self._stream_settle(spec.session_key, req, events)
             try:
                 result = self.runtime.request("session.run_turn",
                                               {"session_key": spec.session_key, "prompt": req.prompt}, timeout=7200.0)
             finally:
                 self.active = None
+                streamed.close()
         except Exception as exc:  # noqa: BLE001 - surface as a turn error
             msg = str(exc)
             return TurnResult(error=msg, fatal=is_auth_error(msg))
@@ -224,7 +226,9 @@ class PiDriver:
         settle = result.get("settle") if isinstance(result, dict) else None
         settle = settle if isinstance(settle, dict) else {}
         for item in settle.get("log") or []:
-            kind = {"nudge": "nudge", "rejected_retry": "rejected_retry", "no_submit": "no_submit", "abort": "turn_aborted", "model_retry": "model_retry"}.get(item.get("kind"), "settle")
+            if (item.get("kind"), item.get("ts")) in streamed.seen:
+                continue  # already written live (I-31)
+            kind = SETTLE_KINDS.get(item.get("kind"), "settle")
             events.emit(kind, node=req.node.id, role=req.role, round=req.round, detail=item.get("detail"),
                         at=item.get("ts"))
         for line in _read_lines(rejections)[seen_rejections:]:
@@ -236,10 +240,18 @@ class PiDriver:
             events.emit("too_many_rejections", node=req.node.id, role=req.role, round=req.round,
                         rejections=int(settle.get("rejections") or 0))
         fatal = submit is None and is_auth_error(err)
+        if submit is not None:
+            # An accepted submit means the turn succeeded; a provider error it recovered from lives only in the
+            # model_retry event (I-32).
+            err = ""
         return TurnResult(submit=submit, aborted=aborted or bool(abort_reason),
                           error=err if (status != "ok" or err) else "", fatal=fatal,
                           session_id=str(result.get("pi_session_id") or spec.session_key),
                           nudges=int(settle.get("nudges") or 0), abort_reason=abort_reason)
+
+    def _stream_settle(self, session_key: str, req: TurnRequest, events: EventLog) -> _SettleStream:
+        """Write settle-guard entries (model_retry, nudge, ...) to the event log as pi-runtime streams them."""
+        return _SettleStream(self.runtime, session_key, req, events)
 
     def _release(self, key: str) -> None:
         try:
@@ -309,6 +321,35 @@ class PiDriver:
 # pi-runtime waits up to 90 s for MCP tools and retries create once: stay above 2 x 90 s so its own
 # "MCP 服务未就绪" error (node reason mcp_not_ready) arrives instead of a client timeout (I-30).
 CREATE_TIMEOUT_S = 240.0
+
+
+SETTLE_KINDS = {"nudge": "nudge", "rejected_retry": "rejected_retry", "no_submit": "no_submit",
+                "abort": "turn_aborted", "model_retry": "model_retry"}
+
+
+class _SettleStream:
+    """Event-handler registration for one turn; ``seen`` holds (kind, ts) already written."""
+
+    def __init__(self, runtime: Any, session_key: str, req: TurnRequest, events: EventLog) -> None:
+        self.runtime, self.seen = runtime, set()
+        self._add = getattr(runtime, "add_event_handler", None)
+
+        def handler(name: str, data: dict) -> None:
+            if name != "turn.event" or data.get("kind") != "settle" or data.get("session_key") != session_key:
+                return
+            kind = str(data.get("settle_kind") or "")
+            self.seen.add((kind, data.get("ts")))
+            events.emit(SETTLE_KINDS.get(kind, "settle"), node=req.node.id, role=req.role, round=req.round,
+                        detail=data.get("detail"), at=data.get("ts"))
+
+        self._handler = handler
+        if self._add:
+            self._add(handler)
+
+    def close(self) -> None:
+        remove = getattr(self.runtime, "remove_event_handler", None)
+        if self._add and remove:
+            remove(self._handler)
 
 
 class McpEnvError(ValueError):

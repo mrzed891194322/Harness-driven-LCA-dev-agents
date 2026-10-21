@@ -715,6 +715,10 @@ export async function handleRuntimeMethod(
         );
       };
     }
+    if (live.settle) {
+      live.settle.notify = (entry) =>
+        emitEvent("turn.event", { session_key: key, kind: "settle", settle_kind: entry.kind, detail: entry.detail, ts: entry.ts }, peer);
+    }
     if (live.injectionSink) {
       live.injectionSink.emit = (record) =>
         emitEvent(
@@ -796,6 +800,7 @@ export async function handleRuntimeMethod(
       writeTranscript(live);
       unsub();
       if (live.guardSink) live.guardSink.emit = null;
+      if (live.settle) live.settle.notify = null;
       if (live.injectionSink) live.injectionSink.emit = null;
     }
     const started_at = new Date(turnStart).toISOString();

@@ -120,3 +120,15 @@ test("a good turn after an error goes back to normal nudging", async () => {
   assert.equal(g.summary().nudges, 1);
   g.clear();
 });
+
+test("each log entry is streamed as it happens (I-31)", async () => {
+  const seen: string[] = [];
+  const g = new SettleGuard({ ...policy, max_turns: 80 }, () => false, () => 0, async () => {
+    assert.deepEqual(seen, ["model_retry"]); // streamed before the wait, not at settle
+  });
+  g.notify = (e) => seen.push(e.kind);
+  g.begin(() => {});
+  g.onTurnEnd(() => {}, { stopReason: "error", errorMessage: "503" });
+  await g.beforeSettle();
+  g.clear();
+});

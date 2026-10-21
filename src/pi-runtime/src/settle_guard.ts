@@ -52,6 +52,8 @@ export class SettleGuard {
   private log: SettleSummary["log"] = [];
   private seenRejections = 0;
   private modelErrors = 0;
+  /** Live listener for each log entry (I-31): pi-runtime streams it to the host as it happens. */
+  notify: ((entry: { ts: string; kind: string; detail?: string }) => void) | null = null;
   private lastError = "";
 
   constructor(
@@ -99,7 +101,13 @@ export class SettleGuard {
   }
 
   private note(kind: string, detail?: string): void {
-    this.log.push({ ts: new Date().toISOString(), kind, detail });
+    const entry = { ts: new Date().toISOString(), kind, detail };
+    this.log.push(entry);
+    try {
+      this.notify?.(entry);
+    } catch {
+      // streaming is best effort; the entry is still in the summary log
+    }
   }
 
   private abort(reason: "max_turns" | "timeout" | "too_many_rejections", abort: () => void): void {
