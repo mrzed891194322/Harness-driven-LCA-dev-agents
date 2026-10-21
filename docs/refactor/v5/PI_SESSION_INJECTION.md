@@ -50,3 +50,18 @@
 - Model auth preflight (`PiDriver.preflight`): one no-tool turn, logged as `model_preflight`; auth errors (401/403/api key)
   are fatal for the run. `outcome.stop_reason == aborted` is reported as `TurnResult.aborted`.
 - `agent.thinking` → `model_profile.parameters.thinking` → pi `thinkingLevel` (off…max; unknown ignored).
+
+## End-of-node decision (Commit B)
+
+- pi 1.3.0 `.d.ts`: `agent_before_settle` handlers return `AgentBeforeSettleEventResult = BoundaryResult =
+  { entries?: SessionBoundaryDraft[]; continue?: boolean }`; `agent_settled` carries `{ aborted: boolean }`;
+  `turn_end` extends `BoundaryState` (`entries`, `continue`, `context`, `outcome`); `ExtensionContext.abort()` exists.
+- `src/pi-runtime/src/settle_guard.ts` (wired in `session_host.ts` when `turn_context.settle` is set): on
+  `agent_before_settle` without `submit.json`, append a `custom_message` (`customType: v5_nudge`) and return
+  `continue: true`, up to `deliver.max_nudges`; then let it settle. Counts `turn_end` against `max_turns` and arms a
+  `timeout_min` wall clock per host turn; either limit calls `abort()` and records `abort_reason`.
+  `session.run_turn` returns `settle: {submitted, nudges, turns, abort_reason, log}`.
+- The submit tool validates executor deliverables (exist, non-empty, JSON schema) before accepting; rejections go to
+  `runs/<node>/<role>/submit_rejections.jsonl` and are returned to the agent.
+- Host: events `nudge`, `no_submit`, `turn_aborted`, `submit_rejected`; `agent_settled` carries `nudges` and
+  `abort_reason`. No accepted submit ⇒ node `failed` with `reason` = `no_submit` | `max_turns` | `timeout` | `aborted`.

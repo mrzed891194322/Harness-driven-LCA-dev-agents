@@ -41,6 +41,7 @@ import {
   writeJson,
 } from "./injection.js";
 import { exportTranscript, type TranscriptState } from "./transcript.js";
+import { SettleGuard, settlePolicyOf } from "./settle_guard.js";
 
 const PROTOCOL_VERSION = 1;
 
@@ -61,6 +62,8 @@ interface LiveSession {
   effective: Record<string, unknown>;
   /** Live sink for the first-request injection check; set while a turn is running. */
   injectionSink?: { emit: ((record: Record<string, unknown>) => void) | null };
+  /** v5 end-of-node guard (nudges, max_turns, timeout); null for non-v5 sessions. */
+  settle?: SettleGuard | null;
   /** Turn timing / retries only the live stream knows; merged into transcript.jsonl. */
   transcript?: TranscriptState;
 }
@@ -315,6 +318,8 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
   const guardSink: { emit: ((record: GuardRecord) => void) | null } = { emit: null };
   const injectionSink: { emit: ((record: Record<string, unknown>) => void) | null } = { emit: null };
   const hooks = { guardMounted: false, firstRequestHook: false, firstRequestSeen: false };
+  const settlePolicy = settlePolicyOf(spec.turn_context);
+  const settle = settlePolicy ? new SettleGuard(settlePolicy) : null;
   const secrets = knownSecrets(spec);
   let sessionRef: AgentSession | null = null;
   const guard = new PathGuard({
@@ -338,6 +343,13 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
       (pi) => {
         pi.on("tool_call", (event) => guard.onToolCall(event.toolName, event.input as Record<string, unknown>));
         hooks.guardMounted = true;
+        if (settle) {
+          pi.on("turn_end", (_event, ctx) => {
+            settle.onTurnEnd(() => ctx.abort());
+            return undefined;
+          });
+          pi.on("agent_before_settle", () => settle.beforeSettle());
+        }
         // Record (never modify) the first provider payload of this session object.
         pi.on("before_provider_request", (event) => {
           if (hooks.firstRequestSeen) return undefined;
@@ -418,6 +430,7 @@ async function createPiSession(spec: SessionLaunchSpec): Promise<LiveSession> {
     guardSink,
     effective,
     injectionSink,
+    settle,
     transcript: { createdAt: Date.now(), turns: [], retries: [] },
   };
 }
@@ -722,6 +735,7 @@ export async function handleRuntimeMethod(
       }
     });
     let outcome: TurnOutcome;
+    live.settle?.begin(() => void session.abort());
     try {
       await session.prompt(prompt);
       outcome = observer.outcome();
@@ -737,6 +751,7 @@ export async function handleRuntimeMethod(
       if (turn) Object.assign(turn, { status: "error", error: error instanceof Error ? error.message : String(error) });
       throw error;
     } finally {
+      live.settle?.clear();
       if (turn) Object.assign(turn, { ended_at: new Date().toISOString(), latency_ms: Date.now() - turnStart });
       writeTranscript(live);
       unsub();
@@ -754,11 +769,13 @@ export async function handleRuntimeMethod(
         message: outcome.error_message ?? "model connection failed",
         text,
         outcome,
+        ...(live.settle ? { settle: live.settle.summary() } : {}),
         started_at,
         ended_at,
       };
     }
-    return { status: "ok", text, outcome, started_at, ended_at };
+    const settle = live.settle?.summary();
+    return { status: "ok", text, outcome, started_at, ended_at, ...(settle ? { settle } : {}) };
   }
   if (method === "session.inspect") {
     // Re-read effective state of a live session (doctor / debugging), no model call.

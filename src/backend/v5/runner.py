@@ -31,6 +31,8 @@ class TurnResult:
     error: str = ""
     fatal: bool = False  # e.g. model auth failure: stop the whole run
     session_id: str = ""
+    nudges: int = 0
+    abort_reason: str = ""  # "max_turns" | "timeout" | ""
 
 
 @dataclass
@@ -234,10 +236,18 @@ class Runner:
             sessions_started.add(key)
             self.events.emit("agent_settled", node=node.id, role=role, round=rnd, aborted=result.aborted,
                              error=result.error, submitted=result.submit is not None,
-                             session_id=result.session_id)
+                             session_id=result.session_id, nudges=result.nudges,
+                             abort_reason=result.abort_reason)
             if result.fatal:
                 self._set_node(node, "error", round=rnd, error=result.error)
                 raise RunFailed(f"{node.id} 致命错误：{result.error}")
+            if result.submit is None:
+                # Only an accepted submit completes an agent turn.
+                reason = result.abort_reason or ("aborted" if result.aborted else "no_submit")
+                detail = f"{role} 未成功提交（{reason}）" + (f"：{result.error}" if result.error else "")
+                self._set_node(node, "failed", round=rnd, error=detail, reason=reason)
+                self.events.emit("node_end", node=node.id, status="failed", reason=reason, role=role, round=rnd)
+                raise RunFailed(f"{node.id} {detail}")
             outcome = self._outcome(node, role, rnd, result)
             nxt = node.transition(state, outcome)
             self.events.emit("transition", node=node.id, frm=state, on=outcome, to=nxt, round=rnd)

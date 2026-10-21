@@ -24,7 +24,7 @@ from backend.core.contracts.session_launch_spec import (
 )
 from backend.v5 import layout
 from backend.v5.access import compute_scope
-from backend.v5.config import load_role
+from backend.v5.config import load_role, load_role_def, load_spec
 from backend.v5.events import EventLog
 from backend.v5.runner import TurnRequest, TurnResult
 
@@ -108,6 +108,14 @@ class PiDriver:
         default_ws = str(self.root / layout.WORKSPACE)
         remap = (lambda g: g.replace(default_ws, str(ws), 1)) if str(ws) != default_ws else (lambda g: g)
         bindings, mcp_allowed = self._mcp_bindings(req, submit_file)
+        deliver = load_role_def(self.root, req.node.agents[req.role].role).deliver
+        if req.role == "executor":
+            produces = []
+            for prod in req.node.produces:
+                spec = load_spec(self.root, prod.spec)
+                produces.append({"path": str(ws / "artifacts" / prod.path), "schema": spec.schema_})
+            bindings["submit"]["env"]["V5_PRODUCES"] = json.dumps(produces, ensure_ascii=False)
+        bindings["submit"]["env"]["V5_REJECTIONS_FILE"] = str(role_dir / "submit_rejections.jsonl")
         scope_env = {
             "V5_READ_GLOBS": json.dumps([remap(g) for g in scope.read_globs]),
             "V5_WRITE_GLOBS": json.dumps([remap(g) for g in scope.write_globs]),
@@ -131,7 +139,9 @@ class PiDriver:
             input_snapshot_hash=_sha(req.prompt),
             model_profile=self.model,
             system_sections=[SystemSection(id="v5_system", content=system, source_hash=_sha(system))],
-            turn_context={"engine": "v5", "node": req.node.id, "round": req.round},
+            turn_context={"engine": "v5", "node": req.node.id, "round": req.round,
+                          "settle": {"submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
+                                     "max_turns": deliver.max_turns, "timeout_min": deliver.timeout_min}},
             knowledge_bindings=[],
             resource_bindings={
                 "project_root": str(self.root.resolve()),
@@ -162,6 +172,8 @@ class PiDriver:
         events = EventLog(req.workspace)
         spec, submit_file = self.launch_spec(req)
         submit_file.unlink(missing_ok=True)
+        rejections = submit_file.with_name("submit_rejections.jsonl")
+        seen_rejections = _count_lines(rejections)
         payload = {"launch_spec": spec.to_dict()}
         try:
             if req.resume and spec.session_key in self.live:
@@ -195,9 +207,20 @@ class PiDriver:
                 submit_file.replace(submit_file.with_name(f"submit_round_{req.round}.json"))
         if req.role == "reviewer" or submit is None:
             self._release(spec.session_key) if req.role == "reviewer" else None
+        settle = result.get("settle") if isinstance(result, dict) else None
+        settle = settle if isinstance(settle, dict) else {}
+        for item in settle.get("log") or []:
+            kind = {"nudge": "nudge", "no_submit": "no_submit", "abort": "turn_aborted"}.get(item.get("kind"), "settle")
+            events.emit(kind, node=req.node.id, role=req.role, round=req.round, detail=item.get("detail"),
+                        at=item.get("ts"))
+        for line in _read_lines(rejections)[seen_rejections:]:
+            events.emit("submit_rejected", node=req.node.id, role=req.role, round=req.round, **line)
+        abort_reason = str(settle.get("abort_reason") or "")
         fatal = submit is None and is_auth_error(err)
-        return TurnResult(submit=submit, aborted=aborted, error=err if (status != "ok" or err) else "",
-                          fatal=fatal, session_id=str(result.get("pi_session_id") or spec.session_key))
+        return TurnResult(submit=submit, aborted=aborted or bool(abort_reason),
+                          error=err if (status != "ok" or err) else "", fatal=fatal,
+                          session_id=str(result.get("pi_session_id") or spec.session_key),
+                          nudges=int(settle.get("nudges") or 0), abort_reason=abort_reason)
 
     def _release(self, key: str) -> None:
         try:
@@ -242,3 +265,21 @@ class PiDriver:
         ok = (result or {}).get("status", "ok") == "ok" and not err
         events.emit("model_preflight", ok=ok, model=self.model.profile_id, error=err[:300])
         return None if ok else (err or "model preflight failed")
+
+
+def _count_lines(path: Path) -> int:
+    return len(_read_lines(path))
+
+
+def _read_lines(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
+    out = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict):
+            out.append({k: v for k, v in item.items() if k not in ("node", "role", "round")})
+    return out
