@@ -586,3 +586,13 @@ To implement LATER (after the frontend review, not now) — revise-lca redesign:
 - Revision N reads the latest version of each input (highest rev, else the original).
 - /results 上一版 tab removed for good (already hidden in I-44).
 - Touches: runner revise setup, inject inputs/deliverable paths, produces/checks/spec paths, submit tool, results listing, tests.
+
+## I-46 模拟操作员 review of serve 9dbb7cf (screenshots .local/ui-op/v5/cmp/) — CSS fixes
+- /harness: detail pane fills the width (the old `.tutorial-body .harness-doc { max-width: 52rem }` reading width is lifted
+  on the v5 viewer only); field table `table-layout: fixed`, key column 8rem, cells `overflow-wrap: anywhere`; prompt cell
+  and raw YAML `white-space: pre-wrap`.
+- /plan 工作流编排: `.flow-stages` `align-items: flex-start` (cards at the top). Finding: 599ed0a's CSS has the same
+  `align-items: center`, so the old board also centered vertically; no pre-v5 screenshot with backend data exists
+  (old_plan_工作流编排.png shows only the "后端未连接" error; .local/ui-op/ holds only v5-era shots). Agent line split into
+  tokens (默认 / model / 思考 X), each `white-space: nowrap`, wrapping only between tokens.
+- Prompt modal: code wraps (`pre-wrap`, `overflow-wrap: anywhere`), scrolls inside at max-height 60vh (`.prompt-modal-source`).

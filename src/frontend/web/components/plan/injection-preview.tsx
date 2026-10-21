@@ -56,7 +56,7 @@ export function PromptModal({ node, agent, onClose }: { node: { id: string; titl
           </header>
           <div className="settings-body">
             {agent ? (
-              <pre className="harness-source" style={{ maxHeight: "60vh", overflow: "auto", whiteSpace: "pre-wrap" }}>
+              <pre className="harness-source prompt-modal-source">
                 <code>{part === "system" ? agent.system : agent.user}</code>
               </pre>
             ) : null}

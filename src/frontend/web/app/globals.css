@@ -2251,7 +2251,7 @@ button:disabled {
   grid-row: 2;
   min-height: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   overflow: auto;
 }
 
@@ -4161,3 +4161,15 @@ button:disabled {
   font-family: var(--font-ui);
   font-size: 14px;
 }
+
+/* v5 review fixes (I-46): wrap long lines, keep label+value tokens whole */
+.tutorial-body, .harness-doc, .harness-table-wrap { min-width: 0; }
+.harness-doc { width: 100%; }
+[data-testid="harness-viewer"] .tutorial-body .harness-doc { max-width: none; }
+.harness-doc table { table-layout: fixed; }
+[data-testid="harness-fields"] th { width: 8rem; }
+.harness-doc td { overflow-wrap: anywhere; }
+.harness-doc pre, .harness-source, .harness-source code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.prompt-modal-source { max-height: 60vh; overflow: auto; }
+.flow-step-meta span { white-space: nowrap; }
+.flow-step-meta span + span::before { content: " · "; }

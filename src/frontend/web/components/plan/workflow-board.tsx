@@ -139,9 +139,10 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                         <Bot className="flow-step-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
                       </span>
-                      <small>
-                        {agent.model_source === "default" ? `默认 · ${agent.model}` : agent.model}
-                        {agent.thinking ? ` · 思考 ${agent.thinking}` : ""}
+                      <small className="flow-step-meta">
+                        {agent.model_source === "default" ? <span>默认</span> : null}
+                        <span>{agent.model}</span>
+                        {agent.thinking ? <span>思考 {agent.thinking}</span> : null}
                       </small>
                     </button>
                   ))}
