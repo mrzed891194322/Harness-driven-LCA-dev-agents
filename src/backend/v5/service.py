@@ -46,7 +46,8 @@ class V5Service:
         out = []
         for wid in list_workflows(self.root):
             wf, nodes = load_workflow(self.root, wid)
-            out.append({"id": wid, "nodes": [n.id for n in nodes],
+            out.append({"id": wid, "title": wf.title, "plan_file": wf.plan_file, "revise_of": wf.revise_of,
+                        "nodes": [n.id for n in nodes],
                         "details": [self._node_card(n) for n in nodes]})
         return out
 
@@ -78,7 +79,7 @@ class V5Service:
             driver = self.driver_factory(self.root)
             self._stop.clear()
             self.last_error = ""
-            plans = {"main_plan.md": plan_text, **(extra_plans or {})} if not resume else None
+            plans = {wf.plan_file: plan_text, **(extra_plans or {})} if not resume else None
             runner = Runner(self.root, wf, nodes, driver, workspace=self.ws,
                             prompt_builder=Injector(self.root, self.ws), stop_requested=self._stop.is_set)
 

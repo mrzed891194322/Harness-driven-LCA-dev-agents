@@ -586,7 +586,8 @@ def workflow_result_archive() -> Response:
     )
 
 
-_V5_TASK_ALIASES = {"whole-lca": "full-lca", "LCA-main": "full-lca"}
+_V5_TASK_ALIASES = {"whole-lca": "full-lca", "LCA-main": "full-lca", "revise-lca": "revise-lca",
+                    "LCA-revise": "revise-lca"}
 
 
 def _v5() -> Any:
@@ -606,10 +607,23 @@ def start_workflow(body: WorkflowStart) -> dict[str, Any]:
     """v5: one whole workflow; the plan (form or imported text) becomes artifacts/plan/main_plan.md."""
     from backend.services.plan_form import list_references, render_plan
     from backend.v5.config import ConfigError
+    from backend.v5.config import load_workflow as load_v5_workflow
 
-    workflow = body.workflow or _V5_TASK_ALIASES.get(body.task, body.task)
+    workflow = _V5_TASK_ALIASES.get(body.workflow or body.task, body.workflow or body.task)
     plan = body.plan
-    if not plan.strip() and body.subject.strip():
+    try:
+        wf_def = load_v5_workflow(_v5().root, workflow)[0]
+    except (ValueError, ConfigError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not plan.strip() and wf_def.plan_file == "revise_plan.md":
+        # Revise: the plan form fields describe the original study; use the saved revise plan instead.
+        try:
+            plan = str(read_plan_document(PROJECT_ROOT, workflow="LCA-revise").get("content") or "")
+        except PlanFormError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not plan.strip():
+            raise HTTPException(status_code=400, detail="修订计划为空：请先在计划页「修订」模式填写或导入 revise_plan.md")
+    elif not plan.strip() and body.subject.strip():
         fields = PlanFields(subject=body.subject, functional_unit=body.functional_unit,
                             life_cycle_stages=body.life_cycle_stages, conditions=body.conditions)
         plan = render_plan(fields, [str(r["name"]) for r in list_references(PROJECT_ROOT)])

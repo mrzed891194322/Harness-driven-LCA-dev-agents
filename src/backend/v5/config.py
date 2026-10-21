@@ -133,6 +133,10 @@ class Workflow(_Strict):
     id: str
     title: str = ""
     nodes: list[str]
+    # Plan file the GUI/API writes under artifacts/plan/ (revise workflows use revise_plan.md).
+    plan_file: str = "main_plan.md"
+    # Revise mode: a fresh run keeps the earlier run's artifacts under artifacts/previous/ instead of deleting them.
+    revise_of: str | None = None
 
     @field_validator("nodes")
     @classmethod

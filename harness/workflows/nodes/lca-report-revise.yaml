@@ -1,0 +1,19 @@
+id: lca-report-revise
+title: 报告修订
+requires: [plan/revise_plan.md, bom/bom.json, mapping/mapping.json, mapping/LCI, previous/report]
+produces:
+  - {spec: lca-report, path: report/lca_report.md}
+inject: [rules/lca/method.yaml, rules/lca/interpretation.yaml, rules/lca/openlca.yaml, rules/lca/revise.yaml, rules/lca/revise-report.yaml]
+agents:
+  executor: {role: executor, tools: {mcp: [control_openlca]}}
+  reviewer: {role: reviewer, tools: {mcp: [control_openlca]}}
+flow:
+  start: executor
+  max_rounds: 3
+  edges:
+    - {from: executor, "on": submitted, to: reviewer}
+    - {from: executor, "on": checks_failed, to: executor}
+    - {from: executor, "on": stop, to: failed}
+    - {from: reviewer, "on": pass, to: done}
+    - {from: reviewer, "on": reject, to: executor}
+    - {from: reviewer, "on": stop, to: failed}

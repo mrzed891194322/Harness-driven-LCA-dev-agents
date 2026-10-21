@@ -1,0 +1,6 @@
+id: revise-lca
+title: 修订 LCA
+# Revises the last completed full-lca (or revise-lca) run: its artifacts are moved to artifacts/previous/ at start.
+revise_of: full-lca
+plan_file: revise_plan.md
+nodes: [lca-bom-revise, lca-mapping-revise, lca-report-revise]

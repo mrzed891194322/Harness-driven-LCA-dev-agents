@@ -59,7 +59,7 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
 - Fix: none yet.
 - Pending: whether 模拟操作员 should cover it (stop backend, check the label) or a unit test is enough.
 
-## I-09 revise-lca missing in v5
+## I-09 revise-lca missing in v5 (resolved, see I-16)
 - What: v5 has no revise workflow; `LCA-revise.yaml` was deleted with the old engine. The plan page still has the
   "revise" mode and its `revise_plan.md`.
 - Cause: v5 C8 only ported the 4-stage `full-lca`.
@@ -127,3 +127,33 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
     ports. Verified: plan file hashes unchanged after a full run.
 - Pending: which deleted areas to bring back first (likely candidates: credentials service, openLCA cleanup/import
   tool internals, pi-runtime session lifecycle/release), one at a time.
+
+## I-16 revise-lca v5 design decisions
+- What: v5 needed the old LCA-revise (清单修订 → 映射修订 → 报告修订, driven by `revise_plan.md`) reading the
+  previous full-lca artifacts as `requires`.
+- Cause/constraint: a fresh v5 run wiped all of `workspace/artifacts`, and a node clears its own produce dir before it
+  starts, so a revise node could not read and rewrite the same `bom/`, `mapping/`, `report/` paths.
+- Fix taken:
+  - Workflow fields `revise_of` and `plan_file`. A fresh `revise-lca` run moves the earlier artifacts to
+    `artifacts/previous/` (event `previous_snapshot`), keeps `artifacts/plan/` (original `main_plan.md`) and writes
+    `revise_plan.md`. Revise nodes produce the normal paths with the unchanged `lca-bom`/`lca-mapping`/`lca-report`
+    specs and require `previous/<dir>`; `previous/` is read-only (only `requires` grants read).
+  - Base rule: the base is replaced only after a completed run (full-lca or revise-lca). After a failed/stopped
+    revise, the existing `previous/` stays the base and the half-revised artifacts are discarded.
+  - No 01 intake gate (old revise had a reviewer-only gate); `lca-bom-revise` requires `plan/main_plan.md`,
+    `plan/revise_plan.md` and `previous/bom`, so a missing earlier run or empty revise plan fails before any agent turn.
+  - Rules: `rules/lca/revise.yaml` (shared: intent first, full not diff, keep unaffected rows/UUIDs, reviewer judges
+    intent before method) + `revise-bom|mapping|report.yaml` condensed from the old `stages/*.revise|reviser.md`.
+    No new roles or specs.
+  - `lca-report` spec: `operation_dir` now says "this node's runs dir" so `lca-report-revise` stays inside its own
+    write boundary.
+  - GUI start: `POST /api/workflow/start {workflow: revise-lca}` ignores the main-plan form fields the /runs panel
+    sends and uses the saved revise plan (plan page "修订" mode, `LCA-revise` alias); empty → 400 with a clear message.
+    Aliases `revise-lca` / `LCA-revise` accepted. Fixed: the start route loaded the workflow from the real repo
+    instead of the service root.
+- Pending Du Yuan:
+  - Whether to bring back the intake gate for revise (validate `revise_plan.md` is actionable before 清单修订).
+  - openLCA: the revise report re-imports into the project category; unchanged foreground UUIDs overwrite the
+    previous import (same category). No cleanup of entities the revision removed — confirm acceptable.
+  - Whether `revise_of` should check the base run's workflow (now any completed run is a valid base).
+  - Not yet run against real openLCA/model.

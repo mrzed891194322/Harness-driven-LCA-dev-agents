@@ -6,7 +6,7 @@ description: |
   ## 步骤
 
   1. 核对全部必做情景和分析；缺模型以 `status=stop` 提交（需上游返工）。首次访问 IPC 调 `health_check`。
-  2. `preflight_import_lci`：`lci_dir` = `workspace/artifacts/mapping/LCI`，`operation_dir` = `workspace/runs/lca-report/import-operations`，`scope_id` 用本次运行固定值。
+  2. `preflight_import_lci`：`lci_dir` = `workspace/artifacts/mapping/LCI`，`operation_dir` = 本节点 runs 目录下的 `import-operations`（`workspace/runs/<本节点 id>/import-operations`，如 lca-report、lca-report-revise），`scope_id` 用本次运行固定值。
   3. `import_lci`（稳定 `request_id` + 本次 `preflight_id`）。超时用 `get_import_operation` 查询，不盲目重导；`partial_failure` 时 `import_lci(resume_operation_id=...)`。模型或范围变化必须停止。
   4. 导入后用 `get_model_graph` 核对每个 Product System、新建前景实体及连接；按需回读参考过程与流，核实数量基准。
   5. 写计算计划 `calculation-plan.json`，逐项调用 `calculate_product_system`，把每次调用的完整返回原样保存为 `raw/<product_system_uuid>__<method_uuid>.json`，汇总到 `results.json`。

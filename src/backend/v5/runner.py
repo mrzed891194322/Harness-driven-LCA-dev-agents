@@ -92,14 +92,43 @@ class Runner:
         self.run_id = ""
 
     # ---------- workspace ----------
+    def _snapshot_previous(self) -> None:
+        """Revise mode: move the earlier run's artifacts to artifacts/previous/ (plan stays in place).
+
+        The base is replaced only after a completed run (full-lca or a completed revise). After a failed or
+        stopped revise, the existing previous/ is the base again and the half-revised artifacts are dropped.
+        """
+        prev_dir = self.art / "previous"
+        manifest = self.run_dir / "manifest.json"
+        last = json.loads(manifest.read_text(encoding="utf-8")) if manifest.is_file() else {}
+        keep_base = prev_dir.is_dir() and not (last.get("status") == "completed")
+        if not keep_base:
+            shutil.rmtree(prev_dir, ignore_errors=True)
+            if self.art.is_dir():
+                movable = [i for i in self.art.iterdir() if i.name not in ("plan", "previous", "README.md")]
+                if movable:
+                    prev_dir.mkdir(parents=True, exist_ok=True)
+                    for item in movable:
+                        shutil.move(str(item), str(prev_dir / item.name))
+        self.events.emit("previous_snapshot", kept_existing=keep_base, base_workflow=last.get("workflow"),
+                         base_status=last.get("status"), base_run=last.get("run_id"))
+
     def prepare_fresh(self, plans: dict[str, str]) -> None:
-        """Clear the workspace (keep the lock file), then write the plan files."""
+        """Clear the workspace (keep the lock file), then write the plan files.
+
+        Revise workflows keep artifacts/plan/ and artifacts/previous/ (see ``_snapshot_previous``).
+        """
+        revise = bool(self.workflow.revise_of)
+        if revise:
+            self._snapshot_previous()
         for child in ("artifacts", "runs", "tmp"):
             target = self.ws / child
             if not target.exists():
                 continue
             for item in target.iterdir():
                 if item.name == "README.md":  # tracked placeholder
+                    continue
+                if revise and child == "artifacts" and item.name in ("plan", "previous"):
                     continue
                 if item == self.run_dir:
                     for sub in item.iterdir():

@@ -30,3 +30,23 @@ def test_start_status_feedback_and_old_resume(monkeypatch, v5_root):
     assert client.post("/api/workflow/resume", json={"run_id": "x", "from_stage": "y"}).status_code == 404
     assert client.post("/api/workflow/start", json={"workflow": "full-lca", "plan": " "}).status_code == 400
     assert client.post("/api/workflow/stop").status_code == 409
+
+
+def test_gui_start_of_revise_uses_saved_revise_plan(monkeypatch, v5_root):
+    client, svc = _client(monkeypatch, v5_root)
+    make_node(v5_root, "r", produces=[{"spec": "paragraph", "path": "r/p.md"}])
+    write_yaml(v5_root / "harness/workflows/revise-lca.yaml",
+               {"id": "revise-lca", "nodes": ["r"], "plan_file": "revise_plan.md", "revise_of": "full-lca"})
+    saved = {"content": ""}
+    monkeypatch.setattr(app_module, "read_plan_document", lambda root, workflow=None: dict(saved))
+    gui = {"workflow": "revise-lca", "subject": "原研究对象", "functional_unit": "1 L"}
+    r = client.post("/api/workflow/start", json=gui)
+    assert r.status_code == 400 and "修订计划为空" in r.json()["detail"]
+    saved["content"] = "# 修订\n- 改运输\n"
+    r = client.post("/api/workflow/start", json=gui)
+    assert r.status_code == 200, r.text
+    svc.wait(10)
+    plan = v5_root / "workspace/artifacts/plan/revise_plan.md"
+    assert plan.read_text(encoding="utf-8") == "# 修订\n- 改运输\n"
+    wf = next(w for w in client.get("/api/v5/workflows").json()["workflows"] if w["id"] == "revise-lca")
+    assert wf["plan_file"] == "revise_plan.md"

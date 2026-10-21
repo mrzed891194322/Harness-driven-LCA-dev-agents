@@ -1,0 +1,7 @@
+title: 清单修订
+description: revise-lca 清单修订节点
+enabled: true
+order: 310
+prompt: |
+  读取 `revise_plan.md`、`main_plan.md`、`previous/bom/` 及声明资料，提交完整新 `bom/bom.json`（同 lca-bom 规格）和对应 Markdown。
+  逐项落实增删改，保留未受影响的行；不查 openLCA、不写 LCI。若 `previous/bom/` 缺失或无法读取，按意见与资料重建完整 BOM，并在缺口中说明。
