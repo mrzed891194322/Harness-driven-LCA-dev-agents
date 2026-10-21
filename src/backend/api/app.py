@@ -666,11 +666,30 @@ def v5_workflows() -> dict[str, Any]:
 
 @app.get("/api/v5/preview")
 def v5_preview(workflow: str) -> dict[str, Any]:
-    """Read-only injection preview for /plan 预览执行 (no run, no writes)."""
+    """Read-only injection preview for /plan 预览执行 (no run, no writes). <plan> = the saved plan the run would write."""
     try:
-        return _v5().preview(workflow)
+        return _v5().preview(workflow, plan_text=_saved_plan_text(workflow))
     except Exception as exc:  # noqa: BLE001 - ConfigError / unknown workflow
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _saved_plan_text(workflow: str) -> str:
+    """Same source /api/workflow/start uses: saved revise plan, or the plan form rendered with references."""
+    from backend.services.plan_form import list_references, render_plan
+    from backend.v5.config import load_workflow as load_v5_workflow
+
+    try:
+        wf_def = load_v5_workflow(_v5().root, workflow)[0]
+        if wf_def.plan_file == "revise_plan.md":
+            return str(read_plan_document(PROJECT_ROOT, workflow="LCA-revise").get("content") or "")
+        doc = read_plan_document(PROJECT_ROOT, workflow="LCA-main")
+        fields = doc.get("fields") if isinstance(doc, dict) else None
+        if isinstance(fields, dict) and str(fields.get("subject") or "").strip():
+            pf = PlanFields(**{k: str(fields.get(k) or "") for k in ("subject", "functional_unit", "life_cycle_stages", "conditions")})
+            return render_plan(pf, [str(r["name"]) for r in list_references(PROJECT_ROOT)])
+        return str(doc.get("content") or "") if isinstance(doc, dict) else ""
+    except Exception:  # noqa: BLE001 - preview falls back to the workspace plan
+        return ""
 
 
 @app.get("/api/v5/agent-models")

@@ -12,7 +12,7 @@ import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { workflowForMode, type V5Workflow } from "../../lib/v5-workflow";
 
-type Preview = { nodes: { id: string; title: string; agents: { role: string; system: string; user: string }[] }[]; plan_present: boolean };
+type Preview = { nodes: { id: string; title: string; agents: { role: string; system: string; user: string }[] }[]; plan_present: boolean; plan_source?: string };
 
 type ReferenceFile = {
   name: string;
@@ -225,7 +225,7 @@ export function PreviewBoard({
           <h3 id="preview-inject-title">注入预览</h3>
           <p className="settings-help">
             每个代理第 1 轮收到的系统提示和用户消息，由运行时同一套拼装逻辑生成（只读，不会启动运行）。
-            {preview && !preview.plan_present ? " 计划在开始运行时写入，这里的 <plan> 暂时为空。" : ""}
+            {preview?.plan_source === "saved" ? " <plan> 取自当前保存的计划，与开始运行时写入的内容一致。" : preview && !preview.plan_present ? " 还没有保存的计划，<plan> 暂时为空。" : ""}
           </p>
           {preview ? (
             <ul className="preview-files">

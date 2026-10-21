@@ -282,17 +282,30 @@ class PiDriver:
     # ---------- preflight ----------
     PREFLIGHT_RETRY_DELAYS_S = (10, 30)
 
-    def preflight(self, workspace: Path) -> str | None:
-        """Model preflight with retries for transient network errors (I-29). Returns an error string or None."""
-        err = self._preflight_once(workspace, attempt=1)
-        for n, wait in enumerate(self.PREFLIGHT_RETRY_DELAYS_S, start=2):
-            if err is None or not is_transient_error(err):
-                break
-            getattr(self, "_sleep", time.sleep)(wait)
-            err = self._preflight_once(workspace, attempt=n)
-        return err
+    def preflight(self, workspace: Path, models: list[str] | None = None) -> str | None:
+        """Model preflight for the default model and every distinct per-agent model, each with retries for
+        transient network errors (I-29). Returns the first error (prefixed with the model) or None."""
+        targets: list[ModelProfile] = [self.model]
+        for ref in models or []:
+            if ref and ref != getattr(self.model, "profile_id", None) and ref not in [t.profile_id for t in targets]:
+                try:
+                    from backend.core.runtime.model_profiles import resolve_model_profile
 
-    def _preflight_once(self, workspace: Path, attempt: int = 1) -> str | None:
+                    targets.append(resolve_model_profile(ref, project_root=self.root))
+                except Exception as exc:  # noqa: BLE001
+                    return f"{ref}：无法解析模型配置：{exc}"
+        for profile in targets:
+            err = self._preflight_once(workspace, attempt=1, model=profile)
+            for n, wait in enumerate(self.PREFLIGHT_RETRY_DELAYS_S, start=2):
+                if err is None or not is_transient_error(err):
+                    break
+                getattr(self, "_sleep", time.sleep)(wait)
+                err = self._preflight_once(workspace, attempt=n, model=profile)
+            if err:
+                return f"{profile.profile_id}：{err}" if len(targets) > 1 else err
+        return None
+
+    def _preflight_once(self, workspace: Path, attempt: int = 1, model: ModelProfile | None = None) -> str | None:
         """One tiny no-tool turn."""
         events = EventLog(workspace)
         key = f"v5:preflight:{uuid.uuid4().hex[:8]}"
@@ -300,7 +313,7 @@ class PiDriver:
         spec = SessionLaunchSpec(
             run_id="preflight", stage_id="preflight", assignment_id="preflight", role="executor",
             attempt=1, session_key=key, execution_id=uuid.uuid4().hex, bundle_hash="", input_snapshot_hash="",
-            model_profile=self.model,
+            model_profile=model or self.model,
             system_sections=[SystemSection(id="v5_system", content="只回复 OK。", source_hash="")],
             turn_context={}, knowledge_bindings=[],
             resource_bindings={"project_root": str(self.root.resolve()), "workspace_root": str(workspace.resolve()),
@@ -315,7 +328,7 @@ class PiDriver:
             result = self.runtime.request("session.run_turn", {"session_key": key, "prompt": "OK?"}, timeout=180.0)
         except Exception as exc:  # noqa: BLE001
             msg = explain_model_error(str(exc))
-            events.emit("model_preflight", ok=False, model=self.model.profile_id, error=msg[:300], attempt=attempt)
+            events.emit("model_preflight", ok=False, model=(model or self.model).profile_id, error=msg[:300], attempt=attempt)
             return msg
         finally:
             self._release(key)
@@ -323,7 +336,7 @@ class PiDriver:
         err = str((result or {}).get("message") or (outcome or {}).get("error_message") or "")
         ok = (result or {}).get("status", "ok") == "ok" and not err
         err = explain_model_error(err) if err else err
-        events.emit("model_preflight", ok=ok, model=self.model.profile_id, error=err[:300], attempt=attempt)
+        events.emit("model_preflight", ok=ok, model=(model or self.model).profile_id, error=err[:300], attempt=attempt)
         return None if ok else (err or "model preflight failed")
 
 

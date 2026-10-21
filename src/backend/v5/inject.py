@@ -47,6 +47,8 @@ class Injector:
     def __init__(self, root: Path, workspace: Path | None = None) -> None:
         self.root = root
         self.ws = workspace or (root / layout.WORKSPACE)
+        # Preview only: {plan file name: text} shown instead of / in addition to artifacts/plan (no writes).
+        self.plan_override: dict[str, str] = {}
 
     # ---- system prompt (1, 3, 4) ----
     def system(self, node: Node, role: str) -> str:
@@ -74,7 +76,9 @@ class Injector:
         out = []
         plan_dir = art / "plan"
         plans = sorted(plan_dir.glob("*.md")) if plan_dir.is_dir() else []
-        out.append(_section("plan", "\n\n".join(p.read_text(encoding="utf-8") for p in plans) or "（无计划）"))
+        texts = {p.name: p.read_text(encoding="utf-8") for p in plans}
+        texts.update(self.plan_override)
+        out.append(_section("plan", "\n\n".join(texts[k] for k in sorted(texts)) or "（无计划）"))
         inputs = []
         for req in node.requires:
             target = art / req

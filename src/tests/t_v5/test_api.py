@@ -54,6 +54,7 @@ def test_gui_start_of_revise_uses_saved_revise_plan(monkeypatch, v5_root):
 
 def test_preview_is_read_only_injection(monkeypatch, v5_root):
     client, svc = _client(monkeypatch, v5_root)
+    monkeypatch.setattr(app_module, "_saved_plan_text", lambda wf: "# 保存的计划 XYZ\n")
     before = sorted(str(p) for p in v5_root.rglob("*"))
     r = client.get("/api/v5/preview", params={"workflow": "full-lca"})
     assert r.status_code == 200, r.text
@@ -61,6 +62,7 @@ def test_preview_is_read_only_injection(monkeypatch, v5_root):
     assert node["id"] == "a" and {a["role"] for a in node["agents"]} == {"executor", "reviewer"}
     ex = next(a for a in node["agents"] if a["role"] == "executor")
     assert "<plan>" in ex["user"] and "deliverable_paragraph" in ex["user"] and ex["system"].strip()
+    assert "保存的计划 XYZ" in ex["user"] and r.json()["plan_source"] == "saved"
     assert sorted(str(p) for p in v5_root.rglob("*")) == before  # no side effects
     assert client.get("/api/v5/preview", params={"workflow": "nope"}).status_code == 400
 
@@ -83,3 +85,47 @@ def test_agent_model_setting_applies_at_run_start(monkeypatch, v5_root):
     assert card["model_source"] == "gui" and card["gui_model"] == "p/m1"
     client.post("/api/v5/agent-models", json={"node": "a", "role": "executor"})
     assert agent_models.load(v5_root) == {}
+
+
+def test_preflight_checks_every_configured_model(monkeypatch, v5_root):
+    """Default model + each distinct per-agent model gets its own preflight (temp project, fake runtime)."""
+    from types import SimpleNamespace
+
+    import backend.core.runtime.model_profiles as mp
+    from backend.v5.pi_driver import PiDriver
+
+    seen: list[str] = []
+
+    class D(PiDriver):
+        def __init__(self):
+            self.root = v5_root
+            self.model = SimpleNamespace(profile_id="p/default", parameters={})
+
+        def _preflight_once(self, workspace, attempt=1, model=None):
+            seen.append(model.profile_id)
+            return "boom" if model.profile_id == "p/bad" else None
+
+    monkeypatch.setattr(mp, "resolve_model_profile", lambda ref, project_root=None: SimpleNamespace(profile_id=ref, parameters={}))
+    d = D()
+    assert d.preflight(v5_root, models=["p/a", "p/default", "p/a", ""]) is None
+    assert seen == ["p/default", "p/a"]
+    seen.clear()
+    assert d.preflight(v5_root, models=["p/bad"]) == "p/bad：boom"
+
+
+def test_runner_passes_agent_models_to_preflight(monkeypatch, v5_root):
+    from backend.v5 import agent_models
+
+    client, svc = _client(monkeypatch, v5_root)
+    agent_models.save(v5_root, "a", "reviewer", model="p/rev")
+    got = {}
+
+    class F(FakeDriver):
+        def preflight(self, ws, models=None):
+            got["models"] = models
+            return None
+
+    svc.driver_factory = lambda r: F()
+    assert client.post("/api/workflow/start", json={"workflow": "full-lca", "plan": "# 计划\n"}).status_code == 200
+    svc.wait(10)
+    assert got["models"] == ["p/rev"]

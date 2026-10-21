@@ -550,3 +550,11 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
   v5 has no per-tool events, so the chip shows model retries / rejections / nudges instead of "N 次工具调用", and the
   running chip says 执行中 instead of the tool name. Only the last 500 events kept by run-panel are summarized.
 - Not built (awaiting Du Yuan): agent output stream, the disabled 重跑本轮 (checkpoint resume) button, 从头重跑.
+
+## I-43 Preflight checks every configured model; preview shows the saved plan
+- `Runner` passes the distinct agent models (GUI override or YAML) to `PiDriver.preflight(ws, models=...)`; the driver
+  preflights the default model and each distinct extra model (same transient retries); the first failure is reported
+  as `<model>：<error>` and fails the run before any node starts. Tests: `test_preflight_checks_every_configured_model`,
+  `test_runner_passes_agent_models_to_preflight`.
+- `/api/v5/preview` fills `<plan>` from the saved plan, using the same source as `/api/workflow/start` (revise: saved
+  revise_plan.md; new: plan form rendered with references). Read-only; `Injector.plan_override` is preview-only.

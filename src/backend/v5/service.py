@@ -92,7 +92,7 @@ class V5Service:
                 "produces": [{"spec": p.spec, "path": p.path} for p in node.produces],
                 "max_rounds": node.flow.max_rounds, "agents": agents}
 
-    def preview(self, workflow: str) -> dict[str, Any]:
+    def preview(self, workflow: str, plan_text: str | None = None) -> dict[str, Any]:
         """Exact injection per agent (system + round-1 user message) via the run-time Injector. Read-only."""
         from backend.v5 import agent_models
         from backend.v5.config import load_spec
@@ -101,6 +101,8 @@ class V5Service:
         nodes = agent_models.apply(nodes, agent_models.load(self.root))
         specs = {p.spec: load_spec(self.root, p.spec) for n in nodes for p in n.produces}
         inj = Injector(self.root, self.ws)
+        if plan_text and plan_text.strip():
+            inj.plan_override = {wf.plan_file: plan_text}
         plan_dir = self.ws / "artifacts" / "plan"
         out = []
         for node in nodes:
@@ -109,7 +111,8 @@ class V5Service:
                 agents.append({"role": role, "system": inj.system(node, role), "user": inj(node, role, 1, None, specs)})
             out.append({"id": node.id, "title": node.title, "agents": agents})
         return {"workflow": wf.id if hasattr(wf, "id") else workflow, "plan_file": wf.plan_file,
-                "plan_present": plan_dir.is_dir() and any(plan_dir.glob("*.md")), "nodes": out}
+                "plan_present": bool(plan_text and plan_text.strip()) or (plan_dir.is_dir() and any(plan_dir.glob("*.md"))),
+                "plan_source": "saved" if plan_text and plan_text.strip() else "workspace", "nodes": out}
 
     def start(self, workflow: str, *, plan_text: str = "", resume: bool = False,
               extra_plans: dict[str, str] | None = None) -> dict[str, Any]:

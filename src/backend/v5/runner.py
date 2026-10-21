@@ -204,7 +204,15 @@ class Runner:
                              nodes=[n.id for n in self.nodes], resume=resume)
             self._manifest(status="running", status_reason="", started_at=time.time())
             pre = getattr(self.driver, "preflight", None)
-            err = pre(self.ws) if callable(pre) else None
+            # Every distinct model actually configured: default + per-agent overrides (GUI or YAML).
+            agent_models = sorted({a.model for n in self.nodes for a in n.agents.values() if a.model})
+            if callable(pre):
+                import inspect
+
+                takes_models = "models" in inspect.signature(pre).parameters
+                err = pre(self.ws, models=agent_models) if takes_models else pre(self.ws)
+            else:
+                err = None
             if err:
                 reason = f"模型鉴权预检失败：{err}"
                 first = next((n for n in self.nodes if not (resume and self.node_status(n).get("status") == "passed")),
