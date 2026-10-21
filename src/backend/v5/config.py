@@ -43,6 +43,7 @@ class Agent(_Strict):
     role: Literal["executor", "reviewer"]
     model: str = ""
     thinking: str = ""
+    max_turns: int | None = Field(default=None, ge=1)  # per-node override of the role's deliver.max_turns (Q1)
     tools: Tools = Field(default_factory=Tools)
     rules: list[str] = Field(default_factory=list)
     access: Access = Field(default_factory=Access)
@@ -160,7 +161,7 @@ class Deliver(_Strict):
     spec: str | None = None
     max_nudges: int = Field(default=2, ge=0)
     max_turns: int = Field(default=80, ge=1)
-    timeout_min: float = Field(default=60, gt=0)
+    timeout_min: float = Field(default=120, gt=0)
     max_rejections: int = Field(default=5, ge=1)
 
 
@@ -187,14 +188,27 @@ class SpecFile(_Strict):
     checks: list[dict] = Field(default_factory=list)
 
 
-# {{var}} values; later from project settings.
-DEFAULT_VARS: dict[str, str] = {"language": "中文"}
+# {{var}} values come from .env (Q4): template variable -> env key. A missing key fails at load.
+TEMPLATE_ENV_KEYS: dict[str, str] = {"language": "HARNESS_LANGUAGE", "project_category": "OPENLCA_PROJECT_CATEGORY"}
 
 
-def template_vars() -> dict[str, str]:
+def template_vars(env_file: Path | None = None) -> dict[str, str]:
+    import os
+
+    from backend.settings import parse_env_file
     from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY
 
-    return {**DEFAULT_VARS, "project_category": OPENLCA_PROJECT_CATEGORY}
+    path = env_file or Path(__file__).resolve().parents[3] / ".env"
+    file_values = parse_env_file(path) if path.is_file() else {}
+    out: dict[str, str] = {}
+    for var, key in TEMPLATE_ENV_KEYS.items():
+        value = (os.environ.get(key) or file_values.get(key) or "").strip()
+        if not value:
+            raise ConfigError(f"{path}: {key} is not set (template variable {{{{{var}}}}})")
+        out[var] = value
+    if out["project_category"] != OPENLCA_PROJECT_CATEGORY:
+        raise ConfigError(f"OPENLCA_PROJECT_CATEGORY must equal the locked category {OPENLCA_PROJECT_CATEGORY!r}")
+    return out
 
 
 _VAR = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")

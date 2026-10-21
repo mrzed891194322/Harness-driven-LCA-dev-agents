@@ -15,4 +15,4 @@ deliver:
   spec: null
   max_nudges: 2
   max_turns: 80
-  timeout_min: 60
+  timeout_min: 120

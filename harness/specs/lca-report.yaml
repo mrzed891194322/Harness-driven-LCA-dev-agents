@@ -36,6 +36,27 @@ description: |
 
 
 
+  ## results.json 固定结构（全量与修订运行一致，修订节点不得改动键名）
+
+  ```json
+  {
+    "method": {"name": "...", "uuid": "..."},
+    "functional_unit": "...",
+    "results": [
+      {"case": "case1", "scenario": "main", "product_system": "<uuid>", "amount": 1.0,
+       "raw": "raw/<product_system_uuid>__<method_uuid>.json",
+       "impacts": {"<impact category name>": {"value": 0.0, "unit": "kg CO2-Eq"}}}
+    ],
+    "comparisons": [
+      {"id": "...", "base": {"case": "...", "scenario": "..."}, "other": {"case": "...", "scenario": "..."},
+       "category": "<impact category name>", "delta": 0.0, "rel_pct": 0.0}
+    ]
+  }
+  ```
+
+  - `results` 每项对应一次计算，(`case`, `scenario`, `product_system`) 唯一；数值只来自对应 raw。
+  - 修订运行与上一轮比较时，按 (`case`, `scenario`, 影响类别) 对齐 `previous/report/results.json` 与本轮 `results.json`；需要的额外字段只能新增，不能改名或改层级。
+
   ## 交付物（本节点产出目录 `workspace/artifacts/report/`）
 
   - `lca_report.md`（必需）、`calculation-plan.json`、`results.json`、`raw/`（每次计算的完整工具返回）。

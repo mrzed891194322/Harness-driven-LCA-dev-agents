@@ -506,3 +506,24 @@ aa54d98f bom 6.1, mapping 11.4, report 14.1 min (run 18:09–18:41). All UTC+8. 
 ## I-39 /results tab bar wrapped "上一版" to a second line
 - Cause: `.results-kind-tabs` was a fixed 3-column grid, so a 4th tab (上一版) wrapped.
 - Fix: column auto-flow, `minmax(max-content, 1fr)`, `white-space: nowrap`, `overflow-x: auto`. CSS only.
+
+## I-40 Du Yuan's decisions on the v5 issue doc (2026-10-21)
+Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was done:
+1. 同意 — model retries no longer count toward `max_turns` (settle_guard counts only non-error turns); node agents take an
+   optional `max_turns` override, `lca-mapping` executor/reviewer = 120, other nodes keep the role default 80.
+2. 同意，120 分钟 — `timeout_min` default 120 (config, role YAML, pi-runtime fallback).
+3. 先不管 — GWP gap vs baseline deferred; nothing changed.
+4. 写到 .env 并读取 — `{{language}}`/`{{project_category}}` come from `HARNESS_LANGUAGE` / `OPENLCA_PROJECT_CATEGORY`
+   (environment first, then repo `.env`); missing key fails at load; category must still equal the locked constant.
+   `.env.example` updated; both worktrees' and the main repo's `.env` got the two keys.
+5/6/7. 同意 — keep as is: no revise intake check, no auto-cleanup of removed entities, any completed run can be the base.
+8. /harness 只读页 CSS 参考初始版本 — see FRONTEND_PARITY.md; reference = master 599ed0a.
+9. 同意 — tests are added back only when a bug appears.
+10. 同意（破坏性重构，不考虑旧内容）— results.json shape pinned in `harness/specs/lca-report.yaml`; revise compares
+    by (case, scenario, category) and may only add keys. No old-format compatibility.
+11. 模型重试写到代码里/env — `MODEL_RETRY_DELAYS_S = (10, 30, 60)` in `pi_driver.py`, override `PI_MODEL_RETRY_DELAYS_S`;
+    passed to pi-runtime in turn_context; not in any role/harness YAML.
+12. 同意 — `max_rejections` is already per node+role (`runs/<node>/<role>/submit_rejections.jsonl`); recorded only.
+13. 同意 — credential copies stay until the worktrees retire, then deleted.
+14. 自己做好重试与报错 — when retries are exhausted the abort event reads
+    `<node> / <role> 的模型请求重试 N 次后仍失败，节点停止。最后一次错误：…` (turn_aborted event, shown in the events panel).

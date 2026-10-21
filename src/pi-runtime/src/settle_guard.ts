@@ -17,6 +17,8 @@ export interface SettlePolicy {
   nudge_text?: string;
   /** Provider errors (stopReason "error", e.g. "Connection error.") retried per host turn, with these waits (s). */
   model_retry_delays_s: number[];
+  node?: string;
+  role?: string;
 }
 
 export interface SettleSummary {
@@ -36,10 +38,12 @@ export function settlePolicyOf(turnContext: Record<string, unknown> | undefined)
     submit_file: raw.submit_file,
     max_nudges: Number(raw.max_nudges ?? 2),
     max_turns: Number(raw.max_turns ?? 80),
-    timeout_min: Number(raw.timeout_min ?? 60),
+    timeout_min: Number(raw.timeout_min ?? 120),
     rejections_file: typeof raw.rejections_file === "string" ? raw.rejections_file : undefined,
     max_rejections: Number(raw.max_rejections ?? 5),
     nudge_text: raw.nudge_text,
+    node: typeof raw.node === "string" ? raw.node : undefined,
+    role: typeof raw.role === "string" ? raw.role : undefined,
     model_retry_delays_s: Array.isArray(raw.model_retry_delays_s) ? raw.model_retry_delays_s.map(Number) : [10, 30, 60],
   };
 }
@@ -122,8 +126,9 @@ export class SettleGuard {
   }
 
   onTurnEnd(abort: () => void, message?: { stopReason?: string; errorMessage?: string }): void {
-    this.turns += 1;
     this.lastError = message?.stopReason === "error" ? message.errorMessage || "provider error" : "";
+    // Q1: a failed model request is a network problem, not agent work: it does not count toward max_turns.
+    if (!this.lastError) this.turns += 1;
     if (this.tooManyRejections()) this.abort("too_many_rejections", abort);
     else if (this.turns >= this.policy.max_turns && !this.submitted()) this.abort("max_turns", abort);
   }
@@ -142,7 +147,9 @@ export class SettleGuard {
       const delays = this.policy.model_retry_delays_s;
       if (this.modelErrors >= delays.length) {
         this.abortReason = "model_error";
-        this.note("abort", `model_error: ${err}`);
+        const who = [this.policy.node, this.policy.role].filter(Boolean).join(" / ") || "当前节点";
+        // Q14: retries exhausted -> one clear Chinese error (node, retry count, last error) in events and UI.
+        this.note("abort", `model_error: ${who} 的模型请求重试 ${delays.length} 次后仍失败，节点停止。最后一次错误：${err}`);
         return undefined;
       }
       const wait = delays[this.modelErrors];

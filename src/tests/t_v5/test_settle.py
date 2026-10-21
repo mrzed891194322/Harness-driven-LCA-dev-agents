@@ -80,7 +80,7 @@ def test_driver_passes_settle_policy_and_logs(v5_root):
     assert res.submit is None and res.aborted and res.abort_reason == "max_turns" and res.nudges == 2
     spec = rt.calls[0][1]["launch_spec"]
     pol = spec["turn_context"]["settle"]
-    assert pol["max_nudges"] == 2 and pol["max_turns"] == 80 and pol["timeout_min"] == 60
+    assert pol["max_nudges"] == 2 and pol["max_turns"] == 80 and pol["timeout_min"] == 120
     assert pol["submit_file"].endswith("runs/a/executor/submit.json")
     produces = json.loads(Path(spec["mcp_bindings"]["submit"]["env"]["V5_PRODUCES_FILE"]).read_text())
     assert produces[0]["path"].endswith("artifacts/a/p.md")
@@ -167,3 +167,24 @@ def test_mcp_env_has_no_pi_template_syntax(v5_root):
         check_mcp_env({"x": {"env": {"A": "a$b"}}})
     with pytest.raises(McpEnvError):
         check_mcp_env({"x": {"env": {"A": "!cmd"}}})
+
+
+def test_model_retry_delays_env_override(monkeypatch):
+    from backend.v5.pi_driver import model_retry_delays_s
+    monkeypatch.setenv("PI_MODEL_RETRY_DELAYS_S", "1,2")
+    assert model_retry_delays_s() == [1, 2]
+    monkeypatch.setenv("PI_MODEL_RETRY_DELAYS_S", "bad")
+    assert model_retry_delays_s() == [10, 30, 60]
+
+
+def test_template_vars_from_env_file(tmp_path, monkeypatch):
+    import pytest
+    from backend.v5.config import ConfigError, template_vars
+    monkeypatch.delenv("HARNESS_LANGUAGE", raising=False)
+    monkeypatch.delenv("OPENLCA_PROJECT_CATEGORY", raising=False)
+    env = tmp_path / ".env"
+    env.write_text('HARNESS_LANGUAGE="English"\nOPENLCA_PROJECT_CATEGORY="202606-harness-agent-LCA"\n')
+    assert template_vars(env)["language"] == "English"
+    env.write_text('OPENLCA_PROJECT_CATEGORY="202606-harness-agent-LCA"\n')
+    with pytest.raises(ConfigError):
+        template_vars(env)

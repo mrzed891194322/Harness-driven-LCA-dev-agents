@@ -5,8 +5,8 @@ produces:
   - {spec: lca-mapping, path: mapping/mapping.json}
 inject: [rules/lca/method.yaml, rules/lca/inventory.yaml, rules/lca/mapping.yaml, rules/lca/openlca.yaml]
 agents:
-  executor: {role: executor, tools: {mcp: [control_openlca]}}
-  reviewer: {role: reviewer, tools: {mcp: [control_openlca]}}
+  executor: {role: executor, max_turns: 120, tools: {mcp: [control_openlca]}}
+  reviewer: {role: reviewer, max_turns: 120, tools: {mcp: [control_openlca]}}
 flow:
   start: executor
   max_rounds: 3

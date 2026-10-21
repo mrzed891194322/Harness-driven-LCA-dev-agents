@@ -8,6 +8,7 @@ pi auto-load is off in the runtime (noContextFiles, no skills/templates, project
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import time
@@ -148,10 +149,11 @@ class PiDriver:
             model_profile=self.model,
             system_sections=[SystemSection(id="v5_system", content=system, source_hash=_sha(system))],
             turn_context={"engine": "v5", "node": req.node.id, "round": req.round,
-                          "settle": {"submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
-                                     "max_turns": deliver.max_turns, "timeout_min": deliver.timeout_min,
+                          "settle": {"node": req.node.id, "role": req.role, "submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
+                                     "max_turns": req.node.agents[req.role].max_turns or deliver.max_turns, "timeout_min": deliver.timeout_min,
                                      "max_rejections": deliver.max_rejections,
-                                     "rejections_file": str(role_dir / "submit_rejections.jsonl")}},
+                                     "rejections_file": str(role_dir / "submit_rejections.jsonl"),
+                                     "model_retry_delays_s": model_retry_delays_s()}},
             knowledge_bindings=[],
             resource_bindings={
                 "project_root": str(self.root.resolve()),
@@ -372,6 +374,29 @@ TRANSIENT_RE = re.compile(
     r"\b50[234]\b|service unavailable|overloaded",
     re.I,
 )
+
+
+# Model request retries (Q11): code default, overridable by .env / environment; never in harness YAML.
+MODEL_RETRY_DELAYS_S = (10, 30, 60)
+
+
+def model_retry_delays_s() -> list[int]:
+    """Waits (s) between retries of a failed model request; PI_MODEL_RETRY_DELAYS_S="10,30,60" overrides."""
+    raw = os.environ.get("PI_MODEL_RETRY_DELAYS_S")
+    if raw is None:
+        try:
+            from backend.settings import parse_env_file
+            raw = parse_env_file(Path(__file__).resolve().parents[3] / ".env").get("PI_MODEL_RETRY_DELAYS_S")
+        except Exception:  # noqa: BLE001
+            raw = None
+    if raw:
+        try:
+            vals = [int(float(x)) for x in raw.split(",") if x.strip()]
+            if vals and all(v >= 0 for v in vals):
+                return vals
+        except ValueError:
+            pass
+    return list(MODEL_RETRY_DELAYS_S)
 
 
 def is_transient_error(text: str) -> bool:

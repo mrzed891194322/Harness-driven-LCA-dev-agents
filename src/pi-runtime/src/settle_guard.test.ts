@@ -132,3 +132,21 @@ test("each log entry is streamed as it happens (I-31)", async () => {
   await g.beforeSettle();
   g.clear();
 });
+
+test("failed model requests do not count toward max_turns; exhausted retries give a clear Chinese error (Q1, Q14)", async () => {
+  const g = new SettleGuard({ ...policy, max_turns: 2, node: "lca-mapping", role: "executor" }, () => false, () => 0, async () => {});
+  let aborted = 0;
+  g.begin(() => {});
+  const err = { stopReason: "error", errorMessage: "503" };
+  g.onTurnEnd(() => aborted++, err);
+  await g.beforeSettle();
+  g.onTurnEnd(() => aborted++, err);
+  await g.beforeSettle();
+  assert.equal(g.summary().turns, 0);
+  assert.equal(aborted, 0);
+  g.onTurnEnd(() => aborted++, err);
+  assert.equal(await g.beforeSettle(), undefined);
+  const last = g.summary().log.at(-1)!;
+  assert.match(last.detail ?? "", /lca-mapping \/ executor 的模型请求重试 2 次后仍失败.*503/);
+  g.clear();
+});
