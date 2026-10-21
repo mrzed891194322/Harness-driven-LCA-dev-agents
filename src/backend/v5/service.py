@@ -52,16 +52,33 @@ class V5Service:
                         "details": [self._node_card(n) for n in nodes]})
         return out
 
+    def _default_model(self) -> tuple[str, str]:
+        """(model ref, thinking) the driver would use when an agent sets neither (I-37)."""
+        try:
+            from backend.core.agents.assignment_models import load_default_model
+            from backend.core.runtime.model_profiles import resolve_model_profile
+
+            ref = load_default_model(self.root)
+            if not ref:
+                return "", ""
+            prof = resolve_model_profile(ref, project_root=self.root)
+            return ref, str((prof.parameters or {}).get("thinking") or "")
+        except Exception:  # noqa: BLE001 - a card must render even with a broken model store
+            return "", ""
+
     def _node_card(self, node: Any) -> dict[str, Any]:
         """Read-only GUI card: spec at node level; per agent model+thinking / role / access / tools / rules."""
         from backend.v5.access import compute_scope
         from backend.v5.config import load_role
 
         agents = {}
+        default_ref, default_thinking = self._default_model()
         for name, agent in node.agents.items():
             scope = compute_scope(self.root, node, name, load_role(self.root, agent.role)[1])
             rel = lambda g: g.replace(str(self.root) + "/", "")  # noqa: E731
-            agents[name] = {"role": agent.role, "model": agent.model or "默认模型", "thinking": agent.thinking or "默认",
+            agents[name] = {"role": agent.role, "model": agent.model or default_ref or "未选择模型",
+                            "model_source": "agent" if agent.model else "default",
+                            "thinking": agent.thinking or default_thinking or "模型默认",
                             "tools": {"mcp": agent.tools.mcp, "skills": agent.tools.skills},
                             "rules": list(node.inject) + list(agent.rules),
                             "read": [rel(g) for g in scope.read_globs], "write": [rel(g) for g in scope.write_globs]}

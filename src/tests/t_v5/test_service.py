@@ -117,3 +117,12 @@ def test_model_preflight_failure_marks_first_node(v5_root):
         encoding="utf-8").splitlines() if '"node_end"' in line]
     assert ends and ends[0]["reason"] == "model_preflight"
     assert "503" in explain_model_error("503 Service Unavailable")
+
+
+def test_card_shows_resolved_default_model(v5_root, monkeypatch):
+    _project(v5_root)
+    svc = V5Service(v5_root, driver_factory=_ok_driver)
+    assert svc.workflows()[0]["details"][0]["agents"]["executor"]["model"] == "未选择模型"
+    monkeypatch.setattr(V5Service, "_default_model", lambda self: ("opencode-go/deepseek-v4.1-flash", "high"))
+    a = svc.workflows()[0]["details"][0]["agents"]["executor"]
+    assert (a["model"], a["thinking"], a["model_source"]) == ("opencode-go/deepseek-v4.1-flash", "high", "default")

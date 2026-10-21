@@ -1,3 +1,4 @@
+import { label } from "./labels.ts";
 export type ResultKind = "work" | "intermediate" | "final" | "previous";
 export type ArtifactCategory = "intermediate" | "deliverable" | "previous";
 
@@ -25,5 +26,5 @@ export { LABEL as VERDICT_LABEL } from "./labels.ts";
 export function runLine(manifest: { status?: string; current_node?: string | null; current_stage?: string | null; status_reason?: string | null } | undefined): string {
   if (!manifest?.status || manifest.status === "idle") return "";
   const node = manifest.current_node ?? manifest.current_stage;
-  return [`状态 ${manifest.status}`, node ? `当前节点 ${node}` : "", manifest.status_reason || ""].filter(Boolean).join(" · ");
+  return [`状态 ${label(manifest.status)}`, node ? `当前节点 ${node}` : "", manifest.status_reason || ""].filter(Boolean).join(" · ");
 }

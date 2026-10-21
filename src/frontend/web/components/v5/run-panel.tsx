@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { LABEL } from "../../lib/labels";
+import { modelLine } from "../../lib/agent-card";
 import { initialWorkflow } from "../../lib/initial-workflow";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
 import { describeEvent, eventTone, isNotable, mergeEvents, statusTone, type RunEvent } from "../../lib/run-events";
@@ -11,6 +12,7 @@ type AgentCard = {
   role: string;
   model: string;
   thinking: string;
+  model_source?: string;
   tools: { mcp: string[]; skills: string[] };
   rules: string[];
   read: string[];
@@ -352,17 +354,17 @@ export function V5RunPanel() {
                 <div className="agent-table">
                   <table>
                     <thead>
-                      <tr><th>代理</th><th>模型</th><th>工具</th><th>规则</th><th>可写</th><th>可读</th></tr>
+                      <tr><th className="col-agent">代理</th><th className="col-model">模型</th><th className="col-tools">工具</th><th className="col-rules">规则</th><th className="col-paths">可写</th><th className="col-paths">可读</th></tr>
                     </thead>
                     <tbody>
                       {Object.entries(detailCard.agents).map(([name, a]) => (
                         <tr key={name} data-testid={`agent-card-${detail}-${name}`}>
-                          <td>{name}（{a.role}）</td>
-                          <td>{a.model} / 思考 {a.thinking}</td>
+                          <td className="col-agent"><span className="agent-name">{name}</span><span className="agent-role">{a.role}</span></td>
+                          <td className="col-model">{modelLine(a)}</td>
                           <td>文件工具{a.tools.mcp.length ? `、MCP ${a.tools.mcp.join("、")}` : ""}{a.tools.skills.length ? `、技能 ${a.tools.skills.join("、")}` : ""}</td>
                           <td>{a.rules.length ? a.rules.join("、") : "仅全局规则"}</td>
-                          <td>{a.write.join("、")}</td>
-                          <td>{a.read.join("、")}</td>
+                          <td className="col-paths"><ul className="path-list">{a.write.map((g) => <li key={g}>{g}</li>)}</ul></td>
+                          <td className="col-paths"><ul className="path-list">{a.read.map((g) => <li key={g}>{g}</li>)}</ul></td>
                         </tr>
                       ))}
                     </tbody>
