@@ -43,6 +43,7 @@ type ModelListState = {
 type Diagnostics = {
   node: Check;
   pi_agents: Check & { version?: string };
+  toolchain?: Partial<Record<"typescript" | "next" | "npm" | "pi_sdk" | "python" | "uv", string>>;
   python_agent: Check;
   openlca: Check & { host?: string; port?: number; status?: LcaTool["status"] };
   lca_tools?: LcaTool[];
@@ -275,10 +276,10 @@ export default function StatusPage() {
       ready: typescriptReady,
       message: diag?.node.message || "",
       tools: [
-        { name: "TypeScript", version: "5.9.3", note: "前端与运行时语言", src: "/toolchain/typescript.svg" },
-        { name: "npm", version: "11.19.1", note: "安装依赖并启动", src: "/toolchain/npm.svg" },
-        { name: "Pi SDK", version: diag?.pi_agents.version || "—", note: "代理运行时", src: "/toolchain/pi.svg" },
-        { name: "Next.js", version: "15.5.27", note: "控制面板页面", src: "/toolchain/next.svg" },
+        { name: "TypeScript", version: diag?.toolchain?.typescript || "", note: "前端与运行时语言", src: "/toolchain/typescript.svg" },
+        { name: "npm", version: diag?.toolchain?.npm || "", note: "安装依赖并启动", src: "/toolchain/npm.svg" },
+        { name: "Pi SDK", version: diag?.toolchain?.pi_sdk || diag?.pi_agents.version || "", note: "代理运行时", src: "/toolchain/pi.svg" },
+        { name: "Next.js", version: diag?.toolchain?.next || "", note: "控制面板页面", src: "/toolchain/next.svg" },
       ],
     },
     {
@@ -287,8 +288,8 @@ export default function StatusPage() {
       ready: pythonReady,
       message: diag?.python_agent.message || "",
       tools: [
-        { name: "Python", version: "3.12.12", note: "后端解释器", src: "/toolchain/python.svg" },
-        { name: "uv", version: "0.9.26", note: "管理 Python 依赖", src: "/toolchain/uv.svg" },
+        { name: "Python", version: diag?.toolchain?.python || "", note: "后端解释器", src: "/toolchain/python.svg" },
+        { name: "uv", version: diag?.toolchain?.uv || "", note: "管理 Python 依赖", src: "/toolchain/uv.svg" },
       ],
     },
   ];
@@ -312,7 +313,7 @@ export default function StatusPage() {
                 </header>
                 {env.ready ? (
                   <ul className="status-toolchain">
-                    {env.tools.map((tool) => (
+                    {env.tools.filter((tool) => tool.version).map((tool) => (
                       <li key={tool.name}>
                         <img src={tool.src} alt="" />
                         <strong>{tool.name}</strong>

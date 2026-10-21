@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 from collections.abc import Iterable
+from functools import lru_cache
 from pathlib import Path
 
 from backend.core.agents.assignment_models import load_default_model
@@ -103,6 +105,40 @@ def pi_sdk_version(root: Path) -> str:
         return ""
 
 
+def _package_version(path: Path) -> str:
+    try:
+        return str(json.loads(path.read_text("utf-8"))["version"])
+    except (OSError, ValueError, KeyError):
+        return ""
+
+
+@lru_cache(maxsize=8)
+def _command_version(name: str) -> str:
+    exe = shutil.which(name)
+    if not exe:
+        return ""
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    # "uv 0.9.26 (...)" -> "0.9.26"; "11.19.1" -> "11.19.1"
+    parts = out.split()
+    return (parts[1] if len(parts) > 1 and parts[0] == name else parts[0] if parts else "").lstrip("v")
+
+
+def toolchain_versions(root: Path) -> dict[str, str]:
+    """Versions shown on /status, read from the real environment; "" when not readable (the page drops it)."""
+    web = root / "src" / "frontend" / "web" / "node_modules"
+    return {
+        "typescript": _package_version(web / "typescript" / "package.json"),
+        "next": _package_version(web / "next" / "package.json"),
+        "npm": _command_version("npm"),
+        "pi_sdk": pi_sdk_version(root),
+        "python": sys.version.split()[0],
+        "uv": _command_version("uv"),
+    }
+
+
 def environment_report(project_root: Path | None = None) -> dict:
     root = project_root or PROJECT_ROOT
     node_ok, node_msg = inspect("pi", project_root=root)
@@ -116,6 +152,7 @@ def environment_report(project_root: Path | None = None) -> dict:
     return {
         "node": {"ok": bool(node_ok), "message": node_msg},
         "pi_agents": {"ok": bool(pi_ok), "message": pi_msg, "version": pi_sdk_version(root)},
+        "toolchain": toolchain_versions(root),
         "python_agent": python_status,
         "openlca": {
             "ok": olca["ok"],

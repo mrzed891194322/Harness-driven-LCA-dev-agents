@@ -326,3 +326,9 @@ be visual breakage this static pass cannot see.
 - Testid change for 模拟操作员: `node-card-<id>` removed (cards now only in the detail); new `node-open-<id>`,
   `node-detail-<id>`, `node-events-<id>`, `events-panel`, `event-row[data-kind]`. See GUI.md.
 - Test: `lib/run-events.test.ts`. Pending: no visual check yet (after the serve switch).
+
+## I-25 /status toolchain versions from the environment (done)
+- `diagnostics/environment.toolchain` = {typescript, next (web `node_modules/*/package.json`), npm, uv (`--version`,
+  cached per process), pi_sdk (I-23), python (`sys.version`)}. The page shows only versions that could be read;
+  nothing is hardcoded anymore. Test: `test_pi_version.py::test_toolchain_reads_packages_and_blanks_missing`.
+- Note: npm/uv are looked up on the backend's PATH; if the service PATH lacks them they are dropped from the card.
