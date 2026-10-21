@@ -272,6 +272,15 @@ be visual breakage this static pass cannot see.
 - `backend-status` / `lib/api.ts`: `/api/health` — OK (disconnect label still untested, I-08).
 - Fix: none.
 
+### I-19h Found by 模拟操作员 (screenshots `.local/ui-op/v5/pages/`)
+1. `/status` hardcoded Pi SDK `1.1.0` (`app/status/page.tsx:280`) → fixed in I-23.
+2. `/results` 最终交付 listed `artifacts/plan/main_plan.md` → fixed in I-22.
+3. `/results` 修改计划 always disabled → fixed by I-20 (unlock).
+4. `/runs` model dropdown always shows the "ollama unreachable" warning as an error → fixed in I-23.
+5. Tutorial `basics/openlca` and `panel/overview` stale → fixed in I-23.
+- Model-preflight failure in the GUI (I-18): verified by test only (`test_model_preflight_failure_marks_first_node`);
+  no fake endpoint or setting was added to trigger it from the GUI.
+
 ## I-20 /plan fixes from I-19b (done)
 - Fix: `reviseWorkLocked = false` (also enables 修改计划 on `/results`), so the 修改工作 mode writes
   `revise_plan.md` via `PUT /api/plan?workflow=LCA-revise`. New "去运行" link (`data-testid="plan-go-run"`, existing
@@ -296,3 +305,13 @@ be visual breakage this static pass cannot see.
 - The page header shows `状态 · 当前节点 <current_node>` (fallback `current_stage`), `data-testid="results-run-line"`.
 - 修改计划 button: enabled by I-20 (`reviseWorkLocked = false`), links to `/plan?mode=revise` (I-19 item 3).
 - Tests: `src/tests/t_v5/test_results.py`, `lib/result-kind.test.ts`.
+
+## I-23 Status version, model note, tutorials (done)
+- `/status`: Pi SDK version comes from `diagnostics/environment.pi_agents.version`, read from the installed
+  `src/pi-runtime/node_modules/@earendil-works/pi-coding-agent/package.json`, else the pin in `src/pi-runtime/package.json`
+  (`pi_sdk_version`, test `test_pi_version.py`). The other toolchain versions on that card are still hardcoded (pending:
+  read them too, or drop them).
+- `/runs`: model warnings (e.g. ollama unreachable) render as a muted `settings-help` hint prefixed 提示：.
+- Tutorials rewritten for v5: `basics/openlca.md` (project category, background data read-only), `panel/overview.md`
+  (current pages, no /harness, node/round model), and `panel/run-lca.md` (full-lca / revise-lca via /runs).
+  Pending: `docs/tutorial/README.md` still shows the removed 工作流编排/预览执行 screenshots (needs new screenshots).

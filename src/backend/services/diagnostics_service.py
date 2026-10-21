@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -85,6 +86,23 @@ def save_openlca_port(project_root: Path, port: int) -> dict:
     return openlca_status(project_root)
 
 
+PI_SDK_PACKAGE = "@earendil-works/pi-coding-agent"
+
+
+def pi_sdk_version(root: Path) -> str:
+    """Installed Pi SDK version (node_modules), else the version pinned in src/pi-runtime/package.json."""
+    runtime = root / "src" / "pi-runtime"
+    try:
+        return str(json.loads((runtime / "node_modules" / PI_SDK_PACKAGE / "package.json").read_text("utf-8"))["version"])
+    except (OSError, ValueError, KeyError):
+        pass
+    try:
+        pinned = json.loads((runtime / "package.json").read_text("utf-8"))["dependencies"][PI_SDK_PACKAGE]
+        return str(pinned).lstrip("^~=")
+    except (OSError, ValueError, KeyError):
+        return ""
+
+
 def environment_report(project_root: Path | None = None) -> dict:
     root = project_root or PROJECT_ROOT
     node_ok, node_msg = inspect("pi", project_root=root)
@@ -97,7 +115,7 @@ def environment_report(project_root: Path | None = None) -> dict:
     olca = openlca_status(root)
     return {
         "node": {"ok": bool(node_ok), "message": node_msg},
-        "pi_agents": {"ok": bool(pi_ok), "message": pi_msg},
+        "pi_agents": {"ok": bool(pi_ok), "message": pi_msg, "version": pi_sdk_version(root)},
         "python_agent": python_status,
         "openlca": {
             "ok": olca["ok"],

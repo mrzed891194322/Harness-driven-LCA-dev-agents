@@ -42,7 +42,7 @@ type ModelListState = {
 
 type Diagnostics = {
   node: Check;
-  pi_agents: Check;
+  pi_agents: Check & { version?: string };
   python_agent: Check;
   openlca: Check & { host?: string; port?: number; status?: LcaTool["status"] };
   lca_tools?: LcaTool[];
@@ -277,7 +277,7 @@ export default function StatusPage() {
       tools: [
         { name: "TypeScript", version: "5.9.3", note: "前端与运行时语言", src: "/toolchain/typescript.svg" },
         { name: "npm", version: "11.19.1", note: "安装依赖并启动", src: "/toolchain/npm.svg" },
-        { name: "Pi SDK", version: "1.1.0", note: "代理运行时", src: "/toolchain/pi.svg" },
+        { name: "Pi SDK", version: diag?.pi_agents.version || "—", note: "代理运行时", src: "/toolchain/pi.svg" },
         { name: "Next.js", version: "15.5.27", note: "控制面板页面", src: "/toolchain/next.svg" },
       ],
     },

@@ -227,7 +227,7 @@ export function V5RunPanel() {
             ))}
           </select>
         </label>
-        {modelNote ? <small data-testid="model-note">{modelNote}</small> : null}
+        {modelNote ? <small className="settings-help" data-testid="model-note">提示：{modelNote}</small> : null}
         <button data-testid="run-start" type="button" onClick={() => void act("start")} disabled={busy || run?.running}>
           开始运行
         </button>
