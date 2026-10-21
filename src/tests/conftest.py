@@ -1,4 +1,4 @@
-"""Shared path constants for the test suite."""
+"""Test isolation: temp workspace, never the real openLCA ports, never the real harness/knowledge/plan."""
 
 from __future__ import annotations
 
@@ -13,29 +13,6 @@ BACKEND_ROOT = PROJECT_ROOT / "src" / "backend"
 FRONTEND_ROOT = PROJECT_ROOT / "src" / "frontend"
 WEB_ROOT = FRONTEND_ROOT / "web"
 WORKFLOWS = PROJECT_ROOT / "harness" / "workflows"
-
-MAIN_PLAN_PATH = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "main_plan.md"
-REVISE_PLAN_PATH = PROJECT_ROOT / "harness" / "knowledge" / "plan" / "revise_plan.md"
-
-
-def ensure_harness_plan_files(project_root: Path = PROJECT_ROOT) -> None:
-    """Minimal plan files for orchestrator tests (project-relative spec inputs)."""
-    plan_dir = project_root / "harness" / "knowledge" / "plan"
-    plan_dir.mkdir(parents=True, exist_ok=True)
-    main = plan_dir / "main_plan.md"
-    if not main.is_file() or main.stat().st_size == 0:
-        main.write_text("# plan\n功能单位\n", encoding="utf-8")
-    revise = plan_dir / "revise_plan.md"
-    if not revise.is_file():
-        revise.write_text("# revise\n", encoding="utf-8")
-    inputs_dir = project_root / "harness" / "knowledge" / "inputs"
-    inputs_dir.mkdir(parents=True, exist_ok=True)
-
-
-@pytest.fixture(autouse=True)
-def _ensure_harness_plan_files_for_tests() -> None:
-    ensure_harness_plan_files()
-
 
 # ---------------------------------------------------------------------------
 # 测试隔离：绝不碰真实 openLCA（8080 / .env 配置端口）和真实 workspace。
@@ -102,27 +79,3 @@ def _isolate_live_resources(monkeypatch: pytest.MonkeyPatch, tmp_path_factory: p
         "LCA_TEST_FORBIDDEN_OPENLCA_PORTS",
         ",".join(str(p) for p in sorted(_FORBIDDEN_PORTS)),
     )
-
-
-@pytest.fixture(autouse=True)
-def _isolate_workspace_clean_root(monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory) -> None:
-    """workspace_clean 默认项目根指向临时目录：锁文件、清理目标都不落到真实 workspace。"""
-    import copy
-
-    import backend.services.workspace_clean as clean_main
-
-    fake_root = tmp_path_factory.mktemp("lca-project")
-    (fake_root / "workspace").mkdir()
-    real_ws = (PROJECT_ROOT / "workspace").resolve()
-    targets = copy.deepcopy(clean_main.CLEAN_TARGETS)
-    for target in targets:
-        for key in ("path", "gitignore"):
-            value = target.get(key)
-            if isinstance(value, Path):
-                try:
-                    rel = value.resolve().relative_to(real_ws)
-                except ValueError:
-                    continue
-                target[key] = fake_root / "workspace" / rel
-    monkeypatch.setattr(clean_main, "PROJECT_ROOT", fake_root)
-    monkeypatch.setattr(clean_main, "CLEAN_TARGETS", targets)

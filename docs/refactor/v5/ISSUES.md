@@ -100,3 +100,30 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
 - Fix: `5881ed4` — rejections don't spend nudges; `deliver.max_rejections` (default 5) per node+role (all rounds),
   then abort with `too_many_rejections` (event of the same name).
 - Pending: whether the limit should be node-wide across executor and reviewer (now per role file).
+
+## I-15 Test suite pruned to v5 essentials
+- What: after C7c the suite still had 429 tests (Python 355 + 13 subtests, pi-runtime 59, scripts 8, web 7), most for
+  the old engine/layout or for tool internals, and `conftest.py` wrote minimal plan files into the real
+  `harness/knowledge/plan` on every test.
+- Cause: tests accumulated with the old engine; C7c only removed those that no longer imported.
+- Fix (principle "clear everything, keep only what's needed, add slowly"), now 102 tests:
+  - Kept Python (75): all `t_v5/` — host lock 1 plan read-only and lock 2 write boundary (`test_access`,
+    `test_acceptance` write-boundary/rerun), lock 3 openLCA category (`test_access::test_openlca_category_lock`,
+    `test_category_constant`, `test_openlca_path_scope`, `control_openlca/test_write_guards.py`,
+    `test_readonly_scope.py`); YAML loading and variable rendering (`test_rules_yaml`, `test_config`, `test_layout`,
+    `test_inject`); end decision (`test_settle`: no_submit, max_turns, timeout, too_many_rejections, submit
+    validation); graph flow and resume (`test_runner`, `test_service`, `test_api`, `test_pi_driver`); demo acceptance
+    (`test_acceptance`).
+  - Kept pi-runtime (20): `settle_guard.test.ts`, `path_guard.test.ts`. Kept web (7): `/runs` select and model
+    dropdown helpers (asked for explicitly).
+  - Deleted Python: `contracts/`, `t_backend/` (credentials, plan form, tutorial, workflow models, openLCA db,
+    knowledge preserved), `t_core/` (runtime protocol), `t_harness/` control_openlca tool internals (v2, workflow_mcp,
+    readonly_mcp, cleanup*, ipc_timeout, import_identity, transport_units, get_not_found, preflight, health),
+    `t_harness/lca_artifacts/*`, `t_repo/*`, `t_scripts/*` (workspace_clean, proj_init, entrypoint smoke) and
+    `support/` — old layout, or not one of the v5 essentials.
+  - Deleted pi-runtime: activity, auth_materialize, endpoint, injection, lifecycle, live_models, protocol, server,
+    session_release, turn_outcome. Deleted scripts: `platform.test.mjs`, `status.test.mjs`.
+  - `conftest.py` no longer writes to `harness/knowledge/plan`; it only sets a temp workspace and blocks live openLCA
+    ports. Verified: plan file hashes unchanged after a full run.
+- Pending: which deleted areas to bring back first (likely candidates: credentials service, openLCA cleanup/import
+  tool internals, pi-runtime session lifecycle/release), one at a time.

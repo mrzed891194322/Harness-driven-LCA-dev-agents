@@ -1,22 +1,13 @@
-# 测试
+# Tests (v5)
 
-本目录（`src/tests/`）是仓库唯一的测试根目录。从仓库根目录运行：
+Principle: clear everything, keep only what's needed, add slowly. Every test runs in temp dirs; nothing writes to the
+real `workspace/` or `harness/knowledge/plan`, and live openLCA ports are blocked (`conftest.py`).
 
-```bash
-uv run pytest
-```
+- `uv run pytest src/tests` — `t_v5/` (host locks, YAML loading and `{{var}}` rendering, end-of-node decision,
+  graph flow, resume, write boundary, demo acceptance) + `t_harness/tools/control_openlca/test_write_guards.py`,
+  `test_readonly_scope.py` (openLCA project-category lock).
+- `npm run test -w @harness/pi-runtime` — `settle_guard` (nudges, max_rejections, turn/time limits) and `path_guard`
+  (write boundary, plan read-only).
+- `npm test -w @harness/web` — `/runs` select and model dropdown helpers.
 
-## 布局
-
-| 目录 | 覆盖 |
-| --- | --- |
-| `t_core/` | orchestrator、agents、runtime（避免与包名 `core` 冲突） |
-| `t_harness/tools/` | control_openlca MCP、lca_artifacts 等 harness 工具离线测试 |
-| `t_scripts/` | workspace clean、proj_init、入口 smoke 等 |
-| `support/` | 共享 fake / ScriptedSession 等设施 |
-
-```bash
-uv run pytest src/tests/t_core -v
-uv run pytest src/tests/t_harness/tools -v
-uv run pytest src/tests/t_scripts -v
-```
+What was deleted and why: `docs/refactor/v5/ISSUES.md` I-15.
