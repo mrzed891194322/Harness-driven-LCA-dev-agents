@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -250,8 +251,20 @@ class PiDriver:
             self._release(key)
 
     # ---------- preflight ----------
+    PREFLIGHT_RETRY_DELAYS_S = (10, 30)
+
     def preflight(self, workspace: Path) -> str | None:
-        """Model auth preflight: one tiny no-tool turn. Returns an error string or None."""
+        """Model preflight with retries for transient network errors (I-29). Returns an error string or None."""
+        err = self._preflight_once(workspace, attempt=1)
+        for n, wait in enumerate(self.PREFLIGHT_RETRY_DELAYS_S, start=2):
+            if err is None or not is_transient_error(err):
+                break
+            getattr(self, "_sleep", time.sleep)(wait)
+            err = self._preflight_once(workspace, attempt=n)
+        return err
+
+    def _preflight_once(self, workspace: Path, attempt: int = 1) -> str | None:
+        """One tiny no-tool turn."""
         events = EventLog(workspace)
         key = f"v5:preflight:{uuid.uuid4().hex[:8]}"
         storage = workspace / "tmp" / "pi-v5" / "preflight"
@@ -273,7 +286,7 @@ class PiDriver:
             result = self.runtime.request("session.run_turn", {"session_key": key, "prompt": "OK?"}, timeout=180.0)
         except Exception as exc:  # noqa: BLE001
             msg = explain_model_error(str(exc))
-            events.emit("model_preflight", ok=False, model=self.model.profile_id, error=msg[:300])
+            events.emit("model_preflight", ok=False, model=self.model.profile_id, error=msg[:300], attempt=attempt)
             return msg
         finally:
             self._release(key)
@@ -281,8 +294,20 @@ class PiDriver:
         err = str((result or {}).get("message") or (outcome or {}).get("error_message") or "")
         ok = (result or {}).get("status", "ok") == "ok" and not err
         err = explain_model_error(err) if err else err
-        events.emit("model_preflight", ok=ok, model=self.model.profile_id, error=err[:300])
+        events.emit("model_preflight", ok=ok, model=self.model.profile_id, error=err[:300], attempt=attempt)
         return None if ok else (err or "model preflight failed")
+
+
+TRANSIENT_RE = re.compile(
+    r"connection error|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|fetch failed|timed? ?out|"
+    r"\b50[234]\b|service unavailable|overloaded",
+    re.I,
+)
+
+
+def is_transient_error(text: str) -> bool:
+    """Network blips and 502/503/504 are retried; auth errors and everything else fail at once."""
+    return bool(text) and not is_auth_error(text) and bool(TRANSIENT_RE.search(text))
 
 
 def explain_model_error(err: str) -> str:

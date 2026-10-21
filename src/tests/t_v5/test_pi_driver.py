@@ -9,7 +9,7 @@ from pathlib import Path
 
 from backend.core.contracts.session_launch_spec import ModelProfile
 from backend.v5.config import load_node
-from backend.v5.pi_driver import PiDriver, is_auth_error
+from backend.v5.pi_driver import PiDriver, is_auth_error, is_transient_error
 from backend.v5.runner import TurnRequest
 from tests.t_v5.conftest import REPO, make_node, write_yaml
 
@@ -125,6 +125,34 @@ def test_preflight(v5_root):
     assert "401" in bad.preflight(v5_root / "workspace")
     log = (v5_root / "workspace/runs/_run/events.jsonl").read_text()
     assert '"model_preflight"' in log
+
+
+def test_preflight_retries_transient_errors_only(v5_root):
+    class Flaky(FakeRuntime):
+        def __init__(self, fails):
+            super().__init__()
+            self.fails = fails
+            self.turns = 0
+
+        def request(self, method, params=None, *, timeout=0):
+            if method == "session.run_turn":
+                self.turns += 1
+                if self.turns <= self.fails:
+                    raise RuntimeError("Connection error.")
+            return super().request(method, params, timeout=timeout)
+
+    waits = []
+    d = PiDriver(v5_root, MODEL, runtime=Flaky(2))
+    d._sleep = waits.append
+    assert d.preflight(v5_root / "workspace") is None
+    assert waits == [10, 30]
+    d = PiDriver(v5_root, MODEL, runtime=Flaky(5))
+    d._sleep = lambda _s: None
+    assert "Connection error" in d.preflight(v5_root / "workspace")
+    d = PiDriver(v5_root, MODEL, runtime=FakeRuntime(raise_on="session.run_turn"))  # 401: no retry
+    d._sleep = lambda _s: (_ for _ in ()).throw(AssertionError("auth errors must not retry"))
+    assert "401" in d.preflight(v5_root / "workspace")
+    assert is_transient_error("fetch failed") and not is_transient_error("401 Unauthorized")
 
 
 def test_submit_mcp_lists_role_specific_tool(tmp_path):

@@ -374,3 +374,14 @@ be visual breakage this static pass cannot see.
   boundary handlers). Events panel label 模型请求失败，重试. Tests: two new cases in `settle_guard.test.ts`.
 - Pending Du Yuan: retry count and waits (code default, not yet a deliver field); errored turns still count toward
   `max_turns`.
+
+## I-29 Model preflight fails on a single network blip (fixed, not yet exercised live)
+- What happened: rerun c17274f2 on serve e4817b8 (16:18:55 UTC+8) failed at preflight in 34 s with
+  "Connection error." Probes from the lab PC to `opencode.ai/zen/go/v1/models` at the time: about 1 in 6 requests
+  failed to connect (5 s), the rest 200 in ~1.1 s; baidu.com always 200. So the upstream/route is flaky, not the key.
+- Cause: preflight made exactly one request; any blip failed the whole run.
+- Fix: `PiDriver.preflight` retries transient errors (connection/timeout/ECONN*/fetch failed/502/503/504) after
+  10 s and 30 s; auth errors and others fail at once. Each attempt logs `model_preflight` with `attempt`.
+  Test: `test_preflight_retries_transient_errors_only`.
+- Pending: serve not switched to this commit and no third run started (the one allowed rerun was used by c17274f2);
+  waiting for the go-ahead. Network flakiness to opencode.ai should be checked by Du Yuan.
