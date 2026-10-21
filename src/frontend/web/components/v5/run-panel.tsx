@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { initialWorkflow } from "../../lib/initial-workflow";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
+import { describeEvent, eventTone, isNotable, mergeEvents, statusTone, type RunEvent } from "../../lib/run-events";
 
 type AgentCard = {
   role: string;
@@ -64,6 +65,10 @@ export function V5RunPanel() {
   const [models, setModels] = useState<ModelRow[]>([]);
   const [model, setModel] = useState("");
   const [modelNote, setModelNote] = useState("");
+  const [events, setEvents] = useState<RunEvent[]>([]);
+  const [allEvents, setAllEvents] = useState(false);
+  const [detail, setDetail] = useState<string | null>(null);
+  const eventOffset = useRef(0);
 
   useEffect(() => {
     apiFetch("/api/workflow/models")
@@ -134,11 +139,37 @@ export function V5RunPanel() {
     }
   }, [syncSelect]);
 
+  const pollEvents = useCallback(async () => {
+    try {
+      const page = await readJson<{ events: RunEvent[]; offset: number }>(
+        await apiFetch(`/api/v5/events?offset=${eventOffset.current}`, { cache: "no-store" }),
+      );
+      let merged = mergeEvents([], eventOffset.current, page);
+      if (merged.reset) {
+        const full = await readJson<{ events: RunEvent[]; offset: number }>(
+          await apiFetch("/api/v5/events?offset=0", { cache: "no-store" }),
+        );
+        merged = mergeEvents([], 0, full);
+        eventOffset.current = merged.offset;
+        setEvents(merged.events);
+        return;
+      }
+      eventOffset.current = page.offset;
+      if (page.events.length) setEvents((prev) => [...prev, ...page.events].slice(-500));
+    } catch {
+      // events are best-effort; status polling reports errors
+    }
+  }, []);
+
   useEffect(() => {
     void refresh();
-    const timer = setInterval(() => void refresh(), 2000);
+    void pollEvents();
+    const timer = setInterval(() => {
+      void refresh();
+      void pollEvents();
+    }, 2000);
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, pollEvents]);
 
   async function act(kind: "start" | "stop" | "resume") {
     setBusy(true);
@@ -196,120 +227,185 @@ export function V5RunPanel() {
       : (wf?.nodes || []).map((id) => ({ id, status: "pending", round: 0, error: "", feedback_rounds: [] }));
   const cards = new Map((wf?.details || []).map((n) => [n.id, n]));
 
+  const shown = (allEvents ? events : events.filter(isNotable)).slice(-200).reverse();
+  const detailCard = detail ? cards.get(detail) : undefined;
+  const detailRow = detail ? rows.find((r) => r.id === detail) : undefined;
+  const detailEvents = detail ? events.filter((e) => e.node === detail && isNotable(e)).slice(-50).reverse() : [];
+
   return (
-    <section className="v5-run-panel" style={{ display: "grid", gap: 12, padding: 16 }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <label>
-          工作流{" "}
-          <select data-testid="workflow-select" value={selected} onChange={(e) => {
-            picked.current = true;
-            setSelected(e.target.value);
-          }} disabled={run?.running}>
-            {workflows.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.id}（{w.nodes.join(" → ")}）
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          模型{" "}
-          <select
-            data-testid="model-select"
-            value={modelChoices(models, model).value}
-            onChange={(e) => void chooseModel(e.target.value)}
-            disabled={run?.running}
-          >
-            {modelChoices(models, model).choices.map((c) => (
-              <option key={c.value || "none"} value={c.value} disabled={!c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {modelNote ? <small className="settings-help" data-testid="model-note">提示：{modelNote}</small> : null}
-        <button data-testid="run-start" type="button" onClick={() => void act("start")} disabled={busy || run?.running}>
-          开始运行
-        </button>
-        <button data-testid="run-stop" type="button" onClick={() => void act("stop")} disabled={busy || !run?.running}>
-          停止
-        </button>
-        <button data-testid="run-resume" type="button" onClick={() => void act("resume")} disabled={busy || run?.running || !run?.run_id}>
-          续跑
-        </button>
-        <span>
-          状态：
-          <strong data-testid="run-status" data-status={status}>
-            {STATUS_LABEL[status] || status}
-          </strong>
-          {run?.reason ? <span data-testid="run-reason">（{run.reason}）</span> : null}
-        </span>
-      </div>
-      {error ? (
-        <p data-testid="run-error" role="alert" style={{ color: "#b42318" }}>
-          {error}
-        </p>
-      ) : null}
-      <table data-testid="node-table" style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr>
-            <th align="left">节点</th>
-            <th align="left">状态</th>
-            <th align="left">轮次</th>
-            <th align="left">反馈</th>
-            <th align="left">错误</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((node) => (
-            <tr key={node.id} data-testid={`node-row-${node.id}`} data-status={node.status}>
-              <td>
-                {node.id}
-                {cards.get(node.id)?.title ? ` · ${cards.get(node.id)?.title}` : ""}
-              </td>
-              <td>{STATUS_LABEL[node.status] || node.status}</td>
-              <td>{node.round || ""}</td>
-              <td>
-                {node.feedback_rounds.map((r) => (
-                  <button key={r} type="button" data-testid={`node-feedback-${node.id}-${r}`} onClick={() => void showFeedback(node.id, r)}>
-                    第 {r} 轮
-                  </button>
-                ))}
-              </td>
-              <td data-testid={`node-error-${node.id}`}>{node.error}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {feedback ? (
-        <div data-testid="feedback-view">
-          <h3>
-            {feedback.node} 第 {feedback.round} 轮反馈
-          </h3>
-          <pre style={{ whiteSpace: "pre-wrap" }}>{feedback.text}</pre>
+    <div className="plan-board">
+      <section className="settings-card plan-card v5-run-panel">
+        <div className="section-head plan-head">
+          <div className="plan-intro">
+            <h2>运行详情</h2>
+            <p className="settings-meta">
+              状态：
+              <span className={`badge badge-${statusTone(status)}`} data-testid="run-status" data-status={status}>
+                {STATUS_LABEL[status] || status}
+              </span>
+              {run?.reason ? <span data-testid="run-reason">（{run.reason}）</span> : null}
+              {run?.run_id ? ` · ${run.run_id.slice(0, 8)}` : ""}
+              {run?.current_node ? ` · 当前节点 ${run.current_node}` : ""}
+            </p>
+          </div>
+          <div className="run-meta">
+            <button data-testid="run-start" type="button" onClick={() => void act("start")} disabled={busy || run?.running}>
+              开始运行
+            </button>
+            <button data-testid="run-stop" type="button" onClick={() => void act("stop")} disabled={busy || !run?.running}>
+              停止
+            </button>
+            <button data-testid="run-resume" type="button" onClick={() => void act("resume")} disabled={busy || run?.running || !run?.run_id}>
+              续跑
+            </button>
+          </div>
         </div>
-      ) : null}
-      {wf ? (
-        <div style={{ display: "grid", gap: 8 }}>
-          {wf.details.map((node) => (
-            <details key={node.id} data-testid={`node-card-${node.id}`}>
-              <summary>
-                {node.id}：交付 {node.produces.map((p) => `${p.spec} → artifacts/${p.path}`).join("，") || "无"}
-                {node.requires.length ? `；需要 ${node.requires.join("，")}` : ""}；最多 {node.max_rounds} 轮
-              </summary>
-              {Object.entries(node.agents).map(([name, a]) => (
-                <div key={name} data-testid={`agent-card-${node.id}-${name}`} style={{ paddingLeft: 12 }}>
-                  <strong>{name}</strong>：{a.model} / 思考 {a.thinking} / 角色 {a.role}
-                  <div>工具：文件工具{a.tools.mcp.length ? `、MCP ${a.tools.mcp.join("、")}` : ""}{a.tools.skills.length ? `、技能 ${a.tools.skills.join("、")}` : ""}</div>
-                  <div>规则：{a.rules.length ? a.rules.join("、") : "仅全局规则"}</div>
-                  <div>可写：{a.write.join("、")}</div>
-                  <div>可读：{a.read.join("、")}</div>
-                </div>
+        <div className="row plan-actions">
+          <label>
+            工作流{" "}
+            <select data-testid="workflow-select" value={selected} onChange={(e) => {
+              picked.current = true;
+              setSelected(e.target.value);
+            }} disabled={run?.running}>
+              {workflows.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.id}（{w.nodes.join(" → ")}）
+                </option>
               ))}
-            </details>
-          ))}
+            </select>
+          </label>
+          <label>
+            模型{" "}
+            <select
+              data-testid="model-select"
+              value={modelChoices(models, model).value}
+              onChange={(e) => void chooseModel(e.target.value)}
+              disabled={run?.running}
+            >
+              {modelChoices(models, model).choices.map((c) => (
+                <option key={c.value || "none"} value={c.value} disabled={!c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-      ) : null}
-    </section>
+        {modelNote ? <p className="settings-help" data-testid="model-note">提示：{modelNote}</p> : null}
+        {error ? (
+          <p className="status-banner error" data-testid="run-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="agent-table">
+          <table data-testid="node-table">
+            <thead>
+              <tr>
+                <th>节点</th>
+                <th>状态</th>
+                <th>轮次</th>
+                <th>反馈</th>
+                <th>错误</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((node) => (
+                <tr key={node.id} data-testid={`node-row-${node.id}`} data-status={node.status}>
+                  <td>
+                    <button type="button" data-testid={`node-open-${node.id}`} aria-pressed={detail === node.id}
+                      onClick={() => setDetail(detail === node.id ? null : node.id)}>
+                      {node.id}
+                      {cards.get(node.id)?.title ? ` · ${cards.get(node.id)?.title}` : ""}
+                    </button>
+                  </td>
+                  <td>
+                    <span className={`badge badge-${statusTone(node.status)}`}>{STATUS_LABEL[node.status] || node.status}</span>
+                  </td>
+                  <td>{node.round || ""}</td>
+                  <td>
+                    {node.feedback_rounds.map((r) => (
+                      <button key={r} type="button" data-testid={`node-feedback-${node.id}-${r}`} onClick={() => void showFeedback(node.id, r)}>
+                        第 {r} 轮
+                      </button>
+                    ))}
+                  </td>
+                  <td data-testid={`node-error-${node.id}`}>{node.error}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {feedback ? (
+          <section className="settings-card" data-testid="feedback-view">
+            <h3>
+              {feedback.node} 第 {feedback.round} 轮反馈
+            </h3>
+            <pre className="results-source"><code>{feedback.text}</code></pre>
+          </section>
+        ) : null}
+        {detail ? (
+          <section className="settings-card" data-testid={`node-detail-${detail}`}>
+            <h3>
+              {detail}
+              {detailCard?.title ? ` · ${detailCard.title}` : ""}{" "}
+              <span className={`badge badge-${statusTone(detailRow?.status || "pending")}`}>
+                {STATUS_LABEL[detailRow?.status || "pending"] || detailRow?.status}
+              </span>
+            </h3>
+            {detailCard ? (
+              <>
+                <p className="settings-help">
+                  交付：{detailCard.produces.map((p) => `${p.spec} → artifacts/${p.path}`).join("，") || "无"}
+                  {detailCard.requires.length ? `；需要：${detailCard.requires.join("，")}` : ""}；最多 {detailCard.max_rounds} 轮
+                </p>
+                <div className="agent-table">
+                  <table>
+                    <thead>
+                      <tr><th>代理</th><th>模型</th><th>工具</th><th>规则</th><th>可写</th><th>可读</th></tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(detailCard.agents).map(([name, a]) => (
+                        <tr key={name} data-testid={`agent-card-${detail}-${name}`}>
+                          <td>{name}（{a.role}）</td>
+                          <td>{a.model} / 思考 {a.thinking}</td>
+                          <td>文件工具{a.tools.mcp.length ? `、MCP ${a.tools.mcp.join("、")}` : ""}{a.tools.skills.length ? `、技能 ${a.tools.skills.join("、")}` : ""}</td>
+                          <td>{a.rules.length ? a.rules.join("、") : "仅全局规则"}</td>
+                          <td>{a.write.join("、")}</td>
+                          <td>{a.read.join("、")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+            {detailRow?.error ? <p className="status-banner error">{detailRow.error}</p> : null}
+            <ul className="diag-list" data-testid={`node-events-${detail}`}>
+              {detailEvents.length ? detailEvents.map((e, i) => (
+                <li key={i}>
+                  <span className={`badge badge-${eventTone(e)}`}>{e.ts?.slice(11, 19) || ""}</span>
+                  {describeEvent(e)}
+                </li>
+              )) : <li className="settings-meta">这个节点还没有事件。</li>}
+            </ul>
+          </section>
+        ) : null}
+        <section className="settings-card" data-testid="events-panel">
+          <div className="section-head">
+            <h3>事件</h3>
+            <label className="settings-meta">
+              <input type="checkbox" checked={allEvents} onChange={(e) => setAllEvents(e.target.checked)} /> 显示全部
+            </label>
+          </div>
+          <ul className="diag-list">
+            {shown.length ? shown.map((e, i) => (
+              <li key={i} data-testid="event-row" data-kind={e.kind}>
+                <span className={`badge badge-${eventTone(e)}`}>{e.ts?.slice(11, 19) || ""}</span>
+                {describeEvent(e)}
+              </li>
+            )) : <li className="settings-meta">还没有事件。</li>}
+          </ul>
+        </section>
+      </section>
+    </div>
   );
 }

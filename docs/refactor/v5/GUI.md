@@ -13,7 +13,7 @@ activity stream are gone from the route (still in git history).
 | `node-table` | `<table>` | |
 | `node-row-<id>` | `<tr>` | `data-status` = pending/running/passed/failed/error/stopped |
 | `node-error-<id>` | `<td>` | always rendered; empty when no error |
-| extra: `run-stop`, `run-resume`, `run-reason`, `run-error`, `node-feedback-<id>-<round>`, `feedback-view`, `node-card-<id>`, `agent-card-<id>-<executor|reviewer>` | | |
+| extra: `run-stop`, `run-resume`, `run-reason`, `run-error`, `node-feedback-<id>-<round>`, `feedback-view`, `node-open-<id>` (row button, toggles the detail), `node-detail-<id>`, `node-events-<id>`, `agent-card-<id>-<executor|reviewer>` (inside the detail only), `events-panel`, `event-row` (`data-kind`). **Removed:** `node-card-<id>` (the always-visible card list; open the row instead) | | |
 
 ## Plan entry (unchanged)
 
@@ -34,3 +34,10 @@ role, tools, rules, and read/write scopes (read-only).
   start). Disabled while a run is live. `model-note` shows "已保存" or the error; on error the old value is restored.
 - `workflow-select` follows the current/latest run's workflow after a page refresh until the user picks another.
 - Frontend unit tests: `npm test -w @harness/web` (node:test on `lib/*.test.ts`).
+
+## /runs layout (I-24)
+App styles (`plan-board`, `settings-card`, `section-head`, `run-meta`, `agent-table`, `badge-*`, `status-banner`).
+Header: status badge (`run-status`, `data-status` unchanged), run id, current node; start/stop/resume on the right.
+Below the node table: feedback view, node detail (click a node name), events panel polling `/api/v5/events?offset=`
+every 2 s; it shows control events (nudges, rejections, stops, aborts, preflight, verdicts, node/run start/end) by
+default, all events with 显示全部. The event list resets when the log shrinks (a new run).

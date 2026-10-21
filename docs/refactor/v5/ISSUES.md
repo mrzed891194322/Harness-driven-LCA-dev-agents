@@ -315,3 +315,14 @@ be visual breakage this static pass cannot see.
 - Tutorials rewritten for v5: `basics/openlca.md` (project category, background data read-only), `panel/overview.md`
   (current pages, no /harness, node/round model), and `panel/run-lca.md` (full-lca / revise-lca via /runs).
   Pending: `docs/tutorial/README.md` still shows the removed 工作流编排/预览执行 screenshots (needs new screenshots).
+
+## I-24 /runs restyle, events panel, node detail (done; I-19c)
+- Restyled with the app classes; status badges per run/node; same core testids.
+- Events panel from `/api/v5/events` (offset polling, last 500 kept, reset on a new run): nudges, rejected_retry,
+  submit_rejected, too_many_rejections, no_submit, turn_aborted, stop_requested, stop_cancel_failed,
+  requires_failed, model_preflight, review verdicts, node/run start/end; 显示全部 shows every kind.
+- Node detail on clicking a node name: produces/requires/max rounds, agent table (model, tools, rules, read/write),
+  node error, that node's events.
+- Testid change for 模拟操作员: `node-card-<id>` removed (cards now only in the detail); new `node-open-<id>`,
+  `node-detail-<id>`, `node-events-<id>`, `events-panel`, `event-row[data-kind]`. See GUI.md.
+- Test: `lib/run-events.test.ts`. Pending: no visual check yet (after the serve switch).
