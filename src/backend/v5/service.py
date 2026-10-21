@@ -36,6 +36,7 @@ class V5Service:
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
+        self._driver: Any = None
         self.last_error = ""
 
     @property
@@ -77,6 +78,7 @@ class V5Service:
             if self.running:
                 raise RuntimeError("已有运行在进行中")
             driver = self.driver_factory(self.root)
+            self._driver = driver
             self._stop.clear()
             self.last_error = ""
             plans = {wf.plan_file: plan_text, **(extra_plans or {})} if not resume else None
@@ -102,6 +104,13 @@ class V5Service:
         if not self.running:
             raise RuntimeError("当前没有运行")
         self._stop.set()
+        EventLog(self.ws).emit("stop_requested")
+        cancel = getattr(self._driver, "cancel", None)
+        if callable(cancel):
+            try:
+                cancel()  # abort the active agent turn (same path as a turn abort)
+            except Exception as exc:  # noqa: BLE001
+                EventLog(self.ws).emit("stop_cancel_failed", error=str(exc)[:300])
         return {"status": "stopping"}
 
     def wait(self, timeout: float | None = None) -> None:

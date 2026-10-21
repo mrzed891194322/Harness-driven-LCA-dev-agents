@@ -94,7 +94,7 @@ def test_resume_skips_passed_and_reruns_interrupted(v5_root):
 
     wf, nodes = _setup(v5_root)
     d1 = FakeDriver(on_turn=count)
-    assert Runner(v5_root, wf, nodes, d1, stop_requested=stop).run(plans=PLAN) == "failed"
+    assert Runner(v5_root, wf, nodes, d1, stop_requested=stop).run(plans=PLAN) == "stopped"
     ws = v5_root / "workspace"
     assert json.loads((ws / "runs/write/status.json").read_text())["status"] == "passed"
     assert json.loads((ws / "runs/summarize/status.json").read_text())["status"] == "stopped"

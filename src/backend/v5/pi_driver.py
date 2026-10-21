@@ -55,6 +55,7 @@ class PiDriver:
             runtime = shared_runtime(root)
         self.runtime = runtime
         self.live: set[str] = set()
+        self.active: str | None = None  # session_key of the turn in progress (for cancel)
 
     # ---------- MCP ----------
     def _mcp_bindings(self, req: TurnRequest, submit_file: Path) -> tuple[dict, list[str]]:
@@ -189,8 +190,12 @@ class PiDriver:
             events.emit("session_ready", node=req.node.id, role=req.role, round=req.round,
                         session_key=spec.session_key, tools=spec.permission_policy.allowed_tools,
                         mcp=sorted(spec.mcp_bindings))
-            result = self.runtime.request("session.run_turn",
-                                          {"session_key": spec.session_key, "prompt": req.prompt}, timeout=7200.0)
+            self.active = spec.session_key
+            try:
+                result = self.runtime.request("session.run_turn",
+                                              {"session_key": spec.session_key, "prompt": req.prompt}, timeout=7200.0)
+            finally:
+                self.active = None
         except Exception as exc:  # noqa: BLE001 - surface as a turn error
             msg = str(exc)
             return TurnResult(error=msg, fatal=is_auth_error(msg))
@@ -234,6 +239,12 @@ class PiDriver:
             pass
         self.live.discard(key)
 
+    def cancel(self) -> None:
+        """Abort the agent turn in progress (session.cancel -> pi session.abort)."""
+        key = self.active
+        if key:
+            self.runtime.request("session.cancel", {"session_key": key}, timeout=30.0)
+
     def release_all(self) -> None:
         for key in list(self.live):
             self._release(key)
@@ -261,15 +272,27 @@ class PiDriver:
             self.runtime.request("session.create", {"launch_spec": spec.to_dict()}, timeout=120.0)
             result = self.runtime.request("session.run_turn", {"session_key": key, "prompt": "OK?"}, timeout=180.0)
         except Exception as exc:  # noqa: BLE001
-            events.emit("model_preflight", ok=False, model=self.model.profile_id, error=str(exc)[:300])
-            return str(exc)
+            msg = explain_model_error(str(exc))
+            events.emit("model_preflight", ok=False, model=self.model.profile_id, error=msg[:300])
+            return msg
         finally:
             self._release(key)
         outcome = result.get("outcome") if isinstance(result, dict) else {}
         err = str((result or {}).get("message") or (outcome or {}).get("error_message") or "")
         ok = (result or {}).get("status", "ok") == "ok" and not err
+        err = explain_model_error(err) if err else err
         events.emit("model_preflight", ok=ok, model=self.model.profile_id, error=err[:300])
         return None if ok else (err or "model preflight failed")
+
+
+def explain_model_error(err: str) -> str:
+    """Prefix provider throttling/outage errors with a clear Chinese explanation."""
+    text = err or ""
+    if re.search(r"\b429\b|rate.?limit|too many requests", text, re.I):
+        return f"模型服务限流（HTTP 429）：请稍后重试或换一个模型。原始错误：{text}"
+    if re.search(r"\b503\b|service unavailable|overloaded", text, re.I):
+        return f"模型服务暂不可用（HTTP 503）：服务方过载或维护，请稍后重试或换一个模型。原始错误：{text}"
+    return text
 
 
 def _count_lines(path: Path) -> int:

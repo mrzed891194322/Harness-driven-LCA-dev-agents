@@ -75,8 +75,10 @@ def test_stop_then_resume_skips_passed(proj):
         turns["n"] += 1
 
     status, _ = _run(proj, "demo-write", FakeDriver(on_turn=count), stop_requested=lambda: turns["n"] >= 2)
-    assert status == "failed"
-    assert _status(proj, "write-paragraph") == "passed" and _status(proj, "summarize") == "stopped"
+    assert status == "stopped"
+    # stop arrived after write-paragraph's accepted verdict: it stays passed, summarize never started
+    assert _status(proj, "write-paragraph") == "passed"
+    assert not (proj / "workspace/runs/summarize/status.json").exists()
     para = (proj / "workspace/artifacts/paragraph/paragraph.md").read_text(encoding="utf-8")
     status, d2 = _run(proj, "demo-write", resume=True)
     assert status == "completed"

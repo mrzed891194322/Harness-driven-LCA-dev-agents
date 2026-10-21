@@ -157,3 +157,24 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
     previous import (same category). No cleanup of entities the revision removed — confirm acceptable.
   - Whether `revise_of` should check the base run's workflow (now any completed run is a valid base).
   - Not yet run against real openLCA/model.
+
+## I-17 Stop during the last turn was swallowed
+- What: on serve 759a658, run 3e32e874: run-stop clicked during the summarize review turn; the run still ended
+  `completed` and no stop event was logged.
+- Cause: the runner only checked `stop_requested()` between turns; `V5Service.stop()` only set a flag (no event, no
+  abort of the turn in progress); nothing checked after the final turn.
+- Fix: `stop()` logs `stop_requested` at once and calls `driver.cancel()` (PiDriver → `session.cancel` → pi
+  `session.abort`, the same path as a turn abort). The runner checks stop after every turn and after every node
+  (including the last); a stop ends the run `stopped` (`run_end status=stopped`), never `completed`. A turn that
+  still returned an accepted submit/verdict is honoured (node stays `passed`); an aborted turn marks the node
+  `stopped` (resumable). Stops between turns now also end `stopped` instead of `failed`.
+- Pending: confirm on serve with a real model that `session.cancel` interrupts a long tool call promptly.
+
+## I-18 Model preflight failure invisible in the node table
+- What: runs c43d8cb7, ef4e3b0d: preflight failed, every node row stayed pending, `node-error` empty; the message
+  appeared only in run-reason.
+- Cause: the runner returned before any node status was written.
+- Fix: the first node to run gets status `failed`, reason `model_preflight`, the message in its error
+  (`node-error`), and a `node_end` event. 429 / rate-limit and 503 / overloaded errors are prefixed with a clear
+  Chinese explanation (`explain_model_error`).
+- Pending: whether to retry the preflight automatically on 429/503 before failing.

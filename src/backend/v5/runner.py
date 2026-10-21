@@ -59,6 +59,10 @@ class RunFailed(RuntimeError):
     pass
 
 
+class RunStopped(RunFailed):
+    """The user asked to stop; the run ends ``stopped`` (never ``completed``)."""
+
+
 def _default_prompt(node: Node, role: str, rnd: int, rework: str | None, specs: dict[str, Spec]) -> str:
     text = f"节点 {node.id}，角色 {role}，第 {rnd} 轮。"
     if rework:
@@ -203,12 +207,24 @@ class Runner:
             err = pre(self.ws) if callable(pre) else None
             if err:
                 reason = f"模型鉴权预检失败：{err}"
+                first = next((n for n in self.nodes if not (resume and self.node_status(n).get("status") == "passed")),
+                             None)
+                if first is not None:
+                    self._set_node(first, "failed", round=0, error=reason, reason="model_preflight")
+                    self.events.emit("node_end", node=first.id, status="failed", reason="model_preflight",
+                                     error=reason)
                 self.events.emit("run_end", status="failed", reason=reason)
-                self._manifest(status="failed", status_reason=reason, ended_at=time.time())
+                self._manifest(status="failed", status_reason=reason, current_node=None, ended_at=time.time())
                 return "failed"
             try:
                 for node in self.nodes:
                     self._run_node(node, resume=resume)
+                    if self.stop_requested():
+                        raise RunStopped(f"用户停止（{node.id} 已完成后）")
+            except RunStopped as exc:
+                self.events.emit("run_end", status="stopped", reason=str(exc))
+                self._manifest(status="stopped", status_reason=str(exc), current_node=None, ended_at=time.time())
+                return "stopped"
             except RunFailed as exc:
                 self.events.emit("run_end", status="failed", reason=str(exc))
                 self._manifest(status="failed", status_reason=str(exc), current_node=None, ended_at=time.time())
@@ -246,7 +262,8 @@ class Runner:
         while state not in ("done", "failed"):
             if self.stop_requested():
                 self._set_node(node, "stopped", round=rnd)
-                raise RunFailed(f"{node.id} 被用户停止")
+                self.events.emit("node_end", node=node.id, status="stopped", round=rnd)
+                raise RunStopped(f"{node.id} 被用户停止")
             if rnd > node.flow.max_rounds:
                 self._set_node(node, "failed", round=rnd - 1, error="超过最大轮数")
                 self.events.emit("node_end", node=node.id, status="failed", reason="max_rounds")
@@ -267,6 +284,11 @@ class Runner:
                              error=result.error, submitted=result.submit is not None,
                              session_id=result.session_id, nudges=result.nudges,
                              abort_reason=result.abort_reason)
+            if result.submit is None and self.stop_requested():
+                # The stop aborted this turn: the node is resumable, not failed.
+                self._set_node(node, "stopped", round=rnd)
+                self.events.emit("node_end", node=node.id, status="stopped", role=role, round=rnd)
+                raise RunStopped(f"{node.id} 被用户停止（{role} 第 {rnd} 轮中断）")
             if result.fatal:
                 self._set_node(node, "error", round=rnd, error=result.error)
                 raise RunFailed(f"{node.id} 致命错误：{result.error}")
