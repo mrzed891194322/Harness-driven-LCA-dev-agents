@@ -100,7 +100,14 @@ export function V5RunPanel() {
   const runWorkflow = useRef<string | undefined>(undefined);
   const workflowIds = useRef<string[]>([]);
   const syncSelect = useCallback(() => {
-    if (!picked.current) setSelected(initialWorkflow(runWorkflow.current, workflowIds.current));
+    if (!picked.current) setSelected(
+        initialWorkflow(
+          runWorkflow.current,
+          workflowIds.current,
+          "full-lca",
+          new URLSearchParams(window.location.search).get("workflow") || undefined,
+        ),
+      );
   }, []);
 
   useEffect(() => {

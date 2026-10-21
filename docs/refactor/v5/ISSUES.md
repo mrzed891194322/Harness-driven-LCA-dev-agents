@@ -271,3 +271,16 @@ be visual breakage this static pass cannot see.
 - `model-settings-dialog`: `/api/credentials*`, `/api/models/custom-endpoint(s)` — present, unchanged. OK.
 - `backend-status` / `lib/api.ts`: `/api/health` — OK (disconnect label still untested, I-08).
 - Fix: none.
+
+## I-20 /plan fixes from I-19b (done)
+- Fix: `reviseWorkLocked = false` (also enables 修改计划 on `/results`), so the 修改工作 mode writes
+  `revise_plan.md` via `PUT /api/plan?workflow=LCA-revise`. New "去运行" link (`data-testid="plan-go-run"`, existing
+  `status-start` style) under the plan panels → `/runs?workflow=full-lca` (new) or `/runs?workflow=revise-lca` (revise).
+  `/runs` now honours a valid `?workflow=` over the latest-run default (`initialWorkflow(..., requested)`).
+- Test: `lib/run-link.test.ts` (link target, unlock, `?workflow=` precedence).
+- Pending: the read-only 工作流 tab (I-19b optional) not done; 2-tab layout to be checked visually.
+
+## I-21 /harness rebuild plan (queued, pending Du Yuan)
+- Decision proposed: rebuild `/harness` as a read-only v5 YAML viewer with four sections — global rules, roles,
+  specs, workflows — queued after the /plan, /results and /runs fixes. It is meant to become the base for GUI editing
+  later. No code yet. Pending Du Yuan's confirmation (supersedes the open choice in I-11/I-19f).

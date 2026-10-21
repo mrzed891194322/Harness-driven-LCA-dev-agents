@@ -1,2 +1,2 @@
-/** 修改工作暂未开放。恢复时改为 false。 */
-export const reviseWorkLocked = true;
+/** 修改工作已开放（revise-lca v5 需要 revise_plan.md）。 */
+export const reviseWorkLocked = false;
