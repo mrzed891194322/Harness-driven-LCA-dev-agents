@@ -41,3 +41,10 @@
 
 ## openLCA 红线（宿主锁 ③）
 只允许在分类 `202606-harness-agent-LCA` 内新建/修改/删除；常量 `OPENLCA_PROJECT_CATEGORY` 统一定义（替换现在 `PROJECT_ROOT.name` 的 3 处推导和 `attempt_cleanup.PROJECT_CATEGORY`）。
+
+## openLCA project category (single constant)
+
+`harness/tools/shared/control_openlca/category.py` defines `OPENLCA_PROJECT_CATEGORY = "202606-harness-agent-LCA"` and
+`locked_category()`. The three former `PROJECT_ROOT.name` derivations (`mcp/control_openlca/main.py`,
+`mcp/control_openlca/workflow_mcp.py`, `shared/control_openlca/cleanup_service.py`) and the copy in `attempt_cleanup.py`
+all use it (since C3). The checkout folder name no longer matters (test `t_v5/test_category_constant.py`).
