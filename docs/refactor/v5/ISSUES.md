@@ -575,8 +575,9 @@ Done now:
 - Per-agent thinking level select back in /plan 工作流编排 agent card, under the model select (`agent-thinking-select`).
 - Resume: the old /runs 失败原因 popup button 重跑本轮 (disabled in 599ed0a) is wired to `POST /api/v5/resume`
   (skips passed nodes, reruns the interrupted/failed node). `/api/workflow/progress` now returns `workflow`.
-- Prompt preview kept: /plan 预览执行 → 组合注入, using the 599ed0a InjectionBoard markup (tree of node.role on the
-  left, 系统提示 / 用户消息 on the right), fed by `/api/v5/preview`. (599ed0a had no injection-specific CSS.)
+- Prompt preview kept, without changing the 预览执行 container or CSS: clicking an agent row in its 工作流 list opens a
+  modal using the settings modal's `settings-dialog` frame and CSS (系统提示 / 用户消息 on the left; the prompt scrolls
+  inside, max-height 60vh). Data: `/api/v5/preview`. testids `preview-agent-<node>.<role>`, `prompt-modal`, `prompt-modal-close`.
 
 To implement LATER (after the frontend review, not now) — revise-lca redesign:
 - Stop moving artifacts to `artifacts/previous/`; the original files stay untouched.

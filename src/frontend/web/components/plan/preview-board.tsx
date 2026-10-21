@@ -10,7 +10,7 @@ import type { PlanFields } from "./plan-fields";
 import type { StudyWork } from "./study-form";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
-import { InjectionPreview } from "./injection-preview";
+import { PromptModal, type PreviewAgent } from "./injection-preview";
 import { workflowForMode, type V5Workflow } from "../../lib/v5-workflow";
 
 type Preview = { nodes: { id: string; title: string; agents: { role: string; system: string; user: string }[] }[]; plan_present: boolean; plan_source?: string };
@@ -69,7 +69,7 @@ export function PreviewBoard({
   const [workflow, setWorkflow] = useState<V5Workflow | null>(null);
   const [workflowError, setWorkflowError] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [open, setOpen] = useState("");
+  const [open, setOpen] = useState<{ node: { id: string; title: string }; agent: PreviewAgent } | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState("");
   const router = useRouter();
@@ -209,7 +209,16 @@ export function PreviewBoard({
                   </div>
                   <ul>
                     {Object.entries(node.agents).map(([name, agent]) => (
-                      <li key={name} data-role={agent.role}>
+                      <li
+                        key={name}
+                        data-role={agent.role}
+                        data-testid={`preview-agent-${node.id}.${name}`}
+                        onClick={() => {
+                          const hit = preview?.nodes.find((n) => n.id === node.id)?.agents.find((x) => x.role === name);
+                          if (hit) setOpen({ node: { id: node.id, title: node.title }, agent: hit });
+                        }}
+                        title={preview ? "查看组合注入" : undefined}
+                      >
                         <Bot size={13} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
                         <span>{agent.tools.mcp.length ? agent.tools.mcp.join(" · ") : agent.role}</span>
@@ -222,14 +231,9 @@ export function PreviewBoard({
           ) : null}
         </section>
 
-        {preview ? (
-          <section className="preview-section" aria-labelledby="preview-inject-title">
-            <h3 id="preview-inject-title">组合注入</h3>
-            <InjectionPreview preview={preview} />
-          </section>
-        ) : null}
 
       </div>
+      <PromptModal node={open?.node ?? null} agent={open?.agent ?? null} onClose={() => setOpen(null)} />
       <div className="preview-bar">
         <p>{gateText}</p>
         <button

@@ -74,4 +74,6 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | **removed** `results-run-line` | none (not in 599ed0a) | |
 | **removed** `harness-error-count` | per-file `harness-file-error` + ⚠ in nav | |
 | `agent-thinking-select` | /plan 工作流编排 agent card, under 模型 | Du Yuan approved (I-45 decisions) |
-| `preview-injection`, `preview-agent-<node>.<role>` | /plan 预览执行 → 组合注入 (599ed0a InjectionBoard markup) | Du Yuan approved; fed by `/api/v5/preview` |
+| `preview-agent-<node>.<role>` | /plan 预览执行 → 工作流 list, each agent row (click; container/CSS unchanged) | opens the prompt modal |
+| `prompt-modal`, `prompt-modal-close` | prompt modal (same `settings-dialog` frame/CSS as 设置): left 系统提示 / 用户消息, body scrolls inside (max-height 60vh) | fed by `/api/v5/preview`; Du Yuan approved |
+| **removed** `preview-injection` | replaced by `prompt-modal` | |

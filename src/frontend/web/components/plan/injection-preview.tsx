@@ -1,63 +1,68 @@
 "use client";
 
-// Prompt preview in 599ed0a InjectionBoard style (injection-board / injection-tree / injection-detail CSS),
-// fed by /api/v5/preview: each agent's exact round-1 system prompt and user message (read-only).
-import { useState } from "react";
+// Prompt preview modal: same <dialog className="settings-dialog"> frame and CSS as the settings modal.
+// Shows one agent's exact round-1 system prompt / user message from /api/v5/preview (read-only), scrolling inside.
+import { useEffect, useRef, useState } from "react";
 import { label } from "../../lib/labels";
 
+export type PreviewAgent = { role: string; system: string; user: string };
 export type PreviewData = {
-  nodes: { id: string; title: string; agents: { role: string; system: string; user: string }[] }[];
+  nodes: { id: string; title: string; agents: PreviewAgent[] }[];
+  plan_present?: boolean;
   plan_source?: string;
 };
 
-export function InjectionPreview({ preview }: { preview: PreviewData }) {
-  const [selected, setSelected] = useState("");
-  const node = preview.nodes.find((n) => n.agents.some((a) => `${n.id}.${a.role}` === selected));
-  const agent = node?.agents.find((a) => `${node.id}.${a.role}` === selected);
+const PARTS = [
+  { id: "system", label: "系统提示" },
+  { id: "user", label: "用户消息" },
+] as const;
+
+export function PromptModal({ node, agent, onClose }: { node: { id: string; title: string } | null; agent: PreviewAgent | null; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [part, setPart] = useState<"system" | "user">("system");
+  const open = Boolean(node && agent);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+    if (open) setPart("system");
+  }, [open]);
   return (
-    <div className="injection-board" data-testid="preview-injection">
-      <div className="injection-split">
-        <nav className="injection-tree" aria-label="阶段与分工">
-          {preview.nodes.map((n) => (
-            <div key={n.id} className="injection-stage">
-              <p className="injection-stage-title">{n.title || n.id}</p>
-              <ul>
-                {n.agents.map((a) => {
-                  const key = `${n.id}.${a.role}`;
-                  return (
-                    <li key={key}>
-                      <button type="button" data-testid={`preview-agent-${key}`}
-                        aria-current={selected === key ? "true" : undefined} onClick={() => setSelected(key)}>
-                        {key}
-                        <span className="injection-role">{label(a.role)}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+    <dialog ref={ref} className="settings-dialog" aria-labelledby="prompt-modal-title" data-testid="prompt-modal"
+      onClose={onClose}
+      onClick={(e) => {
+        const r = ref.current?.getBoundingClientRect();
+        if (r && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) onClose();
+      }}>
+      <div className="settings-frame">
+        <nav className="settings-nav" aria-label="组合注入">
+          <p id="prompt-modal-title" className="settings-nav-label">组合注入</p>
+          {PARTS.map((p) => (
+            <button key={p.id} type="button" aria-current={part === p.id ? "page" : undefined} onClick={() => setPart(p.id)}>
+              {p.label}
+            </button>
           ))}
         </nav>
-        <div className="injection-detail">
-          {!agent || !node ? (
-            <p className="harness-status">选择左侧分工查看组合注入（只读）。</p>
-          ) : (
-            <>
-              <header className="injection-detail-head">
-                <h3>{`${node.id}.${agent.role}`}</h3>
-              </header>
-              <section className="injection-group">
-                <h3>系统提示</h3>
-                <pre className="harness-source"><code>{agent.system}</code></pre>
-              </section>
-              <section className="injection-group">
-                <h3>用户消息</h3>
-                <pre className="harness-source"><code>{agent.user}</code></pre>
-              </section>
-            </>
-          )}
+        <div className="settings-main">
+          <header className="settings-main-head">
+            <div>
+              <p className="settings-crumb">组合注入 / {node?.title || node?.id} / {agent ? label(agent.role) : ""}</p>
+              <h2>{PARTS.find((p) => p.id === part)?.label}</h2>
+            </div>
+            <button type="button" data-testid="prompt-modal-close" onClick={onClose}>
+              关闭
+            </button>
+          </header>
+          <div className="settings-body">
+            {agent ? (
+              <pre className="harness-source" style={{ maxHeight: "60vh", overflow: "auto", whiteSpace: "pre-wrap" }}>
+                <code>{part === "system" ? agent.system : agent.user}</code>
+              </pre>
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
