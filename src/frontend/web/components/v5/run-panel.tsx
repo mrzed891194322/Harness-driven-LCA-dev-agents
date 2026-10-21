@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
+import { initialWorkflow } from "../../lib/initial-workflow";
 
 type AgentCard = {
   role: string;
@@ -59,24 +60,37 @@ export function V5RunPanel() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ node: string; round: number; text: string } | null>(null);
+  // After a refresh, show the current/latest run's workflow instead of the default (until the user picks one).
+  const picked = useRef(false);
+  const runWorkflow = useRef<string | undefined>(undefined);
+  const workflowIds = useRef<string[]>([]);
+  const syncSelect = useCallback(() => {
+    if (!picked.current) setSelected(initialWorkflow(runWorkflow.current, workflowIds.current));
+  }, []);
 
   useEffect(() => {
     apiFetch("/api/v5/workflows")
       .then((r) => readJson<{ workflows: Workflow[] }>(r))
       .then((data) => {
         setWorkflows(data.workflows);
-        if (!data.workflows.some((w) => w.id === "full-lca") && data.workflows[0]) setSelected(data.workflows[0].id);
+        workflowIds.current = data.workflows.map((w) => w.id);
+        syncSelect();
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
+  }, [syncSelect]);
 
   const refresh = useCallback(async () => {
     try {
-      setRun(await readJson<RunStatus>(await apiFetch("/api/v5/status", { cache: "no-store" })));
+      const next = await readJson<RunStatus>(await apiFetch("/api/v5/status", { cache: "no-store" }));
+      setRun(next);
+      if (runWorkflow.current === undefined) {
+        runWorkflow.current = next.workflow || "";
+        syncSelect();
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [syncSelect]);
 
   useEffect(() => {
     void refresh();
@@ -145,7 +159,10 @@ export function V5RunPanel() {
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <label>
           工作流{" "}
-          <select data-testid="workflow-select" value={selected} onChange={(e) => setSelected(e.target.value)} disabled={run?.running}>
+          <select data-testid="workflow-select" value={selected} onChange={(e) => {
+            picked.current = true;
+            setSelected(e.target.value);
+          }} disabled={run?.running}>
             {workflows.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.id}（{w.nodes.join(" → ")}）
