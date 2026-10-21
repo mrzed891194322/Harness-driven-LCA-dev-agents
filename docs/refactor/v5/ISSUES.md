@@ -558,3 +558,14 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
   `test_runner_passes_agent_models_to_preflight`.
 - `/api/v5/preview` fills `<plan>` from the saved plan, using the same source as `/api/workflow/start` (revise: saved
   revise_plan.md; new: plan form rendered with references). Read-only; `Injector.plan_override` is preview-only.
+
+## I-44 /runs restored 1:1 from 599ed0a; v5-added UI removed everywhere (Du Yuan)
+- /runs: old page, components and CSS restored verbatim (实时终端 AgentStream, 当前阶段 panel, 失败原因 popup, 活动概览,
+  中止工作, 从头重跑). v5 run-panel (workflow select, model select, node table/detail, events panel, agent table) deleted.
+- Data: read-only compat endpoints `GET /api/workflow/progress`, `GET /api/workflow/activity`, `GET /api/workflows`
+  (`backend/v5/progress_view.py`) build the old text/event formats from `events.jsonl` + each agent's live pi session file
+  `workspace/tmp/pi-v5/<node>.<role>/session.jsonl`. Test: `test_old_runs_feed_from_v5_session_files` (temp project).
+- Removed v5-added UI: /plan 去运行 + hint, thinking select, 注入预览 section; /results status line, 上一版 tab
+  (previous/ files now listed under 最终交付 with their `previous/` path), 节点结论 → 交接; /harness refresh button and
+  error-count badge; v5 agent-table / tab CSS. testid mapping: GUI.md.
+- Needs Du Yuan approval (hidden now): 上一版 tab, per-agent thinking, injection preview, /runs resume button.

@@ -7,9 +7,7 @@ import { WorkflowBoard } from "../../components/plan/workflow-board";
 import type { PlanFields } from "../../components/plan/plan-fields";
 import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
 import { apiFetch } from "../../lib/api";
-import Link from "next/link";
 import { reviseWorkLocked } from "../../lib/revise-lock";
-import { runHref } from "../../lib/run-link";
 
 type ReferenceFile = {
   name: string;
@@ -640,17 +638,6 @@ export default function PlanPage() {
           ) : panel === "preview" ? (
             <PreviewBoard mode={workMode} work={work} references={references} />
           ) : null}
-        </div>
-
-        <div className="row plan-actions">
-          <p className="plan-import-hint">
-            计划会自动保存。{workMode === "revise" ? "修订计划写好后，" : "填写完成后，"}到运行页启动
-            {workMode === "revise" ? " revise-lca" : " full-lca"}。
-          </p>
-          <Link className="status-start" href={runHref(workMode)} data-testid="plan-go-run">
-            去运行
-            <ChevronRight className="launch-icon" aria-hidden="true" />
-          </Link>
         </div>
 
         {panel !== "fields" && status ? <p className="plan-status">{status}</p> : null}

@@ -129,3 +129,33 @@ def test_runner_passes_agent_models_to_preflight(monkeypatch, v5_root):
     assert client.post("/api/workflow/start", json={"workflow": "full-lca", "plan": "# 计划\n"}).status_code == 200
     svc.wait(10)
     assert got["models"] == ["p/rev"]
+
+
+def test_old_runs_feed_from_v5_session_files(monkeypatch, v5_root):
+    """599ed0a /runs feed: progress text + activity built read-only from events and the live pi session file."""
+    import json as _json
+
+    client, svc = _client(monkeypatch, v5_root)
+    assert client.post("/api/workflow/start", json={"workflow": "full-lca", "plan": "# 计划\n"}).status_code == 200
+    svc.wait(10)
+    ws = v5_root / "workspace"
+    sess = ws / "tmp" / "pi-v5" / "a.executor" / "session.jsonl"
+    sess.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"type": "message", "timestamp": "2999-01-01T00:00:00Z", "message": {"role": "assistant", "model": "m-1",
+         "content": [{"type": "text", "text": "开始"}, {"type": "toolCall", "id": "c1", "name": "read", "arguments": {"path": "x.md"}}]}},
+        {"type": "message", "timestamp": "2999-01-01T00:00:01Z", "message": {"role": "toolResult", "toolCallId": "c1",
+         "toolName": "read", "isError": True, "content": [{"type": "text", "text": "not found"}]}},
+    ]
+    sess.write_text("\n".join(_json.dumps(r) for r in rows), encoding="utf-8")
+    before = sorted(str(p) for p in v5_root.rglob("*"))
+    p = client.get("/api/workflow/progress").json()
+    assert p["status"] == "completed" and p["reset"] is True and p["epoch"] == p["run_id"]
+    assert "[a(executor#1)-m_1-" in p["text"] and "→ read x.md" in p["text"] and "✗ read: not found" in p["text"]
+    again = client.get("/api/workflow/progress", params={"offset": p["offset"], "epoch": p["epoch"]}).json()
+    assert again["text"] == "" and again["reset"] is False
+    act = client.get("/api/workflow/activity", params={"run_id": p["run_id"]}).json()["events"]
+    assert [e["kind"] for e in act if e.get("tool") == "read"] == ["tool_call", "tool_result"]
+    wl = client.get("/api/workflows").json()["workflows"]
+    assert wl[0]["id"] == "full-lca" and wl[0]["mode"] == "main"
+    assert sorted(str(p) for p in v5_root.rglob("*")) == before

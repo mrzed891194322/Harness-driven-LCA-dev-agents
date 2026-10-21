@@ -184,6 +184,37 @@ class V5Service:
                 "run_id": manifest.get("run_id", ""), "workflow": manifest.get("workflow", ""),
                 "current_node": manifest.get("current_node"), "nodes": nodes, "running": self.running}
 
+    def _feed(self) -> tuple[dict[str, Any], str, list[dict]]:
+        from backend.v5.progress_view import build
+
+        st = self.status()
+        model = self._default_model()[0]
+        text, activity = build(self.ws, EventLog(self.ws).read(), model)
+        return st, text, activity
+
+    def progress(self, offset: int = 0, epoch: str = "") -> dict[str, Any]:
+        """Old 599ed0a /api/workflow/progress shape, from v5 status + events + live session files (read-only)."""
+        st, text, _ = self._feed()
+        status = {"stopped": "interrupted"}.get(st["status"], st["status"])
+        cur = st.get("current_node") or ""
+        node = next((n for n in st["nodes"] if n["id"] == cur), None)
+        reason = st.get("reason") or ""
+        if status in ("failed", "interrupted"):
+            errs = [f"{n['id']}：{n['error']}" for n in st["nodes"] if n.get("error")]
+            reason = "\n".join([r for r in [reason, *errs] if r])
+        run_id = st.get("run_id") or ""
+        reset = epoch != run_id or offset > len(text)
+        start = 0 if reset else offset
+        return {"run_id": run_id or None, "status": status, "current_stage": cur or None,
+                "attempt": (node or {}).get("round") or None, "status_reason": reason, "model": self._default_model()[0],
+                "text": text[start:], "offset": len(text), "reset": reset, "epoch": run_id}
+
+    def activity(self, offset: int = 0) -> dict[str, Any]:
+        _, _, activity = self._feed()
+        reset = offset > len(activity)
+        start = 0 if reset else offset
+        return {"events": activity[start:], "offset": len(activity), "reset": reset}
+
     def feedback(self, node: str, rnd: int) -> str:
         if not node.replace("-", "").replace("_", "").isalnum():
             raise ValueError("bad node id")

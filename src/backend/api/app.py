@@ -711,6 +711,30 @@ def v5_agent_models_save(body: dict[str, Any]) -> dict[str, Any]:
     return {"agents": data}
 
 
+@app.get("/api/workflow/progress")
+def workflow_progress(offset: int = 0, epoch: str = "") -> dict[str, Any]:
+    """599ed0a /runs feed (实时终端 text + run state) built from v5 data; read-only."""
+    return _v5().progress(offset, epoch)
+
+
+@app.get("/api/workflow/activity")
+def workflow_activity(run_id: str = "", offset: int = 0) -> dict[str, Any]:
+    """599ed0a /runs 活动概览 events (tool calls/results, turn ends) from v5 session files; read-only."""
+    return _v5().activity(offset)
+
+
+@app.get("/api/workflows")
+def workflows_list() -> dict[str, Any]:
+    """599ed0a workflow list shape: main = full-lca, revise = the workflow with revise_of, others demo."""
+    out = []
+    for w in _v5().workflows():
+        mode = "revise" if w.get("revise_of") else "main" if w["id"] == "full-lca" else "demo"
+        out.append({"name": w["id"], "id": w["id"], "title": w.get("title") or w["id"], "mode": mode,
+                    "file": f"workflows/{w['id']}.yaml"})
+    out.sort(key=lambda w: {"main": 0, "revise": 1}.get(w["mode"], 2))
+    return {"workflows": out}
+
+
 @app.get("/api/v5/status")
 def v5_status() -> dict[str, Any]:
     return _v5().status()

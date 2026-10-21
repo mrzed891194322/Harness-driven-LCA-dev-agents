@@ -221,40 +221,6 @@ export function PreviewBoard({
           ) : null}
         </section>
 
-        <section className="preview-section" aria-labelledby="preview-inject-title" data-testid="preview-injection">
-          <h3 id="preview-inject-title">注入预览</h3>
-          <p className="settings-help">
-            每个代理第 1 轮收到的系统提示和用户消息，由运行时同一套拼装逻辑生成（只读，不会启动运行）。
-            {preview?.plan_source === "saved" ? " <plan> 取自当前保存的计划，与开始运行时写入的内容一致。" : preview && !preview.plan_present ? " 还没有保存的计划，<plan> 暂时为空。" : ""}
-          </p>
-          {preview ? (
-            <ul className="preview-files">
-              {preview.nodes.flatMap((node) =>
-                node.agents.map((agent) => {
-                  const key = `${node.id}.${agent.role}`;
-                  return (
-                    <li key={key} data-testid={`preview-agent-${key}`}>
-                      <button type="button" onClick={() => setOpen(open === key ? "" : key)} aria-expanded={open === key}>
-                        <strong>{node.title || node.id}</strong>
-                        <small> · {label(agent.role)}</small>
-                      </button>
-                      {open === key ? (
-                        <>
-                          <h4>系统提示</h4>
-                          <pre className="harness-source"><code>{agent.system}</code></pre>
-                          <h4>用户消息</h4>
-                          <pre className="harness-source"><code>{agent.user}</code></pre>
-                        </>
-                      ) : null}
-                    </li>
-                  );
-                }),
-              )}
-            </ul>
-          ) : !workflowError ? (
-            <p className="settings-help">正在生成注入预览…</p>
-          ) : null}
-        </section>
       </div>
       <div className="preview-bar">
         <p>{gateText}</p>

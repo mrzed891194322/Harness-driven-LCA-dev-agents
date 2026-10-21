@@ -12,7 +12,6 @@ import {
 } from "../../components/results/artifacts-browser";
 import { apiFetch } from "../../lib/api";
 import { reviseWorkLocked } from "../../lib/revise-lock";
-import { runLine } from "../../lib/result-kind";
 import { loadResultFiles, readResultFile, type ResultFile } from "./load-files";
 
 type Manifest = {
@@ -214,11 +213,6 @@ export default function ResultsPage() {
             </button>
           </div>
         </div>
-        {runLine(data?.manifest) ? (
-          <p className="settings-help" data-testid="results-run-line">
-            {runLine(data?.manifest)}
-          </p>
-        ) : null}
         {error ? <p className="status-banner error">{error}</p> : null}
         <ArtifactsBrowser
           handoffs={data?.handoffs || []}

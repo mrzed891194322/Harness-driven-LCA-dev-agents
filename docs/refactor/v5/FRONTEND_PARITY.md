@@ -29,3 +29,8 @@
 2. ~~注入预览~~、~~逐阶段模型~~：已按 Grok Bot 转达的要求在 /plan 实现（I-41），请 Du Yuan 确认。
 4. /runs「从检查点续跑本阶段」：旧版本也没接入。
 5. /harness 深链接和 Markdown 文档、图片渲染：v5 只有 YAML。
+
+## 2026-10-21 更新（I-44）：按 599ed0a 1:1 恢复
+- /runs 整页恢复旧版组件和 CSS；代理输出流由只读接口 `/api/workflow/progress`（读取 pi 会话文件）供数，活动概览由 `/api/workflow/activity` 供数。
+- 新加的 v5 元素已删除或隐藏，见 ISSUES I-44 和 GUI.md 的 testid 对照表。
+- 待 Du Yuan 批准后才显示：上一版标签、逐代理思考档位、注入预览、/runs 续跑按钮。

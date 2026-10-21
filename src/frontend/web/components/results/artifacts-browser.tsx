@@ -54,7 +54,6 @@ function navTitle(item: Artifact): string {
 
 function parentName(filePath: string): string {
   const trimmed = filePath
-    .replace(/^workspace\/artifacts\/previous\//, "")
     .replace(/^workspace\/artifacts\//, "")
     .replace(/^workspace\/runs\/_run\//, "")
     .replace(/^workspace\/runs\//, "");
@@ -153,7 +152,7 @@ export function ArtifactsBrowser({
     <div className="results-columns">
       <div className="results-side">
         <div className="results-kind-tabs" role="tablist" aria-label="结果分类">
-          {(Object.keys(KIND_LABEL) as ResultKind[]).filter((item) => item !== "previous" || previous.length > 0).map((item) => (
+          {(Object.keys(KIND_LABEL) as ResultKind[]).filter((item) => item !== "previous").map((item) => (
             <button
               key={item}
               type="button"
@@ -172,7 +171,7 @@ export function ArtifactsBrowser({
             <>
               {handoffs.length ? (
                 <section>
-                  <h3>节点结论</h3>
+                  <h3>交接</h3>
                   <ul>
                     {handoffs.map((item) => {
                       const filePath = handoffPath(item);

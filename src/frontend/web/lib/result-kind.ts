@@ -1,4 +1,3 @@
-import { label } from "./labels.ts";
 export type ResultKind = "work" | "intermediate" | "final" | "previous";
 export type ArtifactCategory = "intermediate" | "deliverable" | "previous";
 
@@ -10,7 +9,8 @@ export const KIND_LABEL: Record<ResultKind, string> = {
 };
 
 export function resultKind(filePath: string, category?: ArtifactCategory): ResultKind {
-  if (category === "previous" || filePath.startsWith("workspace/artifacts/previous/")) return "previous";
+  // 上一版 tab is not in 599ed0a (needs Du Yuan approval): previous/ files show under 最终交付 with their previous/ path.
+  if (category === "previous") return "final";
   if (category === "deliverable") return "final";
   if (category === "intermediate") return "intermediate";
   if (filePath.startsWith("workspace/artifacts/")) return "final";
@@ -21,10 +21,3 @@ export function resultKind(filePath: string, category?: ArtifactCategory): Resul
 
 /** Labels for executor status and reviewer verdict in the 节点结论 list (shared map). */
 export { LABEL as VERDICT_LABEL } from "./labels.ts";
-
-/** Header line for the current run, from the v5 manifest (current_node; old current_stage as fallback). */
-export function runLine(manifest: { status?: string; current_node?: string | null; current_stage?: string | null; status_reason?: string | null } | undefined): string {
-  if (!manifest?.status || manifest.status === "idle") return "";
-  const node = manifest.current_node ?? manifest.current_stage;
-  return [`状态 ${label(manifest.status)}`, node ? `当前节点 ${node}` : "", manifest.status_reason || ""].filter(Boolean).join(" · ");
-}

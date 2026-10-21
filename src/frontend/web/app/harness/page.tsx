@@ -4,7 +4,7 @@
 // left settings/tutorial nav with section and group labels, crumb + title header with close button, doc body.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw, X } from "lucide-react";
+import { X } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { fieldRows, rawLines, type HarnessFile, type HarnessSection } from "../../lib/harness-view";
 
@@ -108,17 +108,10 @@ export default function HarnessPage() {
             <div>
               <p className="settings-crumb">
                 {crumb}
-                {errors ? (
-                  <span className="badge badge-fail" data-testid="harness-error-count"> {errors} 个文件加载失败</span>
-                ) : null}
               </p>
               <h2>{file?.name || "Harness"}</h2>
               {file ? <p className="harness-path mono">{file.path}</p> : null}
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button type="button" onClick={() => void load()} disabled={busy} title="刷新">
-                <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-              </button>
               <button
                 type="button"
                 className="tutorial-close"
@@ -128,7 +121,6 @@ export default function HarnessPage() {
               >
                 <X size={18} aria-hidden="true" />
               </button>
-            </div>
           </header>
           <div className="settings-body tutorial-body">
             {loadError ? <p className="status-banner error">{loadError}</p> : null}

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
-import { THINKING_LEVELS, workflowForMode, type V5Node, type V5Workflow } from "../../lib/v5-workflow";
+import { workflowForMode, type V5Node, type V5Workflow } from "../../lib/v5-workflow";
 
 export type WorkMode = "new" | "revise";
 
@@ -157,7 +157,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           {selection.kind !== "workflow" ? (
             <button type="button" className="flow-back" onClick={() => setSelection({ kind: "workflow" })}>
               <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
-              回到工作流
+              回到全局规则
             </button>
           ) : null}
           <button type="button" className="flow-close" aria-label="关闭" onClick={() => setInspectorOpen(false)}>
@@ -222,10 +222,6 @@ function AgentDetail({ node, role, models, onChange }: {
       <select className="flow-model" data-testid="agent-model-select" value={gm} onChange={(e) => void onChange(node.id, role, e.target.value, gt)}>
         <option value="">使用默认模型</option>
         {choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-      </select>
-      <h4>思考</h4>
-      <select className="flow-model" data-testid="agent-thinking-select" value={gt} onChange={(e) => void onChange(node.id, role, gm, e.target.value)}>
-        {THINKING_LEVELS.map((t) => <option key={t || "default"} value={t}>{t || "模型默认"}</option>)}
       </select>
       <h4>可读</h4>
       <ul>{agent.read.map((g) => <li key={g} className="mono">{g}</li>)}</ul>

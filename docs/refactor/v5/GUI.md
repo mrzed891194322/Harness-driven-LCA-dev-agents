@@ -46,3 +46,32 @@ default, all events with 显示全部. The event list resets when the log shrink
 Read-only viewer of `harness/` YAML from `GET /api/v5/harness`. Header link `header-harness`. Tabs
 `harness-tab-rules|roles|specs|workflows`, file buttons `harness-file-<path>`, `harness-fields`, `harness-raw`,
 `harness-file-error` (shows `file:line — message`), `harness-error-count`.
+
+## testid mapping after the 599ed0a 1:1 restore (2026-10-21, I-44)
+Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on the old elements (no visual change).
+
+| testid | Now on | Notes |
+|---|---|---|
+| `run-status` (+`data-status`) | /runs 当前阶段 badge | old status values: idle/running/completed/failed/interrupted (v5 `stopped` → `interrupted`) |
+| `run-stop` | /runs 中止工作 button (only while running) | |
+| `run-side` | /runs 当前阶段 side panel | |
+| `run-stage-text` | /runs 当前阶段 text | |
+| `run-show-reason` / `run-reason-panel` | /runs 显示原因 button / 失败原因 popup | |
+| `run-restart` | /runs 从头重跑 (only when interrupted) | starts the main workflow from the saved plan |
+| `run-error` | /runs error banner | |
+| `agent-stream` | /runs 实时终端 | fed by `/api/workflow/progress` |
+| `activity-summary` | /runs 活动概览 chips | fed by `/api/workflow/activity` |
+| `preview-start` | /plan 预览执行 → 执行LCA任务 | the start button now lives here (old location) |
+| `workflow-board`, `flow-node-<id>`, `flow-agent-<node>-<role>`, `flow-inspector`, `agent-model-select` | /plan 工作流编排 | per-agent model = old per-assignment model |
+| `harness-viewer`, `harness-tab-<section>`, `harness-file-<path>`, `harness-fields`, `harness-raw`, `harness-file-error` | /harness | |
+| **removed** `run-start` | → `preview-start` on /plan | |
+| **removed** `run-resume` | none (old page had no resume; checkpoint resume awaits Du Yuan) | |
+| **removed** `workflow-select` | workflow follows /plan mode (新工作 = full-lca, 修改工作 = revise-lca) | |
+| **removed** `model-select`, `model-note` | /plan 工作流编排 默认模型 (`.flow-model`) | |
+| **removed** `node-table`, `node-row-*`, `node-open-*`, `node-detail-*`, `node-error-*`, `node-feedback-*`, `feedback-view`, `agent-card-*` | stages show in 实时终端 / 活动概览; feedback in /results 工作记录 | |
+| **removed** `events-panel`, `event-row`, `node-events-*` | orchestrator lines in 实时终端 | |
+| **removed** `plan-go-run` | none (Du Yuan: removed) | |
+| **removed** `results-run-line` | none (not in 599ed0a) | |
+| **removed** `harness-error-count` | per-file `harness-file-error` + ⚠ in nav | |
+| **removed** `agent-thinking-select` | none (not in 599ed0a; needs approval) | |
+| **removed** `preview-injection`, `preview-agent-*` | none (not in 599ed0a; `/api/v5/preview` kept, UI hidden) | |
