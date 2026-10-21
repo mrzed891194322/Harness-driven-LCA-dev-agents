@@ -174,9 +174,16 @@ class PiDriver:
                 "session_file": str((storage / "session.jsonl").resolve()),
             },
         )
-        if self.model.parameters.get("thinking") or req.node.agents[req.role].thinking:
-            spec.model_profile = ModelProfile(**{**self.model.__dict__, "parameters": {
-                **self.model.parameters, "thinking": req.node.agents[req.role].thinking or self.model.parameters.get("thinking")}})
+        agent = req.node.agents[req.role]
+        base = self.model
+        if agent.model and agent.model != getattr(self.model, "profile_id", None):
+            from backend.core.runtime.model_profiles import resolve_model_profile
+
+            base = resolve_model_profile(agent.model, project_root=self.root)  # per-agent model (/plan)
+            spec.model_profile = base
+        if base.parameters.get("thinking") or agent.thinking:
+            spec.model_profile = ModelProfile(**{**base.__dict__, "parameters": {
+                **base.parameters, "thinking": agent.thinking or base.parameters.get("thinking")}})
         return spec, submit_file
 
     # ---------- turn ----------

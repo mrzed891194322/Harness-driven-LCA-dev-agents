@@ -527,3 +527,18 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
 13. 同意 — credential copies stay until the worktrees retire, then deleted.
 14. 自己做好重试与报错 — when retries are exhausted the abort event reads
     `<node> / <role> 的模型请求重试 N 次后仍失败，节点停止。最后一次错误：…` (turn_aborted event, shown in the events panel).
+
+## I-41 /plan 工作流编排 and 预览执行 restored (Du Yuan: later sections of /plan had disappeared)
+- Tabs after 参考资料 are back in 599ed0a order and layout: 工作流编排 (`components/plan/workflow-board.tsx`, flow-board CSS)
+  and 预览执行 (`components/plan/preview-board.tsx`, preview-board CSS). Bottom 去运行 kept.
+- 工作流编排: node order, requires, produces, per-agent card (model, role, access read/write, tools, rules) from
+  `/api/v5/workflows`. Default model via `/api/models/selection`. Per-agent model + thinking via new
+  `GET/POST /api/v5/agent-models`, stored in `.local/v5-agent-models.json` (`backend/v5/agent_models.py`), applied to the
+  nodes at run start (`V5Service.start`); `PiDriver` now resolves an agent's own model profile (before, only thinking was used).
+  Model preflight still checks only the global default model.
+- 预览执行: 环境 / 工作内容 / 工作流 as before, plus 注入预览 from new `GET /api/v5/preview?workflow=` which calls the
+  run-time `Injector` (system + round-1 user message) without writing anything. Before a run the `<plan>` section is empty
+  because the plan is written to `artifacts/plan/` at run start; the page says so. 执行LCA任务 uses `/api/workflow/start`.
+- Tests: `test_preview_is_read_only_injection`, `test_agent_model_setting_applies_at_run_start` (temp project), `v5-workflow.test.ts`.
+- Old 599ed0a pieces not restored (no v5 equivalent): per-stage phase labels, host actions/knowledge nodes and the
+  "related" highlighting in the inspector, injection merge notes / lock badges.

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
+import { PreviewBoard } from "../../components/plan/preview-board";
+import { WorkflowBoard } from "../../components/plan/workflow-board";
 import type { PlanFields } from "../../components/plan/plan-fields";
 import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
 import { apiFetch } from "../../lib/api";
@@ -27,11 +29,13 @@ const emptyFields: PlanFields = {
   conditions: "",
 };
 
-type Panel = "fields" | "references";
+type Panel = "fields" | "references" | "workflow" | "preview";
 
 const panels: { id: Panel; label: string }[] = [
   { id: "fields", label: "用户填写" },
   { id: "references", label: "参考资料" },
+  { id: "workflow", label: "工作流编排" },
+  { id: "preview", label: "预览执行" },
 ];
 
 // Plan file alias per work mode (the backend maps it to a fixed plan path).
@@ -40,7 +44,7 @@ function planWorkflow(mode: "new" | "revise"): string {
 }
 
 function PanelIcon({ id }: { id: Panel }) {
-  const Icon = id === "fields" ? PenLine : FileText;
+  const Icon = id === "fields" ? PenLine : id === "references" ? FileText : id === "workflow" ? Workflow : Play;
   return <Icon className="launch-icon" aria-hidden="true" />;
 }
 
@@ -631,6 +635,10 @@ export default function PlanPage() {
                 </section>
               </div>
             </div>
+          ) : panel === "workflow" ? (
+            <WorkflowBoard mode={workMode} />
+          ) : panel === "preview" ? (
+            <PreviewBoard mode={workMode} work={work} references={references} />
           ) : null}
         </div>
 

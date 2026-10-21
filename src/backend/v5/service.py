@@ -71,13 +71,19 @@ class V5Service:
         from backend.v5.access import compute_scope
         from backend.v5.config import load_role
 
+        from backend.v5 import agent_models
+
         agents = {}
         default_ref, default_thinking = self._default_model()
-        for name, agent in node.agents.items():
+        overrides = agent_models.load(self.root)
+        for name, yaml_agent in node.agents.items():
+            gui = overrides.get(f"{node.id}.{name}", {})
+            agent = agent_models.apply([node], overrides)[0].agents[name]
             scope = compute_scope(self.root, node, name, load_role(self.root, agent.role)[1])
             rel = lambda g: g.replace(str(self.root) + "/", "")  # noqa: E731
             agents[name] = {"role": agent.role, "model": agent.model or default_ref or "未选择模型",
-                            "model_source": "agent" if agent.model else "default",
+                            "model_source": "gui" if gui.get("model") else "agent" if yaml_agent.model else "default",
+                            "gui_model": gui.get("model", ""), "gui_thinking": gui.get("thinking", ""),
                             "thinking": agent.thinking or default_thinking or "模型默认",
                             "tools": {"mcp": agent.tools.mcp, "skills": agent.tools.skills},
                             "rules": list(node.inject) + list(agent.rules),
@@ -86,9 +92,31 @@ class V5Service:
                 "produces": [{"spec": p.spec, "path": p.path} for p in node.produces],
                 "max_rounds": node.flow.max_rounds, "agents": agents}
 
+    def preview(self, workflow: str) -> dict[str, Any]:
+        """Exact injection per agent (system + round-1 user message) via the run-time Injector. Read-only."""
+        from backend.v5 import agent_models
+        from backend.v5.config import load_spec
+
+        wf, nodes = load_workflow(self.root, workflow)
+        nodes = agent_models.apply(nodes, agent_models.load(self.root))
+        specs = {p.spec: load_spec(self.root, p.spec) for n in nodes for p in n.produces}
+        inj = Injector(self.root, self.ws)
+        plan_dir = self.ws / "artifacts" / "plan"
+        out = []
+        for node in nodes:
+            agents = []
+            for role in node.agents:
+                agents.append({"role": role, "system": inj.system(node, role), "user": inj(node, role, 1, None, specs)})
+            out.append({"id": node.id, "title": node.title, "agents": agents})
+        return {"workflow": wf.id if hasattr(wf, "id") else workflow, "plan_file": wf.plan_file,
+                "plan_present": plan_dir.is_dir() and any(plan_dir.glob("*.md")), "nodes": out}
+
     def start(self, workflow: str, *, plan_text: str = "", resume: bool = False,
               extra_plans: dict[str, str] | None = None) -> dict[str, Any]:
         wf, nodes = load_workflow(self.root, workflow)  # ConfigError -> 400 at API
+        from backend.v5 import agent_models
+
+        nodes = agent_models.apply(nodes, agent_models.load(self.root))  # /plan per-agent model, fixed at run start
         if not resume and not plan_text.strip():
             raise ValueError("计划为空：请先填写计划表单或导入计划")
         with self._lock:

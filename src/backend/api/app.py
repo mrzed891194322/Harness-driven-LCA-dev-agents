@@ -664,6 +664,34 @@ def v5_workflows() -> dict[str, Any]:
     return {"workflows": _v5().workflows()}
 
 
+@app.get("/api/v5/preview")
+def v5_preview(workflow: str) -> dict[str, Any]:
+    """Read-only injection preview for /plan 预览执行 (no run, no writes)."""
+    try:
+        return _v5().preview(workflow)
+    except Exception as exc:  # noqa: BLE001 - ConfigError / unknown workflow
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/v5/agent-models")
+def v5_agent_models() -> dict[str, Any]:
+    from backend.v5 import agent_models
+
+    return {"agents": agent_models.load(_v5().root), "thinking_levels": list(agent_models.THINKING_LEVELS)}
+
+
+@app.post("/api/v5/agent-models")
+def v5_agent_models_save(body: dict[str, Any]) -> dict[str, Any]:
+    from backend.v5 import agent_models
+
+    try:
+        data = agent_models.save(_v5().root, str(body.get("node") or ""), str(body.get("role") or ""),
+                                 str(body.get("model") or ""), str(body.get("thinking") or ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"agents": data}
+
+
 @app.get("/api/v5/status")
 def v5_status() -> dict[str, Any]:
     return _v5().status()
