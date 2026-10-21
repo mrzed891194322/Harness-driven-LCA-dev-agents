@@ -289,7 +289,7 @@ be visual breakage this static pass cannot see.
 - Test: `lib/run-link.test.ts` (link target, unlock, `?workflow=` precedence).
 - Pending: the read-only 工作流 tab (I-19b optional) not done; 2-tab layout to be checked visually.
 
-## I-21 /harness rebuild plan (queued, pending Du Yuan)
+## I-21 /harness rebuild plan (built in I-26; editing still pending Du Yuan)
 - Decision proposed: rebuild `/harness` as a read-only v5 YAML viewer with four sections — global rules, roles,
   specs, workflows — queued after the /plan, /results and /runs fixes. It is meant to become the base for GUI editing
   later. No code yet. Pending Du Yuan's confirmation (supersedes the open choice in I-11/I-19f).
@@ -332,3 +332,19 @@ be visual breakage this static pass cannot see.
   cached per process), pi_sdk (I-23), python (`sys.version`)}. The page shows only versions that could be read;
   nothing is hardcoded anymore. Test: `test_pi_version.py::test_toolchain_reads_packages_and_blanks_missing`.
 - Note: npm/uv are looked up on the backend's PATH; if the service PATH lacks them they are dropped from the card.
+
+## I-26 /harness read-only v5 YAML viewer (done; I-21, I-19f)
+- Backend `GET /api/v5/harness` (`backend/v5/harness_view.py`): four sections — 全局规则 (`rules/global` plus
+  node-level rule folders such as `rules/lca`, grouped by folder), 角色 (`rules/roles`), 规格 (`specs`), 工作流
+  (`workflows/*.yaml` plus `workflows/nodes/*.yaml`). Per file: parsed `fields`, `raw` text, and `error`
+  {message, line} from the real loaders (`load_rule`, `load_role_def`, `load_spec`, `load_workflow`, `load_node`),
+  so YAML syntax errors, schema errors and undefined `{{var}}` show exactly as a run would fail. Read-only; paths are
+  fixed under `harness/`.
+- Page `/harness` (app styles: results columns, kind tabs, `agent-table`, `results-source`): field table + numbered
+  raw YAML with the error line highlighted; error banner `file:line — message`; error count badge in the header.
+  Header link `data-testid="header-harness"`. Testids: `harness-viewer`, `harness-tab-<section>`,
+  `harness-file-<path>`, `harness-fields`, `harness-raw`, `harness-file-error`, `harness-error-count`.
+- Tests: `test_harness_view.py` (real harness loads clean; YAML and template errors carry file and line),
+  `lib/harness-view.test.ts`.
+- Pending Du Yuan: GUI editing on top of this viewer; whether `rules/lca` belongs under 全局规则 or its own section.
+- Note: `ruff check src/backend/api/app.py` reports 3 pre-existing B008 (FastAPI `File`/`Form` defaults), not new.

@@ -7,6 +7,7 @@ import { SettingsButton, SettingsDialog } from "../components/settings/settings-
 import { SettingsProvider } from "../components/settings/settings-context";
 import { LanguageButton } from "../components/language-button";
 import { TutorialButton } from "../components/tutorial-button";
+import { HarnessButton } from "../components/harness-button";
 import "./globals.css";
 
 export const metadata = {
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <div className="app-header-actions">
                   <LanguageButton />
                   <TutorialButton />
+                  <HarnessButton />
                   <SettingsButton />
                   <span className="app-header-divider" aria-hidden="true" />
                   <a

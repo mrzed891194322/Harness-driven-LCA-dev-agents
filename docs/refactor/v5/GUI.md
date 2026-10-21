@@ -41,3 +41,8 @@ Header: status badge (`run-status`, `data-status` unchanged), run id, current no
 Below the node table: feedback view, node detail (click a node name), events panel polling `/api/v5/events?offset=`
 every 2 s; it shows control events (nudges, rejections, stops, aborts, preflight, verdicts, node/run start/end) by
 default, all events with 显示全部. The event list resets when the log shrinks (a new run).
+
+## /harness (I-26)
+Read-only viewer of `harness/` YAML from `GET /api/v5/harness`. Header link `header-harness`. Tabs
+`harness-tab-rules|roles|specs|workflows`, file buttons `harness-file-<path>`, `harness-fields`, `harness-raw`,
+`harness-file-error` (shows `file:line — message`), `harness-error-count`.

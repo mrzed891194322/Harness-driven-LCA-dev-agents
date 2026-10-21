@@ -8,7 +8,7 @@ npm start          # 或 node src/scripts/start.mjs
 
 Linux、macOS 或原生 Windows（Windows 需安装 [Git for Windows](https://git-scm.com/download/win)）。启动前会同步 uv 与 Node.js 依赖，并在缺少 `.env` 时从模板复制。停止用 `npm run stop`，重启用 `npm run restart`。
 
-浏览器打开前端端口（默认 `http://127.0.0.1:3000`）。顶栏提供「教程」和「模型设置」（Provider、API Key、自定义端点）。
+浏览器打开前端端口（默认 `http://127.0.0.1:3000`）。顶栏提供「教程」、「Harness」（只读查看规则、角色、规格和工作流的 YAML，加载错误会标出文件和行号）和「模型设置」（Provider、API Key、自定义端点）。
 
 左侧主导航：
 

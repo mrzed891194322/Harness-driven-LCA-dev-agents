@@ -669,6 +669,14 @@ def v5_status() -> dict[str, Any]:
     return _v5().status()
 
 
+@app.get("/api/v5/harness")
+def v5_harness() -> dict[str, Any]:
+    """Read-only v5 harness YAML (rules, roles, specs, workflows) with load errors."""
+    from backend.v5.harness_view import harness_view
+
+    return harness_view(_v5().root)
+
+
 @app.get("/api/v5/events")
 def v5_events(offset: int = 0) -> dict[str, Any]:
     return _v5().events(offset)
