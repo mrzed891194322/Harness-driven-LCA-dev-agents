@@ -328,7 +328,7 @@ be visual breakage this static pass cannot see.
 - Test: `lib/run-events.test.ts`. Pending: no visual check yet (after the serve switch).
 
 ## I-25 /status toolchain versions from the environment (done)
-- `diagnostics/environment.toolchain` = {typescript, next (web `node_modules/*/package.json`), npm, uv (`--version`,
+- `diagnostics/environment.toolchain` = {typescript, next (web `node_modules`, then the hoisted root `node_modules`), npm, uv (`--version`,
   cached per process), pi_sdk (I-23), python (`sys.version`)}. The page shows only versions that could be read;
   nothing is hardcoded anymore. Test: `test_pi_version.py::test_toolchain_reads_packages_and_blanks_missing`.
 - Note: npm/uv are looked up on the backend's PATH; if the service PATH lacks them they are dropped from the card.

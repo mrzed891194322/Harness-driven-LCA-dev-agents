@@ -128,10 +128,15 @@ def _command_version(name: str) -> str:
 
 def toolchain_versions(root: Path) -> dict[str, str]:
     """Versions shown on /status, read from the real environment; "" when not readable (the page drops it)."""
-    web = root / "src" / "frontend" / "web" / "node_modules"
+    # npm workspaces hoist packages to the root node_modules; check the web package first.
+    dirs = (root / "src" / "frontend" / "web" / "node_modules", root / "node_modules")
+
+    def installed(name: str) -> str:
+        return next((v for d in dirs if (v := _package_version(d / name / "package.json"))), "")
+
     return {
-        "typescript": _package_version(web / "typescript" / "package.json"),
-        "next": _package_version(web / "next" / "package.json"),
+        "typescript": installed("typescript"),
+        "next": installed("next"),
         "npm": _command_version("npm"),
         "pi_sdk": pi_sdk_version(root),
         "python": sys.version.split()[0],

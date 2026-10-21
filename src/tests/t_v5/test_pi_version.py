@@ -27,8 +27,11 @@ def test_toolchain_reads_packages_and_blanks_missing(tmp_path: Path) -> None:
     web = tmp_path / "src/frontend/web/node_modules"
     (web / "next").mkdir(parents=True)
     (web / "next/package.json").write_text(json.dumps({"version": "15.5.27"}))
+    (tmp_path / "node_modules/typescript").mkdir(parents=True)
+    (tmp_path / "node_modules/typescript/package.json").write_text(json.dumps({"version": "5.9.3"}))
     out = toolchain_versions(tmp_path)
     assert out["next"] == "15.5.27"
-    assert out["typescript"] == ""  # not installed in the temp root -> dropped by the page
+    assert out["typescript"] == "5.9.3"  # hoisted to the root node_modules
+    assert toolchain_versions(tmp_path / "missing")["next"] == ""  # unreadable -> dropped by the page
     assert out["python"] == sys.version.split()[0]
     assert set(out) == {"typescript", "next", "npm", "pi_sdk", "python", "uv"}
