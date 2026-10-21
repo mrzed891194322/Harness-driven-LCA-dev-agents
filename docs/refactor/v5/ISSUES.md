@@ -284,3 +284,15 @@ be visual breakage this static pass cannot see.
 - Decision proposed: rebuild `/harness` as a read-only v5 YAML viewer with four sections — global rules, roles,
   specs, workflows — queued after the /plan, /results and /runs fixes. It is meant to become the base for GUI editing
   later. No code yet. Pending Du Yuan's confirmation (supersedes the open choice in I-11/I-19f).
+
+## I-22 /results fixes from I-19d (done)
+- `v5/results.py` now fills `handoffs` with per-node verdict rows built from `runs/<node>/status.json` and
+  `runs/<node>/<role>/submit_round_N.json` (node in manifest order, then round, executor before reviewer;
+  `status` = executor status or reviewer verdict, `status_reason` = summary/feedback (200 chars), `node_status`).
+  The 工作记录 tab shows them as 节点结论 (labels: 通过/退回/完成/失败).
+- `artifacts/previous/**` gets `category: "previous"` and its own 上一版 tab, shown only when present.
+- `artifacts/plan/**` (main_plan.md, revise_plan.md) is excluded from 最终交付 (I-19 item 2 from 模拟操作员); the zip
+  download still includes all of `artifacts/`.
+- The page header shows `状态 · 当前节点 <current_node>` (fallback `current_stage`), `data-testid="results-run-line"`.
+- 修改计划 button: enabled by I-20 (`reviseWorkLocked = false`), links to `/plan?mode=revise` (I-19 item 3).
+- Tests: `src/tests/t_v5/test_results.py`, `lib/result-kind.test.ts`.

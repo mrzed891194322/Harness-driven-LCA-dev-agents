@@ -6,25 +6,9 @@ import { MarkdownView } from "../markdown-view";
 
 const MAX_ARTIFACT_ROWS = 200;
 
-export type ResultKind = "work" | "intermediate" | "final";
+import { KIND_LABEL, resultKind, VERDICT_LABEL, type ArtifactCategory, type ResultKind } from "../../lib/result-kind";
 
-const KIND_LABEL: Record<ResultKind, string> = {
-  work: "工作记录",
-  intermediate: "中间产物",
-  final: "最终交付",
-};
-
-export function resultKind(
-  filePath: string,
-  category?: "intermediate" | "deliverable",
-): ResultKind {
-  if (category === "deliverable") return "final";
-  if (category === "intermediate") return "intermediate";
-  if (filePath.startsWith("workspace/artifacts/")) return "final";
-  if (filePath.startsWith("workspace/runs/_run/")) return "work";
-  if (filePath.startsWith("workspace/runs/")) return "intermediate";
-  return "work";
-}
+export { resultKind, type ResultKind };
 
 export type Handoff = {
   name: string;
@@ -33,26 +17,20 @@ export type Handoff = {
   attempt: number | null;
   status: string;
   status_reason: string;
-  artifacts: string[];
+  artifacts?: string[];
+  node_status?: string;
 };
 
 export type Artifact = {
   path: string;
   size: number;
   count?: number;
-  category?: "intermediate" | "deliverable";
+  category?: ArtifactCategory;
 };
 
 export type Preview =
   | ResultFile
   | { path: string; kind: "group"; size: number; text: ""; count: number };
-
-const HANDOFF_STATUS: Record<string, string> = {
-  ok: "完成",
-  failed: "失败",
-  blocked: "受阻",
-  passed: "通过",
-};
 
 function handoffPath(item: Handoff): string {
   if (item.name.includes("/")) {
@@ -76,6 +54,7 @@ function navTitle(item: Artifact): string {
 
 function parentName(filePath: string): string {
   const trimmed = filePath
+    .replace(/^workspace\/artifacts\/previous\//, "")
     .replace(/^workspace\/artifacts\//, "")
     .replace(/^workspace\/runs\/_run\//, "")
     .replace(/^workspace\/runs\//, "");
@@ -158,6 +137,10 @@ export function ArtifactsBrowser({
       artifacts.filter((item) => resultKind(item.path, item.category) === "final"),
     [artifacts],
   );
+  const previous = useMemo(
+    () => artifacts.filter((item) => resultKind(item.path, item.category) === "previous"),
+    [artifacts],
+  );
   const visibleIntermediate = intermediate.slice(0, MAX_ARTIFACT_ROWS);
   const omittedIntermediate = Math.max(0, intermediate.length - visibleIntermediate.length);
 
@@ -170,7 +153,7 @@ export function ArtifactsBrowser({
     <div className="results-columns">
       <div className="results-side">
         <div className="results-kind-tabs" role="tablist" aria-label="结果分类">
-          {(Object.keys(KIND_LABEL) as ResultKind[]).map((item) => (
+          {(Object.keys(KIND_LABEL) as ResultKind[]).filter((item) => item !== "previous" || previous.length > 0).map((item) => (
             <button
               key={item}
               type="button"
@@ -189,7 +172,7 @@ export function ArtifactsBrowser({
             <>
               {handoffs.length ? (
                 <section>
-                  <h3>交接</h3>
+                  <h3>节点结论</h3>
                   <ul>
                     {handoffs.map((item) => {
                       const filePath = handoffPath(item);
@@ -200,11 +183,12 @@ export function ArtifactsBrowser({
                             aria-current={selected === filePath ? "page" : undefined}
                             onClick={() => onOpen(filePath)}
                           >
-                            <strong>{item.stage || item.name}</strong>
+                            <strong>{item.stage || item.name}
+                              {item.node_status ? ` · ${VERDICT_LABEL[item.node_status] || item.node_status}` : ""}</strong>
                             <span>
                               {item.role || "交接"}
                               {item.attempt != null ? ` · 第 ${item.attempt} 次` : ""}
-                              {item.status ? ` · ${HANDOFF_STATUS[item.status] || item.status}` : ""}
+                              {item.status ? ` · ${VERDICT_LABEL[item.status] || item.status}` : ""}
                             </span>
                           </button>
                         </li>
@@ -239,6 +223,13 @@ export function ArtifactsBrowser({
               </>
             ) : (
               <p className="settings-help">还没有中间产物。这里列出 flow、process、product system 和计算调用记录。</p>
+            )
+          ) : null}
+          {kind === "previous" ? (
+            previous.length ? (
+              <FileList items={previous} selected={selected} formatSize={formatSize} onOpen={onOpen} />
+            ) : (
+              <p className="settings-help">没有上一版产出。修订运行会把基准产出放在 artifacts/previous/。</p>
             )
           ) : null}
           {kind === "final" ? (
