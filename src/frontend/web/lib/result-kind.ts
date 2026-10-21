@@ -25,6 +25,8 @@ export const VERDICT_LABEL: Record<string, string> = {
   blocked: "受阻",
   passed: "通过",
   accept: "通过",
+  pass: "通过",
+  fail: "退回",
   reject: "退回",
 };
 

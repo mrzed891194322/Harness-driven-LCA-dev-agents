@@ -28,7 +28,7 @@ export function eventTone(e: RunEvent): "ok" | "warn" | "fail" | "off" {
   if (BAD.has(e.kind)) return "fail";
   if (WARN.has(e.kind)) return "warn";
   if (e.kind === "model_preflight") return e.ok === false ? "fail" : "ok";
-  if (e.kind === "review_verdict") return e.verdict === "reject" ? "warn" : "ok";
+  if (e.kind === "review_verdict") return e.verdict === "reject" || e.verdict === "fail" ? "warn" : "ok";
   if (e.kind === "node_end" || e.kind === "run_end") {
     const s = String(e.status || "");
     return s === "failed" ? "fail" : s === "stopped" ? "warn" : "ok";

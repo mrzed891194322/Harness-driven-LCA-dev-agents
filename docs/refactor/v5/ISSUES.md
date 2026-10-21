@@ -298,7 +298,7 @@ be visual breakage this static pass cannot see.
 - `v5/results.py` now fills `handoffs` with per-node verdict rows built from `runs/<node>/status.json` and
   `runs/<node>/<role>/submit_round_N.json` (node in manifest order, then round, executor before reviewer;
   `status` = executor status or reviewer verdict, `status_reason` = summary/feedback (200 chars), `node_status`).
-  The 工作记录 tab shows them as 节点结论 (labels: 通过/退回/完成/失败).
+  The 工作记录 tab shows them as 节点结论 (labels: 通过/退回/完成/失败; reviewer verdicts are `pass`/`fail`, found in the serve smoke).
 - `artifacts/previous/**` gets `category: "previous"` and its own 上一版 tab, shown only when present.
 - `artifacts/plan/**` (main_plan.md, revise_plan.md) is excluded from 最终交付 (I-19 item 2 from 模拟操作员); the zip
   download still includes all of `artifacts/`.

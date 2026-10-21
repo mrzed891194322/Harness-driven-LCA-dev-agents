@@ -13,3 +13,9 @@ test("run line reads current_node", () => {
   assert.equal(runLine({ status: "running", current_node: "lca-bom" }), "状态 running · 当前节点 lca-bom");
   assert.equal(runLine({ status: "idle" }), "");
 });
+
+test("reviewer verdict pass/fail have labels", async () => {
+  const { VERDICT_LABEL } = await import("./result-kind.ts");
+  assert.equal(VERDICT_LABEL.pass, "通过");
+  assert.equal(VERDICT_LABEL.fail, "退回");
+});
