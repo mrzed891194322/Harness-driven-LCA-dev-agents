@@ -178,3 +178,96 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
   (`node-error`), and a `node_end` event. 429 / rate-limit and 503 / overloaded errors are prefixed with a clear
   Chinese explanation (`explain_model_error`).
 - Pending: whether to retry the preflight automatically on 429/503 before failing.
+
+## I-19 Frontend page inventory at 802866a (static; fix list, nothing fixed yet)
+
+Method: listed every `app/**/page.tsx` and shared header component, every `/api/...` call in `app/`, `components/`,
+`lib/`, compared with the `@app.*` routes in `src/backend/api/app.py` at 802866a, and probed the GET shapes read-only
+on the serve backend. **Every path the frontend calls still exists** and the probed shapes (`/api/diagnostics/environment`,
+`/api/results`, `/api/plan`, `/api/references`, `/api/tutorial/catalog`, `/api/credentials/status`,
+`/api/models/providers`, `/api/v5/*`) keep the keys the pages read. So the breakage is not 404s but v5 semantics,
+removed panels and stale content. Not checked: actual rendering in a browser (needs 模拟操作员/screenshots); there may
+be visual breakage this static pass cannot see.
+
+| Page | State |
+|---|---|
+| `/` , `/settings` | OK (redirect to `/status`) |
+| `/status` | OK statically |
+| `/plan` | Degraded: two tabs gone, revise mode locked |
+| `/runs` | Works, minimal: unstyled, no live activity view |
+| `/results` | Degraded: old run model (stages/handoffs) |
+| `/tutorial`, `/tutorial/[...slug]` | Works; content stale (describes removed panels) |
+| `/harness/**` | Removed (404); still referenced by docs |
+| Header: model settings dialog, backend status, tutorial/language buttons | OK statically |
+
+### I-19a `/status` (项目状态)
+- Originally: environment checks (Node/pi runtime, Python, openLCA IPC + database, LCA tools), provider list with
+  per-provider model lists, openLCA port edit.
+- Calls: `GET /api/diagnostics/environment`, `GET|PUT /api/lca/openlca`, `GET /api/models/providers`,
+  `GET /api/models/providers/{p}/models` — all present; `node`, `pi_agents`, `python_agent`, `openlca`, `lca_tools`,
+  `available_providers` still returned. C7c dropped `harness_specs` and `local_workflows`, which the page does not read.
+- Broken: nothing found statically.
+- Fix: none; confirm visually.
+
+### I-19b `/plan` (LCA 计划)
+- Originally: four tabs — 用户填写 (study form, template download, plan import), 参考资料 (uploads + notes),
+  工作流编排 (old stage graph + per-assignment models: `/api/workflows`, `/api/workflow/models` PUT,
+  `/api/harness/document`), 预览执行 (old preview + start: `/api/workflow/start` with stage manifest); new/revise mode.
+- Now: C7c removed the last two tabs (their APIs are gone); fields + references work (`/api/plan`, `/api/plan/template`,
+  `/api/plan/import`, `/api/references*`, `/api/diagnostics/environment` for the openLCA badge — all present).
+- Broken: (1) no way to start a run or see the workflow from this page — start moved to `/runs`, but the page has no
+  link/hint; (2) the 修订 mode button is disabled by `lib/revise-lock.ts` (`reviseWorkLocked = true`), so
+  `revise_plan.md` cannot be written from the GUI although `revise-lca` (c836ce8) now needs it — starting revise from
+  `/runs` returns the 400 "修订计划为空" unless the file was written by hand; (3) the tab bar's prev/next buttons and
+  layout were designed for 4 tabs.
+- v5 endpoints: `GET/PUT /api/plan?workflow=LCA-revise` (exists), `GET /api/v5/workflows` (for a read-only workflow
+  summary).
+- Fix: set `reviseWorkLocked = false`; add a "去运行" link to `/runs?workflow=full-lca|revise-lca` after the fields;
+  optionally a read-only 工作流 tab rendering `/api/v5/workflows` node cards (title, requires, produces, agents);
+  re-check tab layout with 2 tabs.
+
+### I-19c `/runs` (运行详情)
+- Originally: run manifest by stage, live activity feed and agent stream (`/api/workflow/progress`,
+  `/api/workflow/activity`, `/api/workflow/activity/stream` SSE, `/api/runs/*` sessions/injection), resume from stage.
+- Now: `V5RunPanel` — `/api/v5/workflows|status|resume|nodes/{n}/feedback/{r}`, `/api/workflow/start|stop`,
+  `/api/workflow/models`, `/api/models/selection`, `/api/plan`; all present.
+- Broken/missing: (1) uses inline styles, not the app's panel classes, so it looks out of place next to other pages;
+  (2) no event/activity view — `GET /api/v5/events?offset=` exists but nothing shows it (nudges, rejections,
+  tool activity, stop_requested); (3) no per-node detail (agent cards from `/api/v5/workflows.details` are fetched
+  but only partly shown); (4) `/runs?workflow=` deep link not supported.
+- Fix: restyle with existing classes; add an events panel polling `/api/v5/events` (offset-based); show the node
+  card (requires/produces/agents) on row click; read `?workflow=` as the initial select (after the run-follow rule).
+
+### I-19d `/results` (结果浏览)
+- Originally: current run summary (stage, reason), handoff list per stage/attempt (`runs/**/handoff*.json`),
+  deliverables under `artifacts/`, attempt artifacts with grouped `raw/` files, run-level records, zip download.
+- Now: `GET /api/results`, `/api/results/file`, `/api/results/archive` served by `backend/v5/results.py` with the old
+  shape; `manifest` is the v5 manifest (`current_node`, `nodes`, `workflow`) and `handoffs` is always `[]`.
+- Broken: (1) `manifest.current_stage` no longer exists → the current-step line is empty (v5 field
+  `current_node`); (2) 工作记录 list shows only `runs/_run` files — no per-node verdicts, since v5 has no handoff files;
+  (3) v5 per-node files (`runs/<node>/status.json`, `<role>/submit_round_N.json`, `feedback/round_N.md`,
+  `submit_rejections.jsonl`) appear as a flat artifact list; the old `raw/` grouping keys on attempt dirs that v5 does
+  not have; (4) `artifacts/previous/` (revise base) is mixed into deliverables.
+- v5 endpoints: `/api/v5/status` (nodes, rounds, errors), `/api/v5/nodes/{n}/feedback/{r}`.
+- Fix: in `v5/results.py` return `handoffs` built from v5 node status + `submit_round_*.json` (node, role, round,
+  verdict/status, summary) and add `current_node`; frontend reads `current_node` (fallback `current_stage`); list
+  `artifacts/previous/` as its own group; keep zip as is (decide whether `previous/` goes in the zip).
+
+### I-19e `/tutorial`, `/tutorial/[...slug]` (教程)
+- Calls: `/api/tutorial/catalog|document|asset` — present, unchanged.
+- Broken: content. `docs/tutorial/README.md` walks through 「工作流编排」/「预览执行」 with screenshots
+  (`page-2-3.png`, `page-2-4.png`) that no longer exist in the GUI; `docs/tutorial/panel/run-lca.md` describes
+  "初始化检查 → whole-lca 或 revise-lca" (old intake gate and task names).
+- Fix: rewrite the plan and run sections for v5 (plan page fields/references → `/runs` workflow + model select →
+  start/stop/resume → results), replace the two screenshots, mention revise via the 修订 plan + `revise-lca`.
+
+### I-19f `/harness/**` (removed)
+- Originally: harness document browser + injection preview (`/api/harness/catalog|document|injection|components`).
+- Now: pages and routes deleted in C7c (I-11); a bookmark or a doc link gives Next's 404.
+- Fix: decide with Du Yuan (I-11): either a read-only v5 viewer (rules/roles/specs/workflows YAML via a new
+  `GET /api/v5/harness?path=`), or drop and remove remaining doc references.
+
+### I-19g Shared header components
+- `model-settings-dialog`: `/api/credentials*`, `/api/models/custom-endpoint(s)` — present, unchanged. OK.
+- `backend-status` / `lib/api.ts`: `/api/health` — OK (disconnect label still untested, I-08).
+- Fix: none.
