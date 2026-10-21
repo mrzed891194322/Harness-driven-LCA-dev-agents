@@ -35,6 +35,7 @@ def _one_node(root):
     (TurnResult(submit=None, nudges=2), "no_submit"),
     (TurnResult(submit=None, aborted=True, abort_reason="max_turns"), "max_turns"),
     (TurnResult(submit=None, aborted=True, abort_reason="timeout"), "timeout"),
+    (TurnResult(submit=None, aborted=True, abort_reason="too_many_rejections"), "too_many_rejections"),
 ])
 def test_node_fails_without_accepted_submit(v5_root, result, reason):
     wf, nodes = _one_node(v5_root)
@@ -115,3 +116,30 @@ def test_submit_validates_deliverables(tmp_path):
     assert json.loads(out.read_text(encoding="utf-8"))["status"] == "ok"
     out, _ = _submit(tmp_path, "reviewer", {"verdict": "reject", "feedback": ""})
     assert not out.exists()
+
+
+def test_driver_max_rejections_policy_and_event(v5_root):
+    make_node(v5_root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
+    node = load_node(v5_root, "a")
+    settle = {"submitted": False, "nudges": 0, "turns": 7, "abort_reason": "too_many_rejections", "rejections": 5,
+              "log": [{"ts": "t1", "kind": "rejected_retry", "detail": "rejections=1/5"},
+                      {"ts": "t2", "kind": "abort", "detail": "too_many_rejections"}]}
+    rt = Rt({"status": "ok", "outcome": {"stop_reason": "aborted"}, "settle": settle})
+    req = TurnRequest(node=node, role="executor", round=1, prompt="p", workspace=v5_root / "workspace",
+                      run_id="r1234567", session_key="a.executor", resume=False, extra={"system": "S"})
+    res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(req)
+    assert res.abort_reason == "too_many_rejections" and res.nudges == 0
+    pol = rt.calls[0][1]["launch_spec"]["turn_context"]["settle"]
+    assert pol["max_rejections"] == 5 and pol["rejections_file"].endswith("runs/a/executor/submit_rejections.jsonl")
+    ev = [e for e in _events(v5_root) if e["kind"] == "too_many_rejections"]
+    assert ev and ev[0]["rejections"] == 5
+    assert any(e["kind"] == "rejected_retry" for e in _events(v5_root))
+
+
+def test_max_rejections_is_configurable():
+    from backend.v5.config import Deliver
+
+    assert Deliver(submit="artifact").max_rejections == 5
+    assert Deliver(submit="artifact", max_rejections=2).max_rejections == 2
+    with pytest.raises(ValueError):
+        Deliver(submit="artifact", max_rejections=0)

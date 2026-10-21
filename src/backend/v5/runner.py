@@ -32,7 +32,7 @@ class TurnResult:
     fatal: bool = False  # e.g. model auth failure: stop the whole run
     session_id: str = ""
     nudges: int = 0
-    abort_reason: str = ""  # "max_turns" | "timeout" | ""
+    abort_reason: str = ""  # "max_turns" | "timeout" | "too_many_rejections" | ""
 
 
 @dataclass

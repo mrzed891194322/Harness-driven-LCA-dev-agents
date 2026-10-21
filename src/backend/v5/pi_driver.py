@@ -141,7 +141,9 @@ class PiDriver:
             system_sections=[SystemSection(id="v5_system", content=system, source_hash=_sha(system))],
             turn_context={"engine": "v5", "node": req.node.id, "round": req.round,
                           "settle": {"submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
-                                     "max_turns": deliver.max_turns, "timeout_min": deliver.timeout_min}},
+                                     "max_turns": deliver.max_turns, "timeout_min": deliver.timeout_min,
+                                     "max_rejections": deliver.max_rejections,
+                                     "rejections_file": str(role_dir / "submit_rejections.jsonl")}},
             knowledge_bindings=[],
             resource_bindings={
                 "project_root": str(self.root.resolve()),
@@ -210,12 +212,15 @@ class PiDriver:
         settle = result.get("settle") if isinstance(result, dict) else None
         settle = settle if isinstance(settle, dict) else {}
         for item in settle.get("log") or []:
-            kind = {"nudge": "nudge", "no_submit": "no_submit", "abort": "turn_aborted"}.get(item.get("kind"), "settle")
+            kind = {"nudge": "nudge", "rejected_retry": "rejected_retry", "no_submit": "no_submit", "abort": "turn_aborted"}.get(item.get("kind"), "settle")
             events.emit(kind, node=req.node.id, role=req.role, round=req.round, detail=item.get("detail"),
                         at=item.get("ts"))
         for line in _read_lines(rejections)[seen_rejections:]:
             events.emit("submit_rejected", node=req.node.id, role=req.role, round=req.round, **line)
         abort_reason = str(settle.get("abort_reason") or "")
+        if abort_reason == "too_many_rejections":
+            events.emit("too_many_rejections", node=req.node.id, role=req.role, round=req.round,
+                        rejections=int(settle.get("rejections") or 0))
         fatal = submit is None and is_auth_error(err)
         return TurnResult(submit=submit, aborted=aborted or bool(abort_reason),
                           error=err if (status != "ok" or err) else "", fatal=fatal,

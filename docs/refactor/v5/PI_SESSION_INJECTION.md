@@ -65,3 +65,12 @@
   `runs/<node>/<role>/submit_rejections.jsonl` and are returned to the agent.
 - Host: events `nudge`, `no_submit`, `turn_aborted`, `submit_rejected`; `agent_settled` carries `nudges` and
   `abort_reason`. No accepted submit ⇒ node `failed` with `reason` = `no_submit` | `max_turns` | `timeout` | `aborted`.
+
+## max_rejections (deliver)
+
+- `deliver.max_rejections` (default 5, ≥1). Each rejected submit (schema/deliverable check in the submit MCP) appends a
+  line to `runs/<node>/<role>/submit_rejections.jsonl`; the file spans all rounds of the node.
+- A rejection does **not** spend a nudge: at settle the guard sends a "fix and resubmit" reminder (`rejected_retry`
+  log) and continues.
+- When the count reaches `max_rejections` without an accepted submit, the turn is aborted (checked at `turn_end` and
+  at settle); `abort_reason = too_many_rejections`, event `too_many_rejections`, node fails with that reason.

@@ -157,6 +157,7 @@ class Deliver(_Strict):
     max_nudges: int = Field(default=2, ge=0)
     max_turns: int = Field(default=80, ge=1)
     timeout_min: float = Field(default=45, gt=0)
+    max_rejections: int = Field(default=5, ge=1)
 
 
 class RoleDef(_Strict):

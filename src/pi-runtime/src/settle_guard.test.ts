@@ -52,3 +52,38 @@ test("policy parsing", () => {
   assert.equal(settlePolicyOf({}), null);
   assert.equal(settlePolicyOf({ settle: { submit_file: "/a", max_nudges: 1 } })?.max_nudges, 1);
 });
+
+test("rejections do not spend nudges; max_rejections fails the turn", () => {
+  let lines = 0;
+  const p = { ...policy, rejections_file: "/x/submit_rejections.jsonl", max_rejections: 3 };
+  const g = new SettleGuard(p, () => false, () => lines);
+  g.begin(() => {});
+  lines = 1;
+  assert.equal(g.beforeSettle()?.continue, true); // rejected -> retry reminder
+  lines = 2;
+  assert.equal(g.beforeSettle()?.continue, true);
+  assert.equal(g.summary().nudges, 0);
+  lines = 3;
+  let aborted = 0;
+  g.onTurnEnd(() => aborted++);
+  assert.equal(aborted, 1);
+  assert.equal(g.beforeSettle(), undefined);
+  const s = g.summary();
+  assert.equal(s.abort_reason, "too_many_rejections");
+  assert.equal(s.rejections, 3);
+  assert.ok(s.log.some((e) => e.kind === "rejected_retry"));
+  g.clear();
+});
+
+test("rejections from earlier rounds count toward the node limit", () => {
+  const p = { ...policy, rejections_file: "/x/r.jsonl", max_rejections: 2 };
+  const g = new SettleGuard(p, () => false, () => 2);
+  g.begin(() => {});
+  assert.equal(g.beforeSettle(), undefined);
+  assert.equal(g.summary().abort_reason, "too_many_rejections");
+  g.clear();
+});
+
+test("max_rejections defaults to 5", () => {
+  assert.equal(settlePolicyOf({ settle: { submit_file: "/s" } })?.max_rejections, 5);
+});
