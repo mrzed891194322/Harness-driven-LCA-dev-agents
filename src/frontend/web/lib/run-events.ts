@@ -1,3 +1,5 @@
+import { label as stateLabel } from "./labels.ts";
+
 /** Event rows from /api/v5/events, and how /runs shows them. */
 export type RunEvent = { ts?: string; kind: string; node?: string; role?: string; round?: number; [key: string]: unknown };
 
@@ -44,10 +46,9 @@ export function isNotable(e: RunEvent): boolean {
 export function describeEvent(e: RunEvent): string {
   const label = NOTABLE[e.kind] || e.kind;
   const where = [e.node, e.role, e.round ? `第 ${e.round} 轮` : ""].filter(Boolean).join(" · ");
-  const detail = [e.verdict, e.status, e.reason, e.error, e.detail, e.message]
-    .find((v) => typeof v === "string" && v)
-    ?.toString()
-    .slice(0, 200);
+  const state = [e.verdict, e.status].find((v) => typeof v === "string" && v) as string | undefined;
+  const text = [e.reason, e.error, e.detail, e.message].find((v) => typeof v === "string" && v)?.toString().slice(0, 200);
+  const detail = [state ? stateLabel(state) : "", text].filter(Boolean).join("：");
   return [label, where, detail].filter(Boolean).join(" — ");
 }
 

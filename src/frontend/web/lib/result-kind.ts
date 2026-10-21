@@ -18,17 +18,8 @@ export function resultKind(filePath: string, category?: ArtifactCategory): Resul
   return "work";
 }
 
-/** Labels for executor status and reviewer verdict in the 节点结论 list. */
-export const VERDICT_LABEL: Record<string, string> = {
-  ok: "完成",
-  failed: "失败",
-  blocked: "受阻",
-  passed: "通过",
-  accept: "通过",
-  pass: "通过",
-  fail: "退回",
-  reject: "退回",
-};
+/** Labels for executor status and reviewer verdict in the 节点结论 list (shared map). */
+export { LABEL as VERDICT_LABEL } from "./labels.ts";
 
 /** Header line for the current run, from the v5 manifest (current_node; old current_stage as fallback). */
 export function runLine(manifest: { status?: string; current_node?: string | null; current_stage?: string | null; status_reason?: string | null } | undefined): string {

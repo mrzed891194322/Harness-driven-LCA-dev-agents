@@ -25,3 +25,12 @@ test("merge appends and resets when the log shrinks", () => {
   const b = mergeEvents(a.events, 5, { events: [], offset: 2 });
   assert.deepEqual([b.events.length, b.offset, b.reset], [0, 0, true]);
 });
+
+test("verdicts and end states are shown in Chinese", () => {
+  assert.equal(describeEvent({ kind: "review_verdict", node: "a", verdict: "pass" }), "审核结论 — a — 通过");
+  assert.equal(describeEvent({ kind: "review_verdict", node: "a", verdict: "fail" }), "审核结论 — a — 退回");
+  assert.equal(describeEvent({ kind: "node_end", node: "a", status: "passed" }), "节点结束 — a — 通过");
+  assert.equal(describeEvent({ kind: "run_end", status: "completed", reason: "全部节点已通过" }), "运行结束 — 完成：全部节点已通过");
+  assert.equal(describeEvent({ kind: "run_end", status: "stopped" }), "运行结束 — 已停止");
+  assert.equal(describeEvent({ kind: "node_end", node: "a", status: "failed" }), "节点结束 — a — 失败");
+});

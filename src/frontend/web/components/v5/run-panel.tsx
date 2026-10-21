@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
+import { LABEL } from "../../lib/labels";
 import { initialWorkflow } from "../../lib/initial-workflow";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
 import { describeEvent, eventTone, isNotable, mergeEvents, statusTone, type RunEvent } from "../../lib/run-events";
@@ -35,16 +36,7 @@ type RunStatus = {
   running: boolean;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  idle: "空闲",
-  running: "运行中",
-  completed: "已完成",
-  failed: "失败",
-  pending: "等待",
-  passed: "通过",
-  stopped: "已停止",
-  error: "错误",
-};
+const STATUS_LABEL = LABEL;
 
 async function readJson<T>(response: Response): Promise<T> {
   const data = (await response.json()) as T & { detail?: unknown };

@@ -348,3 +348,14 @@ be visual breakage this static pass cannot see.
   `lib/harness-view.test.ts`.
 - Pending Du Yuan: GUI editing on top of this viewer; whether `rules/lca` belongs under 全局规则 or its own section.
 - Note: `ruff check src/backend/api/app.py` reports 3 pre-existing B008 (FastAPI `File`/`Form` defaults), not new.
+
+## I-27 Chinese state labels in events; tutorial for v5 (done)
+- One shared label map `lib/labels.ts` (run/node states + verdicts: 通过/退回/完成/失败/已停止/…) used by the /runs
+  table and badges, the events panel (`describeEvent`: review verdict 通过/退回, node/run end states) and /results
+  (`VERDICT_LABEL` re-exports it). `tsconfig.json` gets `allowImportingTsExtensions` (noEmit) so lib files can import
+  each other with `.ts` for the node test runner. Test: `run-events.test.ts`.
+- `docs/tutorial/README.md` rewritten for v5: plan → 去运行 → /runs (workflow, model, start/stop/续跑, events, node
+  detail) → results → revise (available). Removed the 工作流编排/预览执行 sections and deleted `page-2-3.png`,
+  `page-2-4.png` (no matching shot; the retaken `page-3.png` is the /runs screenshot). `openlca-ipc.png` kept.
+- Copied 模拟操作员's 5 retaken shots (`page-1`, `page-2-1`, `page-2-2`, `page-3`, `page-4`) over the old images.
+- `panel/overview.md`, `panel/run-lca.md`: 继续 → 续跑, 模型设置 → 设置 (match the UI).
