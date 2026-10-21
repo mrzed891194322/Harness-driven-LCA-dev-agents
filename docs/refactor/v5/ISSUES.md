@@ -591,7 +591,7 @@ To implement LATER (after the frontend review, not now) — revise-lca redesign:
 - /harness: detail pane fills the width (the old `.tutorial-body .harness-doc { max-width: 52rem }` reading width is lifted
   on the v5 viewer only); field table `table-layout: fixed`, key column 8rem, cells `overflow-wrap: anywhere`; prompt cell
   and raw YAML `white-space: pre-wrap`.
-- /plan 工作流编排: `.flow-stages` `align-items: flex-start` (cards at the top). Finding: 599ed0a's CSS has the same
+- /plan 工作流编排: card top alignment was tried and reverted (Du Yuan): `.flow-stages` keeps 599ed0a `align-items: center`. Finding: 599ed0a's CSS has the same
   `align-items: center`, so the old board also centered vertically; no pre-v5 screenshot with backend data exists
   (old_plan_工作流编排.png shows only the "后端未连接" error; .local/ui-op/ holds only v5-era shots). Agent line split into
   tokens (默认 / model / 思考 X), each `white-space: nowrap`, wrapping only between tokens.
