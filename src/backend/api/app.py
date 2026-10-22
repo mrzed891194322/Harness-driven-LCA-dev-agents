@@ -148,7 +148,6 @@ class PlanUpdate(BaseModel):
 
 
 class WorkflowStart(BaseModel):
-    task: str = ""
     workflow: str = ""
     plan: str = ""
     subject: str = ""
@@ -586,8 +585,6 @@ def workflow_result_archive() -> Response:
     )
 
 
-_V5_TASK_ALIASES = {"whole-lca": "full-lca", "LCA-main": "full-lca", "revise-lca": "revise-lca",
-                    "LCA-revise": "revise-lca"}
 
 
 def _v5() -> Any:
@@ -609,7 +606,7 @@ def start_workflow(body: WorkflowStart) -> dict[str, Any]:
     from backend.v5.config import ConfigError
     from backend.v5.config import load_workflow as load_v5_workflow
 
-    workflow = _V5_TASK_ALIASES.get(body.workflow or body.task, body.workflow or body.task)
+    workflow = body.workflow
     plan = body.plan
     try:
         wf_def = load_v5_workflow(_v5().root, workflow)[0]
@@ -618,7 +615,7 @@ def start_workflow(body: WorkflowStart) -> dict[str, Any]:
     if not plan.strip() and wf_def.plan_file == "revise_plan.md":
         # Revise: the plan form fields describe the original study; use the saved revise plan instead.
         try:
-            plan = str(read_plan_document(PROJECT_ROOT, workflow="LCA-revise").get("content") or "")
+            plan = str(read_plan_document(PROJECT_ROOT, workflow="revise-lca").get("content") or "")
         except PlanFormError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not plan.strip():
@@ -681,8 +678,8 @@ def _saved_plan_text(workflow: str) -> str:
     try:
         wf_def = load_v5_workflow(_v5().root, workflow)[0]
         if wf_def.plan_file == "revise_plan.md":
-            return str(read_plan_document(PROJECT_ROOT, workflow="LCA-revise").get("content") or "")
-        doc = read_plan_document(PROJECT_ROOT, workflow="LCA-main")
+            return str(read_plan_document(PROJECT_ROOT, workflow="revise-lca").get("content") or "")
+        doc = read_plan_document(PROJECT_ROOT, workflow="full-lca")
         fields = doc.get("fields") if isinstance(doc, dict) else None
         if isinstance(fields, dict) and str(fields.get("subject") or "").strip():
             pf = PlanFields(**{k: str(fields.get(k) or "") for k in ("subject", "functional_unit", "life_cycle_stages", "conditions")})
@@ -790,7 +787,7 @@ def read_tutorial_asset(path: str) -> FileResponse:
 
 
 @app.get("/api/plan")
-def read_plan(workflow: str = "LCA-main") -> dict[str, Any]:
+def read_plan(workflow: str = "full-lca") -> dict[str, Any]:
     try:
         return read_plan_document(PROJECT_ROOT, workflow=workflow)
     except PlanFormError as exc:
@@ -798,7 +795,7 @@ def read_plan(workflow: str = "LCA-main") -> dict[str, Any]:
 
 
 @app.put("/api/plan")
-def write_plan(body: PlanUpdate, workflow: str = "LCA-main") -> dict[str, Any]:
+def write_plan(body: PlanUpdate, workflow: str = "full-lca") -> dict[str, Any]:
     """Autosave the plan form; the file is the workflow YAML's ``plan:`` path."""
     try:
         save_plan(
@@ -828,7 +825,7 @@ def download_plan_template() -> Response:
 @app.post("/api/plan/import")
 async def import_plan(
     file: UploadFile = File(...),
-    workflow: str = "LCA-main",
+    workflow: str = "full-lca",
     overwrite: bool = False,
 ) -> dict[str, Any]:
     data = await file.read()

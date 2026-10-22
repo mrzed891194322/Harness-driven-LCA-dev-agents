@@ -271,7 +271,7 @@ def _normalize_agents(data: dict, path: Path) -> dict[str, "AgentDef"]:
     for key, value in list(agents.items()):
         if isinstance(value, str):
             agents[key] = {"agent": value}
-        elif isinstance(value, dict) and "agent" not in value and "role" not in value:
+        elif isinstance(value, dict) and "agent" not in value:
             # inline agent: the template fields (prompt / access / deliver / title) live right here
             where = _line_of(path, rf'^\s*{key}:')
             if "prompt" not in value or "deliver" not in value:
@@ -287,9 +287,6 @@ def _normalize_agents(data: dict, path: Path) -> dict[str, "AgentDef"]:
             rest["agent"] = ""
             agents[key] = rest
             inline_defs[key] = definition
-        elif isinstance(value, dict) and "role" in value:
-            raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: agent {key!r}: 'role' was replaced by a template "
-                              f"name (I-50), write `{key}: {value['role']}` or `{key}: {{agent: {value['role']}, ...}}`")
     return inline_defs
 
 

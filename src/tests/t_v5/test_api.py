@@ -20,7 +20,7 @@ def _client(monkeypatch, root):
 def test_start_status_feedback_and_old_resume(monkeypatch, v5_root):
     client, svc = _client(monkeypatch, v5_root)
     assert client.get("/api/v5/workflows").json()["workflows"][0]["id"] == "full-lca"
-    r = client.post("/api/workflow/start", json={"task": "whole-lca", "plan": "# 计划\n"})
+    r = client.post("/api/workflow/start", json={"workflow": "full-lca", "plan": "# 计划\n"})
     assert r.status_code == 200, r.text
     svc.wait(10)
     st = client.get("/api/v5/status").json()

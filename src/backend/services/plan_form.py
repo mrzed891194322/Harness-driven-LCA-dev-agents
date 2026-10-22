@@ -15,21 +15,9 @@ INPUTS_RELATIVE = Path("harness/knowledge/inputs")
 TEMPLATE_NAME = "lca-plan-template.md"
 NOTES_NAME = "reference-notes.json"
 _LEGACY_NOTES_NAME = ".reference-notes.json"
-DEFAULT_WORKFLOW_NAME = "LCA-main"
-DEFAULT_WORKFLOW_FILE = "LCA-main.yaml"
-REVISE_WORKFLOW_FILE = "LCA-revise.yaml"
-WORKFLOW_PLAN_ALIASES = {
-    "whole-lca": DEFAULT_WORKFLOW_FILE,
-    "LCA-main": DEFAULT_WORKFLOW_FILE,
-    DEFAULT_WORKFLOW_FILE: DEFAULT_WORKFLOW_FILE,
-    "revise-lca": REVISE_WORKFLOW_FILE,
-    "LCA-revise": REVISE_WORKFLOW_FILE,
-    REVISE_WORKFLOW_FILE: REVISE_WORKFLOW_FILE,
-}
-_FALLBACK_PLAN_BY_WORKFLOW_FILE = {
-    DEFAULT_WORKFLOW_FILE: PLAN_RELATIVE,
-    REVISE_WORKFLOW_FILE: REVISE_PLAN_RELATIVE,
-}
+DEFAULT_WORKFLOW_NAME = "full-lca"
+# GUI plan file per workflow id (v5 orchestrations).
+PLAN_BY_WORKFLOW = {"full-lca": PLAN_RELATIVE, "revise-lca": REVISE_PLAN_RELATIVE}
 MAX_PLAN_BYTES = 2 * 1024 * 1024
 PLAN_SUFFIXES = {".md", ".markdown", ".txt"}
 FIELD_KEYS = ("研究对象", "功能单位", "生命周期阶段", "附加条件")
@@ -196,18 +184,13 @@ def render_plan(fields: PlanFields, reference_names: list[str]) -> str:
     )
 
 
-def _workflow_filename(workflow: str | None) -> str:
-    key = (workflow or DEFAULT_WORKFLOW_NAME).strip() or DEFAULT_WORKFLOW_NAME
-    name = WORKFLOW_PLAN_ALIASES.get(key)
-    if name is None:
-        raise PlanFormError(f"未知工作流：{key}")
-    return name
-
-
 def plan_relative_path(root: Path, *, workflow: str | None = None) -> Path:
-    """Fixed plan file per plan alias (v5 has no plan path in workflow YAML)."""
+    """Fixed plan file per workflow id (full-lca → main_plan.md, revise-lca → revise_plan.md)."""
     del root
-    return _FALLBACK_PLAN_BY_WORKFLOW_FILE.get(_workflow_filename(workflow), PLAN_RELATIVE)
+    key = (workflow or DEFAULT_WORKFLOW_NAME).strip() or DEFAULT_WORKFLOW_NAME
+    if key not in PLAN_BY_WORKFLOW:
+        raise PlanFormError(f"未知工作流：{key}")
+    return PLAN_BY_WORKFLOW[key]
 
 
 def plan_path(root: Path, *, workflow: str | None = None) -> Path:

@@ -122,7 +122,7 @@ export default function RunsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          task: taskId,
+          workflow: taskId,
           subject: fields.subject || "",
           functional_unit: fields.functional_unit || "",
           life_cycle_stages: fields.life_cycle_stages || "",

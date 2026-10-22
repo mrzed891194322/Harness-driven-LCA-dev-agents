@@ -17,8 +17,8 @@ def test_gui_plan_saved_under_artifacts_plan(proj):  # noqa: F811
     """I-47 / DESIGN.md §三: the GUI form saves to workspace/artifacts/plan/, not harness/knowledge/plan/."""
     from backend.services.plan_form import plan_path
 
-    assert plan_path(proj, workflow="LCA-main") == proj / "workspace/artifacts/plan/main_plan.md"
-    assert plan_path(proj, workflow="LCA-revise") == proj / "workspace/artifacts/plan/revise_plan.md"
+    assert plan_path(proj, workflow="full-lca") == proj / "workspace/artifacts/plan/main_plan.md"
+    assert plan_path(proj, workflow="revise-lca") == proj / "workspace/artifacts/plan/revise_plan.md"
     k = proj / "harness/knowledge"
     (k / "inputs").mkdir(parents=True, exist_ok=True)
     (k / "inputs/a.md").write_text("资料", encoding="utf-8")

@@ -67,12 +67,6 @@ def test_unknown_agent_name_has_file_and_line(v5_root):
         load_node(v5_root, "a")
 
 
-def test_old_role_form_is_rejected(v5_root):
-    make_node(v5_root, "a", agents={"executor": {"role": "executor"}, "reviewer": "reviewer"})
-    with pytest.raises(ConfigError, match=r"nodes/a\.yaml:\d+: agent 'executor': 'role' was replaced"):
-        load_node(v5_root, "a")
-
-
 INLINE_EXEC = {"prompt": "按 <plan> 写段落。", "access": {"read": {"knowledge": False}},
                "deliver": {"submit": "artifact", "spec": "paragraph", "max_turns": 7}}
 

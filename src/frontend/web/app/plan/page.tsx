@@ -36,9 +36,9 @@ const panels: { id: Panel; label: string }[] = [
   { id: "preview", label: "预览执行" },
 ];
 
-// Plan file alias per work mode (the backend maps it to a fixed plan path).
+// Workflow id per work mode (the backend maps it to a fixed plan path).
 function planWorkflow(mode: "new" | "revise"): string {
-  return mode === "revise" ? "LCA-revise" : "LCA-main";
+  return mode === "revise" ? "revise-lca" : "full-lca";
 }
 
 function PanelIcon({ id }: { id: Panel }) {
