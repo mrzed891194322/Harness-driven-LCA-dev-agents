@@ -10,7 +10,6 @@ from tests.t_v5.conftest import REPO
 CAT = "202606-harness-agent-LCA"
 USERS = [
     "harness/tools/mcp/control_openlca/main.py",
-    "harness/tools/mcp/control_openlca/workflow_mcp.py",
     "harness/tools/shared/control_openlca/cleanup_service.py",
     "harness/tools/shared/control_openlca/attempt_cleanup.py",
 ]

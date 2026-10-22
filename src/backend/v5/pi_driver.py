@@ -75,8 +75,6 @@ class PiDriver:
         agent = req.node.agents[req.agent]
         for name in agent.tools.mcp:
             cfg_path = self.root / layout.TOOLS_MCP / name / "v5.yaml"
-            if not cfg_path.is_file():
-                cfg_path = self.root / layout.TOOLS_MCP / name / "mcp.yaml"
             cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
             args = [str(a) for a in cfg.get("args") or []]
             command = cfg.get("command")
