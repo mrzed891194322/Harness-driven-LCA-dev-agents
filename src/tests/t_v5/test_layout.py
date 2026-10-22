@@ -9,7 +9,7 @@ def test_rules_layout():
     g = ROOT / "harness/rules/global"
     assert sorted(p.name for p in g.glob("*.yaml")) and not list(g.glob("*.md"))
     for role in ("executor", "reviewer"):
-        data = yaml.safe_load((ROOT / "harness/rules/roles" / f"{role}.yaml").read_text(encoding="utf-8"))
+        data = yaml.safe_load((ROOT / "harness/workflows/agents" / f"{role}.yaml").read_text(encoding="utf-8"))
         assert data["prompt"].strip() and set(data["access"]) <= {"read", "write"}
         assert data["deliver"]["submit"] in ("artifact", "verdict")
 
@@ -22,3 +22,12 @@ def test_category_constant():
     from backend.v5.layout import OPENLCA_PROJECT_CATEGORY
 
     assert OPENLCA_PROJECT_CATEGORY == "202606-harness-agent-LCA"
+
+
+def test_workflows_three_levels():
+    """I-50: orchestrations / nodes / agents; no orchestration YAML left at the workflows root."""
+    w = ROOT / "harness/workflows"
+    assert {"full-lca.yaml", "revise-lca.yaml"} <= {p.name for p in (w / "orchestrations").glob("*.yaml")}
+    assert not list(w.glob("*.yaml"))
+    assert {"executor.yaml", "reviewer.yaml"} <= {p.name for p in (w / "agents").glob("*.yaml")}
+    assert not (ROOT / "harness/rules/roles").exists()

@@ -20,9 +20,9 @@ def test_real_harness_loads_clean(tmp_path: Path) -> None:
     assert [s["id"] for s in out["sections"]] == ["rules", "roles", "specs", "workflows"]
     assert out["errors"] == 0, [f["error"] for s in out["sections"] for f in s["files"] if f["error"]]
     by = {s["id"]: {f["path"]: f for f in s["files"]} for s in out["sections"]}
-    role = by["roles"]["harness/rules/roles/executor.yaml"]
+    role = by["roles"]["harness/workflows/agents/executor.yaml"]
     assert "deliver" in role["fields"] and role["raw"].startswith(role["raw"][:1])
-    assert "harness/workflows/full-lca.yaml" in by["workflows"]
+    assert "harness/workflows/orchestrations/full-lca.yaml" in by["workflows"]
     assert any(f["group"] == "nodes" for f in by["workflows"].values())
     assert any(f["group"] == "global" for f in by["rules"].values())
 

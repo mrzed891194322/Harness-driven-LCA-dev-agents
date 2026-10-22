@@ -62,7 +62,7 @@ def harness_view(root: Path) -> dict[str, Any]:
             rules.append(_entry(root, path, folder, lambda rel=rel: config.load_rule(root, rel)))
     roles = [
         _entry(root, p, "roles", lambda p=p: config.load_role_def(root, p.stem))
-        for p in sorted((root / layout.RULES_ROLES).glob("*.yaml"))
+        for p in sorted((root / layout.AGENTS).glob("*.yaml"))
     ]
     specs = [
         _entry(root, p, "specs", lambda p=p: config.load_spec(root, p.stem))
@@ -70,7 +70,7 @@ def harness_view(root: Path) -> dict[str, Any]:
     ]
     workflows = [
         _entry(root, p, "workflows", lambda p=p: config.load_workflow(root, p.stem))
-        for p in sorted((root / layout.WORKFLOWS).glob("*.yaml"))
+        for p in sorted((root / layout.ORCHESTRATIONS).glob("*.yaml"))
     ] + [
         _entry(root, p, "nodes", lambda p=p: config.load_node(root, p.stem))
         for p in sorted((root / layout.NODES).glob("*.yaml"))

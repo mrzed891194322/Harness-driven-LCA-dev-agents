@@ -46,6 +46,7 @@ def v5_root(tmp_path: Path) -> Path:
     """A throwaway project root with the real v5 rules and simple specs."""
     root = tmp_path / "proj"
     shutil.copytree(REPO / "harness/rules", root / "harness/rules")
+    shutil.copytree(REPO / "harness/workflows/agents", root / "harness/workflows/agents")
     (root / "harness/knowledge").mkdir(parents=True)
     (root / "harness/tools/skills").mkdir(parents=True)
     (root / "harness/specs").mkdir(parents=True)

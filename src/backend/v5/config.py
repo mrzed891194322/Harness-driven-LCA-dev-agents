@@ -265,8 +265,15 @@ def load_node(root: Path, node_id: str) -> Node:
     return node
 
 
+def _first_existing(*paths: Path) -> Path:
+    for p in paths:
+        if p.is_file():
+            return p
+    return paths[0]
+
+
 def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
-    path = root / layout.WORKFLOWS / f"{name}.yaml"
+    path = _first_existing(root / layout.ORCHESTRATIONS / f"{name}.yaml", root / layout.WORKFLOWS / f"{name}.yaml")
     data = _load_yaml(path)
     data.setdefault("id", name)
     try:
@@ -281,9 +288,11 @@ def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
 
 
 def list_workflows(root: Path) -> list[str]:
-    folder = root / layout.WORKFLOWS
     names = []
-    for path in sorted(folder.glob("*.yaml")):
+    paths = sorted((root / layout.ORCHESTRATIONS).glob("*.yaml")) + sorted((root / layout.WORKFLOWS).glob("*.yaml"))
+    for path in paths:
+        if path.stem in names:
+            continue
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError:
@@ -309,7 +318,7 @@ def load_spec(root: Path, spec_id: str) -> Spec:
 
 
 def load_role_def(root: Path, role: str) -> RoleDef:
-    path = root / layout.RULES_ROLES / f"{role}.yaml"
+    path = _first_existing(root / layout.AGENTS / f"{role}.yaml", root / layout.RULES_ROLES / f"{role}.yaml")
     role_def = _validate(RoleDef, _load_yaml(path), path)
     role_def.prompt = render(role_def.prompt, path)
     return role_def

@@ -58,9 +58,9 @@ def test_enabled_order_and_applies_to(v5_root):
     assert rv.index("红线") < rv.index("REVIEW-ONLY") < rv.index("语言")  # order 0 < 1 < 10
 
 def test_produce_spec_defaults_to_role_spec(v5_root):
-    role = yaml.safe_load((v5_root / "harness/rules/roles/executor.yaml").read_text(encoding="utf-8"))
+    role = yaml.safe_load((v5_root / "harness/workflows/agents/executor.yaml").read_text(encoding="utf-8"))
     role["deliver"]["spec"] = "summary"
-    write_yaml(v5_root / "harness/rules/roles/executor.yaml", role)
+    write_yaml(v5_root / "harness/workflows/agents/executor.yaml", role)
     make_node(v5_root, "d", produces=[{"path": "d/s.md"}])
     assert load_node(v5_root, "d").produces[0].spec == "summary"
     make_node(v5_root, "e", produces=[{"spec": "paragraph", "path": "e/p.md"}])
