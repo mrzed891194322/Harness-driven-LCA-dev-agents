@@ -27,14 +27,15 @@ EXECUTOR_SCHEMA: dict[str, Any] = {"oneOf": [
 _ISSUE = {"type": "object", "required": ["where", "problem", "expected"],
           "properties": {"where": _STR, "problem": _STR, "expected": _STR}}
 REVIEWER_SCHEMA: dict[str, Any] = {"oneOf": [
-    {"type": "object", "properties": {"verdict": {"const": "approve"}, "summary": _STR},
+    {"type": "object", "properties": {"verdict": {"const": "approve"}, "summary": _STR, "comment": _STR},
      "required": ["verdict"], "additionalProperties": False},
-    {"type": "object", "properties": {"verdict": {"const": "reject"},
+    {"type": "object", "properties": {"verdict": {"const": "reject"}, "comment": _STR,
                                       "issues": {"type": "array", "minItems": 1, "items": _ISSUE}},
      "required": ["verdict", "issues"], "additionalProperties": False},
     {"type": "object", "properties": {"verdict": {"const": "approve_redo_upstream"}, "comment": _STR},
      "required": ["verdict"], "additionalProperties": False},
-    {"type": "object", "properties": {"verdict": {"const": "terminate"}, "reason": {"type": "string", "minLength": 20}},
+    {"type": "object", "properties": {"verdict": {"const": "terminate"}, "comment": _STR,
+                                      "reason": {"type": "string", "minLength": 20}},
      "required": ["verdict", "reason"], "additionalProperties": False},
 ]}
 SCHEMAS = {"artifact": EXECUTOR_SCHEMA, "verdict": REVIEWER_SCHEMA}

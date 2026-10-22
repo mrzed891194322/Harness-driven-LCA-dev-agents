@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -13,6 +15,8 @@ from backend.v5.events import EventLog
 from backend.v5.inject import Injector
 from backend.v5.runner import Runner
 from backend.v5.turn import AgentDriver
+
+log = logging.getLogger("harness.v5")
 
 DriverFactory = Callable[[Path], AgentDriver]
 
@@ -137,7 +141,7 @@ class V5Service:
                     runner.run(plans=plans, resume=resume)
                 except Exception as exc:  # noqa: BLE001
                     self.last_error = str(exc)
-                    EventLog(self.ws).emit("run_end", status="failed", reason=str(exc))
+                    self._fail_run(f"host_error: {type(exc).__name__}: {exc}"[:500])
                 finally:
                     release = getattr(driver, "release_all", None)
                     if release:
@@ -146,6 +150,21 @@ class V5Service:
             self._thread = threading.Thread(target=work, name="v5-run", daemon=True)
             self._thread.start()
         return {"status": "started", "workflow": workflow, "resume": resume}
+
+    def _fail_run(self, reason: str) -> None:
+        """Uncaught error in the run thread: run_end (best effort) + manifest failed. The flock on
+        orchestrator.lock is released when Runner.run's ``with`` closes the file."""
+        try:
+            EventLog(self.ws).emit("run_end", status="failed", reason=reason)
+        except Exception:  # noqa: BLE001
+            log.exception("run_end event failed")
+        path = self.ws / "runs" / "_run" / "manifest.json"
+        data = _read_json(path)
+        if data.get("status") in (None, "running"):
+            data.update(status="failed", status_reason=reason, current_node=None, current_rev=None,
+                        ended_at=time.time())
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def stop(self) -> dict[str, str]:
         if not self.running:

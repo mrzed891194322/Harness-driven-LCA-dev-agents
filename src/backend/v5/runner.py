@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import logging
 import shutil
 import time
 import uuid
@@ -24,6 +25,8 @@ from backend.v5.config import Node, Spec, Workflow, load_spec
 from backend.v5.events import EventLog
 from backend.v5.node_graph import NodeContext, NodeGraph, NodeOutcome
 from backend.v5.turn import AgentDriver, PromptBuilder, TurnRequest, TurnResult
+
+log = logging.getLogger("harness.v5")
 
 __all__ = ["Runner", "RunFailed", "RunStopped", "QueueItem", "TurnRequest", "TurnResult"]
 
@@ -224,10 +227,27 @@ class Runner:
             except RunFailed as exc:
                 self._save_queue()
                 return self._end("failed", str(exc))
+            except Exception as exc:  # host bug: never leave the run "running"
+                log.exception("v5 run crashed")
+                reason = f"host_error: {type(exc).__name__}: {exc}"[:500]
+                if self.queue:
+                    try:
+                        self._set_item(self.queue[0], "failed", reason="host_error", error=reason)
+                    except Exception:  # noqa: BLE001
+                        log.exception("could not mark node failed")
+                try:
+                    self._save_queue()
+                except Exception:  # noqa: BLE001
+                    log.exception("could not save queue")
+                return self._end("failed", reason)
             return self._end("completed", "全部节点已通过")
 
     def _end(self, status: str, reason: str) -> str:
-        self.events.emit("run_end", status=status, reason=reason)
+        """Terminal state: the manifest is written even when the event log fails."""
+        try:
+            self.events.emit("run_end", status=status, reason=reason)
+        except Exception:  # noqa: BLE001
+            log.exception("run_end event failed")
         self._manifest(status=status, status_reason=reason, current_node=None, current_rev=None, ended_at=time.time())
         return status
 

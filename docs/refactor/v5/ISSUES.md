@@ -770,3 +770,19 @@ Decisions taken:
 Risks / open: progress rebuilds items from the full event log on every poll (cost on long runs); edge line numbers
 are approximate for inline nodes; old runs/journals are not migrated; two pre-existing ruff F errors
 (`importer.py:1072`, `lci_inventory.py:237`).
+
+## I-57 run 0590f112 host crash: events seq over >64KB log, run never terminated (2026-10-23)
+
+- Cause: `events._last_seq` seeked a text-mode handle to `size-65536`; once events.jsonl passed 64KB the seek landed
+  inside a UTF-8 character → `UnicodeDecodeError` in `turn_end`, then again in the service's `run_end`, so the
+  manifest stayed `running`.
+- Fix: per-process seq counter per events file (`_SEQ`, keyed by path, validated by inode + size so a replaced file
+  or a foreign append re-reads the tail); the tail read is binary and drops the partial first line. No text-mode
+  seek remains (other `seek(0)` calls are at byte 0, safe).
+- Termination: `Runner.run` catches any exception → current node `failed` (`host_error`), queue saved, `_end`
+  writes the manifest even if `run_end` emit fails. The service thread does the same as a backstop
+  (`_fail_run`). The `orchestrator.lock` flock is released when `Runner.run`'s `with` closes the file.
+- Reviewer submit: optional string `comment` on every verdict (the MCP tool always offered it; the schema
+  rejected it for approve/reject/terminate). Executor submit unchanged (its tool has no `comment` parameter).
+  Submit schemas are not part of `export_contracts.py` (launch spec only); `--check` still clean.
+- Tests: `tests/t_v5/test_robust_run.py`.
