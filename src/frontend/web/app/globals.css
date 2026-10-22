@@ -3135,7 +3135,7 @@ button:disabled {
   border-left: 1px solid var(--line);
 }
 
-.run-stage {
+.run-node {
   flex: none;
   display: flex;
   flex-direction: column;
@@ -3147,21 +3147,21 @@ button:disabled {
   background: var(--accent-soft);
 }
 
-.run-stage-head {
+.run-node-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
-.run-stage-head > span:first-child {
+.run-node-head > span:first-child {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--accent);
 }
 
-.run-stage strong {
+.run-node strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3172,47 +3172,47 @@ button:disabled {
   letter-spacing: -0.01em;
 }
 
-.run-stage-foot {
+.run-node-foot {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.run-stage-attempt {
+.run-node-attempt {
   min-width: 0;
   color: var(--muted);
   font-size: 0.75rem;
   font-weight: 650;
 }
 
-.run-stage-foot .run-stage-action {
+.run-node-foot .run-node-action {
   align-self: center;
   margin-top: 0;
   margin-left: auto;
 }
 
-.run-stage.is-off {
+.run-node.is-off {
   border-color: var(--line);
   background: #fbfcf9;
 }
 
-.run-stage.is-off .run-stage-head > span:first-child,
-.run-stage.is-off strong {
+.run-node.is-off .run-node-head > span:first-child,
+.run-node.is-off strong {
   color: var(--muted);
   font-weight: 600;
 }
 
-.run-stage.is-fail {
+.run-node.is-fail {
   border-color: #e7c4c4;
   background: #fdf8f8;
 }
 
-.run-stage.is-fail .run-stage-head > span:first-child {
+.run-node.is-fail .run-node-head > span:first-child {
   color: var(--danger);
 }
 
-.run-stage-action {
+.run-node-action {
   align-self: flex-end;
   display: inline-flex;
   align-items: center;
@@ -3229,11 +3229,11 @@ button:disabled {
   line-height: 1.5;
 }
 
-.run-stage-action svg {
+.run-node-action svg {
   flex: none;
 }
 
-.run-stage.is-fail .run-stage-action {
+.run-node.is-fail .run-node-action {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 28%, white);
   background: #fff;
@@ -3540,7 +3540,7 @@ button:disabled {
   color: var(--accent);
 }
 
-.agent-turn-stage {
+.agent-turn-node {
   color: var(--ink);
   font-size: 1.05rem;
 }

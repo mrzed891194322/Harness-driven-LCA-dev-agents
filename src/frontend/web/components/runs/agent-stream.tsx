@@ -20,7 +20,7 @@ export type AgentItem =
   | {
       type: "turn";
       key: string;
-      stage: string;
+      node: string;
       agent: string;
       attempt: string;
       worker: string;
@@ -66,14 +66,14 @@ export function parseAgentLog(raw: string): AgentItem[] {
       continue;
     }
 
-    const nextTurn = `${meta.stage}|${meta.agent}|${meta.attempt}|${meta.worker}`;
+    const nextTurn = `${meta.node}|${meta.agent}|${meta.attempt}|${meta.worker}`;
     if (nextTurn !== turnKey) {
       turnKey = nextTurn;
       seenText = new Set();
       items.push({
         type: "turn",
         key: nextTurn,
-        stage: meta.stage,
+        node: meta.node,
         agent: meta.agent,
         attempt: meta.attempt,
         worker: meta.worker,
@@ -186,7 +186,7 @@ function AgentRow({ item, model }: { item: AgentItem; model: string }) {
         <span className="agent-turn-mark" aria-hidden="true">
           <Bot size={16} strokeWidth={1.75} />
         </span>
-        <span className="agent-turn-stage">{item.stage}</span>
+        <span className="agent-turn-node">{item.node}</span>
         {agentKey ? <span className="agent-turn-agent">{agentKey}</span> : null}
         {attempt ? <span className="agent-turn-attempt">{attempt}</span> : null}
         <span className="agent-turn-side">
@@ -518,7 +518,7 @@ function parseTag(tag: string):
   | { kind: "orchestrator"; time: string }
   | {
       kind: "agent";
-      stage: string;
+      node: string;
       agent: string;
       attempt: string;
       worker: string;
@@ -532,7 +532,7 @@ function parseTag(tag: string):
   const actor = /^([^#]+)#(\d+)$/.exec(agent[2].trim());
   return {
     kind: "agent",
-    stage: agent[1],
+    node: agent[1],
     agent: actor ? actor[1] : agent[2].trim(),
     attempt: actor ? actor[2] : "",
     worker: agent[3],

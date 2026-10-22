@@ -91,7 +91,7 @@ def build(ws: Path, events: list[dict], model: str = "") -> tuple[str, list[dict
         if kind == "turn_start" and e.get("node") and e.get("agent"):
             turns.setdefault(f"{e['node']}.{e['agent']}", []).append((t, int(e.get("round") or 0)))
         if kind == "agent_settled" and e.get("node") and e.get("agent"):
-            items.append((t, order, "", {"stage": e["node"], "agent": e["agent"], "attempt": int(e.get("round") or 0),
+            items.append((t, order, "", {"node": e["node"], "agent": e["agent"], "attempt": int(e.get("round") or 0),
                                          "kind": "turn_end", "is_error": bool(e.get("error")) and not e.get("submitted"),
                                          "ts": e.get("ts")}))
         tpl = ORCH_TEXT.get(kind)
@@ -121,7 +121,7 @@ def build(ws: Path, events: list[dict], model: str = "") -> tuple[str, list[dict
             if m.get("model"):
                 worker = str(m["model"])
             tag = f"[{node}({agent}#{rnd})-{worker.replace('-', '_')}-{_clock(t)}]"
-            base = {"stage": node, "agent": agent, "assignment": key, "attempt": rnd, "ts": row.get("timestamp")}
+            base = {"node": node, "agent": agent, "attempt": rnd, "ts": row.get("timestamp")}
             if m.get("role") == "assistant":
                 for c in m.get("content") or []:
                     if not isinstance(c, dict):

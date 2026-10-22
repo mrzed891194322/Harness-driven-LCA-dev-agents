@@ -29,7 +29,7 @@ def test_node_verdicts_and_rev_files(tmp_path: Path) -> None:
     out = Results(tmp_path).results()
 
     assert out["manifest"]["current_node"] == "b"
-    rows = [(h["stage"], h["agent"], h["attempt"], h["status"]) for h in out["handoffs"]]
+    rows = [(h["node"], h["agent"], h["attempt"], h["status"]) for h in out["handoffs"]]
     assert rows == [
         ("b", "executor", 1, "ok"),
         ("b", "reviewer", 1, "reject"),

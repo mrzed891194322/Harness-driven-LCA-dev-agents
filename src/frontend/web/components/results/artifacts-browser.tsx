@@ -12,7 +12,7 @@ export { resultKind, type ResultKind };
 
 export type Handoff = {
   name: string;
-  stage: string;
+  node: string;
   agent: string;
   attempt: number | null;
   status: string;
@@ -178,7 +178,7 @@ export function ArtifactsBrowser({
                             aria-current={selected === filePath ? "page" : undefined}
                             onClick={() => onOpen(filePath)}
                           >
-                            <strong>{item.stage || item.name}
+                            <strong>{item.node || item.name}
                               {item.node_status ? ` · ${VERDICT_LABEL[item.node_status] || item.node_status}` : ""}</strong>
                             <span>
                               {item.agent || "交接"}

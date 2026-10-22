@@ -55,7 +55,7 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | `run-status` (+`data-status`) | /runs 当前阶段 badge | old status values: idle/running/completed/failed/interrupted (v5 `stopped` → `interrupted`) |
 | `run-stop` | /runs 中止工作 button (only while running) | |
 | `run-side` | /runs 当前阶段 side panel | |
-| `run-stage-text` | /runs 当前阶段 text | |
+| `run-node-text` | /runs 当前节点 text | |
 | `run-show-reason` / `run-reason-panel` | /runs 显示原因 button / 失败原因 popup | |
 | `run-restart` | /runs 从头重跑 (only when interrupted) | starts the main workflow from the saved plan |
 | `run-error` | /runs error banner | |

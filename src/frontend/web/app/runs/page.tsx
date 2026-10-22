@@ -8,12 +8,12 @@ import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { apiFetch } from "../../lib/api";
 import { fetchWorkflowList, workflowListItemForMode } from "../../lib/workflow-manifest";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
-import { lastStageFromEvents, type ActivityEvent } from "../../lib/run-activity";
+import { lastNodeFromEvents, type ActivityEvent } from "../../lib/run-activity";
 
 type Progress = {
   run_id?: string | null;
   status?: string;
-  current_stage?: string | null;
+  current_node?: string | null;
   attempt?: number | null;
   status_reason?: string | null;
   model?: string | null;
@@ -33,7 +33,7 @@ export default function RunsPage() {
   const [stopping, setStopping] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const [lastStage, setLastStage] = useState("");
+  const [lastNode, setLastNode] = useState("");
   const [activityAttempt, setActivityAttempt] = useState(0);
   const offset = useRef(0);
   const runId = useRef("");
@@ -178,7 +178,7 @@ export default function RunsPage() {
   useEffect(() => {
     const run = String(progress.run_id || "");
     if (!run) {
-      setLastStage("");
+      setLastNode("");
       activityOffset.current = 0;
       return;
     }
@@ -201,9 +201,9 @@ export default function RunsPage() {
         const events = data.events || [];
         if (cancelled) return;
         if (data.reset) {
-          setLastStage(lastStageFromEvents("", events));
+          setLastNode(lastNodeFromEvents("", events));
         } else {
-          setLastStage((current) => lastStageFromEvents(current, events));
+          setLastNode((current) => lastNodeFromEvents(current, events));
         }
       } catch {
         // ignore
@@ -217,12 +217,12 @@ export default function RunsPage() {
     };
   }, [progress.run_id]);
 
-  const stageText = (() => {
-    const current = (progress.current_stage || "").trim();
+  const nodeText = (() => {
+    const current = (progress.current_node || "").trim();
     if (current) return current;
     if (status === "completed") return reason ? `全部完成 · ${reason}` : "全部完成";
     if (status === "failed" || status === "interrupted" || status === "aborted") {
-      return lastStage ? `${label} · 最后阶段 ${lastStage}` : label;
+      return lastNode ? `${label} · 最后阶段 ${lastNode}` : label;
     }
     if (status === "running") return "准备开始";
     return progress.run_id ? label : "准备开始";
@@ -274,22 +274,22 @@ export default function RunsPage() {
             ) : null}
           </div>
           <aside className="run-side" data-testid="run-side">
-            <div className={`run-stage is-${tone}`}>
-              <div className="run-stage-head">
+            <div className={`run-node is-${tone}`}>
+              <div className="run-node-head">
                 <span>当前阶段</span>
                 <span className={`badge badge-${tone}${status === "running" ? " is-live" : ""}`} data-testid="run-status" data-status={status}>
                   {status === "running" ? <span className="run-live-dot" aria-hidden="true" /> : null}
                   {label}
                 </span>
               </div>
-              <strong data-testid="run-stage-text">{stageText}</strong>
+              <strong data-testid="run-node-text">{nodeText}</strong>
               {attempt > 0 || status === "running" || status === "failed" || status === "interrupted" ? (
-                <div className="run-stage-foot">
-                  {attempt > 0 ? <span className="run-stage-attempt">第 {attempt} 次</span> : null}
+                <div className="run-node-foot">
+                  {attempt > 0 ? <span className="run-node-attempt">第 {attempt} 次</span> : null}
                   {status === "running" ? (
                     <button
                       type="button"
-                      className="run-stage-action"
+                      className="run-node-action"
                       data-testid="run-stop"
                       onClick={() => void stopWork()}
                       disabled={stopping}
@@ -301,7 +301,7 @@ export default function RunsPage() {
                   {status === "failed" || status === "interrupted" ? (
                     <button
                       type="button"
-                      className="run-stage-action"
+                      className="run-node-action"
                       aria-expanded={reasonOpen}
                       data-testid="run-show-reason"
                       onClick={() => setReasonOpen(true)}
@@ -313,7 +313,7 @@ export default function RunsPage() {
                   {status === "interrupted" ? (
                     <button
                       type="button"
-                      className="run-stage-action"
+                      className="run-node-action"
                       data-testid="run-restart"
                       onClick={() => void restartFromScratch()}
                       disabled={restarting}
@@ -328,8 +328,8 @@ export default function RunsPage() {
             <ActivitySummary
               runId={String(progress.run_id || "")}
               running={status === "running"}
-              currentStage={String(progress.current_stage || "")}
-              onStageAttempt={setActivityAttempt}
+              currentNode={String(progress.current_node || "")}
+              onNodeAttempt={setActivityAttempt}
             />
           </aside>
         </div>

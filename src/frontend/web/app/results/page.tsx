@@ -16,7 +16,6 @@ import type { ResultFile } from "./load-files";
 
 type Manifest = {
   status?: string;
-  current_stage?: string | null;
   current_node?: string | null;
   status_reason?: string | null;
   run_id?: string | null;

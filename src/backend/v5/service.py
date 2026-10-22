@@ -203,7 +203,7 @@ class V5Service:
         run_id = st.get("run_id") or ""
         reset = epoch != run_id or offset > len(text)
         start = 0 if reset else offset
-        return {"run_id": run_id or None, "status": status, "current_stage": cur or None,
+        return {"run_id": run_id or None, "status": status, "current_node": cur or None,
                 "attempt": (node or {}).get("round") or None, "status_reason": reason, "model": self._default_model()[0],
                 "text": text[start:], "offset": len(text), "reset": reset, "epoch": run_id,
                 "workflow": st.get("workflow") or None}

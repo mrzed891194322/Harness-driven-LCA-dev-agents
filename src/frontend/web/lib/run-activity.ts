@@ -7,11 +7,11 @@ export type ActivityEvent = {
   ts?: string;
   tool?: string;
   summary?: string;
-  stage?: string;
+  node?: string;
 };
 
-export function lastStageFromEvents(previous: string, events: ActivityEvent[]): string {
-  let stage = previous;
-  for (const event of events) if (event.stage) stage = event.stage;
-  return stage;
+export function lastNodeFromEvents(previous: string, events: ActivityEvent[]): string {
+  let node = previous;
+  for (const event of events) if (event.node) node = event.node;
+  return node;
 }

@@ -7,9 +7,8 @@ import { apiFetch } from "../../lib/api";
 /** One record of /api/workflow/activity (events.jsonl written by the Pi client). */
 export type ActivityEvent = {
   run_id?: string;
-  stage?: string;
+  node?: string;
   agent?: string;
-  assignment?: string;
   attempt?: number;
   kind?: "tool_call" | "tool_result" | "text" | "turn_end";
   tool?: string;
@@ -22,9 +21,9 @@ export type ActivityEvent = {
 
 type Handoff = "none" | "pending" | "ok" | "err";
 
-export type AssignmentActivity = {
+export type NodeActivity = {
   key: string;
-  stage: string;
+  node: string;
   agent: string;
   attempt: number;
   tools: number;
@@ -44,24 +43,23 @@ const HANDOFF_LABEL: Record<Handoff, string> = {
   err: "交卷失败",
 };
 
-export function summarizeActivity(events: ActivityEvent[]): AssignmentActivity[] {
-  const byKey = new Map<string, AssignmentActivity>();
+export function summarizeActivity(events: ActivityEvent[]): NodeActivity[] {
+  const byKey = new Map<string, NodeActivity>();
   const open = new Map<string, Set<string>>();
   for (const event of events) {
-    const stage = event.stage || "";
+    const node = event.node || "";
     const agentKey = event.agent || "";
-    // Orchestrator notes (for example upstream rework) have no stage/agent.
-    if (!stage || !agentKey) continue;
+    // Orchestrator notes (for example upstream rework) have no node/agent.
+    if (!node || !agentKey) continue;
     const attempt = Number(event.attempt) || 0;
     // Each attempt is its own chip, inserted when that attempt first appears.
     // A later visit (03 attempt 2 after 04) is appended, and the earlier chip stays.
-    const assignment = event.assignment || `${stage}.${agentKey}`;
-    const key = `${assignment}#${attempt}`;
+    const key = `${node}.${agentKey}#${attempt}`;
     let entry = byKey.get(key);
     if (!entry) {
       entry = {
         key,
-        stage,
+        node,
         agent: agentKey,
         attempt,
         tools: 0,
@@ -108,10 +106,10 @@ export function summarizeActivity(events: ActivityEvent[]): AssignmentActivity[]
   return [...byKey.values()];
 }
 
-function assignmentIsLive(item: AssignmentActivity, running: boolean): boolean {
+function nodeIsLive(item: NodeActivity, running: boolean): boolean {
   return (
     running &&
-    Boolean(item.stage) &&
+    Boolean(item.node) &&
     (Boolean(item.running) ||
       item.handoff === "pending" ||
       (!item.turnEnded && item.handoff === "none"))
@@ -121,15 +119,15 @@ function assignmentIsLive(item: AssignmentActivity, running: boolean): boolean {
 export function ActivitySummary({
   runId,
   running = false,
-  currentStage = "",
-  onStageAttempt,
+  currentNode = "",
+  onNodeAttempt,
 }: {
   runId: string;
   running?: boolean;
-  currentStage?: string;
-  onStageAttempt?: (attempt: number) => void;
+  currentNode?: string;
+  onNodeAttempt?: (attempt: number) => void;
 }) {
-  const [items, setItems] = useState<AssignmentActivity[]>([]);
+  const [items, setItems] = useState<NodeActivity[]>([]);
   const events = useRef<ActivityEvent[]>([]);
   const offset = useRef(0);
   const current = useRef("");
@@ -182,15 +180,15 @@ export function ActivitySummary({
     };
   }, [runId]);
 
-  const stageAttempt = items.reduce(
-    (highest, item) => (item.stage === currentStage && item.attempt > highest ? item.attempt : highest),
+  const nodeAttempt = items.reduce(
+    (highest, item) => (item.node === currentNode && item.attempt > highest ? item.attempt : highest),
     0,
   );
   useEffect(() => {
-    onStageAttempt?.(stageAttempt);
-  }, [onStageAttempt, stageAttempt]);
+    onNodeAttempt?.(nodeAttempt);
+  }, [onNodeAttempt, nodeAttempt]);
 
-  const live = items.find((item) => assignmentIsLive(item, running));
+  const live = items.find((item) => nodeIsLive(item, running));
   const nextLiveToken = live ? `${live.key}#${live.attempt}` : "";
 
   useEffect(() => {
@@ -213,7 +211,7 @@ export function ActivitySummary({
                 ? "warn"
                 : "off";
         const note = item.handoff === "err" ? item.handoffNote : "";
-        const active = assignmentIsLive(item, running);
+        const active = nodeIsLive(item, running);
         return (
           <li
             key={item.key}
@@ -225,7 +223,7 @@ export function ActivitySummary({
               <span className="activity-chip-mark" role="img" aria-label={active ? "正在执行" : "历史记录"}>
                 {active ? <Play size={13} strokeWidth={1.75} /> : <History size={13} strokeWidth={1.75} />}
               </span>
-              <strong>{item.stage}</strong>
+              <strong>{item.node}</strong>
               <small>
                 {agentKey}
                 {item.attempt ? ` · 第 ${item.attempt} 次` : ""}

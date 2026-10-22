@@ -133,7 +133,7 @@ def _node_verdicts(runs_root: Path, manifest: dict[str, Any]) -> list[dict[str, 
                         0 if agent == "executor" else 1,
                         {
                             "name": f"runs/{node}/{agent_dir.name}/{path.name}",
-                            "stage": node,
+                            "node": node,
                             "agent": agent,
                             "attempt": int(m.group(1)),
                             "status": status,

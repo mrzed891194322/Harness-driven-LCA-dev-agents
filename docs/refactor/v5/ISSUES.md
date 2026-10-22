@@ -721,3 +721,8 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   clean_root_files`. The v5 runner already clears workspace/runs at run start. `check_status.py` drops its `clean`
   task (it wiped workspace/ on every bootstrap probe); `--only agents|openlca` remain. No backend/GUI caller existed.
   Old docs (`docs/ARTIFACTS.md` preset/cleanup-list paragraphs) describe v4 and are stale.
+- #6 /runs naming `stage`/`assignment` → `node`/`agent`: activity events `stage` → `node` (field `assignment`
+  dropped; key is `<node>.<agent>#<attempt>`), /api/v5 progress `current_stage` → `current_node`, /results handoff
+  rows `stage` → `node`, stream tag meta, `lastNodeFromEvents`, `NodeActivity`. CSS `.run-stage*` → `.run-node*`,
+  `.agent-turn-stage` → `.agent-turn-node` (selectors 1:1, visuals unchanged); testid `run-stage-text` →
+  `run-node-text` (GUI.md updated). SessionLaunchSpec `stage_id`/`assignment_id` left for plan #2.
