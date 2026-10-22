@@ -636,3 +636,14 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
 - Proposed fix (not done): in `control_openlca` make `get_model_graph` wait for the guard lock (bounded by its
   timeout_s) instead of returning a partial result, or retry once inside the tool when the read hit lock wait /
   timeout; report `status=retry_needed` rather than `broken` when the graph read was incomplete.
+
+## I-49 Next.js web cold start ~122s exceeds old 120s readiness wait (RECORD + timeout bump)
+- Seen 2026-10-22 when switching serve to 05bad3e: `npm run dev` killed web after
+  "web not ready after 120s" even though a lone `next dev` reached Ready in ~121.9s and
+  then `/plan` compiled in <1s.
+- Log warning: Next inferred workspace root from the *main repo* `package-lock.json`
+  (serve worktree also has one); "Detected additional lockfiles". Cause of the long
+  Starting phase is TBD (lockfile/root inference, turbopack root, `node_modules` symlink
+  to main repo, or leftover probe under `.local/tmp/…/node_modules`).
+- Temporary fix: `src/scripts/dev.mjs` web `timeoutMs` 120s → 300s, overridable via
+  `DEV_WEB_TIMEOUT_MS`. Real root-cause fix still open.

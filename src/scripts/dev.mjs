@@ -178,7 +178,8 @@ const services = {
     args: ["run", "dev", "-w", "@harness/web"],
     env: { ...process.env, ...sharedEnv, PORT: String(webPort) },
     url: `http://127.0.0.1:${webPort}/`,
-    timeoutMs: 120_000,
+    // Next cold start can take ~120s+ (I-49); DEV_WEB_TIMEOUT_MS overrides (ms).
+    timeoutMs: Number(process.env.DEV_WEB_TIMEOUT_MS) || 300_000,
   },
 };
 
