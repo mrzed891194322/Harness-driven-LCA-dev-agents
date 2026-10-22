@@ -19,7 +19,6 @@ export interface SessionLaunchSpec {
   mcp_bindings: Record<string, McpBinding>;
   permission_policy: PermissionPolicy;
   session_storage: SessionStorage;
-  handoff_binding?: HandoffBinding;
 }
 
 export interface ModelProfile {
@@ -72,11 +71,6 @@ export interface PermissionPolicy {
 export interface SessionStorage {
   agent_dir: string;
   session_file: string;
-}
-
-export interface HandoffBinding {
-  relative_path?: string;
-  schema_path?: string;
 }
 
 export interface ProtocolRequest {

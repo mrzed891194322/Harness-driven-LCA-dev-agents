@@ -708,3 +708,10 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
 - Also: /results agent label reads `agent` (follow-up of I-53).
 - Kept on purpose: node-level resume for new runs; plan import parsers for other Markdown layouts (bold labels /
   numbered sections, `_legacy_conditions`) — they parse user-imported documents, listed for Du Yuan.
+
+## I-55 simplifications (Du Yuan 2026-10-23)
+- Untracked `harness/tools/host_action`, `harness/tools/mcp/lca_artifacts`, `harness/tools/mcp/spec_mcp` (only
+  `__pycache__`) deleted locally (not in git).
+- #3 `handoff_binding` removed: nobody set it; pi-runtime `readHandoff` + transcript summary `handoff` field,
+  `HandoffBinding` type, Python contract field and JSON schema property deleted. The verdict lives in
+  runs/<node>/<agent>/submit_round_N.json (read by /results).

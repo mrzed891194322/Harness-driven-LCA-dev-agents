@@ -101,7 +101,6 @@ class SessionLaunchSpec:
     mcp_bindings: dict[str, dict[str, Any]]
     permission_policy: PermissionPolicy
     session_storage: dict[str, str]
-    handoff_binding: dict[str, str] = field(default_factory=dict)
     schema_version: int = SCHEMA_VERSION
     # Host-only diagnostics for the injection manifest; never sent to pi-runtime.
     prompt_segments: list[dict[str, Any]] = field(default_factory=list, repr=False, compare=False)
@@ -130,6 +129,4 @@ class SessionLaunchSpec:
             "permission_policy": self.permission_policy.to_dict(),
             "session_storage": dict(self.session_storage),
         }
-        if self.handoff_binding:
-            payload["handoff_binding"] = dict(self.handoff_binding)
         return payload

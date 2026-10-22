@@ -127,19 +127,6 @@ function convert(entry: any, sinceMs: number): any {
   return { type: "message", role: m.role ?? "unknown", ...base, text: textOf(m.content), raw: m };
 }
 
-function readHandoff(spec: SessionLaunchSpec): unknown {
-  const rel = spec.handoff_binding?.relative_path;
-  if (!rel) return null;
-  const root = spec.resource_bindings.project_root ?? process.cwd();
-  const file = path.isAbsolute(rel) ? rel : path.join(root, rel);
-  try {
-    const h = JSON.parse(fs.readFileSync(file, "utf8"));
-    return { path: rel, status: h.status ?? null, status_reason: h.status_reason ?? null, agent: h.agent ?? null };
-  } catch {
-    return { path: rel, status: null, missing: true };
-  }
-}
-
 /** Write transcript.jsonl (+ blobs) for this session's snapshot dir. Returns its path. */
 export function exportTranscript(
   spec: SessionLaunchSpec,
@@ -200,7 +187,6 @@ export function exportTranscript(
     models: [...models],
     tokens_total: totals,
     tokens_this_attempt: thisAttempt,
-    handoff: readHandoff(spec),
   });
 
   const lines: string[] = [];

@@ -115,13 +115,6 @@
         "agent_dir": { "type": "string" },
         "session_file": { "type": "string" }
       }
-    },
-    "handoff_binding": {
-      "type": "object",
-      "properties": {
-        "relative_path": { "type": "string" },
-        "schema_path": { "type": "string" }
-      }
     }
   }
 }
