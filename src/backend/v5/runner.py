@@ -63,8 +63,8 @@ class RunStopped(RunFailed):
     """The user asked to stop; the run ends ``stopped`` (never ``completed``)."""
 
 
-def _default_prompt(node: Node, role: str, rnd: int, rework: str | None, specs: dict[str, Spec]) -> str:
-    text = f"节点 {node.id}，角色 {role}，第 {rnd} 轮。"
+def _default_prompt(node: Node, agent: str, rnd: int, rework: str | None, specs: dict[str, Spec]) -> str:
+    text = f"节点 {node.id}，agent {agent}，第 {rnd} 轮。"
     if rework:
         text += f"\n<rework>\n{rework}\n</rework>"
     return text
@@ -284,38 +284,38 @@ class Runner:
                 self._set_node(node, "failed", round=rnd - 1, error="超过最大轮数")
                 self.events.emit("node_end", node=node.id, status="failed", reason="max_rounds")
                 raise RunFailed(f"{node.id} 超过最大轮数 {node.flow.max_rounds}")
-            role = state
-            prompt = self.prompt_builder(node, role, rnd, rework, self.specs)
-            key = f"{node.id}.{role}"
-            req = TurnRequest(node=node, agent=role, round=rnd, prompt=prompt, workspace=self.ws,
+            agent = state
+            prompt = self.prompt_builder(node, agent, rnd, rework, self.specs)
+            key = f"{node.id}.{agent}"
+            req = TurnRequest(node=node, agent=agent, round=rnd, prompt=prompt, workspace=self.ws,
                               run_id=self.run_id, session_key=key,
-                              resume=(role == "executor" and key in sessions_started))
+                              resume=(agent == "executor" and key in sessions_started))
             system_fn = getattr(self.prompt_builder, "system", None)
             if system_fn is not None:
-                req.extra["system"] = system_fn(node, role)
-            self.events.emit("turn_start", node=node.id, role=role, round=rnd, resume=req.resume)
+                req.extra["system"] = system_fn(node, agent)
+            self.events.emit("turn_start", node=node.id, agent=agent, round=rnd, resume=req.resume)
             result = self.driver.run_turn(req)
             sessions_started.add(key)
-            self.events.emit("agent_settled", node=node.id, role=role, round=rnd, aborted=result.aborted,
+            self.events.emit("agent_settled", node=node.id, agent=agent, round=rnd, aborted=result.aborted,
                              error=result.error, submitted=result.submit is not None,
                              session_id=result.session_id, nudges=result.nudges,
                              abort_reason=result.abort_reason)
             if result.submit is None and self.stop_requested():
                 # The stop aborted this turn: the node is resumable, not failed.
                 self._set_node(node, "stopped", round=rnd)
-                self.events.emit("node_end", node=node.id, status="stopped", role=role, round=rnd)
-                raise RunStopped(f"{node.id} 被用户停止（{role} 第 {rnd} 轮中断）")
+                self.events.emit("node_end", node=node.id, status="stopped", agent=agent, round=rnd)
+                raise RunStopped(f"{node.id} 被用户停止（{agent} 第 {rnd} 轮中断）")
             if result.fatal:
                 self._set_node(node, "error", round=rnd, error=result.error)
                 raise RunFailed(f"{node.id} 致命错误：{result.error}")
             if result.submit is None:
                 # Only an accepted submit completes an agent turn.
                 reason = result.abort_reason or ("aborted" if result.aborted else "no_submit")
-                detail = f"{role} 未成功提交（{reason}）" + (f"：{result.error}" if result.error else "")
+                detail = f"{agent} 未成功提交（{reason}）" + (f"：{result.error}" if result.error else "")
                 self._set_node(node, "failed", round=rnd, error=detail, reason=reason)
-                self.events.emit("node_end", node=node.id, status="failed", reason=reason, role=role, round=rnd)
+                self.events.emit("node_end", node=node.id, status="failed", reason=reason, agent=agent, round=rnd)
                 raise RunFailed(f"{node.id} {detail}")
-            outcome = self._outcome(node, role, rnd, result)
+            outcome = self._outcome(node, agent, rnd, result)
             nxt = node.transition(state, outcome)
             self.events.emit("transition", node=node.id, frm=state, on=outcome, to=nxt, round=rnd)
             if nxt is None:
@@ -333,11 +333,11 @@ class Runner:
         self._set_node(node, "passed", round=rnd)
         self.events.emit("node_end", node=node.id, status="passed", rounds=rnd)
 
-    def _outcome(self, node: Node, role: str, rnd: int, result: TurnResult) -> str:
+    def _outcome(self, node: Node, agent: str, rnd: int, result: TurnResult) -> str:
         sub = result.submit
         if sub is None:
             return "error"
-        if role == "executor":
+        if agent == "executor":
             if sub.get("status") == "stop":
                 return "stop"
             errors = produce_errors(self.art, node, self.specs)

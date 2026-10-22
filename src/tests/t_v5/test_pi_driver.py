@@ -47,9 +47,9 @@ def _setup(root: Path, **agent_extra):
     return load_node(root, "n1")
 
 
-def _req(root, node, role="executor", rnd=1, resume=False):
-    return TurnRequest(node=node, agent=role, round=rnd, prompt="做事", workspace=root / "workspace",
-                       run_id="run12345", session_key=f"n1-{role}", resume=resume, extra={"system": "SYS"})
+def _req(root, node, agent="executor", rnd=1, resume=False):
+    return TurnRequest(node=node, agent=agent, round=rnd, prompt="做事", workspace=root / "workspace",
+                       run_id="run12345", session_key=f"n1-{agent}", resume=resume, extra={"system": "SYS"})
 
 
 def test_launch_spec_tools_scopes_and_mcp(v5_root):
@@ -68,7 +68,7 @@ def test_launch_spec_tools_scopes_and_mcp(v5_root):
     assert spec.system_sections[0].content == "SYS"
     assert spec.model_profile.parameters["thinking"] == "high"
     assert submit.name == "submit.json"
-    rspec, _ = d.launch_spec(_req(v5_root, node, role="reviewer"))
+    rspec, _ = d.launch_spec(_req(v5_root, node, agent="reviewer"))
     rt = rspec.permission_policy.allowed_tools
     assert "edit" not in rt and "mcp__control_openlca__health_check" in rt
     assert "mcp__control_openlca__import_lci" not in rt
@@ -160,14 +160,14 @@ def test_submit_mcp_lists_role_specific_tool(tmp_path):
     code = ("import asyncio,runpy,sys;sys.argv=['x'];"
             "g=runpy.run_path(sys.argv[1] if False else %r, run_name='m');"
             "r=asyncio.run(g['mcp'].call_tool('submit', %s));print('OK')")
-    for role, args in (("executor", {"status": "ok", "summary": "s"}),
+    for agent, args in (("executor", {"status": "ok", "summary": "s"}),
                        ("reviewer", {"verdict": "reject", "feedback": "f"})):
-        out = tmp_path / f"{role}.json"
-        env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_ROLE": role}
+        out = tmp_path / f"{agent}.json"
+        env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_AGENT": agent}
         p = subprocess.run([sys.executable, "-c", code % (str(script), repr(args))],
                            env=env, capture_output=True, text=True, timeout=60)
         assert p.returncode == 0, p.stderr
-        assert json.loads(out.read_text())["role"] == role
+        assert json.loads(out.read_text())["agent"] == agent
 
 
 def test_mcp_not_ready_is_its_own_reason(v5_root):
@@ -208,7 +208,7 @@ def test_model_retry_written_live_once_and_error_cleared_on_submit(v5_root):
     """I-31: model_retry reaches the event log while the turn runs, not at settle, and only once.
     I-32: a turn that recovered and submitted has no error."""
     node = _setup(v5_root)
-    rt = StreamingRuntime(submit={"role": "executor", "status": "ok", "summary": "s"})
+    rt = StreamingRuntime(submit={"agent": "executor", "status": "ok", "summary": "s"})
     rt.events_file = v5_root / "workspace/runs/_run/events.jsonl"
     res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(_req(v5_root, node))
     assert '"model_retry"' in rt.log_at_stream

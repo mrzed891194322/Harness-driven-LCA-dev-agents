@@ -43,7 +43,7 @@ class Agent(_Strict):
     agent: str = ""  # template name: harness/workflows/agents/<agent>.yaml ("" = inline definition)
     model: str = ""
     thinking: str = ""
-    max_turns: int | None = Field(default=None, ge=1)  # per-node override of the role's deliver.max_turns (Q1)
+    max_turns: int | None = Field(default=None, ge=1)  # per-node override of the template's deliver.max_turns (Q1)
     tools: Tools = Field(default_factory=Tools)
     rules: list[str] = Field(default_factory=list)
     access: Access = Field(default_factory=Access)
@@ -79,7 +79,7 @@ class Flow(_Strict):
 
 
 class Produce(_Strict):
-    spec: str = ""  # empty: the executor role's deliver.spec
+    spec: str = ""  # empty: the executor agent's deliver.spec
     path: str  # relative to workspace/artifacts, e.g. "bom" or "bom/bom.json"
 
 
@@ -396,12 +396,12 @@ def load_spec(root: Path, spec_id: str) -> Spec:
     return Spec(id=spec_id, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks)
 
 
-def load_agent_def(root: Path, role: str) -> AgentDef:
-    """Load agent template ``harness/workflows/agents/<role>.yaml``."""
-    path = root / layout.AGENTS / f"{role}.yaml"
-    role_def = _validate(AgentDef, _load_yaml(path), path)
-    role_def.prompt = render(role_def.prompt, path)
-    return role_def
+def load_agent_def(root: Path, name: str) -> AgentDef:
+    """Load agent template ``harness/workflows/agents/<name>.yaml``."""
+    path = root / layout.AGENTS / f"{name}.yaml"
+    agent_def = _validate(AgentDef, _load_yaml(path), path)
+    agent_def.prompt = render(agent_def.prompt, path)
+    return agent_def
 
 
 def load_rule(root: Path, rel: str) -> Rule:
@@ -413,8 +413,8 @@ def load_rule(root: Path, rel: str) -> Rule:
     return rule
 
 
-def load_global_rules(root: Path, role: str) -> list[Rule]:
+def load_global_rules(root: Path, agent_key: str) -> list[Rule]:
     folder = root / layout.RULES_GLOBAL
     rules = [load_rule(root, str(p.relative_to(root / "harness"))) for p in sorted(folder.glob("*.yaml"))]
-    rules = [r for r in rules if r.enabled and (r.applies_to is None or role in r.applies_to)]
+    rules = [r for r in rules if r.enabled and (r.applies_to is None or agent_key in r.applies_to)]
     return sorted(rules, key=lambda r: (r.order, r.id))

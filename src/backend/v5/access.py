@@ -1,4 +1,4 @@
-"""Effective read/write scope for one agent: defaults + role access.yaml + node override + host locks.
+"""Effective read/write scope for one agent: defaults + agent template access + node override + host locks.
 
 Host locks (cannot be changed by any configuration):
   1. the plan (workspace/artifacts/plan/**) is always readable and never writable;
@@ -48,11 +48,11 @@ def merge_toggles(*layers: Access) -> dict[str, bool]:
     return toggles
 
 
-def compute_scope(root: Path, node: Node, role: str, role_access: Access, workspace: Path | None = None) -> Scope:
+def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, workspace: Path | None = None) -> Scope:
     ws = workspace or (root / layout.WORKSPACE)
     art = ws / "artifacts"
-    agent = node.agents[role]
-    toggles = merge_toggles(role_access, agent.access)
+    agent = node.agents[agent_key]
+    toggles = merge_toggles(agent_access, agent.access)
 
     read = {
         str(art / "plan") + "/**",  # lock 1
@@ -71,7 +71,7 @@ def compute_scope(root: Path, node: Node, role: str, role_access: Access, worksp
         read.add(str(art) + "/**")
 
     write: set[str] = set()
-    if role == "executor":
+    if agent_key == "executor":
         write.add(str(layout.node_dir(ws, node.id)) + "/**")
         for prod in node.produces:
             write.add(str(art / produce_dir(prod.path)) + "/**")

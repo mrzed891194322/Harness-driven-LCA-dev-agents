@@ -16,12 +16,12 @@ def test_node_verdicts_and_rev_files(tmp_path: Path) -> None:
     _w(runs / "_run/manifest.json", {"status": "running", "current_node": "b",
                                      "nodes": [{"id": "b"}, {"id": "a"}]})
     _w(runs / "a/status.json", {"status": "passed"})
-    _w(runs / "a/executor/submit_round_1.json", {"role": "executor", "status": "ok", "summary": "done"})
-    _w(runs / "a/reviewer/submit_round_1.json", {"role": "reviewer", "verdict": "accept", "feedback": "ok"})
+    _w(runs / "a/executor/submit_round_1.json", {"agent": "executor", "status": "ok", "summary": "done"})
+    _w(runs / "a/reviewer/submit_round_1.json", {"agent": "reviewer", "verdict": "accept", "feedback": "ok"})
     _w(runs / "b/status.json", {"status": "running"})
-    _w(runs / "b/executor/submit_round_2.json", {"role": "executor", "status": "ok"})
-    _w(runs / "b/reviewer/submit_round_1.json", {"role": "reviewer", "verdict": "reject", "feedback": "fix x"})
-    _w(runs / "b/executor/submit_round_1.json", {"role": "executor", "status": "ok"})
+    _w(runs / "b/executor/submit_round_2.json", {"agent": "executor", "status": "ok"})
+    _w(runs / "b/reviewer/submit_round_1.json", {"agent": "reviewer", "verdict": "reject", "feedback": "fix x"})
+    _w(runs / "b/executor/submit_round_1.json", {"agent": "executor", "status": "ok"})
     _w(tmp_path / "workspace/artifacts/report/report.md", "# r")
     _w(tmp_path / "workspace/artifacts/plan/main_plan.md", "# plan")
     _w(tmp_path / "workspace/artifacts/report/report.rev1.md", "# rev1")
@@ -29,7 +29,7 @@ def test_node_verdicts_and_rev_files(tmp_path: Path) -> None:
     out = Results(tmp_path).results()
 
     assert out["manifest"]["current_node"] == "b"
-    rows = [(h["stage"], h["role"], h["attempt"], h["status"]) for h in out["handoffs"]]
+    rows = [(h["stage"], h["agent"], h["attempt"], h["status"]) for h in out["handoffs"]]
     assert rows == [
         ("b", "executor", 1, "ok"),
         ("b", "reviewer", 1, "reject"),

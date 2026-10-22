@@ -134,7 +134,7 @@ function readHandoff(spec: SessionLaunchSpec): unknown {
   const file = path.isAbsolute(rel) ? rel : path.join(root, rel);
   try {
     const h = JSON.parse(fs.readFileSync(file, "utf8"));
-    return { path: rel, status: h.status ?? null, status_reason: h.status_reason ?? null, role: h.role ?? null };
+    return { path: rel, status: h.status ?? null, status_reason: h.status_reason ?? null, agent: h.agent ?? null };
   } catch {
     return { path: rel, status: null, missing: true };
   }
@@ -188,7 +188,7 @@ export function exportTranscript(
     exported_at: new Date().toISOString(),
     session_key: spec.session_key,
     stage: spec.stage_id,
-    role: spec.role,
+    agent: spec.agent,
     attempt: spec.attempt,
     pi_session_file: sessionFile,
     entries: entries.length,

@@ -60,7 +60,7 @@ export function redact<T>(value: T, secrets: string[]): T {
   return walk(value) as T;
 }
 
-/** .local/runs/<run>/sessions/<stage>.<role>.<attempt>/ — kept per run, outside workspace/. */
+/** .local/runs/<run>/sessions/<stage>.<agent>.<attempt>/ — kept per run, outside workspace/. */
 export function sessionSnapshotDir(spec: SessionLaunchSpec): string {
   const root = spec.resource_bindings.project_root ?? process.cwd();
   const safe = (s: string) => String(s || "x").replace(/[^A-Za-z0-9._-]/g, "_");
@@ -70,7 +70,7 @@ export function sessionSnapshotDir(spec: SessionLaunchSpec): string {
     "runs",
     safe(spec.run_id || "adhoc"),
     "sessions",
-    `${safe(spec.stage_id)}.${safe(spec.role)}.${Number(spec.attempt) || 0}`,
+    `${safe(spec.stage_id)}.${safe(spec.agent)}.${Number(spec.attempt) || 0}`,
   );
 }
 

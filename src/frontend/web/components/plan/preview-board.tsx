@@ -211,7 +211,7 @@ export function PreviewBoard({
                     {Object.entries(node.agents).map(([name, agent]) => (
                       <li
                         key={name}
-                        data-role={agent.template}
+                        data-agent={name}
                         data-testid={`preview-agent-${node.id}.${name}`}
                         onClick={() => {
                           const hit = preview?.nodes.find((n) => n.id === node.id)?.agents.find((x) => x.agent === name);

@@ -1,8 +1,8 @@
 """Read-only feed for the restored 599ed0a /runs page (实时终端 + 活动概览).
 
-Builds the old progress text format (`[stage(role#attempt)-worker-HH:MM:SS] body`, `[orchestrator-HH:MM:SS] ...`)
+Builds the old progress text format (`[stage(agent#attempt)-worker-HH:MM:SS] body`, `[orchestrator-HH:MM:SS] ...`)
 and the old activity events from v5 data: the run event log plus each agent's live pi session file
-(`workspace/tmp/pi-v5/<node>.<role>/session.jsonl`). Nothing is written.
+(`workspace/tmp/pi-v5/<node>.<agent>/session.jsonl`). Nothing is written.
 """
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ ORCH_TEXT = {
     "node_start": "开始阶段 {node}",
     "node_end": "阶段 {node} 结束：{status}",
     "review_verdict": "{node} 审核结论：{verdict}",
-    "submit_rejected": "{node} / {role} 提交被拒",
-    "nudge": "{node} / {role} 未提交，提醒第 {detail} 次",
-    "model_retry": "{node} / {role} 模型请求失败，重试：{detail}",
-    "turn_aborted": "{node} / {role} 回合中止：{detail}",
+    "submit_rejected": "{node} / {agent} 提交被拒",
+    "nudge": "{node} / {agent} 未提交，提醒第 {detail} 次",
+    "model_retry": "{node} / {agent} 模型请求失败，重试：{detail}",
+    "turn_aborted": "{node} / {agent} 回合中止：{detail}",
     "stop_requested": "收到中止请求",
     "requires_failed": "{node} 缺少输入",
     "run_end": "运行结束：{status}",
@@ -83,15 +83,15 @@ def _first_line(content: Any) -> str:
 def build(ws: Path, events: list[dict], model: str = "") -> tuple[str, list[dict]]:
     """(progress text, activity events) for the current run."""
     items: list[tuple[float, int, str, dict | None]] = []  # (time, order, text block, activity event)
-    turns: dict[str, list[tuple[float, int]]] = {}  # node.role -> [(start ts, round)]
+    turns: dict[str, list[tuple[float, int]]] = {}  # node.agent -> [(start ts, round)]
     order = 0
     for e in events:
         t = _ts(e.get("ts"))
         kind = e.get("kind", "")
-        if kind == "turn_start" and e.get("node") and e.get("role"):
-            turns.setdefault(f"{e['node']}.{e['role']}", []).append((t, int(e.get("round") or 0)))
-        if kind == "agent_settled" and e.get("node") and e.get("role"):
-            items.append((t, order, "", {"stage": e["node"], "role": e["role"], "attempt": int(e.get("round") or 0),
+        if kind == "turn_start" and e.get("node") and e.get("agent"):
+            turns.setdefault(f"{e['node']}.{e['agent']}", []).append((t, int(e.get("round") or 0)))
+        if kind == "agent_settled" and e.get("node") and e.get("agent"):
+            items.append((t, order, "", {"stage": e["node"], "agent": e["agent"], "attempt": int(e.get("round") or 0),
                                          "kind": "turn_end", "is_error": bool(e.get("error")) and not e.get("submitted"),
                                          "ts": e.get("ts")}))
         tpl = ORCH_TEXT.get(kind)
@@ -100,7 +100,7 @@ def build(ws: Path, events: list[dict], model: str = "") -> tuple[str, list[dict
             vals.setdefault("detail", "")
             vals["ok_text"] = "通过" if e.get("ok") else f"失败 {e.get('error', '')}"
             try:
-                text = tpl.format_map({**{k: "" for k in ("workflow", "node", "role", "status", "verdict")}, **vals})
+                text = tpl.format_map({**{k: "" for k in ("workflow", "node", "agent", "status", "verdict")}, **vals})
             except (KeyError, ValueError):
                 text = kind
             if kind == "model_retry" or (kind == "turn_aborted" and "model_error" in str(e.get("detail", ""))):
@@ -108,7 +108,7 @@ def build(ws: Path, events: list[dict], model: str = "") -> tuple[str, list[dict
             items.append((t, order, f"[orchestrator-{_clock(t)}] {text}", None))
         order += 1
     for key, starts in turns.items():
-        node, role = key.rsplit(".", 1)
+        node, agent = key.rsplit(".", 1)
         starts.sort()
         first = starts[0][0]
         worker = (model or "pi").split("/")[-1]
@@ -120,8 +120,8 @@ def build(ws: Path, events: list[dict], model: str = "") -> tuple[str, list[dict
             m = row["message"]
             if m.get("model"):
                 worker = str(m["model"])
-            tag = f"[{node}({role}#{rnd})-{worker.replace('-', '_')}-{_clock(t)}]"
-            base = {"stage": node, "role": role, "assignment": key, "attempt": rnd, "ts": row.get("timestamp")}
+            tag = f"[{node}({agent}#{rnd})-{worker.replace('-', '_')}-{_clock(t)}]"
+            base = {"stage": node, "agent": agent, "assignment": key, "attempt": rnd, "ts": row.get("timestamp")}
             if m.get("role") == "assistant":
                 for c in m.get("content") or []:
                     if not isinstance(c, dict):

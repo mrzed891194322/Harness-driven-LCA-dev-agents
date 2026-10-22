@@ -681,3 +681,14 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   (`flow-agent-<node>-<agent>`, `preview-agent-<node>.<agent>` still use executor/reviewer); `data-role` attribute kept.
 - Not renamed (on-disk/log formats, history compatibility): events.jsonl `role=` field, submit.json `role`,
   /results handoff `role`, runs stream meta, compute_scope/inject parameter names, `.local/v5-agent-models.json` keys.
+
+## I-53 remaining `role` naming → agent (destructive, no compatibility for old runs)
+- Du Yuan: destructive rebuild, old runs/formats are ignored, no compatibility fields.
+- Renamed: events.jsonl `role=` → `agent=`; submit.json `role` → `agent` (submit MCP env `V5_ROLE` → `V5_AGENT`);
+  /results handoff rows `role` → `agent`; progress/activity stream items `role` → `agent`; SessionLaunchSpec `role` →
+  `agent` (Python contract, JSON schema, pi-runtime types, transcript summary, session dir name); settle policy `role` →
+  `agent`; compute_scope / inject / runner / load_global_rules parameter names; frontend stream types.
+- DOM: `data-role` → `data-agent` (value = agent key executor|reviewer), CSS classes `.flow-step-role` →
+  `.flow-step-agent`, `.agent-turn-role` → `.agent-turn-agent`, selectors updated 1:1 (visuals unchanged). Testid values unchanged.
+- LLM message `role` (assistant / toolResult) is the pi message format and stays.
+- `.local/v5-agent-models.json` keys are already `<node>.<agent>` (executor|reviewer); serve's file is `{}`, nothing to migrate.

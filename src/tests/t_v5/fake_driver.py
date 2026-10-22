@@ -8,7 +8,7 @@ from backend.v5.runner import TurnRequest, TurnResult
 
 
 class FakeDriver:
-    """``script`` maps (node, role) -> list of actions consumed per turn; default: write + pass."""
+    """``script`` maps (node, agent) -> list of actions consumed per turn; default: write + pass."""
 
     def __init__(self, script: dict | None = None, on_turn: Callable[[TurnRequest], None] | None = None):
         self.script = {k: list(v) for k, v in (script or {}).items()}

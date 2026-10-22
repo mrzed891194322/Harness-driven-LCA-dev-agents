@@ -65,7 +65,7 @@ class PiDriver:
             "submit": {
                 "command": sys.executable,
                 "args": [str(self.root / "harness/tools/mcp/submit/main.py")],
-                "env": {"V5_SUBMIT_FILE": str(submit_file), "V5_ROLE": req.agent,
+                "env": {"V5_SUBMIT_FILE": str(submit_file), "V5_AGENT": req.agent,
                         "PYTHONPATH": str(self.root)},
                 "timeout_ms": 60_000,
                 "exposure": "direct",
@@ -103,10 +103,10 @@ class PiDriver:
     def launch_spec(self, req: TurnRequest) -> tuple[SessionLaunchSpec, Path]:
         ws = req.workspace
         node_dir = layout.node_dir(ws, req.node.id)
-        role_dir = node_dir / req.agent
-        submit_file = role_dir / "submit.json"  # stable path: a live session keeps its MCP env
-        role_access = req.node.agents[req.agent].definition.access
-        scope = compute_scope(self.root, req.node, req.agent, role_access, workspace=ws)
+        agent_dir = node_dir / req.agent
+        submit_file = agent_dir / "submit.json"  # stable path: a live session keeps its MCP env
+        agent_access = req.node.agents[req.agent].definition.access
+        scope = compute_scope(self.root, req.node, req.agent, agent_access, workspace=ws)
         # compute_scope uses root/workspace; remap if the runner uses another workspace
         default_ws = str(self.root / layout.WORKSPACE)
         remap = (lambda g: g.replace(default_ws, str(ws), 1)) if str(ws) != default_ws else (lambda g: g)
@@ -123,7 +123,7 @@ class PiDriver:
             produces_file.parent.mkdir(parents=True, exist_ok=True)
             produces_file.write_text(json.dumps(produces, ensure_ascii=False), encoding="utf-8")
             bindings["submit"]["env"]["V5_PRODUCES_FILE"] = str(produces_file)
-        bindings["submit"]["env"]["V5_REJECTIONS_FILE"] = str(role_dir / "submit_rejections.jsonl")
+        bindings["submit"]["env"]["V5_REJECTIONS_FILE"] = str(agent_dir / "submit_rejections.jsonl")
         scope_env = {
             "V5_READ_GLOBS": json.dumps([remap(g) for g in scope.read_globs]),
             "V5_WRITE_GLOBS": json.dumps([remap(g) for g in scope.write_globs]),
@@ -140,7 +140,7 @@ class PiDriver:
             run_id=req.run_id,
             stage_id=req.node.id,
             assignment_id=req.session_key,
-            role=req.agent,
+            agent=req.agent,
             attempt=req.round,
             session_key=f"v5:{req.run_id[:8]}:{req.session_key}",
             execution_id=uuid.uuid4().hex,
@@ -149,10 +149,10 @@ class PiDriver:
             model_profile=self.model,
             system_sections=[SystemSection(id="v5_system", content=system, source_hash=_sha(system))],
             turn_context={"engine": "v5", "node": req.node.id, "round": req.round,
-                          "settle": {"node": req.node.id, "role": req.agent, "submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
+                          "settle": {"node": req.node.id, "agent": req.agent, "submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
                                      "max_turns": req.node.agents[req.agent].max_turns or deliver.max_turns, "timeout_min": deliver.timeout_min,
                                      "max_rejections": deliver.max_rejections,
-                                     "rejections_file": str(role_dir / "submit_rejections.jsonl"),
+                                     "rejections_file": str(agent_dir / "submit_rejections.jsonl"),
                                      "model_retry_delays_s": model_retry_delays_s()}},
             knowledge_bindings=[],
             resource_bindings={
@@ -203,7 +203,7 @@ class PiDriver:
             else:
                 self.runtime.request("session.create", payload, timeout=CREATE_TIMEOUT_S)
                 self.live.add(spec.session_key)
-            events.emit("session_ready", node=req.node.id, role=req.agent, round=req.round,
+            events.emit("session_ready", node=req.node.id, agent=req.agent, round=req.round,
                         session_key=spec.session_key, tools=spec.permission_policy.allowed_tools,
                         mcp=sorted(spec.mcp_bindings))
             self.active = spec.session_key
@@ -238,15 +238,15 @@ class PiDriver:
             if (item.get("kind"), item.get("ts")) in streamed.seen:
                 continue  # already written live (I-31)
             kind = SETTLE_KINDS.get(item.get("kind"), "settle")
-            events.emit(kind, node=req.node.id, role=req.agent, round=req.round, detail=item.get("detail"),
+            events.emit(kind, node=req.node.id, agent=req.agent, round=req.round, detail=item.get("detail"),
                         at=item.get("ts"))
         for line in _read_lines(rejections)[seen_rejections:]:
-            events.emit("submit_rejected", node=req.node.id, role=req.agent, round=req.round, **line)
+            events.emit("submit_rejected", node=req.node.id, agent=req.agent, round=req.round, **line)
         abort_reason = str(settle.get("abort_reason") or "")
         if not abort_reason and submit is None and err.startswith("MCP 服务未就绪"):
             abort_reason = "mcp_not_ready"  # the agent never had a submit tool; not its fault
         if abort_reason == "too_many_rejections":
-            events.emit("too_many_rejections", node=req.node.id, role=req.agent, round=req.round,
+            events.emit("too_many_rejections", node=req.node.id, agent=req.agent, round=req.round,
                         rejections=int(settle.get("rejections") or 0))
         fatal = submit is None and is_auth_error(err)
         if submit is not None:
@@ -311,7 +311,7 @@ class PiDriver:
         key = f"v5:preflight:{uuid.uuid4().hex[:8]}"
         storage = workspace / "tmp" / "pi-v5" / "preflight"
         spec = SessionLaunchSpec(
-            run_id="preflight", stage_id="preflight", assignment_id="preflight", role="executor",
+            run_id="preflight", stage_id="preflight", assignment_id="preflight", agent="executor",
             attempt=1, session_key=key, execution_id=uuid.uuid4().hex, bundle_hash="", input_snapshot_hash="",
             model_profile=model or self.model,
             system_sections=[SystemSection(id="v5_system", content="只回复 OK。", source_hash="")],
@@ -361,7 +361,7 @@ class _SettleStream:
                 return
             kind = str(data.get("settle_kind") or "")
             self.seen.add((kind, data.get("ts")))
-            events.emit(SETTLE_KINDS.get(kind, "settle"), node=req.node.id, role=req.agent, round=req.round,
+            events.emit(SETTLE_KINDS.get(kind, "settle"), node=req.node.id, agent=req.agent, round=req.round,
                         detail=data.get("detail"), at=data.get("ts"))
 
         self._handler = handler
@@ -449,5 +449,5 @@ def _read_lines(path: Path) -> list[dict]:
         except json.JSONDecodeError:
             continue
         if isinstance(item, dict):
-            out.append({k: v for k, v in item.items() if k not in ("node", "role", "round")})
+            out.append({k: v for k, v in item.items() if k not in ("node", "agent", "round")})
     return out

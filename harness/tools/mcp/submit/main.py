@@ -14,7 +14,7 @@ from typing import Literal
 from mcp.server import MCPServer
 
 mcp = MCPServer("submit", instructions="完成本轮工作后调用 submit 一次。")
-ROLE = os.environ.get("V5_ROLE", "executor")
+AGENT = os.environ.get("V5_AGENT", "executor")
 
 
 def _reject(errors: list[str]) -> dict:
@@ -70,13 +70,13 @@ def _write(payload: dict) -> dict:
     return {"ok": True, "accepted": True, "message": "已提交，本轮结束，请停止调用工具。"}
 
 
-if ROLE == "reviewer":
+if AGENT == "reviewer":
 
     @mcp.tool(description="审核者提交结论：verdict=pass|reject|stop；reject/stop 时 feedback 逐条写明问题。")
     def submit(verdict: Literal["pass", "reject", "stop"], feedback: str = "") -> dict:
         if verdict != "pass" and not feedback.strip():
             return _reject(["reject/stop 必须填写 feedback"])
-        return _write({"role": "reviewer", "verdict": verdict, "feedback": feedback})
+        return _write({"agent": "reviewer", "verdict": verdict, "feedback": feedback})
 
 else:
 
@@ -86,7 +86,7 @@ else:
             errors = _check_produces()
             if errors:
                 return _reject(errors)
-        return _write({"role": "executor", "status": status, "summary": summary})
+        return _write({"agent": "executor", "status": status, "summary": summary})
 
 
 if __name__ == "__main__":

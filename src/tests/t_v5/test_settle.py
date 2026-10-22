@@ -88,12 +88,12 @@ def test_driver_passes_settle_policy_and_logs(v5_root):
     assert kinds.count("nudge") == 2 and "turn_aborted" in kinds and "submit_rejected" in kinds
 
 
-def _submit(tmp_path, role, args, produces=None):
-    out = tmp_path / f"{role}.json"
-    rej = tmp_path / f"{role}.rej.jsonl"
-    env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_ROLE": role, "V5_REJECTIONS_FILE": str(rej)}
+def _submit(tmp_path, agent, args, produces=None):
+    out = tmp_path / f"{agent}.json"
+    rej = tmp_path / f"{agent}.rej.jsonl"
+    env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_AGENT": agent, "V5_REJECTIONS_FILE": str(rej)}
     if produces is not None:
-        pf = tmp_path / f"{role}.produces.json"
+        pf = tmp_path / f"{agent}.produces.json"
         pf.write_text(json.dumps(produces))
         env["V5_PRODUCES_FILE"] = str(pf)
     code = ("import asyncio,runpy,sys,json;g=runpy.run_path(sys.argv[1],run_name='m');"

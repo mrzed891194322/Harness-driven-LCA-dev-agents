@@ -21,7 +21,7 @@ export type AgentItem =
       type: "turn";
       key: string;
       stage: string;
-      role: string;
+      agent: string;
       attempt: string;
       worker: string;
       time: string;
@@ -66,7 +66,7 @@ export function parseAgentLog(raw: string): AgentItem[] {
       continue;
     }
 
-    const nextTurn = `${meta.stage}|${meta.role}|${meta.attempt}|${meta.worker}`;
+    const nextTurn = `${meta.stage}|${meta.agent}|${meta.attempt}|${meta.worker}`;
     if (nextTurn !== turnKey) {
       turnKey = nextTurn;
       seenText = new Set();
@@ -74,7 +74,7 @@ export function parseAgentLog(raw: string): AgentItem[] {
         type: "turn",
         key: nextTurn,
         stage: meta.stage,
-        role: meta.role,
+        agent: meta.agent,
         attempt: meta.attempt,
         worker: meta.worker,
         time: meta.time,
@@ -179,15 +179,15 @@ export function AgentStream({
 function AgentRow({ item, model }: { item: AgentItem; model: string }) {
   if (item.type === "system") return <SystemRow item={item} />;
   if (item.type === "turn") {
-    const role = item.role;
+    const agentKey = item.agent;
     const attempt = item.attempt ? `第 ${item.attempt} 次` : "";
     return (
-      <h3 className="agent-turn" data-role={item.role}>
+      <h3 className="agent-turn" data-agent={item.agent}>
         <span className="agent-turn-mark" aria-hidden="true">
           <Bot size={16} strokeWidth={1.75} />
         </span>
         <span className="agent-turn-stage">{item.stage}</span>
-        {role ? <span className="agent-turn-role">{role}</span> : null}
+        {agentKey ? <span className="agent-turn-agent">{agentKey}</span> : null}
         {attempt ? <span className="agent-turn-attempt">{attempt}</span> : null}
         <span className="agent-turn-side">
           {model || item.worker ? (
@@ -519,7 +519,7 @@ function parseTag(tag: string):
   | {
       kind: "agent";
       stage: string;
-      role: string;
+      agent: string;
       attempt: string;
       worker: string;
       time: string;
@@ -533,7 +533,7 @@ function parseTag(tag: string):
   return {
     kind: "agent",
     stage: agent[1],
-    role: actor ? actor[1] : agent[2].trim(),
+    agent: actor ? actor[1] : agent[2].trim(),
     attempt: actor ? actor[2] : "",
     worker: agent[3],
     time: agent[4],

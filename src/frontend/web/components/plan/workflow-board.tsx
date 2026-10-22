@@ -131,11 +131,11 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                 </button>
                 <div className="flow-steps" onClick={(e) => e.stopPropagation()}>
                   {Object.entries(n.agents).map(([name, agent]) => (
-                    <button key={name} type="button" className="flow-step" data-role={agent.template}
+                    <button key={name} type="button" className="flow-step" data-agent={name}
                       data-testid={`flow-agent-${n.id}-${name}`}
                       aria-pressed={selection.kind === "agent" && selection.id === n.id && selection.agent === name}
                       onClick={() => choose({ kind: "agent", id: n.id, agent: name })}>
-                      <span className="flow-step-role">
+                      <span className="flow-step-agent">
                         <Bot className="flow-step-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
                       </span>

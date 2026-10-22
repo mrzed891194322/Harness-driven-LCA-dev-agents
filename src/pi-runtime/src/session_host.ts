@@ -621,7 +621,7 @@ export function runtimeInfo(): Record<string, unknown> {
       owner: s.owner,
       run_id: s.spec.run_id,
       stage_id: s.spec.stage_id,
-      role: s.spec.role,
+      agent: s.spec.agent,
     })),
   };
 }

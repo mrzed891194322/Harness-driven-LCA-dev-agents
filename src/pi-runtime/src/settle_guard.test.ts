@@ -134,7 +134,7 @@ test("each log entry is streamed as it happens (I-31)", async () => {
 });
 
 test("failed model requests do not count toward max_turns; exhausted retries give a clear Chinese error (Q1, Q14)", async () => {
-  const g = new SettleGuard({ ...policy, max_turns: 2, node: "lca-mapping", role: "executor" }, () => false, () => 0, async () => {});
+  const g = new SettleGuard({ ...policy, max_turns: 2, node: "lca-mapping", agent: "executor" }, () => false, () => 0, async () => {});
   let aborted = 0;
   g.begin(() => {});
   const err = { stopReason: "error", errorMessage: "503" };

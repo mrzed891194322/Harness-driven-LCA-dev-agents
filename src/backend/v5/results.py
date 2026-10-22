@@ -106,7 +106,7 @@ _SUBMIT_RE = re.compile(r"^submit_round_(\d+)\.json$")
 
 
 def _node_verdicts(runs_root: Path, manifest: dict[str, Any]) -> list[dict[str, Any]]:
-    """Per-node verdict rows (old 'handoffs' shape) from runs/<node>/status.json and <role>/submit_round_N.json."""
+    """Per-node verdict rows (old 'handoffs' shape) from runs/<node>/status.json and <agent>/submit_round_N.json."""
     if not runs_root.is_dir():
         return []
     order = [str(n.get("id") or n.get("node")) for n in manifest.get("nodes") or [] if isinstance(n, dict)]
@@ -116,25 +116,25 @@ def _node_verdicts(runs_root: Path, manifest: dict[str, Any]) -> list[dict[str, 
     for node in dirs:
         node_status = _read_json(runs_root / node / "status.json")
         found: list[tuple[int, int, dict[str, Any]]] = []
-        for role_dir in (runs_root / node).iterdir():
-            if not role_dir.is_dir():
+        for agent_dir in (runs_root / node).iterdir():
+            if not agent_dir.is_dir():
                 continue
-            for path in role_dir.iterdir():
+            for path in agent_dir.iterdir():
                 m = _SUBMIT_RE.match(path.name)
                 if not m:
                     continue
                 data = _read_json(path)
-                role = str(data.get("role") or role_dir.name)
+                agent = str(data.get("agent") or agent_dir.name)
                 status = str(data.get("verdict") or data.get("status") or "")
                 text = str(data.get("feedback") or data.get("summary") or "")
                 found.append(
                     (
                         int(m.group(1)),
-                        0 if role == "executor" else 1,
+                        0 if agent == "executor" else 1,
                         {
-                            "name": f"runs/{node}/{role_dir.name}/{path.name}",
+                            "name": f"runs/{node}/{agent_dir.name}/{path.name}",
                             "stage": node,
-                            "role": role,
+                            "agent": agent,
                             "attempt": int(m.group(1)),
                             "status": status,
                             "status_reason": text[:200],

@@ -87,7 +87,7 @@ class SessionLaunchSpec:
     run_id: str
     stage_id: str
     assignment_id: str
-    role: str
+    agent: str
     attempt: int
     session_key: str
     execution_id: str
@@ -115,7 +115,7 @@ class SessionLaunchSpec:
             "run_id": self.run_id,
             "stage_id": self.stage_id,
             "assignment_id": self.assignment_id,
-            "role": self.role,
+            "agent": self.agent,
             "attempt": self.attempt,
             "session_key": self.session_key,
             "execution_id": self.execution_id,

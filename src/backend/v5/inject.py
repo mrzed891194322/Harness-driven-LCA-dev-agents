@@ -1,6 +1,6 @@
 """Session injection in the approved order.
 
-System prompt: 1 global rules -> (2 permissions: host interception, not text) -> 3 role prompt
+System prompt: 1 global rules -> (2 permissions: host interception, not text) -> 3 agent prompt
 -> 4 tools and skills list.
 User message: 5 <plan> (full) + <inputs> (paths + short notes) -> 6 <deliverable_X>
 (spec description + schema summary) -> 7 <rework> (round 2+ only, "only change these").
@@ -51,18 +51,18 @@ class Injector:
         self.plan_override: dict[str, str] = {}
 
     # ---- system prompt (1, 3, 4) ----
-    def system(self, node: Node, role: str) -> str:
+    def system(self, node: Node, agent: str) -> str:
         parts = []
-        for rule in load_global_rules(self.root, role):
+        for rule in load_global_rules(self.root, agent):
             parts.append(f"# {rule.title}\n{rule.prompt.strip()}")
-        for extra in node.inject + node.agents[role].rules:
+        for extra in node.inject + node.agents[agent].rules:
             rule = load_rule(self.root, extra)
-            if rule.enabled and (rule.applies_to is None or role in rule.applies_to):
+            if rule.enabled and (rule.applies_to is None or agent in rule.applies_to):
                 parts.append(f"# {rule.title}\n{rule.prompt.strip()}")
-        role_def = node.agents[role].definition
-        parts.append(f"# {role_def.title}\n{role_def.prompt.strip()}" if role_def.title else role_def.prompt.strip())
-        tools = node.agents[role].tools
-        lines = ["# 工具与技能", "- 文件工具：read、ls、grep、find" + ("、write、edit" if role == "executor" else "") + "；完成时调用 submit。"]
+        agent_def = node.agents[agent].definition
+        parts.append(f"# {agent_def.title}\n{agent_def.prompt.strip()}" if agent_def.title else agent_def.prompt.strip())
+        tools = node.agents[agent].tools
+        lines = ["# 工具与技能", "- 文件工具：read、ls、grep、find" + ("、write、edit" if agent == "executor" else "") + "；完成时调用 submit。"]
         if tools.mcp:
             lines.append("- MCP：" + "、".join(tools.mcp))
         for skill in tools.skills:
@@ -71,7 +71,7 @@ class Injector:
         return "\n\n".join(parts) + "\n"
 
     # ---- user message (5, 6, 7) ----
-    def __call__(self, node: Node, role: str, rnd: int, rework: str | None, specs: dict[str, Spec]) -> str:
+    def __call__(self, node: Node, agent: str, rnd: int, rework: str | None, specs: dict[str, Spec]) -> str:
         art = self.ws / "artifacts"
         out = []
         plan_dir = art / "plan"
@@ -99,10 +99,10 @@ class Injector:
             summary = schema_summary(spec.schema_)
             if summary:
                 body.append(f"结构摘要（完整 schema：`harness/specs/{spec.id}.yaml` 的 schema）：\n{summary}")
-            if role == "reviewer":
+            if agent == "reviewer":
                 body.insert(0, "审核对象：")
             out.append(_section(f"deliverable_{spec.id}", "\n\n".join(body)))
-        if role == "reviewer":
+        if agent == "reviewer":
             out.append(f"审核笔记可写到 `{runs / 'reviewer'}`。")
         else:
             out.append(f"中间文件写到 `{runs}`。")

@@ -8,7 +8,7 @@ import { apiFetch } from "../../lib/api";
 export type ActivityEvent = {
   run_id?: string;
   stage?: string;
-  role?: string;
+  agent?: string;
   assignment?: string;
   attempt?: number;
   kind?: "tool_call" | "tool_result" | "text" | "turn_end";
@@ -25,7 +25,7 @@ type Handoff = "none" | "pending" | "ok" | "err";
 export type AssignmentActivity = {
   key: string;
   stage: string;
-  role: string;
+  agent: string;
   attempt: number;
   tools: number;
   errors: number;
@@ -49,20 +49,20 @@ export function summarizeActivity(events: ActivityEvent[]): AssignmentActivity[]
   const open = new Map<string, Set<string>>();
   for (const event of events) {
     const stage = event.stage || "";
-    const role = event.role || "";
-    // Orchestrator notes (for example upstream rework) have no stage/role.
-    if (!stage || !role) continue;
+    const agentKey = event.agent || "";
+    // Orchestrator notes (for example upstream rework) have no stage/agent.
+    if (!stage || !agentKey) continue;
     const attempt = Number(event.attempt) || 0;
     // Each attempt is its own chip, inserted when that attempt first appears.
     // A later visit (03 attempt 2 after 04) is appended, and the earlier chip stays.
-    const assignment = event.assignment || `${stage}.${role}`;
+    const assignment = event.assignment || `${stage}.${agentKey}`;
     const key = `${assignment}#${attempt}`;
     let entry = byKey.get(key);
     if (!entry) {
       entry = {
         key,
         stage,
-        role,
+        agent: agentKey,
         attempt,
         tools: 0,
         errors: 0,
@@ -203,7 +203,7 @@ export function ActivitySummary({
   return (
     <ul className="activity-summary" aria-label="各分工活动概览" data-testid="activity-summary">
       {items.map((item) => {
-        const role = item.role;
+        const agentKey = item.agent;
         const tone =
           item.handoff === "ok"
             ? "ok"
@@ -227,7 +227,7 @@ export function ActivitySummary({
               </span>
               <strong>{item.stage}</strong>
               <small>
-                {role}
+                {agentKey}
                 {item.attempt ? ` · 第 ${item.attempt} 次` : ""}
               </small>
             </span>

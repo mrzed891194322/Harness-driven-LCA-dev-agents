@@ -105,8 +105,8 @@ class V5Service:
         out = []
         for node in nodes:
             agents = []
-            for role in node.agents:
-                agents.append({"agent": role, "system": inj.system(node, role), "user": inj(node, role, 1, None, specs)})
+            for key in node.agents:
+                agents.append({"agent": key, "system": inj.system(node, key), "user": inj(node, key, 1, None, specs)})
             out.append({"id": node.id, "title": node.title, "agents": agents})
         return {"workflow": wf.id if hasattr(wf, "id") else workflow, "plan_file": wf.plan_file,
                 "plan_present": bool(plan_text and plan_text.strip()) or (plan_dir.is_dir() and any(plan_dir.glob("*.md"))),

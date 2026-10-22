@@ -5,7 +5,7 @@ export interface SessionLaunchSpec {
   run_id: string;
   stage_id: string;
   assignment_id: string;
-  role: string;
+  agent: string;
   attempt: number;
   session_key: string;
   execution_id: string;

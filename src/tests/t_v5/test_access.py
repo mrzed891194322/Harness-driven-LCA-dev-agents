@@ -3,12 +3,12 @@ from backend.v5.config import Access, load_node
 from tests.t_v5.conftest import make_node
 
 
-def _scope(root, role="executor", access=None, node_access=None):
+def _scope(root, agent="executor", access=None, node_access=None):
     agents = {"executor": {"agent": "executor"}, "reviewer": {"agent": "reviewer"}}
     if node_access:
-        agents[role]["access"] = node_access
+        agents[agent]["access"] = node_access
     make_node(root, "a", requires=["text"], produces=[{"spec": "summary", "path": "summary/s.md"}], agents=agents)
-    return compute_scope(root, load_node(root, "a"), role, access or Access())
+    return compute_scope(root, load_node(root, "a"), agent, access or Access())
 
 
 def test_executor_writes_only_produces_and_runs(v5_root):
@@ -33,7 +33,7 @@ def test_node_override_cannot_grant_plan_write(v5_root):
 
 
 def test_reviewer_cannot_write_artifacts(v5_root):
-    s = _scope(v5_root, role="reviewer")
+    s = _scope(v5_root, agent="reviewer")
     assert all("/runs/a/reviewer" in g for g in s.write_globs)
 
 
