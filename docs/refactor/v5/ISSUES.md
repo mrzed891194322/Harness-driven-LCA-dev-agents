@@ -715,3 +715,9 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
 - #3 `handoff_binding` removed: nobody set it; pi-runtime `readHandoff` + transcript summary `handoff` field,
   `HandoffBinding` type, Python contract field and JSON schema property deleted. The verdict lives in
   runs/<node>/<agent>/submit_round_N.json (read by /results).
+- #5 `workspace_clean.py` 633 → ~100 lines: only the openLCA category cleanup (under `orchestrator.lock`), CLI
+  `clean.py [--dry-run] [-y]`. Removed: targets knowledge/workspace, presets full-lca/revise-lca, staging filter,
+  `--cleanup-list` (v4 resume), and the now-unused `settings.parse_gitignore/match_keep/clean_ignored_dir/
+  clean_root_files`. The v5 runner already clears workspace/runs at run start. `check_status.py` drops its `clean`
+  task (it wiped workspace/ on every bootstrap probe); `--only agents|openlca` remain. No backend/GUI caller existed.
+  Old docs (`docs/ARTIFACTS.md` preset/cleanup-list paragraphs) describe v4 and are stale.

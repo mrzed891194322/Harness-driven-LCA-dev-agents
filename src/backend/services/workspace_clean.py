@@ -1,23 +1,19 @@
-"""Workspace preparation and clean presets (full-lca / revise-lca)."""
+"""openLCA category cleanup (entities under the project category only).
+
+Workspace files are cleared by the v5 runner at run start; this module only
+removes foreground openLCA entities, holding the same
+workspace/runs/_run/orchestrator.lock so it never races a live run.
+"""
 
 from __future__ import annotations
 
-import json
 import os
-import shutil
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
 
-from backend.settings import (
-    clean_ignored_dir,
-    clean_root_files,
-    ensure_path_within,
-    parse_gitignore,
-    run_root,
-)
+from backend.settings import run_root
 from harness.tools.shared.control_openlca.cleanup_service import run_openlca_clean
 
 PROJECT_ROOT = next(
@@ -26,7 +22,7 @@ PROJECT_ROOT = next(
     if (parent / "pyproject.toml").is_file()
 )
 
-# Same lock file the v5 runner holds (workspace/runs/_run/orchestrator.lock).
+
 class WorkspaceBusy(RuntimeError):
     pass
 
@@ -66,567 +62,40 @@ def workspace_lock(workspace_root: Path) -> Iterator[None]:
     # Keep the lock file: unlinking it can let processes lock different inodes.
 
 
-STAGING_TARGETS = ("knowledge",)
-# Targets that must not race an active orchestrator process.
-LOCKED_CLEAN_TARGETS = frozenset({"workspace", "openlca"})
-# Never unlink the process lock inode; see workspace_lock above.
-ORCHESTRATOR_LOCK_KEEP = "runs/_run/orchestrator.lock"
-
-CLEAN_TARGETS = [
-    {
-        "name": "knowledge",
-        "path": PROJECT_ROOT / "harness" / "knowledge",
-        "gitignore": PROJECT_ROOT / "harness" / "knowledge" / ".gitignore",
-        "staging_subdirs": ["inputs", "plan"],
-        "keep_patterns": ["README.md"],
-    },
-    {
-        "name": "workspace",
-        "path": PROJECT_ROOT / "workspace",
-        "gitignore": PROJECT_ROOT / "workspace" / ".gitignore",
-        "ignored_dirs": [
-            "runs/**",
-            "artifacts/**",
-            "tmp/**",
-        ],
-        "keep_patterns": ["**/README.md", ORCHESTRATOR_LOCK_KEEP],
-    },
-]
-
-CLEAN_PRESETS: dict[str, list[str]] = {
-    # openlca runs before workspace: its UUID cleanup reads
-    # workspace/artifacts/LCI and per-attempt import-operations under runs/, which
-    # target deletes.
-    # knowledge (plan + reference inputs) is never cleared before a run; the
-    # "knowledge" target stays available for explicit manual use only.
-    "full-lca": ["openlca", "workspace"],
-    "revise-lca": ["openlca"],
-}
-
-FILESYSTEM_TARGET_NAMES = [cfg["name"] for cfg in CLEAN_TARGETS]
-ALL_TARGET_NAMES = FILESYSTEM_TARGET_NAMES + ["openlca"]
-
-
-def _print_ok(target_name: str) -> None:
-    print(f"[OK] clean target '{target_name}' completed")
-
-
-def _print_fail(target_name: str, reason: str) -> None:
-    print(f"[FAIL] clean target '{target_name}': {reason}", file=sys.stderr)
-
-
-def _clean_filesystem_target(
-    target_cfg: dict,
-    *,
-    dry_run: bool = False,
-) -> tuple[int, int, int, int]:
-    name = target_cfg["name"]
-    root_dir = target_cfg["path"]
-    gitignore_path = target_cfg.get("gitignore") or root_dir / ".gitignore"
-
-    ignored_dirs, keep_patterns = parse_gitignore(gitignore_path)
-    ignored_dirs = list(target_cfg.get("ignored_dirs", ignored_dirs))
-    keep_patterns = list(target_cfg.get("keep_patterns", keep_patterns))
-    if name == "workspace" and ORCHESTRATOR_LOCK_KEEP not in keep_patterns:
-        # Permanent keep: do not unlink orchestrator.lock (inode shared with flock).
-        keep_patterns.append(ORCHESTRATOR_LOCK_KEEP)
-
-    total_files = total_dirs = total_kept = total_failed = 0
-    allowed_root = root_dir
-
-    staging_subdirs = list(target_cfg.get("staging_subdirs") or [])
-    if staging_subdirs:
-        print(f"\n开始清理 [{name}] 子目录: {', '.join(staging_subdirs)}")
-        if keep_patterns:
-            print(f"  例外保留: {', '.join(keep_patterns)}")
-        for sub_name in staging_subdirs:
-            sub_root = root_dir / sub_name
-            if not sub_root.exists():
-                continue
-            files, dirs, kept, failed = clean_root_files(
-                sub_root,
-                PROJECT_ROOT,
-                keep_patterns,
-                dry_run=dry_run,
-                allowed_root=sub_root,
-            )
-            total_files += files
-            total_dirs += dirs
-            total_kept += kept
-            total_failed += failed
-        return total_files, total_dirs, total_kept, total_failed
-
-    if target_cfg.get("clean_root_files"):
-        print(f"\n开始清理 [{name}] 根级文件与子目录...")
-        if keep_patterns:
-            print(f"  例外保留: {', '.join(keep_patterns)}")
-        files, dirs, kept, failed = clean_root_files(
-            root_dir,
-            PROJECT_ROOT,
-            keep_patterns,
-            dry_run=dry_run,
-            allowed_root=allowed_root,
-        )
-        return (
-            files + total_files,
-            dirs + total_dirs,
-            kept + total_kept,
-            failed + total_failed,
-        )
-
-    exclude_top_level = {
-        item.strip("/") for item in target_cfg.get("exclude_top_level", [])
-    }
-    if exclude_top_level:
-        ignored_dirs = [
-            f"{child.name}/**"
-            for child in sorted(root_dir.iterdir())
-            if child.is_dir() and child.name not in exclude_top_level
-        ]
-
-    if not ignored_dirs:
-        return total_files, total_dirs, total_kept, total_failed
-
-    print(f"\n开始清理 [{name}] 目录...")
-    print(f"  忽略子目录: {', '.join(ignored_dirs)}")
-    if exclude_top_level:
-        print(f"  顶层保留: {', '.join(sorted(exclude_top_level))}")
-    if keep_patterns:
-        print(f"  例外保留: {', '.join(keep_patterns)}")
-
-    skipped_ignored = set(target_cfg.get("skip_ignored", []))
-    for ignored in ignored_dirs:
-        if ignored in skipped_ignored:
-            print(f"  保留活动目录: {ignored}")
-            continue
-        target_path = root_dir / ignored.replace("/**", "").strip("/")
-        if not target_path.exists() and not target_path.is_symlink():
-            continue
-        if target_path.is_symlink():
-            # Unlink the link only; never follow into an external tree.
-            files, dirs, kept, failed = clean_ignored_dir(
-                target_path,
-                root_dir,
-                PROJECT_ROOT,
-                keep_patterns,
-                dry_run=dry_run,
-                allowed_root=allowed_root,
-            )
-        elif not target_path.is_dir():
-            continue
-        else:
-            try:
-                ensure_path_within(target_path, allowed_root)
-            except ValueError as exc:
-                print(f"  拒绝越界清理根: {exc}", file=sys.stderr)
-                total_failed += 1
-                continue
-            files, dirs, kept, failed = clean_ignored_dir(
-                target_path,
-                root_dir,
-                PROJECT_ROOT,
-                keep_patterns,
-                dry_run=dry_run,
-                allowed_root=allowed_root,
-            )
-        total_files += files
-        total_dirs += dirs
-        total_kept += kept
-        total_failed += failed
-
-    return total_files, total_dirs, total_kept, total_failed
-
-
-def _run_single_target(
-    target_name: str,
-    *,
-    dry_run: bool = False,
-) -> int:
-    if target_name == "openlca":
-        print("\n开始清理 [openlca] 前景实体...")
-        try:
-            ok, message, _details = run_openlca_clean(dry_run=dry_run)
-        except (ValueError, OSError) as exc:
-            _print_fail("openlca", str(exc))
-            return 1
-        if ok:
-            print(f"  {message}")
-            _print_ok("openlca")
+def run_clean(dry_run: bool = False, yes: bool = False) -> int:
+    """Delete foreground openLCA entities under the project category."""
+    print(f"项目根目录: {PROJECT_ROOT}")
+    if dry_run:
+        print("模式: [演练模式] (只预览，不删除)")
+    if not yes and not dry_run:
+        confirm = input("警告：这将删除 openLCA 项目分类下的前景实体！\n确定要继续吗？(y/N): ")
+        if confirm.strip().lower() not in ("y", "yes"):
+            print("操作已取消。")
             return 0
-        _print_fail("openlca", message)
+    workspace_root = PROJECT_ROOT / "workspace"
+    try:
+        with workspace_lock(workspace_root):
+            ok, message, _details = run_openlca_clean(dry_run=dry_run)
+    except WorkspaceBusy:
+        print(f"[FAIL] workspace busy: {run_root(workspace_root) / 'orchestrator.lock'}", file=sys.stderr)
         return 1
-
-    target_cfg = next(
-        (cfg for cfg in CLEAN_TARGETS if cfg["name"] == target_name),
-        None,
-    )
-    if target_cfg is None:
-        _print_fail(target_name, "unknown filesystem target")
+    except (ValueError, OSError) as exc:
+        print(f"[FAIL] openlca: {exc}", file=sys.stderr)
         return 1
-
-    total_files, total_dirs, total_kept, total_failed = _clean_filesystem_target(
-        target_cfg,
-        dry_run=dry_run,
-    )
-
-    print(
-        f"\n  [{target_name}] 删除文件: {total_files}, 空目录: {total_dirs}, 保留: {total_kept}"
-    )
-    if total_failed > 0:
-        _print_fail(target_name, f"{total_failed} deletion(s) failed")
+    if not ok:
+        print(f"[FAIL] openlca: {message}", file=sys.stderr)
         return 1
-    _print_ok(target_name)
+    print(f"  {message}")
+    print("[OK] openlca clean completed")
     return 0
 
 
-def _resolve_targets(target: str | None, preset: str | None) -> list[str] | None:
-    if preset:
-        return list(CLEAN_PRESETS[preset])
-    if target:
-        return [target]
-    return ["workspace"]
-
-
-def _apply_staging_filter(
-    targets: list[str],
-    *,
-    clean_staging: bool,
-) -> list[str]:
-    if clean_staging:
-        return list(targets)
-    return [name for name in targets if name not in STAGING_TARGETS]
-
-
-def run_clean(
-    dry_run: bool = False,
-    yes: bool = False,
-    target: str | None = None,
-    preset: str | None = None,
-    clean_staging: bool = True,
-) -> int:
-    """Clean configured targets according to .gitignore rules or openLCA cleanup."""
-    if target and preset:
-        print("错误: --target 与 --preset 不能同时使用", file=sys.stderr)
-        return 1
-
-    if preset and preset not in CLEAN_PRESETS:
-        print(f"错误: 未知 preset [{preset}]", file=sys.stderr)
-        print("可用 preset: " + ", ".join(sorted(CLEAN_PRESETS)), file=sys.stderr)
-        return 1
-
-    try:
-        targets = _resolve_targets(target, preset)
-    except KeyError:
-        print(f"错误: 未知 preset [{preset}]", file=sys.stderr)
-        return 1
-
-    if targets is None:
-        targets = ["workspace"]
-
-    skipped_staging = [name for name in targets if name in STAGING_TARGETS]
-    targets = _apply_staging_filter(targets, clean_staging=clean_staging)
-
-    for name in targets:
-        if name not in ALL_TARGET_NAMES:
-            print(f"错误: 未知清理目标 [{name}]", file=sys.stderr)
-            print("可用目标: " + ", ".join(ALL_TARGET_NAMES), file=sys.stderr)
-            return 1
-
-    print("=" * 60)
-    print(f"项目根目录: {PROJECT_ROOT}")
-    if dry_run:
-        print("模式: [演练模式] (只显示，不实际删除文件)")
-    if preset:
-        print(f"preset: [{preset}] -> {', '.join(targets) or '(none)'}")
-    elif target:
-        print(f"目标: [{', '.join(targets) or target}]")
-    else:
-        print("目标: [workspace] (默认)")
-    if not clean_staging and skipped_staging:
-        print(f"skip staging: {', '.join(skipped_staging)}")
-    print("=" * 60)
-
-    if not targets:
-        print("\n" + "=" * 60)
-        print("[OK] no remaining targets after skipping staging")
-        print("=" * 60)
-        return 0
-
-    if not yes and not dry_run:
-        confirm = input(
-            "警告：这将删除所选目标中的生成及临时文件！\n确定要继续吗？(y/N): "
-        )
-        if confirm.strip().lower() not in ("y", "yes"):
-            print("操作已取消。")
-            return 0
-
-    needs_lock = bool(LOCKED_CLEAN_TARGETS.intersection(targets))
-    workspace_root = PROJECT_ROOT / "workspace"
-
-    def _run_targets() -> int:
-        for target_name in targets:
-            code = _run_single_target(target_name, dry_run=dry_run)
-            if code != 0:
-                print("\n" + "=" * 60)
-                print(f"[FAIL] clean aborted after target '{target_name}'")
-                print("=" * 60)
-                return 1
-        print("\n" + "=" * 60)
-        if dry_run:
-            print("[OK] dry-run completed for all requested targets")
-        else:
-            print("[OK] all requested clean targets completed")
-        print("=" * 60)
-        return 0
-
-    if not needs_lock:
-        return _run_targets()
-
-    try:
-        with workspace_lock(workspace_root):
-            return _run_targets()
-    except WorkspaceBusy:
-        print(
-            f"[FAIL] workspace busy: cannot clean while orchestrator holds "
-            f"{workspace_root / 'runs' / '_run' / 'orchestrator.lock'}",
-            file=sys.stderr,
-        )
-        return 1
-
-
-def _cleanup_list_refuse_path(
-    workspace_root: Path,
-    project_root: Path,
-    relative: str,
-    *,
-    old_run_id: str | None = None,
-) -> str | None:
-    rel = relative.replace("\\", "/").strip("/")
-    if not rel:
-        return "空路径"
-    if any(part in {"", ".", ".."} for part in rel.split("/")):
-        return "路径不得包含 . 或 .."
-    if rel.startswith("harness/knowledge") or "/harness/knowledge/" in f"/{rel}/":
-        return "禁止清理 harness/knowledge"
-    try:
-        target = ensure_path_within(workspace_root / rel, workspace_root)
-    except ValueError:
-        try:
-            ensure_path_within(project_root / rel, workspace_root)
-        except ValueError:
-            return "路径必须在 workspace 内"
-        return "路径必须在 workspace 内"
-    if target == workspace_root.resolve():
-        return "禁止删除整个 workspace"
-    protected = [
-        "runs/_run/orchestrator.lock",
-        "runs/_run/orchestrator.sqlite",
-        "runs/_run/resume",
-    ]
-    if old_run_id:
-        protected.append(f"runs/_run/evidence/{old_run_id}")
-    for keep in protected:
-        if keep.startswith(rel + "/"):
-            return f"禁止删除包含受保护路径（{keep}）的目录"
-    if rel == ORCHESTRATOR_LOCK_KEEP or rel.endswith("/orchestrator.lock"):
-        return "禁止删除 orchestrator.lock"
-    if rel in {
-        "runs/_run/orchestrator.sqlite",
-        "runs/_run/orchestrator.lock",
-    }:
-        return "禁止删除编排器锁或检查点库"
-    if old_run_id and rel.startswith(f"runs/_run/evidence/{old_run_id}"):
-        return "禁止删除旧运行 evidence"
-    if rel.startswith("runs/_run/resume/"):
-        return "禁止删除 resume 计划目录"
-    return None
-
-
-def run_cleanup_list(
-    list_path: Path,
-    *,
-    dry_run: bool = False,
-    yes: bool = False,
-    old_run_id: str | None = None,
-) -> tuple[int, dict[str, Any]]:
-    """Delete exactly the paths listed in a cleanup.json (workspace + optional openlca)."""
-    workspace_root = PROJECT_ROOT / "workspace"
-    try:
-        payload = json.loads(list_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"[FAIL] cleanup-list: {exc}", file=sys.stderr)
-        return 1, {}
-    if not isinstance(payload, dict):
-        print("[FAIL] cleanup-list: JSON 必须是对象", file=sys.stderr)
-        return 1, {}
-    paths = payload.get("workspace_paths") or []
-    openlca_ids = payload.get("openlca_ids") or []
-    if not isinstance(paths, list):
-        print("[FAIL] workspace_paths 必须是数组", file=sys.stderr)
-        return 1, {}
-    report: dict[str, Any] = {
-        "dry_run": dry_run,
-        "workspace_deleted": [],
-        "workspace_refused": [],
-        "openlca_deleted": [],
-        "openlca_skipped": [],
-    }
-    if not yes and not dry_run:
-        confirm = input("cleanup-list 将按清单删除文件，继续？(y/N): ")
-        if confirm.strip().lower() not in ("y", "yes"):
-            print("操作已取消。")
-            return 0, report
-
-    def _delete_path(rel: str) -> None:
-        reason = _cleanup_list_refuse_path(
-            workspace_root, PROJECT_ROOT, rel, old_run_id=old_run_id
-        )
-        if reason:
-            report["workspace_refused"].append({"path": rel, "reason": reason})
-            return
-        target = workspace_root / rel.replace("\\", "/").strip("/")
-        if not target.exists() and not target.is_symlink():
-            return
-        if dry_run:
-            report["workspace_deleted"].append(rel)
-            return
-        if target.is_dir() and not target.is_symlink():
-            import shutil
-
-            shutil.rmtree(target)
-        else:
-            target.unlink()
-        report["workspace_deleted"].append(rel)
-
-    try:
-        with workspace_lock(workspace_root):
-            for rel in paths:
-                if isinstance(rel, str):
-                    _delete_path(rel)
-    except WorkspaceBusy:
-        print("[FAIL] workspace busy", file=sys.stderr)
-        return 1, report
-    if report["workspace_refused"]:
-        # A list we composed should never contain a refused path: stop before openLCA.
-        print(f"[FAIL] cleanup-list 含被拒路径: {report['workspace_refused']}", file=sys.stderr)
-        return 1, report
-
-    if openlca_ids:
-        from backend.services.diagnostics_service import openlca_endpoint
-        from harness.tools.shared.control_openlca.cleanup import (
-            _model_types,
-            _resolve_uuid_targets,
-            close_ipc_client,
-            connect_ipc,
-            delete_entities,
-        )
-        from harness.tools.shared.control_openlca.cleanup_service import (
-            _target_category,
-        )
-
-        host, port = openlca_endpoint(PROJECT_ROOT)
-        project_name = _target_category()
-        targets = [
-            (str(item.get("type") or ""), str(item.get("id") or ""))
-            for item in openlca_ids
-            if isinstance(item, dict)
-        ]
-        if dry_run:
-            report["openlca_deleted"] = [
-                {"type": t, "id": i} for t, i in targets if t and i
-            ]
-            return 0, report
-        try:
-            client = connect_ipc(host, port)
-        except Exception as exc:
-            print(f"[FAIL] openLCA 连接失败，未删除任何实体: {exc}", file=sys.stderr)
-            return 1, report
-        try:
-            resolved, skipped = _resolve_uuid_targets(
-                client, project_name, targets, host=host, port=port
-            )
-            report["openlca_skipped"] = skipped
-            model_types = _model_types(include_supporting=True)
-            deleted_count, errors = delete_entities(
-                client,
-                resolved,
-                model_types,
-                project_name=project_name,
-                host=host,
-                port=port,
-            )
-            report["openlca_deleted"] = deleted_count
-            if errors:
-                print(f"[FAIL] openlca delete errors: {errors}", file=sys.stderr)
-                return 1, report
-        except Exception as exc:
-            print(f"[FAIL] openLCA 清理中止: {exc}", file=sys.stderr)
-            return 1, report
-        finally:
-            close_ipc_client(client)
-
-    return 0, report
-
-
 def cli_main(argv: list[str] | None = None) -> None:
-    """Argparse entry for ``src/scripts/clean.py`` (GUI backend / bootstrap subprocess)."""
+    """Argparse entry for ``src/scripts/clean.py``."""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="按目标清理 knowledge、workspace 或 openLCA 前景实体。"
-    )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="演练模式，仅打印将要删除的文件/目录"
-    )
-    parser.add_argument(
-        "-y", "--yes", action="store_true", help="跳过二次确认，直接执行删除操作"
-    )
-    parser.add_argument(
-        "-t",
-        "--target",
-        type=str,
-        default=None,
-        help="单个清理目标: knowledge, workspace, openlca",
-    )
-    parser.add_argument(
-        "--preset",
-        type=str,
-        default=None,
-        choices=sorted(CLEAN_PRESETS),
-        help="预设清理序列: full-lca 或 revise-lca",
-    )
-    parser.add_argument(
-        "--no-staging",
-        action="store_true",
-        help="跳过 knowledge（GUI staging）清理",
-    )
-    parser.add_argument(
-        "--cleanup-list",
-        type=Path,
-        default=None,
-        help="按 JSON 清单精确删除（resume 续跑）",
-    )
-    parser.add_argument(
-        "--cleanup-old-run-id",
-        type=str,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
+    parser = argparse.ArgumentParser(description="清理 openLCA 项目分类下的前景实体。")
+    parser.add_argument("--dry-run", action="store_true", help="只预览将删除的实体数")
+    parser.add_argument("-y", "--yes", action="store_true", help="跳过二次确认")
     args = parser.parse_args(argv)
-    if args.cleanup_list is not None:
-        code, _report = run_cleanup_list(
-            args.cleanup_list,
-            dry_run=args.dry_run,
-            yes=args.yes,
-            old_run_id=args.cleanup_old_run_id,
-        )
-        raise SystemExit(code)
-    raise SystemExit(
-        run_clean(
-            dry_run=args.dry_run,
-            yes=args.yes,
-            target=args.target,
-            preset=args.preset,
-            clean_staging=not args.no_staging,
-        )
-    )
+    raise SystemExit(run_clean(dry_run=args.dry_run, yes=args.yes))

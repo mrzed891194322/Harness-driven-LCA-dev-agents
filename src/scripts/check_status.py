@@ -19,7 +19,6 @@ for _p in (_ROOT / "src", _ROOT):
         sys.path.insert(0, str(_p))
 
 from backend.services.diagnostics import check_openlca, check_project_environment
-from backend.services.workspace_clean import run_clean
 
 PROJECT_ROOT = _ROOT
 load_dotenv(PROJECT_ROOT / ".env")
@@ -36,9 +35,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--only",
-        choices=["clean", "agents", "openlca"],
+        choices=["agents", "openlca"],
         default=None,
-        help="仅执行指定任务（clean、agents 或 openlca）；省略则依次执行全部任务",
+        help="仅执行指定任务（agents 或 openlca）；省略则依次执行全部任务",
     )
     parser.add_argument(
         "--host",
@@ -53,13 +52,6 @@ def main() -> int:
         help=f"openLCA IPC Server 端口（默认 {DEFAULT_OPENLCA_IPC_PORT} 或 .env 中的 OPENLCA_IPC_PORT）",
     )
     args = parser.parse_args()
-
-    if args.only in (None, "clean"):
-        code = run_clean(yes=True, target="workspace", clean_staging=True)
-        if code != 0:
-            return code
-        if args.only == "clean":
-            return 0
 
     if args.only in (None, "agents"):
         ok, message = check_project_environment(PROJECT_ROOT)
