@@ -4,7 +4,7 @@ from tests.t_v5.conftest import make_node
 
 
 def _scope(root, role="executor", access=None, node_access=None):
-    agents = {"executor": {"role": "executor"}, "reviewer": {"role": "reviewer"}}
+    agents = {"executor": {"agent": "executor"}, "reviewer": {"agent": "reviewer"}}
     if node_access:
         agents[role]["access"] = node_access
     make_node(root, "a", requires=["text"], produces=[{"spec": "summary", "path": "summary/s.md"}], agents=agents)

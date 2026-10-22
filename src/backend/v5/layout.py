@@ -5,7 +5,6 @@ from pathlib import Path
 
 HARNESS_DIRS = ("rules", "specs", "knowledge", "tools", "workflows")
 RULES_GLOBAL = Path("harness/rules/global")
-RULES_ROLES = Path("harness/rules/roles")  # legacy (I-50), read only as fallback until removed
 SPECS = Path("harness/specs")
 KNOWLEDGE = Path("harness/knowledge")
 TOOLS_MCP = Path("harness/tools/mcp")

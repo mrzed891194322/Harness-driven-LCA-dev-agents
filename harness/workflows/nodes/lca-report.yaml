@@ -5,8 +5,8 @@ produces:
   - {spec: lca-report, path: report/lca_report.md}
 inject: [rules/lca/method.yaml, rules/lca/interpretation.yaml, rules/lca/openlca.yaml]
 agents:
-  executor: {role: executor, tools: {mcp: [control_openlca]}}
-  reviewer: {role: reviewer, tools: {mcp: [control_openlca]}}
+  executor: {agent: executor, tools: {mcp: [control_openlca]}}
+  reviewer: {agent: reviewer, tools: {mcp: [control_openlca]}}
 flow:
   start: executor
   max_rounds: 3

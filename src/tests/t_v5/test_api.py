@@ -11,7 +11,7 @@ from tests.t_v5.fake_driver import FakeDriver
 
 def _client(monkeypatch, root):
     make_node(root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    write_yaml(root / "harness/workflows/full-lca.yaml", {"id": "full-lca", "nodes": ["a"]})
+    write_yaml(root / "harness/workflows/orchestrations/full-lca.yaml", {"id": "full-lca", "nodes": ["a"]})
     svc = V5Service(root, driver_factory=lambda r: FakeDriver())
     monkeypatch.setattr(app_module, "_v5_service", svc)
     return TestClient(app_module.app), svc
@@ -35,7 +35,7 @@ def test_start_status_feedback_and_old_resume(monkeypatch, v5_root):
 def test_gui_start_of_revise_uses_saved_revise_plan(monkeypatch, v5_root):
     client, svc = _client(monkeypatch, v5_root)
     make_node(v5_root, "r", produces=[{"spec": "paragraph", "path": "r/p.md"}])
-    write_yaml(v5_root / "harness/workflows/revise-lca.yaml",
+    write_yaml(v5_root / "harness/workflows/orchestrations/revise-lca.yaml",
                {"id": "revise-lca", "nodes": ["r"], "plan_file": "revise_plan.md", "revise_of": "full-lca"})
     saved = {"content": ""}
     monkeypatch.setattr(app_module, "read_plan_document", lambda root, workflow=None: dict(saved))

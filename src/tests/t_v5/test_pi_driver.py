@@ -42,8 +42,8 @@ def _setup(root: Path, **agent_extra):
         "tool_timeout_sec": 10, "deny_tools": ["cleanup_output"],
         "readonly_tools": ["health_check"], "write_tools": ["import_lci"]})
     make_node(root, "n1", produces=[{"spec": "paragraph", "path": "out/p.md"}], agents={
-        "executor": {"role": "executor", "tools": {"mcp": ["control_openlca"]}, "thinking": "high"},
-        "reviewer": {"role": "reviewer", "tools": {"mcp": ["control_openlca"]}}})
+        "executor": {"agent": "executor", "tools": {"mcp": ["control_openlca"]}, "thinking": "high"},
+        "reviewer": {"agent": "reviewer", "tools": {"mcp": ["control_openlca"]}}})
     return load_node(root, "n1")
 
 

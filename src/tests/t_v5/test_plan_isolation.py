@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from backend.v5.access import compute_scope
-from backend.v5.config import load_role, load_workflow
+from backend.v5.config import load_workflow
 from backend.v5.runner import Runner
 from tests.t_v5.fake_driver import FakeDriver
 from tests.t_v5.test_acceptance import proj  # noqa: F401 - fixture
@@ -25,7 +25,7 @@ def test_gui_plan_saved_under_artifacts_plan(proj):  # noqa: F811
     wf, nodes = load_workflow(proj, "full-lca")
     for node in nodes:
         for role in node.agents:
-            s = compute_scope(proj, node, role, load_role(proj, role)[1])
+            s = compute_scope(proj, node, role, node.agents[role].definition.access)
             assert _inside(k / "inputs/a.md", s.read_globs)
             assert _inside(proj / "workspace/artifacts/plan/main_plan.md", s.read_globs)
 

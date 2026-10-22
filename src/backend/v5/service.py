@@ -69,8 +69,6 @@ class V5Service:
     def _node_card(self, node: Any) -> dict[str, Any]:
         """Read-only GUI card: spec at node level; per agent model+thinking / role / access / tools / rules."""
         from backend.v5.access import compute_scope
-        from backend.v5.config import load_role
-
         from backend.v5 import agent_models
 
         agents = {}
@@ -79,9 +77,9 @@ class V5Service:
         for name, yaml_agent in node.agents.items():
             gui = overrides.get(f"{node.id}.{name}", {})
             agent = agent_models.apply([node], overrides)[0].agents[name]
-            scope = compute_scope(self.root, node, name, load_role(self.root, agent.role)[1])
+            scope = compute_scope(self.root, node, name, agent.definition.access)
             rel = lambda g: g.replace(str(self.root) + "/", "")  # noqa: E731
-            agents[name] = {"role": agent.role, "model": agent.model or default_ref or "未选择模型",
+            agents[name] = {"role": agent.agent, "model": agent.model or default_ref or "未选择模型",
                             "model_source": "gui" if gui.get("model") else "agent" if yaml_agent.model else "default",
                             "gui_model": gui.get("model", ""), "gui_thinking": gui.get("thinking", ""),
                             "thinking": agent.thinking or default_thinking or "模型默认",

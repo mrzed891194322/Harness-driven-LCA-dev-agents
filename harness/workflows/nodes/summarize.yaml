@@ -3,8 +3,8 @@ title: 概括计划要点（示例）
 produces:
   - {spec: summary, path: summary/summary.md}
 agents:
-  executor: {role: executor}
-  reviewer: {role: reviewer}
+  executor: executor
+  reviewer: reviewer
 flow:
   start: executor
   max_rounds: 3

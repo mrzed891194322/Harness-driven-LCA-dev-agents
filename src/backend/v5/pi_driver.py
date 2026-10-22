@@ -26,7 +26,7 @@ from backend.core.contracts.session_launch_spec import (
 )
 from backend.v5 import layout
 from backend.v5.access import compute_scope
-from backend.v5.config import load_role, load_role_def, load_spec
+from backend.v5.config import load_spec
 from backend.v5.events import EventLog
 from backend.v5.runner import TurnRequest, TurnResult
 
@@ -105,13 +105,13 @@ class PiDriver:
         node_dir = layout.node_dir(ws, req.node.id)
         role_dir = node_dir / req.role
         submit_file = role_dir / "submit.json"  # stable path: a live session keeps its MCP env
-        _prompt, role_access = load_role(self.root, req.role)
+        role_access = req.node.agents[req.role].definition.access
         scope = compute_scope(self.root, req.node, req.role, role_access, workspace=ws)
         # compute_scope uses root/workspace; remap if the runner uses another workspace
         default_ws = str(self.root / layout.WORKSPACE)
         remap = (lambda g: g.replace(default_ws, str(ws), 1)) if str(ws) != default_ws else (lambda g: g)
         bindings, mcp_allowed = self._mcp_bindings(req, submit_file)
-        deliver = load_role_def(self.root, req.node.agents[req.role].role).deliver
+        deliver = req.node.agents[req.role].definition.deliver
         if req.role == "executor":
             produces = []
             for prod in req.node.produces:

@@ -27,7 +27,7 @@ def _events(root):
 
 def _one_node(root):
     make_node(root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    write_yaml(root / "harness/workflows/w.yaml", {"nodes": ["a"]})
+    write_yaml(root / "harness/workflows/orchestrations/w.yaml", {"nodes": ["a"]})
     return load_workflow(root, "w")
 
 

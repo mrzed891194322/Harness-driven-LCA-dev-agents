@@ -1,6 +1,6 @@
 """v5 configuration: workflows, nodes, agents, flow graph, specs.
 
-A workflow YAML lists node names in order. Each node YAML (harness/workflows/nodes/<id>.yaml)
+An orchestration (harness/workflows/orchestrations/<name>.yaml) lists nodes in order. Each node YAML (harness/workflows/nodes/<id>.yaml)
 declares requires / produces / inject / agents / flow / accept. The flow is a directed graph
 whose edges (from, on, to) must reach ``done`` or ``failed``; v1 supports executor + reviewer.
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from backend.v5 import layout
 
@@ -40,13 +40,21 @@ class Tools(_Strict):
 
 
 class Agent(_Strict):
-    role: Literal["executor", "reviewer"]
+    agent: str = ""  # template name: harness/workflows/agents/<agent>.yaml ("" = inline definition)
     model: str = ""
     thinking: str = ""
     max_turns: int | None = Field(default=None, ge=1)  # per-node override of the role's deliver.max_turns (Q1)
     tools: Tools = Field(default_factory=Tools)
     rules: list[str] = Field(default_factory=list)
     access: Access = Field(default_factory=Access)
+    _definition: "RoleDef | None" = PrivateAttr(default=None)
+
+    @property
+    def definition(self) -> "RoleDef":
+        """The resolved agent template (prompt / access / deliver); set by load_node."""
+        if self._definition is None:
+            raise ConfigError(f"agent {self.agent!r} is not resolved (load nodes with load_node / load_workflow)")
+        return self._definition
 
 
 class Edge(_Strict):
@@ -92,9 +100,6 @@ class Node(_Strict):
             raise ValueError(f"unknown agent keys: {sorted(set(self.agents) - set(ROLES))}")
         if "executor" not in self.agents:
             raise ValueError("node needs an executor")
-        for key, agent in self.agents.items():
-            if agent.role != key:
-                raise ValueError(f"agent {key!r} has role {agent.role!r}")
         states = set(self.agents) | set(TERMINALS)
         seen: set[tuple[str, str]] = set()
         graph: dict[str, set[str]] = {}
@@ -243,37 +248,72 @@ def _load_yaml(path: Path) -> dict:
     return data
 
 
+def _line_of(path: Path, pattern: str) -> str:
+    """``path:line`` of the first line matching ``pattern`` (regex), else just ``path``."""
+    try:
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if re.search(pattern, line):
+                return f"{path}:{n}"
+    except OSError:
+        pass
+    return str(path)
+
+
+def _normalize_agents(data: dict, path: Path) -> None:
+    """I-50: ``executor: executor`` (template name) or ``{agent: <name>, ...overrides}``."""
+    agents = data.get("agents")
+    if not isinstance(agents, dict):
+        return
+    for key, value in list(agents.items()):
+        if isinstance(value, str):
+            agents[key] = {"agent": value}
+        elif isinstance(value, dict) and "role" in value:
+            raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: agent {key!r}: 'role' was replaced by a template "
+                              f"name (I-50), write `{key}: {value['role']}` or `{key}: {{agent: {value['role']}, ...}}`")
+
+
+def _resolve_agents(root: Path, node: Node, path: Path) -> None:
+    for key, agent in node.agents.items():
+        if not agent.agent:
+            raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: agent {key!r} needs a template name")
+        tpl = root / layout.AGENTS / f"{agent.agent}.yaml"
+        if not tpl.is_file():
+            known = sorted(p.stem for p in (root / layout.AGENTS).glob("*.yaml"))
+            raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: unknown agent {agent.agent!r} "
+                              f"(no {tpl.relative_to(root)}; known: {', '.join(known) or 'none'})")
+        agent._definition = load_role_def(root, agent.agent)
+
+
+def _build_node(root: Path, data: dict, path: Path) -> Node:
+    if "revision" in data:
+        raise ConfigError(f"{path}: revision is host-set (revise-lca), not a YAML key")
+    _normalize_agents(data, path)
+    try:
+        node = Node.model_validate(data)
+    except ValueError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
+    _resolve_agents(root, node, path)
+    for produce in node.produces:
+        if not produce.spec:
+            executor = node.agents.get("executor")
+            default = executor.definition.deliver.spec if executor else None
+            if not default:
+                raise ConfigError(f"{path}: produces {produce.path!r} has no spec and the executor agent has no deliver.spec")
+            produce.spec = default
+    return node
+
+
 def load_node(root: Path, node_id: str) -> Node:
     path = root / layout.NODES / f"{node_id}.yaml"
     data = _load_yaml(path)
     data.setdefault("id", node_id)
     if data["id"] != node_id:
         raise ConfigError(f"{path}: id {data['id']!r} != file name {node_id!r}")
-    try:
-        if isinstance(data, dict) and "revision" in data:
-            raise ConfigError(f"{path}: revision is host-set (revise-lca), not a YAML key")
-        node = Node.model_validate(data)
-    except ValueError as exc:
-        raise ConfigError(f"{path}: {exc}") from exc
-    for produce in node.produces:
-        if not produce.spec:
-            executor = node.agents.get("executor")
-            default = load_role_def(root, executor.role).deliver.spec if executor else None
-            if not default:
-                raise ConfigError(f"{path}: produces {produce.path!r} has no spec and the executor role has no deliver.spec")
-            produce.spec = default
-    return node
-
-
-def _first_existing(*paths: Path) -> Path:
-    for p in paths:
-        if p.is_file():
-            return p
-    return paths[0]
+    return _build_node(root, data, path)
 
 
 def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
-    path = _first_existing(root / layout.ORCHESTRATIONS / f"{name}.yaml", root / layout.WORKFLOWS / f"{name}.yaml")
+    path = root / layout.ORCHESTRATIONS / f"{name}.yaml"
     data = _load_yaml(path)
     data.setdefault("id", name)
     try:
@@ -289,10 +329,7 @@ def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
 
 def list_workflows(root: Path) -> list[str]:
     names = []
-    paths = sorted((root / layout.ORCHESTRATIONS).glob("*.yaml")) + sorted((root / layout.WORKFLOWS).glob("*.yaml"))
-    for path in paths:
-        if path.stem in names:
-            continue
+    for path in sorted((root / layout.ORCHESTRATIONS).glob("*.yaml")):
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError:
@@ -318,15 +355,11 @@ def load_spec(root: Path, spec_id: str) -> Spec:
 
 
 def load_role_def(root: Path, role: str) -> RoleDef:
-    path = _first_existing(root / layout.AGENTS / f"{role}.yaml", root / layout.RULES_ROLES / f"{role}.yaml")
+    """Load agent template ``harness/workflows/agents/<role>.yaml``."""
+    path = root / layout.AGENTS / f"{role}.yaml"
     role_def = _validate(RoleDef, _load_yaml(path), path)
     role_def.prompt = render(role_def.prompt, path)
     return role_def
-
-
-def load_role(root: Path, role: str) -> tuple[str, Access]:
-    role_def = load_role_def(root, role)
-    return role_def.prompt, role_def.access
 
 
 def load_rule(root: Path, rel: str) -> Rule:

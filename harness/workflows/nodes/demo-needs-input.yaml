@@ -4,8 +4,8 @@ requires: [missing-input/input.md]
 produces:
   - {spec: summary, path: needs-input/summary.md}
 agents:
-  executor: {role: executor}
-  reviewer: {role: reviewer}
+  executor: executor
+  reviewer: reviewer
 flow:
   start: executor
   max_rounds: 2

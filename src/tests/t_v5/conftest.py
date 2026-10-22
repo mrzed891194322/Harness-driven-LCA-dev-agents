@@ -35,7 +35,7 @@ def make_node(root: Path, node_id: str, *, requires=(), produces=(), flow=None, 
             "requires": list(requires),
             "produces": [dict(p) for p in produces],
             "agents": agents
-            or {"executor": {"role": "executor"}, "reviewer": {"role": "reviewer"}},
+            or {"executor": "executor", "reviewer": "reviewer"},
             "flow": flow or EXEC_REVIEW_FLOW,
         },
     )

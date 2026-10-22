@@ -13,7 +13,7 @@ PLAN = {"main_plan.md": "# 计划\n写一段话再总结。\n"}
 def _setup(root, order=("write", "summarize")):
     make_node(root, "write", produces=[{"spec": "paragraph", "path": "text/paragraph.md"}])
     make_node(root, "summarize", requires=["text"], produces=[{"spec": "summary", "path": "summary/summary.md"}])
-    write_yaml(root / "harness/workflows/demo.yaml", {"nodes": list(order)})
+    write_yaml(root / "harness/workflows/orchestrations/demo.yaml", {"nodes": list(order)})
     return load_workflow(root, "demo")
 
 
@@ -77,7 +77,7 @@ def test_requires_missing_fails_immediately(v5_root):
 def test_checks_failed_feedback(v5_root):
     write_yaml(v5_root / "harness/specs/summary.yaml", {"description": "x", "schema": {"type": "object"}})
     make_node(v5_root, "j", produces=[{"spec": "summary", "path": "j/out.json"}])
-    write_yaml(v5_root / "harness/workflows/dj.yaml", {"nodes": ["j"]})
+    write_yaml(v5_root / "harness/workflows/orchestrations/dj.yaml", {"nodes": ["j"]})
     wf, nodes = load_workflow(v5_root, "dj")
     d = FakeDriver({("j", "executor"): ["[1]", '{"a": 1}']})
     assert Runner(v5_root, wf, nodes, d).run(plans=PLAN) == "completed"

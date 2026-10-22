@@ -9,7 +9,7 @@ from tests.t_v5.fake_driver import FakeDriver
 
 def _project(root):
     make_node(root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    write_yaml(root / "harness/workflows/demo.yaml", {"id": "demo", "nodes": ["a"]})
+    write_yaml(root / "harness/workflows/orchestrations/demo.yaml", {"id": "demo", "nodes": ["a"]})
 
 
 def _ok_driver(root):

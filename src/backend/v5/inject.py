@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.v5 import layout
-from backend.v5.config import Node, Spec, load_global_rules, load_role_def, load_rule
+from backend.v5.config import Node, Spec, load_global_rules, load_rule
 
 MAX_SCHEMA_SUMMARY = 4000
 
@@ -59,7 +59,7 @@ class Injector:
             rule = load_rule(self.root, extra)
             if rule.enabled and (rule.applies_to is None or role in rule.applies_to):
                 parts.append(f"# {rule.title}\n{rule.prompt.strip()}")
-        role_def = load_role_def(self.root, node.agents[role].role)
+        role_def = node.agents[role].definition
         parts.append(f"# {role_def.title}\n{role_def.prompt.strip()}" if role_def.title else role_def.prompt.strip())
         tools = node.agents[role].tools
         lines = ["# 工具与技能", "- 文件工具：read、ls、grep、find" + ("、write、edit" if role == "executor" else "") + "；完成时调用 submit。"]

@@ -5,8 +5,8 @@ produces:
   - {spec: lca-bom, path: bom/bom.json}
 inject: [rules/lca/method.yaml, rules/lca/knowledge-files.yaml, rules/lca/inventory.yaml, rules/lca/revise.yaml, rules/lca/revise-bom.yaml]
 agents:
-  executor: {role: executor}
-  reviewer: {role: reviewer}
+  executor: executor
+  reviewer: reviewer
 flow:
   start: executor
   max_rounds: 3

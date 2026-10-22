@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 
 from backend.v5.access import compute_scope
-from backend.v5.config import load_role, load_workflow
+from backend.v5.config import load_workflow
 from backend.v5.inject import Injector
 from backend.v5 import revisions
 from backend.v5.runner import Runner
@@ -120,7 +120,7 @@ def test_revise_scope_denies_originals(proj):  # noqa: F811
     art = proj / "workspace/artifacts"
     wf, nodes = load_workflow(proj, "revise-lca")
     node = revisions.effective(art, nodes[1], revisions.allocate(art, nodes))
-    ex = compute_scope(proj, node, "executor", load_role(proj, "executor")[1])
+    ex = compute_scope(proj, node, "executor", node.agents["executor"].definition.access)
     assert f"{art}/mapping/mapping.json" in ex.denied_write_globs and f"{art}/mapping/LCI/**" in ex.denied_write_globs
     assert f"{art}/plan/**" in ex.denied_write_globs and f"{art}/mapping/**" in ex.write_globs
     assert [p.path for p in node.produces] == ["mapping/mapping.rev1.json"]
