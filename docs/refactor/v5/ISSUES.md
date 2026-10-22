@@ -656,3 +656,6 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   `prompt`; or `{agent: executor, tools: ..., max_turns: ...}` for a template plus node overrides.
 - Errors for an unknown short name or a bad inline object name the file (and line when found).
 - GUI text 「角色说明」→「agent 说明」 only.
+- Done in dev (a43800f docs, ec62bfe move, a80a884 short names, 1855a82 inline, this commit GUI text): /harness tab
+  「角色」→「agent」 (section id `roles` → `agents`, testid `harness-tab-agents`); /plan agent settings line
+  「角色 X」→「agent X」 (inline agents show 「内联」). The literal text 「角色说明」 did not exist in the GUI.

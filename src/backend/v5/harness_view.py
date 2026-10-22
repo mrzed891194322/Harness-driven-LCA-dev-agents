@@ -20,7 +20,7 @@ _LINE = re.compile(r"\.ya?ml:(\d+)(?::\d+)?")
 
 SECTIONS = (
     ("rules", "全局规则"),
-    ("roles", "角色"),
+    ("agents", "agent"),
     ("specs", "规格"),
     ("workflows", "工作流"),
 )
@@ -61,7 +61,7 @@ def harness_view(root: Path) -> dict[str, Any]:
             rel = path.relative_to(harness).as_posix()
             rules.append(_entry(root, path, folder, lambda rel=rel: config.load_rule(root, rel)))
     roles = [
-        _entry(root, p, "roles", lambda p=p: config.load_role_def(root, p.stem))
+        _entry(root, p, "agents", lambda p=p: config.load_role_def(root, p.stem))
         for p in sorted((root / layout.AGENTS).glob("*.yaml"))
     ]
     specs = [
@@ -75,7 +75,7 @@ def harness_view(root: Path) -> dict[str, Any]:
         _entry(root, p, "nodes", lambda p=p: config.load_node(root, p.stem))
         for p in sorted((root / layout.NODES).glob("*.yaml"))
     ]
-    files = {"rules": rules, "roles": roles, "specs": specs, "workflows": workflows}
+    files = {"rules": rules, "agents": roles, "specs": specs, "workflows": workflows}
     return {
         "sections": [{"id": sid, "title": title, "files": files[sid]} for sid, title in SECTIONS],
         "errors": sum(1 for group in files.values() for f in group if f["error"]),

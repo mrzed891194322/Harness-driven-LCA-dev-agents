@@ -44,7 +44,7 @@ default, all events with 显示全部. The event list resets when the log shrink
 
 ## /harness (I-26)
 Read-only viewer of `harness/` YAML from `GET /api/v5/harness`. Header link `header-harness`. Tabs
-`harness-tab-rules|roles|specs|workflows`, file buttons `harness-file-<path>`, `harness-fields`, `harness-raw`,
+`harness-tab-rules|agents|specs|workflows`（I-50：原 `roles` 改为 `agents`）, file buttons `harness-file-<path>`, `harness-fields`, `harness-raw`,
 `harness-file-error` (shows `file:line — message`), `harness-error-count`.
 
 ## testid mapping after the 599ed0a 1:1 restore (2026-10-21, I-44)

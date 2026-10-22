@@ -218,7 +218,7 @@ function AgentDetail({ node, role, models, onChange }: {
   return (
     <section data-testid={`flow-agent-detail-${node.id}-${role}`}>
       <h3>{node.title || node.id} · {label(role)}</h3>
-      <p className="settings-meta">角色 {agent.role} · 当前模型 {agent.model}{agent.thinking ? ` · 思考 ${agent.thinking}` : ""}</p>
+      <p className="settings-meta">agent {agent.role || "内联"} · 当前模型 {agent.model}{agent.thinking ? ` · 思考 ${agent.thinking}` : ""}</p>
       <h4>模型</h4>
       <select className="flow-model" data-testid="agent-model-select" value={gm} onChange={(e) => void onChange(node.id, role, e.target.value, gt)}>
         <option value="">使用默认模型</option>
