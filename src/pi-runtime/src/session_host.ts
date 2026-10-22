@@ -10,6 +10,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import type { ModelProfile, SessionLaunchSpec } from "./types.js";
+import { checkedLaunchSpec } from "./spec_validate.js";
 import {
   materializeAuthJson,
   materializeModelsJson,
@@ -620,7 +621,8 @@ export function runtimeInfo(): Record<string, unknown> {
       session_key: key,
       owner: s.owner,
       run_id: s.spec.run_id,
-      stage_id: s.spec.stage_id,
+      node: s.spec.node,
+      rev: s.spec.rev,
       agent: s.spec.agent,
     })),
   };
@@ -642,10 +644,7 @@ export async function handleRuntimeMethod(
     return { version: PROTOCOL_VERSION };
   }
   if (method === "session.create") {
-    const spec = params.launch_spec as SessionLaunchSpec;
-    if (!spec || spec.schema_version !== 1) {
-      throw new Error("invalid launch_spec");
-    }
+    const spec = checkedLaunchSpec(params.launch_spec);
     await releaseSession(spec.session_key);
     const live = await createPiSession(spec);
     await adoptSession(spec.session_key, live);
@@ -657,7 +656,7 @@ export async function handleRuntimeMethod(
     };
   }
   if (method === "session.resume") {
-    const spec = params.launch_spec as SessionLaunchSpec;
+    const spec = checkedLaunchSpec(params.launch_spec);
     const key = String(params.session_key ?? spec?.session_key ?? "");
     const sessionFile = spec.session_storage.session_file;
     if (!fs.existsSync(sessionFile) && !isMockMode()) {

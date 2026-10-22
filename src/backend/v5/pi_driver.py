@@ -138,14 +138,11 @@ class PiDriver:
         storage = ws / "tmp" / "pi-v5" / req.session_key
         spec = SessionLaunchSpec(
             run_id=req.run_id,
-            stage_id=req.node.id,
-            assignment_id=req.session_key,
+            node=req.node.id,
+            rev=req.node.rev,
             agent=req.agent,
             attempt=req.attempt,
             session_key=f"v5:{req.run_id[:8]}:{req.session_key}",
-            execution_id=uuid.uuid4().hex,
-            bundle_hash=_sha(system),
-            input_snapshot_hash=_sha(req.prompt),
             model_profile=self.model,
             system_sections=[SystemSection(id="v5_system", content=system, source_hash=_sha(system))],
             turn_context={"engine": "v5", "node": req.node.id, "rev": req.node.rev, "attempt": req.attempt,
@@ -157,8 +154,6 @@ class PiDriver:
             knowledge_bindings=[],
             resource_bindings={
                 "project_root": str(self.root.resolve()),
-                "workspace_root": str(ws.resolve()),
-                "host_python": str(Path(sys.executable)),
                 "credentials_dir": str(self.credentials_dir.resolve()),
             },
             mcp_bindings=bindings,
@@ -311,13 +306,12 @@ class PiDriver:
         key = f"v5:preflight:{uuid.uuid4().hex[:8]}"
         storage = workspace / "tmp" / "pi-v5" / "preflight"
         spec = SessionLaunchSpec(
-            run_id="preflight", stage_id="preflight", assignment_id="preflight", agent="executor",
-            attempt=1, session_key=key, execution_id=uuid.uuid4().hex, bundle_hash="", input_snapshot_hash="",
+            run_id="preflight", node="preflight", rev=0, agent="executor", attempt=1, session_key=key,
             model_profile=model or self.model,
             system_sections=[SystemSection(id="v5_system", content="只回复 OK。", source_hash="")],
             turn_context={}, knowledge_bindings=[],
-            resource_bindings={"project_root": str(self.root.resolve()), "workspace_root": str(workspace.resolve()),
-                               "host_python": sys.executable, "credentials_dir": str(self.credentials_dir.resolve())},
+            resource_bindings={"project_root": str(self.root.resolve()),
+                               "credentials_dir": str(self.credentials_dir.resolve())},
             mcp_bindings={},
             permission_policy=PermissionPolicy(allowed_tools=[], allowed_read_globs=[], allowed_write_globs=[]),
             session_storage={"agent_dir": str((storage / "agent").resolve()),

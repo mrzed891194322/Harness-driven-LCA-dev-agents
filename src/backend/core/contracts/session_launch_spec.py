@@ -1,11 +1,15 @@
-"""Versioned cross-language session launch contract (schema_version=1)."""
+"""Cross-language session launch contract (schema_version=2). Single source of truth.
 
+``src/scripts/export_contracts.py`` exports ``session_launch_spec.schema.json`` and
+``pi-runtime/src/spec.generated.ts`` from these classes; a test keeps the committed files in sync.
+Only fields v5 uses are kept (WORKFLOW_DESIGN §7).
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal, TypedDict
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -19,20 +23,13 @@ class ModelProfile:
     parameters: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "profile_id": self.profile_id,
-            "provider": self.provider,
-            "model_id": self.model_id,
-        }
-        if self.display_name:
-            payload["display_name"] = self.display_name
-        if self.api_type:
-            payload["api_type"] = self.api_type
-        if self.base_url:
-            payload["base_url"] = self.base_url
+        out: dict[str, Any] = {"profile_id": self.profile_id, "provider": self.provider, "model_id": self.model_id}
+        for key in ("display_name", "api_type", "base_url"):
+            if getattr(self, key):
+                out[key] = getattr(self, key)
         if self.parameters:
-            payload["parameters"] = dict(self.parameters)
-        return payload
+            out["parameters"] = dict(self.parameters)
+        return out
 
 
 @dataclass
@@ -40,9 +37,6 @@ class SystemSection:
     id: str
     content: str
     source_hash: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"id": self.id, "content": self.content, "source_hash": self.source_hash}
 
 
 @dataclass
@@ -52,16 +46,6 @@ class KnowledgeBinding:
     content_hash: str
     summary: str = ""
 
-    def to_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {
-            "id": self.id,
-            "root_path": self.root_path,
-            "content_hash": self.content_hash,
-        }
-        if self.summary:
-            out["summary"] = self.summary
-        return out
-
 
 @dataclass
 class PermissionPolicy:
@@ -69,64 +53,50 @@ class PermissionPolicy:
     allowed_read_globs: list[str]
     allowed_write_globs: list[str]
     deny_shell: bool = True
-    # Official deliverable paths only spec_mcp may write (beats allowed_write_globs).
+    # Official deliverable paths only the submit/spec MCP may write (beats allowed_write_globs).
     denied_write_globs: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "allowed_tools": list(self.allowed_tools),
-            "allowed_read_globs": list(self.allowed_read_globs),
-            "allowed_write_globs": list(self.allowed_write_globs),
-            "deny_shell": self.deny_shell,
-            "denied_write_globs": list(self.denied_write_globs),
-        }
+
+class ResourceBindings(TypedDict):
+    project_root: str
+    credentials_dir: str
+
+
+class SessionStorage(TypedDict):
+    agent_dir: str
+    session_file: str
+
+
+class McpBinding(TypedDict, total=False):
+    command: str
+    args: list[str]
+    env: dict[str, str]
+    timeout_ms: int
+    exposure: Literal["direct", "deferred", "codemode", "hidden"]
 
 
 @dataclass
 class SessionLaunchSpec:
     run_id: str
-    stage_id: str
-    assignment_id: str
+    node: str
+    rev: int
     agent: str
     attempt: int
     session_key: str
-    execution_id: str
-    bundle_hash: str
-    input_snapshot_hash: str
     model_profile: ModelProfile
     system_sections: list[SystemSection]
     turn_context: dict[str, Any]
     knowledge_bindings: list[KnowledgeBinding]
-    resource_bindings: dict[str, str]
-    mcp_bindings: dict[str, dict[str, Any]]
+    resource_bindings: ResourceBindings
+    mcp_bindings: dict[str, McpBinding]
     permission_policy: PermissionPolicy
-    session_storage: dict[str, str]
-    schema_version: int = SCHEMA_VERSION
-    # Host-only diagnostics for the injection manifest; never sent to pi-runtime.
-    prompt_segments: list[dict[str, Any]] = field(default_factory=list, repr=False, compare=False)
-    spec_view: dict[str, Any] | None = field(default=None, repr=False, compare=False)
-    spec_view_hash: str = field(default="", repr=False, compare=False)
-    spec_sources: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
+    session_storage: SessionStorage
+    schema_version: Literal[2] = SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "schema_version": self.schema_version,
-            "run_id": self.run_id,
-            "stage_id": self.stage_id,
-            "assignment_id": self.assignment_id,
-            "agent": self.agent,
-            "attempt": self.attempt,
-            "session_key": self.session_key,
-            "execution_id": self.execution_id,
-            "bundle_hash": self.bundle_hash,
-            "input_snapshot_hash": self.input_snapshot_hash,
-            "model_profile": self.model_profile.to_dict(),
-            "system_sections": [s.to_dict() for s in self.system_sections],
-            "turn_context": dict(self.turn_context),
-            "knowledge_bindings": [k.to_dict() for k in self.knowledge_bindings],
-            "resource_bindings": dict(self.resource_bindings),
-            "mcp_bindings": dict(self.mcp_bindings),
-            "permission_policy": self.permission_policy.to_dict(),
-            "session_storage": dict(self.session_storage),
-        }
-        return payload
+        out = asdict(self)
+        out["model_profile"] = self.model_profile.to_dict()
+        for k in out["knowledge_bindings"]:
+            if not k.get("summary"):
+                k.pop("summary", None)
+        return {"schema_version": out.pop("schema_version"), **out}
