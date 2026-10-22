@@ -12,7 +12,7 @@ import {
 } from "../../components/results/artifacts-browser";
 import { apiFetch } from "../../lib/api";
 import { reviseWorkLocked } from "../../lib/revise-lock";
-import { loadResultFiles, readResultFile, type ResultFile } from "./load-files";
+import type { ResultFile } from "./load-files";
 
 type Manifest = {
   status?: string;
@@ -93,13 +93,6 @@ export default function ResultsPage() {
         });
         const body = (await response.json()) as ResultFile & { detail?: string };
         if (signal?.aborted || request !== requestRef.current) return;
-        if (response.status === 404 && body.detail === "Not Found") {
-          const file = await readResultFile(filePath);
-          if (signal?.aborted || request !== requestRef.current) return;
-          previewCacheRef.current.set(filePath, file);
-          setPreview(file);
-          return;
-        }
         if (!response.ok) throw new Error(body.detail || `无法读取文件（HTTP ${response.status}）`);
         previewCacheRef.current.set(filePath, body);
         setPreview(body);
@@ -115,15 +108,10 @@ export default function ResultsPage() {
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setBusy(true);
     try {
-      let next: Results;
       const response = await apiFetch("/api/results");
-      if (response.status === 404) {
-        next = await loadResultFiles();
-      } else {
-        const body = (await response.json()) as Results & { detail?: string };
-        if (!response.ok) throw new Error(body.detail || `无法读取结果（HTTP ${response.status}）`);
-        next = body;
-      }
+      const body = (await response.json()) as Results & { detail?: string };
+      if (!response.ok) throw new Error(body.detail || `无法读取结果（HTTP ${response.status}）`);
+      const next: Results = body;
       setData(next);
       setError("");
       const current = selectedRef.current;

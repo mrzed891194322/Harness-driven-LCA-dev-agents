@@ -13,7 +13,7 @@ export { resultKind, type ResultKind };
 export type Handoff = {
   name: string;
   stage: string;
-  role: string;
+  agent: string;
   attempt: number | null;
   status: string;
   status_reason: string;
@@ -181,7 +181,7 @@ export function ArtifactsBrowser({
                             <strong>{item.stage || item.name}
                               {item.node_status ? ` · ${VERDICT_LABEL[item.node_status] || item.node_status}` : ""}</strong>
                             <span>
-                              {item.role || "交接"}
+                              {item.agent || "交接"}
                               {item.attempt != null ? ` · 第 ${item.attempt} 次` : ""}
                               {item.status ? ` · ${VERDICT_LABEL[item.status] || item.status}` : ""}
                             </span>

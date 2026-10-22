@@ -34,16 +34,12 @@ def validate_target_category(category_path: str) -> None:
     first = first_category_segment(category_path)
     if first != PROJECT_CATEGORY:
         raise ValueError(f"refusing non-project category: {category_path}")
-    if first.startswith(f"{PROJECT_CATEGORY}-old"):
-        raise ValueError("refusing legacy category suffix")
 
 
 def strict_project_category(category: str | None) -> tuple[bool, str]:
     if category is None or not str(category).strip():
         return False, "missing_category"
     first = first_category_segment(str(category))
-    if first.startswith(f"{PROJECT_CATEGORY}-old") or first == f"{PROJECT_CATEGORY}-old":
-        return False, "legacy_category_prefix"
     if first != PROJECT_CATEGORY:
         return False, "outside_project_category"
     if category_outside_project(

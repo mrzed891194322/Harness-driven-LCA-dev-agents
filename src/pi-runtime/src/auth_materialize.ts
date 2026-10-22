@@ -33,10 +33,6 @@ export function readPiAuthFile(authPath: string): PiAuthFile {
       return {};
     }
     const obj = raw as Record<string, unknown>;
-    // Legacy wrapper: { providers: { anthropic: { apiKey } } }
-    if (obj.providers && typeof obj.providers === "object" && !Array.isArray(obj.providers)) {
-      return normalizeAuthMap(obj.providers as Record<string, unknown>);
-    }
     return normalizeAuthMap(obj);
   } catch {
     return {};

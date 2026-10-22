@@ -692,3 +692,19 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   `.flow-step-agent`, `.agent-turn-role` → `.agent-turn-agent`, selectors updated 1:1 (visuals unchanged). Testid values unchanged.
 - LLM message `role` (assistant / toolResult) is the pi message format and stays.
 - `.local/v5-agent-models.json` keys are already `<node>.<agent>` (executor|reviewer); serve's file is `{}`, nothing to migrate.
+
+## I-54 compatibility code removed (destructive rebuild, Du Yuan 2026-10-23)
+- 1/3 old engine: `harness/tools/mcp/control_openlca/workflow_mcp.py` + `mcp.yaml` (pi_driver no longer falls back
+  to `mcp.yaml`, only `v5.yaml`), `harness/tools/shared/lca_artifacts/*.py` (only used by workflow_mcp; `templates/`
+  kept for revise-report), `legacy_import_lci` / `legacy_clear_category` in control_openlca `workflow.py`;
+  proj_init probes `main.py`.
+- 2/3 aliases: `/api/workflow/start` body `task` and `whole-lca`/`LCA-main`/`LCA-revise` aliases; plan API takes
+  workflow ids `full-lca` / `revise-lca` only (GUI updated); old agent `role:` key hint in config.
+- 3/3 legacy readers / fallbacks: /results 404 fallbacks that read `workspace/runs/**/handoff.json` and files directly
+  (`load-files.ts` keeps only the `ResultFile` type); `.reference-notes.json` migration; study-form 「地域」「研究年份」
+  label parsing; pi auth `{providers: ...}` wrapper; control_openlca journal "legacy current.json without
+  operation_id"; `-old` category-suffix checks (already rejected by the exact category check); "old runtime may not know
+  client.hello" guard; workspace clean `legacy_dirs` (outputs/, records/); clean preset `whole-lca` → `full-lca`.
+- Also: /results agent label reads `agent` (follow-up of I-53).
+- Kept on purpose: node-level resume for new runs; plan import parsers for other Markdown layouts (bold labels /
+  numbered sections, `_legacy_conditions`) — they parse user-imported documents, listed for Du Yuan.

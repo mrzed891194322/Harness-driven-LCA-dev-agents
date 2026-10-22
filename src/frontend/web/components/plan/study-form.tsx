@@ -162,7 +162,6 @@ function hydrate(fields: PlanFields): StudyDraft {
   draft.scopeNote = scopeNotes.join("\n").trim();
 
   const special: string[] = [];
-  const legacyPlace: string[] = [];
   for (const block of fields.conditions.split(/\n\s*\n/)) {
     const text = block.trim();
     if (!text) continue;
@@ -172,8 +171,7 @@ function hydrate(fields: PlanFields): StudyDraft {
     }
     const match = text.includes("\n") ? null : LABEL.exec(text);
     const key = match?.[1].trim();
-    if (match && (key === "地域" || key === "研究年份") && match[2].trim()) legacyPlace.push(match[2].trim());
-    else if (match && key === "LCA 数据库") continue;
+    if (match && key === "LCA 数据库") continue;
     else if (match && key === "环境影响评价方法" && !draft.lcia) draft.lcia = match[2].trim();
     else if (text === "所选方法的全部指标") draft.impactScope = "all";
     else if (text.startsWith("仅指定指标")) {
@@ -181,7 +179,6 @@ function hydrate(fields: PlanFields): StudyDraft {
       draft.impactNote = text.replace(/^仅指定指标[：:]?\s*/, "").trim();
     } else special.push(text);
   }
-  if (!draft.place) draft.place = legacyPlace.join("，");
   draft.special = special.join("\n\n");
   return draft;
 }

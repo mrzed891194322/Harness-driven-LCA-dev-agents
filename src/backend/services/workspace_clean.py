@@ -1,4 +1,4 @@
-"""Workspace preparation and clean presets (whole-lca / revise-lca)."""
+"""Workspace preparation and clean presets (full-lca / revise-lca)."""
 
 from __future__ import annotations
 
@@ -89,7 +89,6 @@ CLEAN_TARGETS = [
             "artifacts/**",
             "tmp/**",
         ],
-        "legacy_dirs": ["outputs", "records"],
         "keep_patterns": ["**/README.md", ORCHESTRATOR_LOCK_KEEP],
     },
 ]
@@ -100,7 +99,7 @@ CLEAN_PRESETS: dict[str, list[str]] = {
     # target deletes.
     # knowledge (plan + reference inputs) is never cleared before a run; the
     # "knowledge" target stays available for explicit manual use only.
-    "whole-lca": ["openlca", "workspace"],
+    "full-lca": ["openlca", "workspace"],
     "revise-lca": ["openlca"],
 }
 
@@ -184,23 +183,6 @@ def _clean_filesystem_target(
             for child in sorted(root_dir.iterdir())
             if child.is_dir() and child.name not in exclude_top_level
         ]
-
-    legacy_dirs = list(target_cfg.get("legacy_dirs") or [])
-    for legacy_name in legacy_dirs:
-        legacy_path = root_dir / legacy_name
-        if not legacy_path.exists():
-            continue
-        try:
-            ensure_path_within(legacy_path, allowed_root)
-        except ValueError as exc:
-            print(f"  拒绝越界清理遗留目录: {exc}", file=sys.stderr)
-            total_failed += 1
-            continue
-        print(f"  删除遗留目录: {legacy_name}/（不保留 README）")
-        if dry_run:
-            total_dirs += 1
-        else:
-            shutil.rmtree(legacy_path)
 
     if not ignored_dirs:
         return total_files, total_dirs, total_kept, total_failed
@@ -611,7 +593,7 @@ def cli_main(argv: list[str] | None = None) -> None:
         type=str,
         default=None,
         choices=sorted(CLEAN_PRESETS),
-        help="预设清理序列: whole-lca 或 revise-lca",
+        help="预设清理序列: full-lca 或 revise-lca",
     )
     parser.add_argument(
         "--no-staging",

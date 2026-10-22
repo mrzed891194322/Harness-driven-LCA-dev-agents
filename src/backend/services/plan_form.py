@@ -14,7 +14,6 @@ REVISE_PLAN_RELATIVE = Path("workspace/artifacts/plan/revise_plan.md")
 INPUTS_RELATIVE = Path("harness/knowledge/inputs")
 TEMPLATE_NAME = "lca-plan-template.md"
 NOTES_NAME = "reference-notes.json"
-_LEGACY_NOTES_NAME = ".reference-notes.json"
 DEFAULT_WORKFLOW_NAME = "full-lca"
 # GUI plan file per workflow id (v5 orchestrations).
 PLAN_BY_WORKFLOW = {"full-lca": PLAN_RELATIVE, "revise-lca": REVISE_PLAN_RELATIVE}
@@ -382,10 +381,6 @@ def _notes_path(root: Path) -> Path:
     return inputs_dir(root) / NOTES_NAME
 
 
-def _legacy_notes_path(root: Path) -> Path:
-    return inputs_dir(root) / _LEGACY_NOTES_NAME
-
-
 def _parse_notes(path: Path) -> dict[str, str] | None:
     if not path.is_file():
         return None
@@ -403,17 +398,7 @@ def _parse_notes(path: Path) -> dict[str, str] | None:
 
 
 def _read_notes(root: Path) -> dict[str, str]:
-    current = _parse_notes(_notes_path(root))
-    legacy_path = _legacy_notes_path(root)
-    if current is None:
-        legacy = _parse_notes(legacy_path)
-        if legacy is None:
-            return {}
-        _write_notes(root, legacy)
-        return legacy
-    if legacy_path.is_file():
-        legacy_path.unlink()
-    return current
+    return _parse_notes(_notes_path(root)) or {}
 
 
 def _write_notes(root: Path, notes: dict[str, str]) -> None:
@@ -423,9 +408,6 @@ def _write_notes(root: Path, notes: dict[str, str]) -> None:
         json.dumps(notes, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    legacy = _legacy_notes_path(root)
-    if legacy.is_file():
-        legacy.unlink()
 
 
 def _reference_relative(filename: str) -> str:

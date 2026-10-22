@@ -646,12 +646,7 @@ def import_request(
             "execution_mode": "not_executed",
         }
     if (root / "current.json").exists():
-        current_id = read(root / "current.json").get("operation_id")
-        if not current_id:
-            return {
-                "status": "indeterminate",
-                "errors": ["legacy journal must be resolved before v2 import"],
-            }
+        current_id = read(root / "current.json")["operation_id"]
         current = read(root / "operations" / f"{identifier(current_id)}.json")
         if current["status"] in {"running", "indeterminate"}:
             return {

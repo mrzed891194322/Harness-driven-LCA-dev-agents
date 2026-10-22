@@ -343,14 +343,9 @@ class PiRuntimeClient:
                 self._conn = conn
             threading.Thread(target=self._read_loop, args=(conn,), daemon=True).start()
         if not self.private:
-            try:
-                info = self._call(
-                    conn, "client.hello", {"label": self.label}, timeout=10.0
-                )
-                if isinstance(info, dict) and info.get("pid"):
-                    self.runtime_pid = int(info["pid"])
-            except Exception:  # noqa: BLE001 - an old runtime may not know hello
-                pass
+            info = self._call(conn, "client.hello", {"label": self.label}, timeout=10.0)
+            if isinstance(info, dict) and info.get("pid"):
+                self.runtime_pid = int(info["pid"])
         return conn
 
     def _open(self) -> _Connection:
