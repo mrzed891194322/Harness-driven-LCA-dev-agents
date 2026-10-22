@@ -15,7 +15,7 @@ def test_workflow_and_nodes_load(v5_root):
 
 def test_unknown_node(v5_root):
     write_yaml(v5_root / "harness/workflows/orchestrations/demo.yaml", {"nodes": ["nope"]})
-    with pytest.raises(ConfigError, match="missing file"):
+    with pytest.raises(ConfigError, match=r"demo\.yaml:\d+: unknown node 'nope'"):
         load_workflow(v5_root, "demo")
 
 
@@ -71,3 +71,44 @@ def test_old_role_form_is_rejected(v5_root):
     make_node(v5_root, "a", agents={"executor": {"role": "executor"}, "reviewer": "reviewer"})
     with pytest.raises(ConfigError, match=r"nodes/a\.yaml:\d+: agent 'executor': 'role' was replaced"):
         load_node(v5_root, "a")
+
+
+INLINE_EXEC = {"prompt": "按 <plan> 写段落。", "access": {"read": {"knowledge": False}},
+               "deliver": {"submit": "artifact", "spec": "paragraph", "max_turns": 7}}
+
+
+def test_inline_agent_in_node(v5_root):
+    """I-50: an agent object with prompt/deliver is an inline agent; other keys are node overrides."""
+    make_node(v5_root, "a", produces=[{"path": "text"}],
+              agents={"executor": {**INLINE_EXEC, "tools": {"mcp": ["control_openlca"]}}, "reviewer": "reviewer"})
+    node = load_node(v5_root, "a")
+    ex = node.agents["executor"]
+    assert ex.agent == "" and ex.definition.prompt.startswith("按") and ex.definition.deliver.max_turns == 7
+    assert ex.definition.access.read == {"knowledge": False} and ex.tools.mcp == ["control_openlca"]
+    assert node.produces[0].spec == "paragraph"  # default spec from the inline deliver
+
+
+def test_bad_inline_agent_names_file_and_line(v5_root):
+    make_node(v5_root, "a", agents={"executor": {"prompt": "x"}, "reviewer": "reviewer"})
+    with pytest.raises(ConfigError, match=r"nodes/a\.yaml:\d+: inline agent 'executor' needs 'prompt' and 'deliver'"):
+        load_node(v5_root, "a")
+
+
+def test_orchestration_mixes_names_and_inline_nodes(v5_root):
+    make_node(v5_root, "a", produces=[{"spec": "paragraph", "path": "text"}])
+    inline = {"id": "b", "requires": ["text"], "produces": [{"spec": "summary", "path": "sum"}],
+              "agents": {"executor": "executor", "reviewer": {**INLINE_EXEC, "deliver": {"submit": "verdict"}}},
+              "flow": EXEC_REVIEW_FLOW}
+    write_yaml(v5_root / "harness/workflows/orchestrations/mix.yaml", {"nodes": ["a", inline]})
+    wf, nodes = load_workflow(v5_root, "mix")
+    assert wf.nodes == ["a", "b"] and [n.id for n in nodes] == ["a", "b"]
+    assert nodes[1].agents["reviewer"].definition.deliver.submit == "verdict"
+
+
+def test_inline_node_errors(v5_root):
+    write_yaml(v5_root / "harness/workflows/orchestrations/bad.yaml", {"nodes": [{"title": "no id"}]})
+    with pytest.raises(ConfigError, match=r"orchestrations/bad\.yaml:\d+: inline node #1 needs an 'id'"):
+        load_workflow(v5_root, "bad")
+    write_yaml(v5_root / "harness/workflows/orchestrations/bad2.yaml", {"nodes": ["ghost"]})
+    with pytest.raises(ConfigError, match=r"orchestrations/bad2\.yaml:\d+: unknown node 'ghost'"):
+        load_workflow(v5_root, "bad2")

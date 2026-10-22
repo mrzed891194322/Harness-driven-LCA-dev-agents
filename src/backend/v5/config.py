@@ -259,21 +259,45 @@ def _line_of(path: Path, pattern: str) -> str:
     return str(path)
 
 
-def _normalize_agents(data: dict, path: Path) -> None:
-    """I-50: ``executor: executor`` (template name) or ``{agent: <name>, ...overrides}``."""
+def _normalize_agents(data: dict, path: Path) -> dict[str, "RoleDef"]:
+    """I-50: ``executor: executor`` (template name), ``{agent: <name>, ...overrides}`` or an inline agent object.
+
+    Returns the inline definitions by agent key.
+    """
+    inline_defs: dict[str, RoleDef] = {}
     agents = data.get("agents")
     if not isinstance(agents, dict):
-        return
+        return inline_defs
     for key, value in list(agents.items()):
         if isinstance(value, str):
             agents[key] = {"agent": value}
+        elif isinstance(value, dict) and "agent" not in value and "role" not in value:
+            # inline agent: the template fields (prompt / access / deliver / title) live right here
+            where = _line_of(path, rf'^\s*{key}:')
+            if "prompt" not in value or "deliver" not in value:
+                raise ConfigError(f"{where}: inline agent {key!r} needs 'prompt' and 'deliver' "
+                                  f"(or give a template name: `{key}: executor`)")
+            tpl = {k: value[k] for k in ("title", "prompt", "access", "deliver") if k in value}
+            try:
+                definition = RoleDef.model_validate(tpl)
+            except ValueError as exc:
+                raise ConfigError(f"{where}: inline agent {key!r}: {exc}") from exc
+            definition.prompt = render(definition.prompt, path)
+            rest = {k: v for k, v in value.items() if k not in tpl}
+            rest["agent"] = ""
+            agents[key] = rest
+            inline_defs[key] = definition
         elif isinstance(value, dict) and "role" in value:
             raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: agent {key!r}: 'role' was replaced by a template "
                               f"name (I-50), write `{key}: {value['role']}` or `{key}: {{agent: {value['role']}, ...}}`")
+    return inline_defs
 
 
-def _resolve_agents(root: Path, node: Node, path: Path) -> None:
+def _resolve_agents(root: Path, node: Node, path: Path, inline_defs: dict[str, "RoleDef"]) -> None:
     for key, agent in node.agents.items():
+        if key in inline_defs:
+            agent._definition = inline_defs[key]
+            continue
         if not agent.agent:
             raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: agent {key!r} needs a template name")
         tpl = root / layout.AGENTS / f"{agent.agent}.yaml"
@@ -287,12 +311,12 @@ def _resolve_agents(root: Path, node: Node, path: Path) -> None:
 def _build_node(root: Path, data: dict, path: Path) -> Node:
     if "revision" in data:
         raise ConfigError(f"{path}: revision is host-set (revise-lca), not a YAML key")
-    _normalize_agents(data, path)
+    inline_defs = _normalize_agents(data, path)
     try:
         node = Node.model_validate(data)
     except ValueError as exc:
         raise ConfigError(f"{path}: {exc}") from exc
-    _resolve_agents(root, node, path)
+    _resolve_agents(root, node, path, inline_defs)
     for produce in node.produces:
         if not produce.spec:
             executor = node.agents.get("executor")
@@ -316,11 +340,29 @@ def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
     path = root / layout.ORCHESTRATIONS / f"{name}.yaml"
     data = _load_yaml(path)
     data.setdefault("id", name)
+    # I-50: `nodes:` mixes node names (nodes/<name>.yaml) and inline node objects (need an `id`).
+    inline: dict[int, dict] = {}
+    if isinstance(data.get("nodes"), list):
+        ids = []
+        for i, item in enumerate(data["nodes"]):
+            if isinstance(item, dict):
+                if not isinstance(item.get("id"), str) or not item["id"]:
+                    raise ConfigError(f"{_line_of(path, r'^\s*nodes:')}: inline node #{i + 1} needs an 'id'")
+                inline[i] = dict(item)
+                ids.append(item["id"])
+            elif isinstance(item, str):
+                if not (root / layout.NODES / f"{item}.yaml").is_file():
+                    raise ConfigError(f"{_line_of(path, re.escape(item))}: unknown node {item!r} (no harness/workflows/nodes/{item}.yaml)")
+                ids.append(item)
+            else:
+                raise ConfigError(f"{path}: nodes[{i}] must be a node name or an inline node object")
+        data = {**data, "nodes": ids}
     try:
         workflow = Workflow.model_validate(data)
     except ValueError as exc:
         raise ConfigError(f"{path}: {exc}") from exc
-    nodes = [load_node(root, node_id) for node_id in workflow.nodes]
+    nodes = [_build_node(root, inline[i], path) if i in inline else load_node(root, node_id)
+             for i, node_id in enumerate(workflow.nodes)]
     for node in nodes:
         for produce in node.produces:
             load_spec(root, produce.spec)
