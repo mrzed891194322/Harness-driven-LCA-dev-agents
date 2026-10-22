@@ -761,7 +761,7 @@ def _inspect_import(
     if errors:
         return (
             {
-                "schema": "whole-lca/import-preflight",
+                "schema": "openlca/import-preflight",
                 "version": "1.1",
                 "ok": False,
                 "status": "invalid_lci",
@@ -870,7 +870,7 @@ def _inspect_import(
     ok = not provider_errors
     return (
         {
-            "schema": "whole-lca/import-preflight",
+            "schema": "openlca/import-preflight",
             "version": "1.1",
             "ok": ok,
             "status": "ready" if ok else "invalid_references",
@@ -1493,7 +1493,7 @@ def get_import_operation(operation_dir: Path) -> dict[str, Any]:
     path = _current_operation_path(operation_dir)
     if not path.is_file():
         return {
-            "schema": "whole-lca/import-operation-status",
+            "schema": "openlca/import-operation-status",
             "version": "1.0",
             "status": "not_found",
             "report": None,
@@ -1502,7 +1502,7 @@ def get_import_operation(operation_dir: Path) -> dict[str, Any]:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return {
-            "schema": "whole-lca/import-operation-status",
+            "schema": "openlca/import-operation-status",
             "version": "1.0",
             "status": "indeterminate",
             "report": None,
@@ -1510,7 +1510,7 @@ def get_import_operation(operation_dir: Path) -> dict[str, Any]:
         }
     status = report.get("status")
     return {
-        "schema": "whole-lca/import-operation-status",
+        "schema": "openlca/import-operation-status",
         "version": "1.0",
         "status": (
             status
@@ -1532,7 +1532,7 @@ def _rejected_import_report(
 ) -> dict[str, Any]:
     ended_at = utc_now()
     return {
-        "schema": "whole-lca/import-report",
+        "schema": "openlca/import-report",
         "version": "1.1",
         "operation_id": str(uuid.uuid4()),
         "status": "rejected",
@@ -1659,7 +1659,7 @@ def import_lci(
         ended_at: str | None,
     ) -> dict[str, Any]:
         return {
-            "schema": "whole-lca/import-report",
+            "schema": "openlca/import-report",
             "version": "1.1",
             "operation_id": operation_id,
             "status": status,

@@ -118,7 +118,7 @@ def model_graph_from_product_system(
         status = "success"
         error = None
     return {
-        "schema": "whole-lca/model-graph",
+        "schema": "openlca/model-graph",
         "version": "1.1",
         "status": status,
         "endpoint": endpoint,
@@ -160,7 +160,7 @@ def get_model_graph(
         system = find_entity(ipc_client, olca_schema.ProductSystem, product_system)
         if system is None:
             result = {
-                "schema": "whole-lca/model-graph",
+                "schema": "openlca/model-graph",
                 "version": "1.1",
                 "status": "failed",
                 "endpoint": endpoint,

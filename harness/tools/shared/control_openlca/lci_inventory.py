@@ -280,7 +280,7 @@ def validate_lci_directory(json_dir: Path) -> dict[str, Any]:
             if resolved != root and root not in resolved.parents:
                 errors.append("human_readable_mapping.md path escapes LCI root")
     return {
-        "schema": "whole-lca/lci-validation",
+        "schema": "openlca/lci-validation",
         "version": "1.0",
         "ok": not errors,
         "counts": counts,

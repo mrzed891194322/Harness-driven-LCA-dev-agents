@@ -93,7 +93,7 @@ def calculate_product_system(
         raise
     started_at = utc_now()
     base = {
-        "schema": "whole-lca/raw-lcia-results",
+        "schema": "openlca/raw-lcia-results",
         "version": "1.0",
         "endpoint": endpoint,
         "product_system": {
