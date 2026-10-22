@@ -21,7 +21,14 @@ def check(root: Path) -> bool:
     from backend.v5.config import ConfigError, list_workflows, load_workflow
     from backend.v5.inject import Injector
 
+    from backend.v5 import langsmith_disabled
+
     ok = True
+    if langsmith_disabled():
+        print("✓ LangSmith tracing off")
+    else:
+        print("✗ LangSmith tracing is not disabled (LANGCHAIN_TRACING_V2/LANGSMITH_TRACING or an API key is set)")
+        ok = False
     injector = Injector(root)
     for name in list_workflows(root):
         try:
