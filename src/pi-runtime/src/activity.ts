@@ -42,7 +42,7 @@ export function clip(text: string, limit = SUMMARY_LIMIT): string {
 }
 
 export function isHandoffTool(name: string): boolean {
-  return /(^|__|\.)submit_handoff$/.test(name);
+  return /(^|__|\.)submit$/.test(name);
 }
 
 /** Keep small scalar args; replace bulky text with its length so records stay small. */

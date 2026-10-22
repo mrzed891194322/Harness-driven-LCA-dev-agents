@@ -185,37 +185,33 @@ class V5Service:
                 "run_id": manifest.get("run_id", ""), "workflow": manifest.get("workflow", ""),
                 "current_node": manifest.get("current_node"), "current_rev": manifest.get("current_rev"), "nodes": nodes, "running": self.running}
 
-    def _feed(self) -> tuple[dict[str, Any], str, list[dict]]:
-        from backend.v5.progress_view import build
+    def progress(self, after_seq: int = 0, run_id: str = "") -> dict[str, Any]:
+        """#1 /api/workflow/progress: run status + structured activity items with ``seq`` > ``after_seq``.
+
+        ``reset`` is true when the client's ``run_id`` is not the current run; items then start from seq 0."""
+        from backend.v5.activity import items
 
         st = self.status()
-        model = self._default_model()[0]
-        text, activity = build(self.ws, EventLog(self.ws).read(), model)
-        return st, text, activity
-
-    def progress(self, offset: int = 0, epoch: str = "") -> dict[str, Any]:
-        """Old 599ed0a /api/workflow/progress shape, from v5 status + events + live session files (read-only)."""
-        st, text, _ = self._feed()
         status = {"stopped": "interrupted"}.get(st["status"], st["status"])
         cur = st.get("current_node") or ""
-        node = next((n for n in st["nodes"] if n["id"] == cur), None)
         reason = st.get("reason") or ""
         if status in ("failed", "interrupted"):
-            errs = [f"{n['id']}：{n['error']}" for n in st["nodes"] if n.get("error")]
+            errs = [f"{n.get('key') or n['id']}：{n['error']}" for n in st["nodes"] if n.get("error")]
             reason = "\n".join([r for r in [reason, *errs] if r])
-        run_id = st.get("run_id") or ""
-        reset = epoch != run_id or offset > len(text)
-        start = 0 if reset else offset
-        return {"run_id": run_id or None, "status": status, "current_node": cur or None,
-                "attempt": (node or {}).get("round") or None, "status_reason": reason, "model": self._default_model()[0],
-                "text": text[start:], "offset": len(text), "reset": reset, "epoch": run_id,
-                "workflow": st.get("workflow") or None}
-
-    def activity(self, offset: int = 0) -> dict[str, Any]:
-        _, _, activity = self._feed()
-        reset = offset > len(activity)
-        start = 0 if reset else offset
-        return {"events": activity[start:], "offset": len(activity), "reset": reset}
+        current = st.get("run_id") or ""
+        reset = run_id != current
+        after = 0 if reset else max(0, int(after_seq))
+        events = EventLog(self.ws).read()
+        all_items = items(events, self.ws)
+        attempt = 0
+        for e in events:
+            if e.get("kind") == "turn_start" and e.get("node") == cur and e.get("rev") == st.get("current_rev"):
+                attempt = int(e.get("attempt") or 0)
+        return {"run_id": current or None, "status": status, "status_reason": reason, "current_node": cur or None,
+                "rev": st.get("current_rev"), "attempt": attempt or None, "model": self._default_model()[0],
+                "workflow": st.get("workflow") or None, "reset": reset,
+                "items": [i for i in all_items if i["seq"] > after],
+                "next_seq": max((int(e.get("seq") or 0) for e in events), default=after)}
 
     def feedback(self, node: str, rnd: int) -> str:
         if not node.replace("-", "").replace("_", "").replace("@", "").isalnum():

@@ -221,7 +221,7 @@ function AgentRow({ item, model }: { item: AgentItem; model: string }) {
 }
 
 function ToolRow({ item }: { item: Extract<AgentItem, { type: "tool" }> }) {
-  const handoff = /(^|__|\.)submit_handoff$/.test(item.name);
+  const handoff = /(^|__|\.)submit$/.test(item.name);
   const Icon = handoff ? Send : TOOL_ICON[item.name as keyof typeof TOOL_ICON] ?? Wrench;
   const preview = item.detail.split("\n")[0] || item.message;
   const stateLabel = handoff

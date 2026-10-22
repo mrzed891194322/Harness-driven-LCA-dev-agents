@@ -709,15 +709,9 @@ def v5_agent_models_save(body: dict[str, Any]) -> dict[str, Any]:
 
 
 @app.get("/api/workflow/progress")
-def workflow_progress(offset: int = 0, epoch: str = "") -> dict[str, Any]:
-    """599ed0a /runs feed (实时终端 text + run state) built from v5 data; read-only."""
-    return _v5().progress(offset, epoch)
-
-
-@app.get("/api/workflow/activity")
-def workflow_activity(run_id: str = "", offset: int = 0) -> dict[str, Any]:
-    """599ed0a /runs 活动概览 events (tool calls/results, turn ends) from v5 session files; read-only."""
-    return _v5().activity(offset)
+def workflow_progress(after_seq: int = 0, run_id: str = "") -> dict[str, Any]:
+    """#1 structured activity stream: status + items after ``after_seq`` (``reset`` when run_id changed)."""
+    return _v5().progress(after_seq, run_id)
 
 
 @app.get("/api/workflows")

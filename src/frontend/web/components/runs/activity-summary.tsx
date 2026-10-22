@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { History, Play } from "lucide-react";
-import { apiFetch } from "../../lib/api";
 
-/** One record of /api/workflow/activity (events.jsonl written by the Pi client). */
+/** One activity record, derived from /api/workflow/progress items (lib/run-items.ts). */
 export type ActivityEvent = {
   run_id?: string;
   node?: string;
@@ -118,67 +117,20 @@ function nodeIsLive(item: NodeActivity, running: boolean): boolean {
 
 export function ActivitySummary({
   runId,
+  events,
   running = false,
   currentNode = "",
   onNodeAttempt,
 }: {
   runId: string;
+  events: ActivityEvent[];
   running?: boolean;
   currentNode?: string;
   onNodeAttempt?: (attempt: number) => void;
 }) {
-  const [items, setItems] = useState<NodeActivity[]>([]);
-  const events = useRef<ActivityEvent[]>([]);
-  const offset = useRef(0);
-  const current = useRef("");
+  const items = useMemo(() => (runId ? summarizeActivity(events) : []), [runId, events]);
   const liveItemRef = useRef<HTMLLIElement | null>(null);
   const liveToken = useRef("");
-
-  useEffect(() => {
-    let cancelled = false;
-    let busy = false;
-    if (current.current !== runId) {
-      current.current = runId;
-      events.current = [];
-      offset.current = 0;
-      setItems([]);
-    }
-    if (!runId) return;
-
-    async function tick() {
-      if (busy) return;
-      busy = true;
-      try {
-        const query = new URLSearchParams({ run_id: runId, offset: String(offset.current) });
-        const response = await apiFetch(`/api/workflow/activity?${query.toString()}`);
-        if (!response.ok) return;
-        const data = (await response.json()) as {
-          events?: ActivityEvent[];
-          offset?: number;
-          reset?: boolean;
-        };
-        if (cancelled) return;
-        if (data.reset) events.current = [];
-        const fresh = data.events || [];
-        offset.current = Number(data.offset) || 0;
-        if (fresh.length || data.reset) {
-          events.current = events.current.concat(fresh);
-          setItems(summarizeActivity(events.current));
-        }
-      } catch {
-        // The main progress feed already reports backend errors.
-      } finally {
-        busy = false;
-      }
-    }
-
-    void tick();
-    const timer = setInterval(() => void tick(), 1500);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [runId]);
 
   const nodeAttempt = items.reduce(
     (highest, item) => (item.node === currentNode && item.attempt > highest ? item.attempt : highest),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CircleStop, Play, RefreshCw, Terminal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ActivitySummary } from "../../components/runs/activity-summary";
@@ -8,7 +8,7 @@ import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { apiFetch } from "../../lib/api";
 import { fetchWorkflowList } from "../../lib/workflow-manifest";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
-import { lastNodeFromEvents, type ActivityEvent } from "../../lib/run-activity";
+import { itemsToActivity, itemsToLog, lastNodeFromItems, nodeLabel, type RunItem } from "../../lib/run-items";
 
 type Progress = {
   run_id?: string | null;
@@ -17,28 +17,25 @@ type Progress = {
   attempt?: number | null;
   status_reason?: string | null;
   model?: string | null;
-  text?: string;
-  offset?: number;
+  rev?: number | null;
+  items?: RunItem[];
+  next_seq?: number;
   reset?: boolean;
-  epoch?: string;
   workflow?: string | null;
 };
 
 export default function RunsPage() {
   const router = useRouter();
-  const [progress, setProgress] = useState<Progress>({ status: "idle", text: "" });
-  const [log, setLog] = useState("");
+  const [progress, setProgress] = useState<Progress>({ status: "idle" });
+  const [runItems, setRunItems] = useState<RunItem[]>([]);
   const [error, setError] = useState("");
   const [reasonOpen, setReasonOpen] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const [lastNode, setLastNode] = useState("");
   const [activityAttempt, setActivityAttempt] = useState(0);
-  const offset = useRef(0);
+  const afterSeq = useRef(0);
   const runId = useRef("");
-  const epoch = useRef("");
-  const activityOffset = useRef(0);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -54,20 +51,19 @@ export default function RunsPage() {
       busy = true;
       try {
         const query = new URLSearchParams({
-          offset: String(offset.current),
-          epoch: epoch.current,
+          after_seq: String(afterSeq.current),
+          run_id: runId.current,
         });
         const response = await apiFetch(`/api/workflow/progress?${query.toString()}`);
         const data = (await response.json()) as Progress & { detail?: string };
         if (!response.ok) throw new Error(data.detail || `无法读取运行输出（HTTP ${response.status}）`);
         if (cancelled) return;
         const nextRun = String(data.run_id || "");
-        const chunk = data.text || "";
+        const fresh = data.items || [];
         const switched = Boolean(runId.current) && nextRun !== runId.current;
-        if (data.reset || switched) setLog(chunk);
-        else if (chunk) setLog((current) => current + chunk);
-        offset.current = Number(data.offset) || 0;
-        epoch.current = data.epoch || "";
+        if (data.reset || switched) setRunItems(fresh);
+        else if (fresh.length) setRunItems((current) => current.concat(fresh));
+        afterSeq.current = Number(data.next_seq) || 0;
         runId.current = nextRun;
         setProgress(data);
         setError("");
@@ -131,10 +127,9 @@ export default function RunsPage() {
       });
       const data = (await response.json()) as { detail?: string };
       if (!response.ok) throw new Error(data.detail || `无法启动（HTTP ${response.status}）`);
-      offset.current = 0;
-      epoch.current = "";
+      afterSeq.current = 0;
       runId.current = "";
-      setLog("");
+      setRunItems([]);
       router.refresh();
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : "无法从头重跑");
@@ -175,51 +170,18 @@ export default function RunsPage() {
     }
   }
 
-  useEffect(() => {
-    const run = String(progress.run_id || "");
-    if (!run) {
-      setLastNode("");
-      activityOffset.current = 0;
-      return;
-    }
-    let cancelled = false;
-    async function check() {
-      try {
-        const query = new URLSearchParams({
-          run_id: run,
-          offset: String(activityOffset.current),
-        });
-        const response = await apiFetch(`/api/workflow/activity?${query.toString()}`);
-        if (!response.ok || cancelled) return;
-        const data = (await response.json()) as {
-          events?: ActivityEvent[];
-          offset?: number;
-          reset?: boolean;
-        };
-        if (data.reset) activityOffset.current = 0;
-        activityOffset.current = Number(data.offset) || activityOffset.current;
-        const events = data.events || [];
-        if (cancelled) return;
-        if (data.reset) {
-          setLastNode(lastNodeFromEvents("", events));
-        } else {
-          setLastNode((current) => lastNodeFromEvents(current, events));
-        }
-      } catch {
-        // ignore
-      }
-    }
-    void check();
-    const timer = setInterval(() => void check(), 2000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [progress.run_id]);
+  const model = (progress.model || "").trim();
+  const log = useMemo(() => itemsToLog(runItems, model), [runItems, model]);
+  const activity = useMemo(() => itemsToActivity(runItems), [runItems]);
+  const lastNode = useMemo(() => lastNodeFromItems("", runItems), [runItems]);
+  const current = (progress.current_node || "").trim();
+  const currentLabel = useMemo(() => {
+    const last = [...runItems].reverse().find((item) => item.node === current);
+    return last ? nodeLabel(current, last.redo || 0) : current;
+  }, [runItems, current]);
 
   const nodeText = (() => {
-    const current = (progress.current_node || "").trim();
-    if (current) return current;
+    if (current) return currentLabel;
     if (status === "completed") return reason ? `全部完成 · ${reason}` : "全部完成";
     if (status === "failed" || status === "interrupted" || status === "aborted") {
       return lastNode ? `${label} · 最后阶段 ${lastNode}` : label;
@@ -242,7 +204,7 @@ export default function RunsPage() {
         {error ? <p className="status-banner error" data-testid="run-error">{error}</p> : null}
         <div className="run-body">
           <div className="run-terminal">
-            <AgentStream text={log} running={status === "running"} model={(progress.model || "").trim()} />
+            <AgentStream text={log} running={status === "running"} model={model} />
             {reasonOpen ? (
               <div className="run-reason-panel" data-testid="run-reason-panel" role="dialog" aria-label={status === "interrupted" ? "中断原因" : "失败原因"}>
                 <div className="run-reason-head">
@@ -327,8 +289,9 @@ export default function RunsPage() {
             </div>
             <ActivitySummary
               runId={String(progress.run_id || "")}
+              events={activity}
               running={status === "running"}
-              currentNode={String(progress.current_node || "")}
+              currentNode={currentLabel}
               onNodeAttempt={setActivityAttempt}
             />
           </aside>

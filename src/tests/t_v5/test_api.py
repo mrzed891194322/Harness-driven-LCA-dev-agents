@@ -131,31 +131,39 @@ def test_runner_passes_agent_models_to_preflight(monkeypatch, v5_root):
     assert got["models"] == ["p/rev"]
 
 
-def test_old_runs_feed_from_v5_session_files(monkeypatch, v5_root):
-    """599ed0a /runs feed: progress text + activity built read-only from events and the live pi session file."""
-    import json as _json
+def test_progress_items_stream(monkeypatch, v5_root):
+    """#1: /api/workflow/progress returns structured items from the event log, paged by seq."""
+    from backend.v5.events import EventLog
 
     client, svc = _client(monkeypatch, v5_root)
     assert client.post("/api/workflow/start", json={"workflow": "full-lca", "plan": "# 计划\n"}).status_code == 200
     svc.wait(10)
     ws = v5_root / "workspace"
-    sess = ws / "tmp" / "pi-v5" / "a.executor" / "session.jsonl"
-    sess.parent.mkdir(parents=True, exist_ok=True)
-    rows = [
-        {"type": "message", "timestamp": "2999-01-01T00:00:00Z", "message": {"role": "assistant", "model": "m-1",
-         "content": [{"type": "text", "text": "开始"}, {"type": "toolCall", "id": "c1", "name": "read", "arguments": {"path": "x.md"}}]}},
-        {"type": "message", "timestamp": "2999-01-01T00:00:01Z", "message": {"role": "toolResult", "toolCallId": "c1",
-         "toolName": "read", "isError": True, "content": [{"type": "text", "text": "not found"}]}},
-    ]
-    sess.write_text("\n".join(_json.dumps(r) for r in rows), encoding="utf-8")
     before = sorted(str(p) for p in v5_root.rglob("*"))
     p = client.get("/api/workflow/progress").json()
-    assert p["status"] == "completed" and p["reset"] is True and p["epoch"] == p["run_id"] and p["workflow"] == "full-lca"
-    assert "[a(executor#1)-m_1-" in p["text"] and "→ read x.md" in p["text"] and "✗ read: not found" in p["text"]
-    again = client.get("/api/workflow/progress", params={"offset": p["offset"], "epoch": p["epoch"]}).json()
-    assert again["text"] == "" and again["reset"] is False
-    act = client.get("/api/workflow/activity", params={"run_id": p["run_id"]}).json()["events"]
-    assert [e["kind"] for e in act if e.get("tool") == "read"] == ["tool_call", "tool_result"]
+    assert p["status"] == "completed" and p["reset"] is True and p["workflow"] == "full-lca"
+    assert p["items"] and all(i["seq"] <= p["next_seq"] for i in p["items"])
+    assert any(i["kind"] == "note" and "开始运行 full-lca" in i["text"] for i in p["items"])
+    again = client.get("/api/workflow/progress", params={"after_seq": p["next_seq"], "run_id": p["run_id"]}).json()
+    assert again["items"] == [] and again["reset"] is False
+    assert sorted(str(x) for x in v5_root.rglob("*")) == before  # read-only
+    ev = EventLog(ws, run_id=p["run_id"])
+    ev.emit("node_start", node="a", rev=1, redo={"target": "a"})
+    turn = ev.bind(node="a", rev=1, agent="executor", attempt=1)
+    turn.emit("turn_start", model="p/m-1")
+    turn.emit("assistant_text", summary="开始")
+    turn.emit("tool_call", tool="read", tool_call_id="c1", summary=f"{v5_root}/workspace/x.md")
+    turn.emit("tool_result", tool="read", tool_call_id="c1", is_error=True, summary="not found")
+    turn.emit("tool_call", tool="mcp__submit__submit", tool_call_id="c2", summary="", handoff=True)
+    new = client.get("/api/workflow/progress", params={"after_seq": p["next_seq"], "run_id": p["run_id"]}).json()
+    kinds = [i["kind"] for i in new["items"]]
+    assert kinds == ["note", "assistant_text", "tool_call", "tool_result", "tool_call"]
+    assert new["items"][0]["text"] == "开始阶段 a（重做 1）" and new["items"][1]["model"] == "p/m-1"
+    assert new["items"][2]["summary"] == "workspace/x.md" and new["items"][3]["is_error"] is True
+    assert new["items"][4]["handoff"] is True and new["items"][1]["redo"] == 1
+    other = client.get("/api/workflow/progress", params={"after_seq": 999, "run_id": "old"}).json()
+    assert other["reset"] is True and other["items"][0]["seq"] == p["items"][0]["seq"]
+    assert client.get("/api/workflow/activity").status_code == 404
     wl = client.get("/api/workflows").json()["workflows"]
     assert wl[0]["id"] == "full-lca" and wl[0]["mode"] == "main"
     assert sorted(str(p) for p in v5_root.rglob("*")) == before
