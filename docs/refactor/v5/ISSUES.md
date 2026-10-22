@@ -659,3 +659,16 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
 - Done in dev (a43800f docs, ec62bfe move, a80a884 short names, 1855a82 inline, this commit GUI text): /harness tab
   「角色」→「agent」 (section id `roles` → `agents`, testid `harness-tab-agents`); /plan agent settings line
   「角色 X」→「agent X」 (inline agents show 「内联」). The literal text 「角色说明」 did not exist in the GUI.
+
+## I-51 openlca.yaml keeps only red lines; operating steps live in the MCP tool descriptions
+- Removed from `rules/lca/openlca.yaml`: health_check first; query order (batch descriptors / validate_providers_batch /
+  get_flow_providers / get_process_details) and pagination note; project_scope note; background entities not copied into
+  LCI (already in `mapping.yaml`); preflight → import with same dirs/scope_id/preflight_id/request_id; timeout ≠ cancel,
+  get_import_operation, resume_operation_id; calculation raw saved as is; timeout_sec; path-argument scope; cleanup_output.
+- Added to `harness/tools/mcp/control_openlca/main.py` descriptions where missing: health_check "call first, stop on
+  failure"; query pagination; preflight path scope + preflight_id; import same args + stable request_id + timeout ≠ cancel;
+  calculate "save raw unmodified"; batch/validate usage hints. Already covered there: resume_operation_id, timeout_sec,
+  get_import_operation after timeout, cleanup_output host-only.
+- Kept as rule: MCP only, category-only writes (`{{project_category}}`), never touch ecoinvent/background or root, stop
+  when an operation's outcome cannot be confirmed.
+- Per-node `{agent: ..., overrides}` never mutates the template (DESIGN §九; test in test_config).

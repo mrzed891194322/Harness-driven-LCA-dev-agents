@@ -1,13 +1,8 @@
-title: openLCA 工具纪律（v5）
-description: LCA 方法规则：openLCA 工具纪律（v5）
+title: openLCA 红线（v5）
+description: openLCA 使用约束；工具用法见各 control_openlca 工具说明
 enabled: true
 order: 150
 prompt: |
-  - 只通过已注册的 `control_openlca` MCP 工具访问 openLCA；禁止脚本或其他途径绕过。首次访问前调用 `health_check`，失败如实报告并以 `stop` 提交。
-  - 写入只发生在项目分类 `202606-harness-agent-LCA` 内（宿主锁定，传别的分类会被拒绝）。`cleanup_output` 不对 agent 开放。
-  - 路径参数受本 agent 权限约束：`lci_dir` 必须可读（上游产物在 `workspace/artifacts/...`），`operation_dir` 必须在你的中间目录 `workspace/runs/<本节点>/` 下，否则工具直接拒绝。
-  - 查询：描述符优先 `query_descriptors_batch`；有确切 Provider UUID 用 `validate_providers_batch`；发现候选用 `get_flow_providers`；核对定量参考用 `get_process_details`。处理分页，一页无匹配不等于全库不存在。查询结果的 `project_scope` 只有 `background` 能当 provider 证据。
-  - 背景库已有的 Flow/Process/ProductSystem 只在交换的 `flow.@id`、`defaultProvider.@id` 中引用，不在 LCI 目录里再放以该 UUID 为自身 `@id` 的实体文件。
-  - 导入：先 `preflight_import_lci`，再用同一 `lci_dir`、`operation_dir`、`scope_id` 和返回的 `preflight_id` 调 `import_lci`（稳定 `request_id`）。超时不等于取消：用 `get_import_operation` 读日志，不盲目重导；`partial_failure` 时用 `import_lci(resume_operation_id=...)` 续导。无法确认终态就停止并以 `stop` 提交。
-  - 计算：`calculate_product_system` 的结果原样保存到你的交付目录（见交付要求），报告数值只能来自这些原始结果。长调用用工具的 `timeout_sec`。
-  - 工具失败、断链、空结果如实报告，不静默换来源或工具。
+  - 只通过已注册的 `control_openlca` MCP 工具访问 openLCA，不用脚本或其他途径绕过；工具的调用顺序和用法以各工具说明为准。
+  - 只能在项目分类 `{{project_category}}` 内新建、修改或删除；绝不改动 ecoinvent 等背景数据库，不改 openLCA 根目录。
+  - 无法确认 openLCA 操作的结果时停止，并以 `stop` 提交。

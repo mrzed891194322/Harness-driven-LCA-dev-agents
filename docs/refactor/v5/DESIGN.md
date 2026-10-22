@@ -111,6 +111,8 @@ Rules, roles and specs are YAML files, not Markdown: see COMMIT_PLAN.md › Comm
   - 编排 `nodes: [lca-intake, {id: bom, ...}]`：字符串 = `nodes/<名>.yaml`，对象 = 内联节点。
   - 节点 `agents: {executor: executor, reviewer: reviewer}`：字符串 = `agents/<名>.yaml`；对象含 `prompt` = 内联 agent；对象含 `agent: <名>` = 引用模板并在节点上覆盖（model、thinking、max_turns、tools、rules、access）。
   - 未知短名、内联缺字段：报错带文件和行号（能定位时）。
+  - 【已定】`{agent: executor, max_turns: ..., tools: ...}` 的覆盖只作用于本节点，绝不修改 agent 模板文件或其他节点加载到的模板。
 - 【已定】技能一律放 `harness/tools/`（LCA 规格类、编程/计算类都在这里），不建 `harness/skills/`。
 - 【已定】GUI 文案「角色说明」改为「agent 说明」，只改文字，样式按 599ed0a 不变。
 - 上文第一节 `rules/roles/<角色>/` 的写法以本节为准。
+- 【已定】`rules/lca/openlca.yaml` 只留红线（只在项目分类内增删改、不碰背景库和根目录、无法确认结果就停止）；调用顺序、预检后导入、续导等操作步骤写在 control_openlca 各工具说明里（I-51）。

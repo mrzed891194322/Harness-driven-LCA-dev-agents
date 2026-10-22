@@ -141,7 +141,8 @@ def _target_category(target_category: str) -> str:
 @mcp.tool(
     description=(
         "Check whether the configured openLCA IPC Server and active database "
-        "respond, retrying with three fresh clients after the first failed probe."
+        "respond, retrying with three fresh clients after the first failed probe. "
+        "Call it before the first other openLCA tool; if it fails, report and stop."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -157,7 +158,8 @@ def health_check() -> dict[str, Any]:
     description=(
         "Search descriptors in the active openLCA database and return names, UUIDs, "
         "categories, outside_project (relative to target_category), and pagination "
-        "metadata. Optional timeout_sec (300-7200) sets the IPC session budget for "
+        "metadata. Results are paginated: no match on one page does not mean the "
+        "entity is absent. Optional timeout_sec (300-7200) sets the IPC session budget for "
         "large databases."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
@@ -256,6 +258,9 @@ def get_flow_providers(
         "Read and validate the supplied LCI directory, "
         "inspect the active database and target category, and list "
         "create/overwrite/delete scope. This tool performs no database writes. "
+        "lci_dir must be readable by the caller and operation_dir must be inside the "
+        "caller's own workspace/runs/<node>/ directory; the returned preflight_id is "
+        "required by import_lci. "
         "Optional timeout_sec (300-7200) sets the IPC session budget for slow databases."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
@@ -285,7 +290,10 @@ def preflight_import_lci(
 
 @mcp.tool(
     description=(
-        "Import the supplied LCI directory after rerunning preflight. Preflight scope "
+        "Import the supplied LCI directory after rerunning preflight. Pass the same "
+        "lci_dir, operation_dir and scope_id as preflight_import_lci, its preflight_id, "
+        "and a stable request_id. A timeout is not a cancellation: read "
+        "get_import_operation before any retry, never blindly re-import. Preflight scope "
         "(run, endpoint, database, category, lci_dir) must match; LCI file content may "
         "change within the same run and updates entities by UUID in the target category. "
         "Use resume_operation_id after partial_failure; resume skips unchanged entities. "
@@ -379,6 +387,7 @@ def get_model_graph(
     description=(
         "Calculate LCIA results for a Product System and Impact Method, returning "
         "category names, UUIDs, amounts, units, settings, and resource-release status. "
+        "Save the returned result unmodified as raw evidence; reported numbers must come from it. "
         "Optional timeout_sec (300-7200) sets the IPC session budget."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
@@ -448,7 +457,8 @@ def cleanup_output(
 @mcp.tool(
     description=(
         "Search up to 50 keywords in one descriptor scan; serial and paginated per "
-        "keyword. Optional timeout_sec (300-7200) sets the IPC session budget."
+        "keyword (a page without a match does not mean absence). Prefer this over "
+        "repeated query_descriptors calls. Optional timeout_sec (300-7200) sets the IPC session budget."
     ),
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
@@ -475,7 +485,8 @@ def query_descriptors_batch(
 
 @mcp.tool(
     description=(
-        "Validate up to 200 exact process_id/flow_id pairs; repeated processes are "
+        "Validate up to 200 exact process_id/flow_id pairs (use it when exact Provider "
+        "UUIDs are known; use get_flow_providers to discover candidates); repeated processes are "
         "read once. Geography is diagnostic. Optional timeout_sec (300-7200) sets "
         "the IPC session budget."
     ),

@@ -112,3 +112,20 @@ def test_inline_node_errors(v5_root):
     write_yaml(v5_root / "harness/workflows/orchestrations/bad2.yaml", {"nodes": ["ghost"]})
     with pytest.raises(ConfigError, match=r"orchestrations/bad2\.yaml:\d+: unknown node 'ghost'"):
         load_workflow(v5_root, "bad2")
+
+
+def test_node_override_does_not_touch_template(v5_root):
+    """DESIGN §九: {agent: executor, max_turns, tools} applies to that node only."""
+    from backend.v5.config import load_role_def
+
+    before = load_role_def(v5_root, "executor").model_dump()
+    tpl_text = (v5_root / "harness/workflows/agents/executor.yaml").read_text(encoding="utf-8")
+    make_node(v5_root, "a", agents={"executor": {"agent": "executor", "max_turns": 3, "tools": {"mcp": ["control_openlca"]},
+                                                 "access": {"read": {"knowledge": False}}}, "reviewer": "reviewer"})
+    make_node(v5_root, "b", agents={"executor": "executor", "reviewer": "reviewer"})
+    a, b = load_node(v5_root, "a"), load_node(v5_root, "b")
+    assert a.agents["executor"].max_turns == 3 and b.agents["executor"].max_turns is None
+    assert b.agents["executor"].tools.mcp == [] and b.agents["executor"].access.read == {}
+    assert a.agents["executor"].definition.model_dump() == before == b.agents["executor"].definition.model_dump()
+    assert a.agents["executor"].definition is not b.agents["executor"].definition
+    assert (v5_root / "harness/workflows/agents/executor.yaml").read_text(encoding="utf-8") == tpl_text
