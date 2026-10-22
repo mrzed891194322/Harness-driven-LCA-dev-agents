@@ -735,3 +735,13 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   layout, `reports/runs/.../raw.json`, whole-lca preset clean, `<role>-<n>` dirs).
 - Plans (no code) for #1 structured activity stream, #2 SessionLaunchSpec single source, #4 control_openlca
   workflow.py / journal cleanup: `docs/refactor/v5/SIMPLIFY_PLAN.md`.
+- #4 done (SIMPLIFY_PLAN correction: `resume_import_request` is live — `import_request(resume_operation_id=...)`
+  calls it and MCP `import_lci` resumes through it; the dead code was `reconcile_import` + helpers, which no MCP
+  tool exposes). (a) removed `reconcile_import`, `reconcile_entity_plan`, `attempt_cleanup.py`, profile/label entries
+  for non-existent tools; recovery messages now say `get_import_operation` then `import_lci(resume_operation_id=...)`.
+  (b) `workflow.py` split move-only into `lci_inventory.py` / `importer.py` / `graph.py` / `calculate.py`.
+  (c) schema strings `whole-lca/*` → `openlca/*`. (d) journal is `preflights/` + `operations/` only: request ids,
+  preflight ids, `touched_at` and `cleared` (cleanup) live in the operation file; current = newest uncleared;
+  unreadable operation fails closed; old `requests/`, `current.json`, `consumed/`, `reconciliations/`, `scopes/`
+  are no longer read or written (existing journals under workspace are not migrated — destructive rebuild).
+  The unused direct path `importer.preflight_import_lci/import_lci/get_import_operation` (own `current.json`) removed.

@@ -1,4 +1,9 @@
-"""V2 import receipts: explicit requests, durable preflights, no blind retries."""
+"""Import journal: ``preflights/<id>.json`` + ``operations/<id>.json``, nothing else.
+
+Each operation file carries its own receipts (``request_ids``, ``preflight_ids``, ``touched_at``,
+``cleared``); the "current" operation is the newest uncleared one by ``touched_at``.
+No blind retries; one preflight authorizes one request.
+"""
 
 from __future__ import annotations
 
@@ -63,6 +68,36 @@ def journal_root(path):
     if root.exists() and any(p.is_symlink() for p in root.rglob("*")):
         raise ValueError("operation journal must not contain symbolic links")
     return root
+
+
+def load_operations(root: Path) -> list[dict]:
+    """Every operation report; an unreadable file fails closed as indeterminate."""
+    out: list[dict] = []
+    ops = root / "operations"
+    if not ops.is_dir():
+        return out
+    for path in sorted(ops.glob("*.json")):
+        try:
+            out.append(read(path))
+        except (OSError, ValueError) as exc:
+            out.append({"operation_id": path.stem, "status": "indeterminate", "identity": {},
+                        "errors": [f"unreadable operation journal: {exc}"], "touched_at": "~"})
+    return out
+
+
+def current_operation(root: Path) -> dict | None:
+    live = [r for r in load_operations(root) if not r.get("cleared")]
+    return max(live, key=lambda r: str(r.get("touched_at") or r.get("started_at") or "")) if live else None
+
+
+def preflight_consumed(root: Path, preflight_id: str) -> bool:
+    return any(preflight_id in (r.get("preflight_ids") or [r.get("preflight_id")]) for r in load_operations(root))
+
+
+def _add_receipt(report: dict, request_id: str, preflight_id: str) -> None:
+    report["request_ids"] = [*(report.get("request_ids") or []), request_id]
+    report["preflight_ids"] = [*(report.get("preflight_ids") or []), preflight_id]
+    report["touched_at"] = utc_now()
 
 
 def identity_scope(identity: dict) -> dict:
@@ -203,24 +238,20 @@ def get_operation(operation_dir, *, run_id, request_id=None, operation_id=None):
     root = journal_root(operation_dir)
     if request_id and operation_id:
         raise ValueError("supply request_id or operation_id, not both")
-    if request_id:
-        index = (
-            root / "requests" / identifier(run_id) / f"{identifier(request_id)}.json"
-        )
-    elif operation_id:
-        index = None
-    else:
-        index = root / "current.json"
     try:
-        if index is not None:
-            if not index.exists():
+        if request_id:
+            identifier(request_id)
+            hits = [r for r in load_operations(root)
+                    if (r.get("identity") or {}).get("run_id") == run_id
+                    and request_id in (r.get("request_ids") or [])]
+            if not hits:
                 return {"status": "not_found", "errors": []}
-            resolved_operation_id = read(index).get("operation_id")
-            if resolved_operation_id is None:
+            operation_id = str(hits[0]["operation_id"])
+        elif not operation_id:
+            cur = current_operation(root)
+            if cur is None:
                 return {"status": "not_found", "errors": []}
-            operation_id = str(resolved_operation_id)
-        if operation_id is None:
-            return {"status": "not_found", "errors": []}
+            operation_id = str(cur["operation_id"])
         report = read(root / "operations" / f"{identifier(operation_id)}.json")
         if report["identity"]["run_id"] != run_id:
             return {"status": "not_found", "errors": []}
@@ -242,41 +273,21 @@ def get_operation(operation_dir, *, run_id, request_id=None, operation_id=None):
 
 
 def reconcile_cleanup(operation_dir, host, port, category):
-    """An explicitly completed cleanup clears the active pointer, not old receipts."""
+    """A completed cleanup clears the current operation (marked in its own file, receipts kept)."""
     root = journal_root(operation_dir)
-    current_path = root / "current.json"
-    if not current_path.exists():
+    current = current_operation(root)
+    if current is None or not current.get("operation_id"):
         return
-    current = read(current_path)
-    operation_id = current.get("operation_id")
-    path = (
-        root / "operations" / f"{identifier(operation_id)}.json"
-        if operation_id
-        else None
-    )
-    if path is None or not path.exists():
-        identity = {
-            "endpoint": current.get("endpoint"),
-            "category": current.get("target_category"),
-        }
-    else:
-        identity = read(path)["identity"]
-    if (
-        identity.get("endpoint") != build_endpoint(host, port)
-        or identity.get("category") != category
-    ):
+    identity = current.get("identity") or {}
+    if identity.get("endpoint") != build_endpoint(host, port) or identity.get("category") != category:
         return
-    _write_json_atomic(
-        root / "reconciliations" / f"{uuid.uuid4().hex}.json",
-        {
-            "previous": current,
-            "reason": "explicit cleanup completed",
-            "at": utc_now(),
-            "endpoint": identity["endpoint"],
-            "category": category,
-        },
-    )
-    current_path.unlink()
+    path = root / "operations" / f"{identifier(str(current['operation_id']))}.json"
+    if not path.exists():
+        return
+    report = read(path)
+    report["cleared"] = {"reason": "explicit cleanup completed", "at": utc_now(),
+                         "endpoint": identity["endpoint"], "category": category}
+    _write_json_atomic(path, report)
 
 
 def _finalize_import_report(
@@ -394,8 +405,7 @@ def resume_import_request(
             "errors": ["preflight_scope_mismatch", *preflight_scope_errors],
             "execution_mode": "not_executed",
         }
-    consumed = root / "consumed" / f"{preflight_id}.json"
-    if consumed.exists():
+    if preflight_consumed(root, preflight_id):
         return {
             "status": "rejected",
             "errors": ["preflight_already_consumed"],
@@ -426,19 +436,15 @@ def resume_import_request(
             owner_pid=os.getpid(),
             request_id=request_id,
             preflight_id=preflight_id,
+            cleared=None,
             execution_mode="resumed",
             resumed_at=utc_now(),
             identity=identity,
             entity_plan=plan,
             errors=[],
         )
+        _add_receipt(report, request_id, preflight_id)
         _write_json_atomic(path, report)
-        _write_json_atomic(
-            root / "requests" / run_id / f"{request_id}.json",
-            {"operation_id": operation_id},
-        )
-        _write_json_atomic(root / "current.json", {"operation_id": operation_id})
-        _write_json_atomic(consumed, {"operation_id": operation_id})
 
         def progress(records, imported, failed, deleted, errors):
             report.update(
@@ -556,16 +562,16 @@ def import_request(
             "execution_mode": "not_executed",
         }
     # One preflight authorizes one request, including after partial failure.
-    consumed = root / "consumed" / f"{preflight_id}.json"
-    if consumed.exists():
+    if preflight_consumed(root, preflight_id):
         return {
             "status": "rejected",
             "errors": ["preflight_already_consumed"],
             "execution_mode": "not_executed",
         }
-    if (root / "current.json").exists():
-        current_id = read(root / "current.json")["operation_id"]
-        current = read(root / "operations" / f"{identifier(current_id)}.json")
+    open_op = current_operation(root)
+    if open_op is not None:
+        current_id = open_op.get("operation_id")
+        current = open_op
         if current["status"] in {"running", "indeterminate"}:
             return {
                 "status": "indeterminate",
@@ -584,12 +590,9 @@ def import_request(
                     "preflight_id. Do not start a fresh import while this operation is open."
                 ),
             }
-    run_scope = root / "scopes" / f"{identifier(run_id)}.json"
-    scope = {
-        k: identity[k]
-        for k in ("run_id", "endpoint", "database_name", "category", "lci_dir")
-    }
-    if run_scope.exists() and read(run_scope) != scope:
+    scope = identity_scope(identity)
+    if any(identity_scope(r.get("identity") or {}) != scope
+           for r in load_operations(root) if (r.get("identity") or {}).get("run_id") == run_id):
         return {"status": "rejected", "errors": ["run_scope_changed"]}
     ipc = client or create_ipc_client(host, port)
     report = None
@@ -644,29 +647,27 @@ def import_request(
         operation_id = str(uuid.uuid4())
         superseded_operation_id = None
         changed_entities: list[str] = []
-        current_path = root / "current.json"
-        if current_path.exists():
-            prior_id = read(current_path).get("operation_id")
+        prior = current_operation(root)
+        if prior is not None:
+            prior_id = prior.get("operation_id")
             if prior_id:
-                prior_path = root / "operations" / f"{identifier(prior_id)}.json"
-                if prior_path.exists():
-                    prior_report = read(prior_path)
-                    prior_identity = prior_report.get("identity") or {}
-                    if (
-                        identity_scope(prior_identity) == scope
-                        and prior_report.get("status") == "success"
-                        and prior_identity.get("lci_content") != identity.get("lci_content")
-                    ):
-                        superseded_operation_id = str(prior_id)
-                        changed_entities = [
-                            item["id"]
-                            for item in inventory
-                            if any(
-                                entry.get("id") == item["id"]
-                                and entry.get("content_hash") != item.get("sha256", "")
-                                for entry in prior_report.get("entity_plan") or []
-                            )
-                        ]
+                prior_report = prior
+                prior_identity = prior_report.get("identity") or {}
+                if (
+                    identity_scope(prior_identity) == scope
+                    and prior_report.get("status") == "success"
+                    and prior_identity.get("lci_content") != identity.get("lci_content")
+                ):
+                    superseded_operation_id = str(prior_id)
+                    changed_entities = [
+                        item["id"]
+                        for item in inventory
+                        if any(
+                            entry.get("id") == item["id"]
+                            and entry.get("content_hash") != item.get("sha256", "")
+                            for entry in prior_report.get("entity_plan") or []
+                        )
+                    ]
         entity_plan = build_entity_plan(inventory)
         report = {
             "schema_version": 2,
@@ -689,15 +690,9 @@ def import_request(
             "errors": [],
         }
         path = root / "operations" / f"{operation_id}.json"
+        # The receipt lives in the operation file, written before touching the database.
+        _add_receipt(report, request_id, preflight_id)
         _write_json_atomic(path, report)
-        # Persist receipts before touching the database. Incomplete receipts fail closed.
-        _write_json_atomic(
-            root / "requests" / run_id / f"{request_id}.json",
-            {"operation_id": operation_id},
-        )
-        _write_json_atomic(root / "current.json", {"operation_id": operation_id})
-        _write_json_atomic(consumed, {"operation_id": operation_id})
-        _write_json_atomic(run_scope, scope)
 
         def progress(records, imported, failed, deleted, errors):
             report.update(
