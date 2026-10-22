@@ -1,7 +1,10 @@
 import pytest
 
 from backend.v5.config import ConfigError, load_node, load_workflow
-from tests.t_v5.conftest import EXEC_REVIEW_FLOW, make_node, write_yaml
+from backend.v5.config import default_flow
+from tests.t_v5.conftest import make_node, write_yaml
+
+EXEC_REVIEW_FLOW = default_flow({"reviewer": 1})
 
 
 def test_workflow_and_nodes_load(v5_root):
@@ -10,7 +13,8 @@ def test_workflow_and_nodes_load(v5_root):
     write_yaml(v5_root / "harness/workflows/orchestrations/demo.yaml", {"nodes": ["a", "b"]})
     wf, nodes = load_workflow(v5_root, "demo")
     assert [n.id for n in nodes] == ["a", "b"]
-    assert nodes[0].transition("reviewer", "reject") == "executor"
+    reject = next(e for e in nodes[0].flow.edges if e.when == "reject")
+    assert reject.to == "executor" and reject.max == 3
 
 
 def test_unknown_node(v5_root):
@@ -19,23 +23,74 @@ def test_unknown_node(v5_root):
         load_workflow(v5_root, "demo")
 
 
-def test_flow_must_reach_terminal(v5_root):
-    flow = {"edges": [{"from": "executor", "on": "submitted", "to": "executor"}]}
+def test_flow_must_reach_done(v5_root):
+    flow = {"edges": [{"from": "executor", "when": "done", "to": "failed"}]}
     make_node(v5_root, "a", flow=flow)
-    with pytest.raises(ConfigError, match="cannot reach"):
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: flow cannot reach done"):
         load_node(v5_root, "a")
 
 
 def test_duplicate_edge(v5_root):
     flow = dict(EXEC_REVIEW_FLOW, edges=EXEC_REVIEW_FLOW["edges"] + [EXEC_REVIEW_FLOW["edges"][0]])
     make_node(v5_root, "a", flow=flow)
-    with pytest.raises(ConfigError, match="duplicate"):
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: duplicate"):
         load_node(v5_root, "a")
 
 
-def test_unknown_role(v5_root):
-    make_node(v5_root, "a", agents={"executor": "executor", "boss": "executor"})
-    with pytest.raises(ConfigError):
+def test_unknown_when_value(v5_root):
+    flow = {"edges": [{"from": "executor", "when": "submitted", "to": "done"}]}
+    make_node(v5_root, "a", flow=flow, agents={"executor": "executor"})
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: when 'submitted' is not a artifact submit value"):
+        load_node(v5_root, "a")
+
+
+def test_back_edge_needs_max(v5_root):
+    edges = [dict(e) for e in EXEC_REVIEW_FLOW["edges"]]
+    for e in edges:
+        e.pop("max", None)
+    make_node(v5_root, "a", flow={"edges": edges})
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: back edge reviewer -> executor needs `max"):
+        load_node(v5_root, "a")
+
+
+def test_mixed_unconditional_and_when(v5_root):
+    flow = {"edges": [{"from": "executor", "to": "done"}, {"from": "executor", "when": "blocked", "to": "blocked"}]}
+    make_node(v5_root, "a", flow=flow, agents={"executor": "executor"})
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: 'executor' mixes"):
+        load_node(v5_root, "a")
+
+
+def test_executor_cannot_approve_its_own_redo(v5_root):
+    flow = {"edges": [{"from": "executor", "when": "done", "to": "done"},
+                      {"from": "executor", "when": "redo_upstream", "to": "redo_upstream"}]}
+    make_node(v5_root, "a", flow=flow, agents={"executor": "executor"})
+    with pytest.raises(ConfigError, match="redo_needs_reviewer"):
+        load_node(v5_root, "a")
+
+
+def test_free_agent_keys_and_inline_checker(v5_root):
+    checker = {"prompt": "只核对单位换算。", "deliver": {"submit": "verdict"}}
+    flow = {"start": "writer", "edges": [
+        {"from": "writer", "when": "done", "to": "checker"},
+        {"from": "checker", "when": "approve", "to": "done"},
+        {"from": "checker", "when": "reject", "to": "writer", "max": 2}]}
+    make_node(v5_root, "a", produces=[{"spec": "paragraph", "path": "t/t.md"}], flow=flow,
+              agents={"writer": "executor", "checker": checker})
+    node = load_node(v5_root, "a")
+    assert node.role("writer") == "executor" and node.role("checker") == "reviewer"
+
+
+def test_start_must_be_artifact_agent(v5_root):
+    make_node(v5_root, "a", flow={"start": "reviewer", "edges": [{"from": "reviewer", "when": "approve", "to": "done"}]})
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: flow.start 'reviewer' must be an artifact agent"):
+        load_node(v5_root, "a")
+
+
+def test_rev_is_host_set(v5_root):
+    make_node(v5_root, "a")
+    p = v5_root / "harness/workflows/nodes/a.yaml"
+    p.write_text(p.read_text(encoding="utf-8") + "rev: 1\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: rev is host-set"):
         load_node(v5_root, "a")
 
 

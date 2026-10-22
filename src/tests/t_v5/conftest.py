@@ -8,37 +8,18 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[3]
 
-EXEC_REVIEW_FLOW = {
-    "start": "executor",
-    "max_rounds": 3,
-    "edges": [
-        {"from": "executor", "on": "submitted", "to": "reviewer"},
-        {"from": "executor", "on": "checks_failed", "to": "executor"},
-        {"from": "executor", "on": "stop", "to": "failed"},
-        {"from": "reviewer", "on": "pass", "to": "done"},
-        {"from": "reviewer", "on": "reject", "to": "executor"},
-        {"from": "reviewer", "on": "stop", "to": "failed"},
-    ],
-}
-
-
 def write_yaml(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
 
 def make_node(root: Path, node_id: str, *, requires=(), produces=(), flow=None, agents=None) -> None:
-    write_yaml(
-        root / "harness/workflows/nodes" / f"{node_id}.yaml",
-        {
-            "id": node_id,
-            "requires": list(requires),
-            "produces": [dict(p) for p in produces],
-            "agents": agents
-            or {"executor": "executor", "reviewer": "reviewer"},
-            "flow": flow or EXEC_REVIEW_FLOW,
-        },
-    )
+    """Node YAML; ``flow`` omitted = config.default_flow (executor -> reviewer, reject max 3)."""
+    data = {"id": node_id, "requires": list(requires), "produces": [dict(p) for p in produces],
+            "agents": agents or {"executor": "executor", "reviewer": "reviewer"}}
+    if flow is not None:
+        data["flow"] = flow
+    write_yaml(root / "harness/workflows/nodes" / f"{node_id}.yaml", data)
 
 
 @pytest.fixture

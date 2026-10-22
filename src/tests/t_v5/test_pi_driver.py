@@ -48,7 +48,7 @@ def _setup(root: Path, **agent_extra):
 
 
 def _req(root, node, agent="executor", rnd=1, resume=False):
-    return TurnRequest(node=node, agent=agent, round=rnd, prompt="做事", workspace=root / "workspace",
+    return TurnRequest(node=node, agent=agent, attempt=rnd, prompt="做事", workspace=root / "workspace",
                        run_id="run12345", session_key=f"n1-{agent}", resume=resume, extra={"system": "SYS"})
 
 
@@ -76,13 +76,13 @@ def test_launch_spec_tools_scopes_and_mcp(v5_root):
 
 def test_turn_reads_submit_and_reuses_live_session(v5_root):
     node = _setup(v5_root)
-    rt = FakeRuntime(submit={"status": "ok", "summary": "s"})
+    rt = FakeRuntime(submit={"status": "done", "summary": "s", "artifacts": ["out/p.md"]})
     d = PiDriver(v5_root, MODEL, runtime=rt)
     res = d.run_turn(_req(v5_root, node))
-    assert res.submit["status"] == "ok" and not res.error and not res.fatal
+    assert res.submit["status"] == "done" and not res.error and not res.fatal
     res2 = d.run_turn(_req(v5_root, node, rnd=2, resume=True))
-    assert res2.submit["status"] == "ok"
-    assert (v5_root / "workspace/runs/n1/executor/submit_round_2.json").is_file()
+    assert res2.submit["status"] == "done"
+    assert (v5_root / "workspace/runs/n1/executor/attempt_2/submit.json").is_file()
     methods = [m for m, _ in rt.calls]
     assert methods.count("session.create") == 1 and methods.count("session.run_turn") == 2
 
@@ -95,7 +95,7 @@ def test_resume_restores_tools_from_new_launch_spec(v5_root):
     sf = Path(spec.session_storage["session_file"])
     sf.parent.mkdir(parents=True, exist_ok=True)
     sf.write_text("{}\n")
-    rt = FakeRuntime(submit={"status": "ok", "summary": "s"})
+    rt = FakeRuntime(submit={"status": "done", "summary": "s", "artifacts": ["out/p.md"]})
     d2 = PiDriver(v5_root, MODEL, runtime=rt)
     d2.run_turn(_req(v5_root, node, resume=True))
     method, params = rt.calls[0]
@@ -160,14 +160,15 @@ def test_submit_mcp_lists_role_specific_tool(tmp_path):
     code = ("import asyncio,runpy,sys;sys.argv=['x'];"
             "g=runpy.run_path(sys.argv[1] if False else %r, run_name='m');"
             "r=asyncio.run(g['mcp'].call_tool('submit', %s));print('OK')")
-    for agent, args in (("executor", {"status": "ok", "summary": "s"}),
-                       ("reviewer", {"verdict": "reject", "feedback": "f"})):
-        out = tmp_path / f"{agent}.json"
-        env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_AGENT": agent}
+    reason = "本节点依赖的数据库连接不可用，已重试三次仍失败。"
+    for kind, args, key in (("artifact", {"status": "blocked", "reason": reason}, "status"),
+                            ("verdict", {"verdict": "terminate", "reason": reason}, "verdict")):
+        out = tmp_path / f"{kind}.json"
+        env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_SUBMIT_KIND": kind}
         p = subprocess.run([sys.executable, "-c", code % (str(script), repr(args))],
                            env=env, capture_output=True, text=True, timeout=60)
         assert p.returncode == 0, p.stderr
-        assert json.loads(out.read_text())["agent"] == agent
+        assert key in json.loads(out.read_text())
 
 
 def test_mcp_not_ready_is_its_own_reason(v5_root):

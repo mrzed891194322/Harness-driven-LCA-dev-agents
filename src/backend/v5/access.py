@@ -56,7 +56,7 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
 
     read = {
         str(art / "plan") + "/**",  # lock 1
-        str(layout.node_dir(ws, node.id)) + "/**",
+        str(layout.node_dir(ws, node.run_key)) + "/**",
         str(root / layout.TOOLS_SKILLS) + "/**",
         str(root / layout.SPECS) + "/**",  # full schema.json referenced from <deliverable_X>
     }
@@ -71,21 +71,21 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         read.add(str(art) + "/**")
 
     write: set[str] = set()
-    if agent_key == "executor":
-        write.add(str(layout.node_dir(ws, node.id)) + "/**")
+    if node.kind(agent_key) == "artifact":
+        write.add(str(layout.node_dir(ws, node.run_key)) + "/**")
         for prod in node.produces:
             write.add(str(art / produce_dir(prod.path)) + "/**")
     else:
         # reviewer writes only its notes dir inside the node runs dir
-        write.add(str(layout.node_dir(ws, node.id) / "reviewer") + "/**")
+        write.add(str(layout.node_dir(ws, node.run_key) / agent_key) + "/**")
     denied = [str(art / "plan") + "/**"]  # lock 1 beats everything
-    if node.revision:
-        # revise-lca (I-45): originals and other revs in the produce dirs are write-denied; only rev N is writable
+    if node.rev:
+        # rev k: originals and other revs in the produce dirs are write-denied; only rev k is writable
         from backend.v5.revisions import split
 
         for d in sorted({produce_dir(p.path) for p in node.produces}):
             parent = art / d
             for item in sorted(parent.iterdir()) if parent.is_dir() else []:
-                if split(item.name)[1] != node.revision:
+                if split(item.name)[1] != node.rev:
                     denied.append(str(item) + ("/**" if item.is_dir() else ""))
     return Scope(sorted(read), sorted(write), denied, toggles)

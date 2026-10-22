@@ -1,20 +1,29 @@
 # ruff: noqa: E402
-"""Fixed v5 submit tool. The host binds it to every agent; the answer lands in V5_SUBMIT_FILE.
+"""Fixed v5 submit tool. The host binds it to every agent; the accepted answer lands in V5_SUBMIT_FILE.
 
-executor: status ok|stop + summary;  reviewer: verdict pass|reject|stop + feedback.
+artifact agents: status done | blocked | redo_upstream;  verdict agents: approve | reject | approve_redo_upstream |
+terminate. Schemas + preconditions: schemas.py (the host validates again).
 """
 from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Literal
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mcp.server import MCPServer
+from schemas import validate
 
 mcp = MCPServer("submit", instructions="完成本轮工作后调用 submit 一次。")
-AGENT = os.environ.get("V5_AGENT", "executor")
+KIND = os.environ.get("V5_SUBMIT_KIND", "artifact")
+
+
+def _context() -> dict:
+    path = os.environ.get("V5_SUBMIT_CONTEXT")
+    return json.loads(Path(path).read_text(encoding="utf-8")) if path and Path(path).is_file() else {}
 
 
 def _reject(errors: list[str]) -> dict:
@@ -29,64 +38,42 @@ def _reject(errors: list[str]) -> dict:
             "message": "提交未被接受：先修正这些问题，再重新调用 submit。"}
 
 
-def _check_produces() -> list[str]:
-    """Executor deliverables must exist (non-empty) and match the spec schema."""
-    file = os.environ.get("V5_PRODUCES_FILE")
-    raw = Path(file).read_text(encoding="utf-8") if file else os.environ.get("V5_PRODUCES")
-    if not raw:
-        return []
-    errors: list[str] = []
-    for item in json.loads(raw):
-        path = Path(item["path"])
-        if path.suffix:
-            if not path.is_file() or path.stat().st_size == 0:
-                errors.append(f"缺少交付物或为空：{path}")
-                continue
-            schema = item.get("schema")
-            if schema and path.suffix == ".json":
-                try:
-                    data = json.loads(path.read_text(encoding="utf-8"))
-                except json.JSONDecodeError as exc:
-                    errors.append(f"{path} 不是合法 JSON：{exc}")
-                    continue
-                import jsonschema
-
-                validator = jsonschema.Draft202012Validator(schema)
-                for err in list(validator.iter_errors(data))[:10]:
-                    loc = "/".join(str(p) for p in err.absolute_path) or "(根)"
-                    errors.append(f"{path.name} {loc}: {err.message}")
-        elif not path.is_dir() or not any(path.rglob("*")):
-            errors.append(f"缺少交付目录或为空：{path}")
-    return errors
-
-
-def _write(payload: dict) -> dict:
+def _accept(payload: dict) -> dict:
+    errors = validate(KIND, payload, _context())
+    if errors:
+        return _reject(errors)
     target = Path(os.environ["V5_SUBMIT_FILE"])
     target.parent.mkdir(parents=True, exist_ok=True)
-    payload["submitted_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     tmp = target.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.write_text(json.dumps({**payload, "submitted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")},
+                              ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(target)
     return {"ok": True, "accepted": True, "message": "已提交，本轮结束，请停止调用工具。"}
 
 
-if AGENT == "reviewer":
+def _pick(**fields) -> dict:
+    return {k: v for k, v in fields.items() if v not in (None, "", [])}
 
-    @mcp.tool(description="审核者提交结论：verdict=pass|reject|stop；reject/stop 时 feedback 逐条写明问题。")
-    def submit(verdict: Literal["pass", "reject", "stop"], feedback: str = "") -> dict:
-        if verdict != "pass" and not feedback.strip():
-            return _reject(["reject/stop 必须填写 feedback"])
-        return _write({"agent": "reviewer", "verdict": verdict, "feedback": feedback})
+
+if KIND == "verdict":
+
+    @mcp.tool(description="审核者提交结论。verdict=approve（可附 summary）| reject（issues 逐条 where/problem/expected）"
+                          "| approve_redo_upstream（仅当执行者请求回溯且符合 <redo_policy>，可附 comment）| terminate（reason ≥20 字）。")
+    def submit(verdict: Literal["approve", "reject", "approve_redo_upstream", "terminate"], summary: str = "",
+               issues: list[dict] | None = None, comment: str = "", reason: str = "") -> dict:
+        return _accept(_pick(verdict=verdict, summary=summary, issues=issues, comment=comment, reason=reason))
 
 else:
 
-    @mcp.tool(description="执行者交付：status=ok（交付物已写好）或 stop（无法完成）；summary 简述做了什么、交付物位置、不确定之处。")
-    def submit(status: Literal["ok", "stop"], summary: str) -> dict:
-        if status == "ok":
-            errors = _check_produces()
-            if errors:
-                return _reject(errors)
-        return _write({"agent": "executor", "status": status, "summary": summary})
+    @mcp.tool(description="执行者交付。status=done（summary + artifacts 列出全部交付物路径）| blocked（reason ≥20 字，"
+                          "只用于本节点确实无法处理的问题）| redo_upstream（target_node、artifact、field、evidence ≥20 字、"
+                          "requested_change ≥10 字，仅当符合 <redo_policy>）。")
+    def submit(status: Literal["done", "blocked", "redo_upstream"], summary: str = "",
+               artifacts: list[str] | None = None, reason: str = "", target_node: str = "", artifact: str = "",
+               field: str = "", evidence: str = "", requested_change: str = "") -> dict:
+        return _accept(_pick(status=status, summary=summary, artifacts=artifacts, reason=reason,
+                             target_node=target_node, artifact=artifact, field=field, evidence=evidence,
+                             requested_change=requested_change))
 
 
 if __name__ == "__main__":

@@ -6,13 +6,3 @@ produces:
 agents:
   executor: executor
   reviewer: reviewer
-flow:
-  start: executor
-  max_rounds: 2
-  edges:
-    - {from: executor, "on": submitted, to: reviewer}
-    - {from: executor, "on": checks_failed, to: executor}
-    - {from: executor, "on": stop, to: failed}
-    - {from: reviewer, "on": pass, to: done}
-    - {from: reviewer, "on": reject, to: executor}
-    - {from: reviewer, "on": stop, to: failed}

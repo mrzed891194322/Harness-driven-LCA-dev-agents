@@ -722,10 +722,10 @@ def workflow_activity(run_id: str = "", offset: int = 0) -> dict[str, Any]:
 
 @app.get("/api/workflows")
 def workflows_list() -> dict[str, Any]:
-    """599ed0a workflow list shape: main = full-lca, revise = the workflow with revise_of, others demo."""
+    """599ed0a workflow list shape: main = full-lca, revise = the workflow with start_rev: next, others demo."""
     out = []
     for w in _v5().workflows():
-        mode = "revise" if w.get("revise_of") else "main" if w["id"] == "full-lca" else "demo"
+        mode = "revise" if w.get("start_rev") == "next" else "main" if w["id"] == "full-lca" else "demo"
         out.append({"name": w["id"], "id": w["id"], "title": w.get("title") or w["id"], "mode": mode,
                     "file": f"workflows/{w['id']}.yaml"})
     out.sort(key=lambda w: {"main": 0, "revise": 1}.get(w["mode"], 2))

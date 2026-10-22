@@ -1,2 +1,3 @@
 id: full-lca
+max_redos: 2
 nodes: [lca-intake, lca-bom, lca-mapping, lca-report]

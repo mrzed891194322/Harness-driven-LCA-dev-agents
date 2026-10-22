@@ -36,7 +36,7 @@ def test_gui_start_of_revise_uses_saved_revise_plan(monkeypatch, v5_root):
     client, svc = _client(monkeypatch, v5_root)
     make_node(v5_root, "r", produces=[{"spec": "paragraph", "path": "r/p.md"}])
     write_yaml(v5_root / "harness/workflows/orchestrations/revise-lca.yaml",
-               {"id": "revise-lca", "nodes": ["r"], "plan_file": "revise_plan.md", "revise_of": "full-lca"})
+               {"id": "revise-lca", "nodes": ["r"], "plan_file": "revise_plan.md", "start_rev": "next"})
     saved = {"content": ""}
     monkeypatch.setattr(app_module, "read_plan_document", lambda root, workflow=None: dict(saved))
     gui = {"workflow": "revise-lca", "subject": "原研究对象", "functional_unit": "1 L"}

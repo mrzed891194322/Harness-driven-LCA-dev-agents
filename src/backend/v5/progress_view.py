@@ -89,9 +89,9 @@ def build(ws: Path, events: list[dict], model: str = "") -> tuple[str, list[dict
         t = _ts(e.get("ts"))
         kind = e.get("kind", "")
         if kind == "turn_start" and e.get("node") and e.get("agent"):
-            turns.setdefault(f"{e['node']}.{e['agent']}", []).append((t, int(e.get("round") or 0)))
+            turns.setdefault(f"{e['node']}.{e['agent']}", []).append((t, int(e.get("attempt") or 0)))
         if kind == "agent_settled" and e.get("node") and e.get("agent"):
-            items.append((t, order, "", {"node": e["node"], "agent": e["agent"], "attempt": int(e.get("round") or 0),
+            items.append((t, order, "", {"node": e["node"], "agent": e["agent"], "attempt": int(e.get("attempt") or 0),
                                          "kind": "turn_end", "is_error": bool(e.get("error")) and not e.get("submitted"),
                                          "ts": e.get("ts")}))
         tpl = ORCH_TEXT.get(kind)

@@ -1,8 +1,9 @@
 """v5 configuration: workflows, nodes, agents, flow graph, specs.
 
-An orchestration (harness/workflows/orchestrations/<name>.yaml) lists nodes in order. Each node YAML (harness/workflows/nodes/<id>.yaml)
-declares requires / produces / inject / agents / flow / accept. The flow is a directed graph
-whose edges (from, on, to) must reach ``done`` or ``failed``; v1 supports executor + reviewer.
+An orchestration (harness/workflows/orchestrations/<name>.yaml) lists nodes in order (outer queue).
+Each node YAML (harness/workflows/nodes/<id>.yaml) declares requires / produces / inject / agents /
+flow / accept. ``flow`` is the inner LangGraph: edges ``{from, when?, to, max?}`` over the node's agents
+and the terminals done / failed / blocked / redo_upstream (WORKFLOW_DESIGN §2); omitted = default_flow.
 """
 from __future__ import annotations
 
@@ -11,13 +12,15 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
 from backend.v5 import layout
 
-AGENT_KEYS = ("executor", "reviewer")
-TERMINALS = ("done", "failed")
-OUTCOMES = ("submitted", "checks_failed", "pass", "reject", "stop", "error")
+TERMINALS = ("done", "failed", "blocked", "redo_upstream")
+# Submit enums by deliver.submit kind; a conditional edge's `when` must be one of these (WORKFLOW_DESIGN §3).
+SUBMIT_VALUES = {"artifact": ("done", "blocked", "redo_upstream"),
+                 "verdict": ("approve", "reject", "approve_redo_upstream", "terminate")}
+SUBMIT_FIELD = {"artifact": "status", "verdict": "verdict"}
 
 
 class ConfigError(ValueError):
@@ -59,23 +62,36 @@ class Agent(_Strict):
 
 class Edge(_Strict):
     from_: str = Field(alias="from")
-    on: str
+    when: str | None = None  # submit enum value of the `from` agent; None = unconditional
     to: str
+    max: int | None = Field(default=None, ge=1)  # required on back edges (edges inside a cycle)
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    @field_validator("on")
-    @classmethod
-    def _known_outcome(cls, value: str) -> str:
-        if value not in OUTCOMES:
-            raise ValueError(f"unknown outcome {value!r}; expected one of {OUTCOMES}")
-        return value
 
 
 class Flow(_Strict):
     start: str = "executor"
-    max_rounds: int = Field(default=3, ge=1, le=20)
+    max_steps: int = Field(default=12, ge=1, le=100)  # agent turns per node (all agents)
+    max_check_retries: int = Field(default=3, ge=0, le=20)  # host-check failures sent back to the executor
+    on_exhausted: Literal["failed", "blocked"] = "failed"
     edges: list[Edge]
+
+
+def default_flow(agents: dict) -> dict:
+    """Flow used when a node omits ``flow``: executor -> reviewer (if any) per WORKFLOW_DESIGN §5."""
+    if "reviewer" in agents:
+        return {"start": "executor", "edges": [
+            {"from": "executor", "when": "done", "to": "reviewer"},
+            {"from": "executor", "when": "blocked", "to": "blocked"},
+            {"from": "executor", "when": "redo_upstream", "to": "reviewer"},
+            {"from": "reviewer", "when": "approve", "to": "done"},
+            {"from": "reviewer", "when": "reject", "to": "executor", "max": 3},
+            {"from": "reviewer", "when": "approve_redo_upstream", "to": "redo_upstream"},
+            {"from": "reviewer", "when": "terminate", "to": "failed"}]}
+    return {"start": "executor", "edges": [
+        {"from": "executor", "when": "done", "to": "done"},
+        {"from": "executor", "when": "blocked", "to": "blocked"},
+        {"from": "executor", "when": "redo_upstream", "to": "failed"}]}  # redo_needs_reviewer
 
 
 class Produce(_Strict):
@@ -92,48 +108,108 @@ class Node(_Strict):
     agents: dict[str, Agent]
     flow: Flow
     accept: list[str] = Field(default_factory=list)  # spec ids whose checks gate the reviewer
-    revision: int = 0  # host-set (revise-lca, I-45): this node writes <name>.rev<N>.<ext>; never in YAML
+    rev: int = 0  # host-set queue revision: rev k writes <name>.rev<k>.<ext>, runs/<id>@rev<k>/; never in YAML
 
-    @model_validator(mode="after")
-    def _validate(self) -> Node:
-        if set(self.agents) - set(AGENT_KEYS):
-            raise ValueError(f"unknown agent keys: {sorted(set(self.agents) - set(AGENT_KEYS))}")
-        if "executor" not in self.agents:
-            raise ValueError("node needs an executor")
-        states = set(self.agents) | set(TERMINALS)
-        seen: set[tuple[str, str]] = set()
-        graph: dict[str, set[str]] = {}
-        for edge in self.flow.edges:
-            if edge.from_ not in self.agents:
-                raise ValueError(f"edge from unknown state {edge.from_!r}")
-            if edge.to not in states:
-                raise ValueError(f"edge to unknown state {edge.to!r}")
-            key = (edge.from_, edge.on)
-            if key in seen:
-                raise ValueError(f"duplicate edge {edge.from_}/{edge.on}")
-            seen.add(key)
-            graph.setdefault(edge.from_, set()).add(edge.to)
-        if self.flow.start not in self.agents:
-            raise ValueError(f"flow.start {self.flow.start!r} is not an agent")
-        reachable, stack = set(), [self.flow.start]
+    @property
+    def run_key(self) -> str:
+        return self.id if not self.rev else f"{self.id}@rev{self.rev}"
+
+    def kind(self, agent: str) -> str:
+        """deliver.submit of an agent: ``artifact`` (executor-like) or ``verdict`` (reviewer-like)."""
+        return self.agents[agent].definition.deliver.submit
+
+    def role(self, agent: str) -> str:
+        return "executor" if self.kind(agent) == "artifact" else "reviewer"
+
+    def outgoing(self, agent: str) -> list[Edge]:
+        return [e for e in self.flow.edges if e.from_ == agent]
+
+
+def validate_flow(node: Node, path: Path) -> None:
+    """Graph checks that need resolved agents; every error carries ``file:line``."""
+    def where(pattern: str) -> str:
+        return _line_of(path, pattern)
+
+    def edge_loc(edge: Edge) -> str:
+        """Line of the i-th ``from:`` key = the i-th edge (inline or block YAML)."""
+        i = next(k for k, e in enumerate(node.flow.edges) if e is edge)
+        try:
+            hits = [n for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+                    if re.search(r"(^|[{,\s-])[\"']?from[\"']?\s*:", line)]
+        except OSError:
+            hits = []
+        return f"{path}:{hits[i]}" if i < len(hits) else where(r"^\s*edges:")
+
+    flow, agents = node.flow, node.agents
+    if flow.start not in agents:
+        raise ConfigError(f"{where(r'^\s*start:')}: flow.start {flow.start!r} is not an agent of the node")
+    if node.kind(flow.start) != "artifact":
+        raise ConfigError(f"{where(r'^\s*start:')}: flow.start {flow.start!r} must be an artifact agent (deliver.submit: artifact)")
+    states = set(agents) | set(TERMINALS)
+    graph: dict[str, set[str]] = {}
+    seen: set[tuple[str, str | None]] = set()
+    for edge in flow.edges:
+        loc = edge_loc(edge)
+        if edge.from_ not in agents:
+            raise ConfigError(f"{loc}: edge from unknown agent {edge.from_!r} (agents: {', '.join(agents)})")
+        if edge.to not in states:
+            raise ConfigError(f"{loc}: edge to unknown state {edge.to!r} (agents or {', '.join(TERMINALS)})")
+        kind = node.kind(edge.from_)
+        if edge.when is not None and edge.when not in SUBMIT_VALUES[kind]:
+            raise ConfigError(f"{loc}: when {edge.when!r} is not a {kind} submit value {SUBMIT_VALUES[kind]}")
+        if (edge.from_, edge.when) in seen:
+            raise ConfigError(f"{loc}: duplicate edge {edge.from_}/{edge.when or '(unconditional)'}")
+        seen.add((edge.from_, edge.when))
+        graph.setdefault(edge.from_, set()).add(edge.to)
+        if edge.to == "redo_upstream" and kind == "artifact":
+            raise ConfigError(f"{loc}: redo_upstream must be approved by a verdict agent (redo_needs_reviewer)")
+    for agent in agents:
+        whens = [e.when for e in node.outgoing(agent)]
+        if None in whens and len(whens) > 1:
+            raise ConfigError(f"{where(rf'from:\s*{re.escape(agent)}\b')}: {agent!r} mixes an unconditional edge with `when` edges")
+
+    def reach(src: str) -> set[str]:
+        out, stack = set(), [src]
         while stack:
             cur = stack.pop()
-            if cur in reachable:
-                continue
-            reachable.add(cur)
-            stack.extend(graph.get(cur, ()))
-        if not reachable & set(TERMINALS):
-            raise ValueError("flow cannot reach done or failed")
-        for state in reachable - set(TERMINALS):
-            if not graph.get(state):
-                raise ValueError(f"state {state!r} has no outgoing edge")
-        return self
+            for nxt in graph.get(cur, ()):
+                if nxt not in out:
+                    out.add(nxt)
+                    stack.append(nxt)
+        return out
 
-    def transition(self, state: str, outcome: str) -> str | None:
-        for edge in self.flow.edges:
-            if edge.from_ == state and edge.on == outcome:
-                return edge.to
-        return None
+    reachable = reach(flow.start) | {flow.start}
+    if not reachable & {"done"}:
+        raise ConfigError(f"{where(r'^\s*(flow|edges):')}: flow cannot reach done")
+    for state in reachable - set(TERMINALS):
+        if not graph.get(state):
+            raise ConfigError(f"{where(rf'^\s*{re.escape(state)}:')}: agent {state!r} has no outgoing edge")
+    # back edges = edges into an agent on the current DFS path from start (edge order), incl. self-loops
+    back: list[Edge] = []
+    on_path: list[str] = []
+    done_states: set[str] = set()
+
+    def dfs(state: str) -> None:
+        on_path.append(state)
+        for edge in node.outgoing(state):
+            if edge.to in on_path:
+                back.append(edge)
+            elif edge.to in agents and edge.to not in done_states:
+                dfs(edge.to)
+        on_path.pop()
+        done_states.add(state)
+
+    dfs(flow.start)
+    for edge in back:
+        if edge.max is None:
+            loc = edge_loc(edge)
+            raise ConfigError(f"{loc}: back edge {edge.from_} -> {edge.to} needs `max: <n>`")
+
+
+def back_edge_rounds(node: Node) -> int:
+    """GUI "最多 N 轮": 1 + the largest back-edge max into the start agent."""
+    maxes = [e.max or 0 for e in node.flow.edges if e.to == node.flow.start and e.max]
+    return 1 + max(maxes, default=0)
 
 
 class Workflow(_Strict):
@@ -142,8 +218,10 @@ class Workflow(_Strict):
     nodes: list[str]
     # Plan file the GUI/API writes under artifacts/plan/ (revise workflows use revise_plan.md).
     plan_file: str = "main_plan.md"
-    # Revise mode (I-45): a fresh run keeps all artifacts; each node writes <name>.rev<N>.<ext> next to the originals.
-    revise_of: str | None = None
+    # Approved redo_upstream requests per run (0 = never redo).
+    max_redos: int = Field(default=2, ge=0, le=20)
+    # "next": every node starts at rev = 1 + its highest existing rev and keeps all artifacts (revise-lca).
+    start_rev: Literal["zero", "next"] = "zero"
 
     @field_validator("nodes")
     @classmethod
@@ -155,11 +233,18 @@ class Workflow(_Strict):
         return value
 
 
+class Upstream(_Strict):
+    may_redo: list[str] | None = None  # allowed redo targets (None = any earlier node)
+    criteria: list[str] = Field(default_factory=list)
+    not_upstream: list[str] = Field(default_factory=list)
+
+
 class Spec(_Strict):
     id: str
     prompt: str  # the spec's description (shared by executor and reviewer)
     schema_: dict | None = None
     checks: list[dict] = Field(default_factory=list)
+    upstream: Upstream = Field(default_factory=Upstream)
 
 
 class Deliver(_Strict):
@@ -184,7 +269,7 @@ class Rule(_Strict):
     description: str = ""
     enabled: bool = True
     order: int = 100
-    applies_to: list[Literal["executor", "reviewer"]] | None = None
+    applies_to: list[Literal["executor", "reviewer"]] | None = None  # roles (deliver.submit artifact/verdict)
     prompt: str
 
 
@@ -192,6 +277,7 @@ class SpecFile(_Strict):
     description: str
     schema_: dict | None = Field(default=None, alias="schema")
     checks: list[dict] = Field(default_factory=list)
+    upstream: Upstream = Field(default_factory=Upstream)
 
 
 # {{var}} values come from .env (Q4): template variable -> env key. A missing key fails at load.
@@ -306,18 +392,20 @@ def _resolve_agents(root: Path, node: Node, path: Path, inline_defs: dict[str, "
 
 
 def _build_node(root: Path, data: dict, path: Path) -> Node:
-    if "revision" in data:
-        raise ConfigError(f"{path}: revision is host-set (revise-lca), not a YAML key")
+    if "rev" in data:
+        raise ConfigError(f"{_line_of(path, r'^\s*rev:')}: rev is host-set (queue), not a YAML key")
     inline_defs = _normalize_agents(data, path)
+    if isinstance(data.get("agents"), dict) and "flow" not in data:
+        data = {**data, "flow": default_flow(data["agents"])}
     try:
         node = Node.model_validate(data)
     except ValueError as exc:
         raise ConfigError(f"{path}: {exc}") from exc
     _resolve_agents(root, node, path, inline_defs)
+    validate_flow(node, path)
     for produce in node.produces:
         if not produce.spec:
-            executor = node.agents.get("executor")
-            default = executor.definition.deliver.spec if executor else None
+            default = node.agents[node.flow.start].definition.deliver.spec
             if not default:
                 raise ConfigError(f"{path}: produces {produce.path!r} has no spec and the executor agent has no deliver.spec")
             produce.spec = default
@@ -390,7 +478,8 @@ def load_spec(root: Path, spec_id: str) -> Spec:
     if not path.is_file():
         raise ConfigError(f"spec {spec_id!r}: missing {path}")
     raw = _validate(SpecFile, _load_yaml(path), path)
-    return Spec(id=spec_id, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks)
+    return Spec(id=spec_id, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks,
+                upstream=raw.upstream)
 
 
 def load_agent_def(root: Path, name: str) -> AgentDef:

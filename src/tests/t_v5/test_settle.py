@@ -45,7 +45,7 @@ def test_node_fails_without_accepted_submit(v5_root, result, reason):
     assert st["status"] == "failed" and st["reason"] == reason
     end = [e for e in _events(v5_root) if e["kind"] == "node_end"][-1]
     assert end["reason"] == reason
-    settled = [e for e in _events(v5_root) if e["kind"] == "agent_settled"][-1]
+    settled = [e for e in _events(v5_root) if e["kind"] == "turn_end"][-1]
     assert settled["submitted"] is False and settled["abort_reason"] == result.abort_reason
     assert [c[1] for c in d.calls] == ["executor"]  # reviewer never runs
 
@@ -74,7 +74,7 @@ def test_driver_passes_settle_policy_and_logs(v5_root):
                       {"ts": "t3", "kind": "abort", "detail": "max_turns"}]}
     rt = Rt({"status": "ok", "outcome": {"stop_reason": "aborted"}, "settle": settle},
             rejections=[{"at": "t0", "errors": ["缺少交付物或为空：x"]}])
-    req = TurnRequest(node=node, agent="executor", round=1, prompt="p", workspace=v5_root / "workspace",
+    req = TurnRequest(node=node, agent="executor", attempt=1, prompt="p", workspace=v5_root / "workspace",
                       run_id="r1234567", session_key="a.executor", resume=False, extra={"system": "S"})
     res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(req)
     assert res.submit is None and res.aborted and res.abort_reason == "max_turns" and res.nudges == 2
@@ -82,20 +82,21 @@ def test_driver_passes_settle_policy_and_logs(v5_root):
     pol = spec["turn_context"]["settle"]
     assert pol["max_nudges"] == 2 and pol["max_turns"] == 80 and pol["timeout_min"] == 120
     assert pol["submit_file"].endswith("runs/a/executor/submit.json")
-    produces = json.loads(Path(spec["mcp_bindings"]["submit"]["env"]["V5_PRODUCES_FILE"]).read_text())
-    assert produces[0]["path"].endswith("artifacts/a/p.md")
+    ctx = json.loads(Path(spec["mcp_bindings"]["submit"]["env"]["V5_SUBMIT_CONTEXT"]).read_text())
+    assert ctx["kind"] == "artifact" and ctx["produces"][0]["path"].endswith("artifacts/a/p.md")
     kinds = [e["kind"] for e in _events(v5_root)]
     assert kinds.count("nudge") == 2 and "turn_aborted" in kinds and "submit_rejected" in kinds
 
 
-def _submit(tmp_path, agent, args, produces=None):
-    out = tmp_path / f"{agent}.json"
-    rej = tmp_path / f"{agent}.rej.jsonl"
-    env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_AGENT": agent, "V5_REJECTIONS_FILE": str(rej)}
-    if produces is not None:
-        pf = tmp_path / f"{agent}.produces.json"
-        pf.write_text(json.dumps(produces))
-        env["V5_PRODUCES_FILE"] = str(pf)
+def _submit(tmp_path, kind, args, context=None):
+    out = tmp_path / f"{kind}.json"
+    rej = tmp_path / f"{kind}.rej.jsonl"
+    out.unlink(missing_ok=True)
+    rej.unlink(missing_ok=True)
+    cf = tmp_path / f"{kind}.context.json"
+    cf.write_text(json.dumps(context or {"kind": kind}))
+    env = {**os.environ, "V5_SUBMIT_FILE": str(out), "V5_SUBMIT_KIND": kind, "V5_REJECTIONS_FILE": str(rej),
+           "V5_SUBMIT_CONTEXT": str(cf)}
     code = ("import asyncio,runpy,sys,json;g=runpy.run_path(sys.argv[1],run_name='m');"
             "r=asyncio.run(g['mcp'].call_tool('submit', json.loads(sys.argv[2])));print(r)")
     p = subprocess.run([sys.executable, "-c", code, str(REPO / "harness/tools/mcp/submit/main.py"), json.dumps(args)],
@@ -104,20 +105,53 @@ def _submit(tmp_path, agent, args, produces=None):
     return out, rej
 
 
+def _rej(rej):
+    return rej.read_text(encoding="utf-8") if rej.exists() else ""
+
+
 def test_submit_validates_deliverables(tmp_path):
-    target = tmp_path / "art/b/bom.json"
-    produces = [{"path": str(target), "schema": {"type": "object", "required": ["items"]}}]
-    out, rej = _submit(tmp_path, "executor", {"status": "ok", "summary": "s"}, produces)
-    assert not out.exists() and "缺少交付物" in rej.read_text(encoding="utf-8")
+    root = tmp_path / "art"
+    target = root / "b/bom.json"
+    ctx = {"kind": "artifact", "artifacts_root": str(root),
+           "produces": [{"path": str(target), "schema": {"type": "object", "required": ["items"]}}]}
+    done = {"status": "done", "summary": "s", "artifacts": ["b/bom.json"]}
+    out, rej = _submit(tmp_path, "artifact", done, ctx)
+    assert not out.exists() and "缺少交付物" in _rej(rej)
     target.parent.mkdir(parents=True)
     target.write_text('{"x": 1}', encoding="utf-8")
-    out, rej = _submit(tmp_path, "executor", {"status": "ok", "summary": "s"}, produces)
-    assert not out.exists() and "items" in rej.read_text(encoding="utf-8")
+    out, rej = _submit(tmp_path, "artifact", done, ctx)
+    assert not out.exists() and "items" in _rej(rej)
     target.write_text('{"items": []}', encoding="utf-8")
-    out, _ = _submit(tmp_path, "executor", {"status": "ok", "summary": "s"}, produces)
-    assert json.loads(out.read_text(encoding="utf-8"))["status"] == "ok"
-    out, _ = _submit(tmp_path, "reviewer", {"verdict": "reject", "feedback": ""})
+    out, rej = _submit(tmp_path, "artifact", {"status": "done", "summary": "s", "artifacts": ["b/other.json"]}, ctx)
+    assert not out.exists() and "必须列出全部交付物" in _rej(rej)
+    out, _ = _submit(tmp_path, "artifact", done, ctx)
+    assert json.loads(out.read_text(encoding="utf-8"))["status"] == "done"
+    out, rej = _submit(tmp_path, "verdict", {"verdict": "reject", "issues": []})
+    assert not out.exists() and _rej(rej)
+
+
+def test_submit_redo_preconditions(tmp_path):
+    ctx = {"kind": "artifact", "artifacts_root": "/w/artifacts", "produces": [],
+           "redo_targets": {"lca-bom": ["bom/bom.json"]}}
+    redo = {"status": "redo_upstream", "target_node": "lca-bom", "artifact": "bom/bom.rev1.json",
+            "field": "items[3].mass", "evidence": "说明书第 4 页写的是 2.4 kg，而 BOM 里是 24 kg。",
+            "requested_change": "把 items[3].mass 改为 2.4 kg"}
+    out, _ = _submit(tmp_path, "artifact", redo, ctx)
+    assert json.loads(out.read_text(encoding="utf-8"))["target_node"] == "lca-bom"
+    out, rej = _submit(tmp_path, "artifact", dict(redo, target_node="lca-mapping"), ctx)
+    assert not out.exists() and "不可回溯" in _rej(rej)
+    out, rej = _submit(tmp_path, "artifact", dict(redo, artifact="plan/plan.md"), ctx)
+    assert not out.exists() and "不是 lca-bom 的交付物" in _rej(rej)
+    out, rej = _submit(tmp_path, "artifact", dict(redo, evidence="太短"), ctx)
     assert not out.exists()
+    vctx = {"kind": "verdict", "executor_last": {"status": "done"}}
+    out, rej = _submit(tmp_path, "verdict", {"verdict": "approve_redo_upstream"}, vctx)
+    assert not out.exists() and "approve_redo_upstream" in _rej(rej)
+    vctx["executor_last"] = redo
+    out, rej = _submit(tmp_path, "verdict", {"verdict": "approve"}, vctx)
+    assert not out.exists() and "只能 approve_redo_upstream" in _rej(rej)
+    out, _ = _submit(tmp_path, "verdict", {"verdict": "approve_redo_upstream", "comment": "证据成立"}, vctx)
+    assert json.loads(out.read_text(encoding="utf-8"))["verdict"] == "approve_redo_upstream"
 
 
 def test_driver_max_rejections_policy_and_event(v5_root):
@@ -127,7 +161,7 @@ def test_driver_max_rejections_policy_and_event(v5_root):
               "log": [{"ts": "t1", "kind": "rejected_retry", "detail": "rejections=1/5"},
                       {"ts": "t2", "kind": "abort", "detail": "too_many_rejections"}]}
     rt = Rt({"status": "ok", "outcome": {"stop_reason": "aborted"}, "settle": settle})
-    req = TurnRequest(node=node, agent="executor", round=1, prompt="p", workspace=v5_root / "workspace",
+    req = TurnRequest(node=node, agent="executor", attempt=1, prompt="p", workspace=v5_root / "workspace",
                       run_id="r1234567", session_key="a.executor", resume=False, extra={"system": "S"})
     res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(req)
     assert res.abort_reason == "too_many_rejections" and res.nudges == 0
@@ -155,14 +189,14 @@ def test_mcp_env_has_no_pi_template_syntax(v5_root):
         '  $id: "urn:x"\n  type: object\n', encoding="utf-8")
     make_node(v5_root, "b", produces=[{"spec": "dollar", "path": "b/bom.json"}])
     node = load_node(v5_root, "b")
-    req = TurnRequest(node=node, agent="executor", round=1, prompt="p", workspace=v5_root / "workspace",
+    req = TurnRequest(node=node, agent="executor", attempt=1, prompt="p", workspace=v5_root / "workspace",
                       run_id="r1234567", session_key="b.executor", resume=False, extra={"system": "S"})
     spec, _ = PiDriver(v5_root, MODEL, runtime=Rt({"status": "ok"})).launch_spec(req)
     for name, binding in spec.mcp_bindings.items():
         for key, value in binding["env"].items():
             assert "$" not in value and not value.startswith("!"), (name, key)
-    produces = json.loads(Path(spec.mcp_bindings["submit"]["env"]["V5_PRODUCES_FILE"]).read_text())
-    assert produces[0]["schema"]["$schema"].startswith("https://")
+    ctx = json.loads(Path(spec.mcp_bindings["submit"]["env"]["V5_SUBMIT_CONTEXT"]).read_text())
+    assert ctx["produces"][0]["schema"]["$schema"].startswith("https://")
     with pytest.raises(McpEnvError):
         check_mcp_env({"x": {"env": {"A": "a$b"}}})
     with pytest.raises(McpEnvError):

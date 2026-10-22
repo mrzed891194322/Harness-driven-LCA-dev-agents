@@ -1,15 +1,11 @@
-"""revise-lca revision files (I-45): originals stay untouched, revision N writes ``<name>.rev<N>.<ext>``.
+"""Artifact revisions (WORKFLOW_DESIGN §1): rev 0 writes the original path, rev k writes ``<name>.rev<k>.<ext>``.
 
-Unit of revision = one entry directly inside a produce dir (``bom/bom.json``, ``bom/bom.md``,
-``mapping/LCI``, ``report/raw`` ...). Original = rev 0. A revise run allocates, per produce entry,
-N = 1 + the highest existing rev of that entry; companions in the same dir use the same N
-(``bom.rev1.md``, ``LCI.rev1/``). N is saved in ``runs/_run/revisions.json`` so a resume reuses it.
-Inputs (``requires``) resolve to the latest version (highest rev, else original); inside a node's own
-produce dir the latest *below* its N, so a resumed node never reads its own half-written revision.
+Unit of revision = one entry directly inside a produce dir (``bom/bom.json``, ``mapping/LCI`` ...); all older
+versions stay. A queue item's rev is 0 on a normal first run, else 1 + the highest existing rev of its produces
+(redo, revise-lca ``start_rev: next``). ``requires`` resolve to the latest existing version at node start.
 """
 from __future__ import annotations
 
-import json
 import re
 import shutil
 from pathlib import Path, PurePosixPath
@@ -18,7 +14,6 @@ from backend.v5.access import produce_dir
 from backend.v5.config import Node, Produce
 
 _REV = re.compile(r"\.rev(\d+)$")
-FILE = "revisions.json"
 
 
 def split(name: str) -> tuple[str, int, str]:
@@ -60,47 +55,29 @@ def versions(art: Path, rel: str) -> list[int]:
     return sorted(found)
 
 
-def latest(art: Path, rel: str, below: int | None = None) -> str:
-    revs = [r for r in versions(art, rel) if below is None or r < below]
+def latest(art: Path, rel: str) -> str:
+    revs = versions(art, rel)
     return rev_path(rel, max(revs)) if revs else rel
 
 
-def allocate(art: Path, nodes: list[Node]) -> dict[str, int]:
-    """{produce path: N}; one fresh revise run allocates once, before any node writes."""
-    return {p.path: 1 + max(versions(art, p.path) or [0]) for n in nodes for p in n.produces}
+def next_rev(art: Path, node: Node) -> int:
+    return 1 + max((r for p in node.produces for r in versions(art, p.path)), default=0)
 
 
-def load(run_dir: Path) -> dict[str, int]:
-    path = run_dir / FILE
-    return {k: int(v) for k, v in json.loads(path.read_text(encoding="utf-8")).items()} if path.is_file() else {}
+def at_rev(art: Path, node: Node, rev: int) -> Node:
+    """Node copy for one queue item: produces at rev ``rev``, requires at their latest existing version."""
+    requires = [latest(art, r) for r in node.requires]
+    produces = [Produce(spec=p.spec, path=rev_path(p.path, rev)) for p in node.produces]
+    return node.model_copy(update={"requires": requires, "produces": produces, "rev": rev})
 
 
-def save(run_dir: Path, revs: dict[str, int]) -> None:
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / FILE).write_text(json.dumps(revs, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def node_rev(node: Node, revs: dict[str, int]) -> int:
-    return max((revs.get(p.path, 0) for p in node.produces), default=0)
-
-
-def effective(art: Path, node: Node, revs: dict[str, int]) -> Node:
-    """Node copy whose produces point at rev N and whose requires point at the latest inputs."""
-    n = node_rev(node, revs)
-    if not n:
-        return node
-    own = {produce_dir(p.path) for p in node.produces}
-    requires = [latest(art, r, below=n if PurePosixPath(r).parts[0] in own else None) for r in node.requires]
-    produces = [Produce(spec=p.spec, path=rev_path(p.path, revs.get(p.path, n))) for p in node.produces]
-    return node.model_copy(update={"requires": requires, "produces": produces, "revision": n})
-
-
-def clear(art: Path, node: Node, n: int) -> None:
-    """Remove only this node's rev-N entries (originals and other revs untouched)."""
+def clear(art: Path, node: Node, rev: int) -> None:
+    """Remove a queue item's outputs: rev 0 = its whole produce dirs; rev k = only the rev-k entries in them."""
     for d in {produce_dir(p.path) for p in node.produces}:
         parent = art / d
-        if not parent.is_dir():
+        if not rev:
+            shutil.rmtree(parent, ignore_errors=True)
             continue
-        for item in parent.iterdir():
-            if split(item.name)[1] == n:
+        for item in list(parent.iterdir()) if parent.is_dir() else []:
+            if split(item.name)[1] == rev:
                 shutil.rmtree(item) if item.is_dir() and not item.is_symlink() else item.unlink()

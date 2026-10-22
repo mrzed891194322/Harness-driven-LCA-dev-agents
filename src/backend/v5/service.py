@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from backend.v5 import layout
-from backend.v5.config import list_workflows, load_workflow
+from backend.v5.config import back_edge_rounds, list_workflows, load_workflow
 from backend.v5.events import EventLog
 from backend.v5.inject import Injector
-from backend.v5.runner import AgentDriver, Runner
+from backend.v5.runner import Runner
+from backend.v5.turn import AgentDriver
 
 DriverFactory = Callable[[Path], AgentDriver]
 
@@ -47,7 +48,7 @@ class V5Service:
         out = []
         for wid in list_workflows(self.root):
             wf, nodes = load_workflow(self.root, wid)
-            out.append({"id": wid, "title": wf.title, "plan_file": wf.plan_file, "revise_of": wf.revise_of,
+            out.append({"id": wid, "title": wf.title, "plan_file": wf.plan_file, "start_rev": wf.start_rev, "max_redos": wf.max_redos,
                         "nodes": [n.id for n in nodes],
                         "details": [self._node_card(n) for n in nodes]})
         return out
@@ -88,7 +89,7 @@ class V5Service:
                             "read": [rel(g) for g in scope.read_globs], "write": [rel(g) for g in scope.write_globs]}
         return {"id": node.id, "title": node.title, "requires": node.requires,
                 "produces": [{"spec": p.spec, "path": p.path} for p in node.produces],
-                "max_rounds": node.flow.max_rounds, "agents": agents}
+                "max_rounds": back_edge_rounds(node), "agents": agents}
 
     def preview(self, workflow: str, plan_text: str | None = None) -> dict[str, Any]:
         """Exact injection per agent (system + round-1 user message) via the run-time Injector. Read-only."""
@@ -168,10 +169,12 @@ class V5Service:
         manifest = _read_json(run_dir / "manifest.json")
         nodes = []
         for item in manifest.get("nodes") or []:
-            nid = item["id"] if isinstance(item, dict) else str(item)
-            st = _read_json(layout.node_dir(self.ws, nid) / "status.json")
-            fb = layout.node_dir(self.ws, nid) / "feedback"
-            nodes.append({"id": nid, "status": st.get("status", "pending"), "round": st.get("round", 0),
+            nid, rev = item["id"], int(item.get("rev") or 0)
+            key = item.get("key") or nid
+            st = _read_json(layout.node_dir(self.ws, key) / "status.json")
+            fb = layout.node_dir(self.ws, key) / "feedback"
+            nodes.append({"id": nid, "rev": rev, "key": key, "status": st.get("status", "pending"),
+                          "round": st.get("round", 0),
                           "error": st.get("error", ""),
                           "feedback_rounds": sorted(int(p.stem.split("_")[1]) for p in fb.glob("round_*.md"))
                           if fb.is_dir() else []})
@@ -180,7 +183,7 @@ class V5Service:
             status = "running"
         return {"status": status, "reason": manifest.get("status_reason") or self.last_error,
                 "run_id": manifest.get("run_id", ""), "workflow": manifest.get("workflow", ""),
-                "current_node": manifest.get("current_node"), "nodes": nodes, "running": self.running}
+                "current_node": manifest.get("current_node"), "current_rev": manifest.get("current_rev"), "nodes": nodes, "running": self.running}
 
     def _feed(self) -> tuple[dict[str, Any], str, list[dict]]:
         from backend.v5.progress_view import build
@@ -215,7 +218,7 @@ class V5Service:
         return {"events": activity[start:], "offset": len(activity), "reset": reset}
 
     def feedback(self, node: str, rnd: int) -> str:
-        if not node.replace("-", "").replace("_", "").isalnum():
+        if not node.replace("-", "").replace("_", "").replace("@", "").isalnum():
             raise ValueError("bad node id")
         path = layout.node_dir(self.ws, node) / "feedback" / f"round_{int(rnd)}.md"
         if not path.is_file():

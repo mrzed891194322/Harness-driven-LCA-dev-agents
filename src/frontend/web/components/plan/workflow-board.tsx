@@ -167,7 +167,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           {selection.kind === "workflow" ? (
             <section>
               <h3>{workflow.title || workflow.id}</h3>
-              <p className="settings-meta">计划文件 {workflow.plan_file}{workflow.revise_of ? ` · 修订自 ${workflow.revise_of}` : ""}</p>
+              <p className="settings-meta">计划文件 {workflow.plan_file}{workflow.start_rev === "next" ? " · 在已有产物上修订" : ""}</p>
               <ol>
                 {workflow.details.map((n) => (
                   <li key={n.id}>

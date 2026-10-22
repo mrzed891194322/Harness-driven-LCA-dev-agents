@@ -1,7 +1,8 @@
 id: revise-lca
 title: 修订 LCA
-# Revises the latest artifacts in place (I-45): originals stay untouched; each node writes <name>.rev<N>.<ext>
-# next to them (N = 1 + highest existing rev) and reads the latest version of every input.
-revise_of: full-lca
+# Revises the latest artifacts: originals stay untouched; every node starts at rev = 1 + its highest
+# existing rev (writes <name>.rev<k>.<ext>, runs/<node>@rev<k>/) and reads the latest version of every input.
+start_rev: next
+max_redos: 1
 plan_file: revise_plan.md
 nodes: [lca-bom-revise, lca-mapping-revise, lca-report-revise]
