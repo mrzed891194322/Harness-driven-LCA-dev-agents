@@ -730,3 +730,6 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   the v5 backend). Removed manifest types, `fetchWorkflowManifest`, `workflowNameForMode` / `workflowListItemForMode`
   / `workflowTaskIdForMode`, `stageTitle`, `assignmentTitle`, `resumableStageIds`, `harnessWorkflowDocPath`. /runs
   "从头重跑" picks `mode === "main"` inline.
+- #8 `harness/tools/mcp/control_openlca/README.md` rewritten for v5 (172 → 60 lines): binding (`v5.yaml`, deny
+  `cleanup_output`), tool table, constraints, code locations. Removed the old engine text (workflow_mcp, `utils/`
+  layout, `reports/runs/.../raw.json`, whole-lca preset clean, `<role>-<n>` dirs).
