@@ -627,8 +627,8 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   after each full-lca, based on that run's artifacts. revise start keeps `artifacts/` (incl. the saved revise plan).
 - Tests: `src/tests/t_v5/test_plan_isolation.py` (plan_path → artifacts/plan for LCA-main/LCA-revise, knowledge and
   artifacts/plan readable; prepare_fresh leaves only `plan/main_plan.md`).
-- Leftover (not deleted): the old on-disk `harness/knowledge/plan/` (git-ignored) in the main repo / worktrees is no
-  longer used; delete after Du Yuan's OK (knowledge should be flat).
+- Cleanup (Du Yuan OK 2026-10-22): old untracked `harness/knowledge/plan/{main,revise}_plan.md` deleted in main repo,
+  dev and serve; tracked `harness/knowledge/plan/README.md` removed, so `harness/knowledge/` is flat (DESIGN.md §三).
 
 ## I-48 get_model_graph reports false "broken" on the first call while the openLCA lock is waited on (RECORD ONLY)
 - Seen in run cd1a032c (lca-report): the first `get_model_graph` returned broken/unknown graph while another IPC call
