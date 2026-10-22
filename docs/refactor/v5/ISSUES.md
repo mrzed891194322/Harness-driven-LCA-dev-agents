@@ -733,3 +733,5 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
 - #8 `harness/tools/mcp/control_openlca/README.md` rewritten for v5 (172 → 60 lines): binding (`v5.yaml`, deny
   `cleanup_output`), tool table, constraints, code locations. Removed the old engine text (workflow_mcp, `utils/`
   layout, `reports/runs/.../raw.json`, whole-lca preset clean, `<role>-<n>` dirs).
+- Plans (no code) for #1 structured activity stream, #2 SessionLaunchSpec single source, #4 control_openlca
+  workflow.py / journal cleanup: `docs/refactor/v5/SIMPLIFY_PLAN.md`.
