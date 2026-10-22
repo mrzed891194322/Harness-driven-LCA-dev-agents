@@ -726,3 +726,7 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   rows `stage` → `node`, stream tag meta, `lastNodeFromEvents`, `NodeActivity`. CSS `.run-stage*` → `.run-node*`,
   `.agent-turn-stage` → `.agent-turn-node` (selectors 1:1, visuals unchanged); testid `run-stage-text` →
   `run-node-text` (GUI.md updated). SessionLaunchSpec `stage_id`/`assignment_id` left for plan #2.
+- #7 `lib/workflow-manifest.ts` keeps only `WorkflowListItem` + `fetchWorkflowList` (no manifest endpoint exists in
+  the v5 backend). Removed manifest types, `fetchWorkflowManifest`, `workflowNameForMode` / `workflowListItemForMode`
+  / `workflowTaskIdForMode`, `stageTitle`, `assignmentTitle`, `resumableStageIds`, `harnessWorkflowDocPath`. /runs
+  "从头重跑" picks `mode === "main"` inline.

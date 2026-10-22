@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ActivitySummary } from "../../components/runs/activity-summary";
 import { AgentStream, AgentProse } from "../../components/runs/agent-stream";
 import { apiFetch } from "../../lib/api";
-import { fetchWorkflowList, workflowListItemForMode } from "../../lib/workflow-manifest";
+import { fetchWorkflowList } from "../../lib/workflow-manifest";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
 import { lastNodeFromEvents, type ActivityEvent } from "../../lib/run-activity";
 
@@ -99,7 +99,7 @@ export default function RunsPage() {
 
   async function restartFromScratch() {
     const list = await fetchWorkflowList().catch(() => []);
-    const mainWorkflow = workflowListItemForMode(list, "new") ?? list[0];
+    const mainWorkflow = list.find((item) => item.mode === "main") ?? list[0];
     const mainTitle = mainWorkflow?.title ?? "当前";
     const taskId = mainWorkflow?.id ?? "";
     if (!taskId) {
