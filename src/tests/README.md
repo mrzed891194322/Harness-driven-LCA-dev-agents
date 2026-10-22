@@ -1,7 +1,7 @@
 # Tests (v5)
 
 Principle: clear everything, keep only what's needed, add slowly. Every test runs in temp dirs; nothing writes to the
-real `workspace/` or `harness/knowledge/plan`, and live openLCA ports are blocked (`conftest.py`).
+real `workspace/` (incl. `workspace/artifacts/plan/`), and live openLCA ports are blocked (`conftest.py`).
 
 - `uv run pytest src/tests` — `t_v5/` (host locks, YAML loading and `{{var}}` rendering, end-of-node decision,
   graph flow, resume, write boundary, demo acceptance) + `t_harness/tools/control_openlca/test_write_guards.py`,

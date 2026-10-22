@@ -20,7 +20,7 @@ ln -s ../../../../node_modules $S/node_modules; ln -s ../../../../.venv $S/.venv
 cp .env $S/.env; mkdir -p $S/.local; cp -r .local/credentials $S/.local/
 cp .local/workflow-models.json .local/model_profiles.json $S/.local/
 cp harness/knowledge/inputs/<reference files> $S/harness/knowledge/inputs/
-cp harness/knowledge/plan/main_plan.md $S/harness/knowledge/plan/
+cp workspace/artifacts/plan/main_plan.md $S/workspace/artifacts/plan/
 (cd $S/src/pi-runtime && npm run build)
 ```
 

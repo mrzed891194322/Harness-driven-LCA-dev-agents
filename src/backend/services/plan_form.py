@@ -9,8 +9,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-PLAN_RELATIVE = Path("harness/knowledge/plan/main_plan.md")
-REVISE_PLAN_RELATIVE = Path("harness/knowledge/plan/revise_plan.md")
+PLAN_RELATIVE = Path("workspace/artifacts/plan/main_plan.md")  # DESIGN.md §三 / I-47
+REVISE_PLAN_RELATIVE = Path("workspace/artifacts/plan/revise_plan.md")
 INPUTS_RELATIVE = Path("harness/knowledge/inputs")
 TEMPLATE_NAME = "lca-plan-template.md"
 NOTES_NAME = "reference-notes.json"

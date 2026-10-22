@@ -118,7 +118,7 @@ Workspace 磁盘布局见 `docs/PROJECT_LAYOUT.md`（`workspace/runs/`、`worksp
 ### 2. 按阶段说明
 
 #### 01-intake-gate（只有 reviewer）
-- 输入：`harness/knowledge/plan/main_plan.md`。`spec.yaml` 中 `outputs: []`、`acceptance.checks: []`。
+- 输入：`workspace/artifacts/plan/main_plan.md`。`spec.yaml` 中 `outputs: []`、`acceptance.checks: []`。
 - 唯一产物是 reviewer 的 handoff 和宿主写的审查记录。
 
 #### 02-inventory-extraction

@@ -1,7 +1,7 @@
 # v5 workspace artifacts and revise-lca revisions (I-45)
 
 ## Layout
-- `workspace/artifacts/plan/` — plan files (`main_plan.md`, `revise_plan.md`); always read-only for agents.
+- `workspace/artifacts/plan/` — plan files (`main_plan.md`, `revise_plan.md`); always read-only for agents. The /plan form saves here too (I-47); full-lca start clears `revise_plan.md`.
 - `workspace/artifacts/<dir>/` — node deliverables (`bom/`, `mapping/`, `report/`); a node may write only the
   dirs of its `produces`.
 - `workspace/runs/<node>/` — per-node status, submits, feedback, reviewer notes; `runs/_run/` — manifest,

@@ -1,4 +1,4 @@
-"""Test isolation: temp workspace, never the real openLCA ports, never the real harness/knowledge/plan."""
+"""Test isolation: temp workspace, never the real openLCA ports, never the real workspace plan."""
 
 from __future__ import annotations
 

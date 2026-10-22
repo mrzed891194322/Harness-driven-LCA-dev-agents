@@ -19,7 +19,6 @@ from backend.v5.config import Access, Node
 
 # toggleable read areas (default on); locked areas are not listed here
 READ_TOGGLES = ("knowledge", "artifacts")
-KNOWLEDGE_HIDDEN = ("plan",)  # saved-plan store, see compute_scope (I-47)
 LOCKED = ("plan_readable", "write_only_produces", "openlca_project_category")
 
 
@@ -67,13 +66,7 @@ def compute_scope(root: Path, node: Node, role: str, role_access: Access, worksp
     for prod in node.produces:
         read.add(str(art / produce_dir(prod.path)) + "/**")
     if toggles["knowledge"]:
-        # I-47: harness/knowledge/plan/ is the GUI's saved-plan store (main_plan.md, revise_plan.md of any workflow);
-        # agents get the run's plan only via <plan> / artifacts/plan, so the store is never readable.
-        kdir = root / layout.KNOWLEDGE
-        for item in sorted(kdir.iterdir()) if kdir.is_dir() else []:
-            if item.name in KNOWLEDGE_HIDDEN:
-                continue
-            read.add(str(item) + ("/**" if item.is_dir() else ""))
+        read.add(str(root / layout.KNOWLEDGE) + "/**")
     if toggles["artifacts"]:
         read.add(str(art) + "/**")
 

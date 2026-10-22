@@ -1,4 +1,4 @@
-"""I-47: a full-lca run must not see revise inputs (saved-plan store, earlier revise artifacts). Temp dirs only."""
+"""I-47: GUI plan lives in artifacts/plan; a full-lca start clears revise leftovers. Temp dirs only."""
 from __future__ import annotations
 
 from backend.v5.access import compute_scope
@@ -13,21 +13,20 @@ def _inside(path, globs):
     return any(p == g or (g.endswith("/**") and (p + "/").startswith(g[:-2])) for g in globs)
 
 
-def test_saved_plan_store_not_readable(proj):  # noqa: F811
+def test_gui_plan_saved_under_artifacts_plan(proj):  # noqa: F811
+    """I-47 / DESIGN.md §三: the GUI form saves to workspace/artifacts/plan/, not harness/knowledge/plan/."""
+    from backend.services.plan_form import plan_path
+
+    assert plan_path(proj, workflow="LCA-main") == proj / "workspace/artifacts/plan/main_plan.md"
+    assert plan_path(proj, workflow="LCA-revise") == proj / "workspace/artifacts/plan/revise_plan.md"
     k = proj / "harness/knowledge"
-    (k / "plan").mkdir(parents=True, exist_ok=True)
-    (k / "plan/revise_plan.md").write_text("Case 2 改为 1200 km", encoding="utf-8")
-    (k / "plan/main_plan.md").write_text("# 计划", encoding="utf-8")
     (k / "inputs").mkdir(parents=True, exist_ok=True)
     (k / "inputs/a.md").write_text("资料", encoding="utf-8")
-    (k / "README.md").write_text("说明", encoding="utf-8")
     wf, nodes = load_workflow(proj, "full-lca")
     for node in nodes:
         for role in node.agents:
             s = compute_scope(proj, node, role, load_role(proj, role)[1])
-            assert not _inside(k / "plan/revise_plan.md", s.read_globs), (node.id, role)
-            assert not _inside(k / "plan/main_plan.md", s.read_globs)
-            assert _inside(k / "inputs/a.md", s.read_globs) and _inside(k / "README.md", s.read_globs)
+            assert _inside(k / "inputs/a.md", s.read_globs)
             assert _inside(proj / "workspace/artifacts/plan/main_plan.md", s.read_globs)
 
 
