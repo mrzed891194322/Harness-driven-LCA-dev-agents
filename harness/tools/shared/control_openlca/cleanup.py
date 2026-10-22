@@ -22,7 +22,7 @@ from harness.tools.shared.control_openlca.protocols import (
     OlcaDescriptor,
     OpenLcaClient,
 )
-from harness.tools.shared.control_openlca.workflow import (
+from harness.tools.shared.control_openlca.lci_inventory import (
     ENTITY_TYPES,
     load_lci_inventory,
 )

@@ -50,10 +50,10 @@ from harness.tools.shared.control_openlca.readonly import (
 from harness.tools.shared.control_openlca.readonly import (
     query_descriptors as run_query_descriptors,
 )
-from harness.tools.shared.control_openlca.workflow import (
+from harness.tools.shared.control_openlca.calculate import (
     calculate_product_system as run_calculate_product_system,
 )
-from harness.tools.shared.control_openlca.workflow import (
+from harness.tools.shared.control_openlca.graph import (
     get_model_graph as run_get_model_graph,
 )
 

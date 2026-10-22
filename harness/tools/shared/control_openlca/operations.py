@@ -9,7 +9,22 @@ import time
 import uuid
 from pathlib import Path
 
-from . import workflow as w
+from .importer import (
+    _active_database_label,
+    _execute_import,
+    _inspect_import,
+    find_uncertain_leftover_entities,
+)
+from .lci_inventory import (
+    _write_json_atomic,
+    build_entity_plan,
+    sha256_file,
+    stable_hash,
+    utc_now,
+)
+from .connection import (
+    build_endpoint,
+)
 from .connection import (
     close_ipc_client,
     create_ipc_client,
@@ -104,7 +119,7 @@ def merge_entity_plan_for_content_change(
     merged: list[dict] = []
     changed_entities: list[str] = []
     for item in inventory:
-        entry = w.build_entity_plan([item])[0]
+        entry = build_entity_plan([item])[0]
         prior = previous_by_id.get(str(item["id"]))
         if prior is None:
             merged.append(entry)
@@ -141,16 +156,16 @@ def request_identity(host, port, run_id, database_name, category, lci_dir):
             raise ValueError(
                 f"LCI path escapes LCI root: {p.relative_to(root).as_posix()}"
             )
-        files[str(p.relative_to(root))] = w.sha256_file(p)
+        files[str(p.relative_to(root))] = sha256_file(p)
     return {
         "run_id": identifier(run_id),
-        "endpoint": w.build_endpoint(host, port),
-        "database_name": w._active_database_label(
-            w.build_endpoint(host, port), database_name
+        "endpoint": build_endpoint(host, port),
+        "database_name": _active_database_label(
+            build_endpoint(host, port), database_name
         )[0],
         "category": category,
         "lci_dir": str(root),
-        "lci_content": w.stable_hash(files),
+        "lci_content": stable_hash(files),
     }
 
 
@@ -167,7 +182,7 @@ def preflight(
 ):
     identifier(run_id)
     operation_dir = journal_root(operation_dir)
-    result, _, _ = w._inspect_import(
+    result, _, _ = _inspect_import(
         host, port, lci_dir, target_category, database_name, client
     )
     result["preflight_id"] = str(uuid.uuid4())
@@ -176,7 +191,7 @@ def preflight(
     )
     result["database_identity_verified"] = False
     if result["ok"]:
-        w._write_json_atomic(
+        _write_json_atomic(
             Path(operation_dir) / "preflights" / f"{result['preflight_id']}.json",
             result,
         )
@@ -247,16 +262,16 @@ def reconcile_cleanup(operation_dir, host, port, category):
     else:
         identity = read(path)["identity"]
     if (
-        identity.get("endpoint") != w.build_endpoint(host, port)
+        identity.get("endpoint") != build_endpoint(host, port)
         or identity.get("category") != category
     ):
         return
-    w._write_json_atomic(
+    _write_json_atomic(
         root / "reconciliations" / f"{uuid.uuid4().hex}.json",
         {
             "previous": current,
             "reason": "explicit cleanup completed",
-            "at": w.utc_now(),
+            "at": utc_now(),
             "endpoint": identity["endpoint"],
             "category": category,
         },
@@ -297,7 +312,7 @@ def _finalize_import_report(
         status = "success"
     if imported == 0 and failed and done == 0 and planned <= 1:
         status = "failed"
-    report.update(status=status, ended_at=w.utc_now())
+    report.update(status=status, ended_at=utc_now())
     if status == "partial_failure" and not report.get("error_kind"):
         report.update(
             agent_action="reconcile_and_resume",
@@ -307,7 +322,7 @@ def _finalize_import_report(
                 "preflight_id; do not start a fresh import."
             ),
         )
-    w._write_json_atomic(path, report)
+    _write_json_atomic(path, report)
     return report
 
 
@@ -389,7 +404,7 @@ def resume_import_request(
     ipc = client or create_ipc_client(host, port)
     started = time.monotonic()
     try:
-        current, inventory, targets = w._inspect_import(
+        current, inventory, targets = _inspect_import(
             host, port, lci_dir, target_category, database_name, ipc
         )
         if not current["ok"] or current["preflight_hash"] != saved["preflight_hash"]:
@@ -400,7 +415,7 @@ def resume_import_request(
             }
         previous_plan = list(report.get("entity_plan") or [])
         if content_matches:
-            plan = list(previous_plan or w.build_entity_plan(inventory))
+            plan = list(previous_plan or build_entity_plan(inventory))
         else:
             plan, changed_entities = merge_entity_plan_for_content_change(
                 previous_plan, inventory
@@ -412,18 +427,18 @@ def resume_import_request(
             request_id=request_id,
             preflight_id=preflight_id,
             execution_mode="resumed",
-            resumed_at=w.utc_now(),
+            resumed_at=utc_now(),
             identity=identity,
             entity_plan=plan,
             errors=[],
         )
-        w._write_json_atomic(path, report)
-        w._write_json_atomic(
+        _write_json_atomic(path, report)
+        _write_json_atomic(
             root / "requests" / run_id / f"{request_id}.json",
             {"operation_id": operation_id},
         )
-        w._write_json_atomic(root / "current.json", {"operation_id": operation_id})
-        w._write_json_atomic(consumed, {"operation_id": operation_id})
+        _write_json_atomic(root / "current.json", {"operation_id": operation_id})
+        _write_json_atomic(consumed, {"operation_id": operation_id})
 
         def progress(records, imported, failed, deleted, errors):
             report.update(
@@ -435,9 +450,9 @@ def resume_import_request(
                 errors=list(errors),
                 duration_ms=round((time.monotonic() - started) * 1000),
             )
-            w._write_json_atomic(path, report)
+            _write_json_atomic(path, report)
 
-        records, imported, failed, deleted, errors = w._execute_import(
+        records, imported, failed, deleted, errors = _execute_import(
             ipc,
             inventory,
             targets,
@@ -461,7 +476,7 @@ def resume_import_request(
         )
     except Exception as exc:
         report.update(status="indeterminate", errors=[*report.get("errors", []), str(exc)])
-        w._write_json_atomic(path, report)
+        _write_json_atomic(path, report)
         if is_transport_error(exc):
             failure = on_ipc_transport_failure(
                 host,
@@ -580,7 +595,7 @@ def import_request(
     report = None
     started = time.monotonic()
     try:
-        current, inventory, targets = w._inspect_import(
+        current, inventory, targets = _inspect_import(
             host, port, lci_dir, target_category, database_name, ipc
         )
         if not current["ok"] or current["preflight_hash"] != saved["preflight_hash"]:
@@ -590,7 +605,7 @@ def import_request(
                 "execution_mode": "not_executed",
             }
         if prior_uncertain_marker(host, port):
-            leftovers = w.find_uncertain_leftover_entities(
+            leftovers = find_uncertain_leftover_entities(
                 ipc, inventory, target_category
             )
             run_owned = run_owned_entity_ids(root, run_id, scope)
@@ -652,7 +667,7 @@ def import_request(
                                 for entry in prior_report.get("entity_plan") or []
                             )
                         ]
-        entity_plan = w.build_entity_plan(inventory)
+        entity_plan = build_entity_plan(inventory)
         report = {
             "schema_version": 2,
             "status": "running",
@@ -664,8 +679,8 @@ def import_request(
             "execution_mode": "executed",
             "superseded_operation_id": superseded_operation_id,
             "changed_entities": changed_entities or None,
-            "started_at": w.utc_now(),
-            "requested_at": w.utc_now(),
+            "started_at": utc_now(),
+            "requested_at": utc_now(),
             "success_count": 0,
             "failed_count": 0,
             "deleted_count": 0,
@@ -674,15 +689,15 @@ def import_request(
             "errors": [],
         }
         path = root / "operations" / f"{operation_id}.json"
-        w._write_json_atomic(path, report)
+        _write_json_atomic(path, report)
         # Persist receipts before touching the database. Incomplete receipts fail closed.
-        w._write_json_atomic(
+        _write_json_atomic(
             root / "requests" / run_id / f"{request_id}.json",
             {"operation_id": operation_id},
         )
-        w._write_json_atomic(root / "current.json", {"operation_id": operation_id})
-        w._write_json_atomic(consumed, {"operation_id": operation_id})
-        w._write_json_atomic(run_scope, scope)
+        _write_json_atomic(root / "current.json", {"operation_id": operation_id})
+        _write_json_atomic(consumed, {"operation_id": operation_id})
+        _write_json_atomic(run_scope, scope)
 
         def progress(records, imported, failed, deleted, errors):
             report.update(
@@ -694,9 +709,9 @@ def import_request(
                 errors=list(errors),
                 duration_ms=round((time.monotonic() - started) * 1000),
             )
-            w._write_json_atomic(path, report)
+            _write_json_atomic(path, report)
 
-        records, imported, failed, deleted, errors = w._execute_import(
+        records, imported, failed, deleted, errors = _execute_import(
             ipc,
             inventory,
             targets,
@@ -720,7 +735,7 @@ def import_request(
     except Exception as exc:
         if report is not None:
             report.update(status="indeterminate", errors=[*report["errors"], str(exc)])
-            w._write_json_atomic(path, report)
+            _write_json_atomic(path, report)
         if is_transport_error(exc):
             failure = on_ipc_transport_failure(
                 host,

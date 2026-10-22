@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import olca_schema
 
 from harness.tools.shared.control_openlca.cleanup import delete_entities
-from harness.tools.shared.control_openlca.workflow import (
+from harness.tools.shared.control_openlca.importer import (
     _outside_project_import_refusal,
 )
 
