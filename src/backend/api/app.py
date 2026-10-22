@@ -704,7 +704,7 @@ def v5_agent_models_save(body: dict[str, Any]) -> dict[str, Any]:
     from backend.v5 import agent_models
 
     try:
-        data = agent_models.save(_v5().root, str(body.get("node") or ""), str(body.get("role") or ""),
+        data = agent_models.save(_v5().root, str(body.get("node") or ""), str(body.get("agent") or ""),
                                  str(body.get("model") or ""), str(body.get("thinking") or ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -742,7 +742,7 @@ def v5_status() -> dict[str, Any]:
 
 @app.get("/api/v5/harness")
 def v5_harness() -> dict[str, Any]:
-    """Read-only v5 harness YAML (rules, roles, specs, workflows) with load errors."""
+    """Read-only v5 harness YAML (rules, agents, specs, workflows) with load errors."""
     from backend.v5.harness_view import harness_view
 
     return harness_view(_v5().root)

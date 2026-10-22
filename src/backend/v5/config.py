@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator,
 
 from backend.v5 import layout
 
-ROLES = ("executor", "reviewer")
+AGENT_KEYS = ("executor", "reviewer")
 TERMINALS = ("done", "failed")
 OUTCOMES = ("submitted", "checks_failed", "pass", "reject", "stop", "error")
 
@@ -47,10 +47,10 @@ class Agent(_Strict):
     tools: Tools = Field(default_factory=Tools)
     rules: list[str] = Field(default_factory=list)
     access: Access = Field(default_factory=Access)
-    _definition: "RoleDef | None" = PrivateAttr(default=None)
+    _definition: "AgentDef | None" = PrivateAttr(default=None)
 
     @property
-    def definition(self) -> "RoleDef":
+    def definition(self) -> "AgentDef":
         """The resolved agent template (prompt / access / deliver); set by load_node."""
         if self._definition is None:
             raise ConfigError(f"agent {self.agent!r} is not resolved (load nodes with load_node / load_workflow)")
@@ -96,8 +96,8 @@ class Node(_Strict):
 
     @model_validator(mode="after")
     def _validate(self) -> Node:
-        if set(self.agents) - set(ROLES):
-            raise ValueError(f"unknown agent keys: {sorted(set(self.agents) - set(ROLES))}")
+        if set(self.agents) - set(AGENT_KEYS):
+            raise ValueError(f"unknown agent keys: {sorted(set(self.agents) - set(AGENT_KEYS))}")
         if "executor" not in self.agents:
             raise ValueError("node needs an executor")
         states = set(self.agents) | set(TERMINALS)
@@ -171,7 +171,7 @@ class Deliver(_Strict):
     max_rejections: int = Field(default=5, ge=1)
 
 
-class RoleDef(_Strict):
+class AgentDef(_Strict):
     title: str = ""
     prompt: str
     access: Access = Field(default_factory=Access)
@@ -259,12 +259,12 @@ def _line_of(path: Path, pattern: str) -> str:
     return str(path)
 
 
-def _normalize_agents(data: dict, path: Path) -> dict[str, "RoleDef"]:
+def _normalize_agents(data: dict, path: Path) -> dict[str, "AgentDef"]:
     """I-50: ``executor: executor`` (template name), ``{agent: <name>, ...overrides}`` or an inline agent object.
 
     Returns the inline definitions by agent key.
     """
-    inline_defs: dict[str, RoleDef] = {}
+    inline_defs: dict[str, AgentDef] = {}
     agents = data.get("agents")
     if not isinstance(agents, dict):
         return inline_defs
@@ -279,7 +279,7 @@ def _normalize_agents(data: dict, path: Path) -> dict[str, "RoleDef"]:
                                   f"(or give a template name: `{key}: executor`)")
             tpl = {k: value[k] for k in ("title", "prompt", "access", "deliver") if k in value}
             try:
-                definition = RoleDef.model_validate(tpl)
+                definition = AgentDef.model_validate(tpl)
             except ValueError as exc:
                 raise ConfigError(f"{where}: inline agent {key!r}: {exc}") from exc
             definition.prompt = render(definition.prompt, path)
@@ -293,7 +293,7 @@ def _normalize_agents(data: dict, path: Path) -> dict[str, "RoleDef"]:
     return inline_defs
 
 
-def _resolve_agents(root: Path, node: Node, path: Path, inline_defs: dict[str, "RoleDef"]) -> None:
+def _resolve_agents(root: Path, node: Node, path: Path, inline_defs: dict[str, "AgentDef"]) -> None:
     for key, agent in node.agents.items():
         if key in inline_defs:
             agent._definition = inline_defs[key]
@@ -305,7 +305,7 @@ def _resolve_agents(root: Path, node: Node, path: Path, inline_defs: dict[str, "
             known = sorted(p.stem for p in (root / layout.AGENTS).glob("*.yaml"))
             raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: unknown agent {agent.agent!r} "
                               f"(no {tpl.relative_to(root)}; known: {', '.join(known) or 'none'})")
-        agent._definition = load_role_def(root, agent.agent)
+        agent._definition = load_agent_def(root, agent.agent)
 
 
 def _build_node(root: Path, data: dict, path: Path) -> Node:
@@ -396,10 +396,10 @@ def load_spec(root: Path, spec_id: str) -> Spec:
     return Spec(id=spec_id, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks)
 
 
-def load_role_def(root: Path, role: str) -> RoleDef:
+def load_agent_def(root: Path, role: str) -> AgentDef:
     """Load agent template ``harness/workflows/agents/<role>.yaml``."""
     path = root / layout.AGENTS / f"{role}.yaml"
-    role_def = _validate(RoleDef, _load_yaml(path), path)
+    role_def = _validate(AgentDef, _load_yaml(path), path)
     role_def.prompt = render(role_def.prompt, path)
     return role_def
 

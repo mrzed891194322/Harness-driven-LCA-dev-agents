@@ -38,7 +38,7 @@ class TurnResult:
 @dataclass
 class TurnRequest:
     node: Node
-    role: str
+    agent: str  # agent key in the node (executor | reviewer)
     round: int
     prompt: str
     workspace: Path
@@ -287,7 +287,7 @@ class Runner:
             role = state
             prompt = self.prompt_builder(node, role, rnd, rework, self.specs)
             key = f"{node.id}.{role}"
-            req = TurnRequest(node=node, role=role, round=rnd, prompt=prompt, workspace=self.ws,
+            req = TurnRequest(node=node, agent=role, round=rnd, prompt=prompt, workspace=self.ws,
                               run_id=self.run_id, session_key=key,
                               resume=(role == "executor" and key in sessions_started))
             system_fn = getattr(self.prompt_builder, "system", None)

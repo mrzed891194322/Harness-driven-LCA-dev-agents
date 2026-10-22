@@ -672,3 +672,12 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
 - Kept as rule: MCP only, category-only writes (`{{project_category}}`), never touch ecoinvent/background or root, stop
   when an operation's outcome cannot be confirmed.
 - Per-node `{agent: ..., overrides}` never mutates the template (DESIGN §九; test in test_config).
+
+## I-52 `role` slot naming → agent naming (code + API)
+- Python: `RoleDef`→`AgentDef`, `load_role_def`→`load_agent_def`, `ROLES`→`AGENT_KEYS`, `TurnRequest.role`→`.agent`.
+- API: /api/v5/workflows agent card `role` → `template` (template name, "" = inline); /api/v5/preview agents
+  `role` → `agent` (key executor|reviewer); POST /api/v5/agent-models body `role` → `agent`.
+- Frontend types/props follow (V5Agent.template, PreviewAgent.agent, Selection.agent). Testid values unchanged
+  (`flow-agent-<node>-<agent>`, `preview-agent-<node>.<agent>` still use executor/reviewer); `data-role` attribute kept.
+- Not renamed (on-disk/log formats, history compatibility): events.jsonl `role=` field, submit.json `role`,
+  /results handoff `role`, runs stream meta, compute_scope/inject parameter names, `.local/v5-agent-models.json` keys.

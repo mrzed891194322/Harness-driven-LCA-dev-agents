@@ -65,14 +65,14 @@ class PiDriver:
             "submit": {
                 "command": sys.executable,
                 "args": [str(self.root / "harness/tools/mcp/submit/main.py")],
-                "env": {"V5_SUBMIT_FILE": str(submit_file), "V5_ROLE": req.role,
+                "env": {"V5_SUBMIT_FILE": str(submit_file), "V5_ROLE": req.agent,
                         "PYTHONPATH": str(self.root)},
                 "timeout_ms": 60_000,
                 "exposure": "direct",
             }
         }
         allowed = ["mcp__submit__submit"]
-        agent = req.node.agents[req.role]
+        agent = req.node.agents[req.agent]
         for name in agent.tools.mcp:
             cfg_path = self.root / layout.TOOLS_MCP / name / "v5.yaml"
             if not cfg_path.is_file():
@@ -86,7 +86,7 @@ class PiDriver:
             bindings[name] = {"command": command, "args": args, "env": env,
                               "timeout_ms": int(cfg.get("tool_timeout_sec", 60)) * 1000, "exposure": "direct"}
             whitelist = agent.tools.mcp_allow.get(name)
-            if req.role == "reviewer" and not whitelist and cfg.get("readonly_tools"):
+            if req.agent == "reviewer" and not whitelist and cfg.get("readonly_tools"):
                 whitelist = list(cfg["readonly_tools"])
             if whitelist:
                 allowed += [f"mcp__{name}__{t}" for t in whitelist if t not in (cfg.get("deny_tools") or [])]
@@ -103,16 +103,16 @@ class PiDriver:
     def launch_spec(self, req: TurnRequest) -> tuple[SessionLaunchSpec, Path]:
         ws = req.workspace
         node_dir = layout.node_dir(ws, req.node.id)
-        role_dir = node_dir / req.role
+        role_dir = node_dir / req.agent
         submit_file = role_dir / "submit.json"  # stable path: a live session keeps its MCP env
-        role_access = req.node.agents[req.role].definition.access
-        scope = compute_scope(self.root, req.node, req.role, role_access, workspace=ws)
+        role_access = req.node.agents[req.agent].definition.access
+        scope = compute_scope(self.root, req.node, req.agent, role_access, workspace=ws)
         # compute_scope uses root/workspace; remap if the runner uses another workspace
         default_ws = str(self.root / layout.WORKSPACE)
         remap = (lambda g: g.replace(default_ws, str(ws), 1)) if str(ws) != default_ws else (lambda g: g)
         bindings, mcp_allowed = self._mcp_bindings(req, submit_file)
-        deliver = req.node.agents[req.role].definition.deliver
-        if req.role == "executor":
+        deliver = req.node.agents[req.agent].definition.deliver
+        if req.agent == "executor":
             produces = []
             for prod in req.node.produces:
                 spec = load_spec(self.root, prod.spec)
@@ -133,14 +133,14 @@ class PiDriver:
             if name != "submit":
                 binding["env"] = {**binding["env"], **scope_env}
         check_mcp_env(bindings)
-        file_tools = FILE_TOOLS_EXEC if req.role == "executor" else FILE_TOOLS_REVIEW
+        file_tools = FILE_TOOLS_EXEC if req.agent == "executor" else FILE_TOOLS_REVIEW
         system = req.extra.get("system", "")
         storage = ws / "tmp" / "pi-v5" / req.session_key
         spec = SessionLaunchSpec(
             run_id=req.run_id,
             stage_id=req.node.id,
             assignment_id=req.session_key,
-            role=req.role,
+            role=req.agent,
             attempt=req.round,
             session_key=f"v5:{req.run_id[:8]}:{req.session_key}",
             execution_id=uuid.uuid4().hex,
@@ -149,8 +149,8 @@ class PiDriver:
             model_profile=self.model,
             system_sections=[SystemSection(id="v5_system", content=system, source_hash=_sha(system))],
             turn_context={"engine": "v5", "node": req.node.id, "round": req.round,
-                          "settle": {"node": req.node.id, "role": req.role, "submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
-                                     "max_turns": req.node.agents[req.role].max_turns or deliver.max_turns, "timeout_min": deliver.timeout_min,
+                          "settle": {"node": req.node.id, "role": req.agent, "submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
+                                     "max_turns": req.node.agents[req.agent].max_turns or deliver.max_turns, "timeout_min": deliver.timeout_min,
                                      "max_rejections": deliver.max_rejections,
                                      "rejections_file": str(role_dir / "submit_rejections.jsonl"),
                                      "model_retry_delays_s": model_retry_delays_s()}},
@@ -174,7 +174,7 @@ class PiDriver:
                 "session_file": str((storage / "session.jsonl").resolve()),
             },
         )
-        agent = req.node.agents[req.role]
+        agent = req.node.agents[req.agent]
         base = self.model
         if agent.model and agent.model != getattr(self.model, "profile_id", None):
             from backend.core.runtime.model_profiles import resolve_model_profile
@@ -203,7 +203,7 @@ class PiDriver:
             else:
                 self.runtime.request("session.create", payload, timeout=CREATE_TIMEOUT_S)
                 self.live.add(spec.session_key)
-            events.emit("session_ready", node=req.node.id, role=req.role, round=req.round,
+            events.emit("session_ready", node=req.node.id, role=req.agent, round=req.round,
                         session_key=spec.session_key, tools=spec.permission_policy.allowed_tools,
                         mcp=sorted(spec.mcp_bindings))
             self.active = spec.session_key
@@ -230,23 +230,23 @@ class PiDriver:
                 submit = None
             else:
                 submit_file.replace(submit_file.with_name(f"submit_round_{req.round}.json"))
-        if req.role == "reviewer" or submit is None:
-            self._release(spec.session_key) if req.role == "reviewer" else None
+        if req.agent == "reviewer" or submit is None:
+            self._release(spec.session_key) if req.agent == "reviewer" else None
         settle = result.get("settle") if isinstance(result, dict) else None
         settle = settle if isinstance(settle, dict) else {}
         for item in settle.get("log") or []:
             if (item.get("kind"), item.get("ts")) in streamed.seen:
                 continue  # already written live (I-31)
             kind = SETTLE_KINDS.get(item.get("kind"), "settle")
-            events.emit(kind, node=req.node.id, role=req.role, round=req.round, detail=item.get("detail"),
+            events.emit(kind, node=req.node.id, role=req.agent, round=req.round, detail=item.get("detail"),
                         at=item.get("ts"))
         for line in _read_lines(rejections)[seen_rejections:]:
-            events.emit("submit_rejected", node=req.node.id, role=req.role, round=req.round, **line)
+            events.emit("submit_rejected", node=req.node.id, role=req.agent, round=req.round, **line)
         abort_reason = str(settle.get("abort_reason") or "")
         if not abort_reason and submit is None and err.startswith("MCP 服务未就绪"):
             abort_reason = "mcp_not_ready"  # the agent never had a submit tool; not its fault
         if abort_reason == "too_many_rejections":
-            events.emit("too_many_rejections", node=req.node.id, role=req.role, round=req.round,
+            events.emit("too_many_rejections", node=req.node.id, role=req.agent, round=req.round,
                         rejections=int(settle.get("rejections") or 0))
         fatal = submit is None and is_auth_error(err)
         if submit is not None:
@@ -361,7 +361,7 @@ class _SettleStream:
                 return
             kind = str(data.get("settle_kind") or "")
             self.seen.add((kind, data.get("ts")))
-            events.emit(SETTLE_KINDS.get(kind, "settle"), node=req.node.id, role=req.role, round=req.round,
+            events.emit(SETTLE_KINDS.get(kind, "settle"), node=req.node.id, role=req.agent, round=req.round,
                         detail=data.get("detail"), at=data.get("ts"))
 
         self._handler = handler

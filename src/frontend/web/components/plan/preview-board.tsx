@@ -13,7 +13,7 @@ import { label } from "../../lib/labels";
 import { PromptModal, type PreviewAgent } from "./injection-preview";
 import { workflowForMode, type V5Workflow } from "../../lib/v5-workflow";
 
-type Preview = { nodes: { id: string; title: string; agents: { role: string; system: string; user: string }[] }[]; plan_present: boolean; plan_source?: string };
+type Preview = { nodes: { id: string; title: string; agents: { agent: string; system: string; user: string }[] }[]; plan_present: boolean; plan_source?: string };
 
 type ReferenceFile = {
   name: string;
@@ -211,17 +211,17 @@ export function PreviewBoard({
                     {Object.entries(node.agents).map(([name, agent]) => (
                       <li
                         key={name}
-                        data-role={agent.role}
+                        data-role={agent.template}
                         data-testid={`preview-agent-${node.id}.${name}`}
                         onClick={() => {
-                          const hit = preview?.nodes.find((n) => n.id === node.id)?.agents.find((x) => x.role === name);
+                          const hit = preview?.nodes.find((n) => n.id === node.id)?.agents.find((x) => x.agent === name);
                           if (hit) setOpen({ node: { id: node.id, title: node.title }, agent: hit });
                         }}
                         title={preview ? "查看组合注入" : undefined}
                       >
                         <Bot size={13} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
-                        <span>{agent.tools.mcp.length ? agent.tools.mcp.join(" · ") : agent.role}</span>
+                        <span>{agent.tools.mcp.length ? agent.tools.mcp.join(" · ") : agent.template || "内联"}</span>
                       </li>
                     ))}
                   </ul>

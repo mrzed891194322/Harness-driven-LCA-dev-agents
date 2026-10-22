@@ -12,7 +12,7 @@ import { THINKING_LEVELS, workflowForMode, type V5Node, type V5Workflow } from "
 
 export type WorkMode = "new" | "revise";
 
-type Selection = { kind: "workflow" } | { kind: "node"; id: string } | { kind: "agent"; id: string; role: string };
+type Selection = { kind: "workflow" } | { kind: "node"; id: string } | { kind: "agent"; id: string; agent: string };
 
 export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   const [workflow, setWorkflow] = useState<V5Workflow | null>(null);
@@ -65,12 +65,12 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
     } else setModelNote(`保存失败（HTTP ${r.status}）`);
   }
 
-  async function changeAgent(node: string, role: string, model: string, thinking: string) {
+  async function changeAgent(node: string, agent: string, model: string, thinking: string) {
     setModelNote("");
     const r = await apiFetch("/api/v5/agent-models", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ node, role, model, thinking }),
+      body: JSON.stringify({ node, agent, model, thinking }),
     });
     if (r.ok) {
       setModelNote("已保存，下次运行开始时生效");
@@ -131,10 +131,10 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                 </button>
                 <div className="flow-steps" onClick={(e) => e.stopPropagation()}>
                   {Object.entries(n.agents).map(([name, agent]) => (
-                    <button key={name} type="button" className="flow-step" data-role={agent.role}
+                    <button key={name} type="button" className="flow-step" data-role={agent.template}
                       data-testid={`flow-agent-${n.id}-${name}`}
-                      aria-pressed={selection.kind === "agent" && selection.id === n.id && selection.role === name}
-                      onClick={() => choose({ kind: "agent", id: n.id, role: name })}>
+                      aria-pressed={selection.kind === "agent" && selection.id === n.id && selection.agent === name}
+                      onClick={() => choose({ kind: "agent", id: n.id, agent: name })}>
                       <span className="flow-step-role">
                         <Bot className="flow-step-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
@@ -177,9 +177,9 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
               </ol>
             </section>
           ) : node && selection.kind === "node" ? (
-            <NodeDetail node={node} onAgent={(role) => choose({ kind: "agent", id: node.id, role })} />
+            <NodeDetail node={node} onAgent={(agent) => choose({ kind: "agent", id: node.id, agent })} />
           ) : node && selection.kind === "agent" ? (
-            <AgentDetail node={node} role={selection.role} models={models} onChange={changeAgent} />
+            <AgentDetail node={node} agentKey={selection.agent} models={models} onChange={changeAgent} />
           ) : null}
         </aside>
       ) : null}
@@ -187,7 +187,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   );
 }
 
-function NodeDetail({ node, onAgent }: { node: V5Node; onAgent: (role: string) => void }) {
+function NodeDetail({ node, onAgent }: { node: V5Node; onAgent: (agent: string) => void }) {
   return (
     <section data-testid={`flow-node-detail-${node.id}`}>
       <h3>{node.title || node.id}</h3>
@@ -206,26 +206,26 @@ function NodeDetail({ node, onAgent }: { node: V5Node; onAgent: (role: string) =
   );
 }
 
-function AgentDetail({ node, role, models, onChange }: {
-  node: V5Node; role: string; models: ModelRow[];
-  onChange: (node: string, role: string, model: string, thinking: string) => Promise<void>;
+function AgentDetail({ node, agentKey, models, onChange }: {
+  node: V5Node; agentKey: string; models: ModelRow[];
+  onChange: (node: string, agent: string, model: string, thinking: string) => Promise<void>;
 }) {
-  const agent = node.agents[role];
+  const agent = node.agents[agentKey];
   if (!agent) return null;
   const gm = agent.gui_model || "";
   const gt = agent.gui_thinking || "";
   const choices = modelChoices(models, gm).choices.filter((c) => c.value);
   return (
-    <section data-testid={`flow-agent-detail-${node.id}-${role}`}>
-      <h3>{node.title || node.id} · {label(role)}</h3>
-      <p className="settings-meta">agent {agent.role || "内联"} · 当前模型 {agent.model}{agent.thinking ? ` · 思考 ${agent.thinking}` : ""}</p>
+    <section data-testid={`flow-agent-detail-${node.id}-${agentKey}`}>
+      <h3>{node.title || node.id} · {label(agentKey)}</h3>
+      <p className="settings-meta">agent {agent.template || "内联"} · 当前模型 {agent.model}{agent.thinking ? ` · 思考 ${agent.thinking}` : ""}</p>
       <h4>模型</h4>
-      <select className="flow-model" data-testid="agent-model-select" value={gm} onChange={(e) => void onChange(node.id, role, e.target.value, gt)}>
+      <select className="flow-model" data-testid="agent-model-select" value={gm} onChange={(e) => void onChange(node.id, agentKey, e.target.value, gt)}>
         <option value="">使用默认模型</option>
         {choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
       </select>
       <h4>思考</h4>
-      <select className="flow-model" data-testid="agent-thinking-select" value={gt} onChange={(e) => void onChange(node.id, role, gm, e.target.value)}>
+      <select className="flow-model" data-testid="agent-thinking-select" value={gt} onChange={(e) => void onChange(node.id, agentKey, gm, e.target.value)}>
         {THINKING_LEVELS.map((t) => <option key={t || "default"} value={t}>{t || "模型默认"}</option>)}
       </select>
       <h4>可读</h4>
@@ -234,7 +234,7 @@ function AgentDetail({ node, role, models, onChange }: {
       <ul>{agent.write.length ? agent.write.map((g) => <li key={g} className="mono">{g}</li>) : <li>无</li>}</ul>
       <h4>工具</h4>
       <ul>
-        <li>文件工具{role === "executor" ? "（含写入）" : "（只读）"}、submit</li>
+        <li>文件工具{agentKey === "executor" ? "（含写入）" : "（只读）"}、submit</li>
         {agent.tools.mcp.map((m) => <li key={m}>MCP：{m}</li>)}
         {agent.tools.skills.map((s) => <li key={s}>技能：{s}</li>)}
       </ul>

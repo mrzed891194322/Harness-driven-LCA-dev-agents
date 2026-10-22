@@ -1,6 +1,6 @@
 """Per-agent model / thinking chosen on /plan 工作流编排 (GUI setting, not harness YAML).
 
-Stored in `.local/v5-agent-models.json` as {"<node>.<role>": {"model": ref, "thinking": level}}.
+Stored in `.local/v5-agent-models.json` as {"<node>.<agent>": {"model": ref, "thinking": level}}.
 Applied to the loaded nodes at run start; an empty entry falls back to the YAML value, then the global default model.
 """
 from __future__ import annotations
@@ -32,13 +32,13 @@ def load(root: Path) -> dict[str, dict[str, str]]:
     return out
 
 
-def save(root: Path, node: str, role: str, model: str = "", thinking: str = "") -> dict[str, dict[str, str]]:
-    if role not in ("executor", "reviewer") or not node or "/" in node:
-        raise ValueError("无效的节点或角色")
+def save(root: Path, node: str, agent: str, model: str = "", thinking: str = "") -> dict[str, dict[str, str]]:
+    if agent not in ("executor", "reviewer") or not node or "/" in node:
+        raise ValueError("无效的节点或 agent")
     if thinking not in THINKING_LEVELS:
         raise ValueError(f"无效的思考档位：{thinking}")
     data = load(root)
-    key = f"{node}.{role}"
+    key = f"{node}.{agent}"
     entry = {k: v for k, v in (("model", model.strip()), ("thinking", thinking)) if v}
     if entry:
         data[key] = entry
@@ -58,12 +58,12 @@ def apply(nodes: list[Any], overrides: dict[str, dict[str, str]]) -> list[Any]:
     for node in nodes:
         agents = {}
         changed = False
-        for role, agent in node.agents.items():
-            entry = overrides.get(f"{node.id}.{role}") or {}
+        for key, agent in node.agents.items():
+            entry = overrides.get(f"{node.id}.{key}") or {}
             update = {k: v for k, v in entry.items() if v}
             if update:
                 agent = agent.model_copy(update=update)
                 changed = True
-            agents[role] = agent
+            agents[key] = agent
         out.append(node.model_copy(update={"agents": agents}) if changed else node)
     return out

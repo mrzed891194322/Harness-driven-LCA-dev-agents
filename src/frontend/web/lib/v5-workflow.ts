@@ -1,6 +1,6 @@
 /** v5 workflow cards from /api/v5/workflows, shared by /plan boards. */
 export type V5Agent = {
-  role: string;
+  template: string; // agent template name (harness/workflows/agents/<name>.yaml); "" = inline
   model: string;
   thinking: string;
   model_source?: string;

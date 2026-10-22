@@ -74,7 +74,7 @@ def test_driver_passes_settle_policy_and_logs(v5_root):
                       {"ts": "t3", "kind": "abort", "detail": "max_turns"}]}
     rt = Rt({"status": "ok", "outcome": {"stop_reason": "aborted"}, "settle": settle},
             rejections=[{"at": "t0", "errors": ["缺少交付物或为空：x"]}])
-    req = TurnRequest(node=node, role="executor", round=1, prompt="p", workspace=v5_root / "workspace",
+    req = TurnRequest(node=node, agent="executor", round=1, prompt="p", workspace=v5_root / "workspace",
                       run_id="r1234567", session_key="a.executor", resume=False, extra={"system": "S"})
     res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(req)
     assert res.submit is None and res.aborted and res.abort_reason == "max_turns" and res.nudges == 2
@@ -127,7 +127,7 @@ def test_driver_max_rejections_policy_and_event(v5_root):
               "log": [{"ts": "t1", "kind": "rejected_retry", "detail": "rejections=1/5"},
                       {"ts": "t2", "kind": "abort", "detail": "too_many_rejections"}]}
     rt = Rt({"status": "ok", "outcome": {"stop_reason": "aborted"}, "settle": settle})
-    req = TurnRequest(node=node, role="executor", round=1, prompt="p", workspace=v5_root / "workspace",
+    req = TurnRequest(node=node, agent="executor", round=1, prompt="p", workspace=v5_root / "workspace",
                       run_id="r1234567", session_key="a.executor", resume=False, extra={"system": "S"})
     res = PiDriver(v5_root, MODEL, runtime=rt).run_turn(req)
     assert res.abort_reason == "too_many_rejections" and res.nudges == 0
@@ -155,7 +155,7 @@ def test_mcp_env_has_no_pi_template_syntax(v5_root):
         '  $id: "urn:x"\n  type: object\n', encoding="utf-8")
     make_node(v5_root, "b", produces=[{"spec": "dollar", "path": "b/bom.json"}])
     node = load_node(v5_root, "b")
-    req = TurnRequest(node=node, role="executor", round=1, prompt="p", workspace=v5_root / "workspace",
+    req = TurnRequest(node=node, agent="executor", round=1, prompt="p", workspace=v5_root / "workspace",
                       run_id="r1234567", session_key="b.executor", resume=False, extra={"system": "S"})
     spec, _ = PiDriver(v5_root, MODEL, runtime=Rt({"status": "ok"})).launch_spec(req)
     for name, binding in spec.mcp_bindings.items():

@@ -59,8 +59,8 @@ def test_preview_is_read_only_injection(monkeypatch, v5_root):
     r = client.get("/api/v5/preview", params={"workflow": "full-lca"})
     assert r.status_code == 200, r.text
     node = r.json()["nodes"][0]
-    assert node["id"] == "a" and {a["role"] for a in node["agents"]} == {"executor", "reviewer"}
-    ex = next(a for a in node["agents"] if a["role"] == "executor")
+    assert node["id"] == "a" and {a["agent"] for a in node["agents"]} == {"executor", "reviewer"}
+    ex = next(a for a in node["agents"] if a["agent"] == "executor")
     assert "<plan>" in ex["user"] and "deliverable_paragraph" in ex["user"] and ex["system"].strip()
     assert "保存的计划 XYZ" in ex["user"] and r.json()["plan_source"] == "saved"
     assert sorted(str(p) for p in v5_root.rglob("*")) == before  # no side effects
@@ -72,10 +72,10 @@ def test_agent_model_setting_applies_at_run_start(monkeypatch, v5_root):
     from backend.v5.config import load_workflow
 
     client, svc = _client(monkeypatch, v5_root)
-    r = client.post("/api/v5/agent-models", json={"node": "a", "role": "executor", "model": "p/m1", "thinking": "high"})
+    r = client.post("/api/v5/agent-models", json={"node": "a", "agent": "executor", "model": "p/m1", "thinking": "high"})
     assert r.status_code == 200, r.text
-    assert client.post("/api/v5/agent-models", json={"node": "a", "role": "boss"}).status_code == 400
-    assert client.post("/api/v5/agent-models", json={"node": "a", "role": "executor", "thinking": "max"}).status_code == 400
+    assert client.post("/api/v5/agent-models", json={"node": "a", "agent": "boss"}).status_code == 400
+    assert client.post("/api/v5/agent-models", json={"node": "a", "agent": "executor", "thinking": "max"}).status_code == 400
     assert agent_models.settings_file(v5_root).is_file()
     _, nodes = load_workflow(v5_root, "full-lca")
     a = agent_models.apply(nodes, agent_models.load(v5_root))[0]
@@ -83,7 +83,7 @@ def test_agent_model_setting_applies_at_run_start(monkeypatch, v5_root):
     assert a.agents["reviewer"].model == nodes[0].agents["reviewer"].model
     card = client.get("/api/v5/workflows").json()["workflows"][0]["details"][0]["agents"]["executor"]
     assert card["model_source"] == "gui" and card["gui_model"] == "p/m1"
-    client.post("/api/v5/agent-models", json={"node": "a", "role": "executor"})
+    client.post("/api/v5/agent-models", json={"node": "a", "agent": "executor"})
     assert agent_models.load(v5_root) == {}
 
 

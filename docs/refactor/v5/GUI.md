@@ -25,7 +25,7 @@ which v5 maps to `full-lca`. At run start the form content is rendered into `wor
 ## Node cards
 
 Each node shows its deliverables (spec → artifacts path), requires and max rounds; each agent shows model + thinking,
-role, tools, rules, and read/write scopes (read-only).
+template, tools, rules, and read/write scopes (read-only).
 
 ## Model dropdown (/runs)
 
@@ -62,7 +62,7 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | `agent-stream` | /runs 实时终端 | fed by `/api/workflow/progress` |
 | `activity-summary` | /runs 活动概览 chips | fed by `/api/workflow/activity` |
 | `preview-start` | /plan 预览执行 → 执行LCA任务 | the start button now lives here (old location) |
-| `workflow-board`, `flow-node-<id>`, `flow-agent-<node>-<role>`, `flow-inspector`, `agent-model-select` | /plan 工作流编排 | per-agent model = old per-assignment model |
+| `workflow-board`, `flow-node-<id>`, `flow-agent-<node>-<agent>`, `flow-inspector`, `agent-model-select` | /plan 工作流编排 | per-agent model = old per-assignment model |
 | `harness-viewer`, `harness-tab-<section>`, `harness-file-<path>`, `harness-fields`, `harness-raw`, `harness-file-error` | /harness | |
 | **removed** `run-start` | → `preview-start` on /plan | |
 | `run-resume` | /runs 失败原因 popup → 重跑本轮 (the old disabled button, now wired) | `POST /api/v5/resume` with the run's workflow: passed nodes skipped, interrupted/failed node rerun |
@@ -74,6 +74,6 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | **removed** `results-run-line` | none (not in 599ed0a) | |
 | **removed** `harness-error-count` | per-file `harness-file-error` + ⚠ in nav | |
 | `agent-thinking-select` | /plan 工作流编排 agent card, under 模型 | Du Yuan approved (I-45 decisions) |
-| `preview-agent-<node>.<role>` | /plan 预览执行 → 工作流 list, each agent row (click; container/CSS unchanged) | opens the prompt modal |
+| `preview-agent-<node>.<agent>` | /plan 预览执行 → 工作流 list, each agent row (click; container/CSS unchanged) | opens the prompt modal |
 | `prompt-modal`, `prompt-modal-close` | prompt modal (same `settings-dialog` frame/CSS as 设置): left 系统提示 / 用户消息, body scrolls inside (max-height 60vh) | fed by `/api/v5/preview`; Du Yuan approved |
 | **removed** `preview-injection` | replaced by `prompt-modal` | |

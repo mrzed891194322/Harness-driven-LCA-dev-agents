@@ -26,7 +26,7 @@ def _agent(extra=None):
     """Fake agents that write JSON deliverables (requires preflight parses .json) and the LCI directory."""
 
     def on_turn(req):
-        if req.node.id == "lca-mapping-revise" and req.role == "executor":
+        if req.node.id == "lca-mapping-revise" and req.agent == "executor":
             lci = req.workspace / f"artifacts/mapping/LCI.rev{req.node.revision}/processes"
             lci.mkdir(parents=True, exist_ok=True)
             (lci / "p.json").write_text('{"@id": "p2"}', encoding="utf-8")

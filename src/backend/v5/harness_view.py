@@ -61,7 +61,7 @@ def harness_view(root: Path) -> dict[str, Any]:
             rel = path.relative_to(harness).as_posix()
             rules.append(_entry(root, path, folder, lambda rel=rel: config.load_rule(root, rel)))
     roles = [
-        _entry(root, p, "agents", lambda p=p: config.load_role_def(root, p.stem))
+        _entry(root, p, "agents", lambda p=p: config.load_agent_def(root, p.stem))
         for p in sorted((root / layout.AGENTS).glob("*.yaml"))
     ]
     specs = [

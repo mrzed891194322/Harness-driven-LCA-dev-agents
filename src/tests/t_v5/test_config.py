@@ -116,9 +116,9 @@ def test_inline_node_errors(v5_root):
 
 def test_node_override_does_not_touch_template(v5_root):
     """DESIGN §九: {agent: executor, max_turns, tools} applies to that node only."""
-    from backend.v5.config import load_role_def
+    from backend.v5.config import load_agent_def
 
-    before = load_role_def(v5_root, "executor").model_dump()
+    before = load_agent_def(v5_root, "executor").model_dump()
     tpl_text = (v5_root / "harness/workflows/agents/executor.yaml").read_text(encoding="utf-8")
     make_node(v5_root, "a", agents={"executor": {"agent": "executor", "max_turns": 3, "tools": {"mcp": ["control_openlca"]},
                                                  "access": {"read": {"knowledge": False}}}, "reviewer": "reviewer"})

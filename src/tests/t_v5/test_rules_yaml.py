@@ -8,7 +8,7 @@ from backend.v5.config import (
     ConfigError,
     load_global_rules,
     load_node,
-    load_role_def,
+    load_agent_def,
     load_rule,
     load_spec,
     render,
@@ -24,8 +24,8 @@ def test_real_harness_rules_roles_specs_load():
     assert "{{" not in text and "中文" in text and "202606-harness-agent-LCA" in text
     for p in (REPO / "harness/rules/lca").glob("*.yaml"):
         load_rule(REPO, str(p.relative_to(REPO / "harness")))
-    assert load_role_def(REPO, "reviewer").deliver.submit == "verdict"
-    assert load_role_def(REPO, "executor").deliver.submit == "artifact"
+    assert load_agent_def(REPO, "reviewer").deliver.submit == "verdict"
+    assert load_agent_def(REPO, "executor").deliver.submit == "artifact"
     for p in (REPO / "harness/specs").glob("*.yaml"):
         assert load_spec(REPO, p.stem).prompt.strip()
     assert load_spec(REPO, "lca-bom").schema_["required"] == ["items"]

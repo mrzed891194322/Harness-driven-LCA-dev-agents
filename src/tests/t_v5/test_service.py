@@ -73,7 +73,7 @@ def test_stop_during_last_turn_ends_stopped_and_cancels(v5_root):
             release.set()
 
     def on_turn(req):
-        if req.role == "reviewer":
+        if req.agent == "reviewer":
             in_review.set()
             release.wait(10)
 

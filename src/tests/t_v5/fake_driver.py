@@ -18,17 +18,17 @@ class FakeDriver:
         self.on_turn = on_turn
 
     def run_turn(self, req: TurnRequest) -> TurnResult:
-        self.calls.append((req.node.id, req.role, req.round, req.resume))
+        self.calls.append((req.node.id, req.agent, req.round, req.resume))
         self.prompts.append(req.prompt)
         self.systems.append(req.extra.get("system", ""))
         if self.on_turn:
             self.on_turn(req)
-        queue = self.script.get((req.node.id, req.role))
+        queue = self.script.get((req.node.id, req.agent))
         action = queue.pop(0) if queue else "ok"
         if isinstance(action, TurnResult):
             return action
         art = req.workspace / "artifacts"
-        if req.role == "executor":
+        if req.agent == "executor":
             if action == "stop":
                 return TurnResult(submit={"status": "stop", "summary": "无法完成"})
             for prod in req.node.produces:

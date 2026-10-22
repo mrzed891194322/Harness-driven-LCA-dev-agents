@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { label } from "../../lib/labels";
 
-export type PreviewAgent = { role: string; system: string; user: string };
+export type PreviewAgent = { agent: string; system: string; user: string };
 export type PreviewData = {
   nodes: { id: string; title: string; agents: PreviewAgent[] }[];
   plan_present?: boolean;
@@ -47,7 +47,7 @@ export function PromptModal({ node, agent, onClose }: { node: { id: string; titl
         <div className="settings-main">
           <header className="settings-main-head">
             <div>
-              <p className="settings-crumb">组合注入 / {node?.title || node?.id} / {agent ? label(agent.role) : ""}</p>
+              <p className="settings-crumb">组合注入 / {node?.title || node?.id} / {agent ? label(agent.agent) : ""}</p>
               <h2>{PARTS.find((p) => p.id === part)?.label}</h2>
             </div>
             <button type="button" data-testid="prompt-modal-close" onClick={onClose}>

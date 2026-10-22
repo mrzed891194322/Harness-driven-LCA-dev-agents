@@ -67,7 +67,7 @@ class V5Service:
             return "", ""
 
     def _node_card(self, node: Any) -> dict[str, Any]:
-        """Read-only GUI card: spec at node level; per agent model+thinking / role / access / tools / rules."""
+        """Read-only GUI card: spec at node level; per agent model+thinking / template / access / tools / rules."""
         from backend.v5.access import compute_scope
         from backend.v5 import agent_models
 
@@ -79,7 +79,7 @@ class V5Service:
             agent = agent_models.apply([node], overrides)[0].agents[name]
             scope = compute_scope(self.root, node, name, agent.definition.access)
             rel = lambda g: g.replace(str(self.root) + "/", "")  # noqa: E731
-            agents[name] = {"role": agent.agent, "model": agent.model or default_ref or "未选择模型",
+            agents[name] = {"template": agent.agent, "model": agent.model or default_ref or "未选择模型",
                             "model_source": "gui" if gui.get("model") else "agent" if yaml_agent.model else "default",
                             "gui_model": gui.get("model", ""), "gui_thinking": gui.get("thinking", ""),
                             "thinking": agent.thinking or default_thinking or "模型默认",
@@ -106,7 +106,7 @@ class V5Service:
         for node in nodes:
             agents = []
             for role in node.agents:
-                agents.append({"role": role, "system": inj.system(node, role), "user": inj(node, role, 1, None, specs)})
+                agents.append({"agent": role, "system": inj.system(node, role), "user": inj(node, role, 1, None, specs)})
             out.append({"id": node.id, "title": node.title, "agents": agents})
         return {"workflow": wf.id if hasattr(wf, "id") else workflow, "plan_file": wf.plan_file,
                 "plan_present": bool(plan_text and plan_text.strip()) or (plan_dir.is_dir() and any(plan_dir.glob("*.md"))),

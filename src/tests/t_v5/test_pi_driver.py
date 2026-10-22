@@ -48,7 +48,7 @@ def _setup(root: Path, **agent_extra):
 
 
 def _req(root, node, role="executor", rnd=1, resume=False):
-    return TurnRequest(node=node, role=role, round=rnd, prompt="做事", workspace=root / "workspace",
+    return TurnRequest(node=node, agent=role, round=rnd, prompt="做事", workspace=root / "workspace",
                        run_id="run12345", session_key=f"n1-{role}", resume=resume, extra={"system": "SYS"})
 
 
