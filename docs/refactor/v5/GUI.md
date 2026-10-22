@@ -59,8 +59,8 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | `run-show-reason` / `run-reason-panel` | /runs 显示原因 button / 失败原因 popup | |
 | `run-restart` | /runs 从头重跑 (only when interrupted) | starts the main workflow from the saved plan |
 | `run-error` | /runs error banner | |
-| `agent-stream` | /runs 实时终端 | fed by `/api/workflow/progress` |
-| `activity-summary` | /runs 活动概览 chips | fed by `/api/workflow/activity` |
+| `agent-stream` | /runs 实时终端 | fed by `/api/workflow/progress?after_seq=&run_id=` (`items` 结构化条目，前端转回原文本格式) |
+| `activity-summary` | /runs 活动概览 chips | fed by the same progress poll (`items`) |
 | `preview-start` | /plan 预览执行 → 执行LCA任务 | the start button now lives here (old location) |
 | `workflow-board`, `flow-node-<id>`, `flow-agent-<node>-<agent>`, `flow-inspector`, `agent-model-select` | /plan 工作流编排 | per-agent model = old per-assignment model |
 | `harness-viewer`, `harness-tab-<section>`, `harness-file-<path>`, `harness-fields`, `harness-raw`, `harness-file-error` | /harness | |

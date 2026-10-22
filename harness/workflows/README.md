@@ -9,10 +9,20 @@
 - 规则正文在 `harness/rules/global|lca/`（节点 `inject:` 引用），交付物规格在 `harness/specs/`，技能和 MCP 都在 `harness/tools/`。
 - 加载与校验：`src/backend/v5/config.py`；自检：`npm run doctor`。
 
+## 流转（docs/refactor/WORKFLOW_DESIGN.md）
+
+- 外层是 Python 队列（`queue.json`），节点按编排顺序执行；节点内是 LangGraph（执行者 → 审查者 → 交卷）。
+- 交卷状态（submit MCP）：执行者 `ready` / `blocked`；审查者 `pass` / `revise` / `redo`（`redo` 需写目标节点和理由）。
+  未交卷时节点结果记为 `no_submit`，`status.json`/`node_end` 的 `reason` 给出原因码（max_turns、timeout 等）。
+- `flow:` 可省略（缺省：执行者 → 审查者，审查 `revise` 退回执行者）。边写 `from`/`to`，可选 `when`（交卷状态）；
+  回边必须写 `max`；同一 `from` 不能混用有条件和无条件边。错误信息带 `file:line`。
+- `redo`：审查者要求重做更早的节点（spec `may_redo` 列了目标时只能选其中的）。重做段插在请求节点之后，
+  每次重做开新会话；`max_redos` 按运行计数，缺省 2；超出时拒绝（事件 `redo_refused`）。
+- `max_check_retries` 缺省 3。节点级续跑：从第一个未通过的节点及其后续重新入队。
+
 ## revise-lca
 
-`revise_of: full-lca`, `plan_file: revise_plan.md`. A fresh run keeps every artifact untouched, keeps
-`artifacts/plan/main_plan.md`, writes `revise_plan.md`, then runs 清单修订 → 映射修订 → 报告修订. Each node writes revision
-files next to the originals: `<name>.rev<N>.<ext>` (`bom/bom.rev1.json`, `mapping/LCI.rev1/`, `report/raw.rev1/`), N = 1 +
-the highest existing rev of that produce entry, saved in `runs/_run/revisions.json` (a resume reuses it). `requires`
-resolve to the latest version (highest rev, else original). See `docs/refactor/v5/ARTIFACTS.md` and ISSUES I-45.
+普通编排，`start_rev: next`：节点以 `rev = 已有最大 rev + 1` 起跑（rev 由宿主设置，不能在 YAML 里写）。`plan_file: revise_plan.md`。
+保留原产物和 `artifacts/plan/main_plan.md`，写 `revise_plan.md`，然后 清单修订 → 映射修订 → 报告修订。修订文件写在原文件旁：
+`<name>.rev<N>.<ext>`（`bom/bom.rev1.json`、`mapping/LCI.rev1/`、`report/raw.rev1/`），rev 记在运行 manifest 里（键 `<node>@rev<N>`）。
+`requires` 取最新版本。新开一次 revise 会清掉上一次未通过节点的 rev。

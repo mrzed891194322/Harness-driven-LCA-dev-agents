@@ -745,3 +745,28 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   unreadable operation fails closed; old `requests/`, `current.json`, `consumed/`, `reconciliations/`, `scopes/`
   are no longer read or written (existing journals under workspace are not migrated — destructive rebuild).
   The unused direct path `importer.preflight_import_lci/import_lci/get_import_operation` (own `current.json`) removed.
+
+## I-56 v5 rebuild per WORKFLOW_DESIGN.md (Du Yuan 2026-10-23: decide open questions, record here)
+
+Outer Python queue + inner LangGraph + submit states + spec-based redo + #1 activity items + #2 launch spec v2.
+Decisions taken:
+- Redo segment is inserted right after the requesting node; `max_redos` counts per run (default 2); any earlier node
+  may be targeted unless spec `may_redo` lists targets; a redo request without a reviewer fails config; a redo
+  starts a fresh session. `join` dropped.
+- revise-lca stays its own orchestration with `start_rev: next` (no `revise_of`, no `revisions.json`); a fresh
+  revise drops the previous run's unfinished revs.
+- `flow` optional with a default; `max_check_retries` default 3; feedback files kept; API `max_rounds` computed from
+  back edges.
+- Resume trusts `status.json`: the first done item not passed/completed and everything after it is re-queued.
+  A stop after the last node ends as `stopped`.
+- #1: `/api/workflow/progress?after_seq=&run_id=` returns structured `items` (seq/node/rev/redo/agent/attempt);
+  `/activity` and `progress_view.py` removed. The frontend converts items to the old tag text client-side so the
+  DOM is identical to `599ed0a`. “（重做 k）” only for redo-inserted items, not for revise rev≥1.
+- #2: `SessionLaunchSpec` schema_version 2 (node/rev; stage_id, assignment_id, execution_id, bundle_hash,
+  input_snapshot_hash and host-only fields removed; resource_bindings = project_root + credentials_dir).
+  `src/scripts/export_contracts.py` writes the JSON Schema and `pi-runtime/src/spec.generated.ts` (`--check` for
+  drift, covered by a test); pi-runtime validates every launch spec against the schema (`spec_validate.ts`).
+- Steps 2–5 landed as one commit (deviation from the step plan; they did not build separately).
+Risks / open: progress rebuilds items from the full event log on every poll (cost on long runs); edge line numbers
+are approximate for inline nodes; old runs/journals are not migrated; two pre-existing ruff F errors
+(`importer.py:1072`, `lci_inventory.py:237`).
