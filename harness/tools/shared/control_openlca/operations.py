@@ -15,9 +15,8 @@ from .connection import (
     create_ipc_client,
     is_transport_error,
 )
-from .guard import mark_uncertain, prior_uncertain_marker
+from .guard import prior_uncertain_marker
 from .ipc_failure import (
-    AGENT_STOP_MESSAGE,
     NON_RETRYABLE_KIND,
     as_import_recoverable,
     on_ipc_transport_failure,
@@ -303,109 +302,13 @@ def _finalize_import_report(
         report.update(
             agent_action="reconcile_and_resume",
             agent_message=(
-                "Import incomplete. Call reconcile_import(operation_id) then "
-                "resume_import(operation_id) or import_lci(resume_operation_id=...) "
-                "with a new request_id and preflight_id; do not start a fresh import."
+                "Import incomplete. Read get_import_operation(operation_id=...), then "
+                "call import_lci(resume_operation_id=...) with a new request_id and "
+                "preflight_id; do not start a fresh import."
             ),
         )
     w._write_json_atomic(path, report)
     return report
-
-
-def reconcile_import(
-    host,
-    port,
-    operation_dir,
-    *,
-    run_id,
-    operation_id,
-    client=None,
-):
-    identifier(run_id)
-    identifier(operation_id)
-    root = journal_root(operation_dir)
-    path = root / "operations" / f"{identifier(operation_id)}.json"
-    if not path.exists():
-        return {"status": "not_found", "errors": ["operation_not_found"]}
-    report = read(path)
-    if report.get("identity", {}).get("run_id") != run_id:
-        return {"status": "not_found", "errors": ["operation_not_found"]}
-    identity = report["identity"]
-    lci_dir = identity["lci_dir"]
-    target_category = identity["category"]
-    ipc = client or create_ipc_client(host, port)
-    try:
-        return _reconcile_import_checked(
-            host, port, path, report, lci_dir, target_category, identity, ipc, run_id
-        )
-    finally:
-        if client is None:
-            close_ipc_client(ipc)
-
-
-def _reconcile_stop(payload: dict, reason: str) -> dict:
-    """Reconcile could not confirm openLCA state: the agent must stop (policy 2026-10-16)."""
-    return {
-        **payload,
-        "state_confirmed": False,
-        "retryable": False,
-        "agent_action": "stop_and_submit_failed",
-        "agent_message": f"reconcile_import could not confirm import state ({reason}). "
-        + AGENT_STOP_MESSAGE,
-    }
-
-
-def _reconcile_import_checked(
-    host, port, path, report, lci_dir, target_category, identity, ipc, run_id
-):
-    try:
-        current, inventory, _ = w._inspect_import(
-            host,
-            port,
-            lci_dir,
-            target_category,
-            identity.get("database_name"),
-            ipc,
-        )
-        if not current["ok"]:
-            return _reconcile_stop(
-                {"status": "rejected", "errors": ["preflight_stale", *current["errors"]]},
-                "preflight_stale",
-            )
-        plan = list(
-            report.get("entity_plan") or w.build_entity_plan(inventory)
-        )
-        updated, issues = w.reconcile_entity_plan(
-            ipc, plan, inventory, target_category
-        )
-        report["entity_plan"] = updated
-        report["reconciled_at"] = w.utc_now()
-        report["reconciliation_issues"] = issues
-        if issues:
-            report["status"] = "partial_failure"
-        elif all(entry.get("status") == "done" for entry in updated):
-            report["status"] = "success"
-        w._write_json_atomic(path, report)
-    except Exception as exc:
-        if not is_transport_error(exc):
-            raise
-        failure = on_ipc_transport_failure(
-            host, port, exc, operation="reconcile_import", run_id=run_id
-        )
-        return _reconcile_stop({**report, **failure}, "openLCA unreachable")
-    if issues:
-        return _reconcile_stop(report, "; ".join(issues)[:500])
-    if report["status"] == "success":
-        return {**report, "state_confirmed": True, "agent_action": "none"}
-    return {
-        **report,
-        "state_confirmed": True,
-        "agent_action": "resume_import",
-        "agent_message": (
-            "Import state confirmed. Call resume_import(operation_id) with a new "
-            "request_id and preflight_id."
-        ),
-    }
 
 
 def resume_import_request(
@@ -661,8 +564,8 @@ def import_request(
                 "operation_id": current_id,
                 "agent_action": "reconcile_and_resume",
                 "agent_message": (
-                    "Call reconcile_import(operation_id) then resume_import(operation_id) "
-                    "or import_lci(resume_operation_id=...) with a new request_id and "
+                    "Read get_import_operation(operation_id=...), then call "
+                    "import_lci(resume_operation_id=...) with a new request_id and "
                     "preflight_id. Do not start a fresh import while this operation is open."
                 ),
             }

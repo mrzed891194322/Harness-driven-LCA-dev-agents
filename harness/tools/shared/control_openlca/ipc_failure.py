@@ -23,7 +23,7 @@ PROJECT_ROOT = next(
 NON_RETRYABLE_KIND = "openlca_unresponsive"
 AGENT_STOP_MESSAGE = (
     "openLCA IPC timed out and appears unresponsive. Do not retry import, "
-    "cleanup, or calculate; stop and submit_handoff with failed status."
+    "cleanup, or calculate; stop and submit status=stop."
 )
 
 
@@ -87,10 +87,10 @@ def build_non_retryable_error(
 IMPORT_RECOVER_ACTION = "reconcile_and_resume"
 IMPORT_RECOVER_MESSAGE = (
     "openLCA IPC failed during import. Do not start a fresh import and do not "
-    "call cleanup/calculate. Call reconcile_import(operation_id): if it returns "
-    "state_confirmed=true, resume with resume_import(operation_id) using a new "
-    "request_id and preflight_id; if reconcile fails or state_confirmed=false, "
-    "stop and submit_handoff with failed status."
+    "call cleanup/calculate. Read get_import_operation(operation_id=...) once openLCA "
+    "answers health_check, then resume with import_lci(resume_operation_id=...) using a "
+    "new request_id and preflight_id; if the state cannot be read, stop and submit "
+    "status=stop."
 )
 
 

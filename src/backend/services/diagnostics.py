@@ -56,8 +56,6 @@ _OPERATION_LABELS = {
     "cleanup_output_preview": "清理预览",
     "cleanup_output_confirm": "清理删除",
     "import_lci": "导入",
-    "resume_import": "续导",
-    "reconcile_import": "导入对账",
     "calculate_product_system": "计算",
 }
 

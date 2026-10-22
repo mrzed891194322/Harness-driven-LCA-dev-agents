@@ -103,7 +103,7 @@ mcp = MCPServer(
         "with OPENLCA_IPC_HOST and OPENLCA_IPC_PORT. import_lci and cleanup_output "
         "are destructive; import_lci requires matching preflight scope (run, endpoint, "
         "database, category, lci_dir). Same-run LCI rework may change file content and "
-        "overwrites this run's entities by UUID; resume_import skips unchanged entities. "
+        "overwrites this run's entities by UUID; import_lci(resume_operation_id=...) skips unchanged entities. "
         "Long-running tools accept optional timeout_sec (300-7200) for IPC session "
         "budget and per-request HTTP reads; do not wrap tools in shell timeout."
     ),

@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, cast
 
 import olca_schema
-import requests
 
 from .connection import (
     build_endpoint,
@@ -749,74 +748,6 @@ def _entity_openlca_fingerprint(
         payload["process_count"] = len(getattr(entity, "processes", None) or [])
         payload["link_count"] = len(getattr(entity, "process_links", None) or [])
     return stable_hash(payload)
-
-
-def reconcile_entity_plan(
-    client: OpenLcaClient,
-    plan: list[dict[str, Any]],
-    inventory: list[dict[str, Any]],
-    target_category: str,
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Read-only openLCA checks; mark plan entries done when id and fingerprint match."""
-    inventory_by_id = {item["id"]: item for item in inventory}
-    issues: list[str] = []
-    updated: list[dict[str, Any]] = []
-    for entry in plan:
-        current = dict(entry)
-        entity_type = str(entry.get("entity_type") or "")
-        entity_id = str(entry.get("id") or "")
-        model_type = ENTITY_TYPES.get(entity_type)
-        source = inventory_by_id.get(entity_id)
-        if model_type is None or not entity_id or source is None:
-            issues.append(f"unknown plan entity {entity_type} {entity_id}")
-            current["status"] = "uncertain"
-            updated.append(current)
-            continue
-        try:
-            existing = client.get(model_type, entity_id)
-        except Exception as exc:
-            issues.append(f"get {entity_type} {entity_id}: {exc}")
-            current["status"] = "uncertain"
-            updated.append(current)
-            continue
-        if existing is None:
-            if current.get("status") == "failed":
-                current["status"] = "pending"
-            updated.append(current)
-            continue
-        category = getattr(existing, "category", None)
-        if category and category != target_category and not str(category).startswith(
-            f"{target_category}/"
-        ):
-            issues.append(
-                f"{entity_type} {entity_id} exists outside target category "
-                f"({category!r} vs {target_category!r})"
-            )
-            current["status"] = "failed"
-            updated.append(current)
-            continue
-        if getattr(existing, "name", None) != source.get("name"):
-            issues.append(
-                f"{entity_type} {entity_id} exists but does not match planned "
-                f"content (name/hash mismatch)"
-            )
-            current["status"] = "failed"
-            updated.append(current)
-            continue
-        if entity_type == "ProductSystem":
-            links = getattr(existing, "process_links", None) or []
-            processes = getattr(existing, "processes", None) or []
-            if not processes or (source["data"].get("linkingMode") != "auto" and not links):
-                issues.append(
-                    f"ProductSystem {entity_id} exists but looks incomplete "
-                    f"(processes={len(processes)}, links={len(links)})"
-                )
-                current["status"] = "uncertain"
-                updated.append(current)
-                continue
-        current["status"] = "done"
-        updated.append(current)
-    return updated, issues
 
 
 def _foreground_process_data(
