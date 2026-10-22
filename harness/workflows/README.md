@@ -1,11 +1,13 @@
-# harness/workflows（v5）
+# harness/workflows（v5，三级：编排 → 节点 → agent）
 
-- `<name>.yaml`：一个工作流 = 节点 id 的有序列表（`demo-write`、`demo-swapped`、`demo-single`、`demo-missing-input`、`full-lca`）。
-- `nodes/<id>.yaml`：节点（agents、flow、requires、produces）。produces 的 spec 缺省取执行者角色 `deliver.spec`。
-- 角色、规则、交付物规格分别在 `harness/rules/roles/`、`harness/rules/global|lca/`、`harness/specs/`（YAML）。
+- `orchestrations/<name>.yaml`：编排 = 节点有序列表（`full-lca`、`revise-lca`、`demo-*`）。`nodes:` 里可写节点名
+  （`nodes/<名>.yaml`）或内联节点对象，可混写：`nodes: [lca-intake, {id: x, ...}]`。
+- `nodes/<id>.yaml`：节点（requires、produces、inject、agents、flow、accept）。`agents:` 里可写 agent 模板名
+  （`agents/<名>.yaml`，如 `executor: executor`）、内联 agent 对象（含 `prompt`、`deliver`），或
+  `{agent: executor, tools: ..., max_turns: ...}` 引用模板并在本节点覆盖。produces 的 spec 缺省取执行者 `deliver.spec`。
+- `agents/<名>.yaml`：agent 模板（prompt、access、deliver）。
+- 规则正文在 `harness/rules/global|lca/`（节点 `inject:` 引用），交付物规格在 `harness/specs/`，技能和 MCP 都在 `harness/tools/`。
 - 加载与校验：`src/backend/v5/config.py`；自检：`npm run doctor`。
-
-旧引擎的 `LCA-main.yaml` / `LCA-revise.yaml`、`.local/harness/workflows/` 副本同步、prompts/permissions 组件注册已删除（见 `docs/refactor/v5/COMMIT_PLAN.md` C7c）。
 
 ## revise-lca
 

@@ -103,3 +103,14 @@
 
 ## Update (Commit A)
 Rules, roles and specs are YAML files, not Markdown: see COMMIT_PLAN.md › Commit A.
+
+## 九、目录重组（2026-10-22，Du Yuan 已定，I-50）
+- 【已定】`harness/workflows/` 分三级子目录：`orchestrations/`（编排：节点有序列表）→ `nodes/`（节点）→ `agents/`（agent 模板：prompt / access / deliver）。
+- 【已定】原 `harness/rules/roles/*.yaml` 移到 `harness/workflows/agents/`，`rules/roles/` 删除。`rules/` 只放注入的规则正文（`global/`、`lca/`），节点 `inject:` 写法不变。
+- 【已定】三级都可「引用或内联」，不用 `$ref` 路径：
+  - 编排 `nodes: [lca-intake, {id: bom, ...}]`：字符串 = `nodes/<名>.yaml`，对象 = 内联节点。
+  - 节点 `agents: {executor: executor, reviewer: reviewer}`：字符串 = `agents/<名>.yaml`；对象含 `prompt` = 内联 agent；对象含 `agent: <名>` = 引用模板并在节点上覆盖（model、thinking、max_turns、tools、rules、access）。
+  - 未知短名、内联缺字段：报错带文件和行号（能定位时）。
+- 【已定】技能一律放 `harness/tools/`（LCA 规格类、编程/计算类都在这里），不建 `harness/skills/`。
+- 【已定】GUI 文案「角色说明」改为「agent 说明」，只改文字，样式按 599ed0a 不变。
+- 上文第一节 `rules/roles/<角色>/` 的写法以本节为准。

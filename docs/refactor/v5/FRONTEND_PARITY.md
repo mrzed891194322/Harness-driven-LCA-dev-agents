@@ -17,7 +17,7 @@
 | /plan | PreviewBoard：环境 | `/api/diagnostics/environment` | 同左 | 已恢复（I-41） |
 | /plan | PreviewBoard：工作流 / 工作内容 | `/api/harness/document` | `/api/v5/workflows`、`/api/v5/harness` | 已恢复（I-41） |
 | /plan | WorkflowBoard：默认模型、各阶段模型 | `/api/workflow/models`、`/api/models/selection` | 同左（v5 只有全局模型，无逐节点模型） | 已恢复：默认模型 + 逐代理模型/思考（`/api/v5/agent-models`，I-41） |
-| /plan | WorkflowBoard：全局规则、阶段规则、工具、知识源卡片 | `/api/harness/document` | `/api/v5/harness`（rules/roles/specs/workflows） | 已恢复（`/api/v5/workflows`） |
+| /plan | WorkflowBoard：全局规则、阶段规则、工具、知识源卡片 | `/api/harness/document` | `/api/v5/harness`（rules/agents/specs/workflows） | 已恢复（`/api/v5/workflows`） |
 | /plan | InjectionBoard：生成提示、权限、合并说明、锁定/知识/MCP 标记 | `/api/harness/injection` | 无。v5 注入在 `backend/v5/inject.py` 运行时拼装，没有预览接口 | 已按指示在「预览执行」里加只读注入预览（`/api/v5/preview`，I-41）；旧版合并说明、锁定标记未恢复 |
 | /results | 文件树、最终交付、工作记录、下载 | `/api/results*` | `/api/results*`（加 handoffs；revise 的 `.rev<N>` 文件和原文件一起列，I-45） | 已有 |
 | /status | 环境与连接检查 | `/api/diagnostics/environment`、`/api/lca/openlca` | 同左 | 已有 |

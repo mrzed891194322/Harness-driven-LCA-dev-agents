@@ -647,3 +647,12 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   to main repo, or leftover probe under `.local/tmp/…/node_modules`).
 - Temporary fix: `src/scripts/dev.mjs` web `timeoutMs` 120s → 300s, overridable via
   `DEV_WEB_TIMEOUT_MS`. Real root-cause fix still open.
+
+## I-50 harness/workflows 三级目录（orchestrations / nodes / agents）
+- Decision (Du Yuan 2026-10-22, DESIGN.md §九): orchestrations move to `harness/workflows/orchestrations/`, agent templates
+  from `harness/rules/roles/` to `harness/workflows/agents/` (`rules/roles/` deleted), nodes stay in `nodes/`.
+  `rules/` holds only injected rule text; skills all live in `harness/tools/` (no `harness/skills/`).
+- Every level accepts a short name or an inline object (no `$ref`). Node agents: `executor: executor`; inline object with
+  `prompt`; or `{agent: executor, tools: ..., max_turns: ...}` for a template plus node overrides.
+- Errors for an unknown short name or a bad inline object name the file (and line when found).
+- GUI text 「角色说明」→「agent 说明」 only.
