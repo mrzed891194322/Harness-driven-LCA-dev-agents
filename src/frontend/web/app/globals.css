@@ -2209,6 +2209,49 @@ button:disabled {
   margin-left: auto;
 }
 
+.flow-presets-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 48px));
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.flow-presets-dialog::backdrop {
+  background: rgba(28, 31, 26, 0.45);
+}
+
+.flow-presets-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: min(720px, calc(100vh - 48px));
+  padding: 18px;
+  overflow: auto;
+}
+
+.flow-presets-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flow-presets-head h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.flow-presets-head .flow-close {
+  position: static;
+}
+
 .flow-preset-list {
   list-style: none;
   margin: 0;

@@ -2,9 +2,9 @@
 
 // 工作流编排, restored from master 599ed0a (flow-board / flow-stages / flow-inspector layout and CSS).
 // workflow data: /api/workflow/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection
-// (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models. 加载预设工作流 lists the same catalog.
+// (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models. 加载预设工作流 opens a dialog listing the same catalog.
 import { Bot, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
@@ -14,7 +14,6 @@ export type WorkMode = "new" | "revise";
 
 type Selection =
   | { kind: "workflow" }
-  | { kind: "presets" }
   | { kind: "node"; id: string }
   | { kind: "agent"; id: string; agent: string };
 
@@ -27,6 +26,8 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   const [modelNote, setModelNote] = useState("");
   const [selection, setSelection] = useState<Selection>({ kind: "workflow" });
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const presetsDialog = useRef<HTMLDialogElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -44,8 +45,16 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   useEffect(() => {
     setPickedId(null);
     setSelection({ kind: "workflow" });
+    setPresetsOpen(false);
     void load();
   }, [mode, load]);
+
+  useEffect(() => {
+    const dialog = presetsDialog.current;
+    if (!dialog) return;
+    if (presetsOpen && !dialog.open) dialog.showModal();
+    if (!presetsOpen && dialog.open) dialog.close();
+  }, [presetsOpen]);
 
   useEffect(() => {
     apiFetch("/api/workflow/models")
@@ -101,8 +110,8 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
   function pickPreset(id: string) {
     setPickedId(id);
+    setPresetsOpen(false);
     setSelection({ kind: "workflow" });
-    setInspectorOpen(true);
   }
 
   if (error) return <p className="status-banner error">{error}</p>;
@@ -119,8 +128,8 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           type="button"
           className="flow-presets"
           data-testid="flow-load-presets"
-          aria-pressed={inspectorOpen && selection.kind === "presets"}
-          onClick={() => choose({ kind: "presets" })}
+          aria-pressed={presetsOpen}
+          onClick={() => setPresetsOpen(true)}
         >
           加载预设工作流
         </button>
@@ -169,7 +178,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
       {inspectorOpen ? (
         <aside className="flow-inspector" aria-live="polite" data-testid="flow-inspector">
-          {selection.kind !== "workflow" && selection.kind !== "presets" ? (
+          {selection.kind !== "workflow" ? (
             <button type="button" className="flow-back" onClick={() => setSelection({ kind: "workflow" })}>
               <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
               回到全局规则
@@ -178,13 +187,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           <button type="button" className="flow-close" aria-label="关闭" onClick={() => setInspectorOpen(false)}>
             <X size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
-          {selection.kind === "presets" ? (
-            <PresetsPanel
-              catalog={catalog}
-              currentId={workflow.id}
-              onPick={pickPreset}
-            />
-          ) : selection.kind === "workflow" ? (
+          {selection.kind === "workflow" ? (
             <section data-testid="flow-workflow-config">
               <h3>{workflow.title || workflow.id}</h3>
               <p className="settings-meta">计划文件 {workflow.plan_file}{workflow.start_rev === "next" ? " · 在已有产物上修订" : ""}</p>
@@ -219,45 +222,51 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           ) : null}
         </aside>
       ) : null}
-    </div>
-  );
-}
 
-function PresetsPanel({
-  catalog,
-  currentId,
-  onPick,
-}: {
-  catalog: WorkflowCard[];
-  currentId: string;
-  onPick: (id: string) => void;
-}) {
-  return (
-    <section data-testid="flow-presets-panel">
-      <h3>加载预设工作流</h3>
-      <p className="settings-meta">选择 harness 编排，立即替换画布上的节点预览（不改计划正文；开始运行仍按计划页工作类型选编排）。</p>
-      <ul className="flow-preset-list">
-        {catalog.map((w) => {
-          const active = w.id === currentId;
-          const kind = w.start_rev === "next" ? "修订" : w.id.startsWith("demo") ? "演示" : "主流程";
-          return (
-            <li key={w.id}>
-              <button
-                type="button"
-                className="flow-preset-item"
-                data-active={active ? "true" : "false"}
-                data-testid={`flow-preset-${w.id}`}
-                aria-pressed={active}
-                onClick={() => onPick(w.id)}
-              >
-                <strong>{w.title || w.id}</strong>
-                <small className="settings-meta">{kind} · {w.id} · {w.plan_file} · {w.details.length} 节点</small>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+      <dialog
+        ref={presetsDialog}
+        className="flow-presets-dialog"
+        aria-labelledby="flow-presets-title"
+        data-testid="flow-presets-dialog"
+        onClose={() => setPresetsOpen(false)}
+        onClick={(event) => {
+          if (event.target === presetsDialog.current) setPresetsOpen(false);
+        }}
+      >
+        <div className="flow-presets-panel">
+          <header className="flow-presets-head">
+            <div>
+              <h2 id="flow-presets-title">加载预设工作流</h2>
+              <p className="settings-meta">选择 harness 编排，立即替换画布上的节点预览（不改计划正文；开始运行仍按计划页工作类型选编排）。</p>
+            </div>
+            <button type="button" className="flow-close" aria-label="关闭" data-testid="flow-presets-close" onClick={() => setPresetsOpen(false)}>
+              <X size={16} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          </header>
+          <ul className="flow-preset-list">
+            {catalog.map((w) => {
+              const active = w.id === workflow.id;
+              const kind = w.start_rev === "next" ? "修订" : w.id.startsWith("demo") ? "演示" : "主流程";
+              return (
+                <li key={w.id}>
+                  <button
+                    type="button"
+                    className="flow-preset-item"
+                    data-active={active ? "true" : "false"}
+                    data-testid={`flow-preset-${w.id}`}
+                    aria-pressed={active}
+                    onClick={() => pickPreset(w.id)}
+                  >
+                    <strong>{w.title || w.id}</strong>
+                    <small className="settings-meta">{kind} · {w.id} · {w.plan_file} · {w.details.length} 节点</small>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </dialog>
+    </div>
   );
 }
 
