@@ -786,3 +786,11 @@ are approximate for inline nodes; old runs/journals are not migrated; two pre-ex
   rejected it for approve/reject/terminate). Executor submit unchanged (its tool has no `comment` parameter).
   Submit schemas are not part of `export_contracts.py` (launch spec only); `--check` still clean.
 - Tests: `tests/t_v5/test_robust_run.py`.
+
+## I-58 progress 轮询全量重读 events.jsonl（planned，Du Yuan 2026-10-23）
+
+- 问题：每次 `/api/workflow/progress?after_seq=` 轮询都会整文件重读 `runs/_run/events.jsonl` 并重建活动表；
+  `after_seq` 只缩小响应体，不减少服务端工作量。长运行时（events 变大）延迟会上去（I-56 风险项拆出）。
+- 计划方向：增量读已解析事件，和/或缓存已解析结果；用于 redo 标题的全局状态必须与缓存一起维护，
+  避免增量路径丢上下文。
+- 状态：planned，尚无代码。等 Du Yuan 定优先级后再做。
