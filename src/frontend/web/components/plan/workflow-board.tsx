@@ -1,10 +1,10 @@
 "use client";
 
 // 工作流编排, restored from master 599ed0a (flow-board / flow-stages / flow-inspector layout and CSS).
-// workflow data: /api/workflow/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection.
-// Per-agent model + thinking: /api/workflow/agent-models (GUI setting, applied at run start; empty = default).
+// workflow data: /api/workflow/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection
+// (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models. 加载预设工作流 lists the same catalog.
 import { Bot, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
@@ -12,10 +12,15 @@ import { THINKING_LEVELS, workflowForMode, type WorkflowNode, type WorkflowCard 
 
 export type WorkMode = "new" | "revise";
 
-type Selection = { kind: "workflow" } | { kind: "node"; id: string } | { kind: "agent"; id: string; agent: string };
+type Selection =
+  | { kind: "workflow" }
+  | { kind: "presets" }
+  | { kind: "node"; id: string }
+  | { kind: "agent"; id: string; agent: string };
 
 export function WorkflowBoard({ mode }: { mode: WorkMode }) {
-  const [workflow, setWorkflow] = useState<WorkflowCard | null>(null);
+  const [catalog, setCatalog] = useState<WorkflowCard[]>([]);
+  const [pickedId, setPickedId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [models, setModels] = useState<ModelRow[]>([]);
   const [defaultModel, setDefaultModel] = useState("");
@@ -28,18 +33,19 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
       const response = await apiFetch("/api/workflow/workflows", { cache: "no-store" });
       const data = (await response.json()) as { workflows?: WorkflowCard[]; detail?: string };
       if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
-      const wf = workflowForMode(data.workflows || [], mode);
-      setWorkflow(wf || null);
-      setError(wf ? "" : "没有对应的工作流");
+      const list = data.workflows || [];
+      setCatalog(list);
+      setError(list.length ? "" : "没有对应的工作流");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [mode]);
+  }, []);
 
   useEffect(() => {
+    setPickedId(null);
     setSelection({ kind: "workflow" });
     void load();
-  }, [load]);
+  }, [mode, load]);
 
   useEffect(() => {
     apiFetch("/api/workflow/models")
@@ -50,6 +56,13 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
       })
       .catch(() => setModels([]));
   }, []);
+
+  const workflow = useMemo(() => {
+    if (pickedId) {
+      return catalog.find((w) => w.id === pickedId) || workflowForMode(catalog, mode) || null;
+    }
+    return workflowForMode(catalog, mode) || null;
+  }, [catalog, pickedId, mode]);
 
   async function changeDefault(value: string) {
     setModelNote("");
@@ -86,25 +99,31 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
     setInspectorOpen(true);
   }
 
+  function pickPreset(id: string) {
+    setPickedId(id);
+    setSelection({ kind: "workflow" });
+    setInspectorOpen(true);
+  }
+
   if (error) return <p className="status-banner error">{error}</p>;
   if (!workflow) return <p className="settings-help">正在读取编排…</p>;
   const def = modelChoices(models, defaultModel);
-  const node = selection.kind !== "workflow" ? workflow.details.find((n) => n.id === selection.id) : undefined;
+  const node = selection.kind === "node" || selection.kind === "agent"
+    ? workflow.details.find((n) => n.id === selection.id)
+    : undefined;
 
   return (
     <div className="flow-board" data-inspector={inspectorOpen ? "true" : "false"} data-testid="workflow-board">
       <div className="flow-toolbar">
-        <label className="flow-toolbar-model">
-          <span>默认模型</span>
-          <select className="flow-model" aria-label="默认模型" value={def.value} onChange={(e) => void changeDefault(e.target.value)}>
-            {def.choices.map((c) => (
-              <option key={c.value || "none"} value={c.value} disabled={!c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          {modelNote ? <span className="flow-model-note" data-testid="flow-model-note">{modelNote}</span> : null}
-        </label>
+        <button
+          type="button"
+          className="flow-presets"
+          data-testid="flow-load-presets"
+          aria-pressed={inspectorOpen && selection.kind === "presets"}
+          onClick={() => choose({ kind: "presets" })}
+        >
+          加载预设工作流
+        </button>
         <button type="button" className="flow-config" onClick={() => choose({ kind: "workflow" })}>
           <SlidersHorizontal size={16} strokeWidth={1.75} aria-hidden="true" />
           配置面板
@@ -113,7 +132,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
       <div className="flow-stages">
         {workflow.details.map((n, index) => {
-          const active = selection.kind !== "workflow" && selection.id === n.id;
+          const active = (selection.kind === "node" || selection.kind === "agent") && selection.id === n.id;
           return (
             <div className="flow-stage-wrap" key={n.id}>
               {index > 0 ? (
@@ -150,7 +169,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
       {inspectorOpen ? (
         <aside className="flow-inspector" aria-live="polite" data-testid="flow-inspector">
-          {selection.kind !== "workflow" ? (
+          {selection.kind !== "workflow" && selection.kind !== "presets" ? (
             <button type="button" className="flow-back" onClick={() => setSelection({ kind: "workflow" })}>
               <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
               回到全局规则
@@ -159,10 +178,32 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           <button type="button" className="flow-close" aria-label="关闭" onClick={() => setInspectorOpen(false)}>
             <X size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
-          {selection.kind === "workflow" ? (
-            <section>
+          {selection.kind === "presets" ? (
+            <PresetsPanel
+              catalog={catalog}
+              currentId={workflow.id}
+              onPick={pickPreset}
+            />
+          ) : selection.kind === "workflow" ? (
+            <section data-testid="flow-workflow-config">
               <h3>{workflow.title || workflow.id}</h3>
               <p className="settings-meta">计划文件 {workflow.plan_file}{workflow.start_rev === "next" ? " · 在已有产物上修订" : ""}</p>
+              <h4>默认模型</h4>
+              <select
+                className="flow-model"
+                data-testid="flow-default-model"
+                aria-label="默认模型"
+                value={def.value}
+                onChange={(e) => void changeDefault(e.target.value)}
+              >
+                {def.choices.map((c) => (
+                  <option key={c.value || "none"} value={c.value} disabled={!c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              {modelNote ? <p className="flow-model-note" data-testid="flow-model-note">{modelNote}</p> : null}
+              <h4>节点</h4>
               <ol>
                 {workflow.details.map((n) => (
                   <li key={n.id}>
@@ -174,11 +215,49 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           ) : node && selection.kind === "node" ? (
             <NodeDetail node={node} onAgent={(agent) => choose({ kind: "agent", id: node.id, agent })} />
           ) : node && selection.kind === "agent" ? (
-            <AgentDetail node={node} agentKey={selection.agent} models={models} onChange={changeAgent} />
+            <AgentDetail node={node} agentKey={selection.agent} models={models} onChange={changeAgent} note={modelNote} />
           ) : null}
         </aside>
       ) : null}
     </div>
+  );
+}
+
+function PresetsPanel({
+  catalog,
+  currentId,
+  onPick,
+}: {
+  catalog: WorkflowCard[];
+  currentId: string;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <section data-testid="flow-presets-panel">
+      <h3>加载预设工作流</h3>
+      <p className="settings-meta">选择 harness 编排，立即替换画布上的节点预览（不改计划正文；开始运行仍按计划页工作类型选编排）。</p>
+      <ul className="flow-preset-list">
+        {catalog.map((w) => {
+          const active = w.id === currentId;
+          const kind = w.start_rev === "next" ? "修订" : w.id.startsWith("demo") ? "演示" : "主流程";
+          return (
+            <li key={w.id}>
+              <button
+                type="button"
+                className="flow-preset-item"
+                data-active={active ? "true" : "false"}
+                data-testid={`flow-preset-${w.id}`}
+                aria-pressed={active}
+                onClick={() => onPick(w.id)}
+              >
+                <strong>{w.title || w.id}</strong>
+                <small className="settings-meta">{kind} · {w.id} · {w.plan_file} · {w.details.length} 节点</small>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -201,9 +280,10 @@ function NodeDetail({ node, onAgent }: { node: WorkflowNode; onAgent: (agent: st
   );
 }
 
-function AgentDetail({ node, agentKey, models, onChange }: {
+function AgentDetail({ node, agentKey, models, onChange, note }: {
   node: WorkflowNode; agentKey: string; models: ModelRow[];
   onChange: (node: string, agent: string, model: string, thinking: string) => Promise<void>;
+  note: string;
 }) {
   const agent = node.agents[agentKey];
   if (!agent) return null;
@@ -223,6 +303,7 @@ function AgentDetail({ node, agentKey, models, onChange }: {
       <select className="flow-model" data-testid="agent-thinking-select" value={gt} onChange={(e) => void onChange(node.id, agentKey, gm, e.target.value)}>
         {THINKING_LEVELS.map((t) => <option key={t || "default"} value={t}>{t || "模型默认"}</option>)}
       </select>
+      {note ? <p className="flow-model-note" data-testid="flow-model-note">{note}</p> : null}
       <h4>可读</h4>
       <ul>{agent.read.map((g) => <li key={g} className="mono">{g}</li>)}</ul>
       <h4>可写</h4>
