@@ -86,6 +86,24 @@ def test_start_must_be_artifact_agent(wf_root):
         load_node(wf_root, "a")
 
 
+def test_exactly_one_artifact_agent_required(wf_root):
+    """DELIVERY_PRIMARY_AGENT §3/§8: each node has exactly one deliver.submit: artifact."""
+    helper = {"prompt": "查资料。", "deliver": {"submit": "artifact"}}
+    flow = {"start": "executor", "edges": [
+        {"from": "executor", "when": "done", "to": "done"},
+        {"from": "executor", "when": "blocked", "to": "blocked"},
+        {"from": "helper", "when": "done", "to": "done"},
+        {"from": "helper", "when": "blocked", "to": "blocked"}]}
+    make_node(wf_root, "a", flow=flow, agents={"executor": "executor", "helper": helper})
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: node must have exactly one artifact agent.*found 2"):
+        load_node(wf_root, "a")
+    # zero artifact agents: start is reviewer-only
+    make_node(wf_root, "b", flow={"start": "reviewer", "edges": [{"from": "reviewer", "when": "approve", "to": "done"}]},
+              agents={"reviewer": "reviewer"})
+    with pytest.raises(ConfigError, match=r"b\.yaml:\d+: node must have exactly one artifact agent.*found 0"):
+        load_node(wf_root, "b")
+
+
 def test_rev_is_host_set(wf_root):
     make_node(wf_root, "a")
     p = wf_root / "harness/workflows/nodes/a.yaml"

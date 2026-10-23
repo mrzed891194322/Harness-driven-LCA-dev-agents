@@ -141,6 +141,13 @@ def validate_flow(node: Node, path: Path) -> None:
         return f"{path}:{hits[i]}" if i < len(hits) else where(r"^\s*edges:")
 
     flow, agents = node.flow, node.agents
+    artifacts = [name for name in agents if node.kind(name) == "artifact"]
+    if len(artifacts) != 1:
+        raise ConfigError(
+            f"{where(r'^\s*agents:')}: node must have exactly one artifact agent "
+            f"(deliver.submit: artifact), found {len(artifacts)}"
+            + (f": {', '.join(artifacts)}" if artifacts else "")
+        )
     if flow.start not in agents:
         raise ConfigError(f"{where(r'^\s*start:')}: flow.start {flow.start!r} is not an agent of the node")
     if node.kind(flow.start) != "artifact":
