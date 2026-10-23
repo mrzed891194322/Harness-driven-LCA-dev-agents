@@ -1,5 +1,5 @@
 id: lca-report
-title: openLCA 导入、计算与报告
+title: LCA计算与报告
 requires: [bom/bom.json, mapping/mapping.json, mapping/LCI]
 produces:
   - {spec: lca-report, path: report/lca_report.md}

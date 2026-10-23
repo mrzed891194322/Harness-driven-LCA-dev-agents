@@ -176,9 +176,12 @@ class PiDriver:
 
             base = resolve_model_profile(agent.model, project_root=self.root)  # per-agent model (/plan)
             spec.model_profile = base
-        if base.parameters.get("thinking") or agent.thinking:
+        from backend.core.agents.assignment_models import load_default_thinking
+
+        chosen = agent.thinking or load_default_thinking(self.root) or str(base.parameters.get("thinking") or "")
+        if chosen:
             spec.model_profile = ModelProfile(**{**base.__dict__, "parameters": {
-                **base.parameters, "thinking": agent.thinking or base.parameters.get("thinking")}})
+                **base.parameters, "thinking": chosen}})
         return spec, submit_file
 
     # ---------- turn ----------

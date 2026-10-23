@@ -4,8 +4,9 @@
 // workflow data: /api/workflow/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection
 // (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models.
 // 加载预设 / 节点内代理拓扑均为 dialog；拓扑来自节点 YAML flow（静态），不含运行时状态。
-import { Bot, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ArrowDownToLine, ArrowUpFromLine, Bot, Boxes, ChevronRight, Cpu, FileText, ScrollText, Shield, SlidersHorizontal, Workflow, Wrench, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
@@ -25,6 +26,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   const [error, setError] = useState("");
   const [models, setModels] = useState<ModelRow[]>([]);
   const [defaultModel, setDefaultModel] = useState("");
+  const [defaultThinking, setDefaultThinking] = useState("");
   const [modelNote, setModelNote] = useState("");
   const [selection, setSelection] = useState<Selection>({ kind: "workflow" });
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -70,10 +72,11 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
   useEffect(() => {
     apiFetch("/api/workflow/models")
-      .then((r) => r.json() as Promise<{ default_ref?: string; default?: string; models?: ModelRow[] }>)
+      .then((r) => r.json() as Promise<{ default_ref?: string; default?: string; thinking?: string; models?: ModelRow[] }>)
       .then((d) => {
         setModels(d.models || []);
         setDefaultModel(d.default_ref || d.default || "");
+        setDefaultThinking(d.thinking || "");
       })
       .catch(() => setModels([]));
   }, []);
@@ -97,6 +100,23 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
       setModelNote("已保存，下次运行生效");
       void load();
     } else setModelNote(`保存失败（HTTP ${r.status}）`);
+  }
+
+  async function changeDefaultThinking(thinking: string) {
+    setModelNote("");
+    const r = await apiFetch("/api/models/selection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile_id: defaultModel, thinking }),
+    });
+    if (r.ok) {
+      setDefaultThinking(thinking);
+      setModelNote("已保存，下次运行生效");
+      void load();
+    } else {
+      const d = (await r.json().catch(() => ({}))) as { detail?: string };
+      setModelNote(d.detail || `保存失败（HTTP ${r.status}）`);
+    }
   }
 
   async function changeAgent(node: string, agent: string, model: string, thinking: string) {
@@ -205,12 +225,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
       {inspectorOpen ? (
         <aside className="flow-inspector" aria-live="polite" data-testid="flow-inspector">
-          {selection.kind !== "workflow" ? (
-            <button type="button" className="flow-back" onClick={() => setSelection({ kind: "workflow" })}>
-              <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
-              返回配置面板
-            </button>
-          ) : null}
+          <FlowCrumb selection={selection} onSelect={setSelection} />
           <button type="button" className="flow-close" aria-label="关闭" onClick={() => setInspectorOpen(false)}>
             <X size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
@@ -219,16 +234,32 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
               workflow={workflow}
               def={def}
               modelNote={modelNote}
+              thinking={defaultThinking}
+              thinkingLevels={thinkingLevelsFor(models, defaultModel)}
               onChangeDefault={(v) => void changeDefault(v)}
+              onChangeThinking={(v) => void changeDefaultThinking(v)}
               onPickNode={(id) => choose({ kind: "node", id })}
               onPickRule={(path, title) => choose({ kind: "rule", path, title })}
             />
           ) : selection.kind === "rule" ? (
             <RuleDetail path={selection.path} title={selection.title} onBack={() => setSelection({ kind: "workflow" })} />
           ) : node && selection.kind === "node" ? (
-            <NodeDetail node={node} onOpenTopo={() => setTopoNodeId(node.id)} />
+            <NodeDetail
+              node={node}
+              globalRules={workflow.global_rules || []}
+              onOpenTopo={() => setTopoNodeId(node.id)}
+              onPickRule={(path, title) => choose({ kind: "rule", path, title })}
+            />
           ) : node && selection.kind === "agent" ? (
-            <AgentDetail node={node} agentKey={selection.agent} models={models} onChange={changeAgent} note={modelNote} />
+            <AgentDetail
+              node={node}
+              agentKey={selection.agent}
+              models={models}
+              onChange={changeAgent}
+              note={modelNote}
+              globalRules={workflow.global_rules || []}
+              onPickRule={(path, title) => choose({ kind: "rule", path, title })}
+            />
           ) : null}
         </aside>
       ) : null}
@@ -480,27 +511,105 @@ function rulePathLabel(path: string) {
   return path.replace(/^harness\//, "");
 }
 
+function FlowCrumb({ selection, onSelect }: {
+  selection: Selection;
+  onSelect: (next: Selection) => void;
+}) {
+  const crumbs: { key: string; label: string; target: Selection | null }[] = [];
+  if (selection.kind === "workflow") return null;
+  crumbs.push({ key: "workflow", label: "全局配置", target: { kind: "workflow" } });
+  if (selection.kind === "agent") {
+    crumbs.push({ key: selection.id, label: "节点配置", target: { kind: "node", id: selection.id } });
+  } else if (selection.kind === "rule") {
+    crumbs.push({ key: selection.path, label: selection.title || rulePathLabel(selection.path), target: null });
+  }
+  return (
+    <nav className="flow-crumb" aria-label="配置位置" data-testid="flow-crumb">
+      {crumbs.map((crumb, index) => (
+        <span className="flow-crumb-step" key={crumb.key}>
+          {index > 0 ? <ChevronRight className="flow-crumb-sep" size={14} strokeWidth={1.75} aria-hidden="true" /> : null}
+          {crumb.target ? (
+            <button type="button" className="flow-crumb-link" onClick={() => onSelect(crumb.target!)}>
+              {crumb.label}
+            </button>
+          ) : (
+            <span className="flow-crumb-current" aria-current="page">{crumb.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+function FlowSection({ title, testId, icon: Icon, collapsible = true, defaultOpen = false, children }: {
+  title: string;
+  testId?: string;
+  icon?: LucideIcon;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const heading = (
+    <>
+      {Icon ? <Icon className="flow-block-icon" size={15} strokeWidth={1.75} aria-hidden="true" /> : null}
+      <h4>{title}</h4>
+    </>
+  );
+  if (!collapsible) {
+    return (
+      <div className="flow-block" data-testid={testId}>
+        <div className="flow-block-head">{heading}</div>
+        <div className="flow-block-body">{children}</div>
+      </div>
+    );
+  }
+  return (
+    <details
+      className="flow-block"
+      data-testid={testId}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        {heading}
+        <ChevronRight className="flow-block-chevron" size={14} strokeWidth={1.75} aria-hidden="true" />
+      </summary>
+      <div className="flow-block-body">{children}</div>
+    </details>
+  );
+}
+
+function thinkingLevelsFor(models: ModelRow[], modelId: string): string[] {
+  const row = models.find((item) => item.id === modelId);
+  if (!row?.reasoning) return [];
+  const known = new Set(THINKING_LEVELS.filter(Boolean));
+  const listed = (row.thinking_levels || []).filter((level) => known.has(level));
+  return listed.length ? listed : [...known];
+}
+
 function WorkflowConfig({
   workflow,
   def,
   modelNote,
+  thinking,
+  thinkingLevels,
   onChangeDefault,
+  onChangeThinking,
   onPickNode,
   onPickRule,
 }: {
   workflow: WorkflowCard;
   def: { value: string; choices: { value: string; label: string; disabled?: boolean }[] };
   modelNote: string;
+  thinking: string;
+  thinkingLevels: string[];
   onChangeDefault: (value: string) => void;
+  onChangeThinking: (value: string) => void;
   onPickNode: (id: string) => void;
   onPickRule: (path: string, title?: string) => void;
 }) {
   const globalRules: WorkflowRuleCard[] = workflow.global_rules || [];
-  const agentRuleRows = workflow.details.flatMap((n) =>
-    Object.entries(n.agents).flatMap(([agentName, agent]) =>
-      (agent.rules || []).map((path) => ({ nodeId: n.id, nodeTitle: n.title || n.id, agentName, path })),
-    ),
-  );
 
   return (
     <section className="flow-detail" data-testid="flow-workflow-config">
@@ -511,90 +620,73 @@ function WorkflowConfig({
         {workflow.max_redos != null ? ` · 最多回溯 ${workflow.max_redos} 次` : ""}
       </p>
 
-      <div className="flow-block">
-        <h4>默认模型</h4>
-        <select
-          className="flow-model"
-          data-testid="flow-default-model"
-          aria-label="默认模型"
-          value={def.value}
-          onChange={(e) => onChangeDefault(e.target.value)}
-        >
-          {def.choices.map((c) => (
-            <option key={c.value || "none"} value={c.value} disabled={!c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        {modelNote ? <p className="flow-model-note" data-testid="flow-model-note">{modelNote}</p> : null}
+      <div className="flow-block" data-testid="flow-default-model-block">
+        <div className="flow-block-head">
+          <Cpu className="flow-block-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
+          <h4>默认模型</h4>
+        </div>
+        <div className="flow-block-body">
+          <select
+            className="flow-model"
+            data-testid="flow-default-model"
+            aria-label="默认模型"
+            value={def.value}
+            onChange={(e) => onChangeDefault(e.target.value)}
+          >
+            {def.choices.map((c) => (
+              <option key={c.value || "none"} value={c.value} disabled={!c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          {thinkingLevels.length ? (
+            <>
+              <label className="flow-default-thinking-label" htmlFor="flow-default-thinking">思考深度</label>
+              <select
+                id="flow-default-thinking"
+                className="flow-model"
+                data-testid="flow-default-thinking"
+                aria-label="默认思考深度"
+                value={thinking}
+                onChange={(e) => onChangeThinking(e.target.value)}
+              >
+                <option value="">不指定</option>
+                {(thinkingLevels.includes(thinking) || !thinking ? thinkingLevels : [thinking, ...thinkingLevels]).map((level) => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
+            </>
+          ) : null}
+          {modelNote ? <p className="flow-model-note" data-testid="flow-model-note">{modelNote}</p> : null}
+        </div>
       </div>
 
-      <div className="flow-block" data-testid="flow-rules-global">
-        <h4>全局规则</h4>
-        <p className="flow-agent-hint">Injector 第一步：harness/rules/global</p>
-        <ul className="flow-path-list">
-          {globalRules.length ? globalRules.map((r) => (
-            <li key={r.path}>
-              <button type="button" className="flow-rule-link" onClick={() => onPickRule(r.path, r.title)}>
-                <strong>{r.title || r.id}</strong>
-                <code className="flow-path-chip">{r.path}</code>
-              </button>
-            </li>
-          )) : <li className="flow-empty">无</li>}
-        </ul>
-      </div>
-
-      <div className="flow-block" data-testid="flow-rules-node">
-        <h4>节点规则</h4>
-        <p className="flow-agent-hint">各节点 YAML inject（与 agent.rules 一并注入）</p>
-        <ul className="flow-rules-by-node">
-          {workflow.details.map((n) => (
-            <li key={n.id} className="flow-rules-node-item">
-              <button type="button" className="flow-rules-node-title" onClick={() => onPickNode(n.id)}>
-                {n.title || n.id}
-              </button>
-              <ul className="flow-path-list">
-                {(n.inject || []).length ? (n.inject || []).map((path) => (
-                  <li key={path}>
-                    <button type="button" className="flow-rule-link" onClick={() => onPickRule(path)}>
-                      <code className="flow-path-chip">{path}</code>
-                    </button>
-                  </li>
-                )) : <li className="flow-empty">无 inject</li>}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="flow-block" data-testid="flow-rules-agent">
-        <h4>Agent 规则</h4>
-        <p className="flow-agent-hint">节点内 agents.*.rules（不含 inject）</p>
-        <ul className="flow-path-list">
-          {agentRuleRows.length ? agentRuleRows.map((row) => (
-            <li key={`${row.nodeId}-${row.agentName}-${row.path}`}>
-              <button type="button" className="flow-rule-link" onClick={() => onPickRule(row.path)}>
-                <strong>{row.nodeTitle} · {label(row.agentName) || row.agentName}</strong>
-                <code className="flow-path-chip">{row.path}</code>
-              </button>
-            </li>
-          )) : <li className="flow-empty">无 agent 级规则</li>}
-        </ul>
-      </div>
-
-      <div className="flow-block">
-        <h4>节点</h4>
+      <FlowSection title="节点" testId="flow-nodes" icon={Boxes} collapsible={false}>
         <ul className="flow-node-pick-list">
           {workflow.details.map((n) => (
             <li key={n.id}>
               <button type="button" className="flow-node-pick" onClick={() => onPickNode(n.id)}>
-                <strong>{n.title || n.id}</strong>
-                <small className="settings-meta">{n.id} · 最多 {n.max_rounds} 轮 · {(n.inject || []).length} 条 inject</small>
+                <span className="flow-option-title">
+                  <Workflow className="flow-option-icon" size={14} strokeWidth={1.75} aria-hidden="true" />
+                  <strong>{n.title || n.id}</strong>
+                </span>
               </button>
             </li>
           ))}
         </ul>
-      </div>
+      </FlowSection>
+
+      <FlowSection title="全局规则" testId="flow-rules-global" icon={ScrollText} collapsible={false}>
+        <ul className="flow-path-list">
+          {globalRules.length ? globalRules.map((r) => (
+            <li key={r.path}>
+              <button type="button" className="flow-rule-link" onClick={() => onPickRule(r.path, r.title)}>
+                {rulePathLabel(r.path)}
+              </button>
+            </li>
+          )) : <li className="flow-empty">无</li>}
+        </ul>
+      </FlowSection>
     </section>
   );
 }
@@ -644,40 +736,27 @@ function RuleDetail({ path, title, onBack }: { path: string; title?: string; onB
         </div>
       ) : null}
       {!loading && !err ? (
-        <div className="flow-block">
-          <h4>内容</h4>
+        <FlowSection title="内容" icon={FileText}>
           <pre className="flow-code flow-rule-source"><code>{raw}</code></pre>
-        </div>
+        </FlowSection>
       ) : null}
     </section>
   );
 }
 
 
-function NodeDetail({ node, onOpenTopo }: { node: WorkflowNode; onOpenTopo: () => void }) {
+function NodeDetail({ node, globalRules, onOpenTopo, onPickRule }: {
+  node: WorkflowNode;
+  globalRules: WorkflowRuleCard[];
+  onOpenTopo: () => void;
+  onPickRule: (path: string, title?: string) => void;
+}) {
+  const injected = node.inject || [];
+  const globals = globalRules || [];
   return (
     <section className="flow-detail" data-testid={`flow-node-detail-${node.id}`}>
       <h3>{node.title || node.id}</h3>
       <p className="settings-meta">{node.id} · 最多 {node.max_rounds} 轮</p>
-      <div className="flow-block">
-        <h4>输入</h4>
-        <ul className="flow-path-list">
-          {node.requires.length ? node.requires.map((r) => (
-            <li key={r}><code className="flow-path-chip">{r}</code></li>
-          )) : <li className="flow-empty">无</li>}
-        </ul>
-      </div>
-      <div className="flow-block">
-        <h4>产出</h4>
-        <ul className="flow-path-list">
-          {node.produces.map((p) => (
-            <li key={p.path}>
-              <code className="flow-path-chip">{p.path}</code>
-              <span className="flow-path-spec">规格 {p.spec}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
       <div
         className="flow-block flow-agents-block"
         role="button"
@@ -692,8 +771,10 @@ function NodeDetail({ node, onOpenTopo }: { node: WorkflowNode; onOpenTopo: () =
           }
         }}
       >
-        <h4>代理</h4>
-        <p className="flow-agent-hint">点击本区打开节点内静态拓扑；单芯片仅为示意。</p>
+        <div className="flow-block-head">
+          <Bot className="flow-block-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
+          <h4>Agents</h4>
+        </div>
         <div className="flow-agent-chips">
           {Object.keys(node.agents).map((name) => (
             <span
@@ -707,26 +788,99 @@ function NodeDetail({ node, onOpenTopo }: { node: WorkflowNode; onOpenTopo: () =
           ))}
         </div>
       </div>
+      <FlowSection title="输入" icon={ArrowDownToLine} collapsible={false}>
+        <ul className="flow-path-list">
+          {node.requires.length ? node.requires.map((r) => (
+            <li key={r}><code className="flow-path-chip">{r}</code></li>
+          )) : <li className="flow-empty">无</li>}
+        </ul>
+      </FlowSection>
+      <FlowSection title="产出" icon={ArrowUpFromLine} collapsible={false}>
+        <ul className="flow-path-list">
+          {node.produces.map((p) => (
+            <li key={p.path}>
+              <code className="flow-path-chip">{p.path}</code>
+            </li>
+          ))}
+        </ul>
+      </FlowSection>
+      <FlowSection title="注入规则" icon={ScrollText}>
+        {globals.length ? (
+          <>
+            <h4>全局</h4>
+            <ul className="flow-path-list">
+              {globals.map((rule) => (
+                <li key={rule.path}>
+                  <button type="button" className="flow-rule-link" onClick={() => onPickRule(rule.path, rule.title)}>
+                    {rulePathLabel(rule.path)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {injected.length ? (
+          <>
+            <h4>本节点</h4>
+            <ul className="flow-path-list">
+              {injected.map((path) => (
+                <li key={path}>
+                  <button type="button" className="flow-rule-link" onClick={() => onPickRule(path)}>
+                    {rulePathLabel(path)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {Object.entries(node.agents).map(([name, agent]) => {
+          const ownRules = agent.rules || [];
+          return (
+            <Fragment key={name}>
+              <h4>{name}</h4>
+              <ul className="flow-path-list">
+                {ownRules.length ? ownRules.map((path) => (
+                  <li key={path}>
+                    <button type="button" className="flow-rule-link" onClick={() => onPickRule(path)}>
+                      {rulePathLabel(path)}
+                    </button>
+                  </li>
+                )) : <li className="flow-empty">无</li>}
+              </ul>
+            </Fragment>
+          );
+        })}
+        {!globals.length && !injected.length && !Object.keys(node.agents).length ? (
+          <ul className="flow-path-list">
+            <li className="flow-empty">无</li>
+          </ul>
+        ) : null}
+      </FlowSection>
     </section>
   );
 }
 
-function AgentDetail({ node, agentKey, models, onChange, note }: {
+function AgentDetail({ node, agentKey, models, onChange, note, globalRules, onPickRule }: {
   node: WorkflowNode; agentKey: string; models: ModelRow[];
   onChange: (node: string, agent: string, model: string, thinking: string) => Promise<void>;
   note: string;
+  globalRules: WorkflowRuleCard[];
+  onPickRule: (path: string, title?: string) => void;
 }) {
   const agent = node.agents[agentKey];
   if (!agent) return null;
   const gm = agent.gui_model || "";
   const gt = agent.gui_thinking || "";
   const choices = modelChoices(models, gm).choices.filter((c) => c.value);
+  const globals = globalRules || [];
+  const injected = node.inject || [];
+  const ownRules = agent.rules || [];
+  const hasRules = globals.length > 0 || injected.length > 0 || ownRules.length > 0;
   return (
     <section className="flow-detail" data-testid={`flow-agent-detail-${node.id}-${agentKey}`}>
       <h3>{node.title || node.id} · {label(agentKey)}</h3>
       <p className="settings-meta">agent {agent.template || "内联"} · 当前模型 {agent.model}{agent.thinking ? ` · 思考 ${agent.thinking}` : ""}</p>
-      <div className="flow-block">
-        <h4>模型</h4>
+      <FlowSection title="模型" icon={Cpu} defaultOpen>
         <select className="flow-model" data-testid="agent-model-select" value={gm} onChange={(e) => void onChange(node.id, agentKey, e.target.value, gt)}>
           <option value="">使用默认模型</option>
           {choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -736,29 +890,76 @@ function AgentDetail({ node, agentKey, models, onChange, note }: {
           {THINKING_LEVELS.map((t) => <option key={t || "default"} value={t}>{t || "模型默认"}</option>)}
         </select>
         {note ? <p className="flow-model-note" data-testid="flow-model-note">{note}</p> : null}
-      </div>
-      <div className="flow-block">
+      </FlowSection>
+      <FlowSection title="权限" icon={Shield}>
         <h4>可读</h4>
         <ul className="flow-path-list">
-          {agent.read.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>)}
+          {agent.read.length ? agent.read.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>) : <li className="flow-empty">无</li>}
         </ul>
         <h4>可写</h4>
         <ul className="flow-path-list">
           {agent.write.length ? agent.write.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>) : <li className="flow-empty">无</li>}
         </ul>
-      </div>
-      <div className="flow-block">
-        <h4>工具</h4>
+      </FlowSection>
+      <FlowSection title="工具" icon={Wrench}>
         <ul className="flow-plain-list">
           <li>文件工具{agentKey === "executor" ? "（含写入）" : "（只读）"}、submit</li>
-          {agent.tools.mcp.map((m) => <li key={m}>MCP：{m}</li>)}
-          {agent.tools.skills.map((s) => <li key={s}>技能：{s}</li>)}
+          {agent.tools.mcp.length ? agent.tools.mcp.map((m) => <li key={m}>MCP：{m}</li>) : null}
+          {agent.tools.skills.length ? agent.tools.skills.map((s) => <li key={s}>技能：{s}</li>) : null}
         </ul>
-        <h4>规则</h4>
-        <ul className="flow-path-list">
-          {agent.rules.length ? agent.rules.map((r) => <li key={r}><code className="flow-path-chip">{r}</code></li>) : <li className="flow-empty">无 agent 级规则</li>}
-        </ul>
-      </div>
+      </FlowSection>
+      <FlowSection title="规则" icon={ScrollText}>
+        {hasRules ? (
+          <>
+            {globals.length ? (
+              <>
+                <h4>全局</h4>
+                <ul className="flow-path-list">
+                  {globals.map((rule) => (
+                    <li key={rule.path}>
+                      <button type="button" className="flow-rule-link" onClick={() => onPickRule(rule.path, rule.title)}>
+                        {rulePathLabel(rule.path)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+            {injected.length ? (
+              <>
+                <h4>节点</h4>
+                <ul className="flow-path-list">
+                  {injected.map((path) => (
+                    <li key={path}>
+                      <button type="button" className="flow-rule-link" onClick={() => onPickRule(path)}>
+                        {rulePathLabel(path)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+            {ownRules.length ? (
+              <>
+                <h4>本代理</h4>
+                <ul className="flow-path-list">
+                  {ownRules.map((path) => (
+                    <li key={path}>
+                      <button type="button" className="flow-rule-link" onClick={() => onPickRule(path)}>
+                        {rulePathLabel(path)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <ul className="flow-path-list">
+            <li className="flow-empty">无</li>
+          </ul>
+        )}
+      </FlowSection>
     </section>
   );
 }

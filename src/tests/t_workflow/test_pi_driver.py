@@ -52,6 +52,26 @@ def _req(root, node, agent="executor", rnd=1, resume=False):
                        run_id="run12345", session_key=f"n1-{agent}", resume=resume, extra={"system": "SYS"})
 
 
+def test_default_thinking_applies_when_agent_has_none(wf_root):
+    from backend.core.agents.assignment_models import load_default_thinking, save_default_thinking
+
+    node = _setup(wf_root)
+    assert save_default_thinking(wf_root, "low") == "low"
+    d = PiDriver(wf_root, MODEL, runtime=FakeRuntime())
+    reviewer, _ = d.launch_spec(_req(wf_root, node, agent="reviewer"))
+    executor, _ = d.launch_spec(_req(wf_root, node, agent="executor"))
+    assert reviewer.model_profile.parameters["thinking"] == "low"
+    assert executor.model_profile.parameters["thinking"] == "high"
+    assert save_default_thinking(wf_root, "") == ""
+    assert load_default_thinking(wf_root) == ""
+    try:
+        save_default_thinking(wf_root, "max")
+    except ValueError as exc:
+        assert "思考" in str(exc)
+    else:
+        raise AssertionError("max should be rejected")
+
+
 def test_launch_spec_tools_scopes_and_mcp(wf_root):
     node = _setup(wf_root)
     d = PiDriver(wf_root, MODEL, runtime=FakeRuntime())

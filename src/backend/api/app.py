@@ -14,7 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
-from backend.core.agents.assignment_models import load_default_model, save_default_model
+from backend.core.agents.assignment_models import (
+    load_default_model,
+    load_default_thinking,
+    save_default_model,
+    save_default_thinking,
+)
 from backend.core.runtime.model_profiles import (
     allocate_profile_id,
     delete_local_profile,
@@ -107,6 +112,7 @@ class CredentialUpdate(BaseModel):
 
 class ModelSelection(BaseModel):
     profile_id: str
+    thinking: str | None = None
 
 
 class ModelTestRequest(BaseModel):
@@ -295,15 +301,18 @@ def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[st
                 continue
             seen.add(ref)
             label = str(model.get("name") or model_id).strip() or model_id
-            rows.append(
-                {
-                    "id": ref,
-                    "label": label,
-                    "provider": provider,
-                    "provider_name": provider_name,
-                    "model_id": model_id,
-                }
-            )
+            row: dict[str, Any] = {
+                "id": ref,
+                "label": label,
+                "provider": provider,
+                "provider_name": provider_name,
+                "model_id": model_id,
+                "reasoning": bool(model.get("reasoning")),
+            }
+            levels = model.get("thinking_levels")
+            if isinstance(levels, list):
+                row["thinking_levels"] = [str(level) for level in levels if str(level).strip()]
+            rows.append(row)
     return rows, warnings
 
 
@@ -315,6 +324,7 @@ def workflow_models() -> dict[str, Any]:
     return {
         "default": stored,
         "default_ref": _selection_ref(PROJECT_ROOT, stored),
+        "thinking": load_default_thinking(PROJECT_ROOT),
         "models": models,
         "warnings": warnings,
     }
@@ -324,8 +334,13 @@ def workflow_models() -> dict[str, Any]:
 def set_model_selection(body: ModelSelection) -> dict[str, str]:
     if not _accepts_model_ref(PROJECT_ROOT, body.profile_id):
         raise HTTPException(status_code=400, detail=f"未知模型：{body.profile_id}")
+    if body.thinking is not None:
+        try:
+            save_default_thinking(PROJECT_ROOT, body.thinking)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     saved = save_default_model(PROJECT_ROOT, body.profile_id)
-    return {"profile_id": saved}
+    return {"profile_id": saved, "thinking": load_default_thinking(PROJECT_ROOT)}
 
 
 @app.post("/api/models/test")

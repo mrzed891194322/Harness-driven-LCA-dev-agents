@@ -84,14 +84,15 @@ class WorkflowService:
     def _default_model(self) -> tuple[str, str]:
         """(model ref, thinking) the driver would use when an agent sets neither (I-37)."""
         try:
-            from backend.core.agents.assignment_models import load_default_model
+            from backend.core.agents.assignment_models import load_default_model, load_default_thinking
             from backend.core.runtime.model_profiles import resolve_model_profile
 
             ref = load_default_model(self.root)
+            saved = load_default_thinking(self.root)
             if not ref:
-                return "", ""
+                return "", saved
             prof = resolve_model_profile(ref, project_root=self.root)
-            return ref, str((prof.parameters or {}).get("thinking") or "")
+            return ref, saved or str((prof.parameters or {}).get("thinking") or "")
         except Exception:  # noqa: BLE001 - a card must render even with a broken model store
             return "", ""
 

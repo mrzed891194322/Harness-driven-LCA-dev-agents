@@ -1,4 +1,10 @@
-export type ModelRow = { id: string; label?: string; provider_name?: string };
+export type ModelRow = {
+  id: string;
+  label?: string;
+  provider_name?: string;
+  reasoning?: boolean;
+  thinking_levels?: string[];
+};
 export type ModelChoice = { value: string; label: string };
 
 /**

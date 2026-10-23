@@ -565,7 +565,12 @@ async function listAvailableModels(params: Record<string, unknown>): Promise<unk
         const loaded = modelRuntime.getModel(provider, model.id);
         if (!loaded?.id) return [];
         if (served && !modelIsServed(served, loaded.id)) return [];
-        return [{ id: loaded.id, name: loaded.name || loaded.id }];
+        return [{
+          id: loaded.id,
+          name: loaded.name || loaded.id,
+          reasoning: Boolean(loaded.reasoning),
+          thinking_levels: pageThinkingLevels(loaded),
+        }];
       })
       .sort((a, b) => a.id.localeCompare(b.id));
     const missing =
@@ -629,6 +634,14 @@ export function runtimeInfo(): Record<string, unknown> {
 }
 
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const PAGE_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
+
+/** Levels the plan page can save. A map entry of null means the model rejects that level. */
+function pageThinkingLevels(model: { reasoning?: boolean; thinkingLevelMap?: Partial<Record<string, string | null>> }): string[] {
+  if (!model.reasoning) return [];
+  const map = model.thinkingLevelMap;
+  return PAGE_THINKING_LEVELS.filter((level) => !map || map[level] !== null);
+}
 
 /** v5: model_profile.parameters.thinking selects pi's thinkingLevel; unknown values are ignored. */
 export function thinkingLevelOf(spec: SessionLaunchSpec): any {

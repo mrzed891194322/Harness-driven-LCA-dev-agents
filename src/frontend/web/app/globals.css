@@ -2286,6 +2286,26 @@ button:disabled {
   font-size: 0.88rem;
 }
 
+[data-testid="flow-workflow-config"] .flow-block-head h4,
+[data-testid="flow-workflow-config"] .flow-block > summary h4 {
+  font-size: 0.95rem;
+  letter-spacing: 0;
+}
+
+.flow-block[data-testid="flow-default-model-block"] .flow-model,
+.flow-block[data-testid="flow-default-model-block"] .flow-model option {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.flow-default-thinking-label {
+  display: block;
+  margin: 10px 0 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .flow-model {
   width: 100%;
   max-width: none;
@@ -2364,14 +2384,16 @@ button:disabled {
 }
 
 .flow-stage {
-  flex: 0 1 200px;
-  width: 200px;
-  max-width: 200px;
+  flex: 0 1 224px;
+  width: 224px;
+  max-width: 224px;
   min-width: 132px;
+  height: 248px;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 12px;
+  padding: 16px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fff;
@@ -2465,8 +2487,10 @@ button:disabled {
 }
 
 .flow-steps {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 8px;
 }
 
@@ -2610,6 +2634,54 @@ button:disabled {
   color: var(--accent);
 }
 
+.flow-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0 36px 10px 0;
+  min-height: 28px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.flow-crumb-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.flow-crumb-sep {
+  flex: none;
+  color: var(--muted);
+}
+
+.flow-crumb-link {
+  min-height: 0;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-size: inherit;
+  font-weight: 700;
+  line-height: inherit;
+  text-align: left;
+}
+
+.flow-crumb-link:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.flow-crumb-current {
+  padding: 2px 4px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
 .flow-facts {
   display: grid;
   gap: 8px;
@@ -2640,6 +2712,69 @@ button:disabled {
   background: #fbfcf9;
 }
 
+.flow-block-head,
+.flow-block > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.flow-block > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.flow-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.flow-block > summary::marker {
+  content: "";
+}
+
+.flow-block-head h4,
+.flow-block > summary h4 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.flow-block > summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, white);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.flow-block-icon,
+.flow-option-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.flow-option-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.flow-block-chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform 140ms ease;
+}
+
+.flow-block[open] > summary .flow-block-chevron {
+  transform: rotate(90deg);
+}
+
+.flow-block-body {
+  margin-top: 8px;
+}
+
 .flow-block h3,
 .flow-block h4,
 .flow-detail > h4 {
@@ -2649,6 +2784,13 @@ button:disabled {
   letter-spacing: 0.04em;
   text-transform: none;
   color: var(--accent);
+}
+
+.flow-detail .flow-block-head h4,
+.flow-detail .flow-block > summary h4,
+.flow-detail .flow-agents-block > h4 {
+  font-size: 0.95rem;
+  letter-spacing: 0;
 }
 
 .flow-block h4 + h4,
@@ -2677,8 +2819,10 @@ button:disabled {
 }
 
 .flow-path-chip {
-  display: inline-block;
+  display: block;
+  width: 100%;
   max-width: 100%;
+  box-sizing: border-box;
   padding: 5px 8px;
   border: 1px solid color-mix(in srgb, var(--line) 80%, var(--accent));
   border-radius: 7px;
@@ -2832,16 +2976,24 @@ button:disabled {
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.flow-topo-agent-list > li {
+  flex: 0 1 220px;
+  width: 220px;
+  max-width: 100%;
 }
 
 .flow-topo-agent-item {
   width: 100%;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 4px;
   padding: 10px 12px;
   text-align: left;
   border: 1px solid var(--line);
@@ -2864,7 +3016,7 @@ button:disabled {
 }
 
 .flow-topo-agent-item small {
-  flex: 1 1 100%;
+  grid-column: 1 / -1;
 }
 
 .flow-topo-primary-badge {
@@ -4724,10 +4876,28 @@ button:disabled {
   background: #fff;
 }
 
+.flow-rule-link {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .flow-rule-link:hover,
 .flow-node-pick:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.flow-node-pick {
+  min-height: 0;
+  padding: 6px 10px;
+}
+
+.flow-node-pick strong {
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .flow-rules-by-node {
