@@ -5,11 +5,11 @@
 // (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models.
 // 加载预设 / 节点内代理拓扑均为 dialog；拓扑来自节点 YAML flow（静态），不含运行时状态。
 import { Bot, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
-import { THINKING_LEVELS, workflowForMode, type WorkflowFlowEdge, type WorkflowNode, type WorkflowCard } from "../../lib/workflow-cards";
+import { THINKING_LEVELS, workflowForMode, type WorkflowNode, type WorkflowCard } from "../../lib/workflow-cards";
 
 export type WorkMode = "new" | "revise";
 
@@ -168,12 +168,27 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                   <strong>{n.title || n.id}</strong>
                   <small>最多 {n.max_rounds} 轮 · {n.id}</small>
                 </button>
-                <div className="flow-steps" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flow-steps"
+                  role="button"
+                  tabIndex={0}
+                  data-testid={`flow-agents-box-${n.id}`}
+                  aria-label={`${n.title || n.id} 代理拓扑`}
+                  onClick={(e) => { e.stopPropagation(); setTopoNodeId(n.id); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setTopoNodeId(n.id);
+                    }
+                  }}
+                >
                   {Object.keys(n.agents).map((name) => (
                     <button key={name} type="button" className="flow-step" data-agent={name}
                       data-testid={`flow-agent-${n.id}-${name}`}
                       aria-pressed={selection.kind === "agent" && selection.id === n.id && selection.agent === name}
-                      onClick={() => choose({ kind: "agent", id: n.id, agent: name })}>
+                      title="在侧栏配置模型"
+                      onClick={(e) => { e.stopPropagation(); choose({ kind: "agent", id: n.id, agent: name }); }}>
                       <span className="flow-step-agent">
                         <Bot className="flow-step-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
@@ -325,6 +340,89 @@ function flowWhenLabel(when: string | null | undefined) {
   return FLOW_WHEN[when] || when;
 }
 
+function mermaidId(raw: string) {
+  const id = raw.replace(/[^a-zA-Z0-9_]/g, "_");
+  return /^[0-9]/.test(id) ? `n_${id}` : id || "node";
+}
+
+/** Static mermaid from node YAML flow.edges (no runtime / LangGraph draw). */
+function flowToMermaid(node: WorkflowNode): string {
+  const edges = node.flow?.edges || [];
+  const agents = Object.keys(node.agents);
+  const start = node.flow?.start || agents[0] || "";
+  const terminals = new Set<string>();
+  for (const e of edges) {
+    if (FLOW_TERMINALS.has(e.to)) terminals.add(e.to);
+  }
+  const lines: string[] = ["graph LR"];
+  for (const name of agents) {
+    const title = (label(name) || name).replace(/"/g, "#quot;");
+    if (name === start) lines.push(`  ${mermaidId(name)}(["${title}"])`);
+    else lines.push(`  ${mermaidId(name)}["${title}"]`);
+  }
+  for (const term of terminals) {
+    const title = (FLOW_WHEN[term] || term).replace(/"/g, "#quot;");
+    lines.push(`  ${mermaidId(term)}((${title}))`);
+  }
+  for (const e of edges) {
+    const w = `${flowWhenLabel(e.when)}${e.max != null ? ` ·≤${e.max}` : ""}`.replace(/"/g, "#quot;");
+    lines.push(`  ${mermaidId(e.from)} -->|"${w}"| ${mermaidId(e.to)}`);
+  }
+  for (const [name, cls] of [
+    ["executor", "executorCls"],
+    ["reviewer", "reviewerCls"],
+    ["reviser", "reviserCls"],
+  ] as const) {
+    if (agents.includes(name)) lines.push(`  class ${mermaidId(name)} ${cls}`);
+  }
+  lines.push("  classDef executorCls fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20,stroke-width:1.5px");
+  lines.push("  classDef reviewerCls fill:#fff3e0,stroke:#ef6c00,color:#e65100,stroke-width:1.5px");
+  lines.push("  classDef reviserCls fill:#e3f2fd,stroke:#1565c0,color:#0d47a1,stroke-width:1.5px");
+  return lines.join("\n");
+}
+
+function MermaidGraph({ chart }: { chart: string }) {
+  const host = useRef<HTMLDivElement>(null);
+  const reactId = useId().replace(/:/g, "");
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    setErr("");
+    void (async () => {
+      try {
+        const mermaid = (await import("mermaid")).default;
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: "base",
+          themeVariables: {
+            primaryColor: "#e8f5e9",
+            primaryTextColor: "#1c1f1a",
+            primaryBorderColor: "#2e7d32",
+            lineColor: "#6b7280",
+            secondaryColor: "#f6f8f4",
+            tertiaryColor: "#fff",
+            fontFamily: "ui-sans-serif, system-ui, sans-serif",
+          },
+          flowchart: { curve: "basis", htmlLabels: false, padding: 12 },
+        });
+        const id = `flow-topo-${reactId}`;
+        const { svg } = await mermaid.render(id, chart);
+        if (cancelled || !host.current) return;
+        host.current.innerHTML = svg;
+      } catch (e: unknown) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (host.current) host.current.innerHTML = "";
+    };
+  }, [chart, reactId]);
+  if (err) return <p className="status-banner error">拓扑图渲染失败：{err}</p>;
+  return <div className="flow-topo-mermaid" data-testid="flow-topo-mermaid" ref={host} />;
+}
+
 function AgentTopoPanel({
   node,
   onClose,
@@ -334,92 +432,60 @@ function AgentTopoPanel({
   onClose: () => void;
   onConfigureAgent: (agent: string) => void;
 }) {
-  const edges = node.flow?.edges || [];
   const start = node.flow?.start || Object.keys(node.agents)[0] || "";
   const agentOrder = Object.keys(node.agents).sort((a, b) => {
     if (a === start) return -1;
     if (b === start) return 1;
     return a.localeCompare(b);
   });
-  const agentEdges = edges.filter((e) => e.from in node.agents && e.to in node.agents);
-  const terminalEdges = edges.filter((e) => e.from in node.agents && FLOW_TERMINALS.has(e.to));
+  const chart = useMemo(() => flowToMermaid(node), [node]);
 
   return (
     <div className="flow-presets-panel">
       <header className="flow-presets-head">
         <div>
           <h2 id="flow-topo-title">{node.title || node.id} · 代理拓扑</h2>
-          <p className="settings-meta">本节点 YAML flow（静态）：代理间边与 MCP / 技能；不含运行时状态。模型仍在侧栏配置。</p>
+          <p className="settings-meta">静态 YAML flow.edges（Mermaid）；不含运行时状态。模型在侧栏配置。</p>
         </div>
         <button type="button" className="flow-close" aria-label="关闭" data-testid="flow-topo-close" onClick={onClose}>
           <X size={16} strokeWidth={1.75} aria-hidden="true" />
         </button>
       </header>
 
-      <div className="flow-topo-agents" data-testid="flow-topo-agents">
-        {agentOrder.map((name) => {
-          const agent = node.agents[name];
-          return (
-            <article key={name} className="flow-topo-card" data-agent={name} data-testid={`flow-topo-agent-${name}`}>
-              <header className="flow-topo-card-head">
-                <strong>{label(name) || name}</strong>
-                <small className="settings-meta">{name === start ? "起点 · " : ""}{agent.template || "内联"}</small>
-              </header>
-              <div className="flow-topo-tools">
-                <span className="flow-topo-tools-label">MCP</span>
-                <div className="flow-topo-chips">
-                  {agent.tools.mcp.length ? agent.tools.mcp.map((m) => (
-                    <span key={m} className="flow-topo-chip" data-kind="mcp">{m}</span>
-                  )) : <span className="flow-empty">无</span>}
-                </div>
-                <span className="flow-topo-tools-label">技能</span>
-                <div className="flow-topo-chips">
-                  {agent.tools.skills.length ? agent.tools.skills.map((s) => (
-                    <span key={s} className="flow-topo-chip" data-kind="skill">{s}</span>
-                  )) : <span className="flow-empty">无</span>}
-                </div>
-              </div>
-              <button type="button" className="flow-topo-config" onClick={() => onConfigureAgent(name)}>
-                在侧栏配置模型
-              </button>
-            </article>
-          );
-        })}
+      <div className="flow-topo-graph" data-testid="flow-topo-graph">
+        <MermaidGraph chart={chart} />
       </div>
 
-      <div className="flow-block flow-topo-edges">
-        <h4>节点内边</h4>
-        <ul className="flow-topo-edge-list" data-testid="flow-topo-edges">
-          {agentEdges.length ? agentEdges.map((e) => (
-            <li key={`${e.from}-${e.when ?? ""}-${e.to}`}>
-              <TopoEdge edge={e} />
-            </li>
-          )) : <li className="flow-empty">无代理间边</li>}
+      <div className="flow-block flow-topo-legend">
+        <h4>MCP / 技能</h4>
+        <ul className="flow-topo-legend-list">
+          {agentOrder.map((name) => {
+            const agent = node.agents[name];
+            return (
+              <li key={name} data-agent={name}>
+                <div className="flow-topo-legend-head">
+                  <strong>{label(name) || name}</strong>
+                  <button type="button" className="flow-topo-config" onClick={() => onConfigureAgent(name)}>
+                    在侧栏配置模型
+                  </button>
+                </div>
+                <div className="flow-topo-chips">
+                  {agent.tools.mcp.map((m) => (
+                    <span key={`m-${m}`} className="flow-topo-chip" data-kind="mcp">MCP · {m}</span>
+                  ))}
+                  {agent.tools.skills.map((s) => (
+                    <span key={`s-${s}`} className="flow-topo-chip" data-kind="skill">技能 · {s}</span>
+                  ))}
+                  {!agent.tools.mcp.length && !agent.tools.skills.length ? (
+                    <span className="flow-empty">无 MCP / 技能</span>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
         </ul>
-        {terminalEdges.length ? (
-          <>
-            <h4>终点</h4>
-            <ul className="flow-topo-edge-list">
-              {terminalEdges.map((e) => (
-                <li key={`${e.from}-${e.when ?? ""}-${e.to}`}>
-                  <TopoEdge edge={e} />
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
       </div>
     </div>
-  );
-}
-
-function TopoEdge({ edge }: { edge: WorkflowFlowEdge }) {
-  return (
-    <span className="flow-topo-edge">
-      <em data-agent={edge.from}>{label(edge.from) || edge.from}</em>
-      <span className="flow-topo-when">{flowWhenLabel(edge.when)}{edge.max != null ? ` · 最多 ${edge.max} 次` : ""}</span>
-      <em data-agent={edge.to}>{FLOW_TERMINALS.has(edge.to) ? (FLOW_WHEN[edge.to] || label(edge.to) || edge.to) : (label(edge.to) || edge.to)}</em>
-    </span>
   );
 }
 
@@ -447,21 +513,32 @@ function NodeDetail({ node, onOpenTopo }: { node: WorkflowNode; onOpenTopo: () =
           ))}
         </ul>
       </div>
-      <div className="flow-block">
+      <div
+        className="flow-block flow-agents-block"
+        role="button"
+        tabIndex={0}
+        data-testid="flow-agents-section"
+        aria-label="打开代理拓扑"
+        onClick={onOpenTopo}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpenTopo();
+          }
+        }}
+      >
         <h4>代理</h4>
-        <p className="flow-agent-hint">点击打开本节点代理拓扑（静态 flow）；模型在弹窗内进侧栏配置。</p>
+        <p className="flow-agent-hint">点击本区打开节点内静态拓扑；单芯片仅为示意。</p>
         <div className="flow-agent-chips">
           {Object.keys(node.agents).map((name) => (
-            <button
+            <span
               key={name}
-              type="button"
               className="flow-agent-chip"
               data-agent={name}
               data-testid={`flow-agent-chip-${name}`}
-              onClick={onOpenTopo}
             >
               {label(name)}
-            </button>
+            </span>
           ))}
         </div>
       </div>

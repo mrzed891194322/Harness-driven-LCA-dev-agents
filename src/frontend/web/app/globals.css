@@ -2757,8 +2757,74 @@ button:disabled {
   line-height: 1.4;
 }
 
+.flow-agents-block {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flow-agents-block:hover,
+.flow-agents-block:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+.flow-agents-block .flow-agent-chip {
+  pointer-events: none;
+}
+
 .flow-topo-dialog {
-  width: min(720px, calc(100vw - 32px));
+  width: min(860px, calc(100vw - 32px));
+}
+
+.flow-topo-graph {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcf9;
+  overflow: auto;
+}
+
+.flow-topo-mermaid {
+  display: flex;
+  justify-content: center;
+  min-height: 180px;
+}
+
+.flow-topo-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.flow-topo-legend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flow-topo-legend-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.flow-topo-legend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flow-topo-legend-head .flow-topo-config {
+  margin-top: 0;
+  flex: none;
 }
 
 .flow-topo-agents {
