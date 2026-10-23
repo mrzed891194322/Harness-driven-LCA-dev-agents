@@ -9,14 +9,15 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
-import { THINKING_LEVELS, workflowForMode, type WorkflowNode, type WorkflowCard } from "../../lib/workflow-cards";
+import { THINKING_LEVELS, workflowForMode, type WorkflowNode, type WorkflowCard, type WorkflowRuleCard } from "../../lib/workflow-cards";
 
 export type WorkMode = "new" | "revise";
 
 type Selection =
   | { kind: "workflow" }
   | { kind: "node"; id: string }
-  | { kind: "agent"; id: string; agent: string };
+  | { kind: "agent"; id: string; agent: string }
+  | { kind: "rule"; path: string; title?: string };
 
 export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   const [catalog, setCatalog] = useState<WorkflowCard[]>([]);
@@ -207,40 +208,23 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           {selection.kind !== "workflow" ? (
             <button type="button" className="flow-back" onClick={() => setSelection({ kind: "workflow" })}>
               <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
-              回到全局规则
+              返回配置面板
             </button>
           ) : null}
           <button type="button" className="flow-close" aria-label="关闭" onClick={() => setInspectorOpen(false)}>
             <X size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
           {selection.kind === "workflow" ? (
-            <section className="flow-detail" data-testid="flow-workflow-config">
-              <h3>{workflow.title || workflow.id}</h3>
-              <p className="settings-meta">计划文件 {workflow.plan_file}{workflow.start_rev === "next" ? " · 在已有产物上修订" : ""}</p>
-              <h4>默认模型</h4>
-              <select
-                className="flow-model"
-                data-testid="flow-default-model"
-                aria-label="默认模型"
-                value={def.value}
-                onChange={(e) => void changeDefault(e.target.value)}
-              >
-                {def.choices.map((c) => (
-                  <option key={c.value || "none"} value={c.value} disabled={!c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              {modelNote ? <p className="flow-model-note" data-testid="flow-model-note">{modelNote}</p> : null}
-              <h4>节点</h4>
-              <ol>
-                {workflow.details.map((n) => (
-                  <li key={n.id}>
-                    <button type="button" className="flow-back" onClick={() => choose({ kind: "node", id: n.id })}>{n.title || n.id}</button>
-                  </li>
-                ))}
-              </ol>
-            </section>
+            <WorkflowConfig
+              workflow={workflow}
+              def={def}
+              modelNote={modelNote}
+              onChangeDefault={(v) => void changeDefault(v)}
+              onPickNode={(id) => choose({ kind: "node", id })}
+              onPickRule={(path, title) => choose({ kind: "rule", path, title })}
+            />
+          ) : selection.kind === "rule" ? (
+            <RuleDetail path={selection.path} title={selection.title} onBack={() => setSelection({ kind: "workflow" })} />
           ) : node && selection.kind === "node" ? (
             <NodeDetail node={node} onOpenTopo={() => setTopoNodeId(node.id)} />
           ) : node && selection.kind === "agent" ? (
@@ -491,6 +475,185 @@ function AgentTopoPanel({
   );
 }
 
+
+function rulePathLabel(path: string) {
+  return path.replace(/^harness\//, "");
+}
+
+function WorkflowConfig({
+  workflow,
+  def,
+  modelNote,
+  onChangeDefault,
+  onPickNode,
+  onPickRule,
+}: {
+  workflow: WorkflowCard;
+  def: { value: string; choices: { value: string; label: string; disabled?: boolean }[] };
+  modelNote: string;
+  onChangeDefault: (value: string) => void;
+  onPickNode: (id: string) => void;
+  onPickRule: (path: string, title?: string) => void;
+}) {
+  const globalRules: WorkflowRuleCard[] = workflow.global_rules || [];
+  const agentRuleRows = workflow.details.flatMap((n) =>
+    Object.entries(n.agents).flatMap(([agentName, agent]) =>
+      (agent.rules || []).map((path) => ({ nodeId: n.id, nodeTitle: n.title || n.id, agentName, path })),
+    ),
+  );
+
+  return (
+    <section className="flow-detail" data-testid="flow-workflow-config">
+      <h3>{workflow.title || workflow.id}</h3>
+      <p className="settings-meta">
+        {workflow.id} · 计划文件 {workflow.plan_file}
+        {workflow.start_rev === "next" ? " · 在已有产物上修订" : ""}
+        {workflow.max_redos != null ? ` · 最多回溯 ${workflow.max_redos} 次` : ""}
+      </p>
+
+      <div className="flow-block">
+        <h4>默认模型</h4>
+        <select
+          className="flow-model"
+          data-testid="flow-default-model"
+          aria-label="默认模型"
+          value={def.value}
+          onChange={(e) => onChangeDefault(e.target.value)}
+        >
+          {def.choices.map((c) => (
+            <option key={c.value || "none"} value={c.value} disabled={!c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        {modelNote ? <p className="flow-model-note" data-testid="flow-model-note">{modelNote}</p> : null}
+      </div>
+
+      <div className="flow-block" data-testid="flow-rules-global">
+        <h4>全局规则</h4>
+        <p className="flow-agent-hint">Injector 第一步：harness/rules/global</p>
+        <ul className="flow-path-list">
+          {globalRules.length ? globalRules.map((r) => (
+            <li key={r.path}>
+              <button type="button" className="flow-rule-link" onClick={() => onPickRule(r.path, r.title)}>
+                <strong>{r.title || r.id}</strong>
+                <code className="flow-path-chip">{r.path}</code>
+              </button>
+            </li>
+          )) : <li className="flow-empty">无</li>}
+        </ul>
+      </div>
+
+      <div className="flow-block" data-testid="flow-rules-node">
+        <h4>节点规则</h4>
+        <p className="flow-agent-hint">各节点 YAML inject（与 agent.rules 一并注入）</p>
+        <ul className="flow-rules-by-node">
+          {workflow.details.map((n) => (
+            <li key={n.id} className="flow-rules-node-item">
+              <button type="button" className="flow-rules-node-title" onClick={() => onPickNode(n.id)}>
+                {n.title || n.id}
+              </button>
+              <ul className="flow-path-list">
+                {(n.inject || []).length ? (n.inject || []).map((path) => (
+                  <li key={path}>
+                    <button type="button" className="flow-rule-link" onClick={() => onPickRule(path)}>
+                      <code className="flow-path-chip">{path}</code>
+                    </button>
+                  </li>
+                )) : <li className="flow-empty">无 inject</li>}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="flow-block" data-testid="flow-rules-agent">
+        <h4>Agent 规则</h4>
+        <p className="flow-agent-hint">节点内 agents.*.rules（不含 inject）</p>
+        <ul className="flow-path-list">
+          {agentRuleRows.length ? agentRuleRows.map((row) => (
+            <li key={`${row.nodeId}-${row.agentName}-${row.path}`}>
+              <button type="button" className="flow-rule-link" onClick={() => onPickRule(row.path)}>
+                <strong>{row.nodeTitle} · {label(row.agentName) || row.agentName}</strong>
+                <code className="flow-path-chip">{row.path}</code>
+              </button>
+            </li>
+          )) : <li className="flow-empty">无 agent 级规则</li>}
+        </ul>
+      </div>
+
+      <div className="flow-block">
+        <h4>节点</h4>
+        <ul className="flow-node-pick-list">
+          {workflow.details.map((n) => (
+            <li key={n.id}>
+              <button type="button" className="flow-node-pick" onClick={() => onPickNode(n.id)}>
+                <strong>{n.title || n.id}</strong>
+                <small className="settings-meta">{n.id} · 最多 {n.max_rounds} 轮 · {(n.inject || []).length} 条 inject</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function RuleDetail({ path, title, onBack }: { path: string; title?: string; onBack: () => void }) {
+  const [raw, setRaw] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
+  const rel = rulePathLabel(path);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setErr("");
+    setRaw("");
+    void apiFetch("/api/workflow/harness", { cache: "no-store" })
+      .then(async (r) => {
+        const data = (await r.json()) as {
+          sections?: { id: string; files?: { path: string; raw?: string; fields?: { title?: string } | null }[] }[];
+          detail?: string;
+        };
+        if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+        const files = (data.sections || []).flatMap((s) => s.files || []);
+        const hit = files.find((f) => f.path === path || f.path === `harness/${rel}` || f.path.endsWith(`/${rel}`) || f.path === rel);
+        if (!hit?.raw) throw new Error("未在 harness 视图中找到该规则文件");
+        if (!cancelled) setRaw(hit.raw);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [path, rel]);
+
+  return (
+    <section className="flow-detail" data-testid="flow-rule-detail">
+      <h3>{title || rel}</h3>
+      <p className="settings-meta">{rel}</p>
+      {loading ? <p className="settings-help">正在读取规则…</p> : null}
+      {err ? (
+        <div className="flow-block">
+          <p className="status-banner error">{err}</p>
+          <p className="flow-agent-hint">路径：<code className="mono">{rel}</code></p>
+          <button type="button" className="flow-back" onClick={onBack}>返回配置面板</button>
+        </div>
+      ) : null}
+      {!loading && !err ? (
+        <div className="flow-block">
+          <h4>内容</h4>
+          <pre className="flow-code flow-rule-source"><code>{raw}</code></pre>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+
 function NodeDetail({ node, onOpenTopo }: { node: WorkflowNode; onOpenTopo: () => void }) {
   return (
     <section className="flow-detail" data-testid={`flow-node-detail-${node.id}`}>
@@ -593,7 +756,7 @@ function AgentDetail({ node, agentKey, models, onChange, note }: {
         </ul>
         <h4>规则</h4>
         <ul className="flow-path-list">
-          {agent.rules.length ? agent.rules.map((r) => <li key={r}><code className="flow-path-chip">{r}</code></li>) : <li className="flow-empty">只有全局规则</li>}
+          {agent.rules.length ? agent.rules.map((r) => <li key={r}><code className="flow-path-chip">{r}</code></li>) : <li className="flow-empty">无 agent 级规则</li>}
         </ul>
       </div>
     </section>

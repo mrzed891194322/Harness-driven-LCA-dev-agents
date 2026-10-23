@@ -49,13 +49,37 @@ class WorkflowService:
         return bool(self._thread and self._thread.is_alive())
 
     def workflows(self) -> list[dict[str, Any]]:
+        global_rules = self._global_rule_cards()
         out = []
         for wid in list_workflows(self.root):
             wf, nodes = load_workflow(self.root, wid)
             out.append({"id": wid, "title": wf.title, "plan_file": wf.plan_file, "start_rev": wf.start_rev, "max_redos": wf.max_redos,
                         "nodes": [n.id for n in nodes],
+                        "global_rules": global_rules,
                         "details": [self._node_card(n) for n in nodes]})
         return out
+
+    def _global_rule_cards(self) -> list[dict[str, Any]]:
+        """Harness global rules (inject step 1), same files for all workflows."""
+        from backend.workflow import layout
+        from backend.workflow.config import load_rule
+
+        folder = self.root / layout.RULES_GLOBAL
+        if not folder.is_dir():
+            return []
+        cards = []
+        for path in sorted(folder.glob("*.yaml")):
+            rel = str(path.relative_to(self.root / "harness"))
+            try:
+                rule = load_rule(self.root, rel)
+            except Exception:  # noqa: BLE001 — card must still render
+                cards.append({"id": rel, "title": path.stem, "path": rel, "enabled": True, "applies_to": None})
+                continue
+            if not rule.enabled:
+                continue
+            cards.append({"id": rule.id or rel, "title": rule.title, "path": rel,
+                          "enabled": rule.enabled, "applies_to": rule.applies_to})
+        return cards
 
     def _default_model(self) -> tuple[str, str]:
         """(model ref, thinking) the driver would use when an agent sets neither (I-37)."""
@@ -90,7 +114,8 @@ class WorkflowService:
                             "thinking": agent.thinking or default_thinking or "模型默认",
                             "submit": node.kind(name),  # artifact = 主 agent (§8); verdict = reviewer
                             "tools": {"mcp": agent.tools.mcp, "skills": agent.tools.skills},
-                            "rules": list(node.inject) + list(agent.rules),
+                            # agent-level only (inject step: node.inject + agent.rules); node.inject is on the node card
+                            "rules": list(agent.rules),
                             "read": [rel(g) for g in scope.read_globs], "write": [rel(g) for g in scope.write_globs]}
         flow = {
             "start": node.flow.start,
@@ -100,6 +125,7 @@ class WorkflowService:
         }
         return {"id": node.id, "title": node.title, "requires": node.requires,
                 "produces": [{"spec": p.spec, "path": p.path} for p in node.produces],
+                "inject": list(node.inject),
                 "max_rounds": back_edge_rounds(node), "flow": flow, "agents": agents}
 
     def preview(self, workflow: str, plan_text: str | None = None) -> dict[str, Any]:

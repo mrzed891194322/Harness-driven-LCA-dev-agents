@@ -4708,3 +4708,70 @@ button:disabled {
 .prompt-modal-source { max-height: 60vh; overflow: auto; }
 .flow-step-meta span { white-space: nowrap; }
 .flow-step-meta span + span::before { content: " · "; }
+
+
+.flow-rule-link,
+.flow-node-pick {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.flow-rule-link:hover,
+.flow-node-pick:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.flow-rules-by-node {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flow-rules-node-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flow-rules-node-title {
+  align-self: flex-start;
+  min-height: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.85rem;
+  box-shadow: none;
+}
+
+.flow-rules-node-title:hover {
+  color: var(--accent);
+  background: transparent;
+}
+
+.flow-node-pick-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flow-rule-source {
+  max-height: 50vh;
+  overflow: auto;
+}

@@ -25,16 +25,36 @@ export type WorkflowFlow = {
   edges: WorkflowFlowEdge[];
 };
 
+export type WorkflowRuleCard = {
+  id: string;
+  title: string;
+  path: string;
+  enabled?: boolean;
+  applies_to?: string[] | null;
+};
+
 export type WorkflowNode = {
   id: string;
   title: string;
   requires: string[];
   produces: { spec: string; path: string }[];
+  /** Node-level inject rules (harness-relative paths), same as Injector step with agent.rules */
+  inject?: string[];
   max_rounds: number;
   flow?: WorkflowFlow;
   agents: Record<string, WorkflowAgent>;
 };
-export type WorkflowCard = { id: string; title?: string; plan_file: string; start_rev?: "zero" | "next"; max_redos?: number; nodes: string[]; details: WorkflowNode[] };
+export type WorkflowCard = {
+  id: string;
+  title?: string;
+  plan_file: string;
+  start_rev?: "zero" | "next";
+  max_redos?: number;
+  nodes: string[];
+  /** Global harness/rules/global/*.yaml (Injector step 1) */
+  global_rules?: WorkflowRuleCard[];
+  details: WorkflowNode[];
+};
 
 export const THINKING_LEVELS = ["", "off", "minimal", "low", "medium", "high", "xhigh"];
 
