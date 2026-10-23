@@ -88,6 +88,7 @@ class WorkflowService:
                             "model_source": "gui" if gui.get("model") else "agent" if yaml_agent.model else "default",
                             "gui_model": gui.get("model", ""), "gui_thinking": gui.get("thinking", ""),
                             "thinking": agent.thinking or default_thinking or "模型默认",
+                            "submit": node.kind(name),  # artifact = 主 agent (§8); verdict = reviewer
                             "tools": {"mcp": agent.tools.mcp, "skills": agent.tools.skills},
                             "rules": list(node.inject) + list(agent.rules),
                             "read": [rel(g) for g in scope.read_globs], "write": [rel(g) for g in scope.write_globs]}

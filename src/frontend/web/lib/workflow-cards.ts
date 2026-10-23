@@ -6,6 +6,8 @@ export type WorkflowAgent = {
   model_source?: string;
   gui_model?: string;
   gui_thinking?: string;
+  /** deliver.submit after template resolve: artifact = 主 agent (§8), verdict = reviewer */
+  submit?: "artifact" | "verdict";
   tools: { mcp: string[]; skills: string[] };
   rules: string[];
   read: string[];

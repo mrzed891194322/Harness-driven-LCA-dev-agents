@@ -356,8 +356,10 @@ function flowToMermaid(node: WorkflowNode): string {
   }
   const lines: string[] = ["graph LR"];
   for (const name of agents) {
-    const title = (label(name) || name).replace(/"/g, "#quot;");
-    if (name === start) lines.push(`  ${mermaidId(name)}(["${title}"])`);
+    const primary = node.agents[name]?.submit === "artifact";
+    const base = label(name) || name;
+    const title = (primary ? `${base} · 主` : base).replace(/"/g, "#quot;");
+    if (primary || name === start) lines.push(`  ${mermaidId(name)}(["${title}"])`);
     else lines.push(`  ${mermaidId(name)}["${title}"]`);
   }
   for (const term of terminals) {
@@ -368,14 +370,16 @@ function flowToMermaid(node: WorkflowNode): string {
     const w = `${flowWhenLabel(e.when)}${e.max != null ? ` ·≤${e.max}` : ""}`.replace(/"/g, "#quot;");
     lines.push(`  ${mermaidId(e.from)} -->|"${w}"| ${mermaidId(e.to)}`);
   }
-  for (const [name, cls] of [
-    ["executor", "executorCls"],
-    ["reviewer", "reviewerCls"],
-    ["reviser", "reviserCls"],
-  ] as const) {
-    if (agents.includes(name)) lines.push(`  class ${mermaidId(name)} ${cls}`);
+  for (const name of agents) {
+    const submit = node.agents[name]?.submit;
+    const cls =
+      submit === "artifact" || name === "executor" ? "executorCls"
+      : name === "reviewer" || submit === "verdict" ? "reviewerCls"
+      : name === "reviser" ? "reviserCls"
+      : "executorCls";
+    lines.push(`  class ${mermaidId(name)} ${cls}`);
   }
-  lines.push("  classDef executorCls fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20,stroke-width:1.5px");
+  lines.push("  classDef executorCls fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20,stroke-width:2px");
   lines.push("  classDef reviewerCls fill:#fff3e0,stroke:#ef6c00,color:#e65100,stroke-width:1.5px");
   lines.push("  classDef reviserCls fill:#e3f2fd,stroke:#1565c0,color:#0d47a1,stroke-width:1.5px");
   return lines.join("\n");
@@ -434,6 +438,9 @@ function AgentTopoPanel({
 }) {
   const start = node.flow?.start || Object.keys(node.agents)[0] || "";
   const agentOrder = Object.keys(node.agents).sort((a, b) => {
+    const ap = node.agents[a]?.submit === "artifact" ? 0 : 1;
+    const bp = node.agents[b]?.submit === "artifact" ? 0 : 1;
+    if (ap !== bp) return ap - bp;
     if (a === start) return -1;
     if (b === start) return 1;
     return a.localeCompare(b);
@@ -445,7 +452,7 @@ function AgentTopoPanel({
       <header className="flow-presets-head">
         <div>
           <h2 id="flow-topo-title">{node.title || node.id} · 代理拓扑</h2>
-          <p className="settings-meta">静态 YAML flow.edges（Mermaid）；不含运行时状态。模型在侧栏配置。</p>
+          <p className="settings-meta">静态 YAML flow；主 agent = deliver.submit: artifact。点代理名打开侧栏配置。</p>
         </div>
         <button type="button" className="flow-close" aria-label="关闭" data-testid="flow-topo-close" onClick={onClose}>
           <X size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -456,30 +463,25 @@ function AgentTopoPanel({
         <MermaidGraph chart={chart} />
       </div>
 
-      <div className="flow-block flow-topo-legend">
-        <h4>MCP / 技能</h4>
-        <ul className="flow-topo-legend-list">
+      <div className="flow-block flow-topo-agents-list">
+        <h4>代理</h4>
+        <ul className="flow-topo-agent-list" data-testid="flow-topo-agent-list">
           {agentOrder.map((name) => {
-            const agent = node.agents[name];
+            const primary = node.agents[name]?.submit === "artifact";
             return (
-              <li key={name} data-agent={name}>
-                <div className="flow-topo-legend-head">
+              <li key={name}>
+                <button
+                  type="button"
+                  className="flow-topo-agent-item"
+                  data-agent={name}
+                  data-primary={primary ? "true" : "false"}
+                  data-testid={`flow-topo-pick-${name}`}
+                  onClick={() => onConfigureAgent(name)}
+                >
                   <strong>{label(name) || name}</strong>
-                  <button type="button" className="flow-topo-config" onClick={() => onConfigureAgent(name)}>
-                    在侧栏配置模型
-                  </button>
-                </div>
-                <div className="flow-topo-chips">
-                  {agent.tools.mcp.map((m) => (
-                    <span key={`m-${m}`} className="flow-topo-chip" data-kind="mcp">MCP · {m}</span>
-                  ))}
-                  {agent.tools.skills.map((s) => (
-                    <span key={`s-${s}`} className="flow-topo-chip" data-kind="skill">技能 · {s}</span>
-                  ))}
-                  {!agent.tools.mcp.length && !agent.tools.skills.length ? (
-                    <span className="flow-empty">无 MCP / 技能</span>
-                  ) : null}
-                </div>
+                  {primary ? <span className="flow-topo-primary-badge">主 agent</span> : null}
+                  <small className="settings-meta">{name}{node.agents[name]?.template ? ` · ${node.agents[name].template}` : ""}</small>
+                </button>
               </li>
             );
           })}

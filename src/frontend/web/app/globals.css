@@ -2827,6 +2827,57 @@ button:disabled {
   flex: none;
 }
 
+.flow-topo-agent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flow-topo-agent-item {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.flow-topo-agent-item[data-primary="true"] {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: #f7fbf8;
+}
+
+.flow-topo-agent-item:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.flow-topo-agent-item strong {
+  font-size: 0.92rem;
+}
+
+.flow-topo-agent-item small {
+  flex: 1 1 100%;
+}
+
+.flow-topo-primary-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
 .flow-topo-agents {
   display: flex;
   flex-wrap: wrap;
