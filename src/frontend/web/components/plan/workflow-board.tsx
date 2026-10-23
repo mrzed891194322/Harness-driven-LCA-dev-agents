@@ -188,7 +188,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
             <X size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
           {selection.kind === "workflow" ? (
-            <section data-testid="flow-workflow-config">
+            <section className="flow-detail" data-testid="flow-workflow-config">
               <h3>{workflow.title || workflow.id}</h3>
               <p className="settings-meta">计划文件 {workflow.plan_file}{workflow.start_rev === "next" ? " · 在已有产物上修订" : ""}</p>
               <h4>默认模型</h4>
@@ -272,19 +272,44 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
 function NodeDetail({ node, onAgent }: { node: WorkflowNode; onAgent: (agent: string) => void }) {
   return (
-    <section data-testid={`flow-node-detail-${node.id}`}>
+    <section className="flow-detail" data-testid={`flow-node-detail-${node.id}`}>
       <h3>{node.title || node.id}</h3>
       <p className="settings-meta">{node.id} · 最多 {node.max_rounds} 轮</p>
-      <h4>输入</h4>
-      <ul>{node.requires.length ? node.requires.map((r) => <li key={r} className="mono">{r}</li>) : <li>无</li>}</ul>
-      <h4>产出</h4>
-      <ul>{node.produces.map((p) => <li key={p.path}><span className="mono">{p.path}</span>（规格 {p.spec}）</li>)}</ul>
-      <h4>代理</h4>
-      <ul>
-        {Object.keys(node.agents).map((name) => (
-          <li key={name}><button type="button" className="flow-back" onClick={() => onAgent(name)}>{label(name)}</button></li>
-        ))}
-      </ul>
+      <div className="flow-block">
+        <h4>输入</h4>
+        <ul className="flow-path-list">
+          {node.requires.length ? node.requires.map((r) => (
+            <li key={r}><code className="flow-path-chip">{r}</code></li>
+          )) : <li className="flow-empty">无</li>}
+        </ul>
+      </div>
+      <div className="flow-block">
+        <h4>产出</h4>
+        <ul className="flow-path-list">
+          {node.produces.map((p) => (
+            <li key={p.path}>
+              <code className="flow-path-chip">{p.path}</code>
+              <span className="flow-path-spec">规格 {p.spec}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="flow-block">
+        <h4>代理</h4>
+        <div className="flow-agent-chips">
+          {Object.keys(node.agents).map((name) => (
+            <button
+              key={name}
+              type="button"
+              className="flow-agent-chip"
+              data-agent={name}
+              onClick={() => onAgent(name)}
+            >
+              {label(name)}
+            </button>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
@@ -300,31 +325,43 @@ function AgentDetail({ node, agentKey, models, onChange, note }: {
   const gt = agent.gui_thinking || "";
   const choices = modelChoices(models, gm).choices.filter((c) => c.value);
   return (
-    <section data-testid={`flow-agent-detail-${node.id}-${agentKey}`}>
+    <section className="flow-detail" data-testid={`flow-agent-detail-${node.id}-${agentKey}`}>
       <h3>{node.title || node.id} · {label(agentKey)}</h3>
       <p className="settings-meta">agent {agent.template || "内联"} · 当前模型 {agent.model}{agent.thinking ? ` · 思考 ${agent.thinking}` : ""}</p>
-      <h4>模型</h4>
-      <select className="flow-model" data-testid="agent-model-select" value={gm} onChange={(e) => void onChange(node.id, agentKey, e.target.value, gt)}>
-        <option value="">使用默认模型</option>
-        {choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-      </select>
-      <h4>思考</h4>
-      <select className="flow-model" data-testid="agent-thinking-select" value={gt} onChange={(e) => void onChange(node.id, agentKey, gm, e.target.value)}>
-        {THINKING_LEVELS.map((t) => <option key={t || "default"} value={t}>{t || "模型默认"}</option>)}
-      </select>
-      {note ? <p className="flow-model-note" data-testid="flow-model-note">{note}</p> : null}
-      <h4>可读</h4>
-      <ul>{agent.read.map((g) => <li key={g} className="mono">{g}</li>)}</ul>
-      <h4>可写</h4>
-      <ul>{agent.write.length ? agent.write.map((g) => <li key={g} className="mono">{g}</li>) : <li>无</li>}</ul>
-      <h4>工具</h4>
-      <ul>
-        <li>文件工具{agentKey === "executor" ? "（含写入）" : "（只读）"}、submit</li>
-        {agent.tools.mcp.map((m) => <li key={m}>MCP：{m}</li>)}
-        {agent.tools.skills.map((s) => <li key={s}>技能：{s}</li>)}
-      </ul>
-      <h4>规则</h4>
-      <ul>{agent.rules.length ? agent.rules.map((r) => <li key={r} className="mono">{r}</li>) : <li>只有全局规则</li>}</ul>
+      <div className="flow-block">
+        <h4>模型</h4>
+        <select className="flow-model" data-testid="agent-model-select" value={gm} onChange={(e) => void onChange(node.id, agentKey, e.target.value, gt)}>
+          <option value="">使用默认模型</option>
+          {choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+        </select>
+        <h4>思考</h4>
+        <select className="flow-model" data-testid="agent-thinking-select" value={gt} onChange={(e) => void onChange(node.id, agentKey, gm, e.target.value)}>
+          {THINKING_LEVELS.map((t) => <option key={t || "default"} value={t}>{t || "模型默认"}</option>)}
+        </select>
+        {note ? <p className="flow-model-note" data-testid="flow-model-note">{note}</p> : null}
+      </div>
+      <div className="flow-block">
+        <h4>可读</h4>
+        <ul className="flow-path-list">
+          {agent.read.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>)}
+        </ul>
+        <h4>可写</h4>
+        <ul className="flow-path-list">
+          {agent.write.length ? agent.write.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>) : <li className="flow-empty">无</li>}
+        </ul>
+      </div>
+      <div className="flow-block">
+        <h4>工具</h4>
+        <ul className="flow-plain-list">
+          <li>文件工具{agentKey === "executor" ? "（含写入）" : "（只读）"}、submit</li>
+          {agent.tools.mcp.map((m) => <li key={m}>MCP：{m}</li>)}
+          {agent.tools.skills.map((s) => <li key={s}>技能：{s}</li>)}
+        </ul>
+        <h4>规则</h4>
+        <ul className="flow-path-list">
+          {agent.rules.length ? agent.rules.map((r) => <li key={r}><code className="flow-path-chip">{r}</code></li>) : <li className="flow-empty">只有全局规则</li>}
+        </ul>
+      </div>
     </section>
   );
 }
