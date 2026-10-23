@@ -2,13 +2,14 @@
 
 // 工作流编排, restored from master 599ed0a (flow-board / flow-stages / flow-inspector layout and CSS).
 // workflow data: /api/workflow/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection
-// (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models. 加载预设工作流 opens a dialog listing the same catalog.
+// (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models.
+// 加载预设 / 节点内代理拓扑均为 dialog；拓扑来自节点 YAML flow（静态），不含运行时状态。
 import { Bot, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
-import { THINKING_LEVELS, workflowForMode, type WorkflowNode, type WorkflowCard } from "../../lib/workflow-cards";
+import { THINKING_LEVELS, workflowForMode, type WorkflowFlowEdge, type WorkflowNode, type WorkflowCard } from "../../lib/workflow-cards";
 
 export type WorkMode = "new" | "revise";
 
@@ -28,6 +29,8 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const presetsDialog = useRef<HTMLDialogElement>(null);
+  const [topoNodeId, setTopoNodeId] = useState<string | null>(null);
+  const topoDialog = useRef<HTMLDialogElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -46,6 +49,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
     setPickedId(null);
     setSelection({ kind: "workflow" });
     setPresetsOpen(false);
+    setTopoNodeId(null);
     void load();
   }, [mode, load]);
 
@@ -55,6 +59,13 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
     if (presetsOpen && !dialog.open) dialog.showModal();
     if (!presetsOpen && dialog.open) dialog.close();
   }, [presetsOpen]);
+
+  useEffect(() => {
+    const dialog = topoDialog.current;
+    if (!dialog) return;
+    if (topoNodeId && !dialog.open) dialog.showModal();
+    if (!topoNodeId && dialog.open) dialog.close();
+  }, [topoNodeId]);
 
   useEffect(() => {
     apiFetch("/api/workflow/models")
@@ -216,7 +227,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
               </ol>
             </section>
           ) : node && selection.kind === "node" ? (
-            <NodeDetail node={node} onAgent={(agent) => choose({ kind: "agent", id: node.id, agent })} />
+            <NodeDetail node={node} onOpenTopo={() => setTopoNodeId(node.id)} />
           ) : node && selection.kind === "agent" ? (
             <AgentDetail node={node} agentKey={selection.agent} models={models} onChange={changeAgent} note={modelNote} />
           ) : null}
@@ -266,11 +277,153 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           </ul>
         </div>
       </dialog>
+
+      <dialog
+        ref={topoDialog}
+        className="flow-presets-dialog flow-topo-dialog"
+        aria-labelledby="flow-topo-title"
+        data-testid="flow-topo-dialog"
+        onClose={() => setTopoNodeId(null)}
+        onClick={(event) => {
+          if (event.target === topoDialog.current) setTopoNodeId(null);
+        }}
+      >
+        {(() => {
+          const topoNode = workflow.details.find((n) => n.id === topoNodeId);
+          if (!topoNode) return null;
+          return (
+            <AgentTopoPanel
+              node={topoNode}
+              onClose={() => setTopoNodeId(null)}
+              onConfigureAgent={(agent) => {
+                setTopoNodeId(null);
+                choose({ kind: "agent", id: topoNode.id, agent });
+              }}
+            />
+          );
+        })()}
+      </dialog>
     </div>
   );
 }
 
-function NodeDetail({ node, onAgent }: { node: WorkflowNode; onAgent: (agent: string) => void }) {
+const FLOW_WHEN: Record<string, string> = {
+  done: "完成",
+  blocked: "受阻",
+  redo_upstream: "回溯上游",
+  approve: "通过",
+  reject: "退回",
+  approve_redo_upstream: "批准回溯",
+  terminate: "终止",
+  failed: "失败",
+};
+
+const FLOW_TERMINALS = new Set(["done", "failed", "blocked", "redo_upstream"]);
+
+function flowWhenLabel(when: string | null | undefined) {
+  if (!when) return "无条件";
+  return FLOW_WHEN[when] || when;
+}
+
+function AgentTopoPanel({
+  node,
+  onClose,
+  onConfigureAgent,
+}: {
+  node: WorkflowNode;
+  onClose: () => void;
+  onConfigureAgent: (agent: string) => void;
+}) {
+  const edges = node.flow?.edges || [];
+  const start = node.flow?.start || Object.keys(node.agents)[0] || "";
+  const agentOrder = Object.keys(node.agents).sort((a, b) => {
+    if (a === start) return -1;
+    if (b === start) return 1;
+    return a.localeCompare(b);
+  });
+  const agentEdges = edges.filter((e) => e.from in node.agents && e.to in node.agents);
+  const terminalEdges = edges.filter((e) => e.from in node.agents && FLOW_TERMINALS.has(e.to));
+
+  return (
+    <div className="flow-presets-panel">
+      <header className="flow-presets-head">
+        <div>
+          <h2 id="flow-topo-title">{node.title || node.id} · 代理拓扑</h2>
+          <p className="settings-meta">本节点 YAML flow（静态）：代理间边与 MCP / 技能；不含运行时状态。模型仍在侧栏配置。</p>
+        </div>
+        <button type="button" className="flow-close" aria-label="关闭" data-testid="flow-topo-close" onClick={onClose}>
+          <X size={16} strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      </header>
+
+      <div className="flow-topo-agents" data-testid="flow-topo-agents">
+        {agentOrder.map((name) => {
+          const agent = node.agents[name];
+          return (
+            <article key={name} className="flow-topo-card" data-agent={name} data-testid={`flow-topo-agent-${name}`}>
+              <header className="flow-topo-card-head">
+                <strong>{label(name) || name}</strong>
+                <small className="settings-meta">{name === start ? "起点 · " : ""}{agent.template || "内联"}</small>
+              </header>
+              <div className="flow-topo-tools">
+                <span className="flow-topo-tools-label">MCP</span>
+                <div className="flow-topo-chips">
+                  {agent.tools.mcp.length ? agent.tools.mcp.map((m) => (
+                    <span key={m} className="flow-topo-chip" data-kind="mcp">{m}</span>
+                  )) : <span className="flow-empty">无</span>}
+                </div>
+                <span className="flow-topo-tools-label">技能</span>
+                <div className="flow-topo-chips">
+                  {agent.tools.skills.length ? agent.tools.skills.map((s) => (
+                    <span key={s} className="flow-topo-chip" data-kind="skill">{s}</span>
+                  )) : <span className="flow-empty">无</span>}
+                </div>
+              </div>
+              <button type="button" className="flow-topo-config" onClick={() => onConfigureAgent(name)}>
+                在侧栏配置模型
+              </button>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="flow-block flow-topo-edges">
+        <h4>节点内边</h4>
+        <ul className="flow-topo-edge-list" data-testid="flow-topo-edges">
+          {agentEdges.length ? agentEdges.map((e) => (
+            <li key={`${e.from}-${e.when ?? ""}-${e.to}`}>
+              <TopoEdge edge={e} />
+            </li>
+          )) : <li className="flow-empty">无代理间边</li>}
+        </ul>
+        {terminalEdges.length ? (
+          <>
+            <h4>终点</h4>
+            <ul className="flow-topo-edge-list">
+              {terminalEdges.map((e) => (
+                <li key={`${e.from}-${e.when ?? ""}-${e.to}`}>
+                  <TopoEdge edge={e} />
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TopoEdge({ edge }: { edge: WorkflowFlowEdge }) {
+  return (
+    <span className="flow-topo-edge">
+      <em data-agent={edge.from}>{label(edge.from) || edge.from}</em>
+      <span className="flow-topo-when">{flowWhenLabel(edge.when)}{edge.max != null ? ` · 最多 ${edge.max} 次` : ""}</span>
+      <em data-agent={edge.to}>{FLOW_TERMINALS.has(edge.to) ? (FLOW_WHEN[edge.to] || label(edge.to) || edge.to) : (label(edge.to) || edge.to)}</em>
+    </span>
+  );
+}
+
+function NodeDetail({ node, onOpenTopo }: { node: WorkflowNode; onOpenTopo: () => void }) {
   return (
     <section className="flow-detail" data-testid={`flow-node-detail-${node.id}`}>
       <h3>{node.title || node.id}</h3>
@@ -296,6 +449,7 @@ function NodeDetail({ node, onAgent }: { node: WorkflowNode; onAgent: (agent: st
       </div>
       <div className="flow-block">
         <h4>代理</h4>
+        <p className="flow-agent-hint">点击打开本节点代理拓扑（静态 flow）；模型在弹窗内进侧栏配置。</p>
         <div className="flow-agent-chips">
           {Object.keys(node.agents).map((name) => (
             <button
@@ -303,7 +457,8 @@ function NodeDetail({ node, onAgent }: { node: WorkflowNode; onAgent: (agent: st
               type="button"
               className="flow-agent-chip"
               data-agent={name}
-              onClick={() => onAgent(name)}
+              data-testid={`flow-agent-chip-${name}`}
+              onClick={onOpenTopo}
             >
               {label(name)}
             </button>

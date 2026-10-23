@@ -11,12 +11,25 @@ export type WorkflowAgent = {
   read: string[];
   write: string[];
 };
+export type WorkflowFlowEdge = {
+  from: string;
+  when?: string | null;
+  to: string;
+  max?: number;
+};
+
+export type WorkflowFlow = {
+  start: string;
+  edges: WorkflowFlowEdge[];
+};
+
 export type WorkflowNode = {
   id: string;
   title: string;
   requires: string[];
   produces: { spec: string; path: string }[];
   max_rounds: number;
+  flow?: WorkflowFlow;
   agents: Record<string, WorkflowAgent>;
 };
 export type WorkflowCard = { id: string; title?: string; plan_file: string; start_rev?: "zero" | "next"; max_redos?: number; nodes: string[]; details: WorkflowNode[] };

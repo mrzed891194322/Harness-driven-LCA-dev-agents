@@ -91,9 +91,15 @@ class WorkflowService:
                             "tools": {"mcp": agent.tools.mcp, "skills": agent.tools.skills},
                             "rules": list(node.inject) + list(agent.rules),
                             "read": [rel(g) for g in scope.read_globs], "write": [rel(g) for g in scope.write_globs]}
+        flow = {
+            "start": node.flow.start,
+            "edges": [{"from": e.from_, "when": e.when, "to": e.to,
+                       **({"max": e.max} if e.max is not None else {})}
+                      for e in node.flow.edges],
+        }
         return {"id": node.id, "title": node.title, "requires": node.requires,
                 "produces": [{"spec": p.spec, "path": p.path} for p in node.produces],
-                "max_rounds": back_edge_rounds(node), "agents": agents}
+                "max_rounds": back_edge_rounds(node), "flow": flow, "agents": agents}
 
     def preview(self, workflow: str, plan_text: str | None = None) -> dict[str, Any]:
         """Exact injection per agent (system + round-1 user message) via the run-time Injector. Read-only."""
