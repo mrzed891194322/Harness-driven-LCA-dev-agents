@@ -10,4 +10,4 @@ real `workspace/` (incl. `workspace/artifacts/plan/`), and live openLCA ports ar
   (write boundary, plan read-only).
 - `npm test -w @harness/web` — `/runs` select and model dropdown helpers.
 
-What was deleted and why: `docs/refactor/v5/ISSUES.md` I-15.
+What was deleted and why: `docs/ops/ISSUES.md` I-15.

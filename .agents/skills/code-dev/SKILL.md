@@ -37,4 +37,4 @@ GUI「运行详情」流式渲染；「结果浏览」展示 workspace 里的产
 | 查某次运行里 agent 实际收到了什么、做了什么 | [references/debug.md](references/debug.md) |
 | 改动约束，或改完怎么验 | [references/constraints.md](references/constraints.md) |
 
-开始改代码前读约束。改完再按约束里的验证做。产物地图见 `docs/ARTIFACTS.md`，改了产物就同步更新。
+开始改代码前读约束。改完再按约束里的验证做。产物地图见 `docs/architecture/ARTIFACTS.md`，改了产物就同步更新。

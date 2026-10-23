@@ -1,4 +1,4 @@
-"""Read-only catalog of Markdown tutorials under docs/tutorial."""
+"""Read-only catalog of Markdown tutorials under docs/guide/tutorial."""
 
 from __future__ import annotations
 
@@ -90,7 +90,7 @@ def first_tutorial_path(project: Path) -> str | None:
 
 
 def _tutorial_root(project: Path) -> Path:
-    return project / "docs" / "tutorial"
+    return project / "docs" / "guide" / "tutorial"
 
 
 def _collect(root: Path) -> list[Path]:

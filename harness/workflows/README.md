@@ -9,7 +9,7 @@
 - 规则正文在 `harness/rules/global|lca/`（节点 `inject:` 引用），交付物规格在 `harness/specs/`，技能和 MCP 都在 `harness/tools/`。
 - 加载与校验：`src/backend/workflow/config.py`；自检：`npm run doctor`。
 
-## 流转（docs/refactor/WORKFLOW_DESIGN.md）
+## 流转（docs/architecture/WORKFLOW_DESIGN.md）
 
 - 外层是 Python 队列（`queue.json`），节点按编排顺序执行；节点内是 LangGraph（执行者 → 审查者 → 交卷）。
 - 交卷状态（submit MCP）：执行者 `ready` / `blocked`；审查者 `pass` / `revise` / `redo`（`redo` 需写目标节点和理由）。

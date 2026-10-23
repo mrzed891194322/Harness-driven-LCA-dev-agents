@@ -13,7 +13,8 @@ function setup() {
   fs.mkdirSync(path.join(root, "docs"), { recursive: true });
   fs.writeFileSync(path.join(root, "workspace", "a.txt"), "a");
   fs.writeFileSync(path.join(root, "harness", "knowledge", "k.md"), "k");
-  fs.writeFileSync(path.join(root, "docs", "ISSUES.md"), "secret");
+  fs.mkdirSync(path.join(root, "docs", "ops"), { recursive: true });
+  fs.writeFileSync(path.join(root, "docs", "ops", "ISSUES.md"), "secret");
   fs.symlinkSync(path.join(root, "docs"), path.join(root, "workspace", "escape"));
   const records: GuardRecord[] = [];
   const logFile = path.join(root, ".local", "guard.jsonl");
@@ -42,18 +43,18 @@ test("read under harness/knowledge is allowed", () => {
 
 test("docs/ and other harness content are denied and logged", () => {
   const { guard, records, logFile, root } = setup();
-  const res = guard.onToolCall("read", { path: "docs/ISSUES.md" });
+  const res = guard.onToolCall("read", { path: "docs/ops/ISSUES.md" });
   assert.equal(res?.block, true);
   assert.match(res!.reason, /权限拒绝/);
   assert.equal(guard.onToolCall("ls", { path: "harness/prompts" })?.block, true);
   assert.equal(records[0].action, "denied");
-  assert.equal(records[0].resolved_path, path.join(root, "docs", "ISSUES.md"));
-  assert.ok(fs.readFileSync(logFile, "utf8").includes("docs/ISSUES.md"));
+  assert.equal(records[0].resolved_path, path.join(root, "docs", "ops", "ISSUES.md"));
+  assert.ok(fs.readFileSync(logFile, "utf8").includes("docs/ops/ISSUES.md"));
 });
 
 test("../ escape is denied", () => {
   const { guard } = setup();
-  assert.equal(guard.onToolCall("read", { path: "workspace/../docs/ISSUES.md" })?.block, true);
+  assert.equal(guard.onToolCall("read", { path: "workspace/../docs/ops/ISSUES.md" })?.block, true);
   assert.equal(guard.onToolCall("find", { pattern: "*", path: "workspace/.." })?.block, true);
 });
 
@@ -78,10 +79,10 @@ test("grep/find/ls without path are pointed at the workspace", () => {
 
 test("bash is logged, not blocked; out-of-scope paths flagged", () => {
   const { guard, records } = setup();
-  assert.equal(guard.onToolCall("bash", { command: "cat docs/ISSUES.md && ls workspace/" }), undefined);
+  assert.equal(guard.onToolCall("bash", { command: "cat docs/ops/ISSUES.md && ls workspace/" }), undefined);
   const rec = records.at(-1)!;
   assert.equal(rec.action, "bash_command");
-  assert.deepEqual(rec.out_of_scope?.map((f) => f.requested), ["docs/ISSUES.md"]);
+  assert.deepEqual(rec.out_of_scope?.map((f) => f.requested), ["docs/ops/ISSUES.md"]);
 });
 
 test("empty scopes deny everything (fail closed)", () => {

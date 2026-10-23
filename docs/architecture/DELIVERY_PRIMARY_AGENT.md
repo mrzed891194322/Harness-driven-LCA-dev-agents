@@ -2,7 +2,7 @@
 
 状态：已实现 §8.1–8.3（2026-10-23）；§8.4 产物依据字段可选、未做。破坏式：改编排与校验，不保留 intake 门禁兼容。
 
-相关：`docs/refactor/WORKFLOW_DESIGN.md` §2–3；`src/backend/workflow/config.py`（`SUBMIT_VALUES` / `deliver.submit`）；现有 `harness/workflows/agents/{executor,reviewer}.yaml`。
+相关：`docs/architecture/WORKFLOW_DESIGN.md` §2–3；`src/backend/workflow/config.py`（`SUBMIT_VALUES` / `deliver.submit`）；现有 `harness/workflows/agents/{executor,reviewer}.yaml`。
 
 ## 1. 目标
 
@@ -49,7 +49,7 @@
 - `harness/workflows/orchestrations/full-lca.yaml`：`nodes: [lca-bom, lca-mapping, lca-report]`（去掉 `lca-intake`）。
 - `lca-bom`：删除 `requires: [intake/intake.md]`；改为依赖 plan（及声明资料路径，按现 plan 注入方式）；缺关键输入由主 agent `blocked` + 依据规则，或宿主对 plan 文件本身做 `requires`。
 - 删除或停用 `harness/workflows/nodes/lca-intake.yaml`、`harness/specs/lca-intake.yaml`（优先删净，避免 GUI 再出现「计划核对」）。
-- 更新 `rules/lca/knowledge-files.yaml` 等对 intake 的点名；`docs/ARTIFACTS.md` / `WORKFLOW_DESIGN` 示例节点列表同步。
+- 更新 `rules/lca/knowledge-files.yaml` 等对 intake 的点名；`docs/architecture/ARTIFACTS.md` / `WORKFLOW_DESIGN` 示例节点列表同步。
 - `revise-lca` / demo：若引用 intake，一并去掉。
 
 ## 6. 宿主行为（不变的边界）
@@ -59,7 +59,7 @@
 
 ## 7. 与技能 / 共享文档
 
-- 实现后：`docs/PROJECT_LAYOUT.md`、`docs/refactor/WORKFLOW_DESIGN.md`（或本文链过去）作为 `harness-edit` / `code-dev` 共享底本；改 YAML 契约时同步改文档。
+- 实现后：`docs/architecture/DESIGN.md`、`docs/architecture/WORKFLOW_DESIGN.md`（或本文链过去）作为 `harness-edit` / `code-dev` 共享底本；改 YAML 契约时同步改文档。
 - `harness-edit` 生成节点时必须能通过「恰好一个 artifact submit」校验。
 
 ## 8. 建议实现顺序

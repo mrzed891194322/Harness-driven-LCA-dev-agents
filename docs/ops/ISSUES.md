@@ -255,8 +255,8 @@ be visual breakage this static pass cannot see.
 
 ### I-19e `/tutorial`, `/tutorial/[...slug]` (教程)
 - Calls: `/api/tutorial/catalog|document|asset` — present, unchanged.
-- Broken: content. `docs/tutorial/README.md` walks through 「工作流编排」/「预览执行」 with screenshots
-  (`page-2-3.png`, `page-2-4.png`) that no longer exist in the GUI; `docs/tutorial/panel/run-lca.md` describes
+- Broken: content. `docs/guide/tutorial/README.md` walks through 「工作流编排」/「预览执行」 with screenshots
+  (`page-2-3.png`, `page-2-4.png`) that no longer exist in the GUI; `docs/guide/tutorial/panel/run-lca.md` describes
   "初始化检查 → whole-lca 或 revise-lca" (old intake gate and task names).
 - Fix: rewrite the plan and run sections for v5 (plan page fields/references → `/runs` workflow + model select →
   start/stop/resume → results), replace the two screenshots, mention revise via the 修订 plan + `revise-lca`.
@@ -314,7 +314,7 @@ be visual breakage this static pass cannot see.
 - `/runs`: model warnings (e.g. ollama unreachable) render as a muted `settings-help` hint prefixed 提示：.
 - Tutorials rewritten for v5: `basics/openlca.md` (project category, background data read-only), `panel/overview.md`
   (current pages, no /harness, node/round model), and `panel/run-lca.md` (full-lca / revise-lca via /runs).
-  Pending: `docs/tutorial/README.md` still shows the removed 工作流编排/预览执行 screenshots (needs new screenshots).
+  Pending: `docs/guide/tutorial/README.md` still shows the removed 工作流编排/预览执行 screenshots (needs new screenshots).
 
 ## I-24 /runs restyle, events panel, node detail (done; I-19c)
 - Restyled with the app classes; status badges per run/node; same core testids.
@@ -354,7 +354,7 @@ be visual breakage this static pass cannot see.
   table and badges, the events panel (`describeEvent`: review verdict 通过/退回, node/run end states) and /results
   (`VERDICT_LABEL` re-exports it). `tsconfig.json` gets `allowImportingTsExtensions` (noEmit) so lib files can import
   each other with `.ts` for the node test runner. Test: `run-events.test.ts`.
-- `docs/tutorial/README.md` rewritten for v5: plan → 去运行 → /runs (workflow, model, start/stop/续跑, events, node
+- `docs/guide/tutorial/README.md` rewritten for v5: plan → 去运行 → /runs (workflow, model, start/stop/续跑, events, node
   detail) → results → revise (available). Removed the 工作流编排/预览执行 sections and deleted `page-2-3.png`,
   `page-2-4.png` (no matching shot; the retaken `page-3.png` is the /runs screenshot). `openlca-ipc.png` kept.
 - Copied 模拟操作员's 5 retaken shots (`page-1`, `page-2-1`, `page-2-2`, `page-3`, `page-4`) over the old images.
@@ -579,7 +579,7 @@ Done now:
   modal using the settings modal's `settings-dialog` frame and CSS (系统提示 / 用户消息 on the left; the prompt scrolls
   inside, max-height 60vh). Data: `/api/workflow/preview`. testids `preview-agent-<node>.<role>`, `prompt-modal`, `prompt-modal-close`.
 
-revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFACTS.md`):
+revise-lca redesign — DONE (2026-10-22, dev only; see `docs/architecture/ARTIFACTS.md`):
 - No more `artifacts/previous/` (event `previous_snapshot` and `_snapshot_previous` removed); a fresh revise keeps every
   artifact untouched and clears only `runs/` and `tmp/`.
 - A revision writes `<name>.rev<N>.<ext>` next to the original (dirs: `LCI.rev<N>/`, `raw.rev<N>/`); N = 1 + highest
@@ -720,7 +720,7 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   `--cleanup-list` (v4 resume), and the now-unused `settings.parse_gitignore/match_keep/clean_ignored_dir/
   clean_root_files`. The v5 runner already clears workspace/runs at run start. `check_status.py` drops its `clean`
   task (it wiped workspace/ on every bootstrap probe); `--only agents|openlca` remain. No backend/GUI caller existed.
-  Old docs (`docs/ARTIFACTS.md` preset/cleanup-list paragraphs) describe v4 and are stale.
+  Old docs (`docs/archive/ARTIFACTS.md` preset/cleanup-list paragraphs) describe v4 and are stale.
 - #6 /runs naming `stage`/`assignment` → `node`/`agent`: activity events `stage` → `node` (field `assignment`
   dropped; key is `<node>.<agent>#<attempt>`), /api/v5 progress `current_stage` → `current_node`, /results handoff
   rows `stage` → `node`, stream tag meta, `lastNodeFromEvents`, `NodeActivity`. CSS `.run-stage*` → `.run-node*`,
@@ -734,7 +734,7 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   `cleanup_output`), tool table, constraints, code locations. Removed the old engine text (workflow_mcp, `utils/`
   layout, `reports/runs/.../raw.json`, whole-lca preset clean, `<role>-<n>` dirs).
 - Plans (no code) for #1 structured activity stream, #2 SessionLaunchSpec single source, #4 control_openlca
-  workflow.py / journal cleanup: `docs/refactor/v5/SIMPLIFY_PLAN.md`.
+  workflow.py / journal cleanup: `docs/archive/SIMPLIFY_PLAN.md`.
 - #4 done (SIMPLIFY_PLAN correction: `resume_import_request` is live — `import_request(resume_operation_id=...)`
   calls it and MCP `import_lci` resumes through it; the dead code was `reconcile_import` + helpers, which no MCP
   tool exposes). (a) removed `reconcile_import`, `reconcile_entity_plan`, `attempt_cleanup.py`, profile/label entries
@@ -808,7 +808,7 @@ are approximate for inline nodes; old runs/journals are not migrated; two pre-ex
 
 ## I-60 交卷主 agent / 去掉计划核对（DELIVERY_PRIMARY_AGENT §8，2026-10-23）
 
-- 定稿：`docs/refactor/v5/DELIVERY_PRIMARY_AGENT.md`（`cd8d73d`）；Du Yuan 批准按 §8 实现。
+- 定稿：`docs/architecture/DELIVERY_PRIMARY_AGENT.md`（`cd8d73d`）；Du Yuan 批准按 §8 实现。
 - 实现（本地，未推送）：
   1. 每节点恰好一个 `deliver.submit: artifact`（`validate_flow` → ConfigError）。
   2. `harness/rules/delivery/{status,provenance}.yaml`，挂到 full/revise LCA 节点 inject；status 仅 executor，provenance 含 reviewer。

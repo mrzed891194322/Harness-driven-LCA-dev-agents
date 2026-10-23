@@ -31,7 +31,7 @@
 - `lci_dir` / `operation_dir` 经 `path_scope.py` 检查：必须在 workspace 内、不能越界或经符号链接逃逸；`operation_dir` 放在调用节点自己的 `workspace/runs/<node>/` 下。
 - 同一端点的调用跨进程串行（`guard.py`，锁等待 5 秒）。长工具可传 `timeout_sec`（300–7200）作为 IPC 会话预算；单次 HTTP 读超时由 `OPENLCA_TIMEOUT_REQUEST_S`（120）/ `OPENLCA_TIMEOUT_PRODUCT_SYSTEM_S`（300）控制。
 - 超时不是取消：IPC 无响应时返回 `retryable: false` 与 `agent_action`，事件写入运行 events。导入不得盲目重试，先 `get_import_operation`；部分失败用 `resume_operation_id` 续导。
-- 导入日志在 `operation_dir` 下：`operations/<operation_id>.json` 为正本，`requests/`、`current.json`、`consumed/` 为索引（简化计划见 `docs/refactor/v5/SIMPLIFY_PLAN.md` #4）。
+- 导入日志在 `operation_dir` 下：`operations/<operation_id>.json` 为正本，`requests/`、`current.json`、`consumed/` 为索引（简化计划见 `docs/archive/SIMPLIFY_PLAN.md` #4）。
 
 ## 代码位置
 

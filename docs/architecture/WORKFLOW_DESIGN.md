@@ -289,7 +289,7 @@ events.jsonl 每行一个结构化记录；GUI 活动流直接用这些记录（
 
 ## 11. 与 #1 / #2 的关系
 
-两项都改同一批代码（runner 事件、pi_driver 启动），按 Du Yuan 决定并入本次重建（§6、§7、提交 6、7），不单独实施；`docs/refactor/v5/SIMPLIFY_PLAN.md` 中 #1、#2 以本文为准（#2 改为 Python 源 + 导出脚本，不引入代码生成依赖）。
+两项都改同一批代码（runner 事件、pi_driver 启动），按 Du Yuan 决定并入本次重建（§6、§7、提交 6、7），不单独实施；`docs/archive/SIMPLIFY_PLAN.md` 中 #1、#2 以本文为准（#2 改为 Python 源 + 导出脚本，不引入代码生成依赖）。
 
 ## 12. 待 Du Yuan 决定
 

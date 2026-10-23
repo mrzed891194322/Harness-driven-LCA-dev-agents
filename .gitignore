@@ -58,3 +58,6 @@ task3_mapping.jsonl
 task4_extraction_material.jsonl
 task5_extraction_energy.jsonl
 task7_epd.jsonl
+
+# Local-only stale docs (not versioned)
+docs/archive/

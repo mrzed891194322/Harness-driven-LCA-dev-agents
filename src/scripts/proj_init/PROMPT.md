@@ -5,7 +5,7 @@
 ## 禁止
 
 - 不得安装 uv（不得执行官方安装脚本、`pip install uv`、包管理器安装或其它代装动作）。
-- 不得把 uv 安装命令写进你自己要跑的步骤里。安装说明只存在于 `docs/lang_CN/env_setup.md`，留给用户。
+- 不得把 uv 安装命令写进你自己要跑的步骤里。安装说明只存在于 `docs/guide/lang_CN/env_setup.md`，留给用户。
 - 不得清理 workspace，不得启动 whole-lca / revise-lca。
 - 不要把 `.env` 全文贴进对话。
 - 不得改写用户全局配置。只建议，不代改。
@@ -21,7 +21,7 @@ uv --version
 
 若命令不存在或 `uv --version` 失败：整次引导 **不通过**。原样输出下面这一句，然后停止，不要继续 `uv sync`：
 
-`环境检测不通过：未找到 uv。请按 docs/lang_CN/env_setup.md 手动安装 uv 后重试。`
+`环境检测不通过：未找到 uv。请按 docs/guide/lang_CN/env_setup.md 手动安装 uv 后重试。`
 
 ## Phase 1：同步并检查项目环境
 
@@ -59,7 +59,7 @@ uv run python src/scripts/check_status.py --only openlca
 （此检查仅供引导自动化；用户日常连通性以 Web 控制面板「设置 / 项目状态」为准。）
 
 - 成功：openLCA 记为通过。
-- 失败：记为「需你动手」——打开 openLCA 桌面客户端、打开目标数据库、启用 IPC Server（默认 `127.0.0.1:8080`），说明见 `docs/lang_CN/env_setup.md`。**不要**因此把 Phase 1 的退出码改写成失败；IPC 失败不是 uv / 依赖 / MCP import 失败。
+- 失败：记为「需你动手」——打开 openLCA 桌面客户端、打开目标数据库、启用 IPC Server（默认 `127.0.0.1:8080`），说明见 `docs/guide/lang_CN/env_setup.md`。**不要**因此把 Phase 1 的退出码改写成失败；IPC 失败不是 uv / 依赖 / MCP import 失败。
 - 不要对 openLCA 做写入、清理或导入。
 
 ## 汇报（中文）

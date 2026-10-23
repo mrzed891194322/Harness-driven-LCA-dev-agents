@@ -1,6 +1,6 @@
 # 调试一次运行
 
-每个 Pi 会话在 `.local/runs/<run_id>/sessions/<stage>.<role>.<attempt>/` 下留完整记录，字段见 `docs/ARTIFACTS.md`。按这个顺序查，查到能解释现象就停：
+每个 Pi 会话在 `.local/runs/<run_id>/sessions/<stage>.<role>.<attempt>/` 下留完整记录，字段见 `docs/architecture/ARTIFACTS.md`。按这个顺序查，查到能解释现象就停：
 
 1. `npm run inspect -- <run> --only-anomalies`：哪些会话的注入有 warn / mismatch（模型、spec_mcp 工具、路径守卫钩子是关键项）。`events.jsonl` 里对应 `kind: injection_check`；运行结束的 `injection-summary.json` 列出全部 mismatch。
 2. `npm run inspect -- <run> <stage.role.attempt>`：计划注入（`injection/intended.json`）与实际生效（`injection/effective.json`）的逐项比对；第一次模型请求的实际 payload 在 `injection/first_request.json`。

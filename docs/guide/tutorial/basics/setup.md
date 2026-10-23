@@ -15,4 +15,4 @@ npm start          # 或 node src/scripts/start.mjs
 
 服务在后台常驻。停止用 `npm run stop`，重启用 `npm run restart`，不要靠 Ctrl-C 或关终端。
 
-更细的安装步骤见仓库文档 `docs/lang_CN/env_setup.md`。
+更细的安装步骤见仓库文档 `docs/guide/lang_CN/env_setup.md`。

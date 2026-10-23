@@ -1,4 +1,4 @@
-"""harness workflow engine: outer node queue + inner LangGraph agent graph (see docs/refactor/WORKFLOW_DESIGN.md)."""
+"""harness workflow engine: outer node queue + inner LangGraph agent graph (see docs/architecture/WORKFLOW_DESIGN.md)."""
 from __future__ import annotations
 
 import os

@@ -22,4 +22,4 @@ description: >-
 | 计划与参考资料的存放 | [references/knowledge.md](references/knowledge.md) |
 | 输出语言等偏好 | [references/settings.md](references/settings.md) |
 
-改完绑定后跑 `uv run pytest src/tests/t_core -q`。目录约定的长说明在 `docs/lang_CN/harness.md`，只在参考文件不够时再打开。
+改完绑定后跑 `uv run pytest src/tests/t_core -q`。目录约定的长说明在 `docs/guide/lang_CN/harness.md`，只在参考文件不够时再打开。
