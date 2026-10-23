@@ -2353,6 +2353,16 @@ button:disabled {
   color: var(--muted);
 }
 
+@keyframes flow-stage-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
 .flow-stage {
   flex: 0 1 200px;
   width: 200px;
@@ -2366,6 +2376,43 @@ button:disabled {
   border-radius: 12px;
   background: #fff;
   cursor: pointer;
+  animation: flow-stage-float 4.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+.flow-stage-wrap:nth-child(1) .flow-stage {
+  animation-delay: 0s;
+}
+
+.flow-stage-wrap:nth-child(2) .flow-stage {
+  animation-delay: 0.55s;
+}
+
+.flow-stage-wrap:nth-child(3) .flow-stage {
+  animation-delay: 1.1s;
+}
+
+.flow-stage-wrap:nth-child(4) .flow-stage {
+  animation-delay: 1.65s;
+}
+
+.flow-stage-wrap:nth-child(5) .flow-stage {
+  animation-delay: 2.2s;
+}
+
+.flow-stage-wrap:nth-child(6) .flow-stage {
+  animation-delay: 2.75s;
+}
+
+.flow-stage-wrap:nth-child(n + 7) .flow-stage {
+  animation-delay: 3.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-stage {
+    animation: none;
+    will-change: auto;
+  }
 }
 
 .flow-stage[data-related="true"] {
