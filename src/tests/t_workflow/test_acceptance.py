@@ -112,12 +112,12 @@ def test_write_boundary_of_real_lca_nodes(proj):
 
 def test_full_lca_shape_and_schema_gate(proj):
     wf, nodes = load_workflow(proj, "full-lca")
-    assert [n.id for n in nodes] == ["lca-intake", "lca-bom", "lca-mapping", "lca-report"]
+    assert [n.id for n in nodes] == ["lca-bom", "lca-mapping", "lca-report"]
     assert nodes[2].agents["executor"].tools.mcp == ["control_openlca"]
-    # a bom.json that is not valid JSON/schema never reaches the reviewer
+    # bom is first; invalid bom.json never reaches the reviewer
     status, d = _run(proj, "full-lca")
     assert status == "failed"
-    assert _status(proj, "lca-intake") == "passed" and _status(proj, "lca-bom") == "failed"
+    assert _status(proj, "lca-bom") == "failed"
     assert not any(c[0] == "lca-bom" and c[1] == "reviewer" for c in d.calls)
 
 

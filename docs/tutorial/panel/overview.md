@@ -19,5 +19,5 @@ Linux、macOS 或原生 Windows（Windows 需安装 [Git for Windows](https://gi
 | 运行详情 | 选工作流（full-lca / revise-lca）和模型，开始运行、停止、续跑；节点表显示每个节点的状态、轮次和错误 |
 | 结果浏览 | 最终交付、中间产物、工作记录（每个节点每一轮的提交与审核结论）；修订运行另有「上一版」 |
 
-一次运行由若干节点组成（full-lca：intake → bom → mapping → report）。每个节点由执行者产出、审核者给出
+一次运行由若干节点组成（full-lca：bom → mapping → report）。每个节点由执行者产出、审核者给出
 通过或退回；退回会带着反馈进入下一轮。停止后可「续跑」，已通过的节点不会重跑。

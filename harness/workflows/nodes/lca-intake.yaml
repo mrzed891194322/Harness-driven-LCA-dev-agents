@@ -1,7 +1,0 @@
-id: lca-intake
-title: 计划核对
-produces:
-  - {spec: lca-intake, path: intake/intake.md}
-agents:
-  executor: {agent: executor, rules: [rules/lca/method.yaml, rules/lca/knowledge-files.yaml]}
-  reviewer: {agent: reviewer, rules: [rules/lca/method.yaml, rules/lca/knowledge-files.yaml]}

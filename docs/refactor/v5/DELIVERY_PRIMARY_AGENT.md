@@ -1,6 +1,6 @@
 # 交卷主 agent、依据规则、去掉计划核对
 
-状态：待实现（Du Yuan 2026-10-23 讨论定稿）。破坏式：改编排与校验，不保留 intake 门禁兼容。
+状态：已实现 §8.1–8.3（2026-10-23）；§8.4 产物依据字段可选、未做。破坏式：改编排与校验，不保留 intake 门禁兼容。
 
 相关：`docs/refactor/WORKFLOW_DESIGN.md` §2–3；`src/backend/workflow/config.py`（`SUBMIT_VALUES` / `deliver.submit`）；现有 `harness/workflows/agents/{executor,reviewer}.yaml`。
 

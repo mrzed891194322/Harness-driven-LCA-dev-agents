@@ -805,3 +805,14 @@ are approximate for inline nodes; old runs/journals are not migrated; two pre-ex
 - 类名：如 `WorkflowService` 去掉 v5。
 - 破坏式：无旧路径兼容。
 - 状态：planned，尚无代码。等 Du Yuan 定优先级后再做。
+
+## I-60 交卷主 agent / 去掉计划核对（DELIVERY_PRIMARY_AGENT §8，2026-10-23）
+
+- 定稿：`docs/refactor/v5/DELIVERY_PRIMARY_AGENT.md`（`cd8d73d`）；Du Yuan 批准按 §8 实现。
+- 实现（本地，未推送）：
+  1. 每节点恰好一个 `deliver.submit: artifact`（`validate_flow` → ConfigError）。
+  2. `harness/rules/delivery/{status,provenance}.yaml`，挂到 full/revise LCA 节点 inject；status 仅 executor，provenance 含 reviewer。
+  3. `full-lca` 节点改为 `[lca-bom, lca-mapping, lca-report]`；删 `nodes/lca-intake.yaml`、`specs/lca-intake.yaml`；`lca-bom` 去掉 `requires: intake/intake.md`（宿主仍对 `plan/` 做文件门禁）；知识规则与教程/WORKFLOW_DESIGN 示例同步。
+- 非目标：§8.4 产物依据字段、运行时拓扑叠状态、跨库。
+- 与 UI 拓扑改动分开提交；不切 serve、不推送。
+

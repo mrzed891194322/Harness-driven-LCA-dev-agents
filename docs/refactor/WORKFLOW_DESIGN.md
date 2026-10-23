@@ -161,7 +161,6 @@ title: 完整 LCA
 plan_file: main_plan.md
 max_redos: 2
 nodes:
-  - lca-intake
   - lca-bom
   - lca-mapping
   - id: lca-report-short            # 内联节点
