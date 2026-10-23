@@ -1,5 +1,5 @@
 # ruff: noqa: E402
-"""Fixed v5 submit tool. The host binds it to every agent; the accepted answer lands in V5_SUBMIT_FILE.
+"""Fixed workflow submit tool. The host binds it to every agent; the accepted answer lands in WORKFLOW_SUBMIT_FILE.
 
 artifact agents: status done | blocked | redo_upstream;  verdict agents: approve | reject | approve_redo_upstream |
 terminate. Schemas + preconditions: schemas.py (the host validates again).
@@ -18,16 +18,16 @@ from mcp.server import MCPServer
 from schemas import validate
 
 mcp = MCPServer("submit", instructions="完成本轮工作后调用 submit 一次。")
-KIND = os.environ.get("V5_SUBMIT_KIND", "artifact")
+KIND = os.environ.get("WORKFLOW_SUBMIT_KIND", "artifact")
 
 
 def _context() -> dict:
-    path = os.environ.get("V5_SUBMIT_CONTEXT")
+    path = os.environ.get("WORKFLOW_SUBMIT_CONTEXT")
     return json.loads(Path(path).read_text(encoding="utf-8")) if path and Path(path).is_file() else {}
 
 
 def _reject(errors: list[str]) -> dict:
-    path = os.environ.get("V5_REJECTIONS_FILE")
+    path = os.environ.get("WORKFLOW_REJECTIONS_FILE")
     if path:
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -42,7 +42,7 @@ def _accept(payload: dict) -> dict:
     errors = validate(KIND, payload, _context())
     if errors:
         return _reject(errors)
-    target = Path(os.environ["V5_SUBMIT_FILE"])
+    target = Path(os.environ["WORKFLOW_SUBMIT_FILE"])
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(".tmp")
     tmp.write_text(json.dumps({**payload, "submitted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")},

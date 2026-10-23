@@ -142,7 +142,7 @@ export default function RunsPage() {
     setResuming(true);
     setError("");
     try {
-      const response = await apiFetch("/api/v5/resume", {
+      const response = await apiFetch("/api/workflow/resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ workflow: progress.workflow }),

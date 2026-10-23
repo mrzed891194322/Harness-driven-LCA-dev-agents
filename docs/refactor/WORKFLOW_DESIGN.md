@@ -1,7 +1,7 @@
 # 工作流统一重建设计（外层队列 + 内层 LangGraph）
 
 状态：设计稿，未改代码。破坏式重建：不兼容旧运行、旧 YAML、旧 submit 格式、旧事件。拓扑视图不在范围内。
-依据的现状代码：`src/backend/v5/runner.py`（356 行，手写 while 状态机）、`config.py`（`Flow/Edge/OUTCOMES`）、
+依据的现状代码：`src/backend/workflow/runner.py`（356 行，手写 while 状态机）、`config.py`（`Flow/Edge/OUTCOMES`）、
 `revisions.py`（revise-lca 的 `.rev<N>`）、`harness/tools/mcp/submit/main.py`（ok|stop / pass|reject|stop）、
 `pi_driver.py`（`run_turn`、`submit_round_N.json`、`submit_rejections.jsonl`）、`events.py`、`progress_view.py`、
 前端 `components/runs/{agent-stream,activity-summary}.tsx`。

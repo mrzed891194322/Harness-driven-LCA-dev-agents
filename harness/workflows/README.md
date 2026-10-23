@@ -7,7 +7,7 @@
   `{agent: executor, tools: ..., max_turns: ...}` 引用模板并在本节点覆盖。produces 的 spec 缺省取执行者 `deliver.spec`。
 - `agents/<名>.yaml`：agent 模板（prompt、access、deliver）。
 - 规则正文在 `harness/rules/global|lca/`（节点 `inject:` 引用），交付物规格在 `harness/specs/`，技能和 MCP 都在 `harness/tools/`。
-- 加载与校验：`src/backend/v5/config.py`；自检：`npm run doctor`。
+- 加载与校验：`src/backend/workflow/config.py`；自检：`npm run doctor`。
 
 ## 流转（docs/refactor/WORKFLOW_DESIGN.md）
 

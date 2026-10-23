@@ -1,6 +1,6 @@
 """v5: check path arguments of openLCA tools against the calling agent's read/write scope.
 
-The host passes the agent's globs as JSON in V5_READ_GLOBS / V5_WRITE_GLOBS / V5_DENIED_WRITE_GLOBS.
+The host passes the agent's globs as JSON in WORKFLOW_READ_GLOBS / WORKFLOW_WRITE_GLOBS / WORKFLOW_DENIED_WRITE_GLOBS.
 Without them (standalone use) nothing is enforced. Paths are resolved (symlinks followed) first.
 """
 from __future__ import annotations
@@ -36,10 +36,10 @@ def _match(path: str, globs: list[str]) -> bool:
 
 
 def check_path_args(params: dict[str, Any]) -> None:
-    read, write = _globs("V5_READ_GLOBS"), _globs("V5_WRITE_GLOBS")
+    read, write = _globs("WORKFLOW_READ_GLOBS"), _globs("WORKFLOW_WRITE_GLOBS")
     if read is None and write is None:
         return
-    denied = _globs("V5_DENIED_WRITE_GLOBS") or []
+    denied = _globs("WORKFLOW_DENIED_WRITE_GLOBS") or []
     write = write or []
     read = (read or []) + write
     for key in READ_ARGS + WRITE_ARGS:

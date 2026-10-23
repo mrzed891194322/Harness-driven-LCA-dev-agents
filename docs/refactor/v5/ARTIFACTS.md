@@ -6,7 +6,7 @@
   dirs of its `produces`.
 - `workspace/runs/<node>/` — per-node status, submits, feedback, reviewer notes; `runs/_run/` — manifest,
   `events.jsonl`, `orchestrator.lock`, `revisions.json` (revise runs).
-- `workspace/tmp/` — scratch (pi sessions under `tmp/pi-v5/`).
+- `workspace/tmp/` — scratch (pi sessions under `tmp/pi-workflow/`).
 
 A fresh full-lca clears `artifacts/` (except `README.md`), `runs/` (keeps the lock) and `tmp/`.
 
@@ -20,7 +20,7 @@ A fresh full-lca clears `artifacts/` (except `README.md`), `runs/` (keeps the lo
 - N allocation: at the start of a fresh revise run, per produce entry, N = 1 + the highest existing rev of that
   entry (`backend/v5/revisions.py: allocate`). Companions in the same dir use the same N. Saved in
   `runs/_run/revisions.json` and the manifest `revisions` field (event `revisions_allocated`).
-- Resume (`/api/v5/resume`, 重跑本轮) reloads `revisions.json` and reuses the same N; the interrupted node's rev-N
+- Resume (`/api/workflow/resume`, 重跑本轮) reloads `revisions.json` and reuses the same N; the interrupted node's rev-N
   entries are cleared and rewritten, originals and other revs stay.
 - Before a fresh revise, rev-N entries of nodes that did not pass in the last revise run are deleted
   (event `revision_dropped`), so "latest" never points at a half-written revision. Passed revisions stay.

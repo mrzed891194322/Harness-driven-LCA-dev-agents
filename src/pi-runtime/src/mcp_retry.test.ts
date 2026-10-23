@@ -22,8 +22,8 @@ test("MCP not ready is retried once, other errors are not", async () => {
 
 test("MCP env values pi would resolve are reported (I-30)", () => {
   assert.deepEqual(
-    mcpEnvProblems({ submit: { env: { V5_PRODUCES: '[{"$schema": "x"}]', OK: "/a/b" } }, o: { env: { C: "!echo" } } }),
-    ["submit.env.V5_PRODUCES", "o.env.C"],
+    mcpEnvProblems({ submit: { env: { WORKFLOW_PRODUCES: '[{"$schema": "x"}]', OK: "/a/b" } }, o: { env: { C: "!echo" } } }),
+    ["submit.env.WORKFLOW_PRODUCES", "o.env.C"],
   );
-  assert.deepEqual(mcpEnvProblems({ submit: { env: { V5_PRODUCES_FILE: "/w/tmp/produces.json" } } }), []);
+  assert.deepEqual(mcpEnvProblems({ submit: { env: { WORKFLOW_PRODUCES_FILE: "/w/tmp/produces.json" } } }), []);
 });

@@ -157,7 +157,7 @@ export class SettleGuard {
       this.note("model_retry", `${this.modelErrors}/${delays.length} after ${wait}s: ${err}`);
       await this.sleep(wait * 1000);
       return {
-        entries: [{ type: "custom_message", customType: "v5_nudge", content: `上一次模型请求失败（${err}）。从中断处继续完成任务，完成后调用 submit。`, display: true }],
+        entries: [{ type: "custom_message", customType: "workflow_nudge", content: `上一次模型请求失败（${err}）。从中断处继续完成任务，完成后调用 submit。`, display: true }],
         continue: true,
       };
     }
@@ -172,7 +172,7 @@ export class SettleGuard {
       this.seenRejections = now;
       this.note("rejected_retry", `rejections=${now}/${this.policy.max_rejections}`);
       return {
-        entries: [{ type: "custom_message", customType: "v5_nudge", content: `submit 被拒绝（${now}/${this.policy.max_rejections} 次）。按返回的错误修正交付物后再调用 submit；达到上限节点会失败。`, display: true }],
+        entries: [{ type: "custom_message", customType: "workflow_nudge", content: `submit 被拒绝（${now}/${this.policy.max_rejections} 次）。按返回的错误修正交付物后再调用 submit；达到上限节点会失败。`, display: true }],
         continue: true,
       };
     }
@@ -186,7 +186,7 @@ export class SettleGuard {
       this.policy.nudge_text ||
       `你还没有成功调用 submit（第 ${this.nudges}/${this.policy.max_nudges} 次提醒）。完成交付物后调用 submit；若 submit 返回校验错误，先修正再重新提交。`;
     return {
-      entries: [{ type: "custom_message", customType: "v5_nudge", content: text, display: true }],
+      entries: [{ type: "custom_message", customType: "workflow_nudge", content: text, display: true }],
       continue: true,
     };
   }

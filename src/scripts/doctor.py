@@ -18,10 +18,10 @@ for _p in (_ROOT / "src", _ROOT):
 
 
 def check(root: Path) -> bool:
-    from backend.v5.config import ConfigError, list_workflows, load_workflow
-    from backend.v5.inject import Injector
+    from backend.workflow.config import ConfigError, list_workflows, load_workflow
+    from backend.workflow.inject import Injector
 
-    from backend.v5 import langsmith_disabled
+    from backend.workflow import langsmith_disabled
 
     ok = True
     if langsmith_disabled():

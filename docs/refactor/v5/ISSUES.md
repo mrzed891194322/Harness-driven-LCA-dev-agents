@@ -28,8 +28,8 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
 ## I-04 Old /api/workflow polling
 - What: the old GUI polled `/api/workflow/manifest|progress|activity` and `/api/workflows`; after v5 these returned
   old-engine data or nothing.
-- Cause: the old engine's run view; v5 status lives in `/api/v5/status|events`.
-- Fix: C7c deleted the old routes and their frontend callers; `/runs` polls only `/api/v5/status` every 2 s.
+- Cause: the old engine's run view; v5 status lives in `/api/workflow/status|events`.
+- Fix: C7c deleted the old routes and their frontend callers; `/runs` polls only `/api/workflow/status` every 2 s.
 - Pending: whether to replace polling with SSE later.
 
 ## I-05 /runs workflow-select reset after refresh
@@ -91,7 +91,7 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
 ## I-13 Old resume route now 404
 - What: `POST /api/workflow/resume` and `/api/runs/{id}/resume-preview` returned 410 after C7b; C7c removed them,
   so they now return 404.
-- Cause: no frontend caller left; v5 resume is `POST /api/v5/resume {workflow}`.
+- Cause: no frontend caller left; v5 resume is `POST /api/workflow/resume {workflow}`.
 - Fix: removed; `test_api.py` expects 404.
 - Pending: none unless an external script still calls it.
 
@@ -161,7 +161,7 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
 ## I-17 Stop during the last turn was swallowed
 - What: on serve 759a658, run 3e32e874: run-stop clicked during the summarize review turn; the run still ended
   `completed` and no stop event was logged.
-- Cause: the runner only checked `stop_requested()` between turns; `V5Service.stop()` only set a flag (no event, no
+- Cause: the runner only checked `stop_requested()` between turns; `WorkflowService.stop()` only set a flag (no event, no
   abort of the turn in progress); nothing checked after the final turn.
 - Fix: `stop()` logs `stop_requested` at once and calls `driver.cancel()` (PiDriver → `session.cancel` → pi
   `session.abort`, the same path as a turn abort). The runner checks stop after every turn and after every node
@@ -185,7 +185,7 @@ Method: listed every `app/**/page.tsx` and shared header component, every `/api/
 `lib/`, compared with the `@app.*` routes in `src/backend/api/app.py` at 802866a, and probed the GET shapes read-only
 on the serve backend. **Every path the frontend calls still exists** and the probed shapes (`/api/diagnostics/environment`,
 `/api/results`, `/api/plan`, `/api/references`, `/api/tutorial/catalog`, `/api/credentials/status`,
-`/api/models/providers`, `/api/v5/*`) keep the keys the pages read. So the breakage is not 404s but v5 semantics,
+`/api/models/providers`, `/api/workflow/*`) keep the keys the pages read. So the breakage is not 404s but v5 semantics,
 removed panels and stale content. Not checked: actual rendering in a browser (needs 模拟操作员/screenshots); there may
 be visual breakage this static pass cannot see.
 
@@ -220,22 +220,22 @@ be visual breakage this static pass cannot see.
   `revise_plan.md` cannot be written from the GUI although `revise-lca` (c836ce8) now needs it — starting revise from
   `/runs` returns the 400 "修订计划为空" unless the file was written by hand; (3) the tab bar's prev/next buttons and
   layout were designed for 4 tabs.
-- v5 endpoints: `GET/PUT /api/plan?workflow=LCA-revise` (exists), `GET /api/v5/workflows` (for a read-only workflow
+- v5 endpoints: `GET/PUT /api/plan?workflow=LCA-revise` (exists), `GET /api/workflow/workflows` (for a read-only workflow
   summary).
 - Fix: set `reviseWorkLocked = false`; add a "去运行" link to `/runs?workflow=full-lca|revise-lca` after the fields;
-  optionally a read-only 工作流 tab rendering `/api/v5/workflows` node cards (title, requires, produces, agents);
+  optionally a read-only 工作流 tab rendering `/api/workflow/workflows` node cards (title, requires, produces, agents);
   re-check tab layout with 2 tabs.
 
 ### I-19c `/runs` (运行详情)
 - Originally: run manifest by stage, live activity feed and agent stream (`/api/workflow/progress`,
   `/api/workflow/activity`, `/api/workflow/activity/stream` SSE, `/api/runs/*` sessions/injection), resume from stage.
-- Now: `V5RunPanel` — `/api/v5/workflows|status|resume|nodes/{n}/feedback/{r}`, `/api/workflow/start|stop`,
+- Now: `V5RunPanel` — `/api/workflow/workflows|status|resume|nodes/{n}/feedback/{r}`, `/api/workflow/start|stop`,
   `/api/workflow/models`, `/api/models/selection`, `/api/plan`; all present.
 - Broken/missing: (1) uses inline styles, not the app's panel classes, so it looks out of place next to other pages;
-  (2) no event/activity view — `GET /api/v5/events?offset=` exists but nothing shows it (nudges, rejections,
-  tool activity, stop_requested); (3) no per-node detail (agent cards from `/api/v5/workflows.details` are fetched
+  (2) no event/activity view — `GET /api/workflow/events?offset=` exists but nothing shows it (nudges, rejections,
+  tool activity, stop_requested); (3) no per-node detail (agent cards from `/api/workflow/workflows.details` are fetched
   but only partly shown); (4) `/runs?workflow=` deep link not supported.
-- Fix: restyle with existing classes; add an events panel polling `/api/v5/events` (offset-based); show the node
+- Fix: restyle with existing classes; add an events panel polling `/api/workflow/events` (offset-based); show the node
   card (requires/produces/agents) on row click; read `?workflow=` as the initial select (after the run-follow rule).
 
 ### I-19d `/results` (结果浏览)
@@ -248,7 +248,7 @@ be visual breakage this static pass cannot see.
   (3) v5 per-node files (`runs/<node>/status.json`, `<role>/submit_round_N.json`, `feedback/round_N.md`,
   `submit_rejections.jsonl`) appear as a flat artifact list; the old `raw/` grouping keys on attempt dirs that v5 does
   not have; (4) `artifacts/previous/` (revise base) is mixed into deliverables.
-- v5 endpoints: `/api/v5/status` (nodes, rounds, errors), `/api/v5/nodes/{n}/feedback/{r}`.
+- v5 endpoints: `/api/workflow/status` (nodes, rounds, errors), `/api/workflow/nodes/{n}/feedback/{r}`.
 - Fix: in `v5/results.py` return `handoffs` built from v5 node status + `submit_round_*.json` (node, role, round,
   verdict/status, summary) and add `current_node`; frontend reads `current_node` (fallback `current_stage`); list
   `artifacts/previous/` as its own group; keep zip as is (decide whether `previous/` goes in the zip).
@@ -265,7 +265,7 @@ be visual breakage this static pass cannot see.
 - Originally: harness document browser + injection preview (`/api/harness/catalog|document|injection|components`).
 - Now: pages and routes deleted in C7c (I-11); a bookmark or a doc link gives Next's 404.
 - Fix: decide with Du Yuan (I-11): either a read-only v5 viewer (rules/roles/specs/workflows YAML via a new
-  `GET /api/v5/harness?path=`), or drop and remove remaining doc references.
+  `GET /api/workflow/harness?path=`), or drop and remove remaining doc references.
 
 ### I-19g Shared header components
 - `model-settings-dialog`: `/api/credentials*`, `/api/models/custom-endpoint(s)` — present, unchanged. OK.
@@ -304,7 +304,7 @@ be visual breakage this static pass cannot see.
   download still includes all of `artifacts/`.
 - The page header shows `状态 · 当前节点 <current_node>` (fallback `current_stage`), `data-testid="results-run-line"`.
 - 修改计划 button: enabled by I-20 (`reviseWorkLocked = false`), links to `/plan?mode=revise` (I-19 item 3).
-- Tests: `src/tests/t_v5/test_results.py`, `lib/result-kind.test.ts`.
+- Tests: `src/tests/t_workflow/test_results.py`, `lib/result-kind.test.ts`.
 
 ## I-23 Status version, model note, tutorials (done)
 - `/status`: Pi SDK version comes from `diagnostics/environment.pi_agents.version`, read from the installed
@@ -318,7 +318,7 @@ be visual breakage this static pass cannot see.
 
 ## I-24 /runs restyle, events panel, node detail (done; I-19c)
 - Restyled with the app classes; status badges per run/node; same core testids.
-- Events panel from `/api/v5/events` (offset polling, last 500 kept, reset on a new run): nudges, rejected_retry,
+- Events panel from `/api/workflow/events` (offset polling, last 500 kept, reset on a new run): nudges, rejected_retry,
   submit_rejected, too_many_rejections, no_submit, turn_aborted, stop_requested, stop_cancel_failed,
   requires_failed, model_preflight, review verdicts, node/run start/end; 显示全部 shows every kind.
 - Node detail on clicking a node name: produces/requires/max rounds, agent table (model, tools, rules, read/write),
@@ -334,7 +334,7 @@ be visual breakage this static pass cannot see.
 - Note: npm/uv are looked up on the backend's PATH; if the service PATH lacks them they are dropped from the card.
 
 ## I-26 /harness read-only v5 YAML viewer (done; I-21, I-19f)
-- Backend `GET /api/v5/harness` (`backend/v5/harness_view.py`): four sections — 全局规则 (`rules/global` plus
+- Backend `GET /api/workflow/harness` (`backend/v5/harness_view.py`): four sections — 全局规则 (`rules/global` plus
   node-level rule folders such as `rules/lca`, grouped by folder), 角色 (`rules/roles`), 规格 (`specs`), 工作流
   (`workflows/*.yaml` plus `workflows/nodes/*.yaml`). Per file: parsed `fields`, `raw` text, and `error`
   {message, line} from the real loaders (`load_rule`, `load_role_def`, `load_spec`, `load_workflow`, `load_node`),
@@ -413,7 +413,7 @@ be visual breakage this static pass cannot see.
 - **Root cause found (16:5x UTC+8):** pi 1.3.0's MCP extension resolves every MCP `env` value as a config value
   (`pi-coding-agent/dist/extensions/mcp/runtime.js` → `resolveConfigValueOrThrow`): `$NAME`/`${NAME}` are env
   references and a leading `!` runs a shell command. Commit 9aaf493 (B, after 6cc34b4) started passing the executor's
-  produces list inline as `V5_PRODUCES`, including the spec's JSON schema. The lca-bom schema has `"$schema"` and
+  produces list inline as `WORKFLOW_PRODUCES`, including the spec's JSON schema. The lca-bom schema has `"$schema"` and
   `"$id"`, so pi looked for env vars `schema`/`id`, failed to resolve them, and never started the submit server,
   silently: no tools ever registered, hence the 90 s wait. lca-intake's spec has no schema and the demo specs have
   no `$`, so they worked; that is why it looked like "the second node". The serve path length played no part:
@@ -421,7 +421,7 @@ be visual breakage this static pass cannot see.
 - Cheap repro without a model or openLCA: `.local/tmp/repro_mcp.py <root> <sessions>` (private pi-runtime, temp
   workspace, `session.create` only). Before: `lca-bom.executor` alone fails after 90 s. After: all 8 full-lca
   sessions create in < 1 s each.
-- Fix: the produces list goes to `workspace/tmp/pi-v5/<session>/produces.json`, passed as `V5_PRODUCES_FILE`;
+- Fix: the produces list goes to `workspace/tmp/pi-v5/<session>/produces.json`, passed as `WORKFLOW_PRODUCES_FILE`;
   `check_mcp_env` (Python) refuses any MCP env value containing `$` or starting with `!`, and pi-runtime does the same
   in `session.create` (`mcpEnvProblems`) so a bad value fails at once with the server/key named instead of after
   90 s. Logging: pi-runtime logs `<session> create: mcp=<servers>` and `mcp_retry` to `.local/logs/pi-runtime.log`.
@@ -532,11 +532,11 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
 - Tabs after 参考资料 are back in 599ed0a order and layout: 工作流编排 (`components/plan/workflow-board.tsx`, flow-board CSS)
   and 预览执行 (`components/plan/preview-board.tsx`, preview-board CSS). Bottom 去运行 kept.
 - 工作流编排: node order, requires, produces, per-agent card (model, role, access read/write, tools, rules) from
-  `/api/v5/workflows`. Default model via `/api/models/selection`. Per-agent model + thinking via new
-  `GET/POST /api/v5/agent-models`, stored in `.local/v5-agent-models.json` (`backend/v5/agent_models.py`), applied to the
-  nodes at run start (`V5Service.start`); `PiDriver` now resolves an agent's own model profile (before, only thinking was used).
+  `/api/workflow/workflows`. Default model via `/api/models/selection`. Per-agent model + thinking via new
+  `GET/POST /api/workflow/agent-models`, stored in `.local/workflow-agent-models.json` (`backend/v5/agent_models.py`), applied to the
+  nodes at run start (`WorkflowService.start`); `PiDriver` now resolves an agent's own model profile (before, only thinking was used).
   Model preflight still checks only the global default model.
-- 预览执行: 环境 / 工作内容 / 工作流 as before, plus 注入预览 from new `GET /api/v5/preview?workflow=` which calls the
+- 预览执行: 环境 / 工作内容 / 工作流 as before, plus 注入预览 from new `GET /api/workflow/preview?workflow=` which calls the
   run-time `Injector` (system + round-1 user message) without writing anything. Before a run the `<plan>` section is empty
   because the plan is written to `artifacts/plan/` at run start; the page says so. 执行LCA任务 uses `/api/workflow/start`.
 - Tests: `test_preview_is_read_only_injection`, `test_agent_model_setting_applies_at_run_start` (temp project), `v5-workflow.test.ts`.
@@ -546,7 +546,7 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
 ## I-42 /runs 当前阶段 panel, 失败原因 popup, activity summary restored (599ed0a markup + CSS)
 - `components/runs/run-side.tsx`: 当前阶段 card (status badge, live dot, 第 N 轮, 中止工作, 显示原因) and the
   run-reason-panel popup. Reason text = run reason + node errors + last `turn_aborted` details (incl. the Q14 message).
-- `components/runs/activity-summary.tsx` + `lib/run-activity.ts`: one chip per node.role.round from `/api/v5/events`.
+- `components/runs/activity-summary.tsx` + `lib/run-activity.ts`: one chip per node.role.round from `/api/workflow/events`.
   v5 has no per-tool events, so the chip shows model retries / rejections / nudges instead of "N 次工具调用", and the
   running chip says 执行中 instead of the tool name. Only the last 500 events kept by run-panel are summarized.
 - Not built (awaiting Du Yuan): agent output stream, the disabled 重跑本轮 (checkpoint resume) button, 从头重跑.
@@ -556,7 +556,7 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
   preflights the default model and each distinct extra model (same transient retries); the first failure is reported
   as `<model>：<error>` and fails the run before any node starts. Tests: `test_preflight_checks_every_configured_model`,
   `test_runner_passes_agent_models_to_preflight`.
-- `/api/v5/preview` fills `<plan>` from the saved plan, using the same source as `/api/workflow/start` (revise: saved
+- `/api/workflow/preview` fills `<plan>` from the saved plan, using the same source as `/api/workflow/start` (revise: saved
   revise_plan.md; new: plan form rendered with references). Read-only; `Injector.plan_override` is preview-only.
 
 ## I-44 /runs restored 1:1 from 599ed0a; v5-added UI removed everywhere (Du Yuan)
@@ -573,11 +573,11 @@ Mapping of questions 1–14 (from Grok Bot's v5-问题文档.md) and what was do
 ## I-45 Du Yuan decisions after the 1:1 restore (2026-10-21) + revise-lca redesign (LATER)
 Done now:
 - Per-agent thinking level select back in /plan 工作流编排 agent card, under the model select (`agent-thinking-select`).
-- Resume: the old /runs 失败原因 popup button 重跑本轮 (disabled in 599ed0a) is wired to `POST /api/v5/resume`
+- Resume: the old /runs 失败原因 popup button 重跑本轮 (disabled in 599ed0a) is wired to `POST /api/workflow/resume`
   (skips passed nodes, reruns the interrupted/failed node). `/api/workflow/progress` now returns `workflow`.
 - Prompt preview kept, without changing the 预览执行 container or CSS: clicking an agent row in its 工作流 list opens a
   modal using the settings modal's `settings-dialog` frame and CSS (系统提示 / 用户消息 on the left; the prompt scrolls
-  inside, max-height 60vh). Data: `/api/v5/preview`. testids `preview-agent-<node>.<role>`, `prompt-modal`, `prompt-modal-close`.
+  inside, max-height 60vh). Data: `/api/workflow/preview`. testids `preview-agent-<node>.<role>`, `prompt-modal`, `prompt-modal-close`.
 
 revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFACTS.md`):
 - No more `artifacts/previous/` (event `previous_snapshot` and `_snapshot_previous` removed); a fresh revise keeps every
@@ -595,7 +595,7 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
 - Rules `revise*.yaml` and `lca-report` spec text no longer mention `previous/`.
 - /results: all artifacts are `deliverable`; `previous` category, 上一版 tab code and its empty-state text removed
   (rev files list with the originals under 最终交付, 599ed0a style).
-- Tests (temp dirs): `src/tests/t_v5/test_revise.py` (names/latest, N allocation rev1→rev2, latest-read per node,
+- Tests (temp dirs): `src/tests/t_workflow/test_revise.py` (names/latest, N allocation rev1→rev2, latest-read per node,
   resume reuses N and does not read its own half rev, drop of unfinished rev, originals byte-identical, scope deny,
   YAML guard), `test_results.py`, `lib/result-kind.test.ts`.
 - Note: openLCA side unchanged (report-revise still imports/calculates in the project category).
@@ -625,7 +625,7 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
   permissions are NOT tightened (Du Yuan). `method.yaml` keeps "the research requirement is only the injected `<plan>`".
 - full-lca start clears `artifacts/` incl. `plan/revise_plan.md` — intended (Du Yuan): a revise plan must be rewritten
   after each full-lca, based on that run's artifacts. revise start keeps `artifacts/` (incl. the saved revise plan).
-- Tests: `src/tests/t_v5/test_plan_isolation.py` (plan_path → artifacts/plan for LCA-main/LCA-revise, knowledge and
+- Tests: `src/tests/t_workflow/test_plan_isolation.py` (plan_path → artifacts/plan for LCA-main/LCA-revise, knowledge and
   artifacts/plan readable; prepare_fresh leaves only `plan/main_plan.md`).
 - Cleanup (Du Yuan OK 2026-10-22): old untracked `harness/knowledge/plan/{main,revise}_plan.md` deleted in main repo,
   dev and serve; tracked `harness/knowledge/plan/README.md` removed, so `harness/knowledge/` is flat (DESIGN.md §三).
@@ -675,23 +675,23 @@ revise-lca redesign — DONE (2026-10-22, dev only; see `docs/refactor/v5/ARTIFA
 
 ## I-52 `role` slot naming → agent naming (code + API)
 - Python: `RoleDef`→`AgentDef`, `load_role_def`→`load_agent_def`, `ROLES`→`AGENT_KEYS`, `TurnRequest.role`→`.agent`.
-- API: /api/v5/workflows agent card `role` → `template` (template name, "" = inline); /api/v5/preview agents
-  `role` → `agent` (key executor|reviewer); POST /api/v5/agent-models body `role` → `agent`.
-- Frontend types/props follow (V5Agent.template, PreviewAgent.agent, Selection.agent). Testid values unchanged
+- API: /api/workflow/workflows agent card `role` → `template` (template name, "" = inline); /api/workflow/preview agents
+  `role` → `agent` (key executor|reviewer); POST /api/workflow/agent-models body `role` → `agent`.
+- Frontend types/props follow (WorkflowAgent.template, PreviewAgent.agent, Selection.agent). Testid values unchanged
   (`flow-agent-<node>-<agent>`, `preview-agent-<node>.<agent>` still use executor/reviewer); `data-role` attribute kept.
 - Not renamed (on-disk/log formats, history compatibility): events.jsonl `role=` field, submit.json `role`,
-  /results handoff `role`, runs stream meta, compute_scope/inject parameter names, `.local/v5-agent-models.json` keys.
+  /results handoff `role`, runs stream meta, compute_scope/inject parameter names, `.local/workflow-agent-models.json` keys.
 
 ## I-53 remaining `role` naming → agent (destructive, no compatibility for old runs)
 - Du Yuan: destructive rebuild, old runs/formats are ignored, no compatibility fields.
-- Renamed: events.jsonl `role=` → `agent=`; submit.json `role` → `agent` (submit MCP env `V5_ROLE` → `V5_AGENT`);
+- Renamed: events.jsonl `role=` → `agent=`; submit.json `role` → `agent` (submit MCP env `WORKFLOW_ROLE` → `WORKFLOW_AGENT`);
   /results handoff rows `role` → `agent`; progress/activity stream items `role` → `agent`; SessionLaunchSpec `role` →
   `agent` (Python contract, JSON schema, pi-runtime types, transcript summary, session dir name); settle policy `role` →
   `agent`; compute_scope / inject / runner / load_global_rules parameter names; frontend stream types.
 - DOM: `data-role` → `data-agent` (value = agent key executor|reviewer), CSS classes `.flow-step-role` →
   `.flow-step-agent`, `.agent-turn-role` → `.agent-turn-agent`, selectors updated 1:1 (visuals unchanged). Testid values unchanged.
 - LLM message `role` (assistant / toolResult) is the pi message format and stays.
-- `.local/v5-agent-models.json` keys are already `<node>.<agent>` (executor|reviewer); serve's file is `{}`, nothing to migrate.
+- `.local/workflow-agent-models.json` keys are already `<node>.<agent>` (executor|reviewer); serve's file is `{}`, nothing to migrate.
 
 ## I-54 compatibility code removed (destructive rebuild, Du Yuan 2026-10-23)
 - 1/3 old engine: `harness/tools/mcp/control_openlca/workflow_mcp.py` + `mcp.yaml` (pi_driver no longer falls back
@@ -785,21 +785,23 @@ are approximate for inline nodes; old runs/journals are not migrated; two pre-ex
 - Reviewer submit: optional string `comment` on every verdict (the MCP tool always offered it; the schema
   rejected it for approve/reject/terminate). Executor submit unchanged (its tool has no `comment` parameter).
   Submit schemas are not part of `export_contracts.py` (launch spec only); `--check` still clean.
-- Tests: `tests/t_v5/test_robust_run.py`.
+- Tests: `tests/t_workflow/test_robust_run.py`.
 
-## I-58 progress 轮询全量重读 events.jsonl（planned，Du Yuan 2026-10-23）
+## I-58 progress 轮询全量重读 events.jsonl（done，Du Yuan 2026-10-23）
 
 - 问题：每次 `/api/workflow/progress?after_seq=` 轮询都会整文件重读 `runs/_run/events.jsonl` 并重建活动表；
   `after_seq` 只缩小响应体，不减少服务端工作量。长运行时（events 变大）延迟会上去（I-56 风险项拆出）。
-- 计划方向：增量读已解析事件，和/或缓存已解析结果；用于 redo 标题的全局状态必须与缓存一起维护，
-  避免增量路径丢上下文。
-- 状态：planned，尚无代码。等 Du Yuan 定优先级后再做。
+- 实现：`ActivityCache`（`backend.workflow.activity`）按 workspace 缓存已解析 events/items，以及 redo 标题用的
+  `redo_of` / `redo_count` / `model`；`EventLog.read_bytes` 只读 `[旧 size, 新 size)` 增量字节。文件替换或截断则整表重建。
+  `WorkflowService.progress` 走 `cached_progress`。
+- 测试：`tests/t_workflow/test_progress_cache.py`。
+- 状态：done。
 
 ## I-59 合并 master 前去掉 v5 命名（planned，Du Yuan 2026-10-23）
 
 - 包：`src/backend/v5/` → `src/backend/workflow/`（imports、测试、文档一并改）。
-- API：现有 `/api/v5/*` 全部改为 `/api/workflow/...`（resume、status、workflows、preview、
+- API：现有 `/api/workflow/*` 全部改为 `/api/workflow/...`（resume、status、workflows、preview、
   agent-models、harness、events、nodes/.../feedback）；前端调用方同步改。
-- 类名：如 `V5Service` 去掉 v5。
+- 类名：如 `WorkflowService` 去掉 v5。
 - 破坏式：无旧路径兼容。
 - 状态：planned，尚无代码。等 Du Yuan 定优先级后再做。

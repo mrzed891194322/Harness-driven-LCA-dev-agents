@@ -1,7 +1,7 @@
 "use client";
 
-// Restored from master 599ed0a (same layout and CSS). v5 data: /api/v5/workflows for the flow,
-// /api/v5/preview for each agent's exact injection (read-only), start via /api/workflow/start as on /runs.
+// Restored from master 599ed0a (same layout and CSS). v5 data: /api/workflow/workflows for the flow,
+// /api/workflow/preview for each agent's exact injection (read-only), start via /api/workflow/start as on /runs.
 import { Bot, Play, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -11,7 +11,7 @@ import type { StudyWork } from "./study-form";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { PromptModal, type PreviewAgent } from "./injection-preview";
-import { workflowForMode, type V5Workflow } from "../../lib/v5-workflow";
+import { workflowForMode, type WorkflowCard } from "../../lib/workflow-cards";
 
 type Preview = { nodes: { id: string; title: string; agents: { agent: string; system: string; user: string }[] }[]; plan_present: boolean; plan_source?: string };
 
@@ -66,7 +66,7 @@ export function PreviewBoard({
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [envError, setEnvError] = useState("");
   const [checking, setChecking] = useState(true);
-  const [workflow, setWorkflow] = useState<V5Workflow | null>(null);
+  const [workflow, setWorkflow] = useState<WorkflowCard | null>(null);
   const [workflowError, setWorkflowError] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [open, setOpen] = useState<{ node: { id: string; title: string }; agent: PreviewAgent } | null>(null);
@@ -107,15 +107,15 @@ export function PreviewBoard({
     setWorkflow(null);
     setPreview(null);
     setWorkflowError("");
-    apiFetch("/api/v5/workflows")
+    apiFetch("/api/workflow/workflows")
       .then(async (response) => {
-        const data = (await response.json()) as { workflows?: V5Workflow[]; detail?: string };
+        const data = (await response.json()) as { workflows?: WorkflowCard[]; detail?: string };
         if (!response.ok) throw new Error(data.detail || "无法读取编排");
         const wf = workflowForMode(data.workflows || [], mode);
         if (!wf) throw new Error("没有对应的工作流");
         if (cancelled) return;
         setWorkflow(wf);
-        const pv = await apiFetch(`/api/v5/preview?workflow=${encodeURIComponent(wf.id)}`);
+        const pv = await apiFetch(`/api/workflow/preview?workflow=${encodeURIComponent(wf.id)}`);
         const pdata = (await pv.json()) as Preview & { detail?: string };
         if (!pv.ok) throw new Error(pdata.detail || "无法生成注入预览");
         if (!cancelled) setPreview(pdata);

@@ -7,7 +7,7 @@ activity stream are gone from the route (still in git history).
 
 | testid | element | notes |
 | --- | --- | --- |
-| `workflow-select` | `<select>` | options = `GET /api/v5/workflows`; default `full-lca` |
+| `workflow-select` | `<select>` | options = `GET /api/workflow/workflows`; default `full-lca` |
 | `run-start` | button | reads the saved plan form (`GET /api/plan`) and posts `/api/workflow/start {workflow, ...fields}` |
 | `run-status` | `<strong>` | text = Chinese label; attribute `data-status` = idle/running/completed/failed |
 | `node-table` | `<table>` | |
@@ -38,12 +38,12 @@ template, tools, rules, and read/write scopes (read-only).
 ## /runs layout (I-24)
 App styles (`plan-board`, `settings-card`, `section-head`, `run-meta`, `agent-table`, `badge-*`, `status-banner`).
 Header: status badge (`run-status`, `data-status` unchanged), run id, current node; start/stop/resume on the right.
-Below the node table: feedback view, node detail (click a node name), events panel polling `/api/v5/events?offset=`
+Below the node table: feedback view, node detail (click a node name), events panel polling `/api/workflow/events?offset=`
 every 2 s; it shows control events (nudges, rejections, stops, aborts, preflight, verdicts, node/run start/end) by
 default, all events with 显示全部. The event list resets when the log shrinks (a new run).
 
 ## /harness (I-26)
-Read-only viewer of `harness/` YAML from `GET /api/v5/harness`. Header link `header-harness`. Tabs
+Read-only viewer of `harness/` YAML from `GET /api/workflow/harness`. Header link `header-harness`. Tabs
 `harness-tab-rules|agents|specs|workflows`（I-50：原 `roles` 改为 `agents`）, file buttons `harness-file-<path>`, `harness-fields`, `harness-raw`,
 `harness-file-error` (shows `file:line — message`), `harness-error-count`.
 
@@ -65,7 +65,7 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | `workflow-board`, `flow-node-<id>`, `flow-agent-<node>-<agent>`, `flow-inspector`, `agent-model-select` | /plan 工作流编排 | per-agent model = old per-assignment model |
 | `harness-viewer`, `harness-tab-<section>`, `harness-file-<path>`, `harness-fields`, `harness-raw`, `harness-file-error` | /harness | |
 | **removed** `run-start` | → `preview-start` on /plan | |
-| `run-resume` | /runs 失败原因 popup → 重跑本轮 (the old disabled button, now wired) | `POST /api/v5/resume` with the run's workflow: passed nodes skipped, interrupted/failed node rerun |
+| `run-resume` | /runs 失败原因 popup → 重跑本轮 (the old disabled button, now wired) | `POST /api/workflow/resume` with the run's workflow: passed nodes skipped, interrupted/failed node rerun |
 | **removed** `workflow-select` | workflow follows /plan mode (新工作 = full-lca, 修改工作 = revise-lca) | |
 | **removed** `model-select`, `model-note` | /plan 工作流编排 默认模型 (`.flow-model`) | |
 | **removed** `node-table`, `node-row-*`, `node-open-*`, `node-detail-*`, `node-error-*`, `node-feedback-*`, `feedback-view`, `agent-card-*` | stages show in 实时终端 / 活动概览; feedback in /results 工作记录 | |
@@ -75,5 +75,5 @@ Rule (Du Yuan): pages look like master `599ed0a`; testids are only attributes on
 | **removed** `harness-error-count` | per-file `harness-file-error` + ⚠ in nav | |
 | `agent-thinking-select` | /plan 工作流编排 agent card, under 模型 | Du Yuan approved (I-45 decisions) |
 | `preview-agent-<node>.<agent>` | /plan 预览执行 → 工作流 list, each agent row (click; container/CSS unchanged) | opens the prompt modal |
-| `prompt-modal`, `prompt-modal-close` | prompt modal (same `settings-dialog` frame/CSS as 设置): left 系统提示 / 用户消息, body scrolls inside (max-height 60vh) | fed by `/api/v5/preview`; Du Yuan approved |
+| `prompt-modal`, `prompt-modal-close` | prompt modal (same `settings-dialog` frame/CSS as 设置): left 系统提示 / 用户消息, body scrolls inside (max-height 60vh) | fed by `/api/workflow/preview`; Du Yuan approved |
 | **removed** `preview-injection` | replaced by `prompt-modal` | |

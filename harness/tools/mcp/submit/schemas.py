@@ -1,7 +1,7 @@
 """Submit schemas shared by the submit MCP and the host (WORKFLOW_DESIGN §3): both validate every submit.
 
 ``validate(kind, payload, context)`` returns a list of human-readable errors (empty = accepted).
-``context`` (the JSON the host writes to V5_SUBMIT_CONTEXT) carries:
+``context`` (the JSON the host writes to WORKFLOW_SUBMIT_CONTEXT) carries:
   artifacts_root, produces [{path, schema}], redo_targets {node: [produce rel paths]}, executor_last {status...}|null.
 """
 from __future__ import annotations

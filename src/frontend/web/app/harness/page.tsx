@@ -20,7 +20,7 @@ export default function HarnessPage() {
   async function load() {
     setBusy(true);
     try {
-      const response = await apiFetch("/api/v5/harness", { cache: "no-store" });
+      const response = await apiFetch("/api/workflow/harness", { cache: "no-store" });
       const body = (await response.json()) as { sections: HarnessSection[]; errors: number; detail?: string };
       if (!response.ok) throw new Error(body.detail || `HTTP ${response.status}`);
       setSections(body.sections);

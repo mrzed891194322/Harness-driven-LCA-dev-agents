@@ -38,7 +38,7 @@ npm run dev      # start; check curl --noproxy '*' localhost:8800/api/health
 npm run stop     # stop (same PI_RUNTIME_SOCKET)
 ```
 
-Before stopping or switching: `GET /api/v5/status` must not be `running`, and no GUI test may be in progress.
+Before stopping or switching: `GET /api/workflow/status` must not be `running`, and no GUI test may be in progress.
 
 ## Switch back to the main repo services
 
@@ -46,6 +46,6 @@ Before stopping or switching: `GET /api/v5/status` must not be `running`, and no
 
 ## Cleanup
 
-Copied secrets live in `serve/.local/credentials/`, `serve/.env` and, per session, `serve/workspace/tmp/pi-v5/*/agent/auth.json`;
+Copied secrets live in `serve/.local/credentials/`, `serve/.env` and, per session, `serve/workspace/tmp/pi-workflow/*/agent/auth.json`;
 the dev worktree holds the same copies. Remove them when the worktrees are retired (`git worktree remove`
 without force after deleting untracked copies; never `rm -r` through the `node_modules` / `.venv` links).

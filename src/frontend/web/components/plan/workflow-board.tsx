@@ -1,21 +1,21 @@
 "use client";
 
 // 工作流编排, restored from master 599ed0a (flow-board / flow-stages / flow-inspector layout and CSS).
-// v5 data: /api/v5/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection.
-// Per-agent model + thinking: /api/v5/agent-models (GUI setting, applied at run start; empty = default).
+// workflow data: /api/workflow/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection.
+// Per-agent model + thinking: /api/workflow/agent-models (GUI setting, applied at run start; empty = default).
 import { Bot, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { modelChoices, type ModelRow } from "../../lib/model-options";
-import { THINKING_LEVELS, workflowForMode, type V5Node, type V5Workflow } from "../../lib/v5-workflow";
+import { THINKING_LEVELS, workflowForMode, type WorkflowNode, type WorkflowCard } from "../../lib/workflow-cards";
 
 export type WorkMode = "new" | "revise";
 
 type Selection = { kind: "workflow" } | { kind: "node"; id: string } | { kind: "agent"; id: string; agent: string };
 
 export function WorkflowBoard({ mode }: { mode: WorkMode }) {
-  const [workflow, setWorkflow] = useState<V5Workflow | null>(null);
+  const [workflow, setWorkflow] = useState<WorkflowCard | null>(null);
   const [error, setError] = useState("");
   const [models, setModels] = useState<ModelRow[]>([]);
   const [defaultModel, setDefaultModel] = useState("");
@@ -25,8 +25,8 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
   const load = useCallback(async () => {
     try {
-      const response = await apiFetch("/api/v5/workflows", { cache: "no-store" });
-      const data = (await response.json()) as { workflows?: V5Workflow[]; detail?: string };
+      const response = await apiFetch("/api/workflow/workflows", { cache: "no-store" });
+      const data = (await response.json()) as { workflows?: WorkflowCard[]; detail?: string };
       if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
       const wf = workflowForMode(data.workflows || [], mode);
       setWorkflow(wf || null);
@@ -67,7 +67,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
 
   async function changeAgent(node: string, agent: string, model: string, thinking: string) {
     setModelNote("");
-    const r = await apiFetch("/api/v5/agent-models", {
+    const r = await apiFetch("/api/workflow/agent-models", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ node, agent, model, thinking }),
@@ -187,7 +187,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   );
 }
 
-function NodeDetail({ node, onAgent }: { node: V5Node; onAgent: (agent: string) => void }) {
+function NodeDetail({ node, onAgent }: { node: WorkflowNode; onAgent: (agent: string) => void }) {
   return (
     <section data-testid={`flow-node-detail-${node.id}`}>
       <h3>{node.title || node.id}</h3>
@@ -207,7 +207,7 @@ function NodeDetail({ node, onAgent }: { node: V5Node; onAgent: (agent: string) 
 }
 
 function AgentDetail({ node, agentKey, models, onChange }: {
-  node: V5Node; agentKey: string; models: ModelRow[];
+  node: WorkflowNode; agentKey: string; models: ModelRow[];
   onChange: (node: string, agent: string, model: string, thinking: string) => Promise<void>;
 }) {
   const agent = node.agents[agentKey];

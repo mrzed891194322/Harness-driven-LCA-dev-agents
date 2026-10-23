@@ -69,7 +69,7 @@ from backend.services.tutorial_browser import (
     tutorial_catalog,
 )
 from backend.settings import parse_env_file
-from backend.v5.results import Results
+from backend.workflow.results import Results
 
 
 def _web_origins() -> list[str]:
@@ -587,29 +587,29 @@ def workflow_result_archive() -> Response:
 
 
 
-def _v5() -> Any:
-    global _v5_service
-    if _v5_service is None:
-        from backend.v5.service import V5Service
+def _workflow() -> Any:
+    global _workflow_service
+    if _workflow_service is None:
+        from backend.workflow.service import WorkflowService
 
-        _v5_service = V5Service(PROJECT_ROOT)
-    return _v5_service
+        _workflow_service = WorkflowService(PROJECT_ROOT)
+    return _workflow_service
 
 
-_v5_service: Any = None
+_workflow_service: Any = None
 
 
 @app.post("/api/workflow/start")
 def start_workflow(body: WorkflowStart) -> dict[str, Any]:
-    """v5: one whole workflow; the plan (form or imported text) becomes artifacts/plan/main_plan.md."""
+    """one whole workflow; the plan (form or imported text) becomes artifacts/plan/main_plan.md."""
     from backend.services.plan_form import list_references, render_plan
-    from backend.v5.config import ConfigError
-    from backend.v5.config import load_workflow as load_v5_workflow
+    from backend.workflow.config import ConfigError
+    from backend.workflow.config import load_workflow as load_workflow_def
 
     workflow = body.workflow
     plan = body.plan
     try:
-        wf_def = load_v5_workflow(_v5().root, workflow)[0]
+        wf_def = load_workflow_def(_workflow().root, workflow)[0]
     except (ValueError, ConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not plan.strip() and wf_def.plan_file == "revise_plan.md":
@@ -625,7 +625,7 @@ def start_workflow(body: WorkflowStart) -> dict[str, Any]:
                             life_cycle_stages=body.life_cycle_stages, conditions=body.conditions)
         plan = render_plan(fields, [str(r["name"]) for r in list_references(PROJECT_ROOT)])
     try:
-        return _v5().start(workflow, plan_text=plan)
+        return _workflow().start(workflow, plan_text=plan)
     except (ValueError, ConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -635,37 +635,37 @@ def start_workflow(body: WorkflowStart) -> dict[str, Any]:
 @app.post("/api/workflow/stop")
 def stop_workflow() -> dict[str, str]:
     try:
-        return _v5().stop()
+        return _workflow().stop()
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-class V5Resume(BaseModel):
+class WorkflowResume(BaseModel):
     workflow: str
 
 
-@app.post("/api/v5/resume")
-def v5_resume(body: V5Resume) -> dict[str, Any]:
-    from backend.v5.config import ConfigError
+@app.post("/api/workflow/resume")
+def workflow_resume(body: WorkflowResume) -> dict[str, Any]:
+    from backend.workflow.config import ConfigError
 
     try:
-        return _v5().start(body.workflow, resume=True)
+        return _workflow().start(body.workflow, resume=True)
     except (ValueError, ConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@app.get("/api/v5/workflows")
-def v5_workflows() -> dict[str, Any]:
-    return {"workflows": _v5().workflows()}
+@app.get("/api/workflow/workflows")
+def workflow_workflows() -> dict[str, Any]:
+    return {"workflows": _workflow().workflows()}
 
 
-@app.get("/api/v5/preview")
-def v5_preview(workflow: str) -> dict[str, Any]:
+@app.get("/api/workflow/preview")
+def workflow_preview(workflow: str) -> dict[str, Any]:
     """Read-only injection preview for /plan 预览执行 (no run, no writes). <plan> = the saved plan the run would write."""
     try:
-        return _v5().preview(workflow, plan_text=_saved_plan_text(workflow))
+        return _workflow().preview(workflow, plan_text=_saved_plan_text(workflow))
     except Exception as exc:  # noqa: BLE001 - ConfigError / unknown workflow
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -673,10 +673,10 @@ def v5_preview(workflow: str) -> dict[str, Any]:
 def _saved_plan_text(workflow: str) -> str:
     """Same source /api/workflow/start uses: saved revise plan, or the plan form rendered with references."""
     from backend.services.plan_form import list_references, render_plan
-    from backend.v5.config import load_workflow as load_v5_workflow
+    from backend.workflow.config import load_workflow as load_workflow_def
 
     try:
-        wf_def = load_v5_workflow(_v5().root, workflow)[0]
+        wf_def = load_workflow_def(_workflow().root, workflow)[0]
         if wf_def.plan_file == "revise_plan.md":
             return str(read_plan_document(PROJECT_ROOT, workflow="revise-lca").get("content") or "")
         doc = read_plan_document(PROJECT_ROOT, workflow="full-lca")
@@ -689,19 +689,19 @@ def _saved_plan_text(workflow: str) -> str:
         return ""
 
 
-@app.get("/api/v5/agent-models")
-def v5_agent_models() -> dict[str, Any]:
-    from backend.v5 import agent_models
+@app.get("/api/workflow/agent-models")
+def workflow_agent_models() -> dict[str, Any]:
+    from backend.workflow import agent_models
 
-    return {"agents": agent_models.load(_v5().root), "thinking_levels": list(agent_models.THINKING_LEVELS)}
+    return {"agents": agent_models.load(_workflow().root), "thinking_levels": list(agent_models.THINKING_LEVELS)}
 
 
-@app.post("/api/v5/agent-models")
-def v5_agent_models_save(body: dict[str, Any]) -> dict[str, Any]:
-    from backend.v5 import agent_models
+@app.post("/api/workflow/agent-models")
+def workflow_agent_models_save(body: dict[str, Any]) -> dict[str, Any]:
+    from backend.workflow import agent_models
 
     try:
-        data = agent_models.save(_v5().root, str(body.get("node") or ""), str(body.get("agent") or ""),
+        data = agent_models.save(_workflow().root, str(body.get("node") or ""), str(body.get("agent") or ""),
                                  str(body.get("model") or ""), str(body.get("thinking") or ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -711,14 +711,14 @@ def v5_agent_models_save(body: dict[str, Any]) -> dict[str, Any]:
 @app.get("/api/workflow/progress")
 def workflow_progress(after_seq: int = 0, run_id: str = "") -> dict[str, Any]:
     """#1 structured activity stream: status + items after ``after_seq`` (``reset`` when run_id changed)."""
-    return _v5().progress(after_seq, run_id)
+    return _workflow().progress(after_seq, run_id)
 
 
 @app.get("/api/workflows")
 def workflows_list() -> dict[str, Any]:
     """599ed0a workflow list shape: main = full-lca, revise = the workflow with start_rev: next, others demo."""
     out = []
-    for w in _v5().workflows():
+    for w in _workflow().workflows():
         mode = "revise" if w.get("start_rev") == "next" else "main" if w["id"] == "full-lca" else "demo"
         out.append({"name": w["id"], "id": w["id"], "title": w.get("title") or w["id"], "mode": mode,
                     "file": f"workflows/{w['id']}.yaml"})
@@ -726,28 +726,28 @@ def workflows_list() -> dict[str, Any]:
     return {"workflows": out}
 
 
-@app.get("/api/v5/status")
-def v5_status() -> dict[str, Any]:
-    return _v5().status()
+@app.get("/api/workflow/status")
+def workflow_status() -> dict[str, Any]:
+    return _workflow().status()
 
 
-@app.get("/api/v5/harness")
-def v5_harness() -> dict[str, Any]:
-    """Read-only v5 harness YAML (rules, agents, specs, workflows) with load errors."""
-    from backend.v5.harness_view import harness_view
+@app.get("/api/workflow/harness")
+def workflow_harness() -> dict[str, Any]:
+    """Read-only harness YAML (rules, agents, specs, workflows) with load errors."""
+    from backend.workflow.harness_view import harness_view
 
-    return harness_view(_v5().root)
-
-
-@app.get("/api/v5/events")
-def v5_events(offset: int = 0) -> dict[str, Any]:
-    return _v5().events(offset)
+    return harness_view(_workflow().root)
 
 
-@app.get("/api/v5/nodes/{node}/feedback/{round_no}")
-def v5_feedback(node: str, round_no: int) -> dict[str, Any]:
+@app.get("/api/workflow/events")
+def workflow_events(offset: int = 0) -> dict[str, Any]:
+    return _workflow().events(offset)
+
+
+@app.get("/api/workflow/nodes/{node}/feedback/{round_no}")
+def workflow_feedback(node: str, round_no: int) -> dict[str, Any]:
     try:
-        return {"node": node, "round": round_no, "text": _v5().feedback(node, round_no)}
+        return {"node": node, "round": round_no, "text": _workflow().feedback(node, round_no)}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:

@@ -1,7 +1,7 @@
 "use client";
 
 // Prompt preview modal: same <dialog className="settings-dialog"> frame and CSS as the settings modal.
-// Shows one agent's exact round-1 system prompt / user message from /api/v5/preview (read-only), scrolling inside.
+// Shows one agent's exact round-1 system prompt / user message from /api/workflow/preview (read-only), scrolling inside.
 import { useEffect, useRef, useState } from "react";
 import { label } from "../../lib/labels";
 

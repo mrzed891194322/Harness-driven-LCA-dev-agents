@@ -1,0 +1,506 @@
+"""v5 configuration: workflows, nodes, agents, flow graph, specs.
+
+An orchestration (harness/workflows/orchestrations/<name>.yaml) lists nodes in order (outer queue).
+Each node YAML (harness/workflows/nodes/<id>.yaml) declares requires / produces / inject / agents /
+flow / accept. ``flow`` is the inner LangGraph: edges ``{from, when?, to, max?}`` over the node's agents
+and the terminals done / failed / blocked / redo_upstream (WORKFLOW_DESIGN §2); omitted = default_flow.
+"""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Literal
+
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
+
+from backend.workflow import layout
+
+TERMINALS = ("done", "failed", "blocked", "redo_upstream")
+# Submit enums by deliver.submit kind; a conditional edge's `when` must be one of these (WORKFLOW_DESIGN §3).
+SUBMIT_VALUES = {"artifact": ("done", "blocked", "redo_upstream"),
+                 "verdict": ("approve", "reject", "approve_redo_upstream", "terminate")}
+SUBMIT_FIELD = {"artifact": "status", "verdict": "verdict"}
+
+
+class ConfigError(ValueError):
+    """Invalid v5 configuration."""
+
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class Access(_Strict):
+    read: dict[str, bool] = Field(default_factory=dict)
+    write: dict[str, bool] = Field(default_factory=dict)
+
+
+class Tools(_Strict):
+    mcp: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    mcp_allow: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class Agent(_Strict):
+    agent: str = ""  # template name: harness/workflows/agents/<agent>.yaml ("" = inline definition)
+    model: str = ""
+    thinking: str = ""
+    max_turns: int | None = Field(default=None, ge=1)  # per-node override of the template's deliver.max_turns (Q1)
+    tools: Tools = Field(default_factory=Tools)
+    rules: list[str] = Field(default_factory=list)
+    access: Access = Field(default_factory=Access)
+    _definition: "AgentDef | None" = PrivateAttr(default=None)
+
+    @property
+    def definition(self) -> "AgentDef":
+        """The resolved agent template (prompt / access / deliver); set by load_node."""
+        if self._definition is None:
+            raise ConfigError(f"agent {self.agent!r} is not resolved (load nodes with load_node / load_workflow)")
+        return self._definition
+
+
+class Edge(_Strict):
+    from_: str = Field(alias="from")
+    when: str | None = None  # submit enum value of the `from` agent; None = unconditional
+    to: str
+    max: int | None = Field(default=None, ge=1)  # required on back edges (edges inside a cycle)
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class Flow(_Strict):
+    start: str = "executor"
+    max_steps: int = Field(default=12, ge=1, le=100)  # agent turns per node (all agents)
+    max_check_retries: int = Field(default=3, ge=0, le=20)  # host-check failures sent back to the executor
+    on_exhausted: Literal["failed", "blocked"] = "failed"
+    edges: list[Edge]
+
+
+def default_flow(agents: dict) -> dict:
+    """Flow used when a node omits ``flow``: executor -> reviewer (if any) per WORKFLOW_DESIGN §5."""
+    if "reviewer" in agents:
+        return {"start": "executor", "edges": [
+            {"from": "executor", "when": "done", "to": "reviewer"},
+            {"from": "executor", "when": "blocked", "to": "blocked"},
+            {"from": "executor", "when": "redo_upstream", "to": "reviewer"},
+            {"from": "reviewer", "when": "approve", "to": "done"},
+            {"from": "reviewer", "when": "reject", "to": "executor", "max": 3},
+            {"from": "reviewer", "when": "approve_redo_upstream", "to": "redo_upstream"},
+            {"from": "reviewer", "when": "terminate", "to": "failed"}]}
+    return {"start": "executor", "edges": [
+        {"from": "executor", "when": "done", "to": "done"},
+        {"from": "executor", "when": "blocked", "to": "blocked"},
+        {"from": "executor", "when": "redo_upstream", "to": "failed"}]}  # redo_needs_reviewer
+
+
+class Produce(_Strict):
+    spec: str = ""  # empty: the executor agent's deliver.spec
+    path: str  # relative to workspace/artifacts, e.g. "bom" or "bom/bom.json"
+
+
+class Node(_Strict):
+    id: str
+    title: str = ""
+    requires: list[str] = Field(default_factory=list)  # paths relative to workspace/artifacts
+    produces: list[Produce] = Field(default_factory=list)
+    inject: list[str] = Field(default_factory=list)  # extra rules files (harness-relative)
+    agents: dict[str, Agent]
+    flow: Flow
+    accept: list[str] = Field(default_factory=list)  # spec ids whose checks gate the reviewer
+    rev: int = 0  # host-set queue revision: rev k writes <name>.rev<k>.<ext>, runs/<id>@rev<k>/; never in YAML
+
+    @property
+    def run_key(self) -> str:
+        return self.id if not self.rev else f"{self.id}@rev{self.rev}"
+
+    def kind(self, agent: str) -> str:
+        """deliver.submit of an agent: ``artifact`` (executor-like) or ``verdict`` (reviewer-like)."""
+        return self.agents[agent].definition.deliver.submit
+
+    def role(self, agent: str) -> str:
+        return "executor" if self.kind(agent) == "artifact" else "reviewer"
+
+    def outgoing(self, agent: str) -> list[Edge]:
+        return [e for e in self.flow.edges if e.from_ == agent]
+
+
+def validate_flow(node: Node, path: Path) -> None:
+    """Graph checks that need resolved agents; every error carries ``file:line``."""
+    def where(pattern: str) -> str:
+        return _line_of(path, pattern)
+
+    def edge_loc(edge: Edge) -> str:
+        """Line of the i-th ``from:`` key = the i-th edge (inline or block YAML)."""
+        i = next(k for k, e in enumerate(node.flow.edges) if e is edge)
+        try:
+            hits = [n for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+                    if re.search(r"(^|[{,\s-])[\"']?from[\"']?\s*:", line)]
+        except OSError:
+            hits = []
+        return f"{path}:{hits[i]}" if i < len(hits) else where(r"^\s*edges:")
+
+    flow, agents = node.flow, node.agents
+    if flow.start not in agents:
+        raise ConfigError(f"{where(r'^\s*start:')}: flow.start {flow.start!r} is not an agent of the node")
+    if node.kind(flow.start) != "artifact":
+        raise ConfigError(f"{where(r'^\s*start:')}: flow.start {flow.start!r} must be an artifact agent (deliver.submit: artifact)")
+    states = set(agents) | set(TERMINALS)
+    graph: dict[str, set[str]] = {}
+    seen: set[tuple[str, str | None]] = set()
+    for edge in flow.edges:
+        loc = edge_loc(edge)
+        if edge.from_ not in agents:
+            raise ConfigError(f"{loc}: edge from unknown agent {edge.from_!r} (agents: {', '.join(agents)})")
+        if edge.to not in states:
+            raise ConfigError(f"{loc}: edge to unknown state {edge.to!r} (agents or {', '.join(TERMINALS)})")
+        kind = node.kind(edge.from_)
+        if edge.when is not None and edge.when not in SUBMIT_VALUES[kind]:
+            raise ConfigError(f"{loc}: when {edge.when!r} is not a {kind} submit value {SUBMIT_VALUES[kind]}")
+        if (edge.from_, edge.when) in seen:
+            raise ConfigError(f"{loc}: duplicate edge {edge.from_}/{edge.when or '(unconditional)'}")
+        seen.add((edge.from_, edge.when))
+        graph.setdefault(edge.from_, set()).add(edge.to)
+        if edge.to == "redo_upstream" and kind == "artifact":
+            raise ConfigError(f"{loc}: redo_upstream must be approved by a verdict agent (redo_needs_reviewer)")
+    for agent in agents:
+        whens = [e.when for e in node.outgoing(agent)]
+        if None in whens and len(whens) > 1:
+            raise ConfigError(f"{where(rf'from:\s*{re.escape(agent)}\b')}: {agent!r} mixes an unconditional edge with `when` edges")
+
+    def reach(src: str) -> set[str]:
+        out, stack = set(), [src]
+        while stack:
+            cur = stack.pop()
+            for nxt in graph.get(cur, ()):
+                if nxt not in out:
+                    out.add(nxt)
+                    stack.append(nxt)
+        return out
+
+    reachable = reach(flow.start) | {flow.start}
+    if not reachable & {"done"}:
+        raise ConfigError(f"{where(r'^\s*(flow|edges):')}: flow cannot reach done")
+    for state in reachable - set(TERMINALS):
+        if not graph.get(state):
+            raise ConfigError(f"{where(rf'^\s*{re.escape(state)}:')}: agent {state!r} has no outgoing edge")
+    # back edges = edges into an agent on the current DFS path from start (edge order), incl. self-loops
+    back: list[Edge] = []
+    on_path: list[str] = []
+    done_states: set[str] = set()
+
+    def dfs(state: str) -> None:
+        on_path.append(state)
+        for edge in node.outgoing(state):
+            if edge.to in on_path:
+                back.append(edge)
+            elif edge.to in agents and edge.to not in done_states:
+                dfs(edge.to)
+        on_path.pop()
+        done_states.add(state)
+
+    dfs(flow.start)
+    for edge in back:
+        if edge.max is None:
+            loc = edge_loc(edge)
+            raise ConfigError(f"{loc}: back edge {edge.from_} -> {edge.to} needs `max: <n>`")
+
+
+def back_edge_rounds(node: Node) -> int:
+    """GUI "最多 N 轮": 1 + the largest back-edge max into the start agent."""
+    maxes = [e.max or 0 for e in node.flow.edges if e.to == node.flow.start and e.max]
+    return 1 + max(maxes, default=0)
+
+
+class Workflow(_Strict):
+    id: str
+    title: str = ""
+    nodes: list[str]
+    # Plan file the GUI/API writes under artifacts/plan/ (revise workflows use revise_plan.md).
+    plan_file: str = "main_plan.md"
+    # Approved redo_upstream requests per run (0 = never redo).
+    max_redos: int = Field(default=2, ge=0, le=20)
+    # "next": every node starts at rev = 1 + its highest existing rev and keeps all artifacts (revise-lca).
+    start_rev: Literal["zero", "next"] = "zero"
+
+    @field_validator("nodes")
+    @classmethod
+    def _unique(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError("workflow has no nodes")
+        if len(set(value)) != len(value):
+            raise ValueError("duplicate node in workflow")
+        return value
+
+
+class Upstream(_Strict):
+    may_redo: list[str] | None = None  # allowed redo targets (None = any earlier node)
+    criteria: list[str] = Field(default_factory=list)
+    not_upstream: list[str] = Field(default_factory=list)
+
+
+class Spec(_Strict):
+    id: str
+    prompt: str  # the spec's description (shared by executor and reviewer)
+    schema_: dict | None = None
+    checks: list[dict] = Field(default_factory=list)
+    upstream: Upstream = Field(default_factory=Upstream)
+
+
+class Deliver(_Strict):
+    submit: Literal["artifact", "verdict"]
+    spec: str | None = None
+    max_nudges: int = Field(default=2, ge=0)
+    max_turns: int = Field(default=80, ge=1)
+    timeout_min: float = Field(default=120, gt=0)
+    max_rejections: int = Field(default=5, ge=1)
+
+
+class AgentDef(_Strict):
+    title: str = ""
+    prompt: str
+    access: Access = Field(default_factory=Access)
+    deliver: Deliver
+
+
+class Rule(_Strict):
+    id: str = ""
+    title: str
+    description: str = ""
+    enabled: bool = True
+    order: int = 100
+    applies_to: list[Literal["executor", "reviewer"]] | None = None  # roles (deliver.submit artifact/verdict)
+    prompt: str
+
+
+class SpecFile(_Strict):
+    description: str
+    schema_: dict | None = Field(default=None, alias="schema")
+    checks: list[dict] = Field(default_factory=list)
+    upstream: Upstream = Field(default_factory=Upstream)
+
+
+# {{var}} values come from .env (Q4): template variable -> env key. A missing key fails at load.
+ENV_FILE = Path(__file__).resolve().parents[3] / ".env"  # tests point this at a temp file
+TEMPLATE_ENV_KEYS: dict[str, str] = {"language": "HARNESS_LANGUAGE", "project_category": "OPENLCA_PROJECT_CATEGORY"}
+
+
+def template_vars(env_file: Path | None = None) -> dict[str, str]:
+    import os
+
+    from backend.settings import parse_env_file
+    from harness.tools.shared.control_openlca.category import OPENLCA_PROJECT_CATEGORY
+
+    path = env_file or ENV_FILE
+    file_values = parse_env_file(path) if path.is_file() else {}
+    out: dict[str, str] = {}
+    for var, key in TEMPLATE_ENV_KEYS.items():
+        value = (os.environ.get(key) or file_values.get(key) or "").strip()
+        if not value:
+            raise ConfigError(f"{path}: {key} is not set (template variable {{{{{var}}}}})")
+        out[var] = value
+    if out["project_category"] != OPENLCA_PROJECT_CATEGORY:
+        raise ConfigError(f"OPENLCA_PROJECT_CATEGORY must equal the locked category {OPENLCA_PROJECT_CATEGORY!r}")
+    return out
+
+
+_VAR = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+
+
+def render(text: str, source: Path | str, variables: dict[str, str] | None = None) -> str:
+    values = template_vars() if variables is None else variables
+
+    def sub(match: re.Match) -> str:
+        name = match.group(1)
+        if name not in values:
+            raise ConfigError(f"{source}: undefined template variable {{{{{name}}}}}")
+        return values[name]
+
+    return _VAR.sub(sub, text)
+
+
+def _load_yaml(path: Path) -> dict:
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ConfigError(f"missing file: {path}") from exc
+    except yaml.YAMLError as exc:
+        mark = getattr(exc, "problem_mark", None)
+        where = f"{path}:{mark.line + 1}:{mark.column + 1}" if mark is not None else str(path)
+        problem = getattr(exc, "problem", None) or str(exc)
+        raise ConfigError(f"invalid YAML {where}: {problem}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError(f"{path}: top level must be a mapping")
+    return data
+
+
+def _line_of(path: Path, pattern: str) -> str:
+    """``path:line`` of the first line matching ``pattern`` (regex), else just ``path``."""
+    try:
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if re.search(pattern, line):
+                return f"{path}:{n}"
+    except OSError:
+        pass
+    return str(path)
+
+
+def _normalize_agents(data: dict, path: Path) -> dict[str, "AgentDef"]:
+    """I-50: ``executor: executor`` (template name), ``{agent: <name>, ...overrides}`` or an inline agent object.
+
+    Returns the inline definitions by agent key.
+    """
+    inline_defs: dict[str, AgentDef] = {}
+    agents = data.get("agents")
+    if not isinstance(agents, dict):
+        return inline_defs
+    for key, value in list(agents.items()):
+        if isinstance(value, str):
+            agents[key] = {"agent": value}
+        elif isinstance(value, dict) and "agent" not in value:
+            # inline agent: the template fields (prompt / access / deliver / title) live right here
+            where = _line_of(path, rf'^\s*{key}:')
+            if "prompt" not in value or "deliver" not in value:
+                raise ConfigError(f"{where}: inline agent {key!r} needs 'prompt' and 'deliver' "
+                                  f"(or give a template name: `{key}: executor`)")
+            tpl = {k: value[k] for k in ("title", "prompt", "access", "deliver") if k in value}
+            try:
+                definition = AgentDef.model_validate(tpl)
+            except ValueError as exc:
+                raise ConfigError(f"{where}: inline agent {key!r}: {exc}") from exc
+            definition.prompt = render(definition.prompt, path)
+            rest = {k: v for k, v in value.items() if k not in tpl}
+            rest["agent"] = ""
+            agents[key] = rest
+            inline_defs[key] = definition
+    return inline_defs
+
+
+def _resolve_agents(root: Path, node: Node, path: Path, inline_defs: dict[str, "AgentDef"]) -> None:
+    for key, agent in node.agents.items():
+        if key in inline_defs:
+            agent._definition = inline_defs[key]
+            continue
+        if not agent.agent:
+            raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: agent {key!r} needs a template name")
+        tpl = root / layout.AGENTS / f"{agent.agent}.yaml"
+        if not tpl.is_file():
+            known = sorted(p.stem for p in (root / layout.AGENTS).glob("*.yaml"))
+            raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: unknown agent {agent.agent!r} "
+                              f"(no {tpl.relative_to(root)}; known: {', '.join(known) or 'none'})")
+        agent._definition = load_agent_def(root, agent.agent)
+
+
+def _build_node(root: Path, data: dict, path: Path) -> Node:
+    if "rev" in data:
+        raise ConfigError(f"{_line_of(path, r'^\s*rev:')}: rev is host-set (queue), not a YAML key")
+    inline_defs = _normalize_agents(data, path)
+    if isinstance(data.get("agents"), dict) and "flow" not in data:
+        data = {**data, "flow": default_flow(data["agents"])}
+    try:
+        node = Node.model_validate(data)
+    except ValueError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
+    _resolve_agents(root, node, path, inline_defs)
+    validate_flow(node, path)
+    for produce in node.produces:
+        if not produce.spec:
+            default = node.agents[node.flow.start].definition.deliver.spec
+            if not default:
+                raise ConfigError(f"{path}: produces {produce.path!r} has no spec and the executor agent has no deliver.spec")
+            produce.spec = default
+    return node
+
+
+def load_node(root: Path, node_id: str) -> Node:
+    path = root / layout.NODES / f"{node_id}.yaml"
+    data = _load_yaml(path)
+    data.setdefault("id", node_id)
+    if data["id"] != node_id:
+        raise ConfigError(f"{path}: id {data['id']!r} != file name {node_id!r}")
+    return _build_node(root, data, path)
+
+
+def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
+    path = root / layout.ORCHESTRATIONS / f"{name}.yaml"
+    data = _load_yaml(path)
+    data.setdefault("id", name)
+    # I-50: `nodes:` mixes node names (nodes/<name>.yaml) and inline node objects (need an `id`).
+    inline: dict[int, dict] = {}
+    if isinstance(data.get("nodes"), list):
+        ids = []
+        for i, item in enumerate(data["nodes"]):
+            if isinstance(item, dict):
+                if not isinstance(item.get("id"), str) or not item["id"]:
+                    raise ConfigError(f"{_line_of(path, r'^\s*nodes:')}: inline node #{i + 1} needs an 'id'")
+                inline[i] = dict(item)
+                ids.append(item["id"])
+            elif isinstance(item, str):
+                if not (root / layout.NODES / f"{item}.yaml").is_file():
+                    raise ConfigError(f"{_line_of(path, re.escape(item))}: unknown node {item!r} (no harness/workflows/nodes/{item}.yaml)")
+                ids.append(item)
+            else:
+                raise ConfigError(f"{path}: nodes[{i}] must be a node name or an inline node object")
+        data = {**data, "nodes": ids}
+    try:
+        workflow = Workflow.model_validate(data)
+    except ValueError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
+    nodes = [_build_node(root, inline[i], path) if i in inline else load_node(root, node_id)
+             for i, node_id in enumerate(workflow.nodes)]
+    for node in nodes:
+        for produce in node.produces:
+            load_spec(root, produce.spec)
+    return workflow, nodes
+
+
+def list_workflows(root: Path) -> list[str]:
+    names = []
+    for path in sorted((root / layout.ORCHESTRATIONS).glob("*.yaml")):
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            continue
+        if isinstance(data, dict) and isinstance(data.get("nodes"), list):
+            names.append(path.stem)
+    return names
+
+
+def _validate(model, data: dict, path: Path):
+    try:
+        return model.model_validate(data)
+    except ValueError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
+
+
+def load_spec(root: Path, spec_id: str) -> Spec:
+    path = root / layout.SPECS / f"{spec_id}.yaml"
+    if not path.is_file():
+        raise ConfigError(f"spec {spec_id!r}: missing {path}")
+    raw = _validate(SpecFile, _load_yaml(path), path)
+    return Spec(id=spec_id, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks,
+                upstream=raw.upstream)
+
+
+def load_agent_def(root: Path, name: str) -> AgentDef:
+    """Load agent template ``harness/workflows/agents/<name>.yaml``."""
+    path = root / layout.AGENTS / f"{name}.yaml"
+    agent_def = _validate(AgentDef, _load_yaml(path), path)
+    agent_def.prompt = render(agent_def.prompt, path)
+    return agent_def
+
+
+def load_rule(root: Path, rel: str) -> Rule:
+    """``rel`` is harness-relative, e.g. ``rules/lca/method.yaml``."""
+    path = root / "harness" / rel
+    rule = _validate(Rule, _load_yaml(path), path)
+    rule.id = rule.id or rel
+    rule.prompt = render(rule.prompt, path)
+    return rule
+
+
+def load_global_rules(root: Path, agent_key: str) -> list[Rule]:
+    folder = root / layout.RULES_GLOBAL
+    rules = [load_rule(root, str(p.relative_to(root / "harness"))) for p in sorted(folder.glob("*.yaml"))]
+    rules = [r for r in rules if r.enabled and (r.applies_to is None or agent_key in r.applies_to)]
+    return sorted(rules, key=lambda r: (r.order, r.id))
