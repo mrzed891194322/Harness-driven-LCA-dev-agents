@@ -130,7 +130,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                   <small>最多 {n.max_rounds} 轮 · {n.id}</small>
                 </button>
                 <div className="flow-steps" onClick={(e) => e.stopPropagation()}>
-                  {Object.entries(n.agents).map(([name, agent]) => (
+                  {Object.keys(n.agents).map((name) => (
                     <button key={name} type="button" className="flow-step" data-agent={name}
                       data-testid={`flow-agent-${n.id}-${name}`}
                       aria-pressed={selection.kind === "agent" && selection.id === n.id && selection.agent === name}
@@ -139,11 +139,6 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
                         <Bot className="flow-step-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
                       </span>
-                      <small className="flow-step-meta">
-                        {agent.model_source === "default" ? <span>默认</span> : null}
-                        <span>{agent.model}</span>
-                        {agent.thinking ? <span>思考 {agent.thinking}</span> : null}
-                      </small>
                     </button>
                   ))}
                 </div>
