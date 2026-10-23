@@ -794,3 +794,12 @@ are approximate for inline nodes; old runs/journals are not migrated; two pre-ex
 - 计划方向：增量读已解析事件，和/或缓存已解析结果；用于 redo 标题的全局状态必须与缓存一起维护，
   避免增量路径丢上下文。
 - 状态：planned，尚无代码。等 Du Yuan 定优先级后再做。
+
+## I-59 合并 master 前去掉 v5 命名（planned，Du Yuan 2026-10-23）
+
+- 包：`src/backend/v5/` → `src/backend/workflow/`（imports、测试、文档一并改）。
+- API：现有 `/api/v5/*` 全部改为 `/api/workflow/...`（resume、status、workflows、preview、
+  agent-models、harness、events、nodes/.../feedback）；前端调用方同步改。
+- 类名：如 `V5Service` 去掉 v5。
+- 破坏式：无旧路径兼容。
+- 状态：planned，尚无代码。等 Du Yuan 定优先级后再做。
