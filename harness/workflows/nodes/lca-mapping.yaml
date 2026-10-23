@@ -3,7 +3,7 @@ title: 背景映射与 LCI
 requires: [bom/bom.json]
 produces:
   - {spec: lca-mapping, path: mapping/mapping.json}
-inject: [rules/lca/method.yaml, rules/lca/inventory.yaml, rules/lca/mapping.yaml, rules/lca/openlca.yaml]
+inject: [rules/delivery/status.yaml, rules/delivery/provenance.yaml, rules/lca/method.yaml, rules/lca/inventory.yaml, rules/lca/mapping.yaml, rules/lca/openlca.yaml]
 agents:
   executor: {agent: executor, max_turns: 120, tools: {mcp: [control_openlca]}}
   reviewer: {agent: reviewer, max_turns: 120, tools: {mcp: [control_openlca]}}

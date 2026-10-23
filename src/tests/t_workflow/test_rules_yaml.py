@@ -22,8 +22,12 @@ def test_real_harness_rules_roles_specs_load():
     assert [r.order for r in rules] == sorted(r.order for r in rules)
     text = "\n".join(r.prompt for r in rules)
     assert "{{" not in text and "中文" in text and "202606-harness-agent-LCA" in text
-    for p in (REPO / "harness/rules/lca").glob("*.yaml"):
-        load_rule(REPO, str(p.relative_to(REPO / "harness")))
+    for folder in ("lca", "delivery"):
+        for p in (REPO / "harness/rules" / folder).glob("*.yaml"):
+            load_rule(REPO, str(p.relative_to(REPO / "harness")))
+    status = load_rule(REPO, "rules/delivery/status.yaml")
+    assert status.applies_to == ["executor"]
+    assert load_rule(REPO, "rules/delivery/provenance.yaml").applies_to == ["executor", "reviewer"]
     assert load_agent_def(REPO, "reviewer").deliver.submit == "verdict"
     assert load_agent_def(REPO, "executor").deliver.submit == "artifact"
     for p in (REPO / "harness/specs").glob("*.yaml"):

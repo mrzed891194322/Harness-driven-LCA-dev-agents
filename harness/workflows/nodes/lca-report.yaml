@@ -3,7 +3,7 @@ title: openLCA 导入、计算与报告
 requires: [bom/bom.json, mapping/mapping.json, mapping/LCI]
 produces:
   - {spec: lca-report, path: report/lca_report.md}
-inject: [rules/lca/method.yaml, rules/lca/interpretation.yaml, rules/lca/openlca.yaml]
+inject: [rules/delivery/status.yaml, rules/delivery/provenance.yaml, rules/lca/method.yaml, rules/lca/interpretation.yaml, rules/lca/openlca.yaml]
 agents:
   executor: {agent: executor, tools: {mcp: [control_openlca]}}
   reviewer: {agent: reviewer, tools: {mcp: [control_openlca]}}

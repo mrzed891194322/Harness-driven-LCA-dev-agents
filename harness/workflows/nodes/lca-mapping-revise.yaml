@@ -3,7 +3,7 @@ title: 映射修订
 requires: [plan/revise_plan.md, bom/bom.json, mapping/mapping.json, mapping/LCI]
 produces:
   - {spec: lca-mapping, path: mapping/mapping.json}
-inject: [rules/lca/method.yaml, rules/lca/inventory.yaml, rules/lca/mapping.yaml, rules/lca/openlca.yaml, rules/lca/revise.yaml, rules/lca/revise-mapping.yaml]
+inject: [rules/delivery/status.yaml, rules/delivery/provenance.yaml, rules/lca/method.yaml, rules/lca/inventory.yaml, rules/lca/mapping.yaml, rules/lca/openlca.yaml, rules/lca/revise.yaml, rules/lca/revise-mapping.yaml]
 agents:
   executor: {agent: executor, tools: {mcp: [control_openlca]}}
   reviewer: {agent: reviewer, tools: {mcp: [control_openlca]}}

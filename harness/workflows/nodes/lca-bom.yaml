@@ -3,7 +3,7 @@ title: 前景清单（BOM）
 requires: [intake/intake.md]
 produces:
   - {spec: lca-bom, path: bom/bom.json}
-inject: [rules/lca/method.yaml, rules/lca/knowledge-files.yaml, rules/lca/inventory.yaml]
+inject: [rules/delivery/status.yaml, rules/delivery/provenance.yaml, rules/lca/method.yaml, rules/lca/knowledge-files.yaml, rules/lca/inventory.yaml]
 agents:
   executor: executor
   reviewer: reviewer

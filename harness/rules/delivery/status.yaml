@@ -1,0 +1,21 @@
+title: 交卷状态选择
+description: 主 agent 何时选 done / blocked / redo_upstream（枚举以 submit schema 为准）
+enabled: true
+order: 80
+applies_to: [executor]
+prompt: |
+  交卷时 `status` 只能取宿主枚举：`done`、`blocked`、`redo_upstream`（见 submit 工具 schema，不要自造取值）。
+
+  ## done
+  - 本节点声明的交付物已按 `<plan>` 与 `<deliverable_*>` 写到指定路径，关键要求已落实或已在产物中按规则收窄并标明。
+  - 仍可有非关键不确定处，须在 `summary` 与产物依据中写清，不能 silently 当已证实。
+
+  ## blocked
+  - 缺关键输入/资料/工具能力，且无法在本节点用已声明来源与已绑定工具有据补全或收窄范围。
+  - 或计划自相矛盾、关键冲突无法消解，继续写产物会误导读者。
+  - `summary` / `reason` 写明缺什么、已查过哪些声明路径、为何不能继续。
+
+  ## redo_upstream
+  - 仅当问题出在**上游交付物**，且本节点无法从声明资料自行确定修正，并满足注入的 `<redo_policy>` 判据。
+  - 须给出可核对的 `artifact` / `field` / `evidence` / `requested_change`；能在本节点修正的不得用此状态。
+  - 该请求须经审核者批准后才会真正回溯；不要用它代替 blocked 或本节点返工。
