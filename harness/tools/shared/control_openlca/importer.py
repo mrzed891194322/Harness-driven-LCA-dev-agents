@@ -924,6 +924,24 @@ def _public_preflight(preflight: dict[str, Any]) -> dict[str, Any]:
     return public
 
 
+def _product_system_ref_exchange_usable(ref_exchange: object | None) -> bool:
+    """True when ref_exchange can serve as openLCA quantitative reference.
+
+    Incomplete agent stubs (often ExchangeRef with only @type/@id and no
+    internal_id) must not count as set — they block copying from generated.
+    ExchangeRef is keyed by internal_id; a full Exchange also needs flow @id.
+    """
+    if ref_exchange is None:
+        return False
+    if getattr(ref_exchange, "internal_id", None) is None:
+        return False
+    if isinstance(ref_exchange, olca_schema.Exchange):
+        flow = getattr(ref_exchange, "flow", None)
+        if flow is None or not getattr(flow, "id", None):
+            return False
+    return True
+
+
 def _apply_generated_product_system_fields(
     entity: olca_schema.ProductSystem,
     generated: olca_schema.ProductSystem,
@@ -932,6 +950,9 @@ def _apply_generated_product_system_fields(
         value = getattr(generated, field, None)
         if value is not None:
             setattr(entity, field, value)
+    # Drop incomplete refExchange stubs so generated reference flow can win.
+    if not _product_system_ref_exchange_usable(getattr(entity, "ref_exchange", None)):
+        entity.ref_exchange = None
     for field in (
         "ref_exchange",
         "ref_process",
@@ -1171,6 +1192,11 @@ def _put_product_system(
     _apply_generated_product_system_fields(entity, generated)
     if category:
         entity.category = category
+    if not _product_system_ref_exchange_usable(getattr(entity, "ref_exchange", None)):
+        raise RuntimeError(
+            "auto-linked ProductSystem has no usable ref_exchange after merging "
+            "generated fields (missing internal_id/flow); refusing put"
+        )
 
     try:
         with ipc_read_scope(ps_read):
@@ -1193,6 +1219,26 @@ def _put_product_system(
                     f"{generated_id}: {cleanup_exc}"
                 ) from exc
         raise
+
+    saved_id = str(
+        getattr(entity, "id", None)
+        or getattr(reference, "id", None)
+        or declared_id
+        or ""
+    )
+    with ipc_read_scope(ps_read):
+        read_back = client.get(olca_schema.ProductSystem, saved_id)
+    if read_back is None:
+        raise RuntimeError(
+            f"IPC Server could not read back ProductSystem {saved_id} after auto put"
+        )
+    if not _product_system_ref_exchange_usable(
+        getattr(read_back, "ref_exchange", None)
+    ):
+        raise RuntimeError(
+            f"ProductSystem {saved_id} saved but ref_exchange is missing or invalid "
+            "after put (no usable reference flow); refusing silent success"
+        )
 
     if generated_ref is not None and generated_id != getattr(reference, "id", None):
         try:

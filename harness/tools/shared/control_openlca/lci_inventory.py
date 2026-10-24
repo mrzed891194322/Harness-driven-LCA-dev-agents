@@ -457,6 +457,21 @@ def _lci_semantic_errors(inventory: list[dict[str, Any]]) -> list[str]:
                 errors.append(
                     f"{item['path']}: auto linking must not provide processLinks"
                 )
+            ref_exchange = data.get("refExchange")
+            if ref_exchange is not None:
+                # Host/importer fills reference flow from create_product_system.
+                # Incomplete stubs (@type/@id only) block that merge — reject them.
+                if not isinstance(ref_exchange, dict):
+                    errors.append(
+                        f"{item['path']}: auto linking refExchange must be an object "
+                        "or omitted"
+                    )
+                elif ref_exchange.get("internalId") is None:
+                    errors.append(
+                        f"{item['path']}: linkingMode=auto must not supply incomplete "
+                        "refExchange (omit it for host/importer, or include usable "
+                        "internalId)"
+                    )
         else:
             if "processes" in data or "processLinks" in data:
                 errors.append(

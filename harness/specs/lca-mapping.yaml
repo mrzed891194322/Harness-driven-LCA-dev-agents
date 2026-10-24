@@ -11,7 +11,7 @@ description: |
 
   LCI 目录保持 flows/、processes/、product_systems/ 中一文件一实体的 JSON-LD，以及 LCI 根目录的 `human_readable_mapping.md`。背景实体不作为 LCI 实体文件提交，只在前景过程的交换里引用其 UUID。
 
-  JSON-LD 保持现有导入契约：exchange 显式布尔 isInput；每个 Process 恰好一个输出 isQuantitativeReference=true；需要供应过程的前景输入给 defaultProvider；Product System 使用 linkingMode=auto、preferDefaultProviders=true，不用 processLinks 预置待导入拓扑，不使用 input / quantitativeReference 别名。无法用当前导入契约表达的必做模型如实报告能力缺口，不改工具绕过。
+  JSON-LD 保持现有导入契约：exchange 显式布尔 isInput；每个 Process 恰好一个输出 isQuantitativeReference=true；需要供应过程的前景输入给 defaultProvider；Product System 使用 linkingMode=auto、preferDefaultProviders=true，不用 processLinks 预置待导入拓扑，不使用 input / quantitativeReference 别名；auto 模式不要写残缺 refExchange（仅 @type/@id、无 internalId），交给宿主/importer 从自动链接结果填参考流；若显式写 refExchange 则必须带可用 internalId。无法用当前导入契约表达的必做模型如实报告能力缺口，不改工具绕过。
 
   `human_readable_mapping.md` 必须包含：
 
