@@ -816,3 +816,18 @@ are approximate for inline nodes; old runs/journals are not migrated; two pre-ex
 - 非目标：§8.4 产物依据字段、运行时拓扑叠状态、跨库。
 - 与 UI 拓扑改动分开提交；不切 serve、不推送。
 
+
+## I-61 soak on ec01fd9 / 2ae9c99（2026-10-24，Du Yuan：可推远端；隐患先记）
+
+Hard faults after importer stub fix (`2ae9c99`，原 `ec01fd9` rebase)：连跑多遍 full-lca（含 2959ad41、cb493162、dd3ac451、f28546c8、1669c5ad、49cee158、f3fc7703、63d128e6）未再出现 **no-reference-flow** / **model_error** / 宿主挂死。按 Du Yuan 指示停连跑并已推 `origin/master`。
+
+Deferred（不当本轮硬故障，先放）：
+1. **Case1 TRAN-A/B 同 flow+provider+amount 双笔** → report 导入歧义 → `approve_redo_upstream` → mapping 合成单条后过。多遍复现（dd3ac451 / 1669c5ad / 49cee158 / f3fc7703）；有时初轮即合成（f28546c8、63d128e6）则无 redo。评审返工能过，暂不修。
+2. **LabPC 连线抖动**：监视常因 `yuandu-LabPC-Linux` 掉线中断，靠 `labpc-soak-reconnect` 例行接回；非仓库 bug。
+3. **GWP 数值波动**：同 serve 下既有 ~C1 223/C2 778，也有 ~C1 337/C2 991；Du Yuan 定结果指标后续技能/工具再优化，**不当工作流 bug**（另见 I-03）。
+
+## I-62 auto 导入残缺 refExchange stub（done，2026-10-24）
+
+- 症状：openLCA import 偶发 no-reference-flow（残缺 stub 挡住 generated 参考流）。
+- 修复：`2ae9c99`（rebase 前 `ec01fd9`）；连跑验证无再复现。
+- 状态：done，已在 `origin/master`。
