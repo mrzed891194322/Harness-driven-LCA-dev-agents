@@ -1,0 +1,4 @@
+id: bom-extract
+title: BOM 数量抽取（冒烟）
+max_redos: 0
+nodes: [bom-extract]

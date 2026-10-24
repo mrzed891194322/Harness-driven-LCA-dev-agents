@@ -1,6 +1,6 @@
 # harness/workflows（v5，三级：编排 → 节点 → agent）
 
-- `orchestrations/<name>.yaml`：编排 = 节点有序列表（`full-lca`、`revise-lca`、`demo-*`）。`nodes:` 里可写节点名
+- `orchestrations/<name>.yaml`：编排 = 节点有序列表（`full-lca`、`revise-lca`、`bom-extract`、`demo-*`）。`nodes:` 里可写节点名
   （`nodes/<名>.yaml`）或内联节点对象，可混写：`nodes: [lca-bom, {id: x, ...}]`。
 - `nodes/<id>.yaml`：节点（requires、produces、inject、agents、flow、accept）。`agents:` 里可写 agent 模板名
   （`agents/<名>.yaml`，如 `executor: executor`）、内联 agent 对象（含 `prompt`、`deliver`），或
