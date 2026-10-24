@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:benchmark:claim-set",
+  "title": "Claim set",
+  "description": "Task4/Task5 风格的声明集合。打分只用 value+unit（见 claim_f1.py）；text/evidence 只供人工核对。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["claims"],
+  "properties": {
+    "abstained": {
+      "type": "boolean",
+      "description": "无文档或信息不足时为 true，且 claims 必须为空。"
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claim_id": { "type": "string", "minLength": 1 },
+          "text": { "type": "string" },
+          "item_id": { "type": "string" },
+          "field": { "type": "string" },
+          "value": { "type": ["number", "null"] },
+          "unit": { "type": ["string", "null"] },
+          "evidence": { "type": ["string", "null"] }
+        },
+        "anyOf": [
+          { "required": ["text"] },
+          { "required": ["value", "unit"] }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "abstained": false,
+  "claims": [
+    {
+      "claim_id": "leaked-mass",
+      "item_id": "plate",
+      "field": "quantity",
+      "value": 12.5,
+      "unit": "kg",
+      "text": "无文档却写出钢板 12.5 kg",
+      "evidence": null
+    }
+  ]
+}

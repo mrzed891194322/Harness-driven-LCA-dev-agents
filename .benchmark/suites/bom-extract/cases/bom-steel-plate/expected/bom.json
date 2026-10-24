@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "item_id": "plate",
+      "name": "低合金钢板",
+      "quantity": 12.5,
+      "unit": "kg",
+      "process": "冲压",
+      "transport": { "mode": "truck", "distance_km": 40 },
+      "geography": "CN",
+      "source_locations": ["input/query.md"],
+      "extraction_status": "extracted",
+      "gap": null
+    },
+    {
+      "item_id": "coating",
+      "name": "涂层",
+      "quantity": 0.4,
+      "unit": "kg",
+      "process": "涂装",
+      "transport": null,
+      "geography": "CN",
+      "source_locations": ["input/query.md"],
+      "extraction_status": "extracted",
+      "gap": null
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "candidates": [
+    {
+      "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      "name": "market for polyethylene, high density, granulate"
+    },
+    {
+      "id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+      "name": "market for polypropylene, granulate"
+    }
+  ],
+  "items": [
+    {
+      "item_id": "resin",
+      "options": ["market for polyethylene, high density, granulate"],
+      "banned_substring": ["magic"]
+    }
+  ]
+}

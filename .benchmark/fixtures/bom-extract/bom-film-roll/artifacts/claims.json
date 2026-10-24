@@ -1,0 +1,14 @@
+{
+  "abstained": false,
+  "claims": [
+    {
+      "claim_id": "film-mass",
+      "item_id": "film",
+      "field": "quantity",
+      "value": 1500,
+      "unit": "g",
+      "text": "薄膜 1500 g",
+      "evidence": "薄膜质量 1.5 kg"
+    }
+  ]
+}

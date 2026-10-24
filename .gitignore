@@ -44,3 +44,17 @@ src/pi-runtime/dist/
 
 # Harness user overrides (GUI edits; never committed)
 harness/.user/
+
+# Benchmark cache and PCFBench upstream dumps (CC BY-NC-SA). Never commit.
+.benchmark/cache/
+.benchmark/**/*.partial
+.benchmark/**/*.pdf
+/BENCHMARK_CACHE/
+benchmark-cache/
+ecoinvent_picklist.jsonl
+task1_decomposition.jsonl
+task2_triage.jsonl
+task3_mapping.jsonl
+task4_extraction_material.jsonl
+task5_extraction_energy.jsonl
+task7_epd.jsonl

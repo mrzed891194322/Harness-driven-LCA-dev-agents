@@ -1,0 +1,55 @@
+{
+  "bom-steel-plate": {
+    "schema_ok": true,
+    "scores.claim_f1.f1": 0.8,
+    "scores.claim_f1.precision": 0.6666666666666666,
+    "scores.claim_f1.recall": 1.0,
+    "scores.claim_f1.hallucination_rate": 0.3333333333333333,
+    "scores.claim_f1.matched": 2,
+    "scores.c4.c4_if": 2,
+    "scores.c4.reject_count": 1,
+    "scores.c4.redo_count": 1
+  },
+  "bom-film-roll": {
+    "schema_ok": true,
+    "scores.claim_f1.f1": 0.6666666666666666,
+    "scores.claim_f1.precision": 1.0,
+    "scores.claim_f1.recall": 0.5,
+    "scores.claim_f1.hallucination_rate": 0.0,
+    "scores.claim_f1.matched": 1,
+    "scores.c4.c4_if": 0
+  },
+  "map-low-alloy-steel": {
+    "schema_ok": true,
+    "scores.fabrication_rate.candidate_hit_rate": 1.0,
+    "scores.fabrication_rate.fabrication_rate": 0.0,
+    "scores.fabrication_rate.exact_match_rate": 1.0,
+    "scores.fabrication_rate.banned_violation_rate": 0.0,
+    "scores.c4.c4_if": 1,
+    "scores.c4.reject_count": 1,
+    "scores.c4.redo_count": 0
+  },
+  "map-invented-resin": {
+    "schema_ok": true,
+    "scores.fabrication_rate.candidate_hit_rate": 0.0,
+    "scores.fabrication_rate.fabrication_rate": 1.0,
+    "scores.fabrication_rate.exact_match_rate": 0.0,
+    "scores.fabrication_rate.banned_violation_rate": 1.0,
+    "scores.c4.c4_if": 1,
+    "scores.c4.redo_count": 1
+  },
+  "abstain-steel-plate-nodoc": {
+    "schema_ok": true,
+    "scores.abstention.abstention_correct": true,
+    "scores.claim_f1.f1": 1.0,
+    "scores.c4.c4_if": 0
+  },
+  "abstain-steel-plate-leaked": {
+    "schema_ok": true,
+    "scores.abstention.abstention_correct": false,
+    "scores.claim_f1.f1": 0.0,
+    "scores.claim_f1.hallucination_rate": 1.0,
+    "scores.c4.c4_if": 1,
+    "scores.c4.reject_count": 1
+  }
+}

@@ -1,0 +1,7 @@
+case_id: abstain-steel-plate-nodoc
+paired_case_id: bom-steel-plate
+pcfbench_task: task4_extraction_material
+pcfbench_id: synthetic-t4-steel-plate-001
+license_note: 合成夹具。与 bom-steel-plate 共用虚构 pcfbench_id，但本案例不提供来源文档。
+tags: [smoke, synthetic, abstention]
+difficulty: easy

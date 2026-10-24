@@ -1,0 +1,26 @@
+# 外置缓存布局。目录不进 git，也不使用 Git LFS。
+# 下载脚本在缓存根落在仓库内时直接退出。
+
+env: BENCHMARK_CACHE
+path_template: "{BENCHMARK_CACHE}/pcfbench/{sha_dir}/{filename}"
+sha_dir_when_known: "{sha256}"
+sha_dir_when_unknown: unverified
+
+rules:
+  - 只允许写到 BENCHMARK_CACHE（或 download_pcfbench.py 的 --cache-root）下面。
+  - sha256 为空时落到 unverified/；--write-sha 算出摘要后改写 manifests 里的 sha256 字段，并把文件移到 {sha256}/。
+  - 除了这条 sha256 回写，脚本不得改仓库里的其他文件。
+  - 禁止把 task*.jsonl、ecoinvent_picklist.jsonl 或 PDF 拷回仓库。
+
+ignored_filenames:
+  - task1_decomposition.jsonl
+  - task2_triage.jsonl
+  - task3_mapping.jsonl
+  - task4_extraction_material.jsonl
+  - task5_extraction_energy.jsonl
+  - task7_epd.jsonl
+  - ecoinvent_picklist.jsonl
+
+pdf_note: >
+  Hugging Face 数据集没有单独的 PDF 文件。task4/task5 的文档文本嵌在 jsonl 里，
+  task7 只保留 source_url。若有人把 PDF 丢进仓库，.gitignore 仍会挡住 .benchmark/**/*.pdf。

@@ -1,0 +1,23 @@
+{
+  "abstained": false,
+  "claims": [
+    {
+      "claim_id": "plate-mass",
+      "item_id": "plate",
+      "field": "quantity",
+      "value": 12.5,
+      "unit": "kg",
+      "text": "钢板 12.5 kg",
+      "evidence": "钢板净重 12.5 kg"
+    },
+    {
+      "claim_id": "coat-mass",
+      "item_id": "coating",
+      "field": "quantity",
+      "value": 0.4,
+      "unit": "kg",
+      "text": "涂层 0.4 kg",
+      "evidence": "涂层 0.4 kg"
+    }
+  ]
+}

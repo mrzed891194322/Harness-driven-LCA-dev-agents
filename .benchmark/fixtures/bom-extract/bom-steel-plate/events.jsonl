@@ -1,0 +1,4 @@
+{"seq": 1, "ts": "2026-10-24T00:00:00+0000", "kind": "node_start", "node": "lca-bom"}
+{"seq": 2, "ts": "2026-10-24T00:00:01+0000", "kind": "route", "node": "lca-bom", "when": "reject", "to": "executor", "back_edge_count": 1}
+{"seq": 3, "ts": "2026-10-24T00:00:02+0000", "kind": "redo_requested", "node": "lca-bom", "target": "lca-bom", "artifact": "bom/bom.json", "field": "items"}
+{"seq": 4, "ts": "2026-10-24T00:00:03+0000", "kind": "submit", "verdict": "approve"}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:benchmark:bom-deliverable",
+  "title": "BOM deliverable",
+  "description": "与 harness/specs/lca-bom.yaml 的 items 字段对齐的最小交付。P0 打分读 claims，不比较本文件。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "item_id",
+          "name",
+          "quantity",
+          "unit",
+          "process",
+          "transport",
+          "geography",
+          "source_locations",
+          "extraction_status"
+        ],
+        "properties": {
+          "item_id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "quantity": { "type": ["number", "null"] },
+          "unit": { "type": ["string", "null"] },
+          "process": { "type": ["string", "null"] },
+          "transport": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+              "mode": { "type": ["string", "null"] },
+              "distance_km": { "type": ["number", "null"] }
+            }
+          },
+          "geography": { "type": ["string", "null"] },
+          "source_locations": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "extraction_status": {
+            "type": "string",
+            "enum": ["extracted", "partial", "unreadable"]
+          },
+          "gap": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}
