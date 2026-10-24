@@ -4,9 +4,14 @@
 
 ## 跑
 
+离线打分（fixture，不跑模型）：
+
 ```bash
 python3 .benchmark/scorers/score_case.py --mode score-only --suite bom-extract
 ```
+
+真跑模型：按技能 **`run`**（`POST /api/references` → `POST /api/workflow/start` → 轮询 progress），产物 `workspace/artifacts/bom/claims.json`；打分另调 `score-only` / `claim_f1`，不要和开跑揉在一起。
+
 
 ## 目录
 
