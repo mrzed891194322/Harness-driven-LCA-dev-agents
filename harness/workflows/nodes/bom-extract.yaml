@@ -1,0 +1,11 @@
+id: bom-extract
+title: 数值 / BOM 抽取
+produces:
+  - {spec: bom-claims, path: claims/claims.json}
+inject:
+  - rules/delivery/status.yaml
+  - rules/delivery/provenance.yaml
+  - rules/lca/knowledge-files.yaml
+agents:
+  executor: executor
+  reviewer: reviewer
