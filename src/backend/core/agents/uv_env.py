@@ -6,7 +6,7 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
-DEFAULT_UV_CACHE_REL = ".uv-cache"
+DEFAULT_UV_CACHE_REL = ".cache/uv"
 
 
 def resolve_uv_cache_dir(
@@ -16,7 +16,7 @@ def resolve_uv_cache_dir(
 
     A ``UV_CACHE_DIR`` inherited from the launching shell that points outside the
     project (e.g. a sandbox path under /tmp) must not leak into worker MCP
-    configs (ISSUES #16), so it falls back to ``<project>/.uv-cache``.
+    configs (ISSUES #16), so it falls back to ``<project>/.cache/uv``.
     """
     root = project_root.resolve()
     source = os.environ if env is None else env

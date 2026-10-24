@@ -27,11 +27,13 @@ dev = [
 testpaths = ["src/tests"]
 pythonpath = ["src", "."]
 addopts = "-ra"
+cache_dir = ".cache/pytest"
 
 
 [tool.ruff]
 target-version = "py312"
 line-length = 88
+cache-dir = ".cache/ruff"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

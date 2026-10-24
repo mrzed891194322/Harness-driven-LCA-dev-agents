@@ -1,5 +1,5 @@
 # PCFBench 源文件指针。这里没有文件正文。
-# sha256 先留空；在仓库外跑 download_pcfbench.py --write-sha 才会回填。
+# sha256 先留空；在允许的缓存根跑 download_pcfbench.py --write-sha 才会回填。
 # 许可：Hugging Face 数据集 Watershed-Climate/PCFBench，CC BY-NC-SA 4.0（非商业）。
 
 dataset: Watershed-Climate/PCFBench

@@ -5,13 +5,13 @@
 // and npm's (~/.npm) are read-only there, so `uv sync` / `npm install` die with
 // "Read-only file system" before the control panel starts.
 //
-// Python already pins UV_CACHE_DIR to <repo>/.uv-cache itself
+// Python already pins UV_CACHE_DIR to <repo>/.cache/uv itself
 // (src/backend/core/agents/uv_env.py, ISSUES #16). The launcher has to do the
 // same before it spawns uv, because .env is not merged into process.env.
 import path from "node:path";
 
-const UV_CACHE_REL = ".uv-cache";
-const NPM_CACHE_REL = ".npm-cache";
+const UV_CACHE_REL = ".cache/uv";
+const NPM_CACHE_REL = ".cache/npm";
 
 function unquote(value) {
   return String(value ?? "")

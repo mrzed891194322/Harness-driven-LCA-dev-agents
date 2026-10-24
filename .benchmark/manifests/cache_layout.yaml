@@ -1,13 +1,15 @@
-# 外置缓存布局。目录不进 git，也不使用 Git LFS。
-# 下载脚本在缓存根落在仓库内时直接退出。
+# 缓存布局。目录不进 git，也不使用 Git LFS。
+# 默认根：仓库内 .cache/benchmark；允许 .cache/ 子树或仓外；其它仓内路径拒绝。
 
 env: BENCHMARK_CACHE
+default: .cache/benchmark
 path_template: "{BENCHMARK_CACHE}/pcfbench/{sha_dir}/{filename}"
 sha_dir_when_known: "{sha256}"
 sha_dir_when_unknown: unverified
 
 rules:
-  - 只允许写到 BENCHMARK_CACHE（或 download_pcfbench.py 的 --cache-root）下面。
+  - 默认写到 .cache/benchmark；也可用 BENCHMARK_CACHE 或 download_pcfbench.py 的 --cache-root。
+  - 允许仓库外路径，或仓库内且落在 .cache/ 下；禁止其它仓内路径（尤其 .benchmark/）。
   - sha256 为空时落到 unverified/；--write-sha 算出摘要后改写 manifests 里的 sha256 字段，并把文件移到 {sha256}/。
   - 除了这条 sha256 回写，脚本不得改仓库里的其他文件。
   - 禁止把 task*.jsonl、ecoinvent_picklist.jsonl 或 PDF 拷回仓库。

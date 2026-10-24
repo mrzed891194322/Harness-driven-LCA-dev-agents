@@ -17,7 +17,9 @@ logs/
 # Virtual environments
 .venv
 
-# package caches (project-local; not workspace/tmp)
+# package / tool caches (project-local; not workspace/tmp)
+.cache/
+# legacy names (pre-.cache/ layout); keep so leftovers stay untracked
 .uv-cache/
 .npm-cache/
 

@@ -6,13 +6,14 @@
 
 ## 缓存
 
-大文件只放在环境变量 `BENCHMARK_CACHE` 指向的仓库外目录。路径约定见 [`manifests/cache_layout.yaml`](manifests/cache_layout.yaml)。
+大文件默认放在 `.cache/benchmark/`（可用环境变量 `BENCHMARK_CACHE` 或 `--cache-root` 覆盖）。允许仓库内 `.cache/` 子树，或仓库外路径；其它仓内路径（如 `.benchmark/`）会被拒绝。路径约定见 [`manifests/cache_layout.yaml`](manifests/cache_layout.yaml)。
 
 ```bash
-python3 .benchmark/scripts/download_pcfbench.py --cache-root "$BENCHMARK_CACHE"
+python3 .benchmark/scripts/download_pcfbench.py
+# 或：python3 .benchmark/scripts/download_pcfbench.py --cache-root "$BENCHMARK_CACHE"
 ```
 
-未设置 `BENCHMARK_CACHE`、也没有 `--cache-root` 时脚本退出。缓存根落在本仓库内会被拒绝。`sha256` 仍为空时文件进 `pcfbench/unverified/`；加上 `--write-sha` 才会把摘要回写到 manifest（这是脚本唯一允许改仓库的地方），并把文件移到 `pcfbench/<sha256>/`。
+`sha256` 仍为空时文件进 `pcfbench/unverified/`；加上 `--write-sha` 才会把摘要回写到 manifest（这是脚本唯一允许改仓库的地方），并把文件移到 `pcfbench/<sha256>/`。
 
 ## 许可
 

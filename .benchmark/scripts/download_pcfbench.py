@@ -1,5 +1,9 @@
-"""Download PCFBench files into an external cache. Never writes the git tree
-except ``--write-sha``, which fills empty sha256 fields in the source manifest.
+"""Download PCFBench files into a cache root.
+
+Default cache is ``<repo>/.cache/benchmark``. Allowed roots: outside the repo,
+or under ``<repo>/.cache/``. Other in-repo paths (e.g. ``.benchmark/``) are
+rejected. Never writes the git tree except ``--write-sha``, which fills empty
+sha256 fields in the source manifest.
 """
 
 from __future__ import annotations
@@ -44,23 +48,37 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _allowed_cache_path(path: Path) -> bool:
+    """Outside the repo, or anywhere under ``<repo>/.cache/``."""
+    resolved = path.resolve()
+    if not _contained(resolved, REPO):
+        return True
+    cache_tree = (REPO / ".cache").resolve()
+    return resolved == cache_tree or _contained(resolved, cache_tree)
+
+
 def cache_root_from(arg: str | None) -> Path:
     raw = arg or os.environ.get("BENCHMARK_CACHE")
     if not raw:
+        path = (REPO / ".cache" / "benchmark").resolve()
+    else:
+        path = Path(raw).expanduser().resolve()
+    if not _allowed_cache_path(path):
         raise SystemExit(
-            "需要环境变量 BENCHMARK_CACHE 或 --cache-root，并且目录必须在仓库外"
+            f"拒绝把缓存写进仓库内非 .cache/ 路径：{path}；"
+            "允许仓库外，或仓库内 .cache/ 子树（默认 .cache/benchmark）"
         )
-    path = Path(raw).expanduser().resolve()
-    if _contained(path, REPO):
-        raise SystemExit(f"拒绝把缓存写进仓库：{path}")
     return path
 
 
 def dest_for(root: Path, filename: str, sha: object) -> Path:
     folder = str(sha).strip().lower() if is_sha256(sha) else "unverified"
     path = root / "pcfbench" / folder / filename
-    if _contained(path, REPO):
-        raise SystemExit(f"拒绝写入仓库：{path}")
+    if not _allowed_cache_path(path):
+        raise SystemExit(
+            f"拒绝写入仓库内非 .cache/ 路径：{path}；"
+            "允许仓库外，或仓库内 .cache/ 子树"
+        )
     return path
 
 
@@ -171,8 +189,14 @@ def run(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="把 PCFBench 源文件下载到仓库外的缓存")
-    parser.add_argument("--cache-root", default=None, help="默认读 BENCHMARK_CACHE")
+    parser = argparse.ArgumentParser(
+        description="把 PCFBench 源文件下载到缓存（默认 .cache/benchmark；允许 .cache/ 或仓外）"
+    )
+    parser.add_argument(
+        "--cache-root",
+        default=None,
+        help="默认读 BENCHMARK_CACHE，未设则为仓库内 .cache/benchmark",
+    )
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--dry-run", action="store_true", help="只打印目标路径，不下载")
     parser.add_argument(

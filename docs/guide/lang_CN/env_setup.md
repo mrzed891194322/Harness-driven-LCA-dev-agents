@@ -49,7 +49,7 @@ uv sync
 
 该命令会创建虚拟环境并同步依赖（含开发依赖 `pytest`、`ruff`、`pyright`）。另需 Node.js 22+ 与 `npm install && npm run build -w @harness/pi-runtime`。
 
-uv 与 npm 的包缓存固定写到仓库根 `.uv-cache/`、`.npm-cache/`，由 `npm start` / `npm run dev` 自动设置。沙箱里 `~/.cache/uv`、`~/.npm` 是只读的，不能依赖默认路径；也不要放到 `workspace/tmp/`。
+uv 与 npm 的包缓存固定写到仓库根 `.cache/uv/`、`.cache/npm/`，由 `npm start` / `npm run dev` 自动设置。pytest / ruff 缓存分别在 `.cache/pytest/`、`.cache/ruff/`。沙箱里家目录缓存只读，不能依赖默认路径；也不要放到 `workspace/tmp/`。
 
 开发静态检查与测试：
 

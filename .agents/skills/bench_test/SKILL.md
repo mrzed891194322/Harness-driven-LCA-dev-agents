@@ -2,12 +2,12 @@
 name: bench_test
 description: >-
   用仓库里的合成 fixture 给 LCA 原子步离线打分。用户要跑 bench、score-only、
-  汇总分数，或只把 PCFBench 下载到仓库外缓存时使用。
+  汇总分数，或只把 PCFBench 下载到缓存（默认 .cache/benchmark）时使用。
 ---
 
 # bench_test
 
-给任意 agent 的评测入口。P0 只做三件事：`fetch`（下载到仓库外）、`score-only`（读 fixture 打分）、`aggregate`（把分数收成摘要）。不跑模型，不需要 API key，不连接 MCP，也不要改 harness。
+给任意 agent 的评测入口。P0 只做三件事：`fetch`（下载到缓存）、`score-only`（读 fixture 打分）、`aggregate`（把分数收成摘要）。不跑模型，不需要 API key，不连接 MCP，也不要改 harness。
 
 `case_id` 是本仓库自建的。上游 id 只出现在案例 `meta.yaml` 的 `pcfbench_id`。P0 里这些 id 是虚构指针。
 
@@ -17,7 +17,7 @@ description: >-
 | --- | --- | --- |
 | `score-only` | 用 `fixtures/` 里的假产物对 `suites/` 的 expected 打分，stdout 打 JSON | 不要 |
 | `aggregate` | 同上，但 stdout 是按套件的均值；或读已有 `scores.jsonl` | 不要 |
-| `fetch` | 只下载 manifest 里的文件到 `$BENCHMARK_CACHE` | 要，且必须在仓库外 |
+| `fetch` | 只下载 manifest 里的文件到缓存（默认 `.cache/benchmark`） | 要；允许 `.cache/` 或仓外 |
 
 没有 `run`。不要默认去调宿主编排或模型。
 
@@ -66,14 +66,15 @@ python3 .benchmark/scorers/score_case.py --mode aggregate --from-scores /tmp/ben
 
 ## fetch
 
-只下载，不打分。缓存根用环境变量 `BENCHMARK_CACHE` 或 `--cache-root`。脚本在根目录落在仓库内时退出。
+只下载，不打分。缓存根默认 `.cache/benchmark`；也可用 `BENCHMARK_CACHE` 或 `--cache-root`。允许 `.cache/` 子树或仓外；其它仓内路径会退出。
 
 ```bash
-python3 .benchmark/scripts/download_pcfbench.py --dry-run --cache-root "$BENCHMARK_CACHE"
-python3 .benchmark/scorers/score_case.py --mode fetch --dry-run --cache-root "$BENCHMARK_CACHE"
+python3 .benchmark/scripts/download_pcfbench.py --dry-run
+python3 .benchmark/scorers/score_case.py --mode fetch --dry-run
+# 或显式：--cache-root "$BENCHMARK_CACHE"
 ```
 
-真下载同一条命令去掉 `--dry-run`。`--write-sha` 会把空的 sha256 写回 `.benchmark/manifests/pcfbench_sources.yaml`。没有这一步就不要把下载结果拷回仓库。校验和仍为空时，文件在 `$BENCHMARK_CACHE/pcfbench/unverified/<文件名>`。
+真下载同一条命令去掉 `--dry-run`。`--write-sha` 会把空的 sha256 写回 `.benchmark/manifests/pcfbench_sources.yaml`。没有这一步就不要把下载结果拷回仓库。校验和仍为空时，文件在 `$BENCHMARK_CACHE/pcfbench/unverified/<文件名>`（未设时即 `.cache/benchmark/...`）。
 
 manifest 列了 task1 / task3 / task4 / task5 / task7 和 `ecoinvent_picklist.jsonl`。picklist 不在 Hugging Face 文件列表里，URL 指向配套仓库。HF 数据集没有单独 PDF；gitignore 仍然拒绝把 PDF 或这些 jsonl 加进来。
 
