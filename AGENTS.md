@@ -10,8 +10,8 @@
 | 使用过程中出错，要看后端日志或 openLCA 并给建议 | `.agents/skills/issue-diag/SKILL.md` |
 | 改控制面板、启动、编排、进度或结果展示，或把闭环的某一跳接上 | `.agents/skills/code-dev/SKILL.md` |
 | 改工作流装配、规则、规格、工具、知识或偏好等 harness 元素 | `.agents/skills/harness-edit/SKILL.md` |
-| 跑评测、score-only、汇总分数，或把 PCFBench 下载到仓库外缓存 | `.agents/skills/bench_test/SKILL.md` |
+| 跑评测、score-only、汇总分数，或把 PCFBench 下载到仓库外缓存 | `.agents/skills/bench-test/SKILL.md` |
 
-一件事先定一个主技能。打开和关闭项目只走 `proj-ops`。使用中的报错只走 `issue-diag`。改 `src/` 或接通闭环只走 `code-dev`。改 `harness/` 里的装配和注入内容只走 `harness-edit`。跑 `.benchmark` 评测只走 `bench_test`。主技能做完仍缺另一侧时，再读第二个 `SKILL.md`。
+一件事先定一个主技能。打开和关闭项目只走 `proj-ops`。使用中的报错只走 `issue-diag`。改 `src/` 或接通闭环只走 `code-dev`。改 `harness/` 里的装配和注入内容只走 `harness-edit`。跑 `.benchmark` 评测只走 `bench-test`。主技能做完仍缺另一侧时，再读第二个 `SKILL.md`。
 
 `.agents/skills/` 只给在本仓库里改代码的 agent 用。LCA 工作会话不加载这里的技能。

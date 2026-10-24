@@ -2,7 +2,7 @@
 
 可复现的 LCA 评测资产。P0 只带合成 fixture 和离线打分：不跑模型，不需要 API key，也不把 PCFBench 的 jsonl / PDF 放进 git。
 
-任意 agent 的入口是 [`.agents/skills/bench_test/SKILL.md`](../.agents/skills/bench_test/SKILL.md)。
+任意 agent 的入口是 [`.agents/skills/bench-test/SKILL.md`](../.agents/skills/bench-test/SKILL.md)。
 
 ## 缓存
 

@@ -1,11 +1,11 @@
 ---
-name: bench_test
+name: bench-test
 description: >-
   用仓库里的合成 fixture 给 LCA 原子步离线打分。用户要跑 bench、score-only、
   汇总分数，或只把 PCFBench 下载到缓存（默认 .cache/benchmark）时使用。
 ---
 
-# bench_test
+# bench-test
 
 给任意 agent 的评测入口。P0 只做三件事：`fetch`（下载到缓存）、`score-only`（读 fixture 打分）、`aggregate`（把分数收成摘要）。不跑模型，不需要 API key，不连接 MCP，也不要改 harness。
 
