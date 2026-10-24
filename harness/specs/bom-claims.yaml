@@ -1,0 +1,51 @@
+description: |
+  # 数量声明（claims，落在 BOM 阶段目录）
+
+  从计划与 `harness/knowledge/inputs/` 声明资料抽取可打分的数量声明。本节点不查询 openLCA、不做映射、不出报告。
+
+  ## 方法
+
+  - 只读声明资料与计划；数值须能回链原文（`evidence`）。
+  - 单位用短符号：`g` / `kg` / `%` 等，**不要**写 `grams`、`gram`、`percent`。
+  - 无可用文档或信息不足：`abstained: true` 且 `claims: []`，不要编造。
+
+  ## 交付物
+
+  写到 `workspace/artifacts/bom/claims.json`（仍在 BOM 阶段桶内），形状对齐 `.benchmark/schemas/claim_set.schema.json`：
+
+  - `abstained`（可选 boolean）
+  - `claims`：数组；建议含 `claim_id`、`item_id`、`field`、`value`、`unit`、`text`、`evidence`
+  - 打分主要看规范化后的 `(value, unit)`
+
+  ## 验收
+
+  - JSON 通过下方 schema；单位为短符号。
+  - 每条 claim 有原文依据，或明确 abstain。
+  - reviewer 独立核对；缺产物、blocked、编造不得视为完成。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:bom-claims
+  title: Claim set
+  type: object
+  additionalProperties: false
+  required: [claims]
+  properties:
+    abstained:
+      type: boolean
+    claims:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        properties:
+          claim_id: {type: string, minLength: 1}
+          text: {type: string}
+          item_id: {type: string}
+          field: {type: string}
+          value: {type: [number, "null"]}
+          unit: {type: [string, "null"]}
+          evidence: {type: [string, "null"]}
+        anyOf:
+          - {required: [text]}
+          - {required: [value, unit]}
+checks: []
