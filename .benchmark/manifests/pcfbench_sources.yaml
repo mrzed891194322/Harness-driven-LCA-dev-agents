@@ -1,0 +1,54 @@
+# PCFBench 源文件指针。这里没有文件正文。
+# sha256 先留空；在仓库外跑 download_pcfbench.py --write-sha 才会回填。
+# 许可：Hugging Face 数据集 Watershed-Climate/PCFBench，CC BY-NC-SA 4.0（非商业）。
+
+dataset: Watershed-Climate/PCFBench
+huggingface: https://huggingface.co/datasets/Watershed-Climate/PCFBench
+license: CC-BY-NC-SA-4.0
+cache_env: BENCHMARK_CACHE
+cache_path: "{BENCHMARK_CACHE}/pcfbench/{sha256|unverified}/{filename}"
+
+files:
+  - filename: task1_decomposition.jsonl
+    task: task1
+    rows: 94
+    source: huggingface
+    url: https://huggingface.co/datasets/Watershed-Climate/PCFBench/resolve/main/task1_decomposition.jsonl?download=true
+    sha256: "" # placeholder; --write-sha fills this
+
+  - filename: task3_mapping.jsonl
+    task: task3
+    rows: 109
+    source: huggingface
+    url: https://huggingface.co/datasets/Watershed-Climate/PCFBench/resolve/main/task3_mapping.jsonl?download=true
+    sha256: "" # placeholder; --write-sha fills this
+
+  - filename: task4_extraction_material.jsonl
+    task: task4
+    rows: 22
+    source: huggingface
+    url: https://huggingface.co/datasets/Watershed-Climate/PCFBench/resolve/main/task4_extraction_material.jsonl?download=true
+    sha256: "" # placeholder; --write-sha fills this
+
+  - filename: task5_extraction_energy.jsonl
+    task: task5
+    rows: 14
+    source: huggingface
+    url: https://huggingface.co/datasets/Watershed-Climate/PCFBench/resolve/main/task5_extraction_energy.jsonl?download=true
+    sha256: "" # placeholder; --write-sha fills this
+
+  - filename: task7_epd.jsonl
+    task: task7
+    rows: 175
+    source: huggingface
+    url: https://huggingface.co/datasets/Watershed-Climate/PCFBench/resolve/main/task7_epd.jsonl?download=true
+    sha256: "" # placeholder; --write-sha fills this
+
+  # 不在 HF 数据集文件列表中。配套代码仓库里的 2574 行候选表，
+  # 由公开的 ecoinvent v3.11 Database Overview（Cut-Off AO）筛出。同样不得进 git。
+  - filename: ecoinvent_picklist.jsonl
+    task: picklist
+    rows: 2574
+    source: companion-repo
+    url: https://raw.githubusercontent.com/watershed-climate/pcfbench/main/pcfbench/picklist/ecoinvent_picklist.jsonl
+    sha256: "" # placeholder; --write-sha fills this

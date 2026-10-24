@@ -1,0 +1,19 @@
+{
+  "candidates": [
+    {
+      "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "name": "market for steel, low-alloyed"
+    },
+    {
+      "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "name": "market for steel, unalloyed"
+    }
+  ],
+  "items": [
+    {
+      "item_id": "plate",
+      "options": ["market for steel, low-alloyed"],
+      "banned_substring": ["concrete"]
+    }
+  ]
+}

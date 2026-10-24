@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "item_id": "resin",
+      "flow_name": "magic resin 9000",
+      "flow_id": null,
+      "process_name": "magic resin 9000",
+      "process_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      "provider_name": null,
+      "provider_id": null,
+      "geography_requested": "GLO",
+      "geography_selected": null,
+      "selection_reason": "合成负例：这个名字不在候选集里。",
+      "candidates": [
+        "market for polyethylene, high density, granulate",
+        "market for polypropylene, granulate"
+      ]
+    }
+  ]
+}

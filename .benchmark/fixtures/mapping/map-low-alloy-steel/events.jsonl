@@ -1,0 +1,2 @@
+{"seq": 1, "ts": "2026-10-24T00:02:00+0000", "kind": "submit_rejected", "by": "host", "errors": ["schema"]}
+{"seq": 2, "ts": "2026-10-24T00:02:01+0000", "kind": "submit", "verdict": "approve"}

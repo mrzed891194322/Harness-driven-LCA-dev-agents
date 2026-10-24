@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "item_id": "plate",
+      "flow_name": "steel, low-alloyed",
+      "flow_id": null,
+      "process_name": "market for steel, low-alloyed",
+      "process_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "provider_name": "market for steel, low-alloyed",
+      "provider_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "geography_requested": "GLO",
+      "geography_selected": "GLO",
+      "selection_reason": "名称落在封闭候选集内，且与可接受参考产品一致（合成夹具）。",
+      "candidates": [
+        "market for steel, low-alloyed",
+        "market for steel, unalloyed"
+      ]
+    }
+  ]
+}

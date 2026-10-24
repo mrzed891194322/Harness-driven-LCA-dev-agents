@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "item_id": "film",
+      "name": "包装薄膜",
+      "quantity": 1.5,
+      "unit": "kg",
+      "process": "吹膜",
+      "transport": null,
+      "geography": "GLO",
+      "source_locations": ["input/query.md"],
+      "extraction_status": "partial",
+      "gap": "没有交加工能耗"
+    }
+  ]
+}

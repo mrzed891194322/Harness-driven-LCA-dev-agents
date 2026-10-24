@@ -1,0 +1,7 @@
+case_id: abstain-steel-plate-leaked
+paired_case_id: bom-steel-plate
+pcfbench_task: task4_extraction_material
+pcfbench_id: synthetic-t4-steel-plate-001
+license_note: 合成夹具。同一虚构上游指针，用来观察「无文档却给出了数量」的失败。
+tags: [smoke, synthetic, abstention, negative]
+difficulty: easy

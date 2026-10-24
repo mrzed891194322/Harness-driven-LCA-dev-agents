@@ -1,0 +1,23 @@
+{
+  "abstained": false,
+  "claims": [
+    {
+      "claim_id": "film-mass",
+      "item_id": "film",
+      "field": "quantity",
+      "value": 1.5,
+      "unit": "kg",
+      "text": "薄膜 1.5 kg",
+      "evidence": "薄膜质量 1.5 kg"
+    },
+    {
+      "claim_id": "film-energy",
+      "item_id": "film",
+      "field": "energy",
+      "value": 2.0,
+      "unit": "MJ/kg",
+      "text": "加工能耗 2.0 MJ/kg",
+      "evidence": "加工能耗 2.0 MJ/kg"
+    }
+  ]
+}

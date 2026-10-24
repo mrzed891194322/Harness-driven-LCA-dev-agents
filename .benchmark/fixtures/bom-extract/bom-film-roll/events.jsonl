@@ -1,0 +1,2 @@
+{"seq": 1, "ts": "2026-10-24T00:01:00+0000", "kind": "turn_start", "node": "lca-bom"}
+{"seq": 2, "ts": "2026-10-24T00:01:01+0000", "kind": "submit", "verdict": "approve"}

@@ -1,0 +1,6 @@
+case_id: map-low-alloy-steel
+pcfbench_task: task3_mapping
+pcfbench_id: synthetic-t3-low-alloy-steel-001
+license_note: 合成夹具，不是 PCFBench 再分发。pcfbench_id 是虚构指针。候选名不是 ecoinvent 摘录。
+tags: [smoke, synthetic]
+difficulty: easy
