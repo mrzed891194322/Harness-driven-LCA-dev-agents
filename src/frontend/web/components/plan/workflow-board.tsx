@@ -20,9 +20,23 @@ type Selection =
   | { kind: "agent"; id: string; agent: string }
   | { kind: "rule"; path: string; title?: string };
 
-export function WorkflowBoard({ mode }: { mode: WorkMode }) {
+export function WorkflowBoard({
+  mode,
+  pickedId = null,
+  onPickWorkflow,
+}: {
+  mode: WorkMode;
+  /** When set (e.g. from 加载预设), canvas shows that orchestration. */
+  pickedId?: string | null;
+  onPickWorkflow?: (id: string | null) => void;
+}) {
   const [catalog, setCatalog] = useState<WorkflowCard[]>([]);
-  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [localPickedId, setLocalPickedId] = useState<string | null>(null);
+  const pickedIdResolved = onPickWorkflow ? pickedId : localPickedId;
+  const setPickedId = (id: string | null) => {
+    if (onPickWorkflow) onPickWorkflow(id);
+    else setLocalPickedId(id);
+  };
   const [error, setError] = useState("");
   const [models, setModels] = useState<ModelRow[]>([]);
   const [defaultModel, setDefaultModel] = useState("");
@@ -54,7 +68,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
     setPresetsOpen(false);
     setTopoNodeId(null);
     void load();
-  }, [mode, load]);
+  }, [mode, load]); // eslint-disable-line react-hooks/exhaustive-deps -- reset pick on mode only
 
   useEffect(() => {
     const dialog = presetsDialog.current;
@@ -82,11 +96,11 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
   }, []);
 
   const workflow = useMemo(() => {
-    if (pickedId) {
-      return catalog.find((w) => w.id === pickedId) || workflowForMode(catalog, mode) || null;
+    if (pickedIdResolved) {
+      return catalog.find((w) => w.id === pickedIdResolved) || workflowForMode(catalog, mode) || null;
     }
     return workflowForMode(catalog, mode) || null;
-  }, [catalog, pickedId, mode]);
+  }, [catalog, pickedIdResolved, mode]);
 
   async function changeDefault(value: string) {
     setModelNote("");
@@ -278,7 +292,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           <header className="flow-presets-head">
             <div>
               <h2 id="flow-presets-title">加载预设工作流</h2>
-              <p className="settings-meta">选择 harness 编排，立即替换画布上的节点预览（不改计划正文；开始运行仍按计划页工作类型选编排）。</p>
+              <p className="settings-meta">选择 harness 编排，替换画布预览；预览执行页将按当前选中的编排开跑（不改计划正文）。未选时仍按工作类型默认 full-lca / revise-lca。</p>
             </div>
             <button type="button" className="flow-close" aria-label="关闭" data-testid="flow-presets-close" onClick={() => setPresetsOpen(false)}>
               <X size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -287,7 +301,7 @@ export function WorkflowBoard({ mode }: { mode: WorkMode }) {
           <ul className="flow-preset-list">
             {catalog.map((w) => {
               const active = w.id === workflow.id;
-              const kind = w.start_rev === "next" ? "修订" : w.id.startsWith("demo") ? "演示" : "主流程";
+              const kind = w.start_rev === "next" ? "修订" : w.id.startsWith("demo") ? "演示" : w.id === "bom-extract" ? "冒烟" : "主流程";
               return (
                 <li key={w.id}>
                   <button

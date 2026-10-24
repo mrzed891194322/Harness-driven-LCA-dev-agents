@@ -158,6 +158,7 @@ export default function PlanPage() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [workMode, setWorkMode] = useState<"new" | "revise">("new");
+  const [pickedWorkflowId, setPickedWorkflowId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
@@ -174,6 +175,10 @@ export default function PlanPage() {
   // the form and importing must never rewrite the plan file (a stale tab rewrote it).
   const dirty = useRef(false);
   const saveChain = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => {
+    setPickedWorkflowId(null);
+  }, [workMode]);
+
   const workflowName = planWorkflow(workMode);
   const planInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
@@ -634,9 +639,9 @@ export default function PlanPage() {
               </div>
             </div>
           ) : panel === "workflow" ? (
-            <WorkflowBoard mode={workMode} />
+            <WorkflowBoard mode={workMode} pickedId={pickedWorkflowId} onPickWorkflow={setPickedWorkflowId} />
           ) : panel === "preview" ? (
-            <PreviewBoard mode={workMode} work={work} references={references} />
+            <PreviewBoard mode={workMode} work={work} references={references} workflowId={pickedWorkflowId} />
           ) : null}
         </div>
 

@@ -37,10 +37,13 @@ export function PreviewBoard({
   mode,
   work,
   references,
+  workflowId = null,
 }: {
   mode: WorkMode;
   work: StudyWork;
   references: ReferenceFile[];
+  /** Preset picked on 工作流编排; null = mode default (full-lca / revise-lca). */
+  workflowId?: string | null;
 }) {
   const [workflow, setWorkflow] = useState<WorkflowCard | null>(null);
   const [workflowError, setWorkflowError] = useState("");
@@ -59,7 +62,8 @@ export function PreviewBoard({
       .then(async (response) => {
         const data = (await response.json()) as { workflows?: WorkflowCard[]; detail?: string };
         if (!response.ok) throw new Error(data.detail || "无法读取编排");
-        const wf = workflowForMode(data.workflows || [], mode);
+        const list = data.workflows || [];
+        const wf = (workflowId && list.find((w) => w.id === workflowId)) || workflowForMode(list, mode);
         if (!wf) throw new Error("没有对应的工作流");
         if (cancelled) return;
         setWorkflow(wf);
@@ -74,7 +78,7 @@ export function PreviewBoard({
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, [mode, workflowId]);
 
   const taskId = workflow?.id ?? "";
   const canStart = Boolean(workflow) && Boolean(taskId);
