@@ -5,7 +5,7 @@ pcfbench_tasks:
 scorers:
   - fabrication_rate
   - c4_from_events
-doc: skills/bench_test/docs/mapping.md
+doc: .agents/skills/bench_test/docs/mapping.md
 notes: >
   P0 用每个案例 expected 里的小型封闭候选集。编造指选出的过程不在该集合内。
   与 options 的精确匹配、banned_substring 另外报告，不决定编造率。

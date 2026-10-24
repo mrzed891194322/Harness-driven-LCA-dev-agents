@@ -21,7 +21,7 @@ description: >-
 
 没有 `run`。不要默认去调宿主编排或模型。
 
-许可：PCFBench 是 CC BY-NC-SA 4.0（非商业）。数据集正文不能提交。说明见 [`.benchmark/README.md`](../../.benchmark/README.md)。
+许可：PCFBench 是 CC BY-NC-SA 4.0（非商业）。数据集正文不能提交。说明见 [`.benchmark/README.md`](../../../.benchmark/README.md)。
 
 ## score-only
 
@@ -84,7 +84,7 @@ manifest 列了 task1 / task3 / task4 / task5 / task7 和 `ecoinvent_picklist.js
 | `bom-extract` | [docs/bom-extract.md](docs/bom-extract.md) |
 | `mapping` | [docs/mapping.md](docs/mapping.md) |
 | `abstention` | 同上篇末「拒答」。案例用 `paired_case_id` 指向 BOM 案例，输入里没有文档 |
-| `full-lca` | 只有 [`.benchmark/suites/full-lca/README.md`](../../.benchmark/suites/full-lca/README.md)，不要打分 |
+| `full-lca` | 只有 [`.benchmark/suites/full-lca/README.md`](../../../.benchmark/suites/full-lca/README.md)，不要打分 |
 
 ## 指标（P0）
 

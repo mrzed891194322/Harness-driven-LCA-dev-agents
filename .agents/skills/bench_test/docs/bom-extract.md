@@ -37,4 +37,4 @@ python3 .benchmark/scorers/score_case.py --mode score-only --suite abstention
 | `abstain-steel-plate-nodoc` | `abstained: true` 且 `claims: []` | `abstention_correct` true，F1 = 1 |
 | `abstain-steel-plate-leaked` | 在没有文档时仍写出 12.5 kg | `abstention_correct` false，F1 = 0 |
 
-不要把 PCFBench 的 jsonl 抄进这两个套件。要上游原文时走 `skills/bench_test` 的 `fetch`，文件留在 `$BENCHMARK_CACHE`。
+不要把 PCFBench 的 jsonl 抄进这两个套件。要上游原文时走 `.agents/skills/bench_test` 的 `fetch`，文件留在 `$BENCHMARK_CACHE`。
