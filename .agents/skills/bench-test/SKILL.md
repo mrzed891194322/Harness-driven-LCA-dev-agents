@@ -46,7 +46,7 @@ description: >-
 
 ```bash
 curl -sS -X POST "$API/api/references" \
-  -F "files=@.benchmark/bom/cases/bom-steel-plate/input/query.md;filename=query.md"
+  -F "files=@.benchmark/bom/extract/bom-steel-plate/input/query.md;filename=query.md"
 ```
 
 真实 PDF/笔记同理改 `-F files=@...`。成功响应含 `"status":"saved"` 与当前 `files` 列表。开跑用的资料走这里；**分数结果**上传见 [scripts/upload_stub.md](scripts/upload_stub.md)，不是本接口。
@@ -101,7 +101,7 @@ curl -sS "$API/api/workflow/progress"
 
 ```bash
 python3 .benchmark/bom/scorers/claim_f1.py \
-  .benchmark/bom/cases/<case_id>/truth/claims.json \
+  .benchmark/bom/extract/<case_id>/truth/claims.json \
   workspace/artifacts/bom/claims.json
 ```
 
@@ -132,18 +132,18 @@ python3 .benchmark/bom/scorers/score_case.py --mode score-only --self-check
 
 ```bash
 python3 .benchmark/bom/scorers/claim_f1.py \
-  .benchmark/bom/cases/bom-steel-plate/truth/claims.json \
-  .benchmark/bom/cases/bom-steel-plate/eval/artifacts/claims.json
+  .benchmark/bom/extract/bom-steel-plate/truth/claims.json \
+  .benchmark/bom/extract/bom-steel-plate/eval/artifacts/claims.json
 
 python3 .benchmark/lci/scorers/fabrication_rate.py \
-  .benchmark/lci/cases/map-low-alloy-steel/truth/mapping.json \
-  .benchmark/lci/cases/map-low-alloy-steel/eval/artifacts/mapping.json
+  .benchmark/lci/mapping/map-low-alloy-steel/truth/mapping.json \
+  .benchmark/lci/mapping/map-low-alloy-steel/eval/artifacts/mapping.json
 
 python3 .benchmark/bom/scorers/c4_from_events.py \
-  .benchmark/bom/cases/bom-steel-plate/eval/events.jsonl
+  .benchmark/bom/extract/bom-steel-plate/eval/events.jsonl
 ```
 
-产物对齐：`<大类>/cases/<case_id>/{meta.yaml,input/,truth/,eval/}`——题面、真值、假运行（`eval/artifacts/` + `events.jsonl`）同树。真跑产物见上一节 `run`。
+产物对齐：`<大类>/<子类>/<case_id>/{meta.yaml,input/,truth/,eval/}`（如 `bom/extract/`、`bom/abstention/`、`lci/mapping/`）——题面、真值、假运行（`eval/artifacts/` + `events.jsonl`）同树。真跑产物见上一节 `run`。
 
 ## aggregate
 
@@ -172,7 +172,7 @@ manifest 列了 task1 / task3 / task4 / task5 / task7 和 `ecoinvent_picklist.js
 | --- | --- |
 | `bom` | [docs/bom.md](docs/bom.md)（离线 score-only；真跑见上文 `run`） |
 | `lci` | [docs/lci.md](docs/lci.md) |
-| `abstention` | 同 bom 篇末「拒答」。案例在 `bom/cases/`，`tags` 含 `abstention`，`paired_case_id` 挂抽取案例 |
+| `abstention` | 同 bom 篇末「拒答」。案例在 `bom/abstention/`，`paired_case_id` 挂抽取案例 |
 | `full-lca` | P2 预留，见 [`.benchmark/README.md`](../../../.benchmark/README.md)，不要打分 |
 
 ## 指标（P0）

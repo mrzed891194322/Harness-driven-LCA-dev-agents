@@ -9,23 +9,26 @@
 ```
 .benchmark/
   bom/
-    cases/<id>/     # 抽取 + 拒答（拒答挂 paired_case_id）
-    harness/        # 本大类 orch / node / spec
-    scorers/        # claim_f1、c4、score_case CLI
+    extract/<id>/      # 抽取案例
+    abstention/<id>/   # 拒答案例（paired_case_id 挂抽取）
+    harness/           # 本大类 orch / node / spec
+    scorers/           # claim_f1、c4、score_case CLI
+    schemas/           # 可选
     category.yaml
   lci/
-    cases/<id>/     # mapping 等
-    harness/        # 预留
-    scorers/        # fabrication_rate
+    mapping/<id>/      # 背景数据映射
+    harness/           # 预留
+    scorers/           # fabrication_rate
+    schemas/           # 可选
     category.yaml
   manifests/
   scripts/
-  schemas/          # 全局共用
-  oracle.json       # score-only --self-check
+  schemas/             # 全局共用
+  oracle.json          # score-only --self-check
   README.md
 ```
 
-单案例：`meta.yaml`、`input/`（题面）、`truth/`（真值）、`eval/`（假产物 `artifacts/` + `events.jsonl`）。不再有顶层 `suites/` + `fixtures/` 双树。
+单案例：`meta.yaml`、`input/`（题面）、`truth/`（真值）、`eval/`（假产物 `artifacts/` + `events.jsonl`）。大类下按**子类**分目录，不再平铺 `cases/`。
 
 ## 外置工作流 / spec
 
@@ -54,8 +57,8 @@ P0 案例是手写的合成数据。`meta.yaml` 里的 `pcfbench_id` 是虚构�
 
 | 大类 | 内容 | P0 打分 |
 | --- | --- | --- |
-| `bom` | 合成物料/能耗声明；拒答案例同树（`tags` 含 `abstention`） | `claim_f1`、`abstention`、`c4_from_events` |
-| `lci` | 合成候选集命中 / 编造（mapping） | `fabrication_rate`、`c4_from_events` |
+| `bom` | `extract/` 抽取 + `abstention/` 拒答（`paired_case_id`） | `claim_f1`、`abstention`、`c4_from_events` |
+| `lci` | `mapping/` 合成候选集命中 / 编造 | `fabrication_rate`、`c4_from_events` |
 
 整链 `full-lca` 仍为 P2 预留：还没有案例或打分，不要往本树塞 PCFBench 源文件。
 

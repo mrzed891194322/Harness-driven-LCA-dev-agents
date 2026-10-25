@@ -78,7 +78,23 @@ def _suite_aliases(suite_id: str) -> set[str]:
     return aliases
 
 
-def _case_suite_id(category_id: str, meta: dict[str, Any]) -> str:
+# Directories under a category that are not case subtrees.
+_NON_CASE_DIRS = frozenset({"harness", "scorers", "schemas", "__pycache__"})
+
+# subcategory dir name → suite_id used by scorers / --suite aliases
+_SUBCATEGORY_SUITE = {
+    "extract": "bom",
+    "abstention": "abstention",
+    "mapping": "lci",
+}
+
+
+def _case_suite_id(
+    category_id: str, subcategory: str, meta: dict[str, Any]
+) -> str:
+    if subcategory in _SUBCATEGORY_SUITE:
+        return _SUBCATEGORY_SUITE[subcategory]
+    # fallback for unexpected layouts: tags still decide abstention
     if category_id == "bom" and "abstention" in _tags(meta):
         return "abstention"
     if category_id == "bom":
@@ -161,17 +177,22 @@ def discover_cases(
         if not cat_path.is_file():
             continue
         category = yaml.safe_load(cat_path.read_text(encoding="utf-8")) or {}
-        for meta_path in sorted((cat_dir / "cases").glob("*/meta.yaml")):
+        # <category>/<subcategory>/<case_id>/meta.yaml
+        for meta_path in sorted(cat_dir.glob("*/*/meta.yaml")):
+            subcategory = meta_path.parent.parent.name
+            if subcategory in _NON_CASE_DIRS:
+                continue
             meta = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
             case_id = str(meta["case_id"])
             if cases and case_id not in cases:
                 continue
-            suite_id = _case_suite_id(category_id, meta)
+            suite_id = _case_suite_id(category_id, subcategory, meta)
             if suites:
                 wanted = set(suites)
                 aliases = _suite_aliases(suite_id)
-                # also allow filtering by category id
+                # also allow filtering by category id / subcategory name
                 aliases.add(category_id)
+                aliases.add(subcategory)
                 if wanted.isdisjoint(aliases):
                     continue
             found.append(
@@ -179,6 +200,7 @@ def discover_cases(
                     "suite": category,
                     "suite_id": suite_id,
                     "category_id": category_id,
+                    "subcategory": subcategory,
                     "meta": meta,
                     "case_dir": meta_path.parent,
                     "eval_dir": meta_path.parent / "eval",
@@ -463,7 +485,7 @@ def main(argv: list[str] | None = None) -> int:
         "--mode", choices=("score-only", "aggregate", "fetch"), default="score-only"
     )
     parser.add_argument(
-        "--suite", action="append", default=None, help="大类/套件：bom、lci、abstention；别名 bom-extract、mapping。可重复。"
+        "--suite", action="append", default=None, help="大类/子类/套件：bom、lci、extract、abstention、mapping；别名 bom-extract。可重复。"
     )
     parser.add_argument(
         "--case", action="append", default=None, help="case_id，可重复。默认全部。"

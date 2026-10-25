@@ -1,8 +1,8 @@
 # bom（抽取 + 拒答）
 
-大类目录：`.benchmark/bom/`。案例在 `cases/<case_id>/`（`meta.yaml`、`input/`、`truth/`、`eval/`）。
+大类目录：`.benchmark/bom/`。子类 `extract/<case_id>/`、`abstention/<case_id>/`（各含 `meta.yaml`、`input/`、`truth/`、`eval/`）。
 
-拒答案例与抽取案例同树：`meta.tags` 含 `abstention`，并用 `paired_case_id` 指向配对抽取案例。
+拒答案例在 `abstention/`，抽取在 `extract/`；拒答用 `paired_case_id` 指向配对抽取案例（`meta.tags` 亦可含 `abstention`）。
 
 ## 离线打分
 
@@ -16,9 +16,9 @@ python3 .benchmark/bom/scorers/score_case.py --mode score-only --self-check
 
 ## 路径
 
-- 题面：`bom/cases/<case_id>/input/query.md`
-- 真值：`bom/cases/<case_id>/truth/claims.json`（及可选 `bom.json`）
-- 假产物：`bom/cases/<case_id>/eval/artifacts/claims.json`、`bom.json`、`events.jsonl`
+- 题面：`bom/extract/<case_id>/input/query.md`（拒答同路径，子类换 `abstention`）
+- 真值：`bom/extract/<case_id>/truth/claims.json`（及可选 `bom.json`）
+- 假产物：`bom/extract/<case_id>/eval/artifacts/claims.json`、`bom.json`、`events.jsonl`
 - 冒烟 orch：`.benchmark/bom/harness/workflows/orchestrations/bom-extract.yaml`
 
 声明形状见 `.benchmark/schemas/claim_set.schema.json`。BOM 形状见 `bom_deliverable.schema.json`。
