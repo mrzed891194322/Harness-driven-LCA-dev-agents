@@ -18,7 +18,7 @@ description: >-
 
 | 模式 | 做什么 | 要不要缓存 / serve |
 | --- | --- | --- |
-| `score-only` | 用 `fixtures/` 假产物（或 `run` 交出的真实产物）对 `suites/` expected 打分，stdout JSON | 不要 serve |
+| `score-only` | 用案例 `eval/` 假产物（或 `run` 交出的真实产物）对 `truth/` 打分，stdout JSON | 不要 serve |
 | `aggregate` | 同上，stdout 按套件均值；或读已有 `scores.jsonl` | 不要 |
 | `fetch` | 只下载 manifest 到缓存（默认 `.cache/benchmark`） | 要缓存；允许 `.cache/` 或仓外 |
 | `run` | 经 API 上传参考资料、开 `bom-extract`、轮询到结束，交付 `workspace/artifacts/bom/claims.json` | 要 serve（当前 tip） |
@@ -34,7 +34,7 @@ description: >-
 - serve 已起，且 checkout 是当前 tip（与评测要对齐的 commit）。
 - 模型已在面板或 `.local/workflow-agent-models.json` 配好（对**下一趟**开跑生效）。
 - API 基址默认 `http://127.0.0.1:7860`（`GUI_PORT`，见 `src/backend/settings.py`）。下文用 `$API`。
-- 冒烟默认工作流：`bom-extract`（orch 在 `.benchmark/harness/`，API 用 stem；节点/spec 在 YAML 里写仓根相对路径，产物 `.benchmark/harness/specs/bom-claims.yaml` → `bom/claims.json`）。
+- 冒烟默认工作流：`bom-extract`（orch 在 `.benchmark/bom/harness/`，API 用 stem；节点/spec 在 YAML 里写仓根相对路径，产物 `.benchmark/bom/harness/specs/bom-claims.yaml` → `bom/claims.json`）。
 
 ### 1. 上传参考资料
 
@@ -46,7 +46,7 @@ description: >-
 
 ```bash
 curl -sS -X POST "$API/api/references" \
-  -F "files=@.benchmark/suites/bom-extract/cases/bom-steel-plate/input/query.md;filename=query.md"
+  -F "files=@.benchmark/bom/cases/bom-steel-plate/input/query.md;filename=query.md"
 ```
 
 真实 PDF/笔记同理改 `-F files=@...`。成功响应含 `"status":"saved"` 与当前 `files` 列表。开跑用的资料走这里；**分数结果**上传见 [scripts/upload_stub.md](scripts/upload_stub.md)，不是本接口。
@@ -97,11 +97,11 @@ curl -sS "$API/api/workflow/progress"
 
 `workspace/artifacts/bom/claims.json`
 
-对应 spec：`.benchmark/harness/specs/bom-claims.yaml`（`claim_set`；节点 `bom/claims.json`）。把该路径交给调用方；由调用方再开 `score-only` 或：
+对应 spec：`.benchmark/bom/harness/specs/bom-claims.yaml`（`claim_set`；节点 `bom/claims.json`）。把该路径交给调用方；由调用方再开 `score-only` 或：
 
 ```bash
-python3 .benchmark/scorers/claim_f1.py \
-  .benchmark/suites/bom-extract/cases/<case_id>/expected/claims.json \
+python3 .benchmark/bom/scorers/claim_f1.py \
+  .benchmark/bom/cases/<case_id>/truth/claims.json \
   workspace/artifacts/bom/claims.json
 ```
 
@@ -116,14 +116,14 @@ python3 .benchmark/scorers/claim_f1.py \
 在仓库根目录：
 
 ```bash
-python3 .benchmark/scorers/score_case.py --mode score-only --self-check
+python3 .benchmark/bom/scorers/score_case.py --mode score-only --self-check
 ```
 
-`--self-check` 对照 `.benchmark/fixtures/oracle.json`。退出码 0 且 JSON 里 `self_check.ok` 为 true 才算这批 fixture 仍和打分器一致。
+`--self-check` 对照 `.benchmark/oracle.json`。退出码 0 且 JSON 里 `self_check.ok` 为 true 才算这批案例仍和打分器一致。
 
 常用参数：
 
-- `--suite bom-extract`（可重复）
+- `--suite bom` / `lci` / `abstention`（可重复；别名 `bom-extract`、`mapping`）
 - `--case bom-steel-plate`（可重复）
 - `--harness`、`--model`：可以传，P0 忽略，原样回显
 - `--out-dir /tmp/bench-out`：额外写下 `scores.jsonl`、`summary.json`、`summary.md`、`by_panel/*.csv`
@@ -131,25 +131,25 @@ python3 .benchmark/scorers/score_case.py --mode score-only --self-check
 单文件打分（不走套件目录；`run` 产物也可当第二参数）：
 
 ```bash
-python3 .benchmark/scorers/claim_f1.py \
-  .benchmark/suites/bom-extract/cases/bom-steel-plate/expected/claims.json \
-  .benchmark/fixtures/bom-extract/bom-steel-plate/artifacts/claims.json
+python3 .benchmark/bom/scorers/claim_f1.py \
+  .benchmark/bom/cases/bom-steel-plate/truth/claims.json \
+  .benchmark/bom/cases/bom-steel-plate/eval/artifacts/claims.json
 
-python3 .benchmark/scorers/fabrication_rate.py \
-  .benchmark/suites/mapping/cases/map-low-alloy-steel/expected/mapping.json \
-  .benchmark/fixtures/mapping/map-low-alloy-steel/artifacts/mapping.json
+python3 .benchmark/lci/scorers/fabrication_rate.py \
+  .benchmark/lci/cases/map-low-alloy-steel/truth/mapping.json \
+  .benchmark/lci/cases/map-low-alloy-steel/eval/artifacts/mapping.json
 
-python3 .benchmark/scorers/c4_from_events.py \
-  .benchmark/fixtures/bom-extract/bom-steel-plate/events.jsonl
+python3 .benchmark/bom/scorers/c4_from_events.py \
+  .benchmark/bom/cases/bom-steel-plate/eval/events.jsonl
 ```
 
-产物对齐：`suites/<suite>/cases/<case_id>/{input,expected,meta.yaml}` 是题面和真值；`fixtures/<suite>/<case_id>/artifacts/` 加 `events.jsonl` 是待打分的假运行。真跑产物见上一节 `run`。
+产物对齐：`<大类>/cases/<case_id>/{meta.yaml,input/,truth/,eval/}`——题面、真值、假运行（`eval/artifacts/` + `events.jsonl`）同树。真跑产物见上一节 `run`。
 
 ## aggregate
 
 ```bash
-python3 .benchmark/scorers/score_case.py --mode aggregate --self-check
-python3 .benchmark/scorers/score_case.py --mode aggregate --from-scores /tmp/bench-out/scores.jsonl
+python3 .benchmark/bom/scorers/score_case.py --mode aggregate --self-check
+python3 .benchmark/bom/scorers/score_case.py --mode aggregate --from-scores /tmp/bench-out/scores.jsonl
 ```
 
 ## fetch
@@ -158,7 +158,7 @@ python3 .benchmark/scorers/score_case.py --mode aggregate --from-scores /tmp/ben
 
 ```bash
 python3 .benchmark/scripts/download_pcfbench.py --dry-run
-python3 .benchmark/scorers/score_case.py --mode fetch --dry-run
+python3 .benchmark/bom/scorers/score_case.py --mode fetch --dry-run
 # 或显式：--cache-root "$BENCHMARK_CACHE"
 ```
 
@@ -166,14 +166,14 @@ python3 .benchmark/scorers/score_case.py --mode fetch --dry-run
 
 manifest 列了 task1 / task3 / task4 / task5 / task7 和 `ecoinvent_picklist.jsonl`。picklist 不在 Hugging Face 文件列表里，URL 指向配套仓库。HF 数据集没有单独 PDF；gitignore 仍然拒绝把 PDF 或这些 jsonl 加进来。
 
-## 套件怎么测
+## 大类怎么测
 
-| 套件 | 怎么读 |
+| 大类 / 过滤 | 怎么读 |
 | --- | --- |
-| `bom-extract` | [docs/bom-extract.md](docs/bom-extract.md)（离线 score-only；真跑见上文 `run`） |
-| `mapping` | [docs/mapping.md](docs/mapping.md) |
-| `abstention` | 同上篇末「拒答」。案例用 `paired_case_id` 指向 BOM 案例，输入里没有文档 |
-| `full-lca` | 只有 [`.benchmark/suites/full-lca/README.md`](../../../.benchmark/suites/full-lca/README.md)，不要打分 |
+| `bom` | [docs/bom.md](docs/bom.md)（离线 score-only；真跑见上文 `run`） |
+| `lci` | [docs/lci.md](docs/lci.md) |
+| `abstention` | 同 bom 篇末「拒答」。案例在 `bom/cases/`，`tags` 含 `abstention`，`paired_case_id` 挂抽取案例 |
+| `full-lca` | P2 预留，见 [`.benchmark/README.md`](../../../.benchmark/README.md)，不要打分 |
 
 ## 指标（P0）
 

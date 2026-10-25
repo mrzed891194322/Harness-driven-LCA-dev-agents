@@ -1,12 +1,35 @@
 # `.benchmark`
 
-可复现的 LCA 评测资产。P0 只带合成 fixture 和离线打分：不跑模型，不需要 API key，也不把 PCFBench 的 jsonl / PDF 放进 git。
+可复现的 LCA 评测资产。P0 只带合成案例和离线打分：不跑模型，不需要 API key，也不把 PCFBench 的 jsonl / PDF 放进 git。
 
 任意 agent 的入口是 [`.agents/skills/bench-test/SKILL.md`](../.agents/skills/bench-test/SKILL.md)。
 
+## 目录
+
+```
+.benchmark/
+  bom/
+    cases/<id>/     # 抽取 + 拒答（拒答挂 paired_case_id）
+    harness/        # 本大类 orch / node / spec
+    scorers/        # claim_f1、c4、score_case CLI
+    category.yaml
+  lci/
+    cases/<id>/     # mapping 等
+    harness/        # 预留
+    scorers/        # fabrication_rate
+    category.yaml
+  manifests/
+  scripts/
+  schemas/          # 全局共用
+  oracle.json       # score-only --self-check
+  README.md
+```
+
+单案例：`meta.yaml`、`input/`（题面）、`truth/`（真值）、`eval/`（假产物 `artifacts/` + `events.jsonl`）。不再有顶层 `suites/` + `fixtures/` 双树。
+
 ## 外置工作流 / spec
 
-测评用的 orch / node / spec 放在 [`.benchmark/harness/`](harness/)（与 `harness/` 同构）。YAML 内 `nodes:` / `produces.spec` 写相对仓库根的路径（无短名、无外置优先回退）；API 开跑仍可用 orch 文件 stem。详见该目录 README。产品 `full-lca` 等仍只在 `harness/`。
+测评 orch / node / spec 放在各大类的 `harness/`（与产品 `harness/` 同构）。YAML 内 `nodes:` / `produces.spec` 写相对仓库根的路径（无短名、无外置优先回退）；API 开跑仍可用 orch 文件 stem。见 [`bom/harness/README.md`](bom/harness/README.md)。产品 `full-lca` 等仍只在 `harness/`。
 
 ## 缓存
 
@@ -27,13 +50,17 @@ python3 .benchmark/scripts/download_pcfbench.py
 
 P0 案例是手写的合成数据。`meta.yaml` 里的 `pcfbench_id` 是虚构指针，用来占住「自建 `case_id`、meta 挂上游 id」的位置，并不是上游行号。
 
-## 套件
+## 大类
 
-| 套件 | 内容 | P0 打分 |
+| 大类 | 内容 | P0 打分 |
 | --- | --- | --- |
-| `bom-extract` | 合成物料/能耗声明，对应日后的 task4 + task5 | `claim_f1`、`c4_from_events` |
-| `mapping` | 合成候选集命中 / 编造，对应日后的 task3 | `fabrication_rate`、`c4_from_events` |
-| `abstention` | 与 BOM 案例配对，但输入没有来源文档 | 拒答是否成立、`claim_f1`、`c4_from_events` |
-| `full-lca` | 空壳，见该目录 README | 还没有 |
+| `bom` | 合成物料/能耗声明；拒答案例同树（`tags` 含 `abstention`） | `claim_f1`、`abstention`、`c4_from_events` |
+| `lci` | 合成候选集命中 / 编造（mapping） | `fabrication_rate`、`c4_from_events` |
 
-案例真值在 `suites/<suite>/cases/<case_id>/`。模型侧假产物和 `events.jsonl` 在 `fixtures/<suite>/<case_id>/`。两边用自建 `case_id` 对齐。
+整链 `full-lca` 仍为 P2 预留：还没有案例或打分，不要往本树塞 PCFBench 源文件。
+
+离线入口：
+
+```bash
+python3 .benchmark/bom/scorers/score_case.py --mode score-only --self-check
+```

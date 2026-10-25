@@ -20,17 +20,17 @@ from tests.t_workflow.conftest import REPO, write_yaml
 
 def test_repo_bom_extract_loads_via_orch_stem_and_path_refs():
     orch = resolve_orchestration(REPO, "bom-extract")
-    assert orch.as_posix().endswith(".benchmark/harness/workflows/orchestrations/bom-extract.yaml")
-    node = resolve_node_path(REPO, ".benchmark/harness/workflows/nodes/bom-extract.yaml")
-    assert node.as_posix().endswith(".benchmark/harness/workflows/nodes/bom-extract.yaml")
-    spec = resolve_spec_path(REPO, ".benchmark/harness/specs/bom-claims.yaml")
-    assert spec.as_posix().endswith(".benchmark/harness/specs/bom-claims.yaml")
+    assert orch.as_posix().endswith(".benchmark/bom/harness/workflows/orchestrations/bom-extract.yaml")
+    node = resolve_node_path(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract.yaml")
+    assert node.as_posix().endswith(".benchmark/bom/harness/workflows/nodes/bom-extract.yaml")
+    spec = resolve_spec_path(REPO, ".benchmark/bom/harness/specs/bom-claims.yaml")
+    assert spec.as_posix().endswith(".benchmark/bom/harness/specs/bom-claims.yaml")
     wf, nodes = load_workflow(REPO, "bom-extract")
     assert wf.id == "bom-extract" and nodes[0].id == "bom-extract"
-    assert nodes[0].produces[0].spec == ".benchmark/harness/specs/bom-claims.yaml"
-    loaded = load_spec(REPO, ".benchmark/harness/specs/bom-claims.yaml")
+    assert nodes[0].produces[0].spec == ".benchmark/bom/harness/specs/bom-claims.yaml"
+    loaded = load_spec(REPO, ".benchmark/bom/harness/specs/bom-claims.yaml")
     assert loaded.id == "bom-claims"
-    assert loaded.path == ".benchmark/harness/specs/bom-claims.yaml"
+    assert loaded.path == ".benchmark/bom/harness/specs/bom-claims.yaml"
     assert "bom-extract" in list_workflows(REPO)
 
 
@@ -42,7 +42,7 @@ def test_inject_uses_produce_spec_path_not_stem():
     assert "bom-claims" not in specs  # keyed by path, not stem
     text = Injector(REPO)(node, "executor", 1, None, specs)
     assert "<deliverable_bom-claims>" in text
-    assert ".benchmark/harness/specs/bom-claims.yaml" in text
+    assert ".benchmark/bom/harness/specs/bom-claims.yaml" in text
 
 
 def test_repo_full_lca_product_path_refs():
@@ -67,25 +67,25 @@ def test_path_ref_spec_relative_to_repo_root(tmp_path: Path):
         {"prompt": "审", "access": {}, "deliver": {"submit": "verdict"}},
     )
     write_yaml(root / "harness/specs/keep.yaml", {"description": "产品", "schema": None, "checks": []})
-    ext = root / ".benchmark/harness/specs/ext-claims.yaml"
+    ext = root / ".benchmark/bom/harness/specs/ext-claims.yaml"
     write_yaml(ext, {"description": "外置声明", "schema": {"type": "object"}, "checks": []})
     write_yaml(
-        root / ".benchmark/harness/workflows/nodes/ext-node.yaml",
+        root / ".benchmark/bom/harness/workflows/nodes/ext-node.yaml",
         {
             "id": "ext-node",
-            "produces": [{"spec": ".benchmark/harness/specs/ext-claims.yaml", "path": "bom/claims.json"}],
+            "produces": [{"spec": ".benchmark/bom/harness/specs/ext-claims.yaml", "path": "bom/claims.json"}],
             "agents": {"executor": "executor", "reviewer": "reviewer"},
         },
     )
     write_yaml(
-        root / ".benchmark/harness/workflows/orchestrations/ext-orch.yaml",
-        {"id": "ext-orch", "nodes": [".benchmark/harness/workflows/nodes/ext-node.yaml"]},
+        root / ".benchmark/bom/harness/workflows/orchestrations/ext-orch.yaml",
+        {"id": "ext-orch", "nodes": [".benchmark/bom/harness/workflows/nodes/ext-node.yaml"]},
     )
-    assert resolve_spec_path(root, ".benchmark/harness/specs/ext-claims.yaml") == ext
-    assert load_spec(root, ".benchmark/harness/specs/ext-claims.yaml").id == "ext-claims"
+    assert resolve_spec_path(root, ".benchmark/bom/harness/specs/ext-claims.yaml") == ext
+    assert load_spec(root, ".benchmark/bom/harness/specs/ext-claims.yaml").id == "ext-claims"
     wf, nodes = load_workflow(root, "ext-orch")
     assert wf.id == "ext-orch"
-    assert nodes[0].produces[0].spec == ".benchmark/harness/specs/ext-claims.yaml"
+    assert nodes[0].produces[0].spec == ".benchmark/bom/harness/specs/ext-claims.yaml"
     assert "ext-orch" in list_workflows(root)
 
 
@@ -108,4 +108,4 @@ def test_orch_scan_dirs_listed():
     from backend.workflow import layout
 
     assert Path("harness/workflows/orchestrations") in layout.orch_dirs()
-    assert Path(".benchmark/harness/workflows/orchestrations") in layout.orch_dirs()
+    assert Path(".benchmark/bom/harness/workflows/orchestrations") in layout.orch_dirs()

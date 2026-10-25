@@ -1,0 +1,13 @@
+id: bom
+title: BOM 数量抽取与拒答
+pcfbench_tasks:
+  - task4_extraction_material
+  - task5_extraction_energy
+scorers:
+  - claim_f1
+  - abstention   # 仅 tags 含 abstention 的案例
+  - c4_from_events
+doc: .agents/skills/bench-test/docs/bom.md
+notes: >
+  案例在 bom/cases/<id>/。抽取案例与拒答案例同树；拒答用 meta.tags 含 abstention，
+  并以 paired_case_id 挂配对抽取案例。单案例目录：meta.yaml、input/、truth/、eval/。

@@ -36,6 +36,6 @@ def test_workflows_three_levels():
 def test_benchmark_harness_holds_eval_workflows():
     product = {p.name for p in (ROOT / "harness/workflows/orchestrations").glob("*.yaml")}
     assert "bom-extract.yaml" not in product
-    assert (ROOT / ".benchmark/harness/workflows/orchestrations/bom-extract.yaml").is_file()
-    assert (ROOT / ".benchmark/harness/specs/bom-claims.yaml").is_file()
+    assert (ROOT / ".benchmark/bom/harness/workflows/orchestrations/bom-extract.yaml").is_file()
+    assert (ROOT / ".benchmark/bom/harness/specs/bom-claims.yaml").is_file()
 

@@ -1,7 +1,7 @@
 """v5 configuration: workflows, nodes, agents, flow graph, specs.
 
 An orchestration lists nodes in order (outer queue). Orch files may live under
-``harness/workflows/orchestrations/`` or ``.benchmark/harness/workflows/orchestrations/``.
+``harness/workflows/orchestrations/`` or ``.benchmark/{bom,lci}/harness/workflows/orchestrations/``.
 API start still uses the file stem (``workflow: bom-extract``); ``list_workflows`` scans
 both orch folders. Inside YAML, ``nodes:`` and ``produces.spec`` must be
 **repo-root-relative paths** (e.g. ``harness/specs/lca-bom.yaml``); no short-name

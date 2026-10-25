@@ -1,4 +1,4 @@
-"""Offline score-only CLI for `.benchmark` fixtures.
+"""Offline score-only CLI for `.benchmark` cases (truth/ + eval/).
 
 Does not call a model, an API, or MCP. ``fetch`` only delegates to the
 download script; ``run`` is not implemented.
@@ -18,9 +18,13 @@ from typing import Any
 
 import yaml
 
-REPO = Path(__file__).resolve().parents[2]
+_HERE = Path(__file__).resolve().parent
+REPO = next(p for p in _HERE.parents if (p / "pyproject.toml").is_file())
 BENCH = REPO / ".benchmark"
-ORACLE = BENCH / "fixtures" / "oracle.json"
+ORACLE = BENCH / "oracle.json"
+BOM_SCORERS = BENCH / "bom" / "scorers"
+LCI_SCORERS = BENCH / "lci" / "scorers"
+CATEGORIES = ("bom", "lci")
 
 _REQUIRED_BOM = (
     "item_id",
@@ -49,13 +53,39 @@ _REQUIRED_MAPPING = (
 
 
 def _scorers() -> tuple[Any, Any, Any]:
-    folder = str(Path(__file__).resolve().parent)
-    if folder not in sys.path:
-        sys.path.insert(0, folder)
+    for folder in (BOM_SCORERS, LCI_SCORERS):
+        path = str(folder)
+        if path not in sys.path:
+            sys.path.insert(0, path)
     claim_f1 = importlib.import_module("claim_f1")
     fabrication_rate = importlib.import_module("fabrication_rate")
     c4_from_events = importlib.import_module("c4_from_events")
     return claim_f1, fabrication_rate, c4_from_events
+
+
+def _tags(meta: dict[str, Any]) -> set[str]:
+    raw = meta.get("tags") or []
+    return {str(t) for t in raw}
+
+
+def _suite_aliases(suite_id: str) -> set[str]:
+    """CLI --suite values that should match this case's suite_id."""
+    aliases = {suite_id}
+    if suite_id == "bom":
+        aliases.add("bom-extract")
+    if suite_id == "lci":
+        aliases.add("mapping")
+    return aliases
+
+
+def _case_suite_id(category_id: str, meta: dict[str, Any]) -> str:
+    if category_id == "bom" and "abstention" in _tags(meta):
+        return "abstention"
+    if category_id == "bom":
+        return "bom"
+    if category_id == "lci":
+        return "lci"
+    return category_id
 
 
 def _read_json(path: Path) -> Any:
@@ -125,23 +155,34 @@ def discover_cases(
     suites: list[str] | None, cases: list[str] | None
 ) -> list[dict[str, Any]]:
     found = []
-    for suite_path in sorted((BENCH / "suites").glob("*/suite.yaml")):
-        suite = yaml.safe_load(suite_path.read_text(encoding="utf-8"))
-        suite_id = str(suite["id"])
-        if suites and suite_id not in suites:
+    for category_id in CATEGORIES:
+        cat_dir = BENCH / category_id
+        cat_path = cat_dir / "category.yaml"
+        if not cat_path.is_file():
             continue
-        for meta_path in sorted((suite_path.parent / "cases").glob("*/meta.yaml")):
+        category = yaml.safe_load(cat_path.read_text(encoding="utf-8")) or {}
+        for meta_path in sorted((cat_dir / "cases").glob("*/meta.yaml")):
             meta = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
             case_id = str(meta["case_id"])
             if cases and case_id not in cases:
                 continue
+            suite_id = _case_suite_id(category_id, meta)
+            if suites:
+                wanted = set(suites)
+                aliases = _suite_aliases(suite_id)
+                # also allow filtering by category id
+                aliases.add(category_id)
+                if wanted.isdisjoint(aliases):
+                    continue
             found.append(
                 {
-                    "suite": suite,
+                    "suite": category,
                     "suite_id": suite_id,
+                    "category_id": category_id,
                     "meta": meta,
                     "case_dir": meta_path.parent,
-                    "fixture_dir": BENCH / "fixtures" / suite_id / case_id,
+                    "eval_dir": meta_path.parent / "eval",
+                    "truth_dir": meta_path.parent / "truth",
                 }
             )
     return found
@@ -151,35 +192,36 @@ def score_case(case: dict[str, Any]) -> dict[str, Any]:
     claim_f1, fabrication_rate, c4_from_events = _scorers()
     suite_id = case["suite_id"]
     meta = case["meta"]
-    fixture = case["fixture_dir"]
-    expected_dir = case["case_dir"] / "expected"
+    eval_dir = case["eval_dir"]
+    truth_dir = case["truth_dir"]
     scores: dict[str, Any] = {}
     schema_errors: list[str] = []
-    if suite_id in {"bom-extract", "abstention"}:
-        gold = _read_json(expected_dir / "claims.json")
-        pred = _read_json(fixture / "artifacts" / "claims.json")
+    if suite_id in {"bom", "abstention"}:
+        gold = _read_json(truth_dir / "claims.json")
+        pred = _read_json(eval_dir / "artifacts" / "claims.json")
         schema_errors.extend(_check_claims(pred))
         scores["claim_f1"] = claim_f1.score_claims(gold, pred)
         if suite_id == "abstention":
             scores["abstention"] = claim_f1.score_abstention(gold, pred)
-        bom_path = fixture / "artifacts" / "bom.json"
+        bom_path = eval_dir / "artifacts" / "bom.json"
         if bom_path.is_file():
             schema_errors.extend(
                 _check_items(_read_json(bom_path), _REQUIRED_BOM, "bom")
             )
-    elif suite_id == "mapping":
-        gold = _read_json(expected_dir / "mapping.json")
-        pred = _read_json(fixture / "artifacts" / "mapping.json")
+    elif suite_id == "lci":
+        gold = _read_json(truth_dir / "mapping.json")
+        pred = _read_json(eval_dir / "artifacts" / "mapping.json")
         schema_errors.extend(_check_items(pred, _REQUIRED_MAPPING, "mapping"))
         scores["fabrication_rate"] = fabrication_rate.score_mapping(gold, pred)
     else:
         raise ValueError(f"P0 还不能打分的套件：{suite_id}")
-    events_path = fixture / "events.jsonl"
+    events_path = eval_dir / "events.jsonl"
     if not events_path.is_file():
         raise FileNotFoundError(f"缺少 {events_path}")
     scores["c4"] = c4_from_events.score_events(events_path)
     row = {
         "suite": suite_id,
+        "category": case.get("category_id"),
         "case_id": meta["case_id"],
         "pcfbench_task": meta.get("pcfbench_task"),
         "pcfbench_id": meta.get("pcfbench_id"),
@@ -226,7 +268,7 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     by_suite: dict[str, Any] = {}
     for suite_id, group in grouped.items():
         summary: dict[str, Any] = {"n": len(group)}
-        if suite_id in {"bom-extract", "abstention"}:
+        if suite_id in {"bom", "abstention"}:
             summary["mean_f1"] = _mean(group, "scores.claim_f1.f1")
             summary["mean_hallucination_rate"] = _mean(
                 group, "scores.claim_f1.hallucination_rate"
@@ -239,7 +281,7 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             summary["abstention_accuracy"] = (
                 sum(correct) / len(correct) if correct else None
             )
-        if suite_id == "mapping":
+        if suite_id == "lci":
             summary["mean_candidate_hit_rate"] = _mean(
                 group, "scores.fabrication_rate.candidate_hit_rate"
             )
@@ -416,12 +458,12 @@ def fetch(cache_root: str | None, dry_run: bool, write_sha: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="对 .benchmark fixture 离线打分")
+    parser = argparse.ArgumentParser(description="对 .benchmark 案例离线打分")
     parser.add_argument(
         "--mode", choices=("score-only", "aggregate", "fetch"), default="score-only"
     )
     parser.add_argument(
-        "--suite", action="append", default=None, help="套件 id，可重复。默认全部。"
+        "--suite", action="append", default=None, help="大类/套件：bom、lci、abstention；别名 bom-extract、mapping。可重复。"
     )
     parser.add_argument(
         "--case", action="append", default=None, help="case_id，可重复。默认全部。"
@@ -444,7 +486,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="只对 fetch 生效")
     parser.add_argument("--write-sha", action="store_true", help="只对 fetch 生效")
     parser.add_argument(
-        "--self-check", action="store_true", help="对照 fixtures/oracle.json"
+        "--self-check", action="store_true", help="对照 .benchmark/oracle.json"
     )
     args = parser.parse_args(argv)
     if args.mode == "fetch":

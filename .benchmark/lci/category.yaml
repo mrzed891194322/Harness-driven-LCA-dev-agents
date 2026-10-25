@@ -1,0 +1,11 @@
+id: lci
+title: 背景数据映射（LCI）
+pcfbench_tasks:
+  - task3_mapping
+scorers:
+  - fabrication_rate
+  - c4_from_events
+doc: .agents/skills/bench-test/docs/lci.md
+notes: >
+  案例在 lci/cases/<id>/。P0 用每个案例 truth 里的小型封闭候选集。
+  编造指选出的过程不在该集合内。

@@ -6,7 +6,7 @@
   `{agent: executor, tools: ..., max_turns: ...}`。produces 的 spec 缺省取执行者 `deliver.spec`。
 - `agents/<名>.yaml`：agent 模板（prompt、access、deliver）；agent 短名不变。
 - 规则正文在 `harness/rules/global|lca/`（节点 `inject:` 引用），交付物规格在 `harness/specs/`，技能和 MCP 都在 `harness/tools/`。
-- 测评用 orch/node/spec 在 `.benchmark/harness/`（同构）；YAML 内一律仓根相对路径，**无短名、无外置优先回退**。见 `.benchmark/harness/README.md`。
+- 测评用 orch/node/spec 在 `.benchmark/bom/harness/`（及日后 `.benchmark/lci/harness/`，同构）；YAML 内一律仓根相对路径，**无短名、无外置优先回退**。见 `.benchmark/bom/harness/README.md`。
 - 加载与校验：`src/backend/workflow/config.py`；自检：`npm run doctor`。
 
 ## 流转（docs/architecture/WORKFLOW_DESIGN.md）

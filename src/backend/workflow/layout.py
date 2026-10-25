@@ -1,7 +1,7 @@
 """Fixed v5 layout constants.
 
 Product harness lives under ``harness/``. Eval variants live under
-``.benchmark/harness/`` (same sub-layout). Orchestration **API ids** are still
+``.benchmark/bom/harness/`` and ``.benchmark/lci/harness/`` (same sub-layout). Orchestration **API ids** are still
 file stems discovered by scanning both orch folders; YAML ``nodes:`` /
 ``produces.spec`` refs are always **repo-root-relative paths** (no short-name
 lookup, no extras-first fallback). Agents / rules stay product-side.
@@ -25,15 +25,18 @@ AGENTS = WORKFLOWS / "agents"
 # GUI listing / FS read grants. Not used to resolve short node/spec names.
 ORCH_SCAN_DIRS: tuple[Path, ...] = (
     Path("harness/workflows/orchestrations"),
-    Path(".benchmark/harness/workflows/orchestrations"),
+    Path(".benchmark/bom/harness/workflows/orchestrations"),
+    Path(".benchmark/lci/harness/workflows/orchestrations"),
 )
 NODE_SCAN_DIRS: tuple[Path, ...] = (
     Path("harness/workflows/nodes"),
-    Path(".benchmark/harness/workflows/nodes"),
+    Path(".benchmark/bom/harness/workflows/nodes"),
+    Path(".benchmark/lci/harness/workflows/nodes"),
 )
 SPEC_SCAN_DIRS: tuple[Path, ...] = (
     Path("harness/specs"),
-    Path(".benchmark/harness/specs"),
+    Path(".benchmark/bom/harness/specs"),
+    Path(".benchmark/lci/harness/specs"),
 )
 
 WORKSPACE = Path("workspace")

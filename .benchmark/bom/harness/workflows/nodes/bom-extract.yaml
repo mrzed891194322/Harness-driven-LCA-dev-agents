@@ -1,7 +1,7 @@
 id: bom-extract
 title: 数量声明抽取（冒烟）
 produces:
-  - {spec: .benchmark/harness/specs/bom-claims.yaml, path: bom/claims.json}
+  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
 inject:
   - rules/delivery/status.yaml
   - rules/delivery/provenance.yaml
