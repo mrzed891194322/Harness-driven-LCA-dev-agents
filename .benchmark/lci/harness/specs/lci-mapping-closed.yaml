@@ -7,10 +7,10 @@ description: |
   ## 方法
 
   - 候选只认题面列出的名字（及真值侧封闭集）；不得发明集合外过程名。
-  - 每个题面物料写一条 `items[]`；`item_id` 可用 `m1` 或题面给出的 id。
+  - 每个题面物料写一条 `items[]`。`item_id` 优先用题面给出的 id；题面未给时可用 `m1`、`m2`…，且须与题面条目一一对应、整份交付自洽。
+  - 封闭集中若有明显唯一更贴近题面描述的候选，必须选它；仅当多个候选同等合理、无法区分时，才将相关 name/id 置 `null`，并在 `selection_reason` 说明无法选定的原因。禁止编造集合外名字。
   - `process_name` / `provider_name` 填所选候选全名；无 UUID 时 `process_id` / `provider_id` / `flow_*` 可写 `null`。
   - `selection_reason` 用中文说明为何选该候选、为何不选其它；`candidates` 数组回填题面可见候选名（展示用，打分以真值 `candidates` 为准）。
-  - 信息不足无法从封闭集选定时：仍交 `items`，相关 name/id 置 `null`，在 `selection_reason` 写明无法选定的原因（不要编造集合外名字）。
 
   ## 交付物
 

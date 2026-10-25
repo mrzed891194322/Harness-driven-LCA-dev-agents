@@ -21,6 +21,8 @@ from typing import Any
 UNIT_SCALE: dict[str, tuple[str, float]] = {
     "kg": ("kg", 1.0),
     "g": ("kg", 0.001),
+    "lb": ("kg", 0.453592),
+    "lbs": ("kg", 0.453592),
     "t": ("kg", 1000.0),
     "kg/kg": ("kg/kg", 1.0),
     "g/kg": ("kg/kg", 0.001),
