@@ -44,6 +44,11 @@ DISCONNECT_RE = re.compile(
     r"rate.?limit|429|overloaded|timeout.*(model|openai|anthropic|deepseek)",
     re.I,
 )
+RATE_LIMIT_RE = re.compile(
+    r"\b429\b|rate.?limit|RESOURCE_EXHAUSTED|quota|TPM|tokens? per minute|"
+    r"too many requests|overloaded",
+    re.I,
+)
 TERMINAL = {"completed", "failed", "stopped", "error", "blocked", "cancelled", "canceled"}
 
 
@@ -236,6 +241,23 @@ def detect_model_disconnect(status: dict, events_blob: str) -> tuple[bool, str]:
     return True, ctx
 
 
+
+def detect_rate_limit(status: dict, events_blob: str, notes: str = "") -> tuple[bool, str]:
+    hay = json.dumps(status, ensure_ascii=False) + "\n" + events_blob + "\n" + notes
+    m = RATE_LIMIT_RE.search(hay)
+    if not m:
+        return False, ""
+    i = m.start()
+    ctx = hay[max(0, i - 40) : i + 80].replace("\n", " ")
+    return True, ctx
+
+
+def sleep_with_log(tee: Tee, seconds: float, why: str) -> None:
+    if seconds <= 0:
+        return
+    tee.log(f"PACE sleep_s={seconds:.0f} reason={why}")
+    time.sleep(seconds)
+
 def optional_f1(truth: Path | None, pred: Path) -> dict | None:
     if truth is None or not truth.is_file() or not pred.is_file():
         return None
@@ -357,6 +379,7 @@ def run_one(
     status = st.get("status")
     events = fetch_events_blob(api)
     disc, disc_note = detect_model_disconnect(st, events)
+    rate_hit, rate_note = detect_rate_limit(st, events, disc_note)
 
     artifact_ok = False
     claims_ok = False
@@ -404,6 +427,8 @@ def run_one(
         notes_parts.append("poll_timeout")
     if disc:
         notes_parts.append(f"model_disconnect:{disc_note[:120]}")
+    if rate_hit:
+        notes_parts.append(f"rate_limit:{rate_note[:120]}")
     if claims_ok:
         notes_parts.append(f"claims_n={claims_n}")
     elif items_n is not None:
@@ -432,6 +457,7 @@ def run_one(
         "claims": claims_ok,
         "artifact": artifact_ok,
         "model_disconnect": disc,
+        "rate_limit": rate_hit,
         "ops_ok": ops_ok,
         "result_dir": str(out_dir.relative_to(REPO)),
         "notes": "; ".join(notes_parts),
@@ -482,6 +508,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--poll", type=float, default=5.0, help="轮询间隔秒")
     parser.add_argument("--max-s", type=float, default=900.0, help="单案最长等待秒")
+    parser.add_argument(
+        "--pace-s",
+        type=float,
+        default=0.0,
+        help="案与案之间固定间隔秒（Gemma Tier1 建议 60～120；默认 0 不改旧行为）",
+    )
+    parser.add_argument(
+        "--backoff-base-s",
+        type=float,
+        default=60.0,
+        help="检测到 429/TPM 后的首段退避秒（指数倍增；默认 60）",
+    )
+    parser.add_argument(
+        "--backoff-max-s",
+        type=float,
+        default=300.0,
+        help="单次退避上限秒（默认 300）",
+    )
     parser.add_argument(
         "--log-dir",
         default=".benchmark/result/_logs",
@@ -550,28 +594,48 @@ def main(argv: list[str] | None = None) -> int:
         health = api_json(api, "GET", "/api/health")
         tee.log(f"health={health}")
         model = ensure_model(api, args.model, tee)
+        tee.log(
+            f"pace_s={args.pace_s} backoff_base_s={args.backoff_base_s} "
+            f"backoff_max_s={args.backoff_max_s}"
+        )
+        rate_streak = 0
+        started_any = False
 
         for case in cases:
             for rep in range(1, args.repeat + 1):
+                if started_any:
+                    sleep_with_log(tee, args.pace_s, "pace")
+                    if rate_streak > 0:
+                        delay = min(
+                            args.backoff_max_s,
+                            args.backoff_base_s * (2 ** (rate_streak - 1)),
+                        )
+                        sleep_with_log(
+                            tee, delay, f"rate_limit_backoff streak={rate_streak}"
+                        )
                 tee.log("")
                 tee.log(f"======== CASE {case['id']} repeat={rep}/{args.repeat} ========")
                 try:
-                    rows.append(
-                        run_one(
-                            api=api,
-                            case=case,
-                            workflow=workflow,
-                            model=model,
-                            repeat_i=rep,
-                            repeat_n=args.repeat,
-                            category=category,
-                            subcategory=subcategory,
-                            workspace=workspace,
-                            tee=tee,
-                            poll_s=args.poll,
-                            max_s=args.max_s,
-                        )
+                    row = run_one(
+                        api=api,
+                        case=case,
+                        workflow=workflow,
+                        model=model,
+                        repeat_i=rep,
+                        repeat_n=args.repeat,
+                        category=category,
+                        subcategory=subcategory,
+                        workspace=workspace,
+                        tee=tee,
+                        poll_s=args.poll,
+                        max_s=args.max_s,
                     )
+                    rows.append(row)
+                    if row.get("rate_limit"):
+                        rate_streak += 1
+                        tee.log(f"RATE_LIMIT streak={rate_streak}")
+                    else:
+                        rate_streak = 0
                 except Exception as e:
                     tee.log(f"CASE_EXCEPTION {case['id']} repeat={rep}: {e}")
                     tee.log(traceback.format_exc())
@@ -585,10 +649,13 @@ def main(argv: list[str] | None = None) -> int:
                             "status": "script_error",
                             "claims": False,
                             "model_disconnect": False,
+                            "rate_limit": False,
                             "ops_ok": False,
                             "notes": f"exception:{e}",
                         }
                     )
+                    rate_streak = 0
+                started_any = True
 
         tee.log("")
         tee.log("======== SUMMARY ========")
@@ -606,6 +673,9 @@ def main(argv: list[str] | None = None) -> int:
             "workflow": workflow,
             "model": model,
             "repeat": args.repeat,
+            "pace_s": args.pace_s,
+            "backoff_base_s": args.backoff_base_s,
+            "backoff_max_s": args.backoff_max_s,
             "log": str(log_path.relative_to(REPO)),
             "rows": rows,
         }
