@@ -4,6 +4,7 @@
 // Shows one agent's exact round-1 system prompt / user message from /api/workflow/preview (read-only), scrolling inside.
 import { useEffect, useRef, useState } from "react";
 import { label } from "../../lib/labels";
+import { useLocale } from "../../lib/i18n/locale-context";
 
 export type PreviewAgent = { agent: string; system: string; user: string };
 export type PreviewData = {
@@ -12,12 +13,12 @@ export type PreviewData = {
   plan_source?: string;
 };
 
-const PARTS = [
-  { id: "system", label: "系统提示" },
-  { id: "user", label: "用户消息" },
-] as const;
-
 export function PromptModal({ node, agent, onClose }: { node: { id: string; title: string } | null; agent: PreviewAgent | null; onClose: () => void }) {
+  const { t } = useLocale();
+  const PARTS = [
+    { id: "system" as const, label: t("preview.system") },
+    { id: "user" as const, label: t("preview.user") },
+  ];
   const ref = useRef<HTMLDialogElement>(null);
   const [part, setPart] = useState<"system" | "user">("system");
   const open = Boolean(node && agent);
@@ -36,8 +37,8 @@ export function PromptModal({ node, agent, onClose }: { node: { id: string; titl
         if (r && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) onClose();
       }}>
       <div className="settings-frame">
-        <nav className="settings-nav" aria-label="组合注入">
-          <p id="prompt-modal-title" className="settings-nav-label">组合注入</p>
+        <nav className="settings-nav" aria-label={t("preview.combined")}>
+          <p id="prompt-modal-title" className="settings-nav-label">{t("preview.combined")}</p>
           {PARTS.map((p) => (
             <button key={p.id} type="button" aria-current={part === p.id ? "page" : undefined} onClick={() => setPart(p.id)}>
               {p.label}
@@ -47,11 +48,11 @@ export function PromptModal({ node, agent, onClose }: { node: { id: string; titl
         <div className="settings-main">
           <header className="settings-main-head">
             <div>
-              <p className="settings-crumb">组合注入 / {node?.title || node?.id} / {agent ? label(agent.agent) : ""}</p>
+              <p className="settings-crumb">{t("preview.combined")} / {node?.title || node?.id} / {agent ? label(agent.agent) : ""}</p>
               <h2>{PARTS.find((p) => p.id === part)?.label}</h2>
             </div>
             <button type="button" data-testid="prompt-modal-close" onClick={onClose}>
-              关闭
+              {t("common.close")}
             </button>
           </header>
           <div className="settings-body">

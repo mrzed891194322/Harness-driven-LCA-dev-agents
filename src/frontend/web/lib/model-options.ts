@@ -1,3 +1,5 @@
+import { translate } from "./i18n/messages";
+import { uiLang } from "./run-status";
 export type ModelRow = {
   id: string;
   label?: string;
@@ -20,6 +22,6 @@ export function modelChoices(models: ModelRow[], current: string): { choices: Mo
   if (current && !choices.some((c) => c.value === current)) {
     choices.unshift({ value: current, label: `${current}（当前）` });
   }
-  if (!current) choices.unshift({ value: "", label: "未选择模型" });
+  if (!current) choices.unshift({ value: "", label: translate(uiLang(), "models.noModelSelected") });
   return { choices, value: current };
 }

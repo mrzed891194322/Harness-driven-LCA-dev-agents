@@ -9,6 +9,7 @@ import { apiFetch } from "../../lib/api";
 import { fetchWorkflowList } from "../../lib/workflow-manifest";
 import { runStatusLabel, runStatusTone } from "../../lib/run-status";
 import { itemsToActivity, itemsToLog, lastNodeFromItems, nodeLabel, type RunItem } from "../../lib/run-items";
+import { useLocale } from "../../lib/i18n/locale-context";
 
 type Progress = {
   run_id?: string | null;
@@ -25,6 +26,7 @@ type Progress = {
 };
 
 export default function RunsPage() {
+  const { t } = useLocale();
   const router = useRouter();
   const [progress, setProgress] = useState<Progress>({ status: "idle" });
   const [runItems, setRunItems] = useState<RunItem[]>([]);
@@ -56,7 +58,7 @@ export default function RunsPage() {
         });
         const response = await apiFetch(`/api/workflow/progress?${query.toString()}`);
         const data = (await response.json()) as Progress & { detail?: string };
-        if (!response.ok) throw new Error(data.detail || `无法读取运行输出（HTTP ${response.status}）`);
+        if (!response.ok) throw new Error(data.detail || t("runs.readFailHttp", { status: response.status }));
         if (cancelled) return;
         const nextRun = String(data.run_id || "");
         const fresh = data.items || [];
@@ -68,7 +70,7 @@ export default function RunsPage() {
         setProgress(data);
         setError("");
       } catch (reason: unknown) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "无法读取运行输出");
+        if (!cancelled) setError(reason instanceof Error ? reason.message : t("runs.readFail"));
       } finally {
         busy = false;
       }
@@ -80,7 +82,7 @@ export default function RunsPage() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [t]);
 
   const status = progress.status || "idle";
   const label = runStatusLabel(status);
@@ -96,13 +98,13 @@ export default function RunsPage() {
   async function restartFromScratch() {
     const list = await fetchWorkflowList().catch(() => []);
     const mainWorkflow = list.find((item) => item.mode === "main") ?? list[0];
-    const mainTitle = mainWorkflow?.title ?? "当前";
+    const mainTitle = mainWorkflow?.title ?? t("runs.current");
     const taskId = mainWorkflow?.id ?? "";
     if (!taskId) {
-      setError("无法读取工作流任务 id");
+      setError(t("runs.noTaskId"));
       return;
     }
-    const ok = confirm(`确定要从头重跑吗？将按当前计划重新执行「${mainTitle}」工作流。`);
+    const ok = confirm(t("runs.confirmRestart", { title: mainTitle }));
     if (!ok) return;
     setRestarting(true);
     setError("");
@@ -112,7 +114,7 @@ export default function RunsPage() {
         fields?: Record<string, string>;
         detail?: string;
       };
-      if (!planResponse.ok) throw new Error(plan.detail || `无法读取计划（HTTP ${planResponse.status}）`);
+      if (!planResponse.ok) throw new Error(plan.detail || t("runs.planFailHttp", { status: planResponse.status }));
       const fields = plan.fields || {};
       const response = await apiFetch("/api/workflow/start", {
         method: "POST",
@@ -126,13 +128,13 @@ export default function RunsPage() {
         }),
       });
       const data = (await response.json()) as { detail?: string };
-      if (!response.ok) throw new Error(data.detail || `无法启动（HTTP ${response.status}）`);
+      if (!response.ok) throw new Error(data.detail || t("runs.startFailHttp", { status: response.status }));
       afterSeq.current = 0;
       runId.current = "";
       setRunItems([]);
       router.refresh();
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "无法从头重跑");
+      setError(reason instanceof Error ? reason.message : t("runs.restartFail"));
     } finally {
       setRestarting(false);
     }
@@ -148,10 +150,10 @@ export default function RunsPage() {
         body: JSON.stringify({ workflow: progress.workflow }),
       });
       const data = (await response.json()) as { detail?: string };
-      if (!response.ok) throw new Error(data.detail || `无法续跑（HTTP ${response.status}）`);
+      if (!response.ok) throw new Error(data.detail || t("runs.resumeFailHttp", { status: response.status }));
       setReasonOpen(false);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "无法续跑");
+      setError(reason instanceof Error ? reason.message : t("runs.resumeFail"));
     } finally {
       setResuming(false);
     }
@@ -163,10 +165,10 @@ export default function RunsPage() {
     try {
       const response = await apiFetch("/api/workflow/stop", { method: "POST" });
       const data = (await response.json()) as { detail?: string };
-      if (!response.ok) throw new Error(data.detail || `无法中止工作（HTTP ${response.status}）`);
+      if (!response.ok) throw new Error(data.detail || t("runs.stopFailHttp", { status: response.status }));
     } catch (reason: unknown) {
       setStopping(false);
-      setError(reason instanceof Error ? reason.message : "无法中止工作");
+      setError(reason instanceof Error ? reason.message : t("runs.stopFail"));
     }
   }
 
@@ -182,12 +184,12 @@ export default function RunsPage() {
 
   const nodeText = (() => {
     if (current) return currentLabel;
-    if (status === "completed") return reason ? `全部完成 · ${reason}` : "全部完成";
+    if (status === "completed") return reason ? t("runs.allDoneWith", { reason }) : t("runs.allDone");
     if (status === "failed" || status === "interrupted" || status === "aborted") {
-      return lastNode ? `${label} · 最后阶段 ${lastNode}` : label;
+      return lastNode ? t("runs.lastStage", { label, node: lastNode }) : label;
     }
-    if (status === "running") return "准备开始";
-    return progress.run_id ? label : "准备开始";
+    if (status === "running") return t("runs.ready");
+    return progress.run_id ? label : t("runs.ready");
   })();
 
   return (
@@ -197,7 +199,7 @@ export default function RunsPage() {
           <div className="plan-intro">
             <h2>
               <Terminal className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
-              实时终端
+              {t("runs.terminal")}
             </h2>
           </div>
         </div>
@@ -206,18 +208,18 @@ export default function RunsPage() {
           <div className="run-terminal">
             <AgentStream text={log} running={status === "running"} model={model} />
             {reasonOpen ? (
-              <div className="run-reason-panel" data-testid="run-reason-panel" role="dialog" aria-label={status === "interrupted" ? "中断原因" : "失败原因"}>
+              <div className="run-reason-panel" data-testid="run-reason-panel" role="dialog" aria-label={status === "interrupted" ? t("runs.interruptReason") : t("runs.failReason")}>
                 <div className="run-reason-head">
-                  <h3>{status === "interrupted" ? "中断原因" : "失败原因"}</h3>
+                  <h3>{status === "interrupted" ? t("runs.interruptReason") : t("runs.failReason")}</h3>
                   <button type="button" onClick={() => setReasonOpen(false)}>
-                    关闭
+                    {t("common.close")}
                   </button>
                 </div>
                 <div className="run-reason-body agent-prose">
                   {reason ? (
                     <AgentProse text={reason} />
                   ) : (
-                    <p>{status === "interrupted" ? "没有记录到这次中断的原因。" : "没有记录到这次失败的原因。"}</p>
+                    <p>{status === "interrupted" ? t("runs.noInterruptReason") : t("runs.noFailReason")}</p>
                   )}
                 </div>
                 <div className="run-reason-foot">
@@ -225,11 +227,11 @@ export default function RunsPage() {
                     type="button"
                     data-testid="run-resume"
                     disabled={resuming || !progress.workflow}
-                    title="从中断处续跑：已通过的阶段跳过，本阶段重跑"
+                    title={t("runs.resumeTitle")}
                     onClick={() => void resumeRun()}
                   >
                     <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
-                    重跑本轮
+                    {t("runs.rerunRound")}
                   </button>
                 </div>
               </div>
@@ -238,7 +240,7 @@ export default function RunsPage() {
           <aside className="run-side" data-testid="run-side">
             <div className={`run-node is-${tone}`}>
               <div className="run-node-head">
-                <span>当前阶段</span>
+<span>{t("runs.currentStage")}</span>
                 <span className={`badge badge-${tone}${status === "running" ? " is-live" : ""}`} data-testid="run-status" data-status={status}>
                   {status === "running" ? <span className="run-live-dot" aria-hidden="true" /> : null}
                   {label}
@@ -247,7 +249,7 @@ export default function RunsPage() {
               <strong data-testid="run-node-text">{nodeText}</strong>
               {attempt > 0 || status === "running" || status === "failed" || status === "interrupted" ? (
                 <div className="run-node-foot">
-                  {attempt > 0 ? <span className="run-node-attempt">第 {attempt} 次</span> : null}
+                  {attempt > 0 ? <span className="run-node-attempt">{t("runs.attempt", { n: attempt })}</span> : null}
                   {status === "running" ? (
                     <button
                       type="button"
@@ -257,7 +259,7 @@ export default function RunsPage() {
                       disabled={stopping}
                     >
                       <CircleStop size={12} strokeWidth={2} aria-hidden="true" />
-                      {stopping ? "正在中止…" : "中止工作"}
+                      {stopping ? t("runs.stopping") : t("runs.stop")}
                     </button>
                   ) : null}
                   {status === "failed" || status === "interrupted" ? (
@@ -269,7 +271,7 @@ export default function RunsPage() {
                       onClick={() => setReasonOpen(true)}
                     >
                       <AlertCircle size={12} strokeWidth={2} aria-hidden="true" />
-                      显示原因
+                      {t("runs.showReason")}
                     </button>
                   ) : null}
                   {status === "interrupted" ? (
@@ -281,7 +283,7 @@ export default function RunsPage() {
                       disabled={restarting}
                     >
                       <Play size={12} strokeWidth={2} aria-hidden="true" />
-                      {restarting ? "正在启动…" : "从头重跑"}
+                      {restarting ? t("runs.starting") : t("runs.restart")}
                     </button>
                   ) : null}
                 </div>

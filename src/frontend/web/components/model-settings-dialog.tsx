@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "../lib/i18n/locale-context";
 import { Copy, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
@@ -92,6 +93,7 @@ type LoginPrompt = {
 };
 
 export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
+  const { t } = useLocale();
   const [creds, setCreds] = useState<CredentialsPayload | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
@@ -118,7 +120,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     ]);
     const credPayload = (await credRes.json()) as CredentialsPayload;
     if (!credRes.ok || !Array.isArray(credPayload?.catalog)) {
-      throw new Error(`模型配置不可用（HTTP ${credRes.status}）。请确认后端已启动。`);
+      throw new Error(t("models.configUnavailable", { status: credRes.status }));
     }
     setCreds(credPayload);
     if (customRes.ok) {
@@ -135,7 +137,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
   useEffect(() => {
     refresh().catch((error: unknown) => {
       setStatusError(true);
-      setStatusMsg(error instanceof Error ? error.message : "加载模型配置失败");
+      setStatusMsg(error instanceof Error ? error.message : t("models.loadFail"));
     });
   }, [refresh]);
 
@@ -162,14 +164,14 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
           setLoginProvider(null);
           if (data.ok) {
             setStatusError(false);
-            setStatusMsg(`${data.provider} OAuth 登录成功`);
+            setStatusMsg(t("models.oauthOk", { provider: data.provider }));
             setAuthUrl(null);
             setPendingPrompt(null);
             await refresh();
             onChanged?.();
           } else {
             setStatusError(true);
-            setStatusMsg(`OAuth 失败：${data.error || "未知错误"}`);
+            setStatusMsg(t("models.oauthFailDetail", { error: data.error || t("common.unknownError") }));
           }
         }
       } catch {
@@ -192,7 +194,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
       .map((id) => ({
         id,
         name: id,
-        hint: "已配置的自定义 Provider",
+        hint: t("models.customProviders"),
         placeholder: "API key",
         supports_base_url: true,
       }));
@@ -201,15 +203,15 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
       if (item.id === "anthropic") {
         return {
           ...item,
-          base_url_hint: "写到主机即可。Pi 会在这段地址后面接 /v1/messages。例如 https://host。",
+          base_url_hint: t("models.hostHint"),
         };
       }
       if (item.id === "openai") {
         return {
           ...item,
           name: "OpenAI",
-          hint: "API key 或 OAuth",
-          base_url_hint: "要带 /v1。Pi 原样使用这段地址，路径接在后面。例如 https://host/v1。",
+          hint: t("models.authKeyOrOauth"),
+          base_url_hint: t("models.v1Hint"),
         };
       }
       return item;
@@ -225,7 +227,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     const apiKey = (draftKeys[providerId] || "").trim();
     if (!apiKey) {
       setStatusError(true);
-      setStatusMsg("请填写 API Key");
+      setStatusMsg(t("models.needApiKey"));
       return;
     }
     setBusy(true);
@@ -238,7 +240,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         body: JSON.stringify({ provider: providerId, api_key: apiKey }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || "凭证保存失败");
+      if (!r.ok) throw new Error(data.detail || t("models.credSaveFail"));
       if (data.providers) {
         setCreds((prev) => ({
           catalog: prev?.catalog ?? [],
@@ -250,21 +252,21 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
       const replacedOAuth = creds?.providers?.[providerId]?.type === "oauth";
       setStatusMsg(
         replacedOAuth && providerId === "openai"
-          ? "OpenAI API Key 已保存，并替换了原先的 ChatGPT 登录。"
-          : `${providerId} 已保存。新运行立即使用，无需重启。`,
+          ? t("models.openaiSaved")
+          : t("models.savedRestart", { id: providerId }),
       );
       await refresh();
       onChanged?.();
     } catch (e) {
       setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "凭证保存失败");
+      setStatusMsg(e instanceof Error ? e.message : t("models.credSaveFail"));
     } finally {
       setBusy(false);
     }
   }
 
   async function clearCredential(providerId: string) {
-    if (!window.confirm(`移除 ${providerId} 的凭证？`)) return;
+    if (!window.confirm(t("models.confirmClearCred", { id: providerId }))) return;
     setBusy(true);
     setStatusMsg("");
     setStatusError(false);
@@ -277,20 +279,20 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
           body: JSON.stringify({ provider: providerId }),
         });
         const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.detail || "退出登录失败");
+        if (!r.ok) throw new Error(data.detail || t("models.logoutFail"));
       } else {
         const r = await apiFetch(`/api/credentials/${encodeURIComponent(providerId)}`, {
           method: "DELETE",
         });
         const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.detail || "清除失败");
+        if (!r.ok) throw new Error(data.detail || t("models.clearFail"));
       }
-      setStatusMsg(`已清除 ${providerId}`);
+      setStatusMsg(t("models.cleared", { id: providerId }));
       await refresh();
       onChanged?.();
     } catch (e) {
       setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "清除失败");
+      setStatusMsg(e instanceof Error ? e.message : t("models.clearFail"));
     } finally {
       setBusy(false);
     }
@@ -310,13 +312,13 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         body: JSON.stringify({ provider: providerId, auth_type: "oauth" }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || "无法启动 OAuth");
+      if (!r.ok) throw new Error(data.detail || t("models.oauthStartFail"));
       setLoginId(String(data.login_id));
       setLoginProvider(providerId);
-      setStatusMsg(`正在登录 ${providerId}（Pi ModelRuntime.login）…`);
+      setStatusMsg(t("models.loggingIn", { id: providerId }));
     } catch (e) {
       setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "OAuth 启动失败");
+      setStatusMsg(e instanceof Error ? e.message : t("models.oauthFail"));
     } finally {
       setBusy(false);
     }
@@ -336,12 +338,12 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || "提交失败");
+      if (!r.ok) throw new Error(data.detail || t("models.submitFail"));
       setPromptValue("");
       setPendingPrompt(null);
     } catch (e) {
       setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "提交失败");
+      setStatusMsg(e instanceof Error ? e.message : t("models.submitFail"));
     } finally {
       setBusy(false);
     }
@@ -361,17 +363,17 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || "保存失败");
+      if (!r.ok) throw new Error(data.detail || t("models.saveFail"));
       setStatusMsg(
         data.base_url
-          ? `${providerId} baseUrl 已保存（Pi models.json）`
-          : `${providerId} 已清除自定义 URL，将使用 Pi 默认 baseUrl`,
+          ? t("models.baseUrlSaved", { id: providerId })
+          : t("models.baseUrlCleared", { id: providerId }),
       );
       await refresh();
       onChanged?.();
     } catch (e) {
       setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "保存失败");
+      setStatusMsg(e instanceof Error ? e.message : t("models.saveFail"));
     } finally {
       setBusy(false);
     }
@@ -399,18 +401,18 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || "删除失败");
+      if (!r.ok) throw new Error(data.detail || t("models.deleteFail"));
       if (Array.isArray(data.endpoints)) setCustomEndpoints(data.endpoints);
       if (editingKey === endpointKey(item)) {
         setEditingKey(null);
         setCustomForm(EMPTY_CUSTOM_FORM);
       }
-      setStatusMsg(`已删除 ${label}`);
+      setStatusMsg(t("models.deleted", { label }));
       await refresh();
       onChanged?.();
     } catch (e) {
       setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "删除失败");
+      setStatusMsg(e instanceof Error ? e.message : t("models.deleteFail"));
     } finally {
       setBusy(false);
     }
@@ -423,7 +425,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     const modelId = customForm.model_id.trim();
     if (!provider || !baseUrl || !modelId) {
       setStatusError(true);
-      setStatusMsg("请填写 Provider id、Base URL 和 Model id");
+      setStatusMsg(t("models.needProviderFields"));
       return;
     }
     setBusy(true);
@@ -436,9 +438,9 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         body: JSON.stringify({ ...customForm, profile_id: profileId, provider, base_url: baseUrl, model_id: modelId }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || "保存失败");
+      if (!r.ok) throw new Error(data.detail || t("models.saveFail"));
       if (Array.isArray(data.endpoints)) setCustomEndpoints(data.endpoints);
-      setStatusMsg(`已保存自定义端点 ${data.profile_id || profileId || modelId}`);
+      setStatusMsg(t("models.customSaved", { id: data.profile_id || profileId || modelId }));
       setCustomForm(EMPTY_CUSTOM_FORM);
       setAddingCustom(false);
       setEditingKey(null);
@@ -446,7 +448,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
       onChanged?.();
     } catch (e) {
       setStatusError(true);
-      setStatusMsg(e instanceof Error ? e.message : "保存失败");
+      setStatusMsg(e instanceof Error ? e.message : t("models.saveFail"));
     } finally {
       setBusy(false);
     }
@@ -464,7 +466,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
     setAddingCustom(true);
     setStatusError(false);
     setStatusMsg(
-      `已复制 ${item.provider} 的配置。请填写新的 Model id；端点 id 会自动生成，密钥留空则沿用已保存的密钥。`,
+      t("models.copied", { provider: item.provider }),
     );
   }
 
@@ -490,7 +492,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
             />
           </label>
           <label>
-            API 类型
+            {t("models.apiType")}
             <select
               value={customForm.api_type}
               onChange={(e) => setCustomForm((p) => ({ ...p, api_type: e.target.value }))}
@@ -510,28 +512,28 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
             />
           </label>
           <label>
-            显示名
+            {t("models.displayName")}
             <input
               value={customForm.display_name}
-              placeholder="本地 Ollama"
+              placeholder={t("models.localOllama")}
               onChange={(e) => setCustomForm((p) => ({ ...p, display_name: e.target.value }))}
             />
           </label>
           <label>
-            apiKey（本地可填占位）
+            {t("models.apiKeyLocal")}
             <input
               value={customForm.api_key}
-              placeholder={editing ? "留空则保留已有密钥" : "留空则写入 local"}
+              placeholder={editing ? t("models.keepKey") : t("models.writeLocal")}
               onChange={(e) => setCustomForm((p) => ({ ...p, api_key: e.target.value }))}
             />
           </label>
         </div>
         <div className="row">
           <button type="button" className="primary" disabled={busy} onClick={() => void saveCustomEndpoint()}>
-            保存端点
+            {t("models.saveEndpoint")}
           </button>
           <button type="button" disabled={busy} onClick={onCancel}>
-            取消
+            {t("models.cancel")}
           </button>
         </div>
       </>
@@ -541,8 +543,8 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
   return (
     <div className="settings-section">
       <p className="settings-help">
-        配置 Provider 密钥与自定义端点。已配置的供应商会出现在状态页的模型可用性中。凭证写入{" "}
-        <span className="mono">.local/credentials/pi-auth.json</span>，不进 Git。
+        {t("models.sectionHelp")}{" "}
+        <span className="mono">.local/credentials/pi-auth.json</span>{t("models.notInGit")}
       </p>
 
         <section className="settings-card">
@@ -550,11 +552,11 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
           {(loginId || authUrl || pendingPrompt) && (
             <div className="oauth-panel">
               <p className="settings-meta">
-                Pi OAuth 进行中{loginProvider ? `：${loginProvider}` : ""}
+                {t("models.oauthInProgress", { suffix: loginProvider ? t("models.colonProvider", { id: loginProvider }) : "" })}
               </p>
               {authUrl ? (
                 <p className="settings-help">
-                  打开授权页：{" "}
+                  {t("models.openAuth")}{" "}
                   <a href={authUrl} target="_blank" rel="noreferrer">
                     {authUrl}
                   </a>
@@ -586,7 +588,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                           pendingPrompt.prompt.placeholder ||
                           (pendingPrompt.prompt.type === "manual_code"
                             ? "http://127.0.0.1:1455/auth/callback?code=…&state=…"
-                            : "按提示输入")
+                            : t("models.followPrompt"))
                         }
                         style={{ flex: "1 1 240px" }}
                       />
@@ -596,7 +598,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                         disabled={busy}
                         onClick={() => void submitPromptReply()}
                       >
-                        提交
+                        {t("models.submit")}
                       </button>
                     </div>
                   )}
@@ -622,7 +624,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                       <span>{item.hint}</span>
                     </div>
                     <span className={`badge ${info?.set ? "badge-ok" : "badge-off"}`}>
-                      {info?.set ? (info.type === "oauth" ? "OAuth" : "已连接") : "未配置"}
+                      {info?.set ? (info.type === "oauth" ? "OAuth" : t("common.connected")) : t("models.notConfigured")}
                     </span>
                   </button>
                   {rowOpen ? (
@@ -639,7 +641,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                             disabled={busy}
                             onClick={() => clearCredential(item.id)}
                           >
-                            清除
+                            {t("models.clear")}
                           </button>
                         </div>
                       ) : null}
@@ -663,7 +665,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                           disabled={busy}
                           onClick={() => saveCredential(item.id)}
                         >
-                          保存密钥
+                          {t("models.saveKey")}
                         </button>
                         {item.supports_oauth ? (
                           <button
@@ -671,12 +673,12 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                             disabled={busy || Boolean(loginId)}
                             onClick={() => startOAuth(item.id)}
                           >
-                            {item.oauth_label || "Auth 登录"}
+                            {item.oauth_label || t("models.authLogin")}
                           </button>
                         ) : null}
                         {item.keys_url ? (
                           <a href={item.keys_url} target="_blank" rel="noreferrer">
-                            获取密钥
+                            {t("models.getKey")}
                           </a>
                         ) : null}
                       </div>
@@ -694,8 +696,8 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                               }
                               placeholder={
                                 item.default_base_url
-                                  ? `留空 = ${item.default_base_url}`
-                                  : "留空 = Pi 默认 baseUrl"
+                                  ? t("models.emptyDefaultUrl", { url: item.default_base_url })
+                                  : t("models.emptyPiDefault")
                               }
                               style={{ flex: "1 1 260px" }}
                             />
@@ -704,20 +706,20 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                               disabled={busy}
                               onClick={() => saveBaseUrl(item.id)}
                             >
-                              保存 URL
+                              {t("models.saveUrl")}
                             </button>
                           </div>
                           <p className="settings-meta" style={{ marginTop: 6 }}>
                             {override?.base_url
-                              ? `当前覆盖：${override.base_url}`
-                              : `当前：Pi 默认${item.default_base_url ? `（${item.default_base_url}）` : ""}`}
+                              ? t("models.currentOverride", { url: override.base_url })
+                              : t("models.currentPiDefault", { suffix: item.default_base_url ? t("models.parenUrl", { url: item.default_base_url }) : "" })}
                             {item.base_url_hint ? ` · ${item.base_url_hint}` : ""}
                           </p>
                         </div>
                       ) : null}
                       {item.id === "openai" ? (
                         <p className="settings-meta" style={{ marginTop: 10 }}>
-                          OAuth 和 API Key 会相互覆盖。保存其中一种会替换另一种。
+                          {t("models.oauthKeyOverride")}
                         </p>
                       ) : null}
                     </div>
@@ -729,9 +731,9 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
         </section>
 
         <section className="settings-card">
-          <h3>自定义 API / 本地模型</h3>
+          <h3>{t("models.customTitle")}</h3>
           <p className="settings-help">
-            同一个 Provider id 可以保存多个模型，它们共用 Base URL、API 类型和密钥。每个模型使用自己的 Model id，端点 id 会按这两项自动生成。
+            {t("models.customHelp")}
           </p>
           {customEndpoints.length ? (
             <ul className="custom-saved">
@@ -745,7 +747,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                       <div className="custom-saved-copy">
                         <div className="custom-saved-title">
                           <strong>{item.display_name || item.model_id}</strong>
-                          <span className="badge badge-ok">已保存</span>
+                          <span className="badge badge-ok">{t("models.savedBadge")}</span>
                         </div>
                         {editing ? null : (
                           <>
@@ -755,7 +757,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                               {item.api_type ? ` · ${item.api_type}` : ""}
                             </p>
                             {item.base_url ? <p className="settings-meta">{item.base_url}</p> : null}
-                            <p className="settings-meta">{item.has_api_key ? "密钥已保存" : "未保存密钥"}</p>
+                            <p className="settings-meta">{item.has_api_key ? t("models.keySaved") : t("models.keyNotSaved")}</p>
                           </>
                         )}
                       </div>
@@ -764,11 +766,11 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                           type="button"
                           className="danger"
                           disabled={busy}
-                          aria-label={pendingDelete === key ? `确认删除${label}` : `删除${label}`}
+                          aria-label={pendingDelete === key ? t("models.confirmDeleteLabel", { label }) : t("models.deleteLabel", { label })}
                           onClick={() => void deleteCustomEndpoint(item)}
                         >
                           <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
-                          {pendingDelete === key ? "确认删除" : "删除"}
+                          {pendingDelete === key ? t("common.confirmDelete") : t("common.delete")}
                         </button>
                         <button
                           type="button"
@@ -776,7 +778,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                           onClick={() => copyCustomEndpoint(item)}
                         >
                           <Copy size={14} strokeWidth={1.75} aria-hidden="true" />
-                          复制
+                          {t("models.copy")}
                         </button>
                         <button
                           type="button"
@@ -800,7 +802,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                           }}
                         >
                           <Pencil size={14} strokeWidth={1.75} aria-hidden="true" />
-                          编辑
+                          {t("models.edit")}
                         </button>
                       </span>
                     </div>
@@ -815,7 +817,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
               })}
             </ul>
           ) : (
-            <p className="settings-help">还没有自定义模型。</p>
+            <p className="settings-help">{t("models.noCustom")}</p>
           )}
           <div className="row">
             <button
@@ -827,7 +829,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
               }}
               disabled={addingCustom}
             >
-              添加新自定义模型
+              {t("models.addCustom")}
             </button>
           </div>
           {addingCustom ? (

@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale } from "../../lib/i18n/locale-context";
+import { translate } from "../../lib/i18n/messages";
+import { uiLang } from "../../lib/run-status";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
@@ -133,6 +136,7 @@ export function AgentStream({
   running: boolean;
   model?: string;
 }) {
+  const { t } = useLocale();
   const items = parseAgentLog(text);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -159,7 +163,7 @@ export function AgentStream({
     >
       {items.length === 0 ? (
         <p className="settings-help">
-          {running ? "正在等待 agent 输出…" : "还没有运行记录。工作流开始后，这里会按 agent 的输出逐段出现。"}
+          {running ? t("stream.waiting") : t("stream.empty")}
         </p>
       ) : (
         items.map((item, index) => (
@@ -169,7 +173,7 @@ export function AgentStream({
       {running ? (
         <p className="agent-live">
           <span className="agent-caret" aria-hidden="true" />
-          正在输出
+          {t("stream.outputting")}
         </p>
       ) : null}
     </div>
@@ -180,7 +184,7 @@ function AgentRow({ item, model }: { item: AgentItem; model: string }) {
   if (item.type === "system") return <SystemRow item={item} />;
   if (item.type === "turn") {
     const agentKey = item.agent;
-    const attempt = item.attempt ? `第 ${item.attempt} 次` : "";
+    const attempt = item.attempt ? translate(uiLang(), "stream.attempt", { n: item.attempt }) : "";
     return (
       <h3 className="agent-turn" data-agent={item.agent}>
         <span className="agent-turn-mark" aria-hidden="true">
@@ -224,17 +228,18 @@ function ToolRow({ item }: { item: Extract<AgentItem, { type: "tool" }> }) {
   const handoff = /(^|__|\.)submit$/.test(item.name);
   const Icon = handoff ? Send : TOOL_ICON[item.name as keyof typeof TOOL_ICON] ?? Wrench;
   const preview = item.detail.split("\n")[0] || item.message;
+  const { t } = useLocale();
   const stateLabel = handoff
     ? item.state === "ok"
-      ? "已交卷"
+      ? t("activity.submitted")
       : item.state === "err"
-        ? "交卷失败"
-        : "交卷中"
+        ? t("activity.submitFail")
+        : t("activity.submitting")
     : item.state === "ok"
-      ? "完成"
+      ? t("stream.done")
       : item.state === "err"
-        ? "失败"
-        : "进行中";
+        ? t("stream.fail")
+        : t("stream.inProgress");
   const [open, setOpen] = useState(item.detail.length > 0 && item.detail.length < 160);
   return (
     <details
@@ -271,7 +276,9 @@ function systemLines(text: string): string[] {
     .filter(Boolean);
 }
 
-function SystemRow({ item }: { item: Extract<AgentItem, { type: "system" }> }) {
+function SystemRow({
+  item }: { item: Extract<AgentItem, { type: "system" }> }) {
+  const { t } = useLocale();
   const lines = systemLines(item.text);
   const long = lines.length > 2 || item.text.length > 240;
   const [open, setOpen] = useState(false);
@@ -289,7 +296,7 @@ function SystemRow({ item }: { item: Extract<AgentItem, { type: "system" }> }) {
         </span>
         {long ? (
           <button type="button" className="agent-system-more" onClick={() => setOpen((value) => !value)}>
-            {open ? "收起" : hidden > 0 ? `还有 ${hidden} 行` : "展开"}
+            {open ? t("common.collapse") : hidden > 0 ? t("stream.moreLines", { n: hidden }) : t("common.expand")}
           </button>
         ) : null}
       </span>

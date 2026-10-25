@@ -12,6 +12,7 @@ import {
 } from "../../components/results/artifacts-browser";
 import { apiFetch } from "../../lib/api";
 import { reviseWorkLocked } from "../../lib/revise-lock";
+import { useLocale } from "../../lib/i18n/locale-context";
 import type { ResultFile } from "./load-files";
 
 type Manifest = {
@@ -50,6 +51,7 @@ function knownPaths(data: Results): Set<string> {
 }
 
 export default function ResultsPage() {
+  const { t } = useLocale();
   const router = useRouter();
   const [data, setData] = useState<Results | null>(null);
   const [error, setError] = useState("");
@@ -92,16 +94,16 @@ export default function ResultsPage() {
         });
         const body = (await response.json()) as ResultFile & { detail?: string };
         if (signal?.aborted || request !== requestRef.current) return;
-        if (!response.ok) throw new Error(body.detail || `无法读取文件（HTTP ${response.status}）`);
+        if (!response.ok) throw new Error(body.detail || t("results.readFileFailHttp", { status: response.status }));
         previewCacheRef.current.set(filePath, body);
         setPreview(body);
       } catch (reason: unknown) {
         if (signal?.aborted || request !== requestRef.current) return;
         setPreview(null);
-        setFileError(reason instanceof Error ? reason.message : "无法读取文件");
+        setFileError(reason instanceof Error ? reason.message : t("results.readFileFail"));
       }
     },
-    [],
+    [t],
   );
 
   const refresh = useCallback(async (silent = false) => {
@@ -109,7 +111,7 @@ export default function ResultsPage() {
     try {
       const response = await apiFetch("/api/results");
       const body = (await response.json()) as Results & { detail?: string };
-      if (!response.ok) throw new Error(body.detail || `无法读取结果（HTTP ${response.status}）`);
+      if (!response.ok) throw new Error(body.detail || t("results.readFailHttp", { status: response.status }));
       const next: Results = body;
       setData(next);
       setError("");
@@ -122,11 +124,11 @@ export default function ResultsPage() {
         void openPath(target, next.artifacts);
       }
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "无法读取结果");
+      setError(reason instanceof Error ? reason.message : t("results.readFail"));
     } finally {
       if (!silent) setBusy(false);
     }
-  }, [openPath]);
+  }, [openPath, t]);
 
   useEffect(() => {
     document.documentElement.classList.add("status-fit");
@@ -149,12 +151,12 @@ export default function ResultsPage() {
       let response = await apiFetch("/api/results/archive");
       if (response.status === 404) {
         const missing = (await response.json().catch(() => ({}))) as { detail?: string };
-        if (missing.detail !== "Not Found") throw new Error(missing.detail || "还没有产出");
+        if (missing.detail !== "Not Found") throw new Error(missing.detail || t("results.noOutput"));
         response = await fetch("/results/archive");
       }
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { detail?: string };
-        throw new Error(body.detail || "无法下载产出");
+        throw new Error(body.detail || t("results.downloadFail"));
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -164,7 +166,7 @@ export default function ResultsPage() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "无法下载产出");
+      setError(reason instanceof Error ? reason.message : t("results.downloadFail"));
     } finally {
       setPacking(false);
     }
@@ -177,26 +179,26 @@ export default function ResultsPage() {
           <div className="plan-intro">
             <h2>
               <FolderOpen className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
-              运行结果
+              {t("results.title")}
             </h2>
           </div>
           <div className="run-meta">
             <button type="button" onClick={() => void refresh()} disabled={busy}>
               <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-              {busy ? "刷新中…" : "刷新"}
+              {busy ? t("common.refreshing") : t("common.refresh")}
             </button>
             <button type="button" onClick={() => void downloadOutputs()} disabled={packing}>
               <Download size={16} strokeWidth={1.75} aria-hidden="true" />
-              {packing ? "打包中…" : "下载产出"}
+              {packing ? t("results.packing") : t("results.download")}
             </button>
             <button
               type="button"
               disabled={reviseWorkLocked}
-              title={reviseWorkLocked ? "暂时锁定" : undefined}
+              title={reviseWorkLocked ? t("common.locked") : undefined}
               onClick={() => router.push("/plan?mode=revise")}
             >
               <PenLine size={16} strokeWidth={1.75} aria-hidden="true" />
-              修改计划
+              {t("results.revisePlan")}
             </button>
           </div>
         </div>

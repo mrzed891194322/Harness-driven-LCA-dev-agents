@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale } from "../../lib/i18n/locale-context";
+import { translate } from "../../lib/i18n/messages";
+import { uiLang } from "../../lib/run-status";
 import { useEffect, useRef, useState } from "react";
 import {
   Eraser,
@@ -52,23 +55,23 @@ const LCIA_METHODS = [
   "TRACI 2.1",
 ];
 
-const STAGES: { id: StageId; label: string; icon: LucideIcon }[] = [
-  { id: "raw", label: "原材料获取", icon: Leaf },
-  { id: "make", label: "制造", icon: Factory },
-  { id: "ship", label: "配送", icon: Truck },
-  { id: "use", label: "使用", icon: UserRound },
-  { id: "end", label: "最终处置", icon: Recycle },
+const STAGES: { id: StageId; label: string; labelKey: string; icon: LucideIcon }[] = [
+  { id: "raw", label: "原材料获取", labelKey: "study.stageRaw", icon: Leaf },
+  { id: "make", label: "制造", labelKey: "study.stageMake", icon: Factory },
+  { id: "ship", label: "配送", labelKey: "study.stageDeliver", icon: Truck },
+  { id: "use", label: "使用", labelKey: "study.stageUse", icon: UserRound },
+  { id: "end", label: "最终处置", labelKey: "study.stageDispose", icon: Recycle },
 ];
 
 const STUDY_SECTIONS = [
-  { id: "study-sec-subject", num: "1", title: "研究对象" },
-  { id: "study-sec-basis", num: "2", title: "计算基准（功能单位）" },
-  { id: "study-sec-life", num: "3", title: "生命周期范围" },
-  { id: "study-sec-place", num: "4", title: "地域与时间" },
-  { id: "study-sec-database", num: "5", title: "LCA 数据库" },
-  { id: "study-sec-lcia", num: "6", title: "环境影响评价方法（LCIA）" },
-  { id: "study-sec-impact", num: "7", title: "关注的环境影响" },
-  { id: "study-sec-special", num: "8", title: "特殊要求" },
+  { id: "study-sec-subject", num: "1", titleKey: "study.subject" },
+  { id: "study-sec-basis", num: "2", titleKey: "study.fu" },
+  { id: "study-sec-life", num: "3", titleKey: "study.scope" },
+  { id: "study-sec-place", num: "4", titleKey: "study.geoTime" },
+  { id: "study-sec-database", num: "5", titleKey: "study.db" },
+  { id: "study-sec-lcia", num: "6", titleKey: "study.lcia" },
+  { id: "study-sec-impact", num: "7", titleKey: "study.impacts" },
+  { id: "study-sec-special", num: "8", titleKey: "study.special" },
 ] as const;
 
 function emptyStages(): Record<StageId, boolean> {
@@ -126,9 +129,9 @@ function hydrate(fields: PlanFields): StudyDraft {
     }
     const match = LABEL.exec(line);
     const key = match?.[1].trim();
-    if (match && key === "数量" && !draft.quantity) draft.quantity = match[2].trim();
-    else if (match && key === "单位" && !draft.unit) draft.unit = match[2].trim();
-    else if (match && key === "附加说明") {
+    if (match && key === translate(uiLang(), "study.qty") && !draft.quantity) draft.quantity = match[2].trim();
+    else if (match && key === translate(uiLang(), "study.unit") && !draft.unit) draft.unit = match[2].trim();
+    else if (match && key === translate(uiLang(), "study.extra")) {
       fuNote = true;
       if (match[2].trim()) fuNotes.push(match[2].trim());
     } else {
@@ -148,10 +151,10 @@ function hydrate(fields: PlanFields): StudyDraft {
     }
     const match = LABEL.exec(line);
     const key = match?.[1].trim();
-    if (!stagesFound && match && (key === "阶段" || key === "生命周期阶段") && stageIdsFrom(match[2]).length) {
+    if (!stagesFound && match && (key === translate(uiLang(), "study.stage") || key === translate(uiLang(), "study.stages")) && stageIdsFrom(match[2]).length) {
       for (const id of stageIdsFrom(match[2])) draft.stages[id] = true;
       stagesFound = true;
-    } else if (match && key === "附加说明") {
+    } else if (match && key === translate(uiLang(), "study.extra")) {
       scopeNote = true;
       if (match[2].trim()) scopeNotes.push(match[2].trim());
     } else {
@@ -171,10 +174,10 @@ function hydrate(fields: PlanFields): StudyDraft {
     }
     const match = text.includes("\n") ? null : LABEL.exec(text);
     const key = match?.[1].trim();
-    if (match && key === "LCA 数据库") continue;
-    else if (match && key === "环境影响评价方法" && !draft.lcia) draft.lcia = match[2].trim();
-    else if (text === "所选方法的全部指标") draft.impactScope = "all";
-    else if (text.startsWith("仅指定指标")) {
+    if (match && key === translate(uiLang(), "study.db")) continue;
+    else if (match && key === translate(uiLang(), "study.method") && !draft.lcia) draft.lcia = match[2].trim();
+    else if (text === translate(uiLang(), "study.allIndicators")) draft.impactScope = "all";
+    else if (text.startsWith(translate(uiLang(), "study.onlyIndicators"))) {
       draft.impactScope = "selected";
       draft.impactNote = text.replace(/^仅指定指标[：:]?\s*/, "").trim();
     } else special.push(text);
@@ -206,8 +209,8 @@ function sectionSummaries(draft: StudyDraft, database: string) {
     "study-sec-lcia": draft.lcia.trim(),
     "study-sec-impact":
       draft.impactScope === "selected"
-        ? filledLines(["仅指定指标", draft.impactNote.trim() && draft.impactNote.trim()])
-        : "所选方法的全部指标",
+        ? filledLines([translate(uiLang(), "study.onlyIndicators"), draft.impactNote.trim() && draft.impactNote.trim()])
+        : translate(uiLang(), "study.allIndicators"),
     "study-sec-special": draft.special.trim(),
   };
 }
@@ -229,13 +232,13 @@ function gapList(draft: StudyDraft, databaseName: string): Record<(typeof STUDY_
   const stagePicked = STAGES.some((stage) => draft.stages[stage.id]);
   const objects = draft.objects.map((item) => item.name.trim());
   return {
-    "study-sec-subject": objects.length > 0 && objects.every(Boolean) ? [] : ["研究对象"],
-    "study-sec-basis": [draft.quantity.trim() ? "" : "数量", draft.unit.trim() ? "" : "单位"].filter(Boolean),
-    "study-sec-life": stagePicked ? [] : ["生命周期阶段"],
-    "study-sec-place": draft.place.trim() ? [] : ["地域与时间"],
-    "study-sec-database": databaseName.trim() ? [] : ["LCA 数据库"],
-    "study-sec-lcia": draft.lcia.trim() ? [] : ["环境影响评价方法"],
-    "study-sec-impact": draft.impactScope === "selected" && !draft.impactNote.trim() ? ["指定指标"] : [],
+    "study-sec-subject": objects.length > 0 && objects.every(Boolean) ? [] : [translate(uiLang(), "study.subject")],
+    "study-sec-basis": [draft.quantity.trim() ? "" : translate(uiLang(), "study.qty"), draft.unit.trim() ? "" : translate(uiLang(), "study.unit")].filter(Boolean),
+    "study-sec-life": stagePicked ? [] : [translate(uiLang(), "study.stages")],
+    "study-sec-place": draft.place.trim() ? [] : [translate(uiLang(), "study.geoTime")],
+    "study-sec-database": databaseName.trim() ? [] : [translate(uiLang(), "study.db")],
+    "study-sec-lcia": draft.lcia.trim() ? [] : [translate(uiLang(), "study.method")],
+    "study-sec-impact": draft.impactScope === "selected" && !draft.impactNote.trim() ? [translate(uiLang(), "study.specifyIndicators")] : [],
     "study-sec-special": [],
   };
 }
@@ -246,12 +249,12 @@ export function studyWork(draft: StudyDraft, databaseLabel: string, databaseName
   const stages = STAGES.filter((stage) => draft.stages[stage.id]).map((stage) => stage.label);
   const impact =
     draft.impactScope === "selected"
-      ? ["仅指定指标", draft.impactNote.trim()].filter(Boolean).join("：")
-      : "所选方法的全部指标";
+      ? [translate(uiLang(), "study.onlyIndicators"), draft.impactNote.trim()].filter(Boolean).join("：")
+      : translate(uiLang(), "study.allIndicators");
   return {
     rows: STUDY_SECTIONS.map((section) => ({
       id: section.id,
-      label: `${section.num} ${section.title}`,
+      label: `${section.num} ${translate(uiLang(), section.titleKey)}`,
       value: summaries[section.id],
       required: section.id !== "study-sec-special",
       gaps: gaps[section.id],
@@ -309,6 +312,7 @@ export function StudyForm({
   sourceKey: number;
   onWork?: (work: StudyWork) => void;
 }) {
+  const { t } = useLocale();
   const sourceRef = useRef(source);
   sourceRef.current = source;
   const mainRef = useRef<HTMLDivElement>(null);
@@ -388,7 +392,7 @@ export function StudyForm({
     scroller.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
   }
 
-  const databaseLabel = databaseName || (openlcaOk ? "已连接，未能读取数据库名称" : openlcaOk === false ? "未连接" : "正在读取…");
+  const databaseLabel = databaseName || (openlcaOk ? t("study.dbConnectedNoName") : openlcaOk === false ? t("study.disconnected") : t("study.reading"));
   const summaries = sectionSummaries(draft, databaseLabel);
 
   useEffect(() => {
@@ -402,7 +406,7 @@ export function StudyForm({
           <div className="study-block-head">
             <h3>
               <span className="study-num">1</span>
-              研究对象
+              {t("study.subject")}
             </h3>
             <button
               type="button"
@@ -410,10 +414,10 @@ export function StudyForm({
               onClick={() => patch({ objects: [...draft.objects, { id: nextObjectId(), name: "" }] })}
             >
               <Plus size={14} aria-hidden="true" />
-              添加对象
+              {t("study.addObject")}
             </button>
           </div>
-          <p>填写要评估的对象。有多个对象时，点击添加对象。</p>
+          <p>{t("study.subjectHelp")}</p>
           <ul className="study-objects">
             {draft.objects.map((object, index) => (
               <li key={object.id}>
@@ -422,8 +426,8 @@ export function StudyForm({
                   className="study-area"
                   rows={3}
                   value={object.name}
-                  placeholder={index === 0 ? "例如：1 L PET 瓶装静水（PET 瓶、HDPE 瓶盖、PP 标签）" : "例如：另一种原料、产地或工艺"}
-                  aria-label={`研究对象 ${index + 1}`}
+                  placeholder={index === 0 ? t("study.phSubject") : t("study.phAlt")}
+                  aria-label={t("study.subjectN", { n: index + 1 })}
                   onChange={(event) =>
                     patch({
                       objects: draft.objects.map((item) =>
@@ -435,7 +439,7 @@ export function StudyForm({
                 {draft.objects.length > 1 ? (
                   <button
                     type="button"
-                    aria-label={`移除研究对象 ${index + 1}`}
+                    aria-label={t("study.removeSubjectN", { n: index + 1 })}
                     onClick={() => patch({ objects: draft.objects.filter((item) => item.id !== object.id) })}
                   >
                     <Trash2 size={15} aria-hidden="true" />
@@ -449,15 +453,15 @@ export function StudyForm({
         <section className="study-block" id="study-sec-basis">
           <h3>
             <span className="study-num">2</span>
-            计算基准（功能单位）
+            {t("study.fu")}
           </h3>
-          <p>按多少产品或服务计算？必要时请说明功能或性能条件。</p>
+          <p>{t("study.fuHelp")}</p>
           <div className="study-fu">
-            <label className="study-fu-qty" htmlFor="study-quantity">数量</label>
-            <label className="study-fu-unit" htmlFor="study-unit">单位</label>
+            <label className="study-fu-qty" htmlFor="study-quantity">{t("study.qty")}</label>
+            <label className="study-fu-unit" htmlFor="study-unit">{t("study.unit")}</label>
             <label className="study-fu-note" htmlFor="study-note">
-              附加说明
-              <em>可选</em>
+              {t("study.extra")}
+              <em>{t("study.optional")}</em>
             </label>
             <input
               id="study-quantity"
@@ -474,8 +478,8 @@ export function StudyForm({
                 className="study-fu-unit"
                 type="text"
                 value={draft.unit}
-                placeholder="输入单位"
-                aria-label="单位"
+                placeholder={t("study.enterUnit")}
+                aria-label={t("study.unit")}
                 autoFocus
                 onChange={(event) => patch({ unit: event.target.value })}
                 onBlur={(event) => {
@@ -496,13 +500,13 @@ export function StudyForm({
                   patch({ unit: event.target.value });
                 }}
               >
-                <option value="">选择单位</option>
+                <option value="">{t("study.pickUnit")}</option>
                 {UNITS.map((unit) => (
                   <option key={unit} value={unit}>
                     {unit}
                   </option>
                 ))}
-                <option value={CUSTOM_UNIT}>手动填写</option>
+                <option value={CUSTOM_UNIT}>{t("study.manualUnit")}</option>
               </select>
             )}
             <textarea
@@ -510,7 +514,7 @@ export function StudyForm({
               className="study-area study-fu-note"
               rows={1}
               value={draft.functionalSpec}
-              placeholder="例如：每瓶 1 L，在德国销售点交付"
+              placeholder={t("study.phFu")}
               onChange={(event) => patch({ functionalSpec: event.target.value })}
             />
           </div>
@@ -519,9 +523,9 @@ export function StudyForm({
         <section className="study-block" id="study-sec-life">
           <h3>
             <span className="study-num">3</span>
-            生命周期范围
+            {t("study.scope")}
           </h3>
-          <p>从哪里开始，算到哪里？请选择系统边界。</p>
+          <p>{t("study.scopeHelp")}</p>
           <div className="study-stages">
             {STAGES.map((stage, index) => {
               const Icon = stage.icon;
@@ -535,7 +539,7 @@ export function StudyForm({
                     onClick={() => patch({ stages: { ...draft.stages, [stage.id]: !selected } })}
                   >
                     <Icon size={15} aria-hidden="true" />
-                    {stage.label}
+                    {t(stage.labelKey)}
                   </button>
                 </span>
               );
@@ -543,15 +547,15 @@ export function StudyForm({
           </div>
           <label className="study-stack" htmlFor="study-scope">
             <span>
-              附加说明
-              <em>可选</em>
+              {t("study.extra")}
+              <em>{t("study.optional")}</em>
             </span>
             <textarea
               id="study-scope"
               className="study-area"
               rows={3}
               value={draft.scopeNote}
-              placeholder="例如：从原料获取到德国销售点交付，不包括消费者使用和最终处置"
+              placeholder={t("study.phStages")}
               onChange={(event) => patch({ scopeNote: event.target.value })}
             />
           </label>
@@ -560,15 +564,15 @@ export function StudyForm({
         <section className="study-block" id="study-sec-place">
           <h3>
             <span className="study-num">4</span>
-            地域与时间
+            {t("study.geoTime")}
           </h3>
-          <p>如有指定的目标市场、地区或研究年份，请在此说明。</p>
+          <p>{t("study.geoHelp")}</p>
           <input
             className="study-place"
             type="text"
-            aria-label="地域与时间"
+            aria-label={t("study.geoTime")}
             value={draft.place}
-            placeholder="例如：德国销售点，2024"
+            placeholder={t("study.phGeo")}
             onChange={(event) => patch({ place: event.target.value })}
           />
         </section>
@@ -577,22 +581,22 @@ export function StudyForm({
           <div className="study-block-head">
             <h3>
               <span className="study-num">5</span>
-              LCA 数据库
+              {t("study.db")}
             </h3>
             <span className={`study-link${openlcaOk ? " on" : ""}`}>
-              {checking ? "正在检查…" : openlcaOk ? "已连接 openLCA" : "未连接 openLCA"}
+              {checking ? t("study.checking") : openlcaOk ? t("study.olcaOk") : t("study.olcaDown")}
               <button type="button" onClick={() => void refreshOpenLca()} disabled={checking}>
-                刷新
+                {t("study.refresh")}
               </button>
             </span>
           </div>
-          <p>若需更改，请在openLCA界面手动执行</p>
+          <p>{t("study.dbChangeHint")}</p>
           <input
             className="study-locked"
             type="text"
             readOnly
             aria-readonly="true"
-            aria-label="LCA 数据库"
+            aria-label={t("study.db")}
             value={databaseLabel}
           />
         </section>
@@ -601,18 +605,18 @@ export function StudyForm({
           <div className="study-block-head">
             <h3>
               <span className="study-num">6</span>
-              环境影响评价方法（LCIA）
+              {t("study.lcia")}
             </h3>
             <span className={`study-link${openlcaOk ? " on" : ""}`}>
-              {checking ? "正在检查…" : openlcaOk ? "已连接 openLCA" : "未连接 openLCA"}
+              {checking ? t("study.checking") : openlcaOk ? t("study.olcaOk") : t("study.olcaDown")}
               <button type="button" onClick={() => void refreshOpenLca()} disabled={checking}>
-                刷新
+                {t("study.refresh")}
               </button>
             </span>
           </div>
-          <p>选择当前openLCA数据库中可用的方法</p>
-          <select aria-label="环境影响评价方法" value={draft.lcia} onChange={(event) => patch({ lcia: event.target.value })}>
-            <option value="">选择评价方法</option>
+          <p>{t("study.lciaHelp")}</p>
+          <select aria-label={t("study.method")} value={draft.lcia} onChange={(event) => patch({ lcia: event.target.value })}>
+            <option value="">{t("study.pickMethod")}</option>
             {LCIA_METHODS.map((method) => (
               <option key={method} value={method}>
                 {method}
@@ -624,9 +628,9 @@ export function StudyForm({
         <section className="study-block" id="study-sec-impact">
           <h3>
             <span className="study-num">7</span>
-            关注的环境影响
+            {t("study.impacts")}
           </h3>
-          <div className="study-radios" role="radiogroup" aria-label="关注的环境影响">
+          <div className="study-radios" role="radiogroup" aria-label={t("study.impacts")}>
             <label>
               <input
                 type="radio"
@@ -634,7 +638,7 @@ export function StudyForm({
                 checked={draft.impactScope === "all"}
                 onChange={() => patch({ impactScope: "all" })}
               />
-              所选方法的全部指标
+              {t("study.allIndicators")}
             </label>
             <label>
               <input
@@ -643,15 +647,15 @@ export function StudyForm({
                 checked={draft.impactScope === "selected"}
                 onChange={() => patch({ impactScope: "selected" })}
               />
-              仅指定指标
+              {t("study.onlyIndicators")}
             </label>
           </div>
           {draft.impactScope === "selected" ? (
             <input
               type="text"
               value={draft.impactNote}
-              placeholder="例如：气候变化、水资源消耗"
-              aria-label="指定的环境影响指标"
+              placeholder={t("study.phImpacts")}
+              aria-label={t("study.impactIndicators")}
               onChange={(event) => patch({ impactNote: event.target.value })}
             />
           ) : null}
@@ -660,29 +664,29 @@ export function StudyForm({
         <section className="study-block" id="study-sec-special">
           <h3>
             <span className="study-num">8</span>
-            特殊要求
+            {t("study.special")}
           </h3>
-          <p>例如：指定数据库、遵循的标准、需要分析的特殊情景或其他限制。</p>
+          <p>{t("study.specialHelp")}</p>
           <textarea
             className="study-area"
             rows={5}
             value={draft.special}
-            placeholder="没有额外限制时留空"
+            placeholder={t("study.noExtra")}
             onChange={(event) => patch({ special: event.target.value })}
           />
         </section>
       </div>
 
       <aside className="plan-study-side">
-        <nav className="study-preview" aria-label="研究设定">
+        <nav className="study-preview" aria-label={t("study.settings")}>
           <div className="study-preview-head">
-            <h3>研究设定预览</h3>
+            <h3>{t("study.previewTitle")}</h3>
             <button type="button" className="study-clear" onClick={clearDraft}>
               <Eraser size={14} aria-hidden="true" />
-              清空
+              {t("study.clear")}
             </button>
           </div>
-          <p>点击条目，跳到左侧对应位置。</p>
+          <p>{t("study.previewHelp")}</p>
           <ol className="study-nav">
             {STUDY_SECTIONS.map((section) => {
               const summary = summaries[section.id];
@@ -696,9 +700,9 @@ export function StudyForm({
                   >
                     <strong>
                       <span className="study-num">{section.num}</span>
-                      {section.title}
+                      {t(section.titleKey)}
                     </strong>
-                    <span className={summary ? undefined : "is-empty"}>{summary || "未填写"}</span>
+                    <span className={summary ? undefined : "is-empty"}>{summary || t("study.unfilled")}</span>
                   </button>
                 </li>
               );

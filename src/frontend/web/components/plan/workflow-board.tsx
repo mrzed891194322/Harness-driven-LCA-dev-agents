@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale } from "../../lib/i18n/locale-context";
+import { translate } from "../../lib/i18n/messages";
+import { uiLang } from "../../lib/run-status";
 // 工作流编排, restored from master 599ed0a (flow-board / flow-stages / flow-inspector layout and CSS).
 // workflow data: /api/workflow/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection
 // (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models.
@@ -30,6 +33,7 @@ export function WorkflowBoard({
   pickedId?: string | null;
   onPickWorkflow?: (id: string | null) => void;
 }) {
+  const { t } = useLocale();
   const [catalog, setCatalog] = useState<WorkflowCard[]>([]);
   const [localPickedId, setLocalPickedId] = useState<string | null>(null);
   const pickedIdResolved = onPickWorkflow ? pickedId : localPickedId;
@@ -56,7 +60,7 @@ export function WorkflowBoard({
       if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
       const list = data.workflows || [];
       setCatalog(list);
-      setError(list.length ? "" : "没有对应的工作流");
+      setError(list.length ? "" : t("wf.noWorkflow"));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -111,9 +115,9 @@ export function WorkflowBoard({
     });
     if (r.ok) {
       setDefaultModel(value);
-      setModelNote("已保存，下次运行生效");
+      setModelNote(t("wf.savedNext"));
       void load();
-    } else setModelNote(`保存失败（HTTP ${r.status}）`);
+    } else setModelNote(t("wf.saveFailHttp", { status: r.status }));
   }
 
   async function changeDefaultThinking(thinking: string) {
@@ -125,11 +129,11 @@ export function WorkflowBoard({
     });
     if (r.ok) {
       setDefaultThinking(thinking);
-      setModelNote("已保存，下次运行生效");
+      setModelNote(t("wf.savedNext"));
       void load();
     } else {
       const d = (await r.json().catch(() => ({}))) as { detail?: string };
-      setModelNote(d.detail || `保存失败（HTTP ${r.status}）`);
+      setModelNote(d.detail || t("wf.saveFailHttp", { status: r.status }));
     }
   }
 
@@ -141,11 +145,11 @@ export function WorkflowBoard({
       body: JSON.stringify({ node, agent, model, thinking }),
     });
     if (r.ok) {
-      setModelNote("已保存，下次运行开始时生效");
+      setModelNote(t("wf.savedNextStart"));
       void load();
     } else {
       const d = (await r.json().catch(() => ({}))) as { detail?: string };
-      setModelNote(d.detail || `保存失败（HTTP ${r.status}）`);
+      setModelNote(d.detail || t("wf.saveFailHttp", { status: r.status }));
     }
   }
 
@@ -161,7 +165,7 @@ export function WorkflowBoard({
   }
 
   if (error) return <p className="status-banner error">{error}</p>;
-  if (!workflow) return <p className="settings-help">正在读取编排…</p>;
+  if (!workflow) return <p className="settings-help">{t("wf.loadingOrch")}</p>;
   const def = modelChoices(models, defaultModel);
   const node = selection.kind === "node" || selection.kind === "agent"
     ? workflow.details.find((n) => n.id === selection.id)
@@ -177,11 +181,11 @@ export function WorkflowBoard({
           aria-pressed={presetsOpen}
           onClick={() => setPresetsOpen(true)}
         >
-          加载预设工作流
+          {t("wf.loadPreset")}
         </button>
         <button type="button" className="flow-config" onClick={() => choose({ kind: "workflow" })}>
           <SlidersHorizontal size={16} strokeWidth={1.75} aria-hidden="true" />
-          配置面板
+          {t("wf.configPanel")}
         </button>
       </div>
 
@@ -201,14 +205,14 @@ export function WorkflowBoard({
                   onClick={(e) => { e.stopPropagation(); choose({ kind: "node", id: n.id }); }}>
                   <span className="flow-stage-index">{String(index + 1).padStart(2, "0")}</span>
                   <strong>{n.title || n.id}</strong>
-                  <small>最多 {n.max_rounds} 轮 · {n.id}</small>
+                  <small>{t("wf.maxRoundsShort", { n: n.max_rounds, id: n.id })}</small>
                 </button>
                 <div
                   className="flow-steps"
                   role="button"
                   tabIndex={0}
                   data-testid={`flow-agents-box-${n.id}`}
-                  aria-label={`${n.title || n.id} 代理拓扑`}
+                  aria-label={t("wf.agentTopoAria", { title: n.title || n.id })}
                   onClick={(e) => { e.stopPropagation(); setTopoNodeId(n.id); }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -222,7 +226,7 @@ export function WorkflowBoard({
                     <button key={name} type="button" className="flow-step" data-agent={name}
                       data-testid={`flow-agent-${n.id}-${name}`}
                       aria-pressed={selection.kind === "agent" && selection.id === n.id && selection.agent === name}
-                      title="在侧栏配置模型"
+                      title={t("wf.configInSidebar")}
                       onClick={(e) => { e.stopPropagation(); choose({ kind: "agent", id: n.id, agent: name }); }}>
                       <span className="flow-step-agent">
                         <Bot className="flow-step-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
@@ -240,7 +244,7 @@ export function WorkflowBoard({
       {inspectorOpen ? (
         <aside className="flow-inspector" aria-live="polite" data-testid="flow-inspector">
           <FlowCrumb selection={selection} onSelect={setSelection} />
-          <button type="button" className="flow-close" aria-label="关闭" onClick={() => setInspectorOpen(false)}>
+          <button type="button" className="flow-close" aria-label={t("common.close")} onClick={() => setInspectorOpen(false)}>
             <X size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
           {selection.kind === "workflow" ? (
@@ -291,17 +295,17 @@ export function WorkflowBoard({
         <div className="flow-presets-panel">
           <header className="flow-presets-head">
             <div>
-              <h2 id="flow-presets-title">加载预设工作流</h2>
-              <p className="settings-meta">选择 harness 编排，替换画布预览；预览执行页将按当前选中的编排开跑（不改计划正文）。未选时仍按工作类型默认 full-lca / revise-lca。</p>
+              <h2 id="flow-presets-title">{t("wf.loadPreset")}</h2>
+              <p className="settings-meta">{t("wf.presetHelp")}</p>
             </div>
-            <button type="button" className="flow-close" aria-label="关闭" data-testid="flow-presets-close" onClick={() => setPresetsOpen(false)}>
+            <button type="button" className="flow-close" aria-label={t("common.close")} data-testid="flow-presets-close" onClick={() => setPresetsOpen(false)}>
               <X size={16} strokeWidth={1.75} aria-hidden="true" />
             </button>
           </header>
           <ul className="flow-preset-list">
             {catalog.map((w) => {
               const active = w.id === workflow.id;
-              const kind = w.start_rev === "next" ? "修订" : w.id.startsWith("demo") ? "演示" : w.id === "bom-extract" ? "冒烟" : "主流程";
+              const kind = w.start_rev === "next" ? t("wf.revise") : w.id.startsWith("demo") ? t("wf.demo") : w.id === "bom-extract" ? t("wf.smoke") : t("wf.main");
               return (
                 <li key={w.id}>
                   <button
@@ -313,7 +317,7 @@ export function WorkflowBoard({
                     onClick={() => pickPreset(w.id)}
                   >
                     <strong>{w.title || w.id}</strong>
-                    <small className="settings-meta">{kind} · {w.id} · {w.plan_file} · {w.details.length} 节点</small>
+                    <small className="settings-meta">{t("wf.nodesCount", { kind, id: w.id, plan: w.plan_file, n: w.details.length })}</small>
                   </button>
                 </li>
               );
@@ -351,22 +355,23 @@ export function WorkflowBoard({
   );
 }
 
-const FLOW_WHEN: Record<string, string> = {
-  done: "完成",
-  blocked: "受阻",
-  redo_upstream: "回溯上游",
-  approve: "通过",
-  reject: "退回",
-  approve_redo_upstream: "批准回溯",
-  terminate: "终止",
-  failed: "失败",
+const FLOW_WHEN_KEYS: Record<string, string> = {
+  done: "wf.done",
+  blocked: "wf.blocked",
+  redo_upstream: "wf.redoUpstream",
+  approve: "wf.pass",
+  reject: "wf.reject",
+  approve_redo_upstream: "wf.approveRedo",
+  terminate: "wf.terminate",
+  failed: "wf.fail",
 };
 
 const FLOW_TERMINALS = new Set(["done", "failed", "blocked", "redo_upstream"]);
 
-function flowWhenLabel(when: string | null | undefined) {
-  if (!when) return "无条件";
-  return FLOW_WHEN[when] || when;
+function flowWhenLabel(when: string | null | undefined, t: (k: string, v?: Record<string, string | number>) => string) {
+  if (!when) return t("wf.unconditional");
+  const key = FLOW_WHEN_KEYS[when];
+  return key ? t(key) : when;
 }
 
 function mermaidId(raw: string) {
@@ -375,7 +380,7 @@ function mermaidId(raw: string) {
 }
 
 /** Static mermaid from node YAML flow.edges (no runtime / LangGraph draw). */
-function flowToMermaid(node: WorkflowNode): string {
+function flowToMermaid(node: WorkflowNode, t: (k: string, v?: Record<string, string | number>) => string): string {
   const edges = node.flow?.edges || [];
   const agents = Object.keys(node.agents);
   const start = node.flow?.start || agents[0] || "";
@@ -387,16 +392,16 @@ function flowToMermaid(node: WorkflowNode): string {
   for (const name of agents) {
     const primary = node.agents[name]?.submit === "artifact";
     const base = label(name) || name;
-    const title = (primary ? `${base} · 主` : base).replace(/"/g, "#quot;");
+    const title = (primary ? t("wf.primarySuffix", { base }) : base).replace(/"/g, "#quot;");
     if (primary || name === start) lines.push(`  ${mermaidId(name)}(["${title}"])`);
     else lines.push(`  ${mermaidId(name)}["${title}"]`);
   }
   for (const term of terminals) {
-    const title = (FLOW_WHEN[term] || term).replace(/"/g, "#quot;");
+    const title = ((FLOW_WHEN_KEYS[term] ? t(FLOW_WHEN_KEYS[term]) : term) || term).replace(/"/g, "#quot;");
     lines.push(`  ${mermaidId(term)}((${title}))`);
   }
   for (const e of edges) {
-    const w = `${flowWhenLabel(e.when)}${e.max != null ? ` ·≤${e.max}` : ""}`.replace(/"/g, "#quot;");
+    const w = `${flowWhenLabel(e.when, t)}${e.max != null ? ` ·≤${e.max}` : ""}`.replace(/"/g, "#quot;");
     lines.push(`  ${mermaidId(e.from)} -->|"${w}"| ${mermaidId(e.to)}`);
   }
   for (const name of agents) {
@@ -415,6 +420,7 @@ function flowToMermaid(node: WorkflowNode): string {
 }
 
 function MermaidGraph({ chart }: { chart: string }) {
+  const { t } = useLocale();
   const host = useRef<HTMLDivElement>(null);
   const reactId = useId().replace(/:/g, "");
   const [err, setErr] = useState("");
@@ -452,7 +458,7 @@ function MermaidGraph({ chart }: { chart: string }) {
       if (host.current) host.current.innerHTML = "";
     };
   }, [chart, reactId]);
-  if (err) return <p className="status-banner error">拓扑图渲染失败：{err}</p>;
+  if (err) return <p className="status-banner error">{t("wf.topoFail", { err })}</p>;
   return <div className="flow-topo-mermaid" data-testid="flow-topo-mermaid" ref={host} />;
 }
 
@@ -465,6 +471,7 @@ function AgentTopoPanel({
   onClose: () => void;
   onConfigureAgent: (agent: string) => void;
 }) {
+  const { t } = useLocale();
   const start = node.flow?.start || Object.keys(node.agents)[0] || "";
   const agentOrder = Object.keys(node.agents).sort((a, b) => {
     const ap = node.agents[a]?.submit === "artifact" ? 0 : 1;
@@ -474,16 +481,16 @@ function AgentTopoPanel({
     if (b === start) return 1;
     return a.localeCompare(b);
   });
-  const chart = useMemo(() => flowToMermaid(node), [node]);
+  const chart = useMemo(() => flowToMermaid(node, t), [node]);
 
   return (
     <div className="flow-presets-panel">
       <header className="flow-presets-head">
         <div>
-          <h2 id="flow-topo-title">{node.title || node.id} · 代理拓扑</h2>
-          <p className="settings-meta">静态 YAML flow；主 agent = deliver.submit: artifact。点代理名打开侧栏配置。</p>
+          <h2 id="flow-topo-title">{t("wf.agentTopo", { title: node.title || node.id })}</h2>
+          <p className="settings-meta">{t("wf.topoHelp")}</p>
         </div>
-        <button type="button" className="flow-close" aria-label="关闭" data-testid="flow-topo-close" onClick={onClose}>
+        <button type="button" className="flow-close" aria-label={t("common.close")} data-testid="flow-topo-close" onClick={onClose}>
           <X size={16} strokeWidth={1.75} aria-hidden="true" />
         </button>
       </header>
@@ -493,7 +500,7 @@ function AgentTopoPanel({
       </div>
 
       <div className="flow-block flow-topo-agents-list">
-        <h4>代理</h4>
+        <h4>{t("wf.agents")}</h4>
         <ul className="flow-topo-agent-list" data-testid="flow-topo-agent-list">
           {agentOrder.map((name) => {
             const primary = node.agents[name]?.submit === "artifact";
@@ -508,7 +515,7 @@ function AgentTopoPanel({
                   onClick={() => onConfigureAgent(name)}
                 >
                   <strong>{label(name) || name}</strong>
-                  {primary ? <span className="flow-topo-primary-badge">主 agent</span> : null}
+                  {primary ? <span className="flow-topo-primary-badge">{t("wf.mainAgent")}</span> : null}
                   <small className="settings-meta">{name}{node.agents[name]?.template ? ` · ${node.agents[name].template}` : ""}</small>
                 </button>
               </li>
@@ -529,16 +536,17 @@ function FlowCrumb({ selection, onSelect }: {
   selection: Selection;
   onSelect: (next: Selection) => void;
 }) {
+  const { t } = useLocale();
   const crumbs: { key: string; label: string; target: Selection | null }[] = [];
   if (selection.kind === "workflow") return null;
-  crumbs.push({ key: "workflow", label: "全局配置", target: { kind: "workflow" } });
+  crumbs.push({ key: "workflow", label: t("wf.globalConfig"), target: { kind: "workflow" } });
   if (selection.kind === "agent") {
-    crumbs.push({ key: selection.id, label: "节点配置", target: { kind: "node", id: selection.id } });
+    crumbs.push({ key: selection.id, label: t("wf.nodeConfig"), target: { kind: "node", id: selection.id } });
   } else if (selection.kind === "rule") {
     crumbs.push({ key: selection.path, label: selection.title || rulePathLabel(selection.path), target: null });
   }
   return (
-    <nav className="flow-crumb" aria-label="配置位置" data-testid="flow-crumb">
+    <nav className="flow-crumb" aria-label={t("wf.configWhere")} data-testid="flow-crumb">
       {crumbs.map((crumb, index) => (
         <span className="flow-crumb-step" key={crumb.key}>
           {index > 0 ? <ChevronRight className="flow-crumb-sep" size={14} strokeWidth={1.75} aria-hidden="true" /> : null}
@@ -623,27 +631,28 @@ function WorkflowConfig({
   onPickNode: (id: string) => void;
   onPickRule: (path: string, title?: string) => void;
 }) {
+  const { t } = useLocale();
   const globalRules: WorkflowRuleCard[] = workflow.global_rules || [];
 
   return (
     <section className="flow-detail" data-testid="flow-workflow-config">
       <h3>{workflow.title || workflow.id}</h3>
       <p className="settings-meta">
-        {workflow.id} · 计划文件 {workflow.plan_file}
-        {workflow.start_rev === "next" ? " · 在已有产物上修订" : ""}
-        {workflow.max_redos != null ? ` · 最多回溯 ${workflow.max_redos} 次` : ""}
+        {t("wf.planFile", { id: workflow.id, plan: workflow.plan_file })}
+        {workflow.start_rev === "next" ? t("wf.reviseOnExisting") : ""}
+        {workflow.max_redos != null ? t("wf.maxRedos", { n: workflow.max_redos }) : ""}
       </p>
 
       <div className="flow-block" data-testid="flow-default-model-block">
         <div className="flow-block-head">
           <Cpu className="flow-block-icon" size={15} strokeWidth={1.75} aria-hidden="true" />
-          <h4>默认模型</h4>
+          <h4>{t("wf.defaultModel")}</h4>
         </div>
         <div className="flow-block-body">
           <select
             className="flow-model"
             data-testid="flow-default-model"
-            aria-label="默认模型"
+            aria-label={t("wf.defaultModel")}
             value={def.value}
             onChange={(e) => onChangeDefault(e.target.value)}
           >
@@ -655,16 +664,16 @@ function WorkflowConfig({
           </select>
           {thinkingLevels.length ? (
             <>
-              <label className="flow-default-thinking-label" htmlFor="flow-default-thinking">思考深度</label>
+              <label className="flow-default-thinking-label" htmlFor="flow-default-thinking">{t("wf.thinkingDepth")}</label>
               <select
                 id="flow-default-thinking"
                 className="flow-model"
                 data-testid="flow-default-thinking"
-                aria-label="默认思考深度"
+                aria-label={t("wf.defaultThinking")}
                 value={thinking}
                 onChange={(e) => onChangeThinking(e.target.value)}
               >
-                <option value="">不指定</option>
+                <option value="">{t("wf.unspecified")}</option>
                 {(thinkingLevels.includes(thinking) || !thinking ? thinkingLevels : [thinking, ...thinkingLevels]).map((level) => (
                   <option key={level} value={level}>{level}</option>
                 ))}
@@ -675,7 +684,7 @@ function WorkflowConfig({
         </div>
       </div>
 
-      <FlowSection title="节点" testId="flow-nodes" icon={Boxes} collapsible={false}>
+      <FlowSection title={t("wf.nodes")} testId="flow-nodes" icon={Boxes} collapsible={false}>
         <ul className="flow-node-pick-list">
           {workflow.details.map((n) => (
             <li key={n.id}>
@@ -690,7 +699,7 @@ function WorkflowConfig({
         </ul>
       </FlowSection>
 
-      <FlowSection title="全局规则" testId="flow-rules-global" icon={ScrollText} collapsible={false}>
+      <FlowSection title={t("wf.globalRules")} testId="flow-rules-global" icon={ScrollText} collapsible={false}>
         <ul className="flow-path-list">
           {globalRules.length ? globalRules.map((r) => (
             <li key={r.path}>
@@ -698,7 +707,7 @@ function WorkflowConfig({
                 {rulePathLabel(r.path)}
               </button>
             </li>
-          )) : <li className="flow-empty">无</li>}
+          )) : <li className="flow-empty">{t("common.none")}</li>}
         </ul>
       </FlowSection>
     </section>
@@ -706,6 +715,7 @@ function WorkflowConfig({
 }
 
 function RuleDetail({ path, title, onBack }: { path: string; title?: string; onBack: () => void }) {
+  const { t } = useLocale();
   const [raw, setRaw] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
@@ -725,7 +735,7 @@ function RuleDetail({ path, title, onBack }: { path: string; title?: string; onB
         if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
         const files = (data.sections || []).flatMap((s) => s.files || []);
         const hit = files.find((f) => f.path === path || f.path === `harness/${rel}` || f.path.endsWith(`/${rel}`) || f.path === rel);
-        if (!hit?.raw) throw new Error("未在 harness 视图中找到该规则文件");
+        if (!hit?.raw) throw new Error(t("wf.ruleMissing"));
         if (!cancelled) setRaw(hit.raw);
       })
       .catch((e: unknown) => {
@@ -741,16 +751,16 @@ function RuleDetail({ path, title, onBack }: { path: string; title?: string; onB
     <section className="flow-detail" data-testid="flow-rule-detail">
       <h3>{title || rel}</h3>
       <p className="settings-meta">{rel}</p>
-      {loading ? <p className="settings-help">正在读取规则…</p> : null}
+      {loading ? <p className="settings-help">{t("wf.readingRules")}</p> : null}
       {err ? (
         <div className="flow-block">
           <p className="status-banner error">{err}</p>
-          <p className="flow-agent-hint">路径：<code className="mono">{rel}</code></p>
-          <button type="button" className="flow-back" onClick={onBack}>返回配置面板</button>
+          <p className="flow-agent-hint">{t("wf.path")}<code className="mono">{rel}</code></p>
+          <button type="button" className="flow-back" onClick={onBack}>{t("wf.backConfig")}</button>
         </div>
       ) : null}
       {!loading && !err ? (
-        <FlowSection title="内容" icon={FileText}>
+        <FlowSection title={t("wf.content")} icon={FileText}>
           <pre className="flow-code flow-rule-source"><code>{raw}</code></pre>
         </FlowSection>
       ) : null}
@@ -765,18 +775,19 @@ function NodeDetail({ node, globalRules, onOpenTopo, onPickRule }: {
   onOpenTopo: () => void;
   onPickRule: (path: string, title?: string) => void;
 }) {
+  const { t } = useLocale();
   const injected = node.inject || [];
   const globals = globalRules || [];
   return (
     <section className="flow-detail" data-testid={`flow-node-detail-${node.id}`}>
       <h3>{node.title || node.id}</h3>
-      <p className="settings-meta">{node.id} · 最多 {node.max_rounds} 轮</p>
+      <p className="settings-meta">{t("wf.maxRounds", { id: node.id, n: node.max_rounds })}</p>
       <div
         className="flow-block flow-agents-block"
         role="button"
         tabIndex={0}
         data-testid="flow-agents-section"
-        aria-label="打开代理拓扑"
+        aria-label={t("wf.openTopo")}
         onClick={onOpenTopo}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -802,14 +813,14 @@ function NodeDetail({ node, globalRules, onOpenTopo, onPickRule }: {
           ))}
         </div>
       </div>
-      <FlowSection title="输入" icon={ArrowDownToLine} collapsible={false}>
+      <FlowSection title={t("wf.inputs")} icon={ArrowDownToLine} collapsible={false}>
         <ul className="flow-path-list">
           {node.requires.length ? node.requires.map((r) => (
             <li key={r}><code className="flow-path-chip">{r}</code></li>
-          )) : <li className="flow-empty">无</li>}
+          )) : <li className="flow-empty">{t("common.none")}</li>}
         </ul>
       </FlowSection>
-      <FlowSection title="产出" icon={ArrowUpFromLine} collapsible={false}>
+      <FlowSection title={t("wf.outputs")} icon={ArrowUpFromLine} collapsible={false}>
         <ul className="flow-path-list">
           {node.produces.map((p) => (
             <li key={p.path}>
@@ -818,10 +829,10 @@ function NodeDetail({ node, globalRules, onOpenTopo, onPickRule }: {
           ))}
         </ul>
       </FlowSection>
-      <FlowSection title="注入规则" icon={ScrollText}>
+      <FlowSection title={t("wf.injectRules")} icon={ScrollText}>
         {globals.length ? (
           <>
-            <h4>全局</h4>
+            <h4>{t("wf.global")}</h4>
             <ul className="flow-path-list">
               {globals.map((rule) => (
                 <li key={rule.path}>
@@ -835,7 +846,7 @@ function NodeDetail({ node, globalRules, onOpenTopo, onPickRule }: {
         ) : null}
         {injected.length ? (
           <>
-            <h4>本节点</h4>
+            <h4>{t("wf.thisNode")}</h4>
             <ul className="flow-path-list">
               {injected.map((path) => (
                 <li key={path}>
@@ -859,14 +870,14 @@ function NodeDetail({ node, globalRules, onOpenTopo, onPickRule }: {
                       {rulePathLabel(path)}
                     </button>
                   </li>
-                )) : <li className="flow-empty">无</li>}
+                )) : <li className="flow-empty">{t("common.none")}</li>}
               </ul>
             </Fragment>
           );
         })}
         {!globals.length && !injected.length && !Object.keys(node.agents).length ? (
           <ul className="flow-path-list">
-            <li className="flow-empty">无</li>
+            <li className="flow-empty">{t("common.none")}</li>
           </ul>
         ) : null}
       </FlowSection>
@@ -881,6 +892,7 @@ function AgentDetail({ node, agentKey, models, onChange, note, globalRules, onPi
   globalRules: WorkflowRuleCard[];
   onPickRule: (path: string, title?: string) => void;
 }) {
+  const { t } = useLocale();
   const agent = node.agents[agentKey];
   if (!agent) return null;
   const gm = agent.gui_model || "";
@@ -893,41 +905,41 @@ function AgentDetail({ node, agentKey, models, onChange, note, globalRules, onPi
   return (
     <section className="flow-detail" data-testid={`flow-agent-detail-${node.id}-${agentKey}`}>
       <h3>{node.title || node.id} · {label(agentKey)}</h3>
-      <p className="settings-meta">agent {agent.template || "内联"} · 当前模型 {agent.model}{agent.thinking ? ` · 思考 ${agent.thinking}` : ""}</p>
-      <FlowSection title="模型" icon={Cpu} defaultOpen>
+      <p className="settings-meta">{t("wf.agentMeta", { template: agent.template || t("preview.inline"), model: agent.model })}{agent.thinking ? t("wf.thinkingSuffix", { thinking: agent.thinking }) : ""}</p>
+      <FlowSection title={t("wf.model")} icon={Cpu} defaultOpen>
         <select className="flow-model" data-testid="agent-model-select" value={gm} onChange={(e) => void onChange(node.id, agentKey, e.target.value, gt)}>
-          <option value="">使用默认模型</option>
+          <option value="">{t("wf.useDefault")}</option>
           {choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
-        <h4>思考</h4>
+        <h4>{t("wf.thinking")}</h4>
         <select className="flow-model" data-testid="agent-thinking-select" value={gt} onChange={(e) => void onChange(node.id, agentKey, gm, e.target.value)}>
-          {THINKING_LEVELS.map((t) => <option key={t || "default"} value={t}>{t || "模型默认"}</option>)}
+          {THINKING_LEVELS.map((level) => <option key={level || "default"} value={level}>{level || t("wf.modelDefault")}</option>)}
         </select>
         {note ? <p className="flow-model-note" data-testid="flow-model-note">{note}</p> : null}
       </FlowSection>
-      <FlowSection title="权限" icon={Shield}>
-        <h4>可读</h4>
+      <FlowSection title={t("wf.perms")} icon={Shield}>
+        <h4>{t("wf.readable")}</h4>
         <ul className="flow-path-list">
-          {agent.read.length ? agent.read.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>) : <li className="flow-empty">无</li>}
+          {agent.read.length ? agent.read.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>) : <li className="flow-empty">{t("common.none")}</li>}
         </ul>
-        <h4>可写</h4>
+        <h4>{t("wf.writable")}</h4>
         <ul className="flow-path-list">
-          {agent.write.length ? agent.write.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>) : <li className="flow-empty">无</li>}
+          {agent.write.length ? agent.write.map((g) => <li key={g}><code className="flow-path-chip">{g}</code></li>) : <li className="flow-empty">{t("common.none")}</li>}
         </ul>
       </FlowSection>
-      <FlowSection title="工具" icon={Wrench}>
+      <FlowSection title={t("wf.tools")} icon={Wrench}>
         <ul className="flow-plain-list">
-          <li>文件工具{agentKey === "executor" ? "（含写入）" : "（只读）"}、submit</li>
-          {agent.tools.mcp.length ? agent.tools.mcp.map((m) => <li key={m}>MCP：{m}</li>) : null}
-          {agent.tools.skills.length ? agent.tools.skills.map((s) => <li key={s}>技能：{s}</li>) : null}
+          <li>{agentKey === "executor" ? t("wf.fileToolsWrite") : t("wf.fileToolsRead")}</li>
+          {agent.tools.mcp.length ? agent.tools.mcp.map((m) => <li key={m}>{t("wf.mcp", { name: m })}</li>) : null}
+          {agent.tools.skills.length ? agent.tools.skills.map((s) => <li key={s}>{t("wf.skill", { name: s })}</li>) : null}
         </ul>
       </FlowSection>
-      <FlowSection title="规则" icon={ScrollText}>
+      <FlowSection title={t("wf.rules")} icon={ScrollText}>
         {hasRules ? (
           <>
             {globals.length ? (
               <>
-                <h4>全局</h4>
+                <h4>{t("wf.global")}</h4>
                 <ul className="flow-path-list">
                   {globals.map((rule) => (
                     <li key={rule.path}>
@@ -941,7 +953,7 @@ function AgentDetail({ node, agentKey, models, onChange, note, globalRules, onPi
             ) : null}
             {injected.length ? (
               <>
-                <h4>节点</h4>
+                <h4>{t("wf.node")}</h4>
                 <ul className="flow-path-list">
                   {injected.map((path) => (
                     <li key={path}>
@@ -955,7 +967,7 @@ function AgentDetail({ node, agentKey, models, onChange, note, globalRules, onPi
             ) : null}
             {ownRules.length ? (
               <>
-                <h4>本代理</h4>
+                <h4>{t("wf.thisAgent")}</h4>
                 <ul className="flow-path-list">
                   {ownRules.map((path) => (
                     <li key={path}>
@@ -970,7 +982,7 @@ function AgentDetail({ node, agentKey, models, onChange, note, globalRules, onPi
           </>
         ) : (
           <ul className="flow-path-list">
-            <li className="flow-empty">无</li>
+            <li className="flow-empty">{t("common.none")}</li>
           </ul>
         )}
       </FlowSection>

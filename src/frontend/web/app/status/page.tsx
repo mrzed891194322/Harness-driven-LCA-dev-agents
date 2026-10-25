@@ -5,6 +5,7 @@ import { ArrowRight, Bot, Cpu, List, RefreshCw, Save, Settings, Wrench } from "l
 import Link from "next/link";
 import { useSettings } from "../../components/settings/settings-context";
 import { apiFetch } from "../../lib/api";
+import { useLocale } from "../../lib/i18n/locale-context";
 
 type Check = { ok: boolean; message: string };
 
@@ -18,9 +19,9 @@ type LcaTool = {
   port?: number;
 };
 
-function toolBadgeLabel(tool: LcaTool): string {
-  if (tool.ok) return "可用";
-  return tool.status === "busy" ? "占用中" : "不可用";
+function toolBadgeLabel(tool: LcaTool, t: (k: string) => string): string {
+  if (tool.ok) return t("status.toolAvailable");
+  return tool.status === "busy" ? t("status.toolBusy") : t("status.toolDown");
 }
 
 type AvailableProvider = {
@@ -62,6 +63,7 @@ function statusProviderName(provider: AvailableProvider): string {
 }
 
 function OpenLcaToolPanel({ tool, onSaved }: { tool: LcaTool; onSaved: () => Promise<void> }) {
+  const { t } = useLocale();
   const [portDraft, setPortDraft] = useState(tool.port != null ? String(tool.port) : "");
   const [portBusy, setPortBusy] = useState(false);
   const [portError, setPortError] = useState("");
@@ -73,7 +75,7 @@ function OpenLcaToolPanel({ tool, onSaved }: { tool: LcaTool; onSaved: () => Pro
   async function savePort() {
     const port = Number(portDraft);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      setPortError("端口须为 1–65535 的整数");
+      setPortError(t("status.portInvalid"));
       return;
     }
     setPortBusy(true);
@@ -85,10 +87,10 @@ function OpenLcaToolPanel({ tool, onSaved }: { tool: LcaTool; onSaved: () => Pro
         body: JSON.stringify({ port }),
       });
       const data = (await response.json().catch(() => ({}))) as { detail?: string };
-      if (!response.ok) throw new Error(data.detail || "保存端口失败");
+      if (!response.ok) throw new Error(data.detail || t("status.portSaveFail"));
       await onSaved();
     } catch (error: unknown) {
-      setPortError(error instanceof Error ? error.message : "保存端口失败");
+      setPortError(error instanceof Error ? error.message : t("status.portSaveFail"));
     } finally {
       setPortBusy(false);
     }
@@ -97,7 +99,7 @@ function OpenLcaToolPanel({ tool, onSaved }: { tool: LcaTool; onSaved: () => Pro
   return (
     <div className="tool-panel">
       <div className="tool-port-row">
-        <label htmlFor="openlca-port">IPC端口</label>
+        <label htmlFor="openlca-port">{t("status.ipcPort")}</label>
         <input
           id="openlca-port"
           type="number"
@@ -109,14 +111,14 @@ function OpenLcaToolPanel({ tool, onSaved }: { tool: LcaTool; onSaved: () => Pro
         />
         <button type="button" onClick={() => void savePort()} disabled={portBusy}>
           <Save size={16} strokeWidth={1.75} aria-hidden="true" />
-          {portBusy ? "保存中…" : "保存"}
+          {portBusy ? t("common.saving") : t("common.save")}
         </button>
       </div>
       {portError ? <p className="settings-help">{portError}</p> : null}
       <div className="tool-status-row">
-        <span>当前状态</span>
+        <span>{t("status.currentState")}</span>
         <span className={`badge ${tool.ok ? "badge-ok" : "badge-warn"}`}>
-          {toolBadgeLabel(tool)}
+          {toolBadgeLabel(tool, t)}
         </span>
       </div>
     </div>
@@ -124,13 +126,14 @@ function OpenLcaToolPanel({ tool, onSaved }: { tool: LcaTool; onSaved: () => Pro
 }
 
 function ToolConnectionPanel({ tool, onOpenLcaSaved }: { tool: LcaTool; onOpenLcaSaved: () => Promise<void> }) {
+  const { t } = useLocale();
   if (tool.id === "openlca") return <OpenLcaToolPanel tool={tool} onSaved={onOpenLcaSaved} />;
   return (
     <div className="tool-panel">
       <div className="tool-status-row">
-        <span>当前状态</span>
+        <span>{t("status.currentState")}</span>
         <span className={`badge ${tool.ok ? "badge-ok" : "badge-warn"}`}>
-          {toolBadgeLabel(tool)}
+          {toolBadgeLabel(tool, t)}
         </span>
       </div>
     </div>
@@ -153,6 +156,7 @@ function toolsFromDiag(diag: Diagnostics): LcaTool[] {
 }
 
 export default function StatusPage() {
+  const { t } = useLocale();
   const { openSettings, revision } = useSettings();
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -171,18 +175,16 @@ export default function StatusPage() {
       const envRes = await apiFetch("/api/diagnostics/environment");
       const env = (await envRes.json()) as unknown;
       if (!envRes.ok || !isDiagnostics(env)) {
-        throw new Error(
-          `环境诊断不可用（HTTP ${envRes.status}）。请确认后端已按 config.toml 的 gui.api_port 启动。`,
-        );
+        throw new Error(t("status.diagUnavailable", { status: envRes.status }));
       }
       setDiag(env);
     } catch (error: unknown) {
       setDiag(null);
-      setLoadError(error instanceof Error ? error.message : "加载诊断失败");
+      setLoadError(error instanceof Error ? error.message : t("status.diagLoadFail"));
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [t]);
 
   const refreshProviders = useCallback(async () => {
     setModelBusy(true);
@@ -191,15 +193,15 @@ export default function StatusPage() {
       const response = await apiFetch("/api/models/providers");
       const data = (await response.json()) as { providers?: AvailableProvider[]; detail?: string };
       if (!response.ok || !Array.isArray(data.providers)) {
-        throw new Error(data.detail || "无法读取供应商状态");
+        throw new Error(data.detail || t("status.providerFail"));
       }
       setProviders(data.providers);
     } catch (error: unknown) {
-      setProviderError(error instanceof Error ? error.message : "无法读取供应商状态");
+      setProviderError(error instanceof Error ? error.message : t("status.providerFail"));
     } finally {
       setModelBusy(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (revision > 0) {
@@ -246,7 +248,7 @@ export default function StatusPage() {
           [providerId]: {
             state: "fail",
             models: [],
-            message: data.message || data.detail || "无法加载模型",
+            message: data.message || data.detail || t("status.modelLoadFail"),
           },
         }));
         return;
@@ -261,7 +263,7 @@ export default function StatusPage() {
         [providerId]: {
           state: "fail",
           models: [],
-          message: error instanceof Error ? error.message : "无法加载模型",
+          message: error instanceof Error ? error.message : t("status.modelLoadFail"),
         },
       }));
     }
@@ -276,10 +278,10 @@ export default function StatusPage() {
       ready: typescriptReady,
       message: diag?.node.message || "",
       tools: [
-        { name: "TypeScript", version: diag?.toolchain?.typescript || "", note: "前端与运行时语言", src: "/toolchain/typescript.svg" },
-        { name: "npm", version: diag?.toolchain?.npm || "", note: "安装依赖并启动", src: "/toolchain/npm.svg" },
-        { name: "Pi SDK", version: diag?.toolchain?.pi_sdk || diag?.pi_agents.version || "", note: "代理运行时", src: "/toolchain/pi.svg" },
-        { name: "Next.js", version: diag?.toolchain?.next || "", note: "控制面板页面", src: "/toolchain/next.svg" },
+        { name: "TypeScript", version: diag?.toolchain?.typescript || "", note: t("status.noteTs"), src: "/toolchain/typescript.svg" },
+        { name: "npm", version: diag?.toolchain?.npm || "", note: t("status.noteNpm"), src: "/toolchain/npm.svg" },
+        { name: "Pi SDK", version: diag?.toolchain?.pi_sdk || diag?.pi_agents.version || "", note: t("status.notePi"), src: "/toolchain/pi.svg" },
+        { name: "Next.js", version: diag?.toolchain?.next || "", note: t("status.noteNext"), src: "/toolchain/next.svg" },
       ],
     },
     {
@@ -288,8 +290,8 @@ export default function StatusPage() {
       ready: pythonReady,
       message: diag?.python_agent.message || "",
       tools: [
-        { name: "Python", version: diag?.toolchain?.python || "", note: "后端解释器", src: "/toolchain/python.svg" },
-        { name: "uv", version: diag?.toolchain?.uv || "", note: "管理 Python 依赖", src: "/toolchain/uv.svg" },
+        { name: "Python", version: diag?.toolchain?.python || "", note: t("status.notePython"), src: "/toolchain/python.svg" },
+        { name: "uv", version: diag?.toolchain?.uv || "", note: t("status.noteUv"), src: "/toolchain/uv.svg" },
       ],
     },
   ];
@@ -299,7 +301,7 @@ export default function StatusPage() {
       <section className="settings-card status-runtime-card">
         <h3>
           <Cpu size={18} strokeWidth={1.75} aria-hidden="true" />
-          项目环境
+          {t("status.envTitle")}
         </h3>
         {diag ? (
           <div className="status-env-list">
@@ -308,7 +310,7 @@ export default function StatusPage() {
                 <header className="status-env-head">
                   <strong>{env.title}</strong>
                   <span className={`badge ${env.ready ? "badge-ok" : "badge-warn"}`}>
-                    {env.ready ? "就绪" : "未就绪"}
+                    {env.ready ? t("status.ready") : t("status.notReady")}
                   </span>
                 </header>
                 {env.ready ? (
@@ -323,22 +325,22 @@ export default function StatusPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="settings-help">{env.message || "环境未就绪"}</p>
+                  <p className="settings-help">{env.message || t("status.envNotReady")}</p>
                 )}
               </section>
             ))}
           </div>
         ) : (
-          <p className="settings-help">{loadError || "正在检查运行时…"}</p>
+          <p className="settings-help">{loadError || t("status.checkingRuntime")}</p>
         )}
         <div className="status-runtime-actions">
           <button type="button" onClick={() => void refresh()} disabled={busy}>
             <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-            {busy ? "检查中…" : "重新检查"}
+            {busy ? t("status.checking") : t("status.recheck")}
           </button>
           <button type="button" onClick={() => openSettings("general")}>
             <Settings size={16} strokeWidth={1.75} aria-hidden="true" />
-            配置项目
+            {t("status.configProject")}
           </button>
         </div>
       </section>
@@ -346,17 +348,17 @@ export default function StatusPage() {
       <section className="settings-card status-model-card">
         <h3>
           <Bot size={18} strokeWidth={1.75} aria-hidden="true" />
-          模型可用性
+          {t("status.modelsTitle")}
         </h3>
         {providers === null ? (
-          <p className="settings-help">{providerError || "正在检查供应商…"}</p>
+          <p className="settings-help">{providerError || t("status.checkingProviders")}</p>
         ) : providerRows.length === 0 ? (
           <p className="settings-help">
-            {providerError || "还没有可用供应商。请在设置中配置模型。"}
+            {providerError || t("status.noProviders")}
           </p>
         ) : (
           <>
-            <h4 className="status-provider-label">已配置供应商</h4>
+            <h4 className="status-provider-label">{t("status.configuredProviders")}</h4>
             <ul className="status-model-body diag-list">
             {providerRows.map((provider) => {
               const open = openProvider === provider.id;
@@ -364,7 +366,7 @@ export default function StatusPage() {
               return (
                 <li key={provider.id} className="status-provider">
                   <div className="status-provider-head">
-                    <span className="status-provider-dot" role="img" aria-label="已连接" />
+                    <span className="status-provider-dot" role="img" aria-label={t("common.connected")} />
                     <span>{statusProviderName(provider)}</span>
                     <button
                       type="button"
@@ -372,18 +374,18 @@ export default function StatusPage() {
                       onClick={() => void toggleProvider(provider.id)}
                     >
                       <List size={14} strokeWidth={1.75} aria-hidden="true" />
-                      {open ? "收起" : "模型列表"}
+                      {open ? t("common.collapse") : t("status.modelList")}
                     </button>
                   </div>
                   {open ? (
                     <div className="status-provider-detail">
                       {detail?.state === "loading" || !detail ? (
-                        <p className="settings-help">正在加载模型…</p>
+                        <p className="settings-help">{t("status.loadingModels")}</p>
                       ) : detail.state === "fail" ? (
                         <p className="settings-help">{detail.message}</p>
                       ) : detail.models.length === 0 ? (
                         <p className="settings-help">
-                          {detail.message || "该供应商没有可加载的模型。"}
+                          {detail.message || t("status.noModels")}
                         </p>
                       ) : (
                         <ul className="model-detail-list">
@@ -411,11 +413,11 @@ export default function StatusPage() {
             disabled={modelBusy}
           >
             <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-            {modelBusy ? "刷新中…" : "刷新状态"}
+            {modelBusy ? t("common.refreshing") : t("status.refreshState")}
           </button>
           <button type="button" onClick={() => openSettings("models")}>
             <Settings size={16} strokeWidth={1.75} aria-hidden="true" />
-            配置模型
+            {t("status.configModels")}
           </button>
         </div>
       </section>
@@ -423,14 +425,14 @@ export default function StatusPage() {
       <section className="settings-card status-tool-card">
         <h3>
           <Wrench size={18} strokeWidth={1.75} aria-hidden="true" />
-          LCA 工具
+          {t("status.lcaTools")}
         </h3>
         <div className="status-tool-body">
-          <h4 className="status-provider-label">当前工具</h4>
+          <h4 className="status-provider-label">{t("status.currentTool")}</h4>
           {tools.length ? (
             <>
               <div className="tool-switch-row">
-                <div className="tool-switch" role="tablist" aria-label="LCA 工具">
+                <div className="tool-switch" role="tablist" aria-label={t("status.lcaTools")}>
                   {tools.map((tool) => (
                     <button
                       key={tool.id}
@@ -443,7 +445,7 @@ export default function StatusPage() {
                         <>
                           <img src="/toolchain/openlca.svg" alt="" />
                           <strong>openLCA</strong>
-                          <span>生命周期建模与计算</span>
+                          <span>{t("status.openlcaDesc")}</span>
                         </>
                       ) : (
                         tool.name
@@ -451,23 +453,23 @@ export default function StatusPage() {
                     </button>
                   ))}
                 </div>
-                <p className="tool-switch-pending">其他 LCA 工具集成开发中</p>
+                <p className="tool-switch-pending">{t("status.otherToolsPending")}</p>
               </div>
               {activeTool ? (
                 <ToolConnectionPanel key={activeTool.id} tool={activeTool} onOpenLcaSaved={refresh} />
               ) : null}
             </>
           ) : (
-            <p className="settings-help">{loadError ? "诊断未加载" : "正在检查 LCA 工具…"}</p>
+            <p className="settings-help">{loadError ? t("status.diagNotLoaded") : t("status.checkingLca")}</p>
           )}
         </div>
         <div className="status-tool-actions">
           <button type="button" onClick={() => void refresh()} disabled={busy}>
             <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-            {busy ? "刷新中…" : "刷新状态"}
+            {busy ? t("common.refreshing") : t("status.refreshState")}
           </button>
           <Link href="/plan" className="status-start">
-            开始LCA
+            {t("status.startLca")}
             <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
           </Link>
         </div>

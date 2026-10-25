@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { History, Play } from "lucide-react";
+import { useLocale } from "../../lib/i18n/locale-context";
+import { translate } from "../../lib/i18n/messages";
+import { uiLang } from "../../lib/run-status";
 
 /** One activity record, derived from /api/workflow/progress items (lib/run-items.ts). */
 export type ActivityEvent = {
@@ -35,12 +38,15 @@ export type NodeActivity = {
   turnEnded: boolean;
 };
 
-const HANDOFF_LABEL: Record<Handoff, string> = {
-  none: "未交卷",
-  pending: "交卷中",
-  ok: "已交卷",
-  err: "交卷失败",
-};
+function handoffLabel(h: Handoff): string {
+  const keys: Record<Handoff, string> = {
+    none: "activity.notSubmitted",
+    pending: "activity.submitting",
+    ok: "activity.submitted",
+    err: "activity.submitFail",
+  };
+  return translate(uiLang(), keys[h]);
+}
 
 export function summarizeActivity(events: ActivityEvent[]): NodeActivity[] {
   const byKey = new Map<string, NodeActivity>();
@@ -128,6 +134,7 @@ export function ActivitySummary({
   currentNode?: string;
   onNodeAttempt?: (attempt: number) => void;
 }) {
+  const { t } = useLocale();
   const items = useMemo(() => (runId ? summarizeActivity(events) : []), [runId, events]);
   const liveItemRef = useRef<HTMLLIElement | null>(null);
   const liveToken = useRef("");
@@ -151,7 +158,7 @@ export function ActivitySummary({
 
   if (!items.length) return null;
   return (
-    <ul className="activity-summary" aria-label="各分工活动概览" data-testid="activity-summary">
+    <ul className="activity-summary" aria-label={t("activity.overview")} data-testid="activity-summary">
       {items.map((item) => {
         const agentKey = item.agent;
         const tone =
@@ -172,19 +179,19 @@ export function ActivitySummary({
             title={note || item.lastDetail || undefined}
           >
             <span className="activity-chip-head">
-              <span className="activity-chip-mark" role="img" aria-label={active ? "正在执行" : "历史记录"}>
+              <span className="activity-chip-mark" role="img" aria-label={active ? t("activity.running") : t("activity.history")}>
                 {active ? <Play size={13} strokeWidth={1.75} /> : <History size={13} strokeWidth={1.75} />}
               </span>
               <strong>{item.node}</strong>
               <small>
                 {agentKey}
-                {item.attempt ? ` · 第 ${item.attempt} 次` : ""}
+                {item.attempt ? t("activity.attempt", { n: item.attempt }) : ""}
               </small>
             </span>
             <span className="activity-chip-body">
               <span>
-                {item.tools} 次工具调用
-                {item.errors ? <em className="activity-chip-err"> · {item.errors} 个错误</em> : null}
+                {t("activity.tools", { n: item.tools })}
+                {item.errors ? <em className="activity-chip-err">{t("activity.errors", { n: item.errors })}</em> : null}
               </span>
               {item.running ? (
                 <span className="activity-chip-running">
@@ -192,7 +199,7 @@ export function ActivitySummary({
                   {item.running}
                 </span>
               ) : null}
-              <span className={`badge badge-${tone}`}>{HANDOFF_LABEL[item.handoff]}</span>
+              <span className={`badge badge-${tone}`}>{handoffLabel(item.handoff)}</span>
             </span>
           </li>
         );

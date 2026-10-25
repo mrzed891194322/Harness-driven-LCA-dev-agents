@@ -7,6 +7,7 @@ import { MarkdownView } from "../markdown-view";
 const MAX_ARTIFACT_ROWS = 200;
 
 import { KIND_LABEL, resultKind, VERDICT_LABEL, type ArtifactCategory, type ResultKind } from "../../lib/result-kind";
+import { useLocale } from "../../lib/i18n/locale-context";
 
 export { resultKind, type ResultKind };
 
@@ -84,6 +85,7 @@ function FileList({
   formatSize: (bytes: number) => string;
   onOpen: (path: string) => void;
 }) {
+  const { t } = useLocale();
   return (
     <ul>
       {items.map((item) => (
@@ -96,7 +98,7 @@ function FileList({
             <strong>{navTitle(item)}</strong>
             <span>
               {item.count && item.count > 1
-                ? `${item.count} 个中间文件`
+                ? t("results.midFiles", { count: item.count })
                 : parentName(item.path) || formatSize(item.size)}
             </span>
           </button>
@@ -117,6 +119,7 @@ export function ArtifactsBrowser({
   formatSize,
   onOpen,
 }: Props) {
+  const { t } = useLocale();
   const [kind, setKind] = useState<ResultKind>("final");
   const kindTouched = useRef(false);
   useEffect(() => {
@@ -147,7 +150,7 @@ export function ArtifactsBrowser({
   return (
     <div className="results-columns">
       <div className="results-side">
-        <div className="results-kind-tabs" role="tablist" aria-label="结果分类">
+        <div className="results-kind-tabs" role="tablist" aria-label={t("results.categories")}>
           {(Object.keys(KIND_LABEL) as ResultKind[]).map((item) => (
             <button
               key={item}
@@ -161,13 +164,13 @@ export function ArtifactsBrowser({
             </button>
           ))}
         </div>
-        <nav className="results-pane results-nav" aria-label="文件">
-          {empty ? <p className="settings-help">还没有文件。</p> : null}
+        <nav className="results-pane results-nav" aria-label={t("results.files")}>
+          {empty ? <p className="settings-help">{t("results.noFiles")}</p> : null}
           {kind === "work" ? (
             <>
               {handoffs.length ? (
                 <section>
-                  <h3>交接</h3>
+                  <h3>{t("results.handoff")}</h3>
                   <ul>
                     {handoffs.map((item) => {
                       const filePath = handoffPath(item);
@@ -181,8 +184,8 @@ export function ArtifactsBrowser({
                             <strong>{item.node || item.name}
                               {item.node_status ? ` · ${VERDICT_LABEL[item.node_status] || item.node_status}` : ""}</strong>
                             <span>
-                              {item.agent || "交接"}
-                              {item.attempt != null ? ` · 第 ${item.attempt} 次` : ""}
+                              {item.agent || t("results.handoff")}
+                              {item.attempt != null ? t("results.attempt", { n: item.attempt }) : ""}
                               {item.status ? ` · ${VERDICT_LABEL[item.status] || item.status}` : ""}
                             </span>
                           </button>
@@ -194,11 +197,11 @@ export function ArtifactsBrowser({
               ) : null}
               {records.length ? (
                 <section>
-                  <h3>其他记录</h3>
+                  <h3>{t("results.otherRecords")}</h3>
                   <FileList items={records} selected={selected} formatSize={formatSize} onOpen={onOpen} />
                 </section>
               ) : null}
-              {!handoffs.length && !records.length ? <p className="settings-help">还没有工作记录。</p> : null}
+              {!handoffs.length && !records.length ? <p className="settings-help">{t("results.noWorkLog")}</p> : null}
             </>
           ) : null}
           {kind === "intermediate" ? (
@@ -206,7 +209,7 @@ export function ArtifactsBrowser({
               <>
                 {omittedIntermediate ? (
                   <p className="settings-help">
-                    仅显示前 {MAX_ARTIFACT_ROWS} 项，另有 {omittedIntermediate} 项未列出；请用下载产出或在磁盘浏览。
+                    {t("results.omitHint", { max: MAX_ARTIFACT_ROWS, n: omittedIntermediate })}
                   </p>
                 ) : null}
                 <FileList
@@ -217,19 +220,19 @@ export function ArtifactsBrowser({
                 />
               </>
             ) : (
-              <p className="settings-help">还没有中间产物。这里列出 flow、process、product system 和计算调用记录。</p>
+              <p className="settings-help">{t("results.noIntermediate")}</p>
             )
           ) : null}
           {kind === "final" ? (
             finals.length ? (
               <FileList items={finals} selected={selected} formatSize={formatSize} onOpen={onOpen} />
             ) : (
-              <p className="settings-help">还没有最终交付。报告、清单和计算计划会出现在这里。</p>
+              <p className="settings-help">{t("results.noFinal")}</p>
             )
           ) : null}
         </nav>
       </div>
-      <section className="results-pane results-view" aria-label="文件内容">
+      <section className="results-pane results-view" aria-label={t("results.fileContent")}>
         {preview ? (
           <>
             <header className="results-view-head">
@@ -239,10 +242,10 @@ export function ArtifactsBrowser({
             <div className="results-view-body">
               {preview.kind === "group" ? (
                 <p className="settings-help">
-                  这是中间调用记录，共 {preview.count} 个文件，{formatSize(preview.size)}。
+                  {t("results.midGroup", { count: preview.count, size: formatSize(preview.size) })}
                 </p>
               ) : preview.kind === "too-large" ? (
-                <p className="settings-help">文件较大（{formatSize(preview.size)}），这里不展开。</p>
+                <p className="settings-help">{t("results.fileTooLarge", { size: formatSize(preview.size) })}</p>
               ) : preview.kind === "markdown" ? (
                 <MarkdownView source={preview.text} />
               ) : preview.text ? (
@@ -250,12 +253,12 @@ export function ArtifactsBrowser({
                   <code>{preview.text}</code>
                 </pre>
               ) : (
-                <p className="settings-help">文件是空的。</p>
+                <p className="settings-help">{t("results.fileEmpty")}</p>
               )}
             </div>
           </>
         ) : (
-          <p className="settings-help">{fileError || "选择左侧文件查看内容。"}</p>
+          <p className="settings-help">{fileError || t("results.selectFile")}</p>
         )}
       </section>
     </div>

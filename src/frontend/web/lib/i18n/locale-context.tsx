@@ -10,12 +10,12 @@ import {
   type ReactNode,
 } from "react";
 import { apiFetch } from "../api";
-import { LOCALES, type Locale, translate } from "./messages";
+import { LOCALES, type Locale, type MessageVars, translate } from "./messages";
 
 type LocaleContextValue = {
   locale: Locale;
   setLocale: (next: Locale) => Promise<void>;
-  t: (key: string) => string;
+  t: (key: string, vars?: MessageVars) => string;
 };
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
@@ -73,7 +73,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const t = useCallback((key: string) => translate(locale, key), [locale]);
+  const t = useCallback((key: string, vars?: MessageVars) => translate(locale, key, vars), [locale]);
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;

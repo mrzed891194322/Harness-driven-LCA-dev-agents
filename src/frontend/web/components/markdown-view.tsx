@@ -1,3 +1,5 @@
+import { translate } from "../lib/i18n/messages";
+import { uiLang } from "../lib/run-status";
 "use client";
 
 import { Fragment, type ReactNode } from "react";
@@ -224,7 +226,7 @@ function renderImage(
   if (!(target.startsWith("https://") || target.startsWith("http://") || target.startsWith("data:"))) {
     const resolved = resolveAsset?.(target) ?? null;
     if (!resolved) {
-      return <span className="harness-status">[图片不可用: {alt || target}]</span>;
+      return <span className="harness-status">{translate(uiLang(), "md.imgUnavailable", { alt: alt || target })}</span>;
     }
     src = resolved;
   }

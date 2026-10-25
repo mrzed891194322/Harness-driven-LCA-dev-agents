@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale } from "../../lib/i18n/locale-context";
+import { translate } from "../../lib/i18n/messages";
+import { uiLang } from "../../lib/run-status";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSquare, PenLine, Play, Trash2, Upload, Workflow } from "lucide-react";
 import { PreviewBoard } from "../../components/plan/preview-board";
@@ -29,11 +32,11 @@ const emptyFields: PlanFields = {
 
 type Panel = "fields" | "references" | "workflow" | "preview";
 
-const panels: { id: Panel; label: string }[] = [
-  { id: "fields", label: "用户填写" },
-  { id: "references", label: "参考资料" },
-  { id: "workflow", label: "工作流编排" },
-  { id: "preview", label: "预览执行" },
+const panels: { id: Panel; labelKey: string }[] = [
+  { id: "fields", labelKey: "plan.tab.fill" },
+  { id: "references", labelKey: "plan.tab.refs" },
+  { id: "workflow", labelKey: "plan.tab.workflow" },
+  { id: "preview", labelKey: "plan.tab.preview" },
 ];
 
 // Workflow id per work mode (the backend maps it to a fixed plan path).
@@ -46,30 +49,30 @@ function PanelIcon({ id }: { id: Panel }) {
   return <Icon className="launch-icon" aria-hidden="true" />;
 }
 
-const fields: { key: keyof PlanFields; label: string; hint: string; placeholder: string }[] = [
+const fields: { key: keyof PlanFields; labelKey: string; hintKey: string; placeholderKey: string }[] = [
   {
     key: "subject",
-    label: "研究对象",
-    hint: "比较对象、情景和交付地点",
-    placeholder: "例如：比较三种供应路线下在德国销售点交付的 1 L PET 静水瓶",
+    labelKey: "plan.field.subject",
+    hintKey: "plan.field.subjectHelp",
+    placeholderKey: "plan.field.subjectPh",
   },
   {
     key: "functional_unit",
-    label: "功能单位",
-    hint: "功能描述、数量和单位",
-    placeholder: "例如：在德国销售点交付 1,000 个装有 1 L 静水的 PET 瓶",
+    labelKey: "plan.field.fu",
+    hintKey: "plan.field.fuHelp",
+    placeholderKey: "plan.field.fuPh",
   },
   {
     key: "life_cycle_stages",
-    label: "生命周期阶段",
-    hint: "纳入和排除的阶段",
-    placeholder: "例如：从原料到销售点，不包括使用、回收和最终处置",
+    labelKey: "plan.field.stages",
+    hintKey: "plan.field.stagesHelp",
+    placeholderKey: "plan.field.stagesPh",
   },
   {
     key: "conditions",
-    label: "附加条件",
-    hint: "研究目的、截断、分配、LCIA 方法、数据库和其他限制",
-    placeholder: "没有额外限制时留空",
+    labelKey: "plan.field.conditions",
+    hintKey: "plan.field.conditionsHelp",
+    placeholderKey: "plan.field.conditionsPh",
   },
 ];
 
@@ -149,10 +152,11 @@ async function errorMessage(response: Response): Promise<string> {
   } catch {
     // Response body is not JSON.
   }
-  return `请求失败（${response.status}）`;
+  return translate(uiLang(), "plan.reqFail", { status: response.status });
 }
 
 export default function PlanPage() {
+  const { t } = useLocale();
   const [form, setForm] = useState<PlanFields>(emptyFields);
   const [references, setReferences] = useState<ReferenceFile[]>([]);
   const [status, setStatus] = useState("");
@@ -207,7 +211,7 @@ export default function PlanPage() {
         setLoaded(true);
       })
       .catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : "无法读取计划");
+        setError(reason instanceof Error ? reason.message : t("plan.readFail"));
       });
   }, [workMode]);
 
@@ -237,9 +241,9 @@ export default function PlanPage() {
           savedPlan.current = body;
           if (typeof data.content === "string") setPlanContent(data.content);
           if (data.path) setPlanPath(data.path);
-          setStatus("已自动保存");
+          setStatus(t("plan.autoSaved"));
         } catch (reason) {
-          setError(reason instanceof Error ? reason.message : "自动保存失败");
+          setError(reason instanceof Error ? reason.message : t("plan.autoSaveFail"));
         }
       });
     }, 400);
@@ -277,9 +281,9 @@ export default function PlanPage() {
       link.download = "lca-plan-template.md";
       link.click();
       URL.revokeObjectURL(url);
-      setStatus("已下载模板");
+      setStatus(t("plan.templateDownloaded"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "模板下载失败");
+      setError(reason instanceof Error ? reason.message : t("plan.templateFail"));
     }
   }
 
@@ -288,7 +292,7 @@ export default function PlanPage() {
     const overwrite = planContent.trim().length > 0;
     if (
       overwrite &&
-      !window.confirm(`将用导入的 Markdown 覆盖当前计划${planPath ? `（${planPath}）` : ""}。继续？`)
+      !window.confirm(t("plan.confirmOverwrite", { path: planPath ? t("plan.pathParen", { path: planPath }) : "" }))
     ) {
       return;
     }
@@ -314,9 +318,9 @@ export default function PlanPage() {
       const text = await file.text();
       setPlanContent(text);
       setPanel("fields");
-      setStatus("计划 Markdown 已导入");
+      setStatus(t("plan.mdImported"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Markdown 载入失败");
+      setError(reason instanceof Error ? reason.message : t("plan.mdFail"));
     }
   }
 
@@ -337,7 +341,7 @@ export default function PlanPage() {
       await uploadReferences(nested.flat(), { alreadyUploading: true });
     } catch (reason) {
       setUploading(false);
-      setError(reason instanceof Error ? reason.message : "参考资料上传失败");
+      setError(reason instanceof Error ? reason.message : t("plan.refUploadFail"));
     }
   }
 
@@ -345,14 +349,14 @@ export default function PlanPage() {
     if (!list.length) {
       setUploading(false);
       setStatus("");
-      setError("没有可上传的文件");
+      setError(t("plan.noUpload"));
       return;
     }
     const conflicts = duplicateReferenceNames(list, references);
     if (conflicts.length) {
       setUploading(false);
       setStatus("");
-      setError(`不能上传同名文件：${conflicts.map((name) => `「${name}」`).join("、")}`);
+      setError(t("plan.dupUpload", { names: conflicts.map((name) => t("plan.quoteName", { name })).join(t("plan.joinSep")) }));
       return;
     }
     if (!options?.alreadyUploading) setUploading(true);
@@ -368,29 +372,29 @@ export default function PlanPage() {
       const data = (await response.json()) as { files?: ReferenceFile[] };
       setReferences(data.files ?? []);
       setPanel("references");
-      setStatus(`已上传 ${list.length} 个参考资料`);
+      setStatus(t("plan.uploadedN", { n: list.length }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "参考资料上传失败");
+      setError(reason instanceof Error ? reason.message : t("plan.refUploadFail"));
     } finally {
       setUploading(false);
     }
   }
 
   async function removeReference(name: string) {
-    if (!window.confirm(`确定移除「${name}」？`)) return;
+    if (!window.confirm(t("plan.confirmRemove", { name }))) return;
     setError("");
     try {
       const response = await apiFetch(`/api/references/${encodeURIComponent(name)}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { files?: ReferenceFile[] };
       setReferences(data.files ?? []);
-      setStatus(`已移除 ${name}`);
+      setStatus(t("plan.removed", { name }));
       if (noteTarget === name) {
         setNoteTarget(null);
         setNoteDraft("");
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "移除失败");
+      setError(reason instanceof Error ? reason.message : t("plan.removeFail"));
     }
   }
 
@@ -419,10 +423,10 @@ export default function PlanPage() {
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { files?: ReferenceFile[] };
       setReferences(data.files ?? []);
-      setStatus("注释已保存");
+      setStatus(t("plan.noteSaved"));
       closeNote();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "注释保存失败");
+      setError(reason instanceof Error ? reason.message : t("plan.noteSaveFail"));
     } finally {
       setNoteSaving(false);
     }
@@ -445,10 +449,10 @@ export default function PlanPage() {
           <div className="plan-intro">
             <h2>
               <ClipboardList className="plan-title-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
-              LCA工作计划
+              {t("plan.title")}
             </h2>
           </div>
-          <div className="plan-mode" role="radiogroup" aria-label="工作类型" data-mode={workMode}>
+          <div className="plan-mode" role="radiogroup" aria-label={t("plan.workType")} data-mode={workMode}>
             <span className="plan-mode-thumb" aria-hidden="true" />
             <button
               type="button"
@@ -456,19 +460,19 @@ export default function PlanPage() {
               aria-checked={workMode === "new"}
               onClick={() => setWorkMode("new")}
             >
-              新工作
+              {t("plan.modeNew")}
             </button>
             <button
               type="button"
               role="radio"
               aria-checked={workMode === "revise"}
               disabled={reviseWorkLocked}
-              title={reviseWorkLocked ? "暂时锁定" : undefined}
+              title={reviseWorkLocked ? t("common.locked") : undefined}
               onClick={() => {
                 if (!reviseWorkLocked) setWorkMode("revise");
               }}
             >
-              修改工作
+              {t("plan.modeRevise")}
             </button>
           </div>
         </div>
@@ -476,9 +480,9 @@ export default function PlanPage() {
         <div className="plan-pager">
           <button type="button" onClick={() => stepPanel(-1)} disabled={panelIndex === 0}>
             <ChevronLeft className="launch-icon" aria-hidden="true" />
-            上一项
+            {t("plan.prev")}
           </button>
-          <div className="plan-tabs" role="tablist" aria-label="计划内容">
+          <div className="plan-tabs" role="tablist" aria-label={t("plan.content")}>
             {panels.map((item) => (
               <button
                 key={item.id}
@@ -488,7 +492,7 @@ export default function PlanPage() {
                 onClick={() => setPanel(item.id)}
               >
                 <PanelIcon id={item.id} />
-                {item.label}
+                {t(item.labelKey)}
                 {item.id === "references" && references.length ? (
                   <em>{references.length}</em>
                 ) : null}
@@ -500,7 +504,7 @@ export default function PlanPage() {
             onClick={() => stepPanel(1)}
             disabled={panelIndex === panels.length - 1}
           >
-            下一项
+            {t("plan.next")}
             <ChevronRight className="launch-icon" aria-hidden="true" />
           </button>
         </div>
@@ -519,14 +523,14 @@ export default function PlanPage() {
             <StudyForm source={form} sourceKey={formToken} onWork={setWork} />
             <div className="row plan-actions plan-import">
                 {status ? <p className="plan-status">{status}</p> : null}
-                <p className="plan-import-hint">如果多次使用，可以先下载模板写好，再上传。</p>
+                <p className="plan-import-hint">{t("plan.importHint")}</p>
                 <button type="button" onClick={() => void downloadTemplate()}>
                   <Download className="launch-icon" aria-hidden="true" />
-                  下载模板
+                  {t("plan.downloadTemplate")}
                 </button>
                 <button type="button" onClick={() => planInput.current?.click()}>
                   <Upload className="launch-icon" aria-hidden="true" />
-                  上传计划文档
+                  {t("plan.uploadPlan")}
                 </button>
                 <input
                   ref={planInput}
@@ -543,7 +547,7 @@ export default function PlanPage() {
           {panel === "references" ? (
             <div className="plan-ref">
               <p className="settings-help">
-                如果对特定文件中希望提取到的信息做规定，请点击「注释」编写。
+                {t("plan.noteHint")}
               </p>
               <div className="plan-ref-body">
                 <div
@@ -571,14 +575,14 @@ export default function PlanPage() {
                   }}
                 >
                   <FileText className="launch-icon" aria-hidden="true" />
-                  <strong>{uploading ? "正在上传…" : "将参考资料拖到这里"}</strong>
-                  <span>可以上传文件或文件夹，大小不限，相同路径不能重复</span>
+                  <strong>{uploading ? t("plan.uploading") : t("plan.dropRefs")}</strong>
+                  <span>{t("plan.uploadHelp")}</span>
                   <div className="plan-drop-actions">
                     <button type="button" onClick={() => referenceInput.current?.click()} disabled={uploading}>
-                      选择文件
+                      {t("plan.pickFiles")}
                     </button>
                     <button type="button" onClick={() => folderInput.current?.click()} disabled={uploading}>
-                      选择文件夹
+                      {t("plan.pickFolder")}
                     </button>
                   </div>
                   <input
@@ -603,7 +607,7 @@ export default function PlanPage() {
                   />
                 </div>
                 <section className="plan-file-pane" aria-labelledby="uploaded-files-label">
-                  <h3 id="uploaded-files-label" className="plan-file-pane-label">已上传文件</h3>
+                  <h3 id="uploaded-files-label" className="plan-file-pane-label">{t("plan.uploadedFiles")}</h3>
                   <div className="plan-file-scroll">
                   {references.length ? (
                     <ul className="plan-files">
@@ -613,7 +617,7 @@ export default function PlanPage() {
                           data-active={noteTarget === file.name ? "true" : "false"}
                           data-noted={file.note?.trim() ? "true" : "false"}
                         >
-                          <span className="plan-file-index">文件{index + 1}</span>
+                          <span className="plan-file-index">{t("plan.fileN", { n: index + 1 })}</span>
                           <strong className="plan-file-name" title={file.name}>
                             {file.name}
                           </strong>
@@ -621,18 +625,18 @@ export default function PlanPage() {
                           <div className="plan-file-actions">
                             <button type="button" onClick={() => openNote(file)}>
                               <MessageSquare className="launch-icon" aria-hidden="true" />
-                              注释
+                              {t("plan.note")}
                             </button>
                             <button type="button" onClick={() => void removeReference(file.name)}>
                               <Trash2 className="launch-icon" aria-hidden="true" />
-                              移除
+                              {t("plan.remove")}
                             </button>
                           </div>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="settings-meta">还没有参考资料。</p>
+                    <p className="settings-meta">{t("plan.noRefs")}</p>
                   )}
                   </div>
                 </section>
@@ -664,20 +668,20 @@ export default function PlanPage() {
             void saveNote();
           }}
         >
-          <h2 id="plan-note-title">对「{noteTarget}」的注释</h2>
+          <h2 id="plan-note-title">{t("plan.noteTitle", { name: noteTarget ?? "" })}</h2>
           <textarea
             id="plan-note"
             value={noteDraft}
-            placeholder="注释会作为对agent的提示词，让你可以控制agent从这份文件中读取什么内容"
+            placeholder={t("plan.noteHelp")}
             onChange={(event) => setNoteDraft(event.target.value)}
           />
           {error ? <p className="status-banner error">{error}</p> : null}
           <div className="plan-note-actions">
             <button type="button" onClick={closeNote}>
-              关闭
+              {t("common.close")}
             </button>
             <button type="submit" className="primary" disabled={noteSaving}>
-              {noteSaving ? "保存中…" : "保存"}
+              {noteSaving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </form>

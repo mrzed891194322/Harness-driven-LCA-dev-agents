@@ -12,6 +12,9 @@ import { apiFetch } from "../../lib/api";
 import { label } from "../../lib/labels";
 import { PromptModal, type PreviewAgent } from "./injection-preview";
 import { workflowForMode, type WorkflowCard } from "../../lib/workflow-cards";
+import { useLocale } from "../../lib/i18n/locale-context";
+import { translate } from "../../lib/i18n/messages";
+import { uiLang } from "../../lib/run-status";
 
 type Preview = { nodes: { id: string; title: string; agents: { agent: string; system: string; user: string }[] }[]; plan_present: boolean; plan_source?: string };
 
@@ -20,12 +23,6 @@ type ReferenceFile = {
   size: number;
   note?: string;
 };
-
-const MODE_LABEL: Record<WorkMode, string> = {
-  new: "新工作",
-  revise: "修改工作",
-};
-
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -45,6 +42,11 @@ export function PreviewBoard({
   /** Preset picked on 工作流编排; null = mode default (full-lca / revise-lca). */
   workflowId?: string | null;
 }) {
+  const { t } = useLocale();
+  const MODE_LABEL: Record<WorkMode, string> = {
+    new: t("plan.modeNew"),
+    revise: t("plan.modeRevise"),
+  };
   const [workflow, setWorkflow] = useState<WorkflowCard | null>(null);
   const [workflowError, setWorkflowError] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -61,46 +63,46 @@ export function PreviewBoard({
     apiFetch("/api/workflow/workflows")
       .then(async (response) => {
         const data = (await response.json()) as { workflows?: WorkflowCard[]; detail?: string };
-        if (!response.ok) throw new Error(data.detail || "无法读取编排");
+        if (!response.ok) throw new Error(data.detail || t("preview.orchFail"));
         const list = data.workflows || [];
         const wf = (workflowId && list.find((w) => w.id === workflowId)) || workflowForMode(list, mode);
-        if (!wf) throw new Error("没有对应的工作流");
+        if (!wf) throw new Error(t("preview.noWorkflow"));
         if (cancelled) return;
         setWorkflow(wf);
         const pv = await apiFetch(`/api/workflow/preview?workflow=${encodeURIComponent(wf.id)}`);
         const pdata = (await pv.json()) as Preview & { detail?: string };
-        if (!pv.ok) throw new Error(pdata.detail || "无法生成注入预览");
+        if (!pv.ok) throw new Error(pdata.detail || t("preview.injectFail"));
         if (!cancelled) setPreview(pdata);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setWorkflowError(reason instanceof Error ? reason.message : "无法读取编排");
+        if (!cancelled) setWorkflowError(reason instanceof Error ? reason.message : t("preview.orchFail"));
       });
     return () => {
       cancelled = true;
     };
-  }, [mode, workflowId]);
+  }, [mode, workflowId, t]);
 
   const taskId = workflow?.id ?? "";
   const canStart = Boolean(workflow) && Boolean(taskId);
   const gateText =
     startError ||
-    (workflowError ? `编排读取失败：${workflowError}` : "") ||
-    (starting ? "正在启动，即将打开运行详情…" : "");
+    (workflowError ? t("preview.orchReadFail", { error: workflowError }) : "") ||
+    (starting ? t("preview.startingOpen") : "");
 
   return (
     <div className="preview-board">
       <div className="preview-scroll">
         <section className="preview-section" aria-labelledby="preview-work-title">
-          <h3 id="preview-work-title">工作内容</h3>
+          <h3 id="preview-work-title">{t("preview.workContent")}</h3>
           <dl className="preview-facts">
             {work.rows.map((row) => (
               <div key={row.id}>
                 <dt>{row.label}</dt>
-                <dd>{row.value || "留空"}</dd>
+                <dd>{row.value || t("common.empty")}</dd>
               </div>
             ))}
           </dl>
-          <h4>参考资料</h4>
+          <h4>{t("preview.refs")}</h4>
           {references.length ? (
             <ul className="preview-files">
               {references.map((file) => (
@@ -112,18 +114,18 @@ export function PreviewBoard({
               ))}
             </ul>
           ) : (
-            <p className="settings-meta">还没有参考资料。</p>
+            <p className="settings-meta">{t("preview.noRefs")}</p>
           )}
         </section>
 
         <section className="preview-section" aria-labelledby="preview-flow-title">
-          <h3 id="preview-flow-title">工作流</h3>
+          <h3 id="preview-flow-title">{t("preview.workflow")}</h3>
           <p className="preview-flow-meta">
             {MODE_LABEL[mode]}
             {workflow ? ` · ${workflow.title || workflow.id} · ${workflow.plan_file}` : ""}
           </p>
           {workflowError ? <p className="status-banner error">{workflowError}</p> : null}
-          {!workflow && !workflowError ? <p className="settings-help">正在读取编排…</p> : null}
+          {!workflow && !workflowError ? <p className="settings-help">{t("preview.loadingOrch")}</p> : null}
           {workflow ? (
             <ol className="preview-stages" data-testid="preview-stages">
               {workflow.details.map((node, index) => (
@@ -131,7 +133,7 @@ export function PreviewBoard({
                   <div className="preview-stage-head">
                     <span>{String(index + 1).padStart(2, "0")}</span>
                     <strong>{node.title || node.id}</strong>
-                    <small>最多 {node.max_rounds} 轮</small>
+                    <small>{t("preview.maxRounds", { n: node.max_rounds })}</small>
                   </div>
                   <ul>
                     {Object.entries(node.agents).map(([name, agent]) => (
@@ -143,11 +145,11 @@ export function PreviewBoard({
                           const hit = preview?.nodes.find((n) => n.id === node.id)?.agents.find((x) => x.agent === name);
                           if (hit) setOpen({ node: { id: node.id, title: node.title }, agent: hit });
                         }}
-                        title={preview ? "查看组合注入" : undefined}
+                        title={preview ? t("preview.viewInject") : undefined}
                       >
                         <Bot size={13} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
-                        <span>{agent.tools.mcp.length ? agent.tools.mcp.join(" · ") : agent.template || "内联"}</span>
+                        <span>{agent.tools.mcp.length ? agent.tools.mcp.join(" · ") : agent.template || t("preview.inline")}</span>
                       </li>
                     ))}
                   </ul>
@@ -172,7 +174,7 @@ export function PreviewBoard({
           }
         >
           <Play className="launch-icon" aria-hidden="true" />
-          {starting ? "正在启动…" : "执行LCA任务"}
+          {starting ? t("preview.starting") : t("preview.execute")}
         </button>
       </div>
     </div>
@@ -201,7 +203,7 @@ async function executeTask(
       }),
     });
     if (!response.ok) {
-      let detail = `无法启动（HTTP ${response.status}）`;
+      let detail = translate(uiLang(), "runs.startFailHttp", { status: response.status });
       try {
         const data = (await response.json()) as { detail?: string };
         if (data.detail) detail = data.detail;
@@ -212,7 +214,7 @@ async function executeTask(
     }
     push(`/runs?workflow=${encodeURIComponent(task)}`);
   } catch (reason: unknown) {
-    setStartError(reason instanceof Error ? reason.message : "无法启动工作流");
+    setStartError(reason instanceof Error ? reason.message : translate(uiLang(), "preview.startFail"));
     setStarting(false);
   }
 }

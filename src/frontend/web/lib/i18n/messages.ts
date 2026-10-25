@@ -1,133 +1,31 @@
+import zh from "../../locales/zh.json";
+import en from "../../locales/en.json";
+
 export type Locale = "zh" | "en";
+
+export type MessageVars = Record<string, string | number>;
 
 export const LOCALES: { id: Locale; htmlLang: string; label: string }[] = [
   { id: "zh", htmlLang: "zh-CN", label: "中文" },
   { id: "en", htmlLang: "en", label: "English" },
 ];
 
-const ZH: Record<string, string> = {
-  "nav.status": "项目状态",
-  "nav.plan": "LCA 计划",
-  "nav.runs": "运行详情",
-  "nav.results": "结果浏览",
-  "chrome.language": "语言",
-  "chrome.languages": "可用语言",
-  "chrome.tutorial": "教程",
-  "chrome.harness": "Harness",
-  "chrome.settings": "设置",
-  "chrome.backendOk": "后端已连接",
-  "chrome.backendDown": "后端未连接",
-  "settings.title": "设置",
-  "settings.general": "通用",
-  "settings.generalTitle": "通用设置",
-  "settings.models": "模型",
-  "settings.modelsTitle": "Provider 配置",
-  "settings.close": "关闭",
-  "general.ports": "端口设置",
-  "general.portsHelp": "保存后重启生效。",
-  "general.web": "前端",
-  "general.api": "后端",
-  "general.save": "保存",
-  "general.portInvalid": "端口须为 1–65535 的整数",
-  "general.portSame": "前端与后端端口不能相同",
-  "general.portSaved": "端口已记录，重启后生效。",
-  "general.cache": "清理缓存",
-  "general.cacheDev": "开发中，功能未完善",
-  "general.agentLang": "Agent 语言",
-  "general.agentLangHelp": "agent 会倾向以这种语言输出，但不影响 GUI 显示语言",
-  "general.agentLangLabel": "语言",
-  "general.agentLangPh": "例如：中文",
-  "general.agentLangEmpty": "请填写语言",
-  "general.agentLangSaved": "语言已记录。",
-  "general.host": "主机",
-  "general.clear": "清除",
-  "general.cacheUserInput": "用户输入",
-  "general.cacheKnowledge": "知识库",
-  "general.cacheWorkspace": "工作区",
-  "general.cacheOlca": "openLCA产物",
-  "label.idle": "空闲",
-  "label.running": "运行中",
-  "label.pending": "等待",
-  "label.completed": "完成",
-  "label.passed": "通过",
-  "label.failed": "失败",
-  "label.stopped": "已停止",
-  "label.error": "错误",
-  "label.blocked": "受阻",
-  "label.ok": "完成",
-  "label.pass": "通过",
-  "label.accept": "通过",
-  "label.fail": "退回",
-  "label.reject": "退回",
-  "label.interrupted": "已中断",
-  "label.aborted": "已中止",
-  "api.backendDown": "后端未连接，正在重试…",
-};
-
-const EN: Record<string, string> = {
-  "nav.status": "Status",
-  "nav.plan": "LCA plan",
-  "nav.runs": "Runs",
-  "nav.results": "Results",
-  "chrome.language": "Language",
-  "chrome.languages": "Available languages",
-  "chrome.tutorial": "Tutorial",
-  "chrome.harness": "Harness",
-  "chrome.settings": "Settings",
-  "chrome.backendOk": "Backend connected",
-  "chrome.backendDown": "Backend offline",
-  "settings.title": "Settings",
-  "settings.general": "General",
-  "settings.generalTitle": "General",
-  "settings.models": "Models",
-  "settings.modelsTitle": "Provider settings",
-  "settings.close": "Close",
-  "general.ports": "Ports",
-  "general.portsHelp": "Restart to apply after saving.",
-  "general.web": "Web",
-  "general.api": "API",
-  "general.save": "Save",
-  "general.portInvalid": "Port must be an integer from 1 to 65535",
-  "general.portSame": "Web and API ports must differ",
-  "general.portSaved": "Ports saved. Restart to apply.",
-  "general.cache": "Clear cache",
-  "general.cacheDev": "In development",
-  "general.agentLang": "Agent language",
-  "general.agentLangHelp": "Agents prefer this language for output; it does not change the GUI language",
-  "general.agentLangLabel": "Language",
-  "general.agentLangPh": "e.g. Chinese",
-  "general.agentLangEmpty": "Enter a language",
-  "general.agentLangSaved": "Language saved.",
-  "general.host": "Host",
-  "general.clear": "Clear",
-  "general.cacheUserInput": "User input",
-  "general.cacheKnowledge": "Knowledge",
-  "general.cacheWorkspace": "Workspace",
-  "general.cacheOlca": "openLCA artifacts",
-  "label.idle": "Idle",
-  "label.running": "Running",
-  "label.pending": "Pending",
-  "label.completed": "Completed",
-  "label.passed": "Passed",
-  "label.failed": "Failed",
-  "label.stopped": "Stopped",
-  "label.error": "Error",
-  "label.blocked": "Blocked",
-  "label.ok": "Done",
-  "label.pass": "Pass",
-  "label.accept": "Accept",
-  "label.fail": "Reject",
-  "label.reject": "Reject",
-  "label.interrupted": "Interrupted",
-  "label.aborted": "Aborted",
-  "api.backendDown": "Backend offline, retrying…",
-};
-
 export const MESSAGES: Record<Locale, Record<string, string>> = {
-  zh: ZH,
-  en: EN,
+  zh: zh as Record<string, string>,
+  en: en as Record<string, string>,
 };
 
-export function translate(locale: Locale, key: string): string {
-  return MESSAGES[locale][key] ?? MESSAGES.zh[key] ?? key;
+function applyVars(text: string, vars?: MessageVars): string {
+  if (!vars) return text;
+  let out = text;
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.split(`{${key}}`).join(String(value));
+  }
+  return out;
+}
+
+/** Look up a key; missing English falls back to Chinese, then the raw key. */
+export function translate(locale: Locale, key: string, vars?: MessageVars): string {
+  const text = MESSAGES[locale][key] ?? MESSAGES.zh[key] ?? key;
+  return applyVars(text, vars);
 }

@@ -1,3 +1,4 @@
+import { translate } from "../../../lib/i18n/messages";
 import { deflateRawSync } from "node:zlib";
 import fs from "node:fs";
 import path from "node:path";
@@ -100,7 +101,7 @@ function collect(root: string): { name: string; data: Buffer }[] {
 export function GET() {
   const files = collect(path.join(projectRoot(), "workspace", "artifacts"));
   if (files.length === 0) {
-    return Response.json({ detail: "还没有产出" }, { status: 404 });
+    return Response.json({ detail: translate("zh", "results.noOutput") }, { status: 404 });
   }
   const zip = zipFiles(files);
   return new Response(new Uint8Array(zip), {
