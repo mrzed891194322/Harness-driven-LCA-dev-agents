@@ -3,16 +3,18 @@
 import { Activity, ClipboardList, FolderOpen, Terminal } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLocale } from "../lib/i18n/locale-context";
 
 const LINKS = [
-  { href: "/status", label: "项目状态", icon: Activity },
-  { href: "/plan", label: "LCA 计划", icon: ClipboardList },
-  { href: "/runs", label: "运行详情", icon: Terminal },
-  { href: "/results", label: "结果浏览", icon: FolderOpen },
-];
+  { href: "/status", key: "nav.status", icon: Activity },
+  { href: "/plan", key: "nav.plan", icon: ClipboardList },
+  { href: "/runs", key: "nav.runs", icon: Terminal },
+  { href: "/results", key: "nav.results", icon: FolderOpen },
+] as const;
 
 export function AppNav() {
   const path = usePathname();
+  const { t } = useLocale();
   return (
     <nav className="nav-row">
       {LINKS.map((link) => {
@@ -24,7 +26,7 @@ export function AppNav() {
             data-active={path === link.href ? "true" : undefined}
           >
             <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
-            {link.label}
+            {t(link.key)}
           </Link>
         );
       })}

@@ -6,6 +6,7 @@ import { BackendStatus } from "../components/backend-status";
 import { SettingsButton, SettingsDialog } from "../components/settings/settings-dialog";
 import { SettingsProvider } from "../components/settings/settings-context";
 import { LanguageButton } from "../components/language-button";
+import { LocaleProvider } from "../lib/i18n/locale-context";
 import { TutorialButton } from "../components/tutorial-button";
 import { HarnessButton } from "../components/harness-button";
 import "./globals.css";
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="zh-CN">
       <body>
         <SettingsProvider>
+          <LocaleProvider>
           <div className="app-frame">
             <header className="app-header">
               <div className="app-header-bar">
@@ -60,6 +62,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
           <SettingsDialog />
+          </LocaleProvider>
         </SettingsProvider>
       </body>
     </html>

@@ -1,23 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useLocale } from "../../lib/i18n/locale-context";
 
-type PortField = {
-  id: "web" | "api";
-  label: string;
-  envKey: string;
-};
+type PortId = "web" | "api";
 
-const PORT_FIELDS: PortField[] = [
-  { id: "web", label: "前端", envKey: "GUI_WEB_PORT" },
-  { id: "api", label: "后端", envKey: "GUI_API_PORT" },
+const PORT_FIELDS: { id: PortId; envKey: string }[] = [
+  { id: "web", envKey: "GUI_WEB_PORT" },
+  { id: "api", envKey: "GUI_API_PORT" },
 ];
 
 const CACHE_OPTIONS = [
-  { id: "user-input", label: "用户输入" },
-  { id: "knowledge", label: "知识库" },
-  { id: "workspace", label: "工作区" },
-  { id: "olca", label: "openLCA产物" },
+  { id: "user-input", key: "general.cacheUserInput" },
+  { id: "knowledge", key: "general.cacheKnowledge" },
+  { id: "workspace", key: "general.cacheWorkspace" },
+  { id: "olca", key: "general.cacheOlca" },
 ] as const;
 
 function validPort(value: string) {
@@ -26,8 +23,9 @@ function validPort(value: string) {
 }
 
 export function GeneralSection(_props: { onChanged?: () => void }) {
+  const { t } = useLocale();
   const [host] = useState("127.0.0.1");
-  const [ports, setPorts] = useState<Record<PortField["id"], string>>({
+  const [ports, setPorts] = useState<Record<PortId, string>>({
     web: "3000",
     api: "8800",
   });
@@ -42,44 +40,44 @@ export function GeneralSection(_props: { onChanged?: () => void }) {
     const invalid = PORT_FIELDS.find((field) => !validPort(ports[field.id]));
     if (invalid) {
       setTone("error");
-      setMessage(`${invalid.label}端口须为 1–65535 的整数`);
+      setMessage(`${t("general." + invalid.id)}: ${t("general.portInvalid")}`);
       return;
     }
     if (ports.web === ports.api) {
       setTone("error");
-      setMessage("前端与后端端口不能相同");
+      setMessage(t("general.portSame"));
       return;
     }
     setTone("ok");
-    setMessage("端口已记录，重启后生效。");
+    setMessage(t("general.portSaved"));
   }
 
   function saveLanguage() {
     const value = agentLanguage.trim();
     if (!value) {
       setLanguageTone("error");
-      setLanguageMessage("请填写语言");
+      setLanguageMessage(t("general.agentLangEmpty"));
       return;
     }
     setAgentLanguage(value);
     setLanguageTone("ok");
-    setLanguageMessage("语言已记录。");
+    setLanguageMessage(t("general.agentLangSaved"));
   }
 
   return (
     <div className="settings-section">
       <section className="settings-card">
-        <h3>端口设置</h3>
-        <p className="settings-help">保存后重启生效。</p>
+        <h3>{t("general.ports")}</h3>
+        <p className="settings-help">{t("general.portsHelp")}</p>
         {PORT_FIELDS.map((field) => (
           <div key={field.id} className="row">
             <label className="inline-field">
-              {field.label}
+              {t(field.id === "web" ? "general.web" : "general.api")}
               <input
                 type="number"
                 min={1}
                 max={65535}
-                aria-label={`${field.label}端口`}
+                aria-label={t(field.id === "web" ? "general.web" : "general.api")}
                 value={ports[field.id]}
                 onChange={(event) => {
                   setMessage("");
@@ -88,13 +86,13 @@ export function GeneralSection(_props: { onChanged?: () => void }) {
               />
             </label>
             <span className="settings-meta">
-              主机 {host} · <span className="mono">{field.envKey}</span>
+              {t("general.host")} {host} · <span className="mono">{field.envKey}</span>
             </span>
           </div>
         ))}
         <div className="row">
           <button type="button" className="primary" onClick={savePorts}>
-            保存
+            {t("general.save")}
           </button>
         </div>
         {message ? (
@@ -106,8 +104,8 @@ export function GeneralSection(_props: { onChanged?: () => void }) {
 
       <section className="settings-card">
         <h3 className="settings-card-title">
-          清理缓存
-          <span className="badge badge-warn">开发中，功能未完善</span>
+          {t("general.cache")}
+          <span className="badge badge-warn">{t("general.cacheDev")}</span>
         </h3>
         <ul className="settings-checks">
           {CACHE_OPTIONS.map((option) => (
@@ -120,31 +118,31 @@ export function GeneralSection(_props: { onChanged?: () => void }) {
                     setCacheTargets((prev) => ({ ...prev, [option.id]: event.target.checked }))
                   }
                 />
-                <span>{option.label}</span>
+                <span>{t(option.key)}</span>
               </label>
             </li>
           ))}
         </ul>
         <div className="row">
-          <button type="button">清除</button>
+          <button type="button">{t("general.clear")}</button>
         </div>
       </section>
 
       <section className="settings-card">
         <h3 className="settings-card-title">
-          Agent 语言
-          <span className="badge badge-warn">开发中，功能未完善</span>
+          {t("general.agentLang")}
+          <span className="badge badge-warn">{t("general.cacheDev")}</span>
         </h3>
-        <p className="settings-help">agent将会倾向以这种语言进行输出，但不影响GUI显示语言</p>
+        <p className="settings-help">{t("general.agentLangHelp")}</p>
         <div className="row">
           <label className="inline-field">
-            语言
+            {t("general.agentLangLabel")}
             <input
               type="text"
               className="agent-language"
-              aria-label="Agent 语言"
+              aria-label={t("general.agentLang")}
               value={agentLanguage}
-              placeholder="例如：中文"
+              placeholder={t("general.agentLangPh")}
               onChange={(event) => {
                 setLanguageMessage("");
                 setAgentLanguage(event.target.value);
@@ -154,11 +152,14 @@ export function GeneralSection(_props: { onChanged?: () => void }) {
         </div>
         <div className="row">
           <button type="button" className="primary" onClick={saveLanguage}>
-            保存
+            {t("general.save")}
           </button>
         </div>
         {languageMessage ? (
-          <div className={`status-banner${languageTone === "ok" ? "" : ` ${languageTone}`}`} role="status">
+          <div
+            className={`status-banner${languageTone === "ok" ? "" : ` ${languageTone}`}`}
+            role="status"
+          >
             {languageMessage}
           </div>
         ) : null}

@@ -7,6 +7,7 @@ import { ModelsSection } from "../model-settings-dialog";
 import { GeneralSection } from "./general-section";
 import { SETTINGS_SECTIONS, settingsSection, type SettingsSectionId } from "./sections";
 import { useSettings } from "./settings-context";
+import { useLocale } from "../../lib/i18n/locale-context";
 
 const PANELS: Record<SettingsSectionId, ComponentType<{ onChanged?: () => void }>> = {
   general: GeneralSection,
@@ -31,10 +32,11 @@ function dialogContainsPoint(dialog: HTMLDialogElement, x: number, y: number) {
 
 export function SettingsButton() {
   const { openSettings } = useSettings();
+  const { t } = useLocale();
   return (
-    <button type="button" className="settings-launch" aria-label="设置" title="设置" onClick={() => openSettings()}>
+    <button type="button" className="settings-launch" aria-label={t("chrome.settings")} title={t("chrome.settings")} onClick={() => openSettings()}>
       <GearIcon />
-      <span>设置</span>
+      <span>{t("chrome.settings")}</span>
     </button>
   );
 }
@@ -42,6 +44,7 @@ export function SettingsButton() {
 export function SettingsDialog() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const { open, section, setSection, closeSettings, notifyChanged } = useSettings();
+  const { t } = useLocale();
   const current = settingsSection(section);
 
   useEffect(() => {
@@ -64,9 +67,9 @@ export function SettingsDialog() {
       }}
     >
       <div className="settings-frame">
-        <nav className="settings-nav" aria-label="设置">
+        <nav className="settings-nav" aria-label={t("chrome.settings")}>
           <p id="settings-dialog-title" className="settings-nav-label">
-            设置
+            {t("settings.title")}
           </p>
           {SETTINGS_SECTIONS.map((item) => (
             <button
@@ -75,18 +78,18 @@ export function SettingsDialog() {
               aria-current={item.id === section ? "page" : undefined}
               onClick={() => setSection(item.id as SettingsSectionId)}
             >
-              {item.label}
+              {t(item.labelKey)}
             </button>
           ))}
         </nav>
         <div className="settings-main">
           <header className="settings-main-head">
             <div>
-              <p className="settings-crumb">设置 / {current.label}</p>
-              <h2>{current.title}</h2>
+              <p className="settings-crumb">{t("settings.title")} / {t(current.labelKey)}</p>
+              <h2>{t(current.titleKey)}</h2>
             </div>
             <button type="button" onClick={closeSettings}>
-              关闭
+              {t("settings.close")}
             </button>
           </header>
           <div className="settings-body">

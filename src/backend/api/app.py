@@ -73,7 +73,7 @@ from backend.services.tutorial_browser import (
     resolve_tutorial_asset,
     tutorial_catalog,
 )
-from backend.settings import load_flat
+from backend.settings import load_flat, normalize_gui_lang, upsert_flat
 from backend.workflow.results import Results
 
 
@@ -901,3 +901,20 @@ def remove_reference(name: str) -> dict[str, Any]:
 @app.get("/api/settings/env")
 def read_env_keys() -> dict[str, str]:
     return load_flat(PROJECT_ROOT)
+
+
+@app.get("/api/settings/locale")
+def read_locale() -> dict[str, str]:
+    values = load_flat(PROJECT_ROOT)
+    return {"lang": normalize_gui_lang(values.get("GUI_LANG") or "zh")}
+
+
+class LocaleUpdate(BaseModel):
+    lang: str
+
+
+@app.put("/api/settings/locale")
+def write_locale(body: LocaleUpdate) -> dict[str, str]:
+    lang = normalize_gui_lang(body.lang)
+    upsert_flat(PROJECT_ROOT, {"GUI_LANG": lang})
+    return {"lang": lang}

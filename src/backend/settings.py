@@ -35,7 +35,7 @@ FLAT_TO_TOML: dict[str, tuple[str, str]] = {
 }
 
 DEFAULT_NESTED: dict[str, dict[str, object]] = {
-    "gui": {"web_port": 3000, "api_port": 8800},
+    "gui": {"web_port": 3000, "api_port": 8800, "lang": "zh"},
     "openlca": {
         "ipc_host": "127.0.0.1",
         "ipc_port": 8080,

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BACKEND_DOWN_MESSAGE, backendReachable } from "../lib/api";
+import { backendReachable } from "../lib/api";
+import { useLocale } from "../lib/i18n/locale-context";
 
 /** Banner shown on every page while the backend does not answer /api/health. */
 export function BackendStatus() {
   const [down, setDown] = useState(false);
+  const { t } = useLocale();
 
   useEffect(() => {
     let cancelled = false;
@@ -26,7 +28,7 @@ export function BackendStatus() {
   if (!down) return null;
   return (
     <div className="backend-status-banner" role="alert">
-      {BACKEND_DOWN_MESSAGE}
+      {t("api.backendDown")}
     </div>
   );
 }

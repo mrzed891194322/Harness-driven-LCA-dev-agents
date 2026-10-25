@@ -1,6 +1,6 @@
 export const SETTINGS_SECTIONS = [
-  { id: "general", label: "通用", title: "通用设置" },
-  { id: "models", label: "模型", title: "Provider 配置" },
+  { id: "general", labelKey: "settings.general", titleKey: "settings.generalTitle" },
+  { id: "models", labelKey: "settings.models", titleKey: "settings.modelsTitle" },
 ] as const;
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];

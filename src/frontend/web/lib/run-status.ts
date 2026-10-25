@@ -1,23 +1,16 @@
+import { translate, type Locale } from "./i18n/messages";
+
 export type RunStatusKey = "idle" | "running" | "failed" | "completed" | "interrupted" | "aborted";
 
-export const RUN_STATUS_LABEL: Record<RunStatusKey, { zh: string; en: string }> = {
-  idle: { zh: "空闲", en: "Idle" },
-  running: { zh: "运行中", en: "Running" },
-  failed: { zh: "失败", en: "Failed" },
-  completed: { zh: "完成", en: "Completed" },
-  interrupted: { zh: "已中断", en: "Interrupted" },
-  aborted: { zh: "已中止", en: "Aborted" },
-};
-
-export function uiLang(): "zh" | "en" {
+export function uiLang(): Locale {
   const lang = (typeof document !== "undefined" ? document.documentElement.lang : "zh-CN").toLowerCase();
   return lang.startsWith("en") ? "en" : "zh";
 }
 
-export function runStatusLabel(status: string, lang: "zh" | "en" = uiLang()): string {
-  const row = RUN_STATUS_LABEL[status as RunStatusKey];
-  if (row) return lang === "en" ? row.en : row.zh;
-  return status;
+export function runStatusLabel(status: string, lang: Locale = uiLang()): string {
+  const key = `label.${status}`;
+  const translated = translate(lang, key);
+  return translated === key ? status : translated;
 }
 
 export function runStatusTone(status: string): "fail" | "warn" | "ok" | "off" {
