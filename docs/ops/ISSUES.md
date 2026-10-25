@@ -7,8 +7,10 @@ Rule: when a problem comes up, pick a fix, keep going, and log it here. Each ent
 - What: `npm run dev` from `.local/wt/...` failed to start pi-runtime (Unix socket bind error).
 - Cause: Unix socket paths are limited to ~108 bytes; the default `.local/run/pi-runtime.sock` under the nested
   worktree path exceeds it.
-- Fix: start worktree services with `PI_RUNTIME_SOCKET` set to a short path (documented in `SERVE_DEV.md`).
-- Pending: whether to make a short socket path the default (e.g. under `$XDG_RUNTIME_DIR`) instead of an env var.
+- Fix: `runtimeSocket` / `defaultRuntimeSocketPath` in `service_files.mjs` now default to a short path under
+  the main repo when started from `.local/wt/...` (serve → `pi-v5serve.sock`; see I-64). `PI_RUNTIME_SOCKET`
+  still overrides. Documented in `SERVE_DEV.md`.
+- Pending: none (short default landed).
 
 ## I-02 Dev edits broke live GUI tests
 - What: an uncommitted spec move in the worktree made the live services return 400
@@ -841,3 +843,13 @@ Deferred（不当本轮硬故障，先放；LCA 结果指标一律不记）：
 - 修复：新增 `src/scripts/merge_serve_credentials.mjs`（目标已有 provider 保留，只补缺失；
   不删目标多出的 marker；不打印密钥）。`SERVE_DEV.md` 改为调用该脚本；切 tip 禁止整目录覆盖。
 - 状态：done（脚本 + 文档）；已有 key 若已被冲掉需在面板再保存一次。
+
+## I-64 serve / worktree 默认短 `PI_RUNTIME_SOCKET`（2026-10-25）
+
+- 症状：从 serve worktree 启动时默认 sock 落在 WT 下，路径 >~108 字节 → Unix bind `EINVAL`；
+  需手动 `export PI_RUNTIME_SOCKET=<main>/.local/run/pi-v5serve.sock`。
+- 修复：`src/scripts/service_files.mjs` 在未设 `PI_RUNTIME_SOCKET` 时，对 `.local/wt/...`
+  （或默认路径过长）自动落到主仓 `.local/run/`（serve → `pi-v5serve.sock`，其它 → `pi-runtime.sock`）；
+  过长的旧 endpoint 记录也会被忽略。`SERVE_DEV.md` 改为「一般不用手动 export」。
+- 状态：done。
+

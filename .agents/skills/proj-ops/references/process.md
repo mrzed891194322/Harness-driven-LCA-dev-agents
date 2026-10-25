@@ -15,6 +15,7 @@
 - 不要设置 `PI_RUNTIME_MOCK` 或 `PI_RUNTIME_PRIVATE`。控制面板应打印 `mode=real`。
 - 不要把 `.env`、`.local/credentials/` 里的密钥写进回复、日志或提交。
 - 更新 / 重建 serve worktree 时不要 `cp -r .local/credentials` 覆盖目标；用 `node src/scripts/merge_serve_credentials.mjs`（见 `docs/ops/SERVE_DEV.md`）。
+- 从 serve worktree 启动一般**不必**再手动 `export PI_RUNTIME_SOCKET`：启动脚本会默认用主仓短路径（`pi-v5serve.sock`）；显式设置仍可覆盖（见 `docs/ops/SERVE_DEV.md`）。
 - 上一次启动或重启还在同步、构建时，不要再开一次。
 
 ## 先判断

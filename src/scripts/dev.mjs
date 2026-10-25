@@ -9,8 +9,9 @@
 //                               exactly what `npm run stop` stops, in the same order.
 //
 // Start order: backend, then immediately pi-runtime, then web. Linux / macOS listen
-// on .local/run/pi-runtime.sock. Windows listens on tcp://127.0.0.1:<port>. The
-// address is written to .local/run/pi-runtime.endpoint; PI_RUNTIME_SOCKET overrides.
+// on .local/run/pi-runtime.sock (serve / long .local/wt paths use a short sock under
+// the main repo; see defaultRuntimeSocketPath). Windows listens on tcp://127.0.0.1:<port>.
+// The address is written to .local/run/pi-runtime.endpoint; PI_RUNTIME_SOCKET overrides.
 // Exactly one pi-runtime per project: the backend and every workflow.py run connect
 // to it and never start their own. Windows also requires Git for Windows so the
 // agent's bash tool has a shell.

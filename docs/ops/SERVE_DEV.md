@@ -39,20 +39,25 @@ Update to a newer commit (only when no run is live): `npm run stop` in serve, th
 
 ## Start / stop
 
-The worktree path is too long for a Unix socket, so always set `PI_RUNTIME_SOCKET` (inside the project):
+`npm run dev` / `npm start` / `npm run stop` **default** to a short Unix socket under the main
+repo when started from a nested worktree (serve → `<main>/.local/run/pi-v5serve.sock`; other
+long `.local/wt/...` checkouts → `<main>/.local/run/pi-runtime.sock`). You no longer need to
+export `PI_RUNTIME_SOCKET` for the usual serve path. An explicit `PI_RUNTIME_SOCKET` still
+overrides that default.
 
 ```bash
 cd .local/wt/serve/202606-harness-agent-LCA
-export PI_RUNTIME_SOCKET=<main repo>/.local/run/pi-v5serve.sock
 npm run dev      # start; check curl --noproxy '*' localhost:8800/api/health
-npm run stop     # stop (same PI_RUNTIME_SOCKET)
+npm run stop     # stop (same default short socket)
+# optional override:
+# export PI_RUNTIME_SOCKET=<main repo>/.local/run/pi-v5serve.sock
 ```
 
 Before stopping or switching: `GET /api/workflow/status` must not be `running`, and no GUI test may be in progress.
 
 ## Switch back to the main repo services
 
-`npm run stop` in serve (with its `PI_RUNTIME_SOCKET`), then `npm run dev` in the main repo, check `/api/health`.
+`npm run stop` in serve, then `npm run dev` in the main repo, check `/api/health`.
 
 ## Cleanup
 

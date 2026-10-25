@@ -160,17 +160,65 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ------------------------------------------------------------ pi-runtime
 
+/** Typical sockaddr_un.sun_path is 108 bytes incl. NUL; stay under that. */
+export const UNIX_SOCK_PATH_MAX = 104;
+
+/**
+ * Main checkout when `repoRoot` is a nested `.local/wt/...` worktree;
+ * otherwise `repoRoot` itself.
+ */
+export function mainRepoRoot(repoRoot = root) {
+  const normalized = path.resolve(repoRoot);
+  const marker = `${path.sep}.local${path.sep}wt${path.sep}`;
+  const idx = normalized.indexOf(marker);
+  if (idx >= 0) return normalized.slice(0, idx);
+  return normalized;
+}
+
+/** True when `repoRoot` is under `.local/wt/serve/`. */
+export function isServeWorktree(repoRoot = root) {
+  const marker = `${path.sep}.local${path.sep}wt${path.sep}serve${path.sep}`;
+  return path.resolve(repoRoot).includes(marker);
+}
+
+/**
+ * Default Unix socket when no env override / usable endpoint record.
+ * Nested worktrees (and any path that would exceed UNIX_SOCK_PATH_MAX) land
+ * under the main repo's `.local/run/`: serve → `pi-v5serve.sock`, else
+ * `pi-runtime.sock` (same as SERVE_DEV.md).
+ */
+export function defaultRuntimeSocketPath(repoRoot = root) {
+  const nested = path.join(path.resolve(repoRoot), ".local", "run", "pi-runtime.sock");
+  const main = mainRepoRoot(repoRoot);
+  const underWt = main !== path.resolve(repoRoot);
+  const tooLong = Buffer.byteLength(nested, "utf8") >= UNIX_SOCK_PATH_MAX;
+  if (!underWt && !tooLong) return nested;
+  const name = isServeWorktree(repoRoot) ? "pi-v5serve.sock" : "pi-runtime.sock";
+  return path.join(main, ".local", "run", name);
+}
+
+function unixPathTooLong(endpoint) {
+  if (!endpoint || isTcpEndpoint(endpoint)) return false;
+  try {
+    const normalized = normalizeEndpoint(endpoint);
+    if (isTcpEndpoint(normalized)) return false;
+    return Buffer.byteLength(normalized, "utf8") >= UNIX_SOCK_PATH_MAX;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Where the project's single pi-runtime listens.
- * `PI_RUNTIME_SOCKET` wins; otherwise `.local/run/pi-runtime.endpoint`;
- * otherwise the Unix socket `.local/run/pi-runtime.sock`.
+ * `PI_RUNTIME_SOCKET` wins; otherwise a usable `.local/run/pi-runtime.endpoint`;
+ * otherwise the short default (see `defaultRuntimeSocketPath`).
  */
 export function runtimeSocket(env = process.env, repoRoot = root) {
   const override = (env.PI_RUNTIME_SOCKET || "").trim();
   if (override) return normalizeEndpoint(override);
   const recorded = readEndpointFile(repoRoot);
-  if (recorded) return normalizeEndpoint(recorded);
-  return path.join(repoRoot, ".local", "run", "pi-runtime.sock");
+  if (recorded && !unixPathTooLong(recorded)) return normalizeEndpoint(recorded);
+  return defaultRuntimeSocketPath(repoRoot);
 }
 
 function normalizeEndpoint(value) {
