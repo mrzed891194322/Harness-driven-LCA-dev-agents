@@ -40,7 +40,7 @@ Gemma4 档另加 `--pace-s 90`（及脚本内 429 backoff）；战役六格笔�
 ## 待办（收成脚本前）
 
 - [ ] mapping 12 案收口数字写入对应 OPS 笔记
-- [ ] `run_batch` summary 显式输出 `completed|transient_hit|rate_limit|knowledge_skip`
-- [ ] completed+产物 不再把途中 429 当成案间 backoff 的 `rate_limit` 失败
+- [x] `run_batch` summary 显式输出 `completed|transient_hit|rate_limit|knowledge_skip`
+- [x] completed+产物 不再把途中 429 当成案间 backoff 的 `rate_limit` 失败
 - [ ] abstention 串跑路径与 skip 列表
 - [ ] 一键：serve 健康检查 → 选模型 → 按矩阵串跑 → 写 OPS 摘要

@@ -255,6 +255,22 @@ def detect_rate_limit(status: dict, events_blob: str, notes: str = "") -> tuple[
     return True, ctx
 
 
+
+
+def row_outcome_tag(row: dict[str, Any]) -> str:
+    """群口径标签（互斥优先：knowledge_skip > rate_limit > transient_hit > completed）。"""
+    notes = str(row.get("notes") or "")
+    status = str(row.get("status") or "").lower()
+    if status == "knowledge_skip" or "knowledge_skip" in notes:
+        return "knowledge_skip"
+    if row.get("rate_limit"):
+        return "rate_limit"
+    if row.get("transient_hit"):
+        return "transient_hit"
+    if status == "completed" and (row.get("artifact") or row.get("claims") or row.get("ops_ok")):
+        return "completed"
+    return status or "unknown"
+
 def sleep_with_log(tee: Tee, seconds: float, why: str) -> None:
     if seconds <= 0:
         return
@@ -495,7 +511,10 @@ def run_one(
             "run_id": None,
             "status": "script_error",
             "claims": False,
+            "artifact": False,
             "model_disconnect": False,
+            "transient_hit": False,
+            "rate_limit": False,
             "ops_ok": False,
             "notes": f"missing query: {qpath.relative_to(REPO)}",
         }
@@ -520,6 +539,7 @@ def run_one(
                 "claims": False,
                 "artifact": False,
                 "model_disconnect": False,
+                "transient_hit": False,
                 "rate_limit": False,
                 "ops_ok": False,
                 "notes": f"refs_stage_error:{e}",
@@ -579,14 +599,24 @@ def run_one(
         else None
     )
     term_ok = (status or "").lower() == "completed" and not st.get("_timeout")
-    ops_ok = bool(term_ok and not disc)
+    # 群口径：completed+产物时，途中 429/disconnect → transient_hit，不算 rate_limit
+    success_with_artifact = bool(term_ok and artifact_ok)
+    transient_hit = bool(success_with_artifact and (rate_hit or disc))
+    # rate_limit：终态失败（或无产物）且命中配额信号；成功有产物的途中命中不算
+    rate_limit = bool(rate_hit and not success_with_artifact)
+    ops_ok = bool(success_with_artifact)
     notes_parts: list[str] = []
     if st.get("_timeout"):
         notes_parts.append("poll_timeout")
-    if disc:
+    if transient_hit:
+        tag = "429" if rate_hit else "disconnect"
+        notes_parts.append(f"transient_hit:{tag}")
+    if disc and not transient_hit:
         notes_parts.append(f"model_disconnect:{disc_note[:120]}")
-    if rate_hit:
+    if rate_limit:
         notes_parts.append(f"rate_limit:{rate_note[:120]}")
+    elif rate_hit and transient_hit and rate_note:
+        notes_parts.append(f"mid_429:{rate_note[:80]}")
     if auto_references:
         notes_parts.append(f"refs={len(staged_refs)}")
     if claims_ok:
@@ -617,7 +647,8 @@ def run_one(
         "claims": claims_ok,
         "artifact": artifact_ok,
         "model_disconnect": disc,
-        "rate_limit": rate_hit,
+        "transient_hit": transient_hit,
+        "rate_limit": rate_limit,
         "ops_ok": ops_ok,
         "result_dir": str(out_dir.relative_to(REPO)),
         "notes": "; ".join(notes_parts),
@@ -803,6 +834,8 @@ def main(argv: list[str] | None = None) -> int:
                         tee.log(f"RATE_LIMIT streak={rate_streak}")
                     else:
                         rate_streak = 0
+                    if row.get("transient_hit"):
+                        tee.log("TRANSIENT_HIT (no backoff)")
                 except Exception as e:
                     tee.log(f"CASE_EXCEPTION {case['id']} repeat={rep}: {e}")
                     tee.log(traceback.format_exc())
@@ -816,6 +849,7 @@ def main(argv: list[str] | None = None) -> int:
                             "status": "script_error",
                             "claims": False,
                             "model_disconnect": False,
+                            "transient_hit": False,
                             "rate_limit": False,
                             "ops_ok": False,
                             "notes": f"exception:{e}",
@@ -826,13 +860,37 @@ def main(argv: list[str] | None = None) -> int:
 
         tee.log("")
         tee.log("======== SUMMARY ========")
-        hdr = f"{'case':<22} {'wf':<14} {'model':<28} {'rep':<4} {'run_id':<34} {'status':<12} notes"
+        for r in rows:
+            r["outcome"] = row_outcome_tag(r)
+        counts = {
+            "completed": sum(1 for r in rows if r["outcome"] == "completed"),
+            "transient_hit": sum(1 for r in rows if r["outcome"] == "transient_hit"),
+            "rate_limit": sum(1 for r in rows if r["outcome"] == "rate_limit"),
+            "knowledge_skip": sum(1 for r in rows if r["outcome"] == "knowledge_skip"),
+            "other": sum(
+                1
+                for r in rows
+                if r["outcome"]
+                not in {"completed", "transient_hit", "rate_limit", "knowledge_skip"}
+            ),
+        }
+        tee.log(
+            "counts "
+            f"completed={counts['completed']} transient_hit={counts['transient_hit']} "
+            f"rate_limit={counts['rate_limit']} knowledge_skip={counts['knowledge_skip']} "
+            f"other={counts['other']} total={len(rows)}"
+        )
+        hdr = (
+            f"{'case':<22} {'wf':<14} {'model':<28} {'rep':<4} "
+            f"{'run_id':<34} {'status':<12} {'outcome':<14} notes"
+        )
         tee.log(hdr)
         for r in rows:
             tee.log(
                 f"{r['case']:<22} {str(r.get('workflow') or '-'):<14} "
                 f"{str(r.get('model') or '-'):<28} {str(r.get('repeat') or '-'):<4} "
                 f"{str(r.get('run_id') or '-'):<34} {str(r.get('status') or '-'):<12} "
+                f"{str(r.get('outcome') or '-'):<14} "
                 f"{r.get('notes', '')}"
             )
         summary = {
@@ -844,6 +902,7 @@ def main(argv: list[str] | None = None) -> int:
             "backoff_base_s": args.backoff_base_s,
             "backoff_max_s": args.backoff_max_s,
             "log": str(log_path.relative_to(REPO)),
+            "counts": counts,
             "rows": rows,
         }
         summary_path = log_dir / f"summary-{workflow}-{ts}.json"
