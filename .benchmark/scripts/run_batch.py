@@ -379,15 +379,49 @@ def serve_tip(repo: Path) -> str:
         return "unknown"
 
 
-def wait_idle(api: str, tee: Tee, timeout_s: float = 30) -> None:
+def stop_workflow(api: str, tee: Tee) -> dict[str, Any]:
+    """Best-effort POST /api/workflow/stop so a timed-out run does not block the batch."""
+    try:
+        resp = api_json(api, "POST", "/api/workflow/stop", {}, timeout=30)
+        tee.log(f"  stop_resp={json.dumps(resp, ensure_ascii=False)}")
+        return resp if isinstance(resp, dict) else {"raw": resp}
+    except Exception as e:
+        tee.log(f"  stop_error={e}")
+        return {"error": str(e)}
+
+
+def wait_idle(
+    api: str,
+    tee: Tee,
+    timeout_s: float = 30,
+    *,
+    stop_if_stuck: bool = True,
+) -> None:
+    """Wait until serve is not running. If still busy after timeout_s, stop once then wait again."""
     t0 = time.time()
     while time.time() - t0 < timeout_s:
         st = api_json(api, "GET", "/api/workflow/status", timeout=15)
         if not st.get("running"):
             return
-        tee.log(f"  wait-idle: still running rid={st.get('run_id')} status={st.get('status')}")
+        tee.log(
+            f"  wait-idle: still running rid={st.get('run_id')} status={st.get('status')}"
+        )
         time.sleep(2)
-    raise RuntimeError("workflow still running; refuse to start another")
+    if not stop_if_stuck:
+        raise RuntimeError("workflow still running; refuse to start another")
+    tee.log("  wait-idle: still busy after timeout → POST /api/workflow/stop")
+    stop_workflow(api, tee)
+    t1 = time.time()
+    while time.time() - t1 < max(timeout_s, 60):
+        st = api_json(api, "GET", "/api/workflow/status", timeout=15)
+        if not st.get("running"):
+            tee.log("  wait-idle: idle after stop")
+            return
+        tee.log(
+            f"  wait-idle: draining rid={st.get('run_id')} status={st.get('status')}"
+        )
+        time.sleep(2)
+    raise RuntimeError("workflow still running after stop; refuse to start another")
 
 
 def ensure_model(api: str, model: str | None, tee: Tee) -> str:
@@ -431,8 +465,27 @@ def poll_until_done(
         if not st.get("running") and status in TERMINAL:
             return st
         if time.time() - t0 > max_s:
-            tee.log(f"  TIMEOUT after {max_s}s; returning last status")
+            tee.log(f"  TIMEOUT after {max_s}s; stopping run then returning last status")
             st["_timeout"] = True
+            # Leave serve idle for the next case (Qwen/slow models otherwise ghost-running).
+            if st.get("running"):
+                stop_workflow(api, tee)
+                drain_t0 = time.time()
+                while time.time() - drain_t0 < 120:
+                    cur = api_json(api, "GET", "/api/workflow/status", timeout=15)
+                    if not cur.get("running"):
+                        tee.log(
+                            f"  timeout_stop_drained rid={cur.get('run_id')} "
+                            f"status={cur.get('status')}"
+                        )
+                        # Keep the timed-out run's last status for meta, but mark idle.
+                        st["running"] = False
+                        if cur.get("status"):
+                            st["status_after_stop"] = cur.get("status")
+                        break
+                    time.sleep(2)
+                else:
+                    tee.log("  timeout_stop_drain_incomplete; next wait_idle will stop again")
             return st
         time.sleep(poll_s)
 
@@ -933,7 +986,12 @@ def main(argv: list[str] | None = None) -> int:
         help="不开跑前自动清空并 POST /api/references（默认会挂 input/reference.md）",
     )
     parser.add_argument("--poll", type=float, default=5.0, help="轮询间隔秒")
-    parser.add_argument("--max-s", type=float, default=900.0, help="单案最长等待秒")
+    parser.add_argument(
+        "--max-s",
+        type=float,
+        default=900.0,
+        help="单案最长等待秒（超时会 stop 再开下一案；Qwen 等慢模可加到 1800）",
+    )
     parser.add_argument(
         "--pace-s",
         type=float,

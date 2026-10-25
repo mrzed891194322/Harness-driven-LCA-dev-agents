@@ -206,6 +206,7 @@ curl -sS "$API/api/models/profiles" | python3 -c "import sys,json; d=json.load(s
 | `--case` | 只跑这些 case_id（可重复） | 默认扫整棵 cases-root |
 | `--repeat N` | 每案重复次数 | 默认 1 |
 | `--pace-s` | 案间固定间隔秒 | 默认 0；**Gemma4 建议 90**；Qwen 默认不 pace，遇 429 再加 |
+| `--max-s` | 单案轮询上限秒 | 默认 900；**超时会 `POST /api/workflow/stop` 再开下一案**（防幽灵 running 连跳）；Qwen 慢可 `--max-s 1800` |
 | `--backoff-base-s` / `--backoff-max-s` | 终态 `rate_limit` 后指数退避 | 默认 60 / 300 |
 | `--no-auto-references` | 关掉开跑前自动 POST references | 默认会清 knowledge/inputs 并挂 `input/reference.md`（及 PDF 文本别名） |
 | `--log-dir` | 批日志目录 | 默认 `.benchmark/result/_logs` |
