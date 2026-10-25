@@ -172,7 +172,7 @@ export default function StatusPage() {
       const env = (await envRes.json()) as unknown;
       if (!envRes.ok || !isDiagnostics(env)) {
         throw new Error(
-          `环境诊断不可用（HTTP ${envRes.status}）。请确认后端已按 .env 的 GUI_API_PORT 启动。`,
+          `环境诊断不可用（HTTP ${envRes.status}）。请确认后端已按 config.toml 的 gui.api_port 启动。`,
         );
       }
       setDiag(env);

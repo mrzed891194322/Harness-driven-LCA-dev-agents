@@ -15,7 +15,7 @@ WEB_ROOT = FRONTEND_ROOT / "web"
 WORKFLOWS = PROJECT_ROOT / "harness" / "workflows"
 
 # ---------------------------------------------------------------------------
-# 测试隔离：绝不碰真实 openLCA（8080 / .env 配置端口）和真实 workspace。
+# 测试隔离：绝不碰真实 openLCA（8080 / config.toml 配置端口）和真实 workspace。
 # ---------------------------------------------------------------------------
 
 _LIVE_OPENLCA_PORT = 8080
@@ -27,12 +27,14 @@ def _configured_live_ports() -> set[int]:
     for source in (os.environ.get("OPENLCA_IPC_PORT", ""),):
         if source.strip().isdigit():
             ports.add(int(source.strip()))
-    env_file = PROJECT_ROOT / ".env"
-    if env_file.is_file():
-        for line in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
-            key, _, value = line.partition("=")
-            if key.strip() == "OPENLCA_IPC_PORT" and value.strip().strip("'\"").isdigit():
-                ports.add(int(value.strip().strip("'\"")))
+    try:
+        from backend.settings import load_flat
+
+        raw = load_flat(PROJECT_ROOT).get("OPENLCA_IPC_PORT", "")
+        if str(raw).strip().isdigit():
+            ports.add(int(str(raw).strip()))
+    except Exception:
+        pass
     return ports
 
 

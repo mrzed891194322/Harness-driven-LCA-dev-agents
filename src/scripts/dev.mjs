@@ -25,7 +25,7 @@ import {
   alive,
   logDir,
   logFile,
-  parseEnvFile,
+  loadConfigFlat,
   pidFile,
   readPid,
   removePid,
@@ -77,7 +77,7 @@ function portFree(port) {
   });
 }
 
-const fileEnv = parseEnvFile(path.join(root, ".env"));
+const fileEnv = loadConfigFlat(root);
 const webPort = resolvePort(fileEnv, "GUI_WEB_PORT", "3000");
 const apiPort = resolvePort(fileEnv, "GUI_API_PORT", "8800");
 
@@ -108,11 +108,11 @@ if (strayRuntimes.length) {
   process.exit(1);
 }
 if (!(await portFree(apiPort))) {
-  console.error(`API port ${apiPort} is already in use. Run \`npm run stop\`, or change GUI_API_PORT in .env.`);
+  console.error(`API port ${apiPort} is already in use. Run \`npm run stop\`, or change gui.api_port in config.toml.`);
   process.exit(1);
 }
 if (!(await portFree(webPort))) {
-  console.error(`Web port ${webPort} is already in use. Run \`npm run stop\`, or change GUI_WEB_PORT in .env.`);
+  console.error(`Web port ${webPort} is already in use. Run \`npm run stop\`, or change gui.web_port in config.toml.`);
   process.exit(1);
 }
 const socketPath = writeEndpointFile(root, await chooseEndpoint());

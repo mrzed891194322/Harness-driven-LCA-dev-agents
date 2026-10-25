@@ -3,7 +3,7 @@ Environment bootstrap script.
 
 Checks:
     1. uv is on PATH (does not install it).
-    2. uv sync, Python version, and .env template.
+    2. uv sync, Python version, and config.toml template.
     3. MCP module import and registered tool names.
 
 Usage:

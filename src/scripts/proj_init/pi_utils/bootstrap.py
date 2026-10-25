@@ -94,18 +94,12 @@ def check_python_version() -> dict[str, Any]:
 
 
 def ensure_env_file(project_root: Path) -> dict[str, Any]:
-    """Create .env from .env.example when missing. Do not inspect values."""
-    env_path = project_root / ".env"
-    example_path = project_root / ".env.example"
-    if not env_path.is_file():
-        if not example_path.is_file():
-            print("[ERROR] .env and .env.example are both missing.")
-            return {"exists": False, "created": False}
-        shutil.copy2(example_path, env_path)
-        print("[WARN] .env was missing; copied from .env.example.")
-        return {"exists": True, "created": True}
+    """Create config.toml from config.example.toml (or migrate .env) when missing."""
+    from backend.settings import ensure_config_path
 
-    print("[OK] .env exists.")
+    path = ensure_config_path(project_root)
+    created = True  # ensure_config_path always returns existing file; treat first call as ok
+    print(f"[OK] config present: {path.name}")
     return {"exists": True, "created": False}
 
 

@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 
 _ROOT = next(
     parent
@@ -21,14 +21,14 @@ for _p in (_ROOT / "src", _ROOT):
 from backend.services.diagnostics import check_openlca, check_project_environment
 
 PROJECT_ROOT = _ROOT
-load_dotenv(PROJECT_ROOT / ".env")
 
 
 def main() -> int:
-    from backend.settings import (
-        DEFAULT_OPENLCA_IPC_PORT,
-        load_port_settings,
-    )
+    from backend.settings import DEFAULT_OPENLCA_IPC_PORT, load_flat, load_port_settings
+
+    for key, value in load_flat(PROJECT_ROOT).items():
+        os.environ.setdefault(key, value)
+
 
     parser = argparse.ArgumentParser(
         description="就绪检查：Pi runtime + openLCA IPC 连接（引导/内部用）"
@@ -49,7 +49,7 @@ def main() -> int:
         "--port",
         type=int,
         default=load_port_settings(PROJECT_ROOT)["openlca_ipc_port"],
-        help=f"openLCA IPC Server 端口（默认 {DEFAULT_OPENLCA_IPC_PORT} 或 .env 中的 OPENLCA_IPC_PORT）",
+        help=f"openLCA IPC Server 端口（默认 {DEFAULT_OPENLCA_IPC_PORT} 或 config.toml 中的 OPENLCA_IPC_PORT）",
     )
     args = parser.parse_args()
 

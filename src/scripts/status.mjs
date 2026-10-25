@@ -10,7 +10,7 @@ import { readEndpointFile } from "./endpoint.mjs";
 import {
   SERVICES,
   groupAlive,
-  parseEnvFile,
+  loadConfigFlat,
   readPid,
   repoProcesses,
   root,
@@ -49,7 +49,7 @@ async function apiHealth(port) {
   }
 }
 
-const fileEnv = parseEnvFile(path.join(root, ".env"));
+const fileEnv = loadConfigFlat(root);
 let webPort;
 let apiPort;
 try {

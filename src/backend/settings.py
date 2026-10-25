@@ -1,7 +1,7 @@
 """Backend settings and generic helpers (no domain rules).
 
-Merged in P-1 from ``app_settings.py`` and ``utils/{env,filesystem,workspace_layout}.py``;
-each former module is kept as its own section below.
+Project settings live in repo-root ``config.toml`` (see ``config.example.toml``).
+Flat key names (``GUI_API_PORT``, …) are kept for API / launcher compatibility.
 """
 
 from __future__ import annotations
@@ -10,14 +10,194 @@ import os
 import shutil
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore
+
 # ---------------------------------------------------------------------------
-# Generic .env parse / upsert helpers (formerly utils/env.py)
+# config.toml ↔ flat env-style keys
+# ---------------------------------------------------------------------------
+
+CONFIG_NAME = "config.toml"
+CONFIG_EXAMPLE_NAME = "config.example.toml"
+
+# flat key -> (section, field) and default as string for flat loaders
+FLAT_TO_TOML: dict[str, tuple[str, str]] = {
+    "GUI_WEB_PORT": ("gui", "web_port"),
+    "GUI_API_PORT": ("gui", "api_port"),
+    "GUI_LANG": ("gui", "lang"),
+    "GUI_PORT": ("gui", "port"),  # legacy single-port field
+    "OPENLCA_IPC_HOST": ("openlca", "ipc_host"),
+    "OPENLCA_IPC_PORT": ("openlca", "ipc_port"),
+    "OPENLCA_PROJECT_CATEGORY": ("openlca", "project_category"),
+    "HARNESS_LANGUAGE": ("harness", "language"),
+    "HARNESS_AGENT": ("harness", "agent"),
+    "PI_MODEL": ("pi", "model"),
+    "PI_MODEL_RETRY_DELAYS_S": ("pi", "model_retry_delays_s"),
+}
+
+DEFAULT_NESTED: dict[str, dict[str, object]] = {
+    "gui": {"web_port": 3000, "api_port": 8800},
+    "openlca": {
+        "ipc_host": "127.0.0.1",
+        "ipc_port": 8080,
+        "project_category": "202606-harness-agent-LCA",
+    },
+    "harness": {"language": "中文"},
+    "pi": {"model": "default"},
+}
+
+
+def config_path(project_root: Path) -> Path:
+    return project_root / CONFIG_NAME
+
+
+def _stringify(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _read_toml(path: Path) -> dict[str, dict[str, object]]:
+    if not path.is_file():
+        return {}
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, dict[str, object]] = {}
+    for section, body in data.items():
+        if isinstance(section, str) and isinstance(body, dict):
+            out[section] = dict(body)
+    return out
+
+
+def _format_toml_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    if isinstance(value, float):
+        return str(value)
+    text = str(value)
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _write_toml(path: Path, nested: dict[str, dict[str, object]]) -> None:
+    lines: list[str] = [
+        "# Project settings (replaces .env). See config.example.toml.\n",
+        "\n",
+    ]
+    order = ["gui", "openlca", "harness", "pi"]
+    sections = [s for s in order if s in nested] + sorted(s for s in nested if s not in order)
+    for section in sections:
+        body = nested[section]
+        if not body:
+            continue
+        lines.append(f"[{section}]\n")
+        for key, value in body.items():
+            lines.append(f"{key} = {_format_toml_value(value)}\n")
+        lines.append("\n")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(lines), encoding="utf-8")
+
+
+def _migrate_env_to_toml(project_root: Path, dest: Path) -> bool:
+    """If ``.env`` exists, write a config.toml from it. Returns True when migrated."""
+    env_path = project_root / ".env"
+    if not env_path.is_file():
+        return False
+    flat = parse_env_file(env_path)
+    if not flat:
+        return False
+    nested: dict[str, dict[str, object]] = {k: dict(v) for k, v in DEFAULT_NESTED.items()}
+    for flat_key, raw in flat.items():
+        if flat_key not in FLAT_TO_TOML:
+            continue
+        section, field = FLAT_TO_TOML[flat_key]
+        nested.setdefault(section, {})
+        if field.endswith("_port") or field == "port":
+            try:
+                nested[section][field] = int(str(raw).strip())
+                continue
+            except ValueError:
+                pass
+        nested[section][field] = raw
+    _write_toml(dest, nested)
+    return True
+
+
+def ensure_config_path(project_root: Path) -> Path:
+    """Return config.toml path; create from .env migrate, example copy, or defaults."""
+    path = config_path(project_root)
+    if path.is_file():
+        return path
+    if _migrate_env_to_toml(project_root, path):
+        return path
+    example = project_root / CONFIG_EXAMPLE_NAME
+    if example.is_file():
+        shutil.copy2(example, path)
+        return path
+    _write_toml(path, {k: dict(v) for k, v in DEFAULT_NESTED.items()})
+    return path
+
+
+def load_nested(project_root: Path) -> dict[str, dict[str, object]]:
+    ensure_config_path(project_root)
+    nested = {k: dict(v) for k, v in DEFAULT_NESTED.items()}
+    loaded = _read_toml(config_path(project_root))
+    for section, body in loaded.items():
+        nested.setdefault(section, {}).update(body)
+    return nested
+
+
+def load_flat(project_root: Path) -> dict[str, str]:
+    """Flat env-style keys from config.toml (process env overrides at call sites)."""
+    nested = load_nested(project_root)
+    out: dict[str, str] = {}
+    for flat_key, (section, field) in FLAT_TO_TOML.items():
+        if section in nested and field in nested[section]:
+            out[flat_key] = _stringify(nested[section][field])
+    return out
+
+
+def upsert_flat(project_root: Path, updates: dict[str, str]) -> None:
+    """Update config.toml fields from flat env-style keys."""
+    path = ensure_config_path(project_root)
+    nested = load_nested(project_root)
+    for flat_key, raw in updates.items():
+        if flat_key not in FLAT_TO_TOML:
+            continue
+        section, field = FLAT_TO_TOML[flat_key]
+        nested.setdefault(section, {})
+        text = str(raw).strip()
+        if field.endswith("_port") or field == "port":
+            try:
+                nested[section][field] = int(text)
+                continue
+            except ValueError:
+                pass
+        nested[section][field] = text
+    _write_toml(path, nested)
+
+
+# ---------------------------------------------------------------------------
+# Generic dotenv parse / upsert (tests / one-off files only; not project config)
 # ---------------------------------------------------------------------------
 
 
 def parse_env_file(path: Path) -> dict[str, str]:
+    """Parse a dotenv-style file. Prefer ``load_flat`` for project settings."""
     parsed: dict[str, str] = {}
     if not path.is_file():
+        return parsed
+    # Allow pointing tests at a .toml via the same helper when suffix matches.
+    if path.suffix == ".toml":
+        nested = _read_toml(path)
+        for flat_key, (section, field) in FLAT_TO_TOML.items():
+            if section in nested and field in nested[section]:
+                parsed[flat_key] = _stringify(nested[section][field])
         return parsed
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
@@ -34,6 +214,12 @@ def _format_env_value(value: str) -> str:
 
 
 def upsert_env_keys(path: Path, updates: dict[str, str]) -> None:
+    """Upsert keys in a dotenv file, or in config.toml when ``path`` ends with .toml / is config.toml."""
+    if path.name == CONFIG_NAME or path.suffix == ".toml":
+        # Treat as project config when under a known root layout; write nested.
+        root = path.parent
+        upsert_flat(root, updates)
+        return
     if path.is_file():
         raw = path.read_text(encoding="utf-8")
         lines = raw.splitlines(keepends=True)
@@ -65,6 +251,16 @@ def upsert_env_keys(path: Path, updates: dict[str, str]) -> None:
 
 
 def remove_env_keys(path: Path, keys: set[str]) -> None:
+    if path.name == CONFIG_NAME or path.suffix == ".toml":
+        nested = _read_toml(path) if path.is_file() else {}
+        for flat_key in keys:
+            if flat_key not in FLAT_TO_TOML:
+                continue
+            section, field = FLAT_TO_TOML[flat_key]
+            if section in nested and field in nested[section]:
+                del nested[section][field]
+        _write_toml(path, nested)
+        return
     if not path.is_file() or not keys:
         return
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
@@ -80,7 +276,7 @@ def remove_env_keys(path: Path, keys: set[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Generic filesystem clean helpers, no LCA / openLCA rules (formerly utils/filesystem.py)
+# Generic filesystem clean helpers (formerly utils/filesystem.py)
 # ---------------------------------------------------------------------------
 
 
@@ -89,12 +285,7 @@ class PathEscapeError(ValueError):
 
 
 def ensure_path_within(path: Path, allowed_root: Path) -> Path:
-    """Return resolved path if it stays under allowed_root.
-
-    Symlink targets that resolve outside ``allowed_root`` are rejected.
-    The path itself may be a symlink; callers decide whether to unlink it
-    without following.
-    """
+    """Return resolved path if it stays under allowed_root."""
     allowed = allowed_root.resolve()
     try:
         resolved = path.resolve()
@@ -121,8 +312,7 @@ def run_root(workspace_root: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Application-level settings keys loaded from the repository .env
-# (formerly app_settings.py)
+# Application-level settings keys
 # ---------------------------------------------------------------------------
 
 DEFAULT_HARNESS_AGENT = "pi"
@@ -138,20 +328,12 @@ MAX_PORT = 65535
 
 
 def ensure_env_path(project_root: Path) -> Path:
-    """Return the .env path, copying .env.example when the file is missing."""
-    env_path = project_root / ".env"
-    if env_path.is_file():
-        return env_path
-    example_path = project_root / ".env.example"
-    if example_path.is_file():
-        shutil.copy2(example_path, env_path)
-        return env_path
-    env_path.write_text("", encoding="utf-8")
-    return env_path
+    """Backward-compatible alias: ensure ``config.toml`` and return its path."""
+    return ensure_config_path(project_root)
 
 
 def parse_port(value: object, default: int) -> int:
-    """Parse a port number from env or UI input, falling back to default."""
+    """Parse a port number from config or UI input, falling back to default."""
     text = str(value or "").strip()
     if not text:
         return default
@@ -174,8 +356,6 @@ def normalize_gui_lang(value: object) -> str:
 
 def normalize_harness_agent(value: object) -> str:
     """Return a supported harness worker name, defaulting to Pi."""
-    # Lazy import: backend.core imports backend.settings, so a module-level
-    # import here would form a backend.core -> backend.settings -> backend.core cycle.
     from backend.core.agents.inspect import WORKERS as HARNESS_AGENTS
 
     agent = str(value or "").strip().lower()
@@ -185,8 +365,8 @@ def normalize_harness_agent(value: object) -> str:
 
 
 def load_port_settings(project_root: Path) -> dict[str, int]:
-    """Load GUI and openLCA IPC port numbers from .env."""
-    values = parse_env_file(project_root / ".env")
+    """Load GUI and openLCA IPC port numbers from config.toml."""
+    values = load_flat(project_root)
     return {
         "gui_port": parse_port(
             values.get(GUI_PORT_KEY) or os.getenv(GUI_PORT_KEY),
@@ -201,7 +381,7 @@ def load_port_settings(project_root: Path) -> dict[str, int]:
 
 def load_harness_agent(project_root: Path) -> str:
     """Return the persisted harness worker used by workflow launch."""
-    values = parse_env_file(project_root / ".env")
+    values = load_flat(project_root)
     return normalize_harness_agent(
         values.get(HARNESS_AGENT_KEY) or os.getenv(HARNESS_AGENT_KEY)
     )

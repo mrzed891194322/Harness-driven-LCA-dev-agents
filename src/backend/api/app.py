@@ -73,12 +73,12 @@ from backend.services.tutorial_browser import (
     resolve_tutorial_asset,
     tutorial_catalog,
 )
-from backend.settings import parse_env_file
+from backend.settings import load_flat
 from backend.workflow.results import Results
 
 
 def _web_origins() -> list[str]:
-    values = parse_env_file(PROJECT_ROOT / ".env")
+    values = load_flat(PROJECT_ROOT)
     port = (
         os.getenv("GUI_WEB_PORT") or values.get("GUI_WEB_PORT") or "3000"
     ).strip() or "3000"
@@ -900,4 +900,4 @@ def remove_reference(name: str) -> dict[str, Any]:
 
 @app.get("/api/settings/env")
 def read_env_keys() -> dict[str, str]:
-    return parse_env_file(PROJECT_ROOT / ".env")
+    return load_flat(PROJECT_ROOT)

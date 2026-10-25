@@ -17,7 +17,7 @@ git worktree add --detach .local/wt/serve/202606-harness-agent-LCA refactor/harn
 S=.local/wt/serve/202606-harness-agent-LCA
 ln -s ../../../../node_modules $S/node_modules; ln -s ../../../../.venv $S/.venv   # shared deps, read-only use
 # runtime files: copies, not links
-cp .env $S/.env; mkdir -p $S/.local; cp -r .local/credentials $S/.local/
+cp config.toml $S/config.toml; mkdir -p $S/.local; cp -r .local/credentials $S/.local/
 cp .local/workflow-models.json .local/model_profiles.json $S/.local/
 cp harness/knowledge/inputs/<reference files> $S/harness/knowledge/inputs/
 cp workspace/artifacts/plan/main_plan.md $S/workspace/artifacts/plan/
@@ -46,6 +46,6 @@ Before stopping or switching: `GET /api/workflow/status` must not be `running`, 
 
 ## Cleanup
 
-Copied secrets live in `serve/.local/credentials/`, `serve/.env` and, per session, `serve/workspace/tmp/pi-workflow/*/agent/auth.json`;
+Copied secrets live in `serve/.local/credentials/`, `serve/config.toml` and, per session, `serve/workspace/tmp/pi-workflow/*/agent/auth.json`;
 the dev worktree holds the same copies. Remove them when the worktrees are retired (`git worktree remove`
 without force after deleting untracked copies; never `rm -r` through the `node_modules` / `.venv` links).

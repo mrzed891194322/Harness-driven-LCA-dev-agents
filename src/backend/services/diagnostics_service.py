@@ -21,9 +21,9 @@ from backend.services.project_paths import PROJECT_ROOT
 from backend.settings import (
     DEFAULT_OPENLCA_IPC_PORT,
     OPENLCA_IPC_PORT_KEY,
-    parse_env_file,
+    load_flat,
     parse_port,
-    upsert_env_keys,
+    upsert_flat,
 )
 
 REQUIRED_PYTHON = (3, 12)
@@ -41,7 +41,7 @@ def python_runtime_status() -> dict:
 
 
 def openlca_endpoint(project_root: Path) -> tuple[str, int]:
-    values = parse_env_file(project_root / ".env")
+    values = load_flat(project_root)
     host = (
         values.get("OPENLCA_IPC_HOST") or os.getenv("OPENLCA_IPC_HOST") or "127.0.0.1"
     ).strip() or "127.0.0.1"
@@ -83,7 +83,7 @@ def lca_tools_report(project_root: Path, *, openlca: dict | None = None) -> list
 def save_openlca_port(project_root: Path, port: int) -> dict:
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise ValueError("端口须在 1–65535")
-    upsert_env_keys(project_root / ".env", {OPENLCA_IPC_PORT_KEY: str(port)})
+    upsert_flat(project_root, {OPENLCA_IPC_PORT_KEY: str(port)})
     os.environ[OPENLCA_IPC_PORT_KEY] = str(port)
     return openlca_status(project_root)
 

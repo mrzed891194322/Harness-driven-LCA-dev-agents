@@ -104,14 +104,14 @@ if (uvProbe.error || uvProbe.code !== 0) {
   fail("uv was not found. Install it from https://docs.astral.sh/uv/getting-started/installation/");
 }
 
-const envPath = path.join(root, ".env");
-const examplePath = path.join(root, ".env.example");
-if (!fs.existsSync(envPath)) {
-  if (!fs.existsSync(examplePath)) {
-    fail(".env.example is missing, so .env could not be created.");
+const configPath = path.join(root, "config.toml");
+const configExamplePath = path.join(root, "config.example.toml");
+if (!fs.existsSync(configPath)) {
+  if (!fs.existsSync(configExamplePath)) {
+    fail("config.example.toml is missing, so config.toml could not be created.");
   }
-  fs.copyFileSync(examplePath, envPath);
-  console.log("Copied .env.example to .env.");
+  fs.copyFileSync(configExamplePath, configPath);
+  console.log("Copied config.example.toml to config.toml.");
 }
 
 console.log("Syncing uv dependencies...");

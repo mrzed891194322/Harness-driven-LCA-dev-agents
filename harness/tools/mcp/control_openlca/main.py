@@ -13,7 +13,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
 
-from dotenv import load_dotenv
 from mcp.server import MCPServer
 from mcp_types import ToolAnnotations
 
@@ -24,8 +23,13 @@ PROJECT_ROOT = next(
 )
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+if str(PROJECT_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-load_dotenv(PROJECT_ROOT / ".env")
+from backend.settings import load_flat
+
+for _key, _value in load_flat(PROJECT_ROOT).items():
+    os.environ.setdefault(_key, _value)
 
 from harness.tools.shared.control_openlca import operations, readonly
 from harness.tools.shared.control_openlca.cleanup import run_cleanup_output

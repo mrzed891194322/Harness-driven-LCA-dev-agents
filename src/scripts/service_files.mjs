@@ -100,6 +100,70 @@ export function parseEnvFile(filePath) {
   return parsed;
 }
 
+
+/** Flat env-style keys from repo-root config.toml (replaces .env). */
+const CONFIG_FLAT_MAP = {
+  web_port: "GUI_WEB_PORT",
+  api_port: "GUI_API_PORT",
+  port: "GUI_PORT",
+  lang: "GUI_LANG",
+  ipc_host: "OPENLCA_IPC_HOST",
+  ipc_port: "OPENLCA_IPC_PORT",
+  project_category: "OPENLCA_PROJECT_CATEGORY",
+  language: "HARNESS_LANGUAGE",
+  agent: "HARNESS_AGENT",
+  model: "PI_MODEL",
+  model_retry_delays_s: "PI_MODEL_RETRY_DELAYS_S",
+};
+
+const SECTION_FLAT = {
+  gui: true,
+  openlca: true,
+  harness: true,
+  pi: true,
+};
+
+export function parseTomlFlat(text) {
+  const parsed = {};
+  let section = "";
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const sec = line.match(/^\[([A-Za-z0-9_]+)\]$/);
+    if (sec) {
+      section = sec[1];
+      continue;
+    }
+    const eq = line.indexOf("=");
+    if (eq < 0 || !SECTION_FLAT[section]) continue;
+    const field = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    }
+    const flat = CONFIG_FLAT_MAP[field];
+    if (flat) parsed[flat] = value;
+  }
+  return parsed;
+}
+
+export function loadConfigFlat(repoRoot = root) {
+  const configPath = path.join(repoRoot, "config.toml");
+  const examplePath = path.join(repoRoot, "config.example.toml");
+  if (!fs.existsSync(configPath)) {
+    if (fs.existsSync(examplePath)) {
+      fs.copyFileSync(examplePath, configPath);
+    } else {
+      return {};
+    }
+  }
+  return parseTomlFlat(fs.readFileSync(configPath, "utf8"));
+}
+
+
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ------------------------------------------------------------ pi-runtime

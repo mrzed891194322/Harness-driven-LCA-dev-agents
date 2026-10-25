@@ -8,7 +8,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
 
 from harness.tools.shared.control_openlca.health_service import (
     cleanup as run_cleanup_output,
@@ -23,7 +22,15 @@ PROJECT_ROOT = next(
 
 
 def _endpoint_config() -> tuple[str, int]:
-    load_dotenv(PROJECT_ROOT / ".env")
+    import sys
+
+    src = PROJECT_ROOT / "src"
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    from backend.settings import load_flat
+
+    for key, value in load_flat(PROJECT_ROOT).items():
+        os.environ.setdefault(key, value)
     host = os.getenv("OPENLCA_IPC_HOST", "127.0.0.1").strip()
     port_text = os.getenv("OPENLCA_IPC_PORT", "8080").strip()
     try:

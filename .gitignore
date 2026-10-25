@@ -25,6 +25,7 @@ logs/
 
 # .env file
 .env
+config.toml
 
 #
 .eval/*

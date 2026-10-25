@@ -294,8 +294,8 @@ class SpecFile(_Strict):
     upstream: Upstream = Field(default_factory=Upstream)
 
 
-# {{var}} values come from .env (Q4): template variable -> env key. A missing key fails at load.
-ENV_FILE = Path(__file__).resolve().parents[3] / ".env"  # tests point this at a temp file
+# {{var}} values come from config.toml (Q4): template variable -> flat key. A missing key fails at load.
+ENV_FILE = Path(__file__).resolve().parents[3] / "config.toml"  # tests point this at a temp file
 TEMPLATE_ENV_KEYS: dict[str, str] = {"language": "HARNESS_LANGUAGE", "project_category": "OPENLCA_PROJECT_CATEGORY"}
 
 
