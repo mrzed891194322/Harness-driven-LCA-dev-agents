@@ -17,15 +17,25 @@ git worktree add --detach .local/wt/serve/202606-harness-agent-LCA refactor/harn
 S=.local/wt/serve/202606-harness-agent-LCA
 ln -s ../../../../node_modules $S/node_modules; ln -s ../../../../.venv $S/.venv   # shared deps, read-only use
 # runtime files: copies, not links
-cp config.toml $S/config.toml; mkdir -p $S/.local; cp -r .local/credentials $S/.local/
+cp config.toml $S/config.toml; mkdir -p $S/.local
+# credentials: MERGE only — never `cp -r .local/credentials` over serve.
+# Panel BYOK writes into the serve worktree; a blind copy from main would wipe
+# providers (e.g. google) that only exist there. See I-63.
+node src/scripts/merge_serve_credentials.mjs --source .local/credentials --target $S/.local/credentials
 cp .local/workflow-models.json .local/model_profiles.json $S/.local/
 cp harness/knowledge/inputs/<reference files> $S/harness/knowledge/inputs/
 cp workspace/artifacts/plan/main_plan.md $S/workspace/artifacts/plan/
 (cd $S/src/pi-runtime && npm run build)
 ```
 
+**切 tip / 更新 serve 时必须 merge 凭证，禁止整目录覆盖 `pi-auth`。** 一律用
+`node src/scripts/merge_serve_credentials.mjs`（默认源/目标即上表路径；可用
+`--source` / `--target` 覆盖）。脚本会：保留目标已有 provider；只补目标缺失的；
+保留目标多出来的 marker（如 `google.json`）；`pi-agent/` 仅在目标没有时复制。
+
 Update to a newer commit (only when no run is live): `npm run stop` in serve, then in serve
-`git checkout --detach <commit>`, rebuild pi-runtime, start again.
+`git checkout --detach <commit>`, rebuild pi-runtime, **re-run the merge script above**
+(do not `cp -r` credentials), start again.
 
 ## Start / stop
 

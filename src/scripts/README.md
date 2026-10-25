@@ -7,6 +7,7 @@
 - **`stop_lib.mjs`**：stop / restart / 前台 Ctrl-C 共用的停止逻辑。
 - **`service_files.mjs`**：共用的 pid / 日志 / 套接字路径与工具函数。
 - **`tool_caches.mjs`**：启动器把 uv / npm 的包缓存固定到仓库根 `.cache/uv/`、`.cache/npm/`（沙箱里家目录缓存只读；配置了项目外路径时回退，与 Python 侧 `core/agents/uv_env.py` 一致）。
+- **`merge_serve_credentials.mjs`**：把主仓 `.local/credentials` **merge** 进 serve worktree（保留目标已有 `pi-auth` provider 与 marker；禁止整目录覆盖）。切 tip / 建 serve 用，见 `docs/ops/SERVE_DEV.md`。
 - **环境引导**：`proj_init/`（首次仓库准备）。
 - **编排器内部入口**：`clean.py`、`check_status.py`、`doctor.py`（v5 配置自检） 供控制面板后端 / 测试 / 引导子进程调用，**不是**面向用户的控制方式。
 - **`gitee_upload/`**：发布辅助，与 LCA 控制无关。

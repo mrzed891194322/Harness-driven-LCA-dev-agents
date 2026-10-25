@@ -830,3 +830,14 @@ Deferred（不当本轮硬故障，先放；LCA 结果指标一律不记）：
 - 症状：openLCA import 偶发 no-reference-flow（残缺 stub 挡住 generated 参考流）。
 - 修复：`2ae9c99`（rebase 前 `ec01fd9`）；连跑验证无再复现。
 - 状态：done，已在 `origin/master`。
+
+
+## I-63 serve 切 tip 时 `cp -r` 凭证冲掉 BYOK（2026-10-25）
+
+- 症状：面板在 serve worktree 写入的 Google（等）API key，切 tip / 按 `SERVE_DEV` 重启后消失；
+  `/api/credentials/status` 无对应 provider，模型列表拉不到 Gemma 等。
+- 原因：`docs/ops/SERVE_DEV.md` 用主仓 `cp -r .local/credentials` 整目录盖进 serve；
+  主仓若缺该 provider，serve 里刚填的 `pi-auth` / marker 被覆盖。
+- 修复：新增 `src/scripts/merge_serve_credentials.mjs`（目标已有 provider 保留，只补缺失；
+  不删目标多出的 marker；不打印密钥）。`SERVE_DEV.md` 改为调用该脚本；切 tip 禁止整目录覆盖。
+- 状态：done（脚本 + 文档）；已有 key 若已被冲掉需在面板再保存一次。
