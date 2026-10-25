@@ -3,6 +3,9 @@
 
 相对仓库根路径。依赖本机已起的 serve（默认 http://127.0.0.1:8800）。
 产物不进 git（.benchmark/result/ 已 ignore）。
+
+每案 token（input/output/cache）从 serve `.local/runs/<run_id>/sessions/*/transcript.jsonl`
+汇总写入 meta.json 与 summary.json；provider 未给的字段写字符串 unavailable，不静默填 0。
 """
 
 from __future__ import annotations
@@ -138,6 +141,221 @@ def merge_case_lists(*lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
             seen.add(c["id"])
             out.append(c)
     return out
+
+
+TOKEN_UNAVAILABLE = "unavailable"
+
+
+def _token_bucket() -> dict[str, Any]:
+    """Running totals + which fields were actually seen (never invent 0)."""
+    return {
+        "input": 0,
+        "output": 0,
+        "cache_read": 0,
+        "cache_write": 0,
+        "seen": {"input": False, "output": False, "cache_read": False, "cache_write": False},
+        "sources": [],
+        "sessions": 0,
+    }
+
+
+def _add_usage_fields(bucket: dict[str, Any], usage: dict[str, Any] | None) -> None:
+    """Accumulate one usage object. Missing keys stay unseen (→ unavailable)."""
+    if not isinstance(usage, dict):
+        return
+    # provider / transcript shapes
+    mapping = (
+        ("input", ("input", "prompt_tokens", "prompt", "input_tokens")),
+        ("output", ("output", "completion_tokens", "completion", "output_tokens")),
+        ("cache_read", ("cache_read", "cacheRead", "cached_tokens", "cache_tokens")),
+        ("cache_write", ("cache_write", "cacheWrite")),
+    )
+    for dest, keys in mapping:
+        for k in keys:
+            if k in usage and usage[k] is not None:
+                try:
+                    bucket[dest] += int(usage[k])
+                except (TypeError, ValueError):
+                    continue
+                bucket["seen"][dest] = True
+                break
+
+
+def _finalize_tokens(bucket: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key in ("input", "output", "cache_read", "cache_write"):
+        out[key] = bucket[key] if bucket["seen"][key] else TOKEN_UNAVAILABLE
+    if bucket["seen"]["cache_read"] or bucket["seen"]["cache_write"]:
+        cr = bucket["cache_read"] if bucket["seen"]["cache_read"] else 0
+        cw = bucket["cache_write"] if bucket["seen"]["cache_write"] else 0
+        out["cache"] = cr + cw
+    else:
+        out["cache"] = TOKEN_UNAVAILABLE
+    # aliases matching the ops ask (prompt/completion)
+    out["prompt"] = out["input"]
+    out["completion"] = out["output"]
+    out["sessions"] = bucket["sessions"]
+    out["source"] = ",".join(bucket["sources"]) if bucket["sources"] else "none"
+    return out
+
+
+def _ingest_transcript_summaries(sessions_dir: Path, bucket: dict[str, Any]) -> None:
+    if not sessions_dir.is_dir():
+        return
+    for tf in sorted(sessions_dir.rglob("transcript.jsonl")):
+        try:
+            lines = tf.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        found = False
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec.get("type") != "summary":
+                continue
+            usage = rec.get("tokens_total") or rec.get("tokens_this_attempt")
+            if isinstance(usage, dict):
+                _add_usage_fields(bucket, usage)
+                found = True
+                bucket["sessions"] += 1
+            break
+        if found and "transcript" not in bucket["sources"]:
+            bucket["sources"].append("transcript")
+
+
+def _ingest_session_jsonl(workspace: Path, bucket: dict[str, Any]) -> None:
+    root = workspace / "tmp" / "pi-workflow"
+    if not root.is_dir():
+        return
+    hit = False
+    for sf in sorted(root.rglob("session.jsonl")):
+        try:
+            raw = sf.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        session_hit = False
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            msg = rec.get("message") if isinstance(rec.get("message"), dict) else None
+            if not msg or msg.get("role") != "assistant":
+                continue
+            usage = msg.get("usage")
+            if usage is None:
+                continue
+            _add_usage_fields(bucket, usage if isinstance(usage, dict) else None)
+            session_hit = True
+        if session_hit:
+            hit = True
+            bucket["sessions"] += 1
+    if hit and "session.jsonl" not in bucket["sources"]:
+        bucket["sources"].append("session.jsonl")
+
+
+def _ingest_events_tokens(events_blob: str, bucket: dict[str, Any]) -> None:
+    """Fallback: sum input_tokens/output_tokens on worker_turn / turn_end events."""
+    if not events_blob or events_blob.startswith("<events_fetch_error"):
+        return
+    try:
+        payload = json.loads(events_blob)
+    except json.JSONDecodeError:
+        return
+    events = payload.get("events") if isinstance(payload, dict) else None
+    if not isinstance(events, list):
+        return
+    hit = False
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        kind = ev.get("kind") or ""
+        if kind not in {"worker_turn", "turn_end", "turn"}:
+            # also accept nested outcome
+            pass
+        usage = None
+        if "input_tokens" in ev or "output_tokens" in ev:
+            usage = {
+                "input_tokens": ev.get("input_tokens"),
+                "output_tokens": ev.get("output_tokens"),
+                "cache_read": ev.get("cache_read") if "cache_read" in ev else None,
+                "cache_write": ev.get("cache_write") if "cache_write" in ev else None,
+            }
+            # drop Nones so unseen stays unseen
+            usage = {k: v for k, v in usage.items() if v is not None}
+        elif isinstance(ev.get("outcome"), dict):
+            oc = ev["outcome"]
+            usage = {
+                k: oc[k]
+                for k in (
+                    "input_tokens",
+                    "output_tokens",
+                    "input",
+                    "output",
+                    "cache_read",
+                    "cache_write",
+                )
+                if k in oc and oc[k] is not None
+            }
+        if usage:
+            _add_usage_fields(bucket, usage)
+            hit = True
+    if hit and "events" not in bucket["sources"]:
+        bucket["sources"].append("events")
+
+
+def collect_token_usage(
+    *,
+    workspace: Path,
+    run_id: str | None,
+    events_blob: str = "",
+) -> dict[str, Any]:
+    """Per-case token totals from transcript (preferred), else session.jsonl, else events.
+
+    Missing provider fields become the string "unavailable" — never a silent 0.
+    """
+    bucket = _token_bucket()
+    rid = str(run_id or "").strip()
+    if rid and rid != "norun":
+        # serve WT project root is workspace.parent; also try main repo .local/runs
+        candidates = [
+            workspace.parent / ".local" / "runs" / rid / "sessions",
+            REPO / ".local" / "runs" / rid / "sessions",
+        ]
+        for sessions in candidates:
+            before = bucket["sessions"]
+            _ingest_transcript_summaries(sessions, bucket)
+            if bucket["sessions"] > before:
+                break
+    # Prefer transcript; only fall back when no usage fields seen yet
+    if not any(bucket["seen"].values()):
+        _ingest_session_jsonl(workspace, bucket)
+    if not any(bucket["seen"].values()):
+        _ingest_events_tokens(events_blob, bucket)
+    return _finalize_tokens(bucket)
+
+
+def sum_token_field(rows: list[dict[str, Any]], key: str) -> int | str:
+    """Batch total for one token field; unavailable if no case had a number."""
+    total = 0
+    any_num = False
+    for row in rows:
+        tok = row.get("tokens")
+        if not isinstance(tok, dict):
+            continue
+        val = tok.get(key)
+        if isinstance(val, int):
+            total += val
+            any_num = True
+    return total if any_num else TOKEN_UNAVAILABLE
 
 
 def resolve_workspace(repo: Path) -> Path:
@@ -577,6 +795,16 @@ def run_one(
             except Exception as e:
                 disc_note = (disc_note + f" | artifact_parse_error={e}").strip(" |")
 
+    tokens = collect_token_usage(
+        workspace=workspace, run_id=str(rid) if rid else None, events_blob=events
+    )
+    tee.log(
+        "  tokens "
+        f"input={tokens.get('input')} output={tokens.get('output')} "
+        f"cache={tokens.get('cache')} "
+        f"(cache_read={tokens.get('cache_read')} cache_write={tokens.get('cache_write')}; "
+        f"source={tokens.get('source')} sessions={tokens.get('sessions')})"
+    )
     meta = {
         "case": case_id,
         "workflow": workflow,
@@ -586,6 +814,7 @@ def run_one(
         "run_id": rid,
         "category": category,
         "subcategory": subcategory,
+        "tokens": tokens,
     }
     out_dir = copy_result_tree(
         category, subcategory, case_id, str(rid or "norun"), workspace, st, meta
@@ -654,6 +883,7 @@ def run_one(
         "notes": "; ".join(notes_parts),
         "f1": f1,
         "fabrication": fab,
+        "tokens": tokens,
     }
     tee.log(f"DONE {json.dumps(row, ensure_ascii=False)}")
     return row
@@ -893,6 +1123,22 @@ def main(argv: list[str] | None = None) -> int:
                 f"{str(r.get('outcome') or '-'):<14} "
                 f"{r.get('notes', '')}"
             )
+        token_totals = {
+            "input": sum_token_field(rows, "input"),
+            "output": sum_token_field(rows, "output"),
+            "cache": sum_token_field(rows, "cache"),
+            "cache_read": sum_token_field(rows, "cache_read"),
+            "cache_write": sum_token_field(rows, "cache_write"),
+            "prompt": sum_token_field(rows, "prompt"),
+            "completion": sum_token_field(rows, "completion"),
+        }
+        tee.log(
+            "tokens_total "
+            f"input={token_totals['input']} output={token_totals['output']} "
+            f"cache={token_totals['cache']} "
+            f"(cache_read={token_totals['cache_read']} "
+            f"cache_write={token_totals['cache_write']})"
+        )
         summary = {
             "tip": tip,
             "workflow": workflow,
@@ -903,6 +1149,7 @@ def main(argv: list[str] | None = None) -> int:
             "backoff_max_s": args.backoff_max_s,
             "log": str(log_path.relative_to(REPO)),
             "counts": counts,
+            "tokens_total": token_totals,
             "rows": rows,
         }
         summary_path = log_dir / f"summary-{workflow}-{ts}.json"
