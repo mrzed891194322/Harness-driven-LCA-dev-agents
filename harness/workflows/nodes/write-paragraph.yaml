@@ -1,7 +1,7 @@
 id: write-paragraph
 title: 写一段短文（示例）
 produces:
-  - {spec: paragraph, path: paragraph/paragraph.md}
+  - {spec: harness/specs/paragraph.yaml, path: paragraph/paragraph.md}
 agents:
   executor: executor
   reviewer: reviewer

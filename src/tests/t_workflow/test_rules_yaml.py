@@ -14,7 +14,7 @@ from backend.workflow.config import (
     render,
 )
 from backend.workflow.inject import Injector
-from tests.t_workflow.conftest import REPO, make_node, write_yaml
+from tests.t_workflow.conftest import REPO, make_node, write_yaml, node_ref, spec_ref
 
 
 def test_real_harness_rules_roles_specs_load():
@@ -31,8 +31,8 @@ def test_real_harness_rules_roles_specs_load():
     assert load_agent_def(REPO, "reviewer").deliver.submit == "verdict"
     assert load_agent_def(REPO, "executor").deliver.submit == "artifact"
     for p in (REPO / "harness/specs").glob("*.yaml"):
-        assert load_spec(REPO, p.stem).prompt.strip()
-    assert load_spec(REPO, "lca-bom").schema_["required"] == ["items"]
+        assert load_spec(REPO, f"harness/specs/{p.name}").prompt.strip()
+    assert load_spec(REPO, spec_ref("lca-bom")).schema_["required"] == ["items"]
 
 
 def test_undefined_variable_names_file_and_variable(wf_root):
@@ -53,8 +53,8 @@ def test_enabled_order_and_applies_to(wf_root):
     g = wf_root / "harness/rules/global"
     write_yaml(g / "70-off.yaml", {"title": "关", "enabled": False, "prompt": "OFF-RULE"})
     write_yaml(g / "71-rev.yaml", {"title": "审", "order": 1, "applies_to": ["reviewer"], "prompt": "REVIEW-ONLY"})
-    make_node(wf_root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    node = load_node(wf_root, "a")
+    make_node(wf_root, "a", produces=[{"spec": spec_ref("paragraph"), "path": "a/p.md"}])
+    node = load_node(wf_root, node_ref("a"))
     inj = Injector(wf_root)
     ex, rv = inj.system(node, "executor"), inj.system(node, "reviewer")
     assert "OFF-RULE" not in ex and "OFF-RULE" not in rv
@@ -63,15 +63,15 @@ def test_enabled_order_and_applies_to(wf_root):
 
 def test_produce_spec_defaults_to_role_spec(wf_root):
     role = yaml.safe_load((wf_root / "harness/workflows/agents/executor.yaml").read_text(encoding="utf-8"))
-    role["deliver"]["spec"] = "summary"
+    role["deliver"]["spec"] = "harness/specs/summary.yaml"
     write_yaml(wf_root / "harness/workflows/agents/executor.yaml", role)
     make_node(wf_root, "d", produces=[{"path": "d/s.md"}])
-    assert load_node(wf_root, "d").produces[0].spec == "summary"
-    make_node(wf_root, "e", produces=[{"spec": "paragraph", "path": "e/p.md"}])
-    assert load_node(wf_root, "e").produces[0].spec == "paragraph"
+    assert load_node(wf_root, node_ref("d")).produces[0].spec == spec_ref("summary")
+    make_node(wf_root, "e", produces=[{"spec": spec_ref("paragraph"), "path": "e/p.md"}])
+    assert load_node(wf_root, node_ref("e")).produces[0].spec == spec_ref("paragraph")
 
 
 def test_produce_without_any_spec_is_error(wf_root):
     make_node(wf_root, "f", produces=[{"path": "f/x.md"}])
     with pytest.raises(ConfigError, match="no spec"):
-        load_node(wf_root, "f")
+        load_node(wf_root, node_ref("f"))

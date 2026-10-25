@@ -2,7 +2,7 @@ id: demo-needs-input
 title: 需要上游产物（示例：缺失输入时立即报错）
 requires: [missing-input/input.md]
 produces:
-  - {spec: summary, path: needs-input/summary.md}
+  - {spec: harness/specs/summary.yaml, path: needs-input/summary.md}
 agents:
   executor: executor
   reviewer: reviewer

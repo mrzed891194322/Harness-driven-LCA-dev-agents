@@ -2,7 +2,7 @@ id: lca-bom-revise
 title: 清单修订
 requires: [plan/main_plan.md, plan/revise_plan.md, bom/bom.json]
 produces:
-  - {spec: lca-bom, path: bom/bom.json}
+  - {spec: harness/specs/lca-bom.yaml, path: bom/bom.json}
 inject: [rules/delivery/status.yaml, rules/delivery/provenance.yaml, rules/lca/method.yaml, rules/lca/knowledge-files.yaml, rules/lca/inventory.yaml, rules/lca/revise.yaml, rules/lca/revise-bom.yaml]
 agents:
   executor: executor

@@ -1,13 +1,12 @@
 # harness/workflows（v5，三级：编排 → 节点 → agent）
 
-- `orchestrations/<name>.yaml`：编排 = 节点有序列表（`full-lca`、`revise-lca`、`demo-*`）。`nodes:` 里可写节点名
-  （`nodes/<名>.yaml`）或内联节点对象，可混写：`nodes: [lca-bom, {id: x, ...}]`。
-- `nodes/<id>.yaml`：节点（requires、produces、inject、agents、flow、accept）。`agents:` 里可写 agent 模板名
-  （`agents/<名>.yaml`，如 `executor: executor`）、内联 agent 对象（含 `prompt`、`deliver`），或
-  `{agent: executor, tools: ..., max_turns: ...}` 引用模板并在本节点覆盖。produces 的 spec 缺省取执行者 `deliver.spec`。
-- `agents/<名>.yaml`：agent 模板（prompt、access、deliver）。
+- `orchestrations/<name>.yaml`：编排 = 节点有序列表（`full-lca`、`revise-lca`、`demo-*`）。API 仍用文件 stem 开跑（`workflow: full-lca`）。`nodes:` 里写**相对仓库根**的节点路径或内联对象，可混写：
+  `nodes: [harness/workflows/nodes/lca-bom.yaml, {id: x, ...}]`。
+- `nodes/<id>.yaml`：节点（requires、produces、inject、agents、flow、accept）。`produces.spec` 也是仓根相对路径（如 `harness/specs/lca-bom.yaml`）。`agents:` 里可写 agent 模板名（`executor: executor`）、内联对象，或
+  `{agent: executor, tools: ..., max_turns: ...}`。produces 的 spec 缺省取执行者 `deliver.spec`。
+- `agents/<名>.yaml`：agent 模板（prompt、access、deliver）；agent 短名不变。
 - 规则正文在 `harness/rules/global|lca/`（节点 `inject:` 引用），交付物规格在 `harness/specs/`，技能和 MCP 都在 `harness/tools/`。
-- 测评用 orch/node/spec 在 `.benchmark/harness/`（同构）；短名加载先搜该树再搜本目录，也可写相对仓库根的路径。见 `.benchmark/harness/README.md`。
+- 测评用 orch/node/spec 在 `.benchmark/harness/`（同构）；YAML 内一律仓根相对路径，**无短名、无外置优先回退**。见 `.benchmark/harness/README.md`。
 - 加载与校验：`src/backend/workflow/config.py`；自检：`npm run doctor`。
 
 ## 流转（docs/architecture/WORKFLOW_DESIGN.md）

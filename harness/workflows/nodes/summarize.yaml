@@ -1,7 +1,7 @@
 id: summarize
 title: 概括计划要点（示例）
 produces:
-  - {spec: summary, path: summary/summary.md}
+  - {spec: harness/specs/summary.yaml, path: summary/summary.md}
 agents:
   executor: executor
   reviewer: reviewer

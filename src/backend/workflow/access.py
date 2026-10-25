@@ -59,7 +59,7 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         str(layout.node_dir(ws, node.run_key)) + "/**",
         str(root / layout.TOOLS_SKILLS) + "/**",
     }
-    for base in layout.spec_dirs():  # product + extra harness trees (e.g. .benchmark/harness)
+    for base in layout.spec_dirs():  # product + .benchmark specs (read grant, not name lookup)
         read.add(str(root / base) + "/**")
     for req in node.requires:
         read.add(str(art / req))

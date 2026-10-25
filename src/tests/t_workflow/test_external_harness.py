@@ -1,10 +1,9 @@
-"""Workflow YAML may resolve orch/node/spec outside product harness/."""
+"""Workflow YAML node/spec refs are repo-root-relative paths (no short-name fallback)."""
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-import yaml
 
 from backend.workflow.config import (
     ConfigError,
@@ -15,31 +14,31 @@ from backend.workflow.config import (
     resolve_orchestration,
     resolve_spec_path,
 )
-from backend.workflow import layout
 from tests.t_workflow.conftest import REPO, write_yaml
 
 
-def test_repo_bom_extract_loads_from_benchmark():
+def test_repo_bom_extract_loads_via_orch_stem_and_path_refs():
     orch = resolve_orchestration(REPO, "bom-extract")
     assert orch.as_posix().endswith(".benchmark/harness/workflows/orchestrations/bom-extract.yaml")
-    node = resolve_node_path(REPO, "bom-extract")
-    assert ".benchmark/harness/workflows/nodes/bom-extract.yaml" in node.as_posix()
-    spec = resolve_spec_path(REPO, "bom-claims")
-    assert ".benchmark/harness/specs/bom-claims.yaml" in spec.as_posix()
+    node = resolve_node_path(REPO, ".benchmark/harness/workflows/nodes/bom-extract.yaml")
+    assert node.as_posix().endswith(".benchmark/harness/workflows/nodes/bom-extract.yaml")
+    spec = resolve_spec_path(REPO, ".benchmark/harness/specs/bom-claims.yaml")
+    assert spec.as_posix().endswith(".benchmark/harness/specs/bom-claims.yaml")
     wf, nodes = load_workflow(REPO, "bom-extract")
     assert wf.id == "bom-extract" and nodes[0].id == "bom-extract"
-    assert nodes[0].produces[0].spec == "bom-claims"
-    assert load_spec(REPO, "bom-claims").id == "bom-claims"
+    assert nodes[0].produces[0].spec == ".benchmark/harness/specs/bom-claims.yaml"
+    assert load_spec(REPO, ".benchmark/harness/specs/bom-claims.yaml").id == "bom-claims"
     assert "bom-extract" in list_workflows(REPO)
 
 
-def test_repo_full_lca_still_from_product_harness():
+def test_repo_full_lca_product_path_refs():
     orch = resolve_orchestration(REPO, "full-lca")
     assert orch.as_posix().endswith("harness/workflows/orchestrations/full-lca.yaml")
     assert ".benchmark/" not in orch.as_posix()
     wf, nodes = load_workflow(REPO, "full-lca")
     assert wf.id == "full-lca" and {n.id for n in nodes} >= {"lca-bom", "lca-mapping", "lca-report"}
-    assert load_spec(REPO, "lca-bom").schema_["required"] == ["items"]
+    assert nodes[0].produces[0].spec == "harness/specs/lca-bom.yaml"
+    assert load_spec(REPO, "harness/specs/lca-bom.yaml").schema_["required"] == ["items"]
 
 
 def test_path_ref_spec_relative_to_repo_root(tmp_path: Path):
@@ -66,27 +65,22 @@ def test_path_ref_spec_relative_to_repo_root(tmp_path: Path):
     )
     write_yaml(
         root / ".benchmark/harness/workflows/orchestrations/ext-orch.yaml",
-        {"id": "ext-orch", "nodes": ["ext-node"]},
+        {"id": "ext-orch", "nodes": [".benchmark/harness/workflows/nodes/ext-node.yaml"]},
     )
     assert resolve_spec_path(root, ".benchmark/harness/specs/ext-claims.yaml") == ext
-    assert load_spec(root, ".benchmark/harness/specs/ext-claims").id == "ext-claims"
+    assert load_spec(root, ".benchmark/harness/specs/ext-claims.yaml").id == "ext-claims"
     wf, nodes = load_workflow(root, "ext-orch")
     assert wf.id == "ext-orch"
-    assert nodes[0].produces[0].spec.endswith("ext-claims.yaml") or nodes[0].produces[0].spec == ".benchmark/harness/specs/ext-claims.yaml"
-    # short name also finds extra tree
-    assert load_spec(root, "ext-claims").prompt.strip().startswith("外置")
+    assert nodes[0].produces[0].spec == ".benchmark/harness/specs/ext-claims.yaml"
     assert "ext-orch" in list_workflows(root)
-    assert "keep" not in list_workflows(root)  # specs are not workflows
 
 
-def test_extra_short_name_overrides_product(tmp_path: Path):
+def test_short_name_spec_rejected(tmp_path: Path):
     root = tmp_path / "proj"
+    root.mkdir()
     write_yaml(root / "harness/specs/dup.yaml", {"description": "产品版", "schema": None, "checks": []})
-    write_yaml(
-        root / ".benchmark/harness/specs/dup.yaml",
-        {"description": "测评版", "schema": None, "checks": []},
-    )
-    assert "测评版" in load_spec(root, "dup").prompt
+    with pytest.raises(ConfigError, match="repo-root-relative path"):
+        load_spec(root, "dup")
 
 
 def test_path_ref_rejects_parent_escape(tmp_path: Path):
@@ -96,6 +90,8 @@ def test_path_ref_rejects_parent_escape(tmp_path: Path):
         resolve_spec_path(root, "../outside.yaml")
 
 
-def test_layout_search_order():
-    assert layout.harness_roots()[0] == Path(".benchmark/harness")
-    assert layout.harness_roots()[-1] == Path("harness")
+def test_orch_scan_dirs_listed():
+    from backend.workflow import layout
+
+    assert Path("harness/workflows/orchestrations") in layout.orch_dirs()
+    assert Path(".benchmark/harness/workflows/orchestrations") in layout.orch_dirs()

@@ -11,7 +11,7 @@ from backend.core.contracts.session_launch_spec import ModelProfile
 from backend.workflow.config import load_node
 from backend.workflow.pi_driver import PiDriver, is_auth_error, is_transient_error
 from backend.workflow.runner import TurnRequest
-from tests.t_workflow.conftest import REPO, make_node, write_yaml
+from tests.t_workflow.conftest import REPO, make_node, write_yaml, node_ref, spec_ref
 
 MODEL = ModelProfile(profile_id="p", provider="x", model_id="m", display_name="m")
 
@@ -41,10 +41,10 @@ def _setup(root: Path, **agent_extra):
         "command": "uv", "args": ["run", "python", "harness/tools/mcp/control_openlca/main.py"],
         "tool_timeout_sec": 10, "deny_tools": ["cleanup_output"],
         "readonly_tools": ["health_check"], "write_tools": ["import_lci"]})
-    make_node(root, "n1", produces=[{"spec": "paragraph", "path": "out/p.md"}], agents={
+    make_node(root, "n1", produces=[{"spec": spec_ref("paragraph"), "path": "out/p.md"}], agents={
         "executor": {"agent": "executor", "tools": {"mcp": ["control_openlca"]}, "thinking": "high"},
         "reviewer": {"agent": "reviewer", "tools": {"mcp": ["control_openlca"]}}})
-    return load_node(root, "n1")
+    return load_node(root, node_ref("n1"))
 
 
 def _req(root, node, agent="executor", rnd=1, resume=False):

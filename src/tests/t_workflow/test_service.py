@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from backend.workflow.config import ConfigError
 from backend.workflow.service import WorkflowService
-from tests.t_workflow.conftest import make_node, write_yaml
+from tests.t_workflow.conftest import make_node, write_yaml, node_ref, spec_ref
 from tests.t_workflow.fake_driver import FakeDriver
 
 
 def _project(root):
-    make_node(root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    write_yaml(root / "harness/workflows/orchestrations/demo.yaml", {"id": "demo", "nodes": ["a"]})
+    make_node(root, "a", produces=[{"spec": spec_ref("paragraph"), "path": "a/p.md"}])
+    write_yaml(root / "harness/workflows/orchestrations/demo.yaml", {"id": "demo", "nodes": [node_ref("a")]})
 
 
 def _ok_driver(root):
@@ -22,7 +22,7 @@ def test_start_status_and_plan(wf_root):
     wfs = svc.workflows()
     assert wfs[0]["id"] == "demo" and wfs[0]["nodes"] == ["a"]
     card = wfs[0]["details"][0]
-    assert card["produces"] == [{"spec": "paragraph", "path": "a/p.md"}]
+    assert card["produces"] == [{"spec": spec_ref("paragraph"), "path": "a/p.md"}]
     assert card["agents"]["reviewer"]["write"] == ["workspace/runs/a/reviewer/**"]
     svc.start("demo", plan_text="# 计划\n")
     svc.wait(10)

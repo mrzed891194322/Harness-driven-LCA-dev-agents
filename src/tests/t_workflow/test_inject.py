@@ -1,12 +1,12 @@
 
 from backend.workflow.config import load_node, load_spec
 from backend.workflow.inject import Injector, schema_summary
-from tests.t_workflow.conftest import make_node
+from tests.t_workflow.conftest import make_node, node_ref, spec_ref
 
 
 def _node(root):
-    make_node(root, "summarize", requires=["text"], produces=[{"spec": "summary", "path": "summary/s.md"}])
-    return load_node(root, "summarize")
+    make_node(root, "summarize", requires=["text"], produces=[{"spec": spec_ref("summary"), "path": "summary/s.md"}])
+    return load_node(root, node_ref("summarize"))
 
 
 def test_system_order(wf_root):
@@ -23,7 +23,7 @@ def test_user_sections_and_rework(wf_root):
     (ws / "plan/main_plan.md").write_text("# 计划X", encoding="utf-8")
     (ws / "text").mkdir()
     (ws / "text/p.md").write_text("段落", encoding="utf-8")
-    specs = {"summary": load_spec(wf_root, "summary")}
+    specs = {spec_ref("summary"): load_spec(wf_root, spec_ref("summary"))}
     inj = Injector(wf_root)
     first = inj(node, "executor", 1, None, specs)
     assert first.index("<plan>") < first.index("<inputs>") < first.index("<deliverable_summary>")

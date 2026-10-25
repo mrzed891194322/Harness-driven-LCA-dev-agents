@@ -10,6 +10,7 @@ from backend.workflow import revisions
 from backend.workflow.runner import Runner
 from tests.t_workflow.fake_driver import FakeDriver
 from tests.t_workflow.test_acceptance import proj  # noqa: F401 - fixture
+from tests.t_workflow.conftest import node_ref, spec_ref
 
 REVISE = {"revise_plan.md": "# 修订\n- 运输距离改为 300 km\n"}
 
@@ -176,5 +177,5 @@ def test_yaml_cannot_set_rev(proj):  # noqa: F811
     p = proj / "harness/workflows/nodes/lca-bom-revise.yaml"
     p.write_text(p.read_text(encoding="utf-8") + "rev: 3\n", encoding="utf-8")
     with pytest.raises(ConfigError):
-        load_node(proj, "lca-bom-revise")
+        load_node(proj, node_ref("lca-bom-revise"))
 

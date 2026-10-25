@@ -1,2 +1,2 @@
 id: demo-single
-nodes: [summarize]
+nodes: [harness/workflows/nodes/summarize.yaml]

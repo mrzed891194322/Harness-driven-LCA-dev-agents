@@ -2,7 +2,7 @@ id: lca-mapping
 title: 背景映射与 LCI
 requires: [bom/bom.json]
 produces:
-  - {spec: lca-mapping, path: mapping/mapping.json}
+  - {spec: harness/specs/lca-mapping.yaml, path: mapping/mapping.json}
 inject: [rules/delivery/status.yaml, rules/delivery/provenance.yaml, rules/lca/method.yaml, rules/lca/inventory.yaml, rules/lca/mapping.yaml, rules/lca/openlca.yaml]
 agents:
   executor: {agent: executor, max_turns: 120, tools: {mcp: [control_openlca]}}

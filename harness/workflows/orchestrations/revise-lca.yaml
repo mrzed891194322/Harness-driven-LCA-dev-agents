@@ -5,4 +5,4 @@ title: 修订 LCA
 start_rev: next
 max_redos: 1
 plan_file: revise_plan.md
-nodes: [lca-bom-revise, lca-mapping-revise, lca-report-revise]
+nodes: [harness/workflows/nodes/lca-bom-revise.yaml, harness/workflows/nodes/lca-mapping-revise.yaml, harness/workflows/nodes/lca-report-revise.yaml]

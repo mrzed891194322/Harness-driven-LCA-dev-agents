@@ -8,6 +8,23 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[3]
 
+
+def node_ref(node_id: str) -> str:
+    """Repo-root-relative path to a product node YAML (tests / orch ``nodes:``)."""
+    return f"harness/workflows/nodes/{node_id}.yaml"
+
+
+def spec_ref(spec_id: str) -> str:
+    """Repo-root-relative path to a product spec YAML (``produces.spec``)."""
+    return f"harness/specs/{spec_id}.yaml"
+
+
+def _as_spec_ref(spec: str) -> str:
+    if not spec or "/" in spec or spec.startswith("."):
+        return spec
+    return spec_ref(spec)
+
+
 def write_yaml(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
@@ -15,7 +32,13 @@ def write_yaml(path: Path, data) -> None:
 
 def make_node(root: Path, node_id: str, *, requires=(), produces=(), flow=None, agents=None) -> None:
     """Node YAML; ``flow`` omitted = config.default_flow (executor -> reviewer, reject max 3)."""
-    data = {"id": node_id, "requires": list(requires), "produces": [dict(p) for p in produces],
+    prods = []
+    for p in produces:
+        item = dict(p)
+        if item.get("spec"):
+            item["spec"] = _as_spec_ref(item["spec"])
+        prods.append(item)
+    data = {"id": node_id, "requires": list(requires), "produces": prods,
             "agents": agents or {"executor": "executor", "reviewer": "reviewer"}}
     if flow is not None:
         data["flow"] = flow

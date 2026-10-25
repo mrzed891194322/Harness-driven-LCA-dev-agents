@@ -11,7 +11,7 @@ from backend.workflow.access import compute_scope
 from backend.workflow.config import load_node, load_workflow
 from backend.workflow.inject import Injector
 from backend.workflow.runner import Runner
-from tests.t_workflow.conftest import REPO, write_yaml
+from tests.t_workflow.conftest import REPO, write_yaml, node_ref
 from tests.t_workflow.fake_driver import FakeDriver
 
 PLAN = {"main_plan.md": "# 计划\n\n研究对象：玻璃瓶。\n"}
@@ -60,7 +60,7 @@ def test_demo_workflows_any_order_or_subset(proj, wf_id, order):
 
 
 def test_missing_required_input_fails_immediately(proj):
-    write_yaml(proj / "harness/workflows/orchestrations/broken.yaml", {"id": "broken", "nodes": ["lca-mapping"]})
+    write_yaml(proj / "harness/workflows/orchestrations/broken.yaml", {"id": "broken", "nodes": [node_ref("lca-mapping")]})
     status, d = _run(proj, "broken")
     assert status == "failed"
     assert d.calls == []  # no agent turn at all
@@ -101,7 +101,7 @@ def test_rerun_clears_only_own_dirs(proj):
 
 def test_write_boundary_of_real_lca_nodes(proj):
     ws, art = proj / "workspace", proj / "workspace/artifacts"
-    node = load_node(proj, "lca-mapping")
+    node = load_node(proj, node_ref("lca-mapping"))
     ex = compute_scope(proj, node, "executor", node.agents["executor"].definition.access)
     assert set(ex.write_globs) == {f"{ws}/runs/lca-mapping/**", f"{art}/mapping/**"}
     assert f"{art}/plan/**" in ex.denied_write_globs

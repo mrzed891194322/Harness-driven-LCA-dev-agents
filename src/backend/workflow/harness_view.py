@@ -66,7 +66,7 @@ def harness_view(root: Path) -> dict[str, Any]:
     ]
     spec_files: list[Path] = []
     seen_specs: set[str] = set()
-    for base in layout.spec_dirs():  # extras first; skip product name if already listed
+    for base in layout.spec_dirs():  # product + .benchmark listing; stem de-dupe
         folder = root / base
         if not folder.is_dir():
             continue
@@ -76,7 +76,7 @@ def harness_view(root: Path) -> dict[str, Any]:
             seen_specs.add(p.stem)
             spec_files.append(p)
     specs = [
-        _entry(root, p, "specs", lambda p=p: config.load_spec(root, p.stem))
+        _entry(root, p, "specs", lambda p=p: config.load_spec(root, p.relative_to(root).as_posix()))
         for p in spec_files
     ]
     orch_files: list[Path] = []
@@ -105,7 +105,7 @@ def harness_view(root: Path) -> dict[str, Any]:
         _entry(root, p, "workflows", lambda p=p: config.load_workflow(root, p.stem))
         for p in orch_files
     ] + [
-        _entry(root, p, "nodes", lambda p=p: config.load_node(root, p.stem))
+        _entry(root, p, "nodes", lambda p=p: config.load_node(root, p.relative_to(root).as_posix()))
         for p in node_files
     ]
     files = {"rules": rules, "agents": roles, "specs": specs, "workflows": workflows}

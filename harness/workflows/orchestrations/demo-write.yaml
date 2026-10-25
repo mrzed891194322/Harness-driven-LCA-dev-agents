@@ -1,2 +1,2 @@
 id: demo-write
-nodes: [write-paragraph, summarize]
+nodes: [harness/workflows/nodes/write-paragraph.yaml, harness/workflows/nodes/summarize.yaml]

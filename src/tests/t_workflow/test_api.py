@@ -5,13 +5,13 @@ from fastapi.testclient import TestClient
 
 import backend.api.app as app_module
 from backend.workflow.service import WorkflowService
-from tests.t_workflow.conftest import make_node, write_yaml
+from tests.t_workflow.conftest import make_node, write_yaml, node_ref, spec_ref
 from tests.t_workflow.fake_driver import FakeDriver
 
 
 def _client(monkeypatch, root):
-    make_node(root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    write_yaml(root / "harness/workflows/orchestrations/full-lca.yaml", {"id": "full-lca", "nodes": ["a"]})
+    make_node(root, "a", produces=[{"spec": spec_ref("paragraph"), "path": "a/p.md"}])
+    write_yaml(root / "harness/workflows/orchestrations/full-lca.yaml", {"id": "full-lca", "nodes": [node_ref("a")]})
     svc = WorkflowService(root, driver_factory=lambda r: FakeDriver())
     monkeypatch.setattr(app_module, "_workflow_service", svc)
     return TestClient(app_module.app), svc
@@ -34,9 +34,9 @@ def test_start_status_feedback_and_old_resume(monkeypatch, wf_root):
 
 def test_gui_start_of_revise_uses_saved_revise_plan(monkeypatch, wf_root):
     client, svc = _client(monkeypatch, wf_root)
-    make_node(wf_root, "r", produces=[{"spec": "paragraph", "path": "r/p.md"}])
+    make_node(wf_root, "r", produces=[{"spec": spec_ref("paragraph"), "path": "r/p.md"}])
     write_yaml(wf_root / "harness/workflows/orchestrations/revise-lca.yaml",
-               {"id": "revise-lca", "nodes": ["r"], "plan_file": "revise_plan.md", "start_rev": "next"})
+               {"id": "revise-lca", "nodes": [node_ref("r")], "plan_file": "revise_plan.md", "start_rev": "next"})
     saved = {"content": ""}
     monkeypatch.setattr(app_module, "read_plan_document", lambda root, workflow=None: dict(saved))
     gui = {"workflow": "revise-lca", "subject": "原研究对象", "functional_unit": "1 L"}

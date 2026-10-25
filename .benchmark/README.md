@@ -6,7 +6,7 @@
 
 ## 外置工作流 / spec
 
-测评用的 orch / node / spec 放在 [`.benchmark/harness/`](harness/)（与 `harness/` 同构）。加载时短名先查这里，再查产品 `harness/`；也可写相对仓库根的路径引用。详见该目录 README。产品 `full-lca` 等仍只在 `harness/`。
+测评用的 orch / node / spec 放在 [`.benchmark/harness/`](harness/)（与 `harness/` 同构）。YAML 内 `nodes:` / `produces.spec` 写相对仓库根的路径（无短名、无外置优先回退）；API 开跑仍可用 orch 文件 stem。详见该目录 README。产品 `full-lca` 等仍只在 `harness/`。
 
 ## 缓存
 

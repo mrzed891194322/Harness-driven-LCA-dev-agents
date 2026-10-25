@@ -1,14 +1,14 @@
 from backend.workflow.access import compute_scope
 from backend.workflow.config import Access, load_node
-from tests.t_workflow.conftest import make_node
+from tests.t_workflow.conftest import make_node, node_ref, spec_ref
 
 
 def _scope(root, agent="executor", access=None, node_access=None):
     agents = {"executor": {"agent": "executor"}, "reviewer": {"agent": "reviewer"}}
     if node_access:
         agents[agent]["access"] = node_access
-    make_node(root, "a", requires=["text"], produces=[{"spec": "summary", "path": "summary/s.md"}], agents=agents)
-    return compute_scope(root, load_node(root, "a"), agent, access or Access())
+    make_node(root, "a", requires=["text"], produces=[{"spec": spec_ref("summary"), "path": "summary/s.md"}], agents=agents)
+    return compute_scope(root, load_node(root, node_ref("a")), agent, access or Access())
 
 
 def test_executor_writes_only_produces_and_runs(wf_root):

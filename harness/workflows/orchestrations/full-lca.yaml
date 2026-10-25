@@ -1,3 +1,3 @@
 id: full-lca
 max_redos: 2
-nodes: [lca-bom, lca-mapping, lca-report]
+nodes: [harness/workflows/nodes/lca-bom.yaml, harness/workflows/nodes/lca-mapping.yaml, harness/workflows/nodes/lca-report.yaml]

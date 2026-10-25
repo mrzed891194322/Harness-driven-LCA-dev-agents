@@ -1,8 +1,10 @@
 """Fixed v5 layout constants.
 
-Product harness lives under ``harness/``. Extra trees (same sub-layout) can sit
-outside it; loaders resolve short names across these roots. Default extra root:
-``.benchmark/harness`` (eval workflows / specs). Agents / rules stay product-side.
+Product harness lives under ``harness/``. Eval variants live under
+``.benchmark/harness/`` (same sub-layout). Orchestration **API ids** are still
+file stems discovered by scanning both orch folders; YAML ``nodes:`` /
+``produces.spec`` refs are always **repo-root-relative paths** (no short-name
+lookup, no extras-first fallback). Agents / rules stay product-side.
 """
 from __future__ import annotations
 
@@ -19,10 +21,20 @@ NODES = WORKFLOWS / "nodes"
 ORCHESTRATIONS = WORKFLOWS / "orchestrations"
 AGENTS = WORKFLOWS / "agents"
 
-# Extra harness-shaped trees (repo-relative). Short-name lookup prefers these
-# over ``harness/`` so eval variants do not live inside the product tree.
-# Future GUI-uploaded overlays can append here without changing call sites.
-EXTRA_HARNESS_ROOTS: tuple[Path, ...] = (Path(".benchmark/harness"),)
+# Folders scanned for API orch ids (list_workflows / start by stem) and for
+# GUI listing / FS read grants. Not used to resolve short node/spec names.
+ORCH_SCAN_DIRS: tuple[Path, ...] = (
+    Path("harness/workflows/orchestrations"),
+    Path(".benchmark/harness/workflows/orchestrations"),
+)
+NODE_SCAN_DIRS: tuple[Path, ...] = (
+    Path("harness/workflows/nodes"),
+    Path(".benchmark/harness/workflows/nodes"),
+)
+SPEC_SCAN_DIRS: tuple[Path, ...] = (
+    Path("harness/specs"),
+    Path(".benchmark/harness/specs"),
+)
 
 WORKSPACE = Path("workspace")
 ARTIFACTS = WORKSPACE / "artifacts"
@@ -40,18 +52,13 @@ def node_dir(workspace: Path, node: str) -> Path:
     return workspace / "runs" / node
 
 
-def harness_roots() -> tuple[Path, ...]:
-    """Search order for short-name orch / node / spec: extras first, then product."""
-    return (*EXTRA_HARNESS_ROOTS, Path("harness"))
-
-
 def orch_dirs() -> tuple[Path, ...]:
-    return tuple(r / "workflows" / "orchestrations" for r in harness_roots())
+    return ORCH_SCAN_DIRS
 
 
 def node_dirs() -> tuple[Path, ...]:
-    return tuple(r / "workflows" / "nodes" for r in harness_roots())
+    return NODE_SCAN_DIRS
 
 
 def spec_dirs() -> tuple[Path, ...]:
-    return tuple(r / "specs" for r in harness_roots())
+    return SPEC_SCAN_DIRS

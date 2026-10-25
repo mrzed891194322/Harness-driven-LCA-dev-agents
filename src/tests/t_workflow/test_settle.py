@@ -13,7 +13,7 @@ from backend.core.contracts.session_launch_spec import ModelProfile
 from backend.workflow.config import load_node, load_workflow
 from backend.workflow.pi_driver import McpEnvError, PiDriver, check_mcp_env
 from backend.workflow.runner import Runner, TurnRequest, TurnResult
-from tests.t_workflow.conftest import REPO, make_node, write_yaml
+from tests.t_workflow.conftest import REPO, make_node, write_yaml, node_ref, spec_ref
 from tests.t_workflow.fake_driver import FakeDriver
 
 PLAN = {"main_plan.md": "# 计划\n"}
@@ -26,8 +26,8 @@ def _events(root):
 
 
 def _one_node(root):
-    make_node(root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    write_yaml(root / "harness/workflows/orchestrations/w.yaml", {"nodes": ["a"]})
+    make_node(root, "a", produces=[{"spec": spec_ref("paragraph"), "path": "a/p.md"}])
+    write_yaml(root / "harness/workflows/orchestrations/w.yaml", {"nodes": [node_ref("a")]})
     return load_workflow(root, "w")
 
 
@@ -67,8 +67,8 @@ class Rt:
 
 
 def test_driver_passes_settle_policy_and_logs(wf_root):
-    make_node(wf_root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    node = load_node(wf_root, "a")
+    make_node(wf_root, "a", produces=[{"spec": spec_ref("paragraph"), "path": "a/p.md"}])
+    node = load_node(wf_root, node_ref("a"))
     settle = {"submitted": False, "nudges": 2, "turns": 80, "abort_reason": "max_turns",
               "log": [{"ts": "t1", "kind": "nudge", "detail": "1"}, {"ts": "t2", "kind": "nudge", "detail": "2"},
                       {"ts": "t3", "kind": "abort", "detail": "max_turns"}]}
@@ -155,8 +155,8 @@ def test_submit_redo_preconditions(tmp_path):
 
 
 def test_driver_max_rejections_policy_and_event(wf_root):
-    make_node(wf_root, "a", produces=[{"spec": "paragraph", "path": "a/p.md"}])
-    node = load_node(wf_root, "a")
+    make_node(wf_root, "a", produces=[{"spec": spec_ref("paragraph"), "path": "a/p.md"}])
+    node = load_node(wf_root, node_ref("a"))
     settle = {"submitted": False, "nudges": 0, "turns": 7, "abort_reason": "too_many_rejections", "rejections": 5,
               "log": [{"ts": "t1", "kind": "rejected_retry", "detail": "rejections=1/5"},
                       {"ts": "t2", "kind": "abort", "detail": "too_many_rejections"}]}
@@ -188,7 +188,7 @@ def test_mcp_env_has_no_pi_template_syntax(wf_root):
         'description: d\nschema:\n  $schema: "https://json-schema.org/draft/2020-12/schema"\n'
         '  $id: "urn:x"\n  type: object\n', encoding="utf-8")
     make_node(wf_root, "b", produces=[{"spec": "dollar", "path": "b/bom.json"}])
-    node = load_node(wf_root, "b")
+    node = load_node(wf_root, node_ref("b"))
     req = TurnRequest(node=node, agent="executor", attempt=1, prompt="p", workspace=wf_root / "workspace",
                       run_id="r1234567", session_key="b.executor", resume=False, extra={"system": "S"})
     spec, _ = PiDriver(wf_root, MODEL, runtime=Rt({"status": "ok"})).launch_spec(req)

@@ -2,14 +2,18 @@
 
 测评用的工作流 / 节点 / spec，与产品侧 `harness/` **同构**（`workflows/orchestrations|nodes`、`specs`）。
 
-加载器会在短名查找时先搜这里，再回退 `harness/`。也可在 YAML 里写**相对仓库根**的路径（含 `/` 或以 `.` 开头），例如：
+YAML 里的 `nodes:` / `produces.spec` 一律写**相对仓库根**的路径（禁止短名、禁止 `..`、禁止绝对路径），例如：
 
 ```yaml
+nodes: [.benchmark/harness/workflows/nodes/bom-extract.yaml]
+# 或产品树：
+# nodes: [harness/workflows/nodes/lca-bom.yaml]
 produces:
   - {spec: .benchmark/harness/specs/bom-claims.yaml, path: bom/claims.json}
 ```
 
-短名示例：`bom-extract` orch / node、`bom-claims` spec 都在本树。产品 `full-lca`、`lca-bom` 等仍只在 `harness/`。
+API 开跑仍可用 orch 文件 stem（`workflow: bom-extract`）；`list_workflows` 会扫描
+`harness/workflows/orchestrations/` 与本目录的 `workflows/orchestrations/`。
 
 agent 模板与规则正文继续共用 `harness/workflows/agents/`、`harness/rules/`（节点 `inject:` 照常引用）。
 

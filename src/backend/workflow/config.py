@@ -1,9 +1,11 @@
 """v5 configuration: workflows, nodes, agents, flow graph, specs.
 
-An orchestration lists nodes in order (outer queue). YAML may live under ``harness/`` or an
-extra harness-shaped tree (default ``.benchmark/harness/``; see ``layout.EXTRA_HARNESS_ROOTS``).
-Short names resolve across those roots (extras first). A path-like id (contains ``/`` or starts
-with ``.``) is relative to the repo root.
+An orchestration lists nodes in order (outer queue). Orch files may live under
+``harness/workflows/orchestrations/`` or ``.benchmark/harness/workflows/orchestrations/``.
+API start still uses the file stem (``workflow: bom-extract``); ``list_workflows`` scans
+both orch folders. Inside YAML, ``nodes:`` and ``produces.spec`` must be
+**repo-root-relative paths** (e.g. ``harness/specs/lca-bom.yaml``); no short-name
+lookup and no extras-first fallback. Absolute paths and ``..`` are rejected.
 
 Each node YAML declares requires / produces / inject / agents / flow / accept.
 ``flow`` is the inner LangGraph: edges ``{from, when?, to, max?}`` over the node's agents
@@ -424,51 +426,56 @@ def _build_node(root: Path, data: dict, path: Path) -> Node:
 
 
 def _is_path_ref(name: str) -> bool:
-    """Repo-root-relative path ref (not a short id under specs/nodes/orchestrations)."""
+    """Repo-root-relative path ref (contains ``/`` or starts with ``.``)."""
     return "/" in name or name.startswith(".")
 
 
-def _resolve_named(root: Path, dirs: tuple[Path, ...], name: str, kind: str) -> Path:
-    """Resolve short name or repo-relative path to an existing ``.yaml``.
+def _resolve_repo_rel(root: Path, name: str, kind: str) -> Path:
+    """Resolve a repo-root-relative path to an existing ``.yaml`` (optional suffix).
 
-    Short id: search ``dirs`` in order (extras then product). Path-like id: relative to
-    the repo root (optional ``.yaml`` suffix). ``..`` and absolute paths are rejected.
+    Short ids are rejected. Absolute paths and ``..`` are rejected.
     """
-    if _is_path_ref(name):
-        rel = Path(name)
-        if rel.is_absolute() or ".." in rel.parts:
-            raise ConfigError(f"{kind} {name!r}: path must stay under the repo root")
-        candidates = [root / rel]
-        if not str(name).endswith(".yaml"):
-            candidates.append(root / f"{name}.yaml")
-        for path in candidates:
-            if path.is_file():
-                return path
-        raise ConfigError(f"{kind} {name!r}: missing {root / name}")
-    for base in dirs:
-        path = root / base / f"{name}.yaml"
+    if not _is_path_ref(name):
+        raise ConfigError(
+            f"{kind} {name!r}: use a repo-root-relative path "
+            f"(e.g. harness/specs/{name}.yaml), not a short name"
+        )
+    rel = Path(name)
+    if rel.is_absolute() or ".." in rel.parts:
+        raise ConfigError(f"{kind} {name!r}: path must stay under the repo root")
+    candidates = [root / rel]
+    if not str(name).endswith(".yaml"):
+        candidates.append(root / f"{name}.yaml")
+    for path in candidates:
         if path.is_file():
             return path
-    searched = ", ".join(str(d / f"{name}.yaml") for d in dirs)
-    raise ConfigError(f"{kind} {name!r}: not found (looked in {searched})")
+    raise ConfigError(f"{kind} {name!r}: missing {root / name}")
 
 
 def resolve_orchestration(root: Path, name: str) -> Path:
-    return _resolve_named(root, layout.orch_dirs(), name, "orchestration")
+    """Orch by API stem (scan product + ``.benchmark`` orch dirs) or by repo-relative path."""
+    if _is_path_ref(name):
+        return _resolve_repo_rel(root, name, "orchestration")
+    for base in layout.orch_dirs():
+        path = root / base / f"{name}.yaml"
+        if path.is_file():
+            return path
+    searched = ", ".join(str(d / f"{name}.yaml") for d in layout.orch_dirs())
+    raise ConfigError(f"orchestration {name!r}: not found (looked in {searched})")
 
 
 def resolve_node_path(root: Path, node_id: str) -> Path:
-    return _resolve_named(root, layout.node_dirs(), node_id, "node")
+    return _resolve_repo_rel(root, node_id, "node")
 
 
 def resolve_spec_path(root: Path, spec_id: str) -> Path:
-    return _resolve_named(root, layout.spec_dirs(), spec_id, "spec")
+    return _resolve_repo_rel(root, spec_id, "spec")
 
 
 def load_node(root: Path, node_id: str) -> Node:
     path = resolve_node_path(root, node_id)
     data = _load_yaml(path)
-    short = Path(node_id).stem if _is_path_ref(node_id) else node_id
+    short = path.stem
     data.setdefault("id", short)
     if data["id"] != short:
         raise ConfigError(f"{path}: id {data['id']!r} != file name {short!r}")
@@ -478,35 +485,39 @@ def load_node(root: Path, node_id: str) -> Node:
 def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
     path = resolve_orchestration(root, name)
     data = _load_yaml(path)
-    short = Path(name).stem if _is_path_ref(name) else name
+    short = path.stem
     data.setdefault("id", short)
-    # I-50: `nodes:` mixes node names (nodes/<name>.yaml) and inline node objects (need an `id`).
-    inline: dict[int, dict] = {}
+    # I-50: `nodes:` mixes repo-relative node paths and inline node objects (need an `id`).
+    inline_objs: dict[int, dict] = {}
+    path_refs: dict[int, str] = {}
     if isinstance(data.get("nodes"), list):
         ids = []
         for i, item in enumerate(data["nodes"]):
             if isinstance(item, dict):
                 if not isinstance(item.get("id"), str) or not item["id"]:
                     raise ConfigError(f"{_line_of(path, r'^\s*nodes:')}: inline node #{i + 1} needs an 'id'")
-                inline[i] = dict(item)
+                inline_objs[i] = dict(item)
                 ids.append(item["id"])
             elif isinstance(item, str):
                 try:
-                    resolve_node_path(root, item)
+                    node_path = resolve_node_path(root, item)
                 except ConfigError as exc:
                     raise ConfigError(
                         f"{_line_of(path, re.escape(item))}: unknown node {item!r} ({exc})"
                     ) from exc
-                ids.append(item)
+                path_refs[i] = item
+                ids.append(node_path.stem)  # runtime id = file stem
             else:
-                raise ConfigError(f"{path}: nodes[{i}] must be a node name or an inline node object")
+                raise ConfigError(f"{path}: nodes[{i}] must be a repo-relative node path or an inline node object")
         data = {**data, "nodes": ids}
     try:
         workflow = Workflow.model_validate(data)
     except ValueError as exc:
         raise ConfigError(f"{path}: {exc}") from exc
-    nodes = [_build_node(root, inline[i], path) if i in inline else load_node(root, node_id)
-             for i, node_id in enumerate(workflow.nodes)]
+    nodes = [
+        _build_node(root, inline_objs[i], path) if i in inline_objs else load_node(root, path_refs[i])
+        for i, _node_id in enumerate(workflow.nodes)
+    ]
     for node in nodes:
         for produce in node.produces:
             load_spec(root, produce.spec)
@@ -514,10 +525,9 @@ def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
 
 
 def list_workflows(root: Path) -> list[str]:
-    """Union of orch trees; same short name: extra roots override product (search order)."""
+    """Orch file stems from product and ``.benchmark`` orch dirs (union by stem)."""
     found: dict[str, None] = {}
-    # product first, extras overwrite → extras win on name clash
-    for base in reversed(layout.orch_dirs()):
+    for base in layout.orch_dirs():
         folder = root / base
         if not folder.is_dir():
             continue
@@ -541,7 +551,7 @@ def _validate(model, data: dict, path: Path):
 def load_spec(root: Path, spec_id: str) -> Spec:
     path = resolve_spec_path(root, spec_id)
     raw = _validate(SpecFile, _load_yaml(path), path)
-    short = Path(spec_id).stem if _is_path_ref(spec_id) else spec_id
+    short = path.stem
     return Spec(id=short, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks,
                 upstream=raw.upstream)
 

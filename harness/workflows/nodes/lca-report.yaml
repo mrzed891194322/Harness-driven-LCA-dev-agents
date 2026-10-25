@@ -2,7 +2,7 @@ id: lca-report
 title: LCA计算与报告
 requires: [bom/bom.json, mapping/mapping.json, mapping/LCI]
 produces:
-  - {spec: lca-report, path: report/lca_report.md}
+  - {spec: harness/specs/lca-report.yaml, path: report/lca_report.md}
 inject: [rules/delivery/status.yaml, rules/delivery/provenance.yaml, rules/lca/method.yaml, rules/lca/interpretation.yaml, rules/lca/openlca.yaml]
 agents:
   executor: {agent: executor, tools: {mcp: [control_openlca]}}

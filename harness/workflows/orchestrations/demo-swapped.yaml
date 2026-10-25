@@ -1,2 +1,2 @@
 id: demo-swapped
-nodes: [summarize, write-paragraph]
+nodes: [harness/workflows/nodes/summarize.yaml, harness/workflows/nodes/write-paragraph.yaml]

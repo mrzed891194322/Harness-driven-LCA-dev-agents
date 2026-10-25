@@ -1,2 +1,2 @@
 id: demo-missing-input
-nodes: [demo-needs-input]
+nodes: [harness/workflows/nodes/demo-needs-input.yaml]

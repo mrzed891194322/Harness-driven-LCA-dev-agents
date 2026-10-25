@@ -5,17 +5,17 @@ import pytest
 
 from backend.workflow.config import load_workflow
 from backend.workflow.runner import RunFailed, Runner, TurnResult
-from tests.t_workflow.conftest import make_node, write_yaml
+from tests.t_workflow.conftest import make_node, write_yaml, node_ref, spec_ref
 from tests.t_workflow.fake_driver import FakeDriver, redo
 
 PLAN = {"main_plan.md": "# 计划\n写一段话再总结。\n"}
 
 
 def _setup(root, order=("write", "summarize"), max_redos=None):
-    make_node(root, "write", produces=[{"spec": "paragraph", "path": "text/paragraph.md"}])
+    make_node(root, "write", produces=[{"spec": spec_ref("paragraph"), "path": "text/paragraph.md"}])
     make_node(root, "summarize", requires=["text/paragraph.md"],
-              produces=[{"spec": "summary", "path": "summary/summary.md"}])
-    orch = {"nodes": list(order)}
+              produces=[{"spec": spec_ref("summary"), "path": "summary/summary.md"}])
+    orch = {"nodes": [node_ref(n) for n in order]}
     if max_redos is not None:
         orch["max_redos"] = max_redos
     write_yaml(root / "harness/workflows/orchestrations/demo.yaml", orch)
@@ -27,9 +27,9 @@ def _chain(root, max_redos=2):
     prev = None
     for n in "abcd":
         make_node(root, n, requires=[f"{prev}/{prev}.md"] if prev else [],
-                  produces=[{"spec": "paragraph", "path": f"{n}/{n}.md"}])
+                  produces=[{"spec": spec_ref("paragraph"), "path": f"{n}/{n}.md"}])
         prev = n
-    write_yaml(root / "harness/workflows/orchestrations/chain.yaml", {"nodes": list("abcd"), "max_redos": max_redos})
+    write_yaml(root / "harness/workflows/orchestrations/chain.yaml", {"nodes": [node_ref(c) for c in "abcd"], "max_redos": max_redos})
     return load_workflow(root, "chain")
 
 
@@ -120,8 +120,8 @@ def test_max_steps(wf_root):
         {"from": "executor", "when": "done", "to": "reviewer"},
         {"from": "reviewer", "when": "reject", "to": "executor", "max": 50},
         {"from": "reviewer", "when": "approve", "to": "done"}]}
-    make_node(wf_root, "loop", produces=[{"spec": "paragraph", "path": "l/l.md"}], flow=flow)
-    write_yaml(wf_root / "harness/workflows/orchestrations/loop.yaml", {"nodes": ["loop"]})
+    make_node(wf_root, "loop", produces=[{"spec": spec_ref("paragraph"), "path": "l/l.md"}], flow=flow)
+    write_yaml(wf_root / "harness/workflows/orchestrations/loop.yaml", {"nodes": [node_ref("loop")]})
     d = FakeDriver({("loop", "reviewer"): ["reject"] * 50})
     assert _run(wf_root, d, wfn=load_workflow(wf_root, "loop")) == "failed"
     assert len(d.calls) == 5 and "max_steps" in _manifest(wf_root)["status_reason"]
@@ -136,8 +136,8 @@ def test_requires_missing_fails_immediately(wf_root):
 
 def test_checks_failed_feedback(wf_root):
     write_yaml(wf_root / "harness/specs/summary.yaml", {"description": "x", "schema": {"type": "object"}})
-    make_node(wf_root, "j", produces=[{"spec": "summary", "path": "j/out.json"}])
-    write_yaml(wf_root / "harness/workflows/orchestrations/dj.yaml", {"nodes": ["j"]})
+    make_node(wf_root, "j", produces=[{"spec": spec_ref("summary"), "path": "j/out.json"}])
+    write_yaml(wf_root / "harness/workflows/orchestrations/dj.yaml", {"nodes": [node_ref("j")]})
     d = FakeDriver({("j", "executor"): ["[1]", '{"a": 1}']})
     assert _run(wf_root, d, wfn=load_workflow(wf_root, "dj")) == "completed"
     assert "宿主检查未通过" in (wf_root / "workspace/runs/j/feedback/round_1.md").read_text(encoding="utf-8")
@@ -197,7 +197,7 @@ def test_redo_target_invalid_rejected_by_host(wf_root):
 
 def test_redo_without_reviewer_fails(wf_root):
     _chain(wf_root)
-    make_node(wf_root, "c", requires=["b/b.md"], produces=[{"spec": "paragraph", "path": "c/c.md"}],
+    make_node(wf_root, "c", requires=["b/b.md"], produces=[{"spec": spec_ref("paragraph"), "path": "c/c.md"}],
               agents={"executor": "executor"})
     wf, nodes = load_workflow(wf_root, "chain")
     d = FakeDriver({("c", "executor"): [redo("b", "b/b.md")]})
