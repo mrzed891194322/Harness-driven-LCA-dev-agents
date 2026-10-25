@@ -21,7 +21,10 @@
    - `rate_limit`：终态失败且无产物、归因配额
    - `knowledge_skip`：知识源数据问题
 7. **产物**：`.benchmark/result/<大类>/<子类>/<case_id>/<run_id>/`；批日志 `.benchmark/result/_logs/`。
-8. **评分后置**：先收产物与标签，再 `score_case` / fabrication_rate。
+8. **评分后置**：先收产物与标签，再扫 result 树打分：
+   `uv run python .benchmark/scripts/score_batch.py --model <profile_id>`
+   （落 `result/_scores/<ts>/`：summary.json + scores.csv + scores.md；
+   复用 claim_f1 / fabrication_rate；不改 `score_case.py` 案例树路径）。
 
 ## 入口命令
 
