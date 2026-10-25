@@ -1,8 +1,8 @@
 ---
 name: bench-test
 description: >-
-  用仓库合成 fixture 离线打分，或经前后端 API 真跑 bom-extract 再另调打分。
-  模式：fetch / run / score-only / aggregate。
+  评测：fixture 离线打分、API 真跑、以及 run_batch/score_batch 串跑。
+  模式：fetch / run / score-only / aggregate / batch。换模时 --model 传 profile_id。
 ---
 
 # bench-test
@@ -169,22 +169,99 @@ manifest 列了 task1 / task3 / task4 / task5 / task7 和 `ecoinvent_picklist.js
 
 ## 串跑 batch（多案 × 模型 × workflow）
 
-正式入口（仓内，相对仓根）：
+正式入口（仓内，相对仓根；也可用 `uv run python`）：
 
 ```bash
 python3 .benchmark/scripts/run_batch.py \
-  --model <provider/model> \
+  --model <profile_id> \
   --workflow bom-extract \
-  --repeat N
+  --repeat 1
 ```
 
-- `--workflow`：orch stem，对应实验 2×2 条件（冒烟默认 `bom-extract`）。
-- `--model`：会 `POST /api/models/selection`；日志写明生效模型。
-- `--repeat N`：每案例重复次数。
-- 日志：`.benchmark/result/_logs/batch-<workflow>-<ts>.log`（含 model/workflow/repeat/case/run_id）。
-- 产物：`.benchmark/result/bom/extract/<case_id>/<run_id>/`。
+### `--model` 怎么传（易错）
 
-PCFBench 全量/子集进案例树（不进 git）：
+传 **serve 的 profile_id**（`POST /api/models/selection` 的 `profile_id`），**不要**传裸的 `Provider/Model` 展示名。
+
+| 要跑的模型 | `--model` 正确写法 | 错误写法 |
+| --- | --- | --- |
+| Gemma 4 31B | `google/gemma-4-31b-it` | （同形，此例刚好也是 profile_id） |
+| Qwen3.8-27B（SiliconFlow） | `silicon-flow-Qwen-Qwen3.8-27B` | `Qwen/Qwen3.8-27B`（会 400 未知模型） |
+
+查可用 id：
+
+```bash
+curl -sS "$API/api/models/profiles" | python3 -c "import sys,json; d=json.load(sys.stdin); print('\n'.join(sorted((d.get('profiles') or {}))))"
+```
+
+`$API` 默认 `http://127.0.0.1:8800`（评测 serve；旧文档里的 7860 以当前 `GUI_PORT` / 运维实际端口为准）。
+
+### 常用参数
+
+| 参数 | 含义 | 默认 / 注意 |
+| --- | --- | --- |
+| `--workflow` | orch stem：`bom-extract` / `lci-mapping` | 默认 `bom-extract`；abstention **复用** `bom-extract`，用 `--cases-root .benchmark/bom/abstention` |
+| `--model` | profile_id，见上表 | 必填才换模；会写进日志与 meta |
+| `--cases-root` | 案例根（相对仓根） | 按 workflow 映射；手写树或 imported 树 |
+| `--include-imported` | 主树 + `.benchmark/imported/<大类>/<子类>/` | 同 id 保留入库树 |
+| `--case` | 只跑这些 case_id（可重复） | 默认扫整棵 cases-root |
+| `--repeat N` | 每案重复次数 | 默认 1 |
+| `--pace-s` | 案间固定间隔秒 | 默认 0；**Gemma4 建议 90**；Qwen 默认不 pace，遇 429 再加 |
+| `--backoff-base-s` / `--backoff-max-s` | 终态 `rate_limit` 后指数退避 | 默认 60 / 300 |
+| `--no-auto-references` | 关掉开跑前自动 POST references | 默认会清 knowledge/inputs 并挂 `input/reference.md`（及 PDF 文本别名） |
+| `--log-dir` | 批日志目录 | 默认 `.benchmark/result/_logs` |
+| `--api` | serve 根 | 默认 `http://127.0.0.1:8800` |
+
+### 全量矩阵示例（与评测群口径一致）
+
+先归档旧产物，再按类串跑；PNNL 缺 PDF 会 `knowledge_skip`（不必手删）。
+
+```bash
+# 0) 归档（勿丢）
+mkdir -p .benchmark/result/_archive
+mv .benchmark/result/bom .benchmark/result/lci .benchmark/result/_logs .benchmark/result/_scores \
+  .benchmark/result/_archive/gemma4-full-<YYYYMMDD>/ 2>/dev/null || true
+
+# 1) extract（手写 + imported）
+python3 .benchmark/scripts/run_batch.py \
+  --model google/gemma-4-31b-it \
+  --workflow bom-extract \
+  --include-imported \
+  --pace-s 90
+
+# 2) mapping
+python3 .benchmark/scripts/run_batch.py \
+  --model google/gemma-4-31b-it \
+  --workflow lci-mapping \
+  --include-imported \
+  --pace-s 90
+
+# 3) abstention 手写 2（不扩 imported）
+python3 .benchmark/scripts/run_batch.py \
+  --model google/gemma-4-31b-it \
+  --workflow bom-extract \
+  --cases-root .benchmark/bom/abstention \
+  --pace-s 90
+
+# Qwen 同矩阵：把 --model 换成 silicon-flow-Qwen-Qwen3.8-27B，默认去掉 --pace-s（或 --pace-s 0）
+```
+
+### 产物与 token
+
+- 每案：`.benchmark/result/<大类>/<子类>/<case_id>/<run_id>/`（`meta.json` / `status.json` / `artifacts/`）
+- `meta.json` 与批 `summary-*.json` 含 `tokens` / `tokens_total`：`input`、`output`、`cache`（及 `cache_read`/`cache_write`）；provider 没给的字段是字符串 **`unavailable`**，不是静默 0
+- 批日志：`.benchmark/result/_logs/batch-<workflow>-<ts>.log` + `summary-<workflow>-<ts>.json`
+- 终态标签：`completed` / `transient_hit` / `rate_limit` / `knowledge_skip`（详见 [`.benchmark/RUNBOOK.md`](../../../.benchmark/RUNBOOK.md)）
+
+### 跑完打分
+
+```bash
+python3 .benchmark/scripts/score_batch.py
+# 可选：--model <profile_id> 只筛该模型产物
+```
+
+落盘 `.benchmark/result/_scores/<ts>/`（`summary.json` / `scores.csv` / `scores.md`）。不改 `score_case.py` 案例树路径。
+
+PCFBench 进案例树（不进 git）：
 
 ```bash
 python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5

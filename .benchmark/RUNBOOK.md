@@ -12,6 +12,9 @@
 
 1. **Serve**：切当前 `origin/master` tip；`merge_serve_credentials`（勿整目录覆盖 `pi-auth`）；短 `PI_RUNTIME_SOCKET`（主仓 `.local/run/pi-v5serve.sock`）。
 2. **模型**：`POST /api/models/selection` 或 `run_batch --model <profile_id>`。
+   - **必须传 profile_id**（如 `google/gemma-4-31b-it`、`silicon-flow-Qwen-Qwen3.8-27B`），不要传展示用的 `Qwen/Qwen3.8-27B`（会 400）。
+   - 列表：`GET /api/models/profiles` → `profiles` 的 key。
+   - 详参与全量矩阵示例见 `.agents/skills/bench-test/SKILL.md`「串跑 batch」。
 3. **矩阵顺序**：`bom-extract`（手写 → imported）→ 收口 → `lci-mapping --include-imported`；abstention 另排。
 4. **限速（按模型档，非全局）**：仅 Gemma4 及同类强限速才开 `--pace-s` / 429 backoff；其它模型默认 `--pace-s 0`。细节见战役笔记 `result/_logs/prerun/RUNBOOK-gemma4.md`。
 5. **References**：extract 默认自动挂 `input/reference.md`（及来源 PDF 文本别名）；PNNL 等缺源案进 `knowledge_skip`，不烧配额重试。
