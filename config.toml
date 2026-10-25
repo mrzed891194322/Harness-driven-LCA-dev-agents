@@ -15,7 +15,5 @@ project_category = "202606-harness-agent-LCA"
 language = "中文"
 
 [pi]
-# Legacy; plan-page default models live in .local/workflow-models.json.
-model = "default"
 # Optional retry waits in seconds after model request failures; omit for 10,30,60.
 # model_retry_delays_s = "10,30,60"

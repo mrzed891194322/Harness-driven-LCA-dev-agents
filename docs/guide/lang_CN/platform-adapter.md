@@ -17,7 +17,7 @@ whole-lca / revise-lca 的预清理与资料准备在控制面板流程中完成
 
 ## Worker 与模型
 
-编排器固定使用 Pi SDK worker。模型档案 id 来自 `config.toml` 的 `pi.model`（兼容扁平键 `PI_MODEL`）（见 `src/backend/core/runtime/model_profiles.json`）。在 Web「设置」选择档案并配置 BYOK 凭证。
+编排器固定使用 Pi SDK worker。默认模型由 Web「计划」页写入 `.local/workflow-models.json`（不读 `config.toml` 的 `pi.model`）。在 Web「设置」配置 BYOK 凭证。
 
 ## MCP 与 Host Action
 

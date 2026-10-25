@@ -112,7 +112,6 @@ const CONFIG_FLAT_MAP = {
   project_category: "OPENLCA_PROJECT_CATEGORY",
   language: "HARNESS_LANGUAGE",
   agent: "HARNESS_AGENT",
-  model: "PI_MODEL",
   model_retry_delays_s: "PI_MODEL_RETRY_DELAYS_S",
 };
 

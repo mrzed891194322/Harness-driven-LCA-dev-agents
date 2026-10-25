@@ -75,7 +75,7 @@ _EXACT = frozenset(
 _PREFIXES = (
     "LC_",  # locale
     "LCA_",  # project settings
-    "PI_",  # pi-runtime switches (PI_MODEL, PI_RUNTIME_MOCK for tests)
+    "PI_",  # pi-runtime switches (PI_RUNTIME_MOCK for tests; PI_MODEL_RETRY_DELAYS_S)
     "OPENLCA_",  # openLCA IPC host/port
     "UV_",  # uv index/mirror settings (UV_CACHE_DIR is pinned below)
 )

@@ -30,7 +30,6 @@ FLAT_TO_TOML: dict[str, tuple[str, str]] = {
     "OPENLCA_PROJECT_CATEGORY": ("openlca", "project_category"),
     "HARNESS_LANGUAGE": ("harness", "language"),
     "HARNESS_AGENT": ("harness", "agent"),
-    "PI_MODEL": ("pi", "model"),
     "PI_MODEL_RETRY_DELAYS_S": ("pi", "model_retry_delays_s"),
 }
 
@@ -42,7 +41,7 @@ DEFAULT_NESTED: dict[str, dict[str, object]] = {
         "project_category": "202606-harness-agent-LCA",
     },
     "harness": {"language": "中文"},
-    "pi": {"model": "default"},
+    "pi": {},
 }
 
 
