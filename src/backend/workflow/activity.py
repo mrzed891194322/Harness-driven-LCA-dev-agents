@@ -29,7 +29,7 @@ NOTE_TEXT = {
     "redo_approved": "{label} 回溯获批：{target}",
     "queue_append": "回溯到 {target}，插入重做：{segment}",
     "redo_refused": "{label} 回溯被拒：{reason}",
-    "host_checks": "{label} 交付物检查未通过",
+    "host_checks": "{label} 交付物检查：{ok_text}",
     "stop_requested": "收到中止请求",
     "requires_failed": "{label} 缺少输入",
     "run_end": "运行结束：{status}",
@@ -93,11 +93,16 @@ def _extend(events: list[dict[str, Any]], *, redo_of: dict, redo_count: dict, mo
                 out.append({**base, "kind": "error", "text": str(e.get("error"))[:500]})
         elif kind in NOTE_TEXT:
             segment = " → ".join(f"{i.get('node')}@rev{i.get('rev')}" for i in e.get("items") or [])
+            if kind == "host_checks":
+                ok_text = "通过" if e.get("ok") else "未通过"
+            else:
+                ok_text = "通过" if e.get("ok") else f"失败 {e.get('error', '')}"
             text = _fmt(NOTE_TEXT[kind], {**e, "label": node_label(node, redo), "segment": segment,
-                                          "ok_text": "通过" if e.get("ok") else f"失败 {e.get('error', '')}"})
+                                          "ok_text": ok_text})
             model_error = kind == "model_retry" or (kind == "turn_aborted" and "model_error" in str(e.get("detail", "")))
+            host_fail = kind == "host_checks" and not e.get("ok")
             out.append({**base, "kind": "note", "text": f"模型连接失败：{text}" if model_error else text,
-                        "is_error": model_error})
+                        "is_error": model_error or host_fail})
 
 
 def items(events: list[dict[str, Any]], ws: Path | None = None) -> list[dict[str, Any]]:
