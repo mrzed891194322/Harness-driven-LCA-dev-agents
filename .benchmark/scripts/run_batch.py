@@ -444,49 +444,40 @@ def ensure_model(api: str, model: str | None, tee: Tee) -> str:
 
 
 def poll_until_done(
-    api: str, tee: Tee, poll_s: float = 5, max_s: float = 900
+    api: str, tee: Tee, poll_s: float = 5, max_s: float = 0
 ) -> dict[str, Any]:
+    """Poll until terminal. max_s<=0: never hard-timeout (warn only).
+
+    Du Yuan 2026-10-26: poll_timeout must not conclude a case; ops half-hour
+    routine catches true hangs. Positive max_s only emits periodic WARN.
+    """
     t0 = time.time()
     last = ""
+    warned_at = 0.0
     while True:
         st = api_json(api, "GET", "/api/workflow/status", timeout=20)
         nodes = [
             {k: n.get(k) for k in ("id", "status", "round", "error")}
             for n in (st.get("nodes") or [])
         ]
+        elapsed = time.time() - t0
         brief = (
             f"status={st.get('status')} running={st.get('running')} "
             f"rid={st.get('run_id')} reason={st.get('reason')!r} nodes={nodes}"
         )
         if brief != last:
-            tee.log(f"  poll t={int(time.time() - t0)}s {brief}")
+            tee.log(f"  poll t={int(elapsed)}s {brief}")
             last = brief
         status = (st.get("status") or "").lower()
         if not st.get("running") and status in TERMINAL:
             return st
-        if time.time() - t0 > max_s:
-            tee.log(f"  TIMEOUT after {max_s}s; stopping run then returning last status")
-            st["_timeout"] = True
-            # Leave serve idle for the next case (Qwen/slow models otherwise ghost-running).
-            if st.get("running"):
-                stop_workflow(api, tee)
-                drain_t0 = time.time()
-                while time.time() - drain_t0 < 120:
-                    cur = api_json(api, "GET", "/api/workflow/status", timeout=15)
-                    if not cur.get("running"):
-                        tee.log(
-                            f"  timeout_stop_drained rid={cur.get('run_id')} "
-                            f"status={cur.get('status')}"
-                        )
-                        # Keep the timed-out run's last status for meta, but mark idle.
-                        st["running"] = False
-                        if cur.get("status"):
-                            st["status_after_stop"] = cur.get("status")
-                        break
-                    time.sleep(2)
-                else:
-                    tee.log("  timeout_stop_drain_incomplete; next wait_idle will stop again")
-            return st
+        if max_s > 0 and elapsed > max_s and (elapsed - warned_at) >= max(max_s, 60):
+            # Soft warn only — do not stop, do not mark _timeout, do not return.
+            tee.log(
+                f"  WARN poll still running after {int(elapsed)}s "
+                f"(--max-s {max_s:g} is soft; not concluding; ops may intervene)"
+            )
+            warned_at = elapsed
         time.sleep(poll_s)
 
 
@@ -989,8 +980,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--max-s",
         type=float,
-        default=900.0,
-        help="单案最长等待秒（超时会 stop 再开下一案；Qwen 等慢模可加到 1800）",
+        default=0.0,
+        help="单案软告警阈值秒：0=不告警一直等到终态（默认）；>0 超时只 WARN 不结案/不停跑",
     )
     parser.add_argument(
         "--pace-s",

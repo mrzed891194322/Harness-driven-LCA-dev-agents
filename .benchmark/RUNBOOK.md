@@ -41,7 +41,7 @@ uv run python .benchmark/scripts/run_batch.py \
   --log-dir .benchmark/result/_logs/prerun
 ```
 
-Gemma4 档另加 `--pace-s 90`（及脚本内 429 backoff）；战役六格笔记见 `result/_logs/prerun/RUNBOOK-gemma4.md` / `OPS_NOTES_gemma4.md`。
+Gemma4 档另加 `--pace-s 90`。`--max-s` 默认 0（不硬超时；真卡靠例行介入）。案间残留 running 时 `run_batch` 会 stop 再开。（及脚本内 429 backoff）；战役六格笔记见 `result/_logs/prerun/RUNBOOK-gemma4.md` / `OPS_NOTES_gemma4.md`。
 
 ## 待办（收成脚本前）
 
