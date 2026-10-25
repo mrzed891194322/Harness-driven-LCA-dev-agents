@@ -19,6 +19,8 @@ logs/
 
 # package / tool caches (project-local; not workspace/tmp)
 .cache/
+# Illegal residue if uv ran under src/ with relative UV_CACHE_DIR=.cache/uv
+# (formal cache is only repo-root .cache/). Covered by .cache/ above; keep note.
 # legacy names (pre-.cache/ layout); keep so leftovers stay untracked
 .uv-cache/
 .npm-cache/
