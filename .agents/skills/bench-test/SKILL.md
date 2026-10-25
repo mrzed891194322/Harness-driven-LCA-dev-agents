@@ -34,7 +34,7 @@ description: >-
 - serve 已起，且 checkout 是当前 tip（与评测要对齐的 commit）。
 - 模型已在面板或 `.local/workflow-agent-models.json` 配好（对**下一趟**开跑生效）。
 - API 基址默认 `http://127.0.0.1:7860`（`GUI_PORT`，见 `src/backend/settings.py`）。下文用 `$API`。
-- 冒烟默认工作流：`bom-extract`（单节点，产物 spec `bom-claims` → `bom/claims.json`）。
+- 冒烟默认工作流：`bom-extract`（定义在 `.benchmark/harness/`，短名加载；单节点，产物 spec `bom-claims` → `bom/claims.json`）。
 
 ### 1. 上传参考资料
 
@@ -97,7 +97,7 @@ curl -sS "$API/api/workflow/progress"
 
 `workspace/artifacts/bom/claims.json`
 
-对应 harness：`bom-claims` / `claim_set`（节点 `bom/claims.json`）。把该路径交给调用方；由调用方再开 `score-only` 或：
+对应 spec：`.benchmark/harness/specs/bom-claims.yaml`（`claim_set`；节点 `bom/claims.json`）。把该路径交给调用方；由调用方再开 `score-only` 或：
 
 ```bash
 python3 .benchmark/scorers/claim_f1.py \

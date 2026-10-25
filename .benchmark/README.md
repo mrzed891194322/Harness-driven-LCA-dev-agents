@@ -4,6 +4,10 @@
 
 任意 agent 的入口是 [`.agents/skills/bench-test/SKILL.md`](../.agents/skills/bench-test/SKILL.md)。
 
+## 外置工作流 / spec
+
+测评用的 orch / node / spec 放在 [`.benchmark/harness/`](harness/)（与 `harness/` 同构）。加载时短名先查这里，再查产品 `harness/`；也可写相对仓库根的路径引用。详见该目录 README。产品 `full-lca` 等仍只在 `harness/`。
+
 ## 缓存
 
 大文件默认放在 `.cache/benchmark/`（可用环境变量 `BENCHMARK_CACHE` 或 `--cache-root` 覆盖）。允许仓库内 `.cache/` 子树，或仓库外路径；其它仓内路径（如 `.benchmark/`）会被拒绝。路径约定见 [`manifests/cache_layout.yaml`](manifests/cache_layout.yaml)。

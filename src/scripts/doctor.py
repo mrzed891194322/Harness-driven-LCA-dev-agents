@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """npm run doctor -- v5 config self-check that needs no model call.
 
-Loads every orchestration under harness/workflows/orchestrations, its nodes, agents, rules and
-specs, and renders each agent's system prompt. Any YAML, schema or template
+Loads every orchestration from product harness/ and extra trees (e.g. .benchmark/harness),
+its nodes, agents, rules and specs, and renders each agent's system prompt. Any YAML, schema or template
 error is printed with its file.
 """
 

@@ -31,3 +31,11 @@ def test_workflows_three_levels():
     assert not list(w.glob("*.yaml"))
     assert {"executor.yaml", "reviewer.yaml"} <= {p.name for p in (w / "agents").glob("*.yaml")}
     assert not (ROOT / "harness/rules/roles").exists()
+
+
+def test_benchmark_harness_holds_eval_workflows():
+    product = {p.name for p in (ROOT / "harness/workflows/orchestrations").glob("*.yaml")}
+    assert "bom-extract.yaml" not in product
+    assert (ROOT / ".benchmark/harness/workflows/orchestrations/bom-extract.yaml").is_file()
+    assert (ROOT / ".benchmark/harness/specs/bom-claims.yaml").is_file()
+

@@ -58,8 +58,9 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         str(art / "plan") + "/**",  # lock 1
         str(layout.node_dir(ws, node.run_key)) + "/**",
         str(root / layout.TOOLS_SKILLS) + "/**",
-        str(root / layout.SPECS) + "/**",  # full schema.json referenced from <deliverable_X>
     }
+    for base in layout.spec_dirs():  # product + extra harness trees (e.g. .benchmark/harness)
+        read.add(str(root / base) + "/**")
     for req in node.requires:
         read.add(str(art / req))
         read.add(str(art / req) + "/**")

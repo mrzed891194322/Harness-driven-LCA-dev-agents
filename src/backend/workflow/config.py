@@ -1,8 +1,12 @@
 """v5 configuration: workflows, nodes, agents, flow graph, specs.
 
-An orchestration (harness/workflows/orchestrations/<name>.yaml) lists nodes in order (outer queue).
-Each node YAML (harness/workflows/nodes/<id>.yaml) declares requires / produces / inject / agents /
-flow / accept. ``flow`` is the inner LangGraph: edges ``{from, when?, to, max?}`` over the node's agents
+An orchestration lists nodes in order (outer queue). YAML may live under ``harness/`` or an
+extra harness-shaped tree (default ``.benchmark/harness/``; see ``layout.EXTRA_HARNESS_ROOTS``).
+Short names resolve across those roots (extras first). A path-like id (contains ``/`` or starts
+with ``.``) is relative to the repo root.
+
+Each node YAML declares requires / produces / inject / agents / flow / accept.
+``flow`` is the inner LangGraph: edges ``{from, when?, to, max?}`` over the node's agents
 and the terminals done / failed / blocked / redo_upstream (WORKFLOW_DESIGN §2); omitted = default_flow.
 """
 from __future__ import annotations
@@ -419,19 +423,63 @@ def _build_node(root: Path, data: dict, path: Path) -> Node:
     return node
 
 
+def _is_path_ref(name: str) -> bool:
+    """Repo-root-relative path ref (not a short id under specs/nodes/orchestrations)."""
+    return "/" in name or name.startswith(".")
+
+
+def _resolve_named(root: Path, dirs: tuple[Path, ...], name: str, kind: str) -> Path:
+    """Resolve short name or repo-relative path to an existing ``.yaml``.
+
+    Short id: search ``dirs`` in order (extras then product). Path-like id: relative to
+    the repo root (optional ``.yaml`` suffix). ``..`` and absolute paths are rejected.
+    """
+    if _is_path_ref(name):
+        rel = Path(name)
+        if rel.is_absolute() or ".." in rel.parts:
+            raise ConfigError(f"{kind} {name!r}: path must stay under the repo root")
+        candidates = [root / rel]
+        if not str(name).endswith(".yaml"):
+            candidates.append(root / f"{name}.yaml")
+        for path in candidates:
+            if path.is_file():
+                return path
+        raise ConfigError(f"{kind} {name!r}: missing {root / name}")
+    for base in dirs:
+        path = root / base / f"{name}.yaml"
+        if path.is_file():
+            return path
+    searched = ", ".join(str(d / f"{name}.yaml") for d in dirs)
+    raise ConfigError(f"{kind} {name!r}: not found (looked in {searched})")
+
+
+def resolve_orchestration(root: Path, name: str) -> Path:
+    return _resolve_named(root, layout.orch_dirs(), name, "orchestration")
+
+
+def resolve_node_path(root: Path, node_id: str) -> Path:
+    return _resolve_named(root, layout.node_dirs(), node_id, "node")
+
+
+def resolve_spec_path(root: Path, spec_id: str) -> Path:
+    return _resolve_named(root, layout.spec_dirs(), spec_id, "spec")
+
+
 def load_node(root: Path, node_id: str) -> Node:
-    path = root / layout.NODES / f"{node_id}.yaml"
+    path = resolve_node_path(root, node_id)
     data = _load_yaml(path)
-    data.setdefault("id", node_id)
-    if data["id"] != node_id:
-        raise ConfigError(f"{path}: id {data['id']!r} != file name {node_id!r}")
+    short = Path(node_id).stem if _is_path_ref(node_id) else node_id
+    data.setdefault("id", short)
+    if data["id"] != short:
+        raise ConfigError(f"{path}: id {data['id']!r} != file name {short!r}")
     return _build_node(root, data, path)
 
 
 def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
-    path = root / layout.ORCHESTRATIONS / f"{name}.yaml"
+    path = resolve_orchestration(root, name)
     data = _load_yaml(path)
-    data.setdefault("id", name)
+    short = Path(name).stem if _is_path_ref(name) else name
+    data.setdefault("id", short)
     # I-50: `nodes:` mixes node names (nodes/<name>.yaml) and inline node objects (need an `id`).
     inline: dict[int, dict] = {}
     if isinstance(data.get("nodes"), list):
@@ -443,8 +491,12 @@ def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
                 inline[i] = dict(item)
                 ids.append(item["id"])
             elif isinstance(item, str):
-                if not (root / layout.NODES / f"{item}.yaml").is_file():
-                    raise ConfigError(f"{_line_of(path, re.escape(item))}: unknown node {item!r} (no harness/workflows/nodes/{item}.yaml)")
+                try:
+                    resolve_node_path(root, item)
+                except ConfigError as exc:
+                    raise ConfigError(
+                        f"{_line_of(path, re.escape(item))}: unknown node {item!r} ({exc})"
+                    ) from exc
                 ids.append(item)
             else:
                 raise ConfigError(f"{path}: nodes[{i}] must be a node name or an inline node object")
@@ -462,15 +514,21 @@ def load_workflow(root: Path, name: str) -> tuple[Workflow, list[Node]]:
 
 
 def list_workflows(root: Path) -> list[str]:
-    names = []
-    for path in sorted((root / layout.ORCHESTRATIONS).glob("*.yaml")):
-        try:
-            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError:
+    """Union of orch trees; same short name: extra roots override product (search order)."""
+    found: dict[str, None] = {}
+    # product first, extras overwrite → extras win on name clash
+    for base in reversed(layout.orch_dirs()):
+        folder = root / base
+        if not folder.is_dir():
             continue
-        if isinstance(data, dict) and isinstance(data.get("nodes"), list):
-            names.append(path.stem)
-    return names
+        for path in sorted(folder.glob("*.yaml")):
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            except yaml.YAMLError:
+                continue
+            if isinstance(data, dict) and isinstance(data.get("nodes"), list):
+                found[path.stem] = None
+    return sorted(found)
 
 
 def _validate(model, data: dict, path: Path):
@@ -481,11 +539,10 @@ def _validate(model, data: dict, path: Path):
 
 
 def load_spec(root: Path, spec_id: str) -> Spec:
-    path = root / layout.SPECS / f"{spec_id}.yaml"
-    if not path.is_file():
-        raise ConfigError(f"spec {spec_id!r}: missing {path}")
+    path = resolve_spec_path(root, spec_id)
     raw = _validate(SpecFile, _load_yaml(path), path)
-    return Spec(id=spec_id, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks,
+    short = Path(spec_id).stem if _is_path_ref(spec_id) else spec_id
+    return Spec(id=short, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks,
                 upstream=raw.upstream)
 
 

@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from backend.workflow import layout
-from backend.workflow.config import Node, Spec, load_global_rules, load_rule
+from backend.workflow.config import Node, Spec, load_global_rules, load_rule, resolve_spec_path
 
 MAX_SCHEMA_SUMMARY = 4000
 
@@ -136,7 +136,8 @@ class Injector:
                                f"规格里写的无后缀文件名都按此改名；文件内互相引用的路径也用改名后的。")
             summary = schema_summary(spec.schema_)
             if summary:
-                body.append(f"结构摘要（完整 schema：`harness/specs/{spec.id}.yaml` 的 schema）：\n{summary}")
+                spec_rel = resolve_spec_path(self.root, spec.id).relative_to(self.root).as_posix()
+                body.append(f"结构摘要（完整 schema：`{spec_rel}` 的 schema）：\n{summary}")
             if role == "reviewer":
                 body.insert(0, "审核对象：")
             out.append(_section(f"deliverable_{spec.id}", "\n\n".join(body)))

@@ -64,16 +64,49 @@ def harness_view(root: Path) -> dict[str, Any]:
         _entry(root, p, "agents", lambda p=p: config.load_agent_def(root, p.stem))
         for p in sorted((root / layout.AGENTS).glob("*.yaml"))
     ]
+    spec_files: list[Path] = []
+    seen_specs: set[str] = set()
+    for base in layout.spec_dirs():  # extras first; skip product name if already listed
+        folder = root / base
+        if not folder.is_dir():
+            continue
+        for p in sorted(folder.glob("*.yaml")):
+            if p.stem in seen_specs:
+                continue
+            seen_specs.add(p.stem)
+            spec_files.append(p)
     specs = [
         _entry(root, p, "specs", lambda p=p: config.load_spec(root, p.stem))
-        for p in sorted((root / layout.SPECS).glob("*.yaml"))
+        for p in spec_files
     ]
+    orch_files: list[Path] = []
+    seen_orch: set[str] = set()
+    for base in layout.orch_dirs():
+        folder = root / base
+        if not folder.is_dir():
+            continue
+        for p in sorted(folder.glob("*.yaml")):
+            if p.stem in seen_orch:
+                continue
+            seen_orch.add(p.stem)
+            orch_files.append(p)
+    node_files: list[Path] = []
+    seen_nodes: set[str] = set()
+    for base in layout.node_dirs():
+        folder = root / base
+        if not folder.is_dir():
+            continue
+        for p in sorted(folder.glob("*.yaml")):
+            if p.stem in seen_nodes:
+                continue
+            seen_nodes.add(p.stem)
+            node_files.append(p)
     workflows = [
         _entry(root, p, "workflows", lambda p=p: config.load_workflow(root, p.stem))
-        for p in sorted((root / layout.ORCHESTRATIONS).glob("*.yaml"))
+        for p in orch_files
     ] + [
         _entry(root, p, "nodes", lambda p=p: config.load_node(root, p.stem))
-        for p in sorted((root / layout.NODES).glob("*.yaml"))
+        for p in node_files
     ]
     files = {"rules": rules, "agents": roles, "specs": specs, "workflows": workflows}
     return {
