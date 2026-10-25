@@ -1,13 +1,12 @@
 """Backend settings and generic helpers (no domain rules).
 
-Project settings live in repo-root ``config.toml`` (see ``config.example.toml``).
+Project settings live in repo-root ``config.toml`` (committed plaintext).
 Flat key names (``GUI_API_PORT``, …) are kept for API / launcher compatibility.
 """
 
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
 
 try:
@@ -20,8 +19,6 @@ except ModuleNotFoundError:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 CONFIG_NAME = "config.toml"
-CONFIG_EXAMPLE_NAME = "config.example.toml"
-
 # flat key -> (section, field) and default as string for flat loaders
 FLAT_TO_TOML: dict[str, tuple[str, str]] = {
     "GUI_WEB_PORT": ("gui", "web_port"),
@@ -86,7 +83,7 @@ def _format_toml_value(value: object) -> str:
 
 def _write_toml(path: Path, nested: dict[str, dict[str, object]]) -> None:
     lines: list[str] = [
-        "# Project settings (replaces .env). See config.example.toml.\n",
+        "# Project settings (replaces .env).\n",
         "\n",
     ]
     order = ["gui", "openlca", "harness", "pi"]
@@ -103,50 +100,21 @@ def _write_toml(path: Path, nested: dict[str, dict[str, object]]) -> None:
     path.write_text("".join(lines), encoding="utf-8")
 
 
-def _migrate_env_to_toml(project_root: Path, dest: Path) -> bool:
-    """If ``.env`` exists, write a config.toml from it. Returns True when migrated."""
-    env_path = project_root / ".env"
-    if not env_path.is_file():
-        return False
-    flat = parse_env_file(env_path)
-    if not flat:
-        return False
-    nested: dict[str, dict[str, object]] = {k: dict(v) for k, v in DEFAULT_NESTED.items()}
-    for flat_key, raw in flat.items():
-        if flat_key not in FLAT_TO_TOML:
-            continue
-        section, field = FLAT_TO_TOML[flat_key]
-        nested.setdefault(section, {})
-        if field.endswith("_port") or field == "port":
-            try:
-                nested[section][field] = int(str(raw).strip())
-                continue
-            except ValueError:
-                pass
-        nested[section][field] = raw
-    _write_toml(dest, nested)
-    return True
-
 
 def ensure_config_path(project_root: Path) -> Path:
-    """Return config.toml path; create from .env migrate, example copy, or defaults."""
+    """Return config.toml path. Missing file is an error (no template copy, no .env migrate)."""
     path = config_path(project_root)
-    if path.is_file():
-        return path
-    if _migrate_env_to_toml(project_root, path):
-        return path
-    example = project_root / CONFIG_EXAMPLE_NAME
-    if example.is_file():
-        shutil.copy2(example, path)
-        return path
-    _write_toml(path, {k: dict(v) for k, v in DEFAULT_NESTED.items()})
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"missing {path.name}: add repo-root config.toml (committed plaintext settings)"
+        )
     return path
 
 
 def load_nested(project_root: Path) -> dict[str, dict[str, object]]:
-    ensure_config_path(project_root)
+    path = ensure_config_path(project_root)
     nested = {k: dict(v) for k, v in DEFAULT_NESTED.items()}
-    loaded = _read_toml(config_path(project_root))
+    loaded = _read_toml(path)
     for section, body in loaded.items():
         nested.setdefault(section, {}).update(body)
     return nested
@@ -163,9 +131,12 @@ def load_flat(project_root: Path) -> dict[str, str]:
 
 
 def upsert_flat(project_root: Path, updates: dict[str, str]) -> None:
-    """Update config.toml fields from flat env-style keys."""
-    path = ensure_config_path(project_root)
-    nested = load_nested(project_root)
+    """Update config.toml fields from flat env-style keys. Creates file only when writing updates."""
+    path = config_path(project_root)
+    if path.is_file():
+        nested = load_nested(project_root)
+    else:
+        nested = {k: dict(v) for k, v in DEFAULT_NESTED.items()}
     for flat_key, raw in updates.items():
         if flat_key not in FLAT_TO_TOML:
             continue

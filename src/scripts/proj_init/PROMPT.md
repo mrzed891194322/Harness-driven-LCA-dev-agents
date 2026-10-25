@@ -37,9 +37,9 @@ uv run python src/scripts/proj_init/main.py
 以脚本退出码和结尾 `--- json ---` 之后的 JSON 为准。
 
 - 退出码 `1`：必要项失败（无 uv、sync 失败、Python 版本不对、`control_openlca` MCP import 失败）。按脚本输出汇报，不要自行安装软件。
-- 退出码 `0`：必要项通过。脚本若因缺少 `config.toml` 而从 `config.example.toml` 复制，只报告「已从模板创建」，不要打开 `config.toml` 把内容贴进对话。
+- 退出码 `0`：必要项通过。若缺少 `config.toml` 则失败；不要从模板创建，也不要做 `.env` 迁移。不要把 `config.toml` 内容贴进对话。
 - JSON 中的 `harness_clis` 表示 **Pi SDK runtime**（Node + `src/pi-runtime`）是否就绪。不可用时不要把本次引导打成退出码 1，但要提醒用户安装 Node 并构建 pi-runtime。
-- 提醒用户检查 `config.toml` 的 `pi.model`（档案 id，见 `src/backend/core/runtime/model_profiles.json`），并在 Web「设置」或 `.local/credentials/pi-auth.json` 配置 Provider API Key（BYOK）。字段说明只指向 `config.example.toml`，不要打印密钥。
+- 提醒用户检查 `config.toml` 的 `pi.model`（档案 id，见 `src/backend/core/runtime/model_profiles.json`），并在 Web「设置」或 `.local/credentials/pi-auth.json` 配置 Provider API Key（BYOK）。字段说明只指向仓库根 `config.toml`，不要打印密钥。
 
 ## Phase 2：Pi SDK runtime
 

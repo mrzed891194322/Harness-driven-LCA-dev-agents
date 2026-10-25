@@ -94,12 +94,12 @@ def check_python_version() -> dict[str, Any]:
 
 
 def ensure_env_file(project_root: Path) -> dict[str, Any]:
-    """Create config.toml from config.example.toml (or migrate .env) when missing."""
-    from backend.settings import ensure_config_path
-
-    path = ensure_config_path(project_root)
-    created = True  # ensure_config_path always returns existing file; treat first call as ok
-    print(f"[OK] config present: {path.name}")
+    """Require repo-root config.toml (committed plaintext; no template copy, no .env migrate)."""
+    path = project_root / "config.toml"
+    if not path.is_file():
+        print("[ERROR] config.toml is missing at repo root.")
+        return {"exists": False, "created": False}
+    print("[OK] config.toml exists.")
     return {"exists": True, "created": False}
 
 

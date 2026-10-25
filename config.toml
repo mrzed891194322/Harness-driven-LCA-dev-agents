@@ -1,0 +1,20 @@
+# Project settings (replaces .env). Edit in place; committed plaintext.
+
+[gui]
+web_port = 3000
+api_port = 8800
+
+[openlca]
+ipc_host = "127.0.0.1"
+ipc_port = 8080
+# Must equal the category locked in code.
+project_category = "202606-harness-agent-LCA"
+
+[harness]
+language = "中文"
+
+[pi]
+# Legacy; plan-page default models live in .local/workflow-models.json.
+model = "default"
+# Optional retry waits in seconds after model request failures; omit for 10,30,60.
+# model_retry_delays_s = "10,30,60"

@@ -41,7 +41,7 @@
 npm start          # 等同 node src/scripts/start.mjs
 ```
 
-脚本先同步 uv 与 Node.js 依赖、构建 pi-runtime（若没有 `config.toml`，会从 `config.example.toml` 复制一份），再依次启动后端 `fastapi`、`pi-runtime`、前端 `next`，全部就绪后返回；服务在后台常驻，关掉终端也不会停。浏览器打开终端打印的地址（默认 [http://127.0.0.1:3000](http://127.0.0.1:3000)）。
+脚本先同步 uv 与 Node.js 依赖、构建 pi-runtime（需要仓库根目录已有 `config.toml`），再依次启动后端 `fastapi`、`pi-runtime`、前端 `next`，全部就绪后返回；服务在后台常驻，关掉终端也不会停。浏览器打开终端打印的地址（默认 [http://127.0.0.1:3000](http://127.0.0.1:3000)）。
 
 日常停止、重启和查看状态：
 

@@ -105,13 +105,8 @@ if (uvProbe.error || uvProbe.code !== 0) {
 }
 
 const configPath = path.join(root, "config.toml");
-const configExamplePath = path.join(root, "config.example.toml");
 if (!fs.existsSync(configPath)) {
-  if (!fs.existsSync(configExamplePath)) {
-    fail("config.example.toml is missing, so config.toml could not be created.");
-  }
-  fs.copyFileSync(configExamplePath, configPath);
-  console.log("Copied config.example.toml to config.toml.");
+  fail("config.toml is missing at repo root (committed plaintext settings).");
 }
 
 console.log("Syncing uv dependencies...");

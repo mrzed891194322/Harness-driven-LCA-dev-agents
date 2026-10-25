@@ -7,10 +7,9 @@ from backend.settings import load_flat, upsert_flat
 
 
 def test_load_and_upsert_config_toml(tmp_path: Path):
-    example = tmp_path / "config.example.toml"
-    example.write_text(
-        '[gui]\nweb_port = 3000\napi_port = 8800\n\n'
-        '[openlca]\nipc_host = "127.0.0.1"\nipc_port = 8080\n'
+    (tmp_path / "config.toml").write_text(
+        "[gui]\nweb_port = 3000\napi_port = 8800\n\n"
+        "[openlca]\nipc_host = \"127.0.0.1\"\nipc_port = 8080\n"
         'project_category = "202606-harness-agent-LCA"\n\n'
         '[harness]\nlanguage = "中文"\n\n[pi]\nmodel = "default"\n',
         encoding="utf-8",

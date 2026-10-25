@@ -152,14 +152,7 @@ export function parseTomlFlat(text) {
 
 export function loadConfigFlat(repoRoot = root) {
   const configPath = path.join(repoRoot, "config.toml");
-  const examplePath = path.join(repoRoot, "config.example.toml");
-  if (!fs.existsSync(configPath)) {
-    if (fs.existsSync(examplePath)) {
-      fs.copyFileSync(examplePath, configPath);
-    } else {
-      return {};
-    }
-  }
+  if (!fs.existsSync(configPath)) return {};
   return parseTomlFlat(fs.readFileSync(configPath, "utf8"));
 }
 
