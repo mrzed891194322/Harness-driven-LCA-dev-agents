@@ -104,3 +104,7 @@ P0 案例是手写的合成数据。`meta.yaml` 里的 `pcfbench_id` 是虚构�
 ```bash
 python3 .benchmark/bom/scorers/score_case.py --mode score-only --self-check
 ```
+
+## 预跑 Runbook
+
+见 [RUNBOOK.md](RUNBOOK.md)；单次战役笔记在 `result/_logs/prerun/OPS_NOTES_*.md`。
