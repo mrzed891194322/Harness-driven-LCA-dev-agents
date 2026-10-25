@@ -254,6 +254,7 @@ class Upstream(_Strict):
 
 class Spec(_Strict):
     id: str
+    path: str = ""  # repo-root-relative path of the YAML file
     prompt: str  # the spec's description (shared by executor and reviewer)
     schema_: dict | None = None
     checks: list[dict] = Field(default_factory=list)
@@ -552,8 +553,9 @@ def load_spec(root: Path, spec_id: str) -> Spec:
     path = resolve_spec_path(root, spec_id)
     raw = _validate(SpecFile, _load_yaml(path), path)
     short = path.stem
-    return Spec(id=short, prompt=render(raw.description, path), schema_=raw.schema_, checks=raw.checks,
-                upstream=raw.upstream)
+    rel = path.relative_to(root).as_posix()
+    return Spec(id=short, path=rel, prompt=render(raw.description, path), schema_=raw.schema_,
+                checks=raw.checks, upstream=raw.upstream)
 
 
 def load_agent_def(root: Path, name: str) -> AgentDef:

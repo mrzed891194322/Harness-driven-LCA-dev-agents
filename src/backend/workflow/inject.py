@@ -136,7 +136,8 @@ class Injector:
                                f"规格里写的无后缀文件名都按此改名；文件内互相引用的路径也用改名后的。")
             summary = schema_summary(spec.schema_)
             if summary:
-                spec_rel = resolve_spec_path(self.root, spec.id).relative_to(self.root).as_posix()
+                # Spec.id is the file stem; resolve via produce path / Spec.path (repo-root-relative).
+                spec_rel = spec.path or resolve_spec_path(self.root, prod.spec).relative_to(self.root).as_posix()
                 body.append(f"结构摘要（完整 schema：`{spec_rel}` 的 schema）：\n{summary}")
             if role == "reviewer":
                 body.insert(0, "审核对象：")

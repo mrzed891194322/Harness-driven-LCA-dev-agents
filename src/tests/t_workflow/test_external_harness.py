@@ -14,6 +14,7 @@ from backend.workflow.config import (
     resolve_orchestration,
     resolve_spec_path,
 )
+from backend.workflow.inject import Injector
 from tests.t_workflow.conftest import REPO, write_yaml
 
 
@@ -27,8 +28,21 @@ def test_repo_bom_extract_loads_via_orch_stem_and_path_refs():
     wf, nodes = load_workflow(REPO, "bom-extract")
     assert wf.id == "bom-extract" and nodes[0].id == "bom-extract"
     assert nodes[0].produces[0].spec == ".benchmark/harness/specs/bom-claims.yaml"
-    assert load_spec(REPO, ".benchmark/harness/specs/bom-claims.yaml").id == "bom-claims"
+    loaded = load_spec(REPO, ".benchmark/harness/specs/bom-claims.yaml")
+    assert loaded.id == "bom-claims"
+    assert loaded.path == ".benchmark/harness/specs/bom-claims.yaml"
     assert "bom-extract" in list_workflows(REPO)
+
+
+def test_inject_uses_produce_spec_path_not_stem():
+    """Regression: inject must not resolve_spec_path(spec.id) — id is a short stem."""
+    wf, nodes = load_workflow(REPO, "bom-extract")
+    node = nodes[0]
+    specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
+    assert "bom-claims" not in specs  # keyed by path, not stem
+    text = Injector(REPO)(node, "executor", 1, None, specs)
+    assert "<deliverable_bom-claims>" in text
+    assert ".benchmark/harness/specs/bom-claims.yaml" in text
 
 
 def test_repo_full_lca_product_path_refs():
