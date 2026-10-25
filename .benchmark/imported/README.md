@@ -44,4 +44,4 @@ python3 .benchmark/scripts/run_batch.py --model google/gemma-4-31b-it \
   --workflow bom-extract --cases-root .benchmark/bom/abstention
 ```
 
-仍缺：`run_batch` 自动 `POST /api/references`（extract 有 `input/reference.md` 时）；abstention 无 import 源。
+`run_batch` 默认开跑前会清空并 `POST /api/references`（`reference.md` + 来源 PDF 文本别名）；`--no-auto-references` 可关。abstention 仍无 PCFBench import 源。

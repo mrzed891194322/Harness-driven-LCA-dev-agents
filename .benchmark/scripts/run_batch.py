@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
 import re
 import shutil
 import subprocess
@@ -16,7 +17,9 @@ import sys
 import time
 import traceback
 import urllib.error
+import urllib.parse
 import urllib.request
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -258,6 +261,138 @@ def sleep_with_log(tee: Tee, seconds: float, why: str) -> None:
     tee.log(f"PACE sleep_s={seconds:.0f} reason={why}")
     time.sleep(seconds)
 
+
+def api_multipart(
+    api: str,
+    path: str,
+    files: list[tuple[str, bytes]],
+    *,
+    field: str = "files",
+    paths: list[str] | None = None,
+    timeout: float = 120,
+) -> Any:
+    """POST multipart/form-data（stdlib）。``files`` 为 (filename, bytes)。"""
+    if paths is not None and len(paths) != len(files):
+        raise ValueError("paths 数量须与 files 一致")
+    boundary = f"----BatchBoundary{uuid.uuid4().hex}"
+    chunks: list[bytes] = []
+    for i, (filename, data) in enumerate(files):
+        name = paths[i] if paths is not None else filename
+        disposition = (
+            f'Content-Disposition: form-data; name="{field}"; '
+            f'filename="{filename}"\r\n'
+        )
+        chunks.append(f"--{boundary}\r\n".encode())
+        chunks.append(disposition.encode())
+        ctype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        chunks.append(f"Content-Type: {ctype}\r\n\r\n".encode())
+        chunks.append(data)
+        chunks.append(b"\r\n")
+        if paths is not None:
+            chunks.append(f"--{boundary}\r\n".encode())
+            chunks.append(b'Content-Disposition: form-data; name="paths"\r\n\r\n')
+            chunks.append(name.encode() + b"\r\n")
+    chunks.append(f"--{boundary}--\r\n".encode())
+    body = b"".join(chunks)
+    req = urllib.request.Request(
+        api.rstrip("/") + path,
+        data=body,
+        method="POST",
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read().decode()
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode(errors="replace")
+        raise RuntimeError(f"HTTP {e.code} {path}: {detail[:800]}") from e
+
+
+def clear_references(api: str, tee: Tee) -> None:
+    listing = api_json(api, "GET", "/api/references", timeout=30)
+    names = [str(f.get("name") or "") for f in (listing.get("files") or [])]
+    names = [n for n in names if n]
+    for name in names:
+        enc = urllib.parse.quote(name, safe="/")
+        try:
+            api_json(api, "DELETE", f"/api/references/{enc}", timeout=30)
+            tee.log(f"  refs_delete name={name}")
+        except Exception as e:
+            tee.log(f"  refs_delete_fail name={name} err={e}")
+
+
+def _source_basenames(case_dir: Path) -> list[str]:
+    found: list[str] = []
+    meta = case_dir / "meta.yaml"
+    if meta.is_file():
+        try:
+            import yaml
+
+            data = yaml.safe_load(meta.read_text(encoding="utf-8")) or {}
+            url = str(data.get("source_url") or "").strip()
+            if url:
+                base = Path(urllib.parse.urlparse(url).path).name
+                if base:
+                    found.append(base)
+        except Exception:
+            pass
+    query = case_dir / "input" / "query.md"
+    if query.is_file():
+        for m in re.finditer(
+            r"https?://\S+?/([^/\s]+?\.(?:pdf|PDF))(?:\?\S*)?",
+            query.read_text(encoding="utf-8"),
+        ):
+            found.append(m.group(1))
+    out: list[str] = []
+    seen: set[str] = set()
+    for name in found:
+        key = name.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(name)
+    return out
+
+
+def stage_case_references(api: str, case: dict[str, Any], tee: Tee) -> list[str]:
+    """清空 knowledge/inputs 后挂上本案 input/reference.md（及来源 PDF 文本别名）。"""
+    case_dir: Path = case["dir"]
+    input_dir = case_dir / "input"
+    uploads: list[tuple[str, bytes]] = []
+    ref = input_dir / "reference.md"
+    if ref.is_file() and ref.stat().st_size > 0:
+        data = ref.read_bytes()
+        uploads.append(("reference.md", data))
+        for base in _source_basenames(case_dir):
+            stem = Path(base).stem
+            for alias in (f"{stem}.md", f"{base}.txt", base):
+                if alias.casefold() == "reference.md":
+                    continue
+                uploads.append((alias, data))
+    if input_dir.is_dir():
+        for p in sorted(input_dir.iterdir()):
+            if not p.is_file() or p.name in {"query.md", "reference.md"}:
+                continue
+            uploads.append((p.name, p.read_bytes()))
+    dedup: list[tuple[str, bytes]] = []
+    seen: set[str] = set()
+    for name, data in uploads:
+        key = name.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append((name, data))
+    clear_references(api, tee)
+    if not dedup:
+        tee.log("  refs_stage empty (no input reference files)")
+        return []
+    resp = api_multipart(api, "/api/references", dedup, paths=[n for n, _ in dedup])
+    saved = [str(x.get("name") or "") for x in (resp.get("saved") or [])]
+    tee.log(f"  refs_stage saved={saved} status={resp.get('status')}")
+    return saved
+
+
 def optional_f1(truth: Path | None, pred: Path) -> dict | None:
     if truth is None or not truth.is_file() or not pred.is_file():
         return None
@@ -343,6 +478,7 @@ def run_one(
     tee: Tee,
     poll_s: float,
     max_s: float,
+    auto_references: bool = True,
 ) -> dict[str, Any]:
     case_id = case["id"]
     qpath: Path = case["query"]
@@ -368,6 +504,28 @@ def run_one(
 
     plan = qpath.read_text(encoding="utf-8")
     wait_idle(api, tee)
+    staged_refs: list[str] = []
+    if auto_references:
+        try:
+            staged_refs = stage_case_references(api, case, tee)
+        except Exception as e:
+            tee.log(f"  refs_stage_error={e}")
+            row = {
+                "case": case_id,
+                "workflow": workflow,
+                "model": model,
+                "repeat": repeat_i,
+                "run_id": None,
+                "status": "script_error",
+                "claims": False,
+                "artifact": False,
+                "model_disconnect": False,
+                "rate_limit": False,
+                "ops_ok": False,
+                "notes": f"refs_stage_error:{e}",
+            }
+            tee.log(f"DONE {json.dumps(row, ensure_ascii=False)}")
+            return row
     primary_rels = ARTIFACT_RELS.get(workflow, (CLAIMS_REL,))
     primary = workspace / primary_rels[0]
     before_mtime = primary.stat().st_mtime if primary.is_file() else None
@@ -429,6 +587,8 @@ def run_one(
         notes_parts.append(f"model_disconnect:{disc_note[:120]}")
     if rate_hit:
         notes_parts.append(f"rate_limit:{rate_note[:120]}")
+    if auto_references:
+        notes_parts.append(f"refs={len(staged_refs)}")
     if claims_ok:
         notes_parts.append(f"claims_n={claims_n}")
     elif items_n is not None:
@@ -505,6 +665,11 @@ def main(argv: list[str] | None = None) -> int:
         "--include-imported",
         action="store_true",
         help="额外扫 .benchmark/imported/<大类>/<子类>/（同 id 保留入库树）",
+    )
+    parser.add_argument(
+        "--no-auto-references",
+        action="store_true",
+        help="不开跑前自动清空并 POST /api/references（默认会挂 input/reference.md）",
     )
     parser.add_argument("--poll", type=float, default=5.0, help="轮询间隔秒")
     parser.add_argument("--max-s", type=float, default=900.0, help="单案最长等待秒")
@@ -598,6 +763,7 @@ def main(argv: list[str] | None = None) -> int:
             f"pace_s={args.pace_s} backoff_base_s={args.backoff_base_s} "
             f"backoff_max_s={args.backoff_max_s}"
         )
+        tee.log(f"auto_references={not args.no_auto_references}")
         rate_streak = 0
         started_any = False
 
@@ -629,6 +795,7 @@ def main(argv: list[str] | None = None) -> int:
                         tee=tee,
                         poll_s=args.poll,
                         max_s=args.max_s,
+                        auto_references=not args.no_auto_references,
                     )
                     rows.append(row)
                     if row.get("rate_limit"):
