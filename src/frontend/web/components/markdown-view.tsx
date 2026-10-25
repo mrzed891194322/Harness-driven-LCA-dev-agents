@@ -1,6 +1,7 @@
+"use client";
+
 import { translate } from "../lib/i18n/messages";
 import { uiLang } from "../lib/run-status";
-"use client";
 
 import { Fragment, type ReactNode } from "react";
 
