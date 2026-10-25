@@ -166,6 +166,32 @@ python3 .benchmark/bom/scorers/score_case.py --mode fetch --dry-run
 
 manifest 列了 task1 / task3 / task4 / task5 / task7 和 `ecoinvent_picklist.jsonl`。picklist 不在 Hugging Face 文件列表里，URL 指向配套仓库。HF 数据集没有单独 PDF；gitignore 仍然拒绝把 PDF 或这些 jsonl 加进来。
 
+
+## 串跑 batch（多案 × 模型 × workflow）
+
+正式入口（仓内，相对仓根）：
+
+```bash
+python3 .benchmark/scripts/run_batch.py \
+  --model <provider/model> \
+  --workflow bom-extract \
+  --repeat N
+```
+
+- `--workflow`：orch stem，对应实验 2×2 条件（冒烟默认 `bom-extract`）。
+- `--model`：会 `POST /api/models/selection`；日志写明生效模型。
+- `--repeat N`：每案例重复次数。
+- 日志：`.benchmark/result/_logs/batch-<workflow>-<ts>.log`（含 model/workflow/repeat/case/run_id）。
+- 产物：`.benchmark/result/bom/extract/<case_id>/<run_id>/`。
+
+PCFBench 全量/子集进案例树（不进 git）：
+
+```bash
+python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5
+```
+
+见 [`.benchmark/imported/README.md`](../../../.benchmark/imported/README.md)。
+
 ## 大类怎么测
 
 | 大类 / 过滤 | 怎么读 |

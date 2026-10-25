@@ -55,6 +55,10 @@ harness/.user/
 # keep only the tracked README under result/.
 .benchmark/result/**
 !.benchmark/result/README.md
+# PCFBench-imported case trees (full/subset dumps). Never commit;
+# keep only the tracked README under imported/.
+.benchmark/imported/**
+!.benchmark/imported/README.md
 .benchmark/**/*.partial
 .benchmark/**/*.pdf
 /BENCHMARK_CACHE/

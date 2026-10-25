@@ -22,6 +22,7 @@
     schemas/           # 可选
     category.yaml
   result/              # 真跑产物：大类/子类/case_id/run_id（gitignore；仅 README 进仓）
+  imported/            # PCFBench 转化案例树（gitignore；仅 README 进仓）
   manifests/
   scripts/
   schemas/             # 全局共用
@@ -47,6 +48,39 @@ python3 .benchmark/scripts/download_pcfbench.py
 ```
 
 `sha256` 仍为空时文件进 `pcfbench/unverified/`；加上 `--write-sha` 才会把摘要回写到 manifest（这是脚本唯一允许改仓库的地方），并把文件移到 `pcfbench/<sha256>/`。
+
+
+## 串跑（真跑 API）
+
+需要本机 serve 已起。正式脚本（相对仓根）：
+
+```bash
+# 冒烟两案，指定模型与 workflow（2×2 条件），每案 1 次
+python3 .benchmark/scripts/run_batch.py \
+  --model openai/gpt-4o \
+  --workflow bom-extract \
+  --repeat 1
+
+# 只跑指定 case、重复 3 次
+python3 .benchmark/scripts/run_batch.py \
+  --workflow bom-extract --model deepseek/deepseek-chat \
+  --case bom-steel-plate --case bom-film-roll --repeat 3
+```
+
+日志（含 model / workflow / repeat / case / run_id）与 summary 写在 `.benchmark/result/_logs/`；
+单次产物：`.benchmark/result/<大类>/<子类>/<case_id>/<run_id>/`。
+
+## PCFBench → 案例树
+
+```bash
+python3 .benchmark/scripts/download_pcfbench.py
+python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5
+# 全量（默认 task4+task5+task3）进 .benchmark/imported/（不进 git）
+python3 .benchmark/scripts/import_pcfbench_cases.py
+```
+
+也可用 `--source .eval/data/pcfbench` 或 `--out-root .cache/benchmark/cases`。
+详见 [`imported/README.md`](imported/README.md)。
 
 ## 许可
 
