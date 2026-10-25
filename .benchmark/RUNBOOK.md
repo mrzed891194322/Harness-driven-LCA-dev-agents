@@ -1,18 +1,19 @@
 # 评测预跑 Runbook（草稿）
 
 本文件**进 git**，用来沉淀「怎么开 serve / 怎么串跑 / 踩过什么坑」，最终收成正式工作脚本。  
-单次战役的细账（案 id、日志路径、当次 tip）写在：
+单次战役按六格累加（gitignore）：
 
-`.benchmark/result/_logs/prerun/OPS_NOTES_<模型或战役>.md`（整树默认 gitignore）
+- `result/_logs/prerun/RUNBOOK-<model>.md`（定字段：meta/cmd/env/counts/incidents/next）
+- `result/_logs/prerun/OPS_NOTES_*.md`（运维细账，可选）
 
-当前战役：[`OPS_NOTES_gemma4.md`](result/_logs/prerun/OPS_NOTES_gemma4.md)（Gemma 4 31B IT，2026-10-25）。
+当前：`RUNBOOK-gemma4.md`、`OPS_NOTES_gemma4.md`。
 
 ## 正式脚本应覆盖的步骤
 
 1. **Serve**：切当前 `origin/master` tip；`merge_serve_credentials`（勿整目录覆盖 `pi-auth`）；短 `PI_RUNTIME_SOCKET`（主仓 `.local/run/pi-v5serve.sock`）。
 2. **模型**：`POST /api/models/selection` 或 `run_batch --model <profile_id>`。
 3. **矩阵顺序**：`bom-extract`（手写 → imported）→ 收口 → `lci-mapping --include-imported`；abstention 另排。
-4. **Gemma Tier1**：`--pace-s 90`（或更长）+ 脚本 429 backoff；禁止 dense 无间隔串跑。
+4. **限速（按模型档，非全局）**：仅 Gemma4 及同类强限速才开 `--pace-s` / 429 backoff；其它模型默认 `--pace-s 0`。细节见战役笔记 `result/_logs/prerun/RUNBOOK-gemma4.md`。
 5. **References**：extract 默认自动挂 `input/reference.md`（及来源 PDF 文本别名）；PNNL 等缺源案进 `knowledge_skip`，不烧配额重试。
 6. **终态标签**（群口径）：
    - `completed`：节点通过且有产物
@@ -22,23 +23,19 @@
 7. **产物**：`.benchmark/result/<大类>/<子类>/<case_id>/<run_id>/`；批日志 `.benchmark/result/_logs/`。
 8. **评分后置**：先收产物与标签，再 `score_case` / fabrication_rate。
 
-## 入口命令（现行，细节以 OPS 笔记为准）
+## 入口命令
+
+通用（默认无限速）：
 
 ```bash
 uv run python .benchmark/scripts/run_batch.py \
-  --model google/gemma-4-31b-it \
+  --model <profile_id> \
   --workflow bom-extract \
   --cases-root .benchmark/imported/bom/extract \
-  --pace-s 90 \
-  --log-dir .benchmark/result/_logs/prerun
-
-uv run python .benchmark/scripts/run_batch.py \
-  --model google/gemma-4-31b-it \
-  --workflow lci-mapping \
-  --include-imported \
-  --pace-s 90 \
   --log-dir .benchmark/result/_logs/prerun
 ```
+
+Gemma4 档另加 `--pace-s 90`（及脚本内 429 backoff）；战役六格笔记见 `result/_logs/prerun/RUNBOOK-gemma4.md` / `OPS_NOTES_gemma4.md`。
 
 ## 待办（收成脚本前）
 
