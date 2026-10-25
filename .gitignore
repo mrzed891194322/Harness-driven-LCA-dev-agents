@@ -51,6 +51,10 @@ harness/.user/
 
 # Benchmark cache and PCFBench upstream dumps (CC BY-NC-SA). Never commit.
 .benchmark/cache/
+# Benchmark run outputs (answers/artifacts per case×run). Never commit;
+# keep only the tracked README under result/.
+.benchmark/result/**
+!.benchmark/result/README.md
 .benchmark/**/*.partial
 .benchmark/**/*.pdf
 /BENCHMARK_CACHE/

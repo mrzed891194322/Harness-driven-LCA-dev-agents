@@ -21,6 +21,7 @@
     scorers/           # fabrication_rate
     schemas/           # 可选
     category.yaml
+  result/              # 真跑产物：大类/子类/case_id/run_id（gitignore；仅 README 进仓）
   manifests/
   scripts/
   schemas/             # 全局共用
@@ -29,6 +30,8 @@
 ```
 
 单案例：`meta.yaml`、`input/`（题面）、`truth/`（真值）、`eval/`（假产物 `artifacts/` + `events.jsonl`）。大类下按**子类**分目录，不再平铺 `cases/`。
+
+真跑答案 / 产物写到 [`result/`](result/README.md)（`.benchmark/result/<大类>/<子类>/<case_id>/<run_id>/`），与案例内 `truth/`、`eval/` 分开；勿与 `.cache/benchmark/`（PCFBench 缓存）混用。整树默认不进 git。
 
 ## 外置工作流 / spec
 

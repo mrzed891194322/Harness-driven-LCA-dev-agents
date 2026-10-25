@@ -496,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:
         "--out-dir",
         type=Path,
         default=None,
-        help="写入 scores.jsonl、summary.md、by_panel/",
+        help="写入 scores.jsonl、summary.md、by_panel/；建议 .benchmark/result/<大类>/<子类>/<case_id>/<run_id>/（勿与 .cache/benchmark 混用）",
     )
     parser.add_argument(
         "--from-scores",
