@@ -1,0 +1,5 @@
+id: lci-mapping
+title: LCI 封闭候选映射（冒烟）
+max_redos: 0
+# 单节点：产物在 artifacts/mapping/；不依赖 BOM / openLCA
+nodes: [.benchmark/lci/harness/workflows/nodes/lci-mapping.yaml]

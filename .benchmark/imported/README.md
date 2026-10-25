@@ -19,3 +19,29 @@ python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5
 # 或指向已有 jsonl：
 python3 .benchmark/scripts/import_pcfbench_cases.py --source .eval/data/pcfbench --task task4 --id bd4b589933ef4d7e79c207f4
 ```
+
+## 挂到可跑树（串跑）
+
+入库冒烟仍在 `.benchmark/bom|lci/...`；imported 默认**不**复制进那两棵树。
+
+串跑挂法（任选）：
+
+```bash
+# 只跑 imported extract
+python3 .benchmark/scripts/run_batch.py --model google/gemma-4-31b-it \
+  --workflow bom-extract --cases-root .benchmark/imported/bom/extract
+
+# 入库 + imported 合并（同 id 保留入库）
+python3 .benchmark/scripts/run_batch.py --model google/gemma-4-31b-it \
+  --workflow bom-extract --include-imported
+
+# mapping 薄档 orch（需 serve tip 含 lci-mapping）
+python3 .benchmark/scripts/run_batch.py --model google/gemma-4-31b-it \
+  --workflow lci-mapping --include-imported
+
+# abstention：复用 bom-extract orch，换案例根（PCFBench 无独立拒答 task，目前只有手写 2 案）
+python3 .benchmark/scripts/run_batch.py --model google/gemma-4-31b-it \
+  --workflow bom-extract --cases-root .benchmark/bom/abstention
+```
+
+仍缺：`run_batch` 自动 `POST /api/references`（extract 有 `input/reference.md` 时）；abstention 无 import 源。

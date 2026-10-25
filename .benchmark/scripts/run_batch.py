@@ -26,10 +26,18 @@ DEFAULT_API = "http://127.0.0.1:8800"
 DEFAULT_WORKFLOW = "bom-extract"
 # workflow stem → (大类, 子类, 默认案例根相对仓根)
 WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
+    # workflow stem → (大类, 子类, 默认已入库案例根)
     "bom-extract": ("bom", "extract", ".benchmark/bom/extract"),
+    "lci-mapping": ("lci", "mapping", ".benchmark/lci/mapping"),
 }
-CLAIMS_REL = Path("artifacts/bom/claims.json")
+# abstention 复用 bom-extract orch；用 --cases-root 或 --include-imported 挂树
+ARTIFACT_RELS: dict[str, tuple[Path, ...]] = {
+    "bom-extract": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
+    "lci-mapping": (Path("artifacts/mapping/mapping.json"),),
+}
+CLAIMS_REL = Path("artifacts/bom/claims.json")  # 兼容旧引用
 BOM_REL = Path("artifacts/bom/bom.json")
+MAPPING_REL = Path("artifacts/mapping/mapping.json")
 DISCONNECT_RE = re.compile(
     r"model_error|model_retry|断连|disconnect|host_error|ConfigError|"
     r"ECONNRESET|socket hang up|fetch failed|APIConnectionError|"
@@ -75,6 +83,14 @@ def api_json(
         raise RuntimeError(f"HTTP {e.code} {path}: {detail[:800]}") from e
 
 
+def _truth_path(case_dir: Path) -> Path | None:
+    for name in ("claims.json", "mapping.json"):
+        p = case_dir / "truth" / name
+        if p.is_file():
+            return p
+    return None
+
+
 def discover_cases(cases_root: Path, only: set[str] | None) -> list[dict[str, Any]]:
     if not cases_root.is_dir():
         raise SystemExit(f"案例根不存在：{cases_root}")
@@ -85,13 +101,13 @@ def discover_cases(cases_root: Path, only: set[str] | None) -> list[dict[str, An
         if only is not None and case_id not in only:
             continue
         query = case_dir / "input" / "query.md"
-        truth = case_dir / "truth" / "claims.json"
+        truth = _truth_path(case_dir)
         found.append(
             {
                 "id": case_id,
                 "dir": case_dir,
                 "query": query,
-                "truth": truth if truth.is_file() else None,
+                "truth": truth,
             }
         )
     if only is not None:
@@ -101,6 +117,19 @@ def discover_cases(cases_root: Path, only: set[str] | None) -> list[dict[str, An
     if not found:
         raise SystemExit(f"在 {cases_root} 下没有 meta.yaml 案例")
     return found
+
+
+def merge_case_lists(*lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """先入库树、后 imported；同 id 保留先出现的。"""
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for lst in lists:
+        for c in lst:
+            if c["id"] in seen:
+                continue
+            seen.add(c["id"])
+            out.append(c)
+    return out
 
 
 def resolve_workspace(repo: Path) -> Path:
@@ -225,6 +254,24 @@ def optional_f1(truth: Path | None, pred: Path) -> dict | None:
         return {"error": str(e)}
 
 
+def optional_fabrication(truth: Path | None, pred: Path) -> dict | None:
+    if truth is None or not truth.is_file() or not pred.is_file():
+        return None
+    scorer = REPO / ".benchmark/lci/scorers/fabrication_rate.py"
+    if not scorer.is_file():
+        return None
+    try:
+        out = subprocess.check_output(
+            [sys.executable, str(scorer), str(truth), str(pred)],
+            cwd=str(REPO),
+            text=True,
+            timeout=30,
+        )
+        return json.loads(out)
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def copy_result_tree(
     category: str,
     subcategory: str,
@@ -250,7 +297,8 @@ def copy_result_tree(
     (out / "meta.json").write_text(
         json.dumps(extra, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    for rel in (CLAIMS_REL, BOM_REL):
+    # 默认把常见评测产物都拷走（缺文件则跳过）
+    for rel in (CLAIMS_REL, BOM_REL, MAPPING_REL):
         src = workspace / rel
         if src.is_file():
             dest = out / "artifacts" / rel.relative_to("artifacts")
@@ -298,8 +346,9 @@ def run_one(
 
     plan = qpath.read_text(encoding="utf-8")
     wait_idle(api, tee)
-    cpath = workspace / CLAIMS_REL
-    before_mtime = cpath.stat().st_mtime if cpath.is_file() else None
+    primary_rels = ARTIFACT_RELS.get(workflow, (CLAIMS_REL,))
+    primary = workspace / primary_rels[0]
+    before_mtime = primary.stat().st_mtime if primary.is_file() else None
     resp = api_json(api, "POST", "/api/workflow/start", {"workflow": workflow, "plan": plan})
     tee.log(f"  start_resp={json.dumps(resp, ensure_ascii=False)}")
     time.sleep(1.5)
@@ -309,17 +358,23 @@ def run_one(
     events = fetch_events_blob(api)
     disc, disc_note = detect_model_disconnect(st, events)
 
+    artifact_ok = False
     claims_ok = False
     claims_n = None
-    if cpath.is_file():
-        after_mtime = cpath.stat().st_mtime
+    items_n = None
+    if primary.is_file():
+        after_mtime = primary.stat().st_mtime
         if before_mtime is None or after_mtime >= (before_mtime or 0):
             try:
-                payload = json.loads(cpath.read_text(encoding="utf-8"))
-                claims_n = len(payload.get("claims") or [])
-                claims_ok = True
+                payload = json.loads(primary.read_text(encoding="utf-8"))
+                artifact_ok = True
+                if "claims" in payload:
+                    claims_n = len(payload.get("claims") or [])
+                    claims_ok = True
+                if "items" in payload:
+                    items_n = len(payload.get("items") or [])
             except Exception as e:
-                disc_note = (disc_note + f" | claims_parse_error={e}").strip(" |")
+                disc_note = (disc_note + f" | artifact_parse_error={e}").strip(" |")
 
     meta = {
         "case": case_id,
@@ -336,7 +391,12 @@ def run_one(
     )
     tee.log(f"  result_dir={out_dir.relative_to(REPO)}")
 
-    f1 = optional_f1(case.get("truth"), cpath) if claims_ok else None
+    f1 = optional_f1(case.get("truth"), primary) if claims_ok else None
+    fab = (
+        optional_fabrication(case.get("truth"), primary)
+        if artifact_ok and workflow == "lci-mapping"
+        else None
+    )
     term_ok = (status or "").lower() == "completed" and not st.get("_timeout")
     ops_ok = bool(term_ok and not disc)
     notes_parts: list[str] = []
@@ -346,12 +406,18 @@ def run_one(
         notes_parts.append(f"model_disconnect:{disc_note[:120]}")
     if claims_ok:
         notes_parts.append(f"claims_n={claims_n}")
-    else:
-        notes_parts.append("no_claims_artifact")
+    elif items_n is not None:
+        notes_parts.append(f"items_n={items_n}")
+    elif not artifact_ok:
+        notes_parts.append(f"no_artifact:{primary_rels[0].as_posix()}")
     if f1 and "f1" in f1:
         notes_parts.append(f"F1={f1['f1']:.3f}(info)")
     elif f1 and f1.get("error"):
         notes_parts.append(f"f1_err={f1['error'][:80]}")
+    if fab and "candidate_hit_rate" in fab:
+        notes_parts.append(f"hit={fab['candidate_hit_rate']:.3f}(info)")
+    elif fab and fab.get("error"):
+        notes_parts.append(f"fab_err={fab['error'][:80]}")
     reason = st.get("reason") or ""
     if reason:
         notes_parts.append(f"reason={reason}")
@@ -364,11 +430,13 @@ def run_one(
         "run_id": rid,
         "status": status,
         "claims": claims_ok,
+        "artifact": artifact_ok,
         "model_disconnect": disc,
         "ops_ok": ops_ok,
         "result_dir": str(out_dir.relative_to(REPO)),
         "notes": "; ".join(notes_parts),
         "f1": f1,
+        "fabrication": fab,
     }
     tee.log(f"DONE {json.dumps(row, ensure_ascii=False)}")
     return row
@@ -387,7 +455,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workflow",
         default=DEFAULT_WORKFLOW,
-        help="orch stem / 2×2 条件；默认 bom-extract",
+        help="orch stem（bom-extract | lci-mapping）；默认 bom-extract",
     )
     parser.add_argument(
         "--repeat",
@@ -406,6 +474,11 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
         help="只跑这些 case_id（可重复）；默认全扫 cases-root",
+    )
+    parser.add_argument(
+        "--include-imported",
+        action="store_true",
+        help="额外扫 .benchmark/imported/<大类>/<子类>/（同 id 保留入库树）",
     )
     parser.add_argument("--poll", type=float, default=5.0, help="轮询间隔秒")
     parser.add_argument("--max-s", type=float, default=900.0, help="单案最长等待秒")
@@ -434,7 +507,26 @@ def main(argv: list[str] | None = None) -> int:
 
     cases_root = REPO / (args.cases_root or default_root)
     only = set(args.case) if args.case else None
-    cases = discover_cases(cases_root, only)
+    if args.include_imported:
+        primary = discover_cases(cases_root, None)
+        imported_root = REPO / ".benchmark" / "imported" / category / subcategory
+        if imported_root.is_dir():
+            extra = discover_cases(imported_root, None)
+            cases = merge_case_lists(primary, extra)
+        else:
+            sys.stderr.write(
+                f"警告：--include-imported 但目录不存在：{imported_root}\n"
+            )
+            cases = primary
+        if only is not None:
+            cases = [c for c in cases if c["id"] in only]
+            missing = only - {c["id"] for c in cases}
+            if missing:
+                raise SystemExit(f"未找到案例：{', '.join(sorted(missing))}")
+            if not cases:
+                raise SystemExit("没有匹配的案例")
+    else:
+        cases = discover_cases(cases_root, only)
 
     api = args.api.rstrip("/")
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")

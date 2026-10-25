@@ -2,4 +2,14 @@
 
 LCI / mapping 测评用的 orch / node / spec（与产品 `harness/` 同构）。
 
-P0 尚无独立 mapping 冒烟工作流；案例打分走 `lci/scorers/`。有测评变体时放本目录，YAML 内写仓根相对路径。
+## 冒烟工作流
+
+| API stem | 说明 |
+| --- | --- |
+| `lci-mapping` | 封闭候选集映射；不查 openLCA、不依赖 `bom/bom.json`。产物 `artifacts/mapping/mapping.json`。 |
+
+YAML 里的 `nodes:` / `produces.spec` 一律写**相对仓库根**的路径。API 开跑用 orch stem（`workflow: lci-mapping`）；`list_workflows` 会扫描本目录的 `workflows/orchestrations/`。
+
+产品侧全量映射节点仍是 `harness/workflows/nodes/lca-mapping.yaml`（要 BOM + openLCA），**不要**拿来跑 PCFBench task3 封闭集冒烟。
+
+agent 模板与规则正文继续共用 `harness/workflows/agents/`、`harness/rules/`。

@@ -38,4 +38,6 @@ def test_benchmark_harness_holds_eval_workflows():
     assert "bom-extract.yaml" not in product
     assert (ROOT / ".benchmark/bom/harness/workflows/orchestrations/bom-extract.yaml").is_file()
     assert (ROOT / ".benchmark/bom/harness/specs/bom-claims.yaml").is_file()
+    assert (ROOT / ".benchmark/lci/harness/workflows/orchestrations/lci-mapping.yaml").is_file()
+    assert (ROOT / ".benchmark/lci/harness/specs/lci-mapping-closed.yaml").is_file()
 

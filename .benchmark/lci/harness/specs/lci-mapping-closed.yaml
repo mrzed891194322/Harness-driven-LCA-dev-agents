@@ -1,0 +1,66 @@
+description: |
+  # 封闭候选集映射（评测冒烟）
+
+  只根据计划（题面）里给出的物料说明与**封闭候选名单**选一个背景过程名，写出可打分的 mapping JSON。
+  **不**查询 openLCA、**不**建 LCI、**不**依赖 BOM 上游产物。
+
+  ## 方法
+
+  - 候选只认题面列出的名字（及真值侧封闭集）；不得发明集合外过程名。
+  - 每个题面物料写一条 `items[]`；`item_id` 可用 `m1` 或题面给出的 id。
+  - `process_name` / `provider_name` 填所选候选全名；无 UUID 时 `process_id` / `provider_id` / `flow_*` 可写 `null`。
+  - `selection_reason` 用中文说明为何选该候选、为何不选其它；`candidates` 数组回填题面可见候选名（展示用，打分以真值 `candidates` 为准）。
+  - 信息不足无法从封闭集选定时：仍交 `items`，相关 name/id 置 `null`，在 `selection_reason` 写明无法选定的原因（不要编造集合外名字）。
+
+  ## 交付物
+
+  写到 `workspace/artifacts/mapping/mapping.json`，形状对齐 `.benchmark/schemas/mapping_deliverable.schema.json`：
+
+  - 必有 `items` 数组
+  - 每项含：`item_id`、`flow_name`、`flow_id`、`process_name`、`process_id`、`provider_name`、`provider_id`、`geography_requested`、`geography_selected`、`selection_reason`、`candidates`
+
+  ## 验收
+
+  - JSON 通过下方 schema。
+  - 所选过程名落在题面封闭集内，或明确无法选定且未编造集合外名字。
+  - reviewer 独立核对；缺产物、blocked、编造集合外名字不得视为完成。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:lci-mapping-closed
+  title: Closed-set mapping deliverable
+  type: object
+  additionalProperties: false
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - item_id
+          - flow_name
+          - flow_id
+          - process_name
+          - process_id
+          - provider_name
+          - provider_id
+          - geography_requested
+          - geography_selected
+          - selection_reason
+          - candidates
+        properties:
+          item_id: {type: string, minLength: 1}
+          flow_name: {type: [string, "null"]}
+          flow_id: {type: [string, "null"]}
+          process_name: {type: [string, "null"]}
+          process_id: {type: [string, "null"]}
+          provider_name: {type: [string, "null"]}
+          provider_id: {type: [string, "null"]}
+          geography_requested: {type: [string, "null"]}
+          geography_selected: {type: [string, "null"]}
+          selection_reason: {type: string, minLength: 1}
+          candidates:
+            type: array
+            items: {type: string}
+checks: []

@@ -109,3 +109,15 @@ def test_orch_scan_dirs_listed():
 
     assert Path("harness/workflows/orchestrations") in layout.orch_dirs()
     assert Path(".benchmark/bom/harness/workflows/orchestrations") in layout.orch_dirs()
+
+def test_benchmark_lci_mapping_orch_resolves():
+    orch = resolve_orchestration(REPO, "lci-mapping")
+    assert orch.as_posix().endswith(
+        ".benchmark/lci/harness/workflows/orchestrations/lci-mapping.yaml"
+    )
+    wf, nodes = load_workflow(REPO, "lci-mapping")
+    assert wf.id == "lci-mapping" and nodes[0].id == "lci-mapping"
+    assert nodes[0].produces[0].path == "mapping/mapping.json"
+    assert nodes[0].requires == []
+    assert "lci-mapping" in list_workflows(REPO)
+
