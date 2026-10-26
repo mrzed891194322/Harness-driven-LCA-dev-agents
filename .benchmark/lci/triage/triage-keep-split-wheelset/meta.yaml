@@ -1,0 +1,6 @@
+case_id: triage-keep-split-wheelset
+pcfbench_task: task2_triage
+pcfbench_id: synthetic-t2-wheelset-001
+license_note: 合成夹具，不是 PCFBench 再分发。pcfbench_id 是虚构指针。
+tags: [smoke, synthetic]
+difficulty: easy

@@ -15,7 +15,7 @@
    - **必须传 profile_id**（如 `google/gemma-4-31b-it`、`silicon-flow-Qwen-Qwen3.8-27B`），不要传展示用的 `Qwen/Qwen3.8-27B`（会 400）。
    - 列表：`GET /api/models/profiles` → `profiles` 的 key。
    - 详参与全量矩阵示例见 `.agents/skills/bench-test/SKILL.md`「串跑 batch」。
-3. **矩阵顺序**：`bom-extract`（手写 → imported）→ 收口 → `lci-mapping --include-imported`；abstention 另排。
+3. **矩阵顺序**：`bom-extract-03`（手写 → imported）→ 收口 → `lci-mapping-03 --include-imported` → `lci-triage-03`；abstention 另排（复用 extract-03/04）。本轮对比跑 `*-03` vs `*-04`。
 4. **限速（按模型档，非全局）**：仅 Gemma4 及同类强限速才开 `--pace-s` / 429 backoff；其它模型默认 `--pace-s 0`。细节见战役笔记 `result/_logs/prerun/RUNBOOK-gemma4.md`。
 5. **References**：extract 默认自动挂 `input/reference.md`（及来源 PDF 文本别名）；PNNL 等缺源案进 `knowledge_skip`，不烧配额重试。
 6. **终态标签**（群口径）：
@@ -36,7 +36,7 @@
 ```bash
 uv run python .benchmark/scripts/run_batch.py \
   --model <profile_id> \
-  --workflow bom-extract \
+  --workflow bom-extract-03 \
   --cases-root .benchmark/imported/bom/extract \
   --log-dir .benchmark/result/_logs/prerun
 ```

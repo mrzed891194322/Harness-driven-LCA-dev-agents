@@ -1,5 +1,0 @@
-id: bom-extract
-title: BOM 数量抽取（冒烟）
-max_redos: 0
-# 单节点：产物仍在 artifacts/bom/，schema 由 bom-claims 注入（claim_set）
-nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract.yaml]

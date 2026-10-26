@@ -1,5 +1,0 @@
-id: bom-extract-best
-title: BOM 数量抽取（最好条件）
-max_redos: 0
-# 单节点：产物仍在 artifacts/bom/；短指针 spec + bom-claims-best 技能
-nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract-best.yaml]

@@ -1,0 +1,39 @@
+description: |
+  # 映射分流（PCFBench task2 · 评测中间档）
+
+  给定一个**市场节点**（拟映射的 ecoinvent/市场过程名与说明）以及该物料的**上级产品语境**，
+  判定此刻应 **直接映射**（`should_map: true`）还是 **继续分解**（`should_map: false`）。
+  **不**查询 openLCA、**不**建 LCI、**不**依赖 BOM / mapping 上游产物。
+
+  ## 方法
+
+  - 只根据题面里的市场节点与产品语境做二元判定；不要编造题面未给的过程名。
+  - `should_map: true`：该市场节点粒度已足够，可直接当作背景过程候选去映射。
+  - `should_map: false`：节点过粗或明显是装配/组合件，应继续拆成更细物料再映射。
+  - `confidence`（0–1，可选）表示判定把握；没有把握时可省略或给较低值。
+  - `rationale` 用中文简述理由（必填）。
+
+  ## 交付物
+
+  写到 `workspace/artifacts/triage/triage.json`，形状对齐 `.benchmark/schemas/triage_deliverable.schema.json`：
+
+  - 必有 `should_map`（boolean）与 `rationale`（string）
+  - 可选 `confidence`（number 0–1）、`candidate_name`（回填题面市场名，便于打分对齐）
+
+  ## 验收
+
+  - JSON 通过下方 schema。
+  - 判定与题面可核对；reviewer 独立核对；缺产物、blocked 不得视为完成。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:lci-triage
+  title: Mapping triage deliverable
+  type: object
+  additionalProperties: false
+  required: [should_map, rationale]
+  properties:
+    should_map: {type: boolean}
+    confidence: {type: ["number", "null"], minimum: 0, maximum: 1}
+    rationale: {type: string, minLength: 1}
+    candidate_name: {type: ["string", "null"]}
+checks: []

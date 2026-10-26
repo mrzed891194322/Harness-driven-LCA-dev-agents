@@ -19,24 +19,24 @@ from tests.t_workflow.conftest import REPO, write_yaml
 
 
 def test_repo_bom_extract_loads_via_orch_stem_and_path_refs():
-    orch = resolve_orchestration(REPO, "bom-extract")
-    assert orch.as_posix().endswith(".benchmark/bom/harness/workflows/orchestrations/bom-extract.yaml")
-    node = resolve_node_path(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract.yaml")
-    assert node.as_posix().endswith(".benchmark/bom/harness/workflows/nodes/bom-extract.yaml")
+    orch = resolve_orchestration(REPO, "bom-extract-03")
+    assert orch.as_posix().endswith(".benchmark/bom/harness/workflows/orchestrations/bom-extract-03.yaml")
+    node = resolve_node_path(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract-03.yaml")
+    assert node.as_posix().endswith(".benchmark/bom/harness/workflows/nodes/bom-extract-03.yaml")
     spec = resolve_spec_path(REPO, ".benchmark/bom/harness/specs/bom-claims.yaml")
     assert spec.as_posix().endswith(".benchmark/bom/harness/specs/bom-claims.yaml")
-    wf, nodes = load_workflow(REPO, "bom-extract")
-    assert wf.id == "bom-extract" and nodes[0].id == "bom-extract"
+    wf, nodes = load_workflow(REPO, "bom-extract-03")
+    assert wf.id == "bom-extract-03" and nodes[0].id == "bom-extract-03"
     assert nodes[0].produces[0].spec == ".benchmark/bom/harness/specs/bom-claims.yaml"
     loaded = load_spec(REPO, ".benchmark/bom/harness/specs/bom-claims.yaml")
     assert loaded.id == "bom-claims"
     assert loaded.path == ".benchmark/bom/harness/specs/bom-claims.yaml"
-    assert "bom-extract" in list_workflows(REPO)
+    assert "bom-extract-03" in list_workflows(REPO)
 
 
 def test_inject_uses_produce_spec_path_not_stem():
     """Regression: inject must not resolve_spec_path(spec.id) — id is a short stem."""
-    wf, nodes = load_workflow(REPO, "bom-extract")
+    wf, nodes = load_workflow(REPO, "bom-extract-03")
     node = nodes[0]
     specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
     assert "bom-claims" not in specs  # keyed by path, not stem
@@ -111,13 +111,27 @@ def test_orch_scan_dirs_listed():
     assert Path(".benchmark/bom/harness/workflows/orchestrations") in layout.orch_dirs()
 
 def test_benchmark_lci_mapping_orch_resolves():
-    orch = resolve_orchestration(REPO, "lci-mapping")
+    orch = resolve_orchestration(REPO, "lci-mapping-03")
     assert orch.as_posix().endswith(
-        ".benchmark/lci/harness/workflows/orchestrations/lci-mapping.yaml"
+        ".benchmark/lci/harness/workflows/orchestrations/lci-mapping-03.yaml"
     )
-    wf, nodes = load_workflow(REPO, "lci-mapping")
-    assert wf.id == "lci-mapping" and nodes[0].id == "lci-mapping"
+    wf, nodes = load_workflow(REPO, "lci-mapping-03")
+    assert wf.id == "lci-mapping-03" and nodes[0].id == "lci-mapping-03"
     assert nodes[0].produces[0].path == "mapping/mapping.json"
     assert nodes[0].requires == []
-    assert "lci-mapping" in list_workflows(REPO)
+    assert "lci-mapping-03" in list_workflows(REPO)
+
+
+def test_benchmark_lci_triage_orch_resolves():
+    orch = resolve_orchestration(REPO, "lci-triage-03")
+    assert orch.as_posix().endswith(
+        ".benchmark/lci/harness/workflows/orchestrations/lci-triage-03.yaml"
+    )
+    wf, nodes = load_workflow(REPO, "lci-triage-03")
+    assert wf.id == "lci-triage-03" and nodes[0].id == "lci-triage-03"
+    assert nodes[0].produces[0].path == "triage/triage.json"
+    assert "lci-triage-03" in list_workflows(REPO)
+    assert "lci-triage-04" in list_workflows(REPO)
+    assert "bom-extract-04" in list_workflows(REPO)
+    assert "lci-mapping-04" in list_workflows(REPO)
 

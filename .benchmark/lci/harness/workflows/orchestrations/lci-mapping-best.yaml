@@ -1,5 +1,0 @@
-id: lci-mapping-best
-title: LCI 封闭候选映射（最好条件）
-max_redos: 0
-# 单节点：产物在 artifacts/mapping/；短指针 spec + lci-mapping-best 技能
-nodes: [.benchmark/lci/harness/workflows/nodes/lci-mapping-best.yaml]

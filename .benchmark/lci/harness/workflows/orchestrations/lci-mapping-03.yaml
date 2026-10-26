@@ -1,0 +1,5 @@
+id: lci-mapping-03
+title: LCI 封闭候选映射（03 · 中间）
+max_redos: 0
+# 单节点：产物在 artifacts/mapping/；不依赖 BOM / openLCA
+nodes: [.benchmark/lci/harness/workflows/nodes/lci-mapping-03.yaml]

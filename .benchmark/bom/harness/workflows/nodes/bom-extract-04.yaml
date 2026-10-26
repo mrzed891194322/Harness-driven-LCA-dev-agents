@@ -1,5 +1,5 @@
-id: bom-extract-best
-title: 数量声明抽取（最好条件）
+id: bom-extract-04
+title: 数量声明抽取（04 · 最好）
 produces:
   - {spec: .benchmark/bom/harness/specs/bom-claims-best.yaml, path: bom/claims.json}
 inject:

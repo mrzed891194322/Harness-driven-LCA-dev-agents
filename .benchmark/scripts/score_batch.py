@@ -3,7 +3,7 @@
 
 配对 truth：先 `.benchmark/<大类>/<子类>/<case_id>/truth/`，
 再 `.benchmark/imported/<大类>/<子类>/<case_id>/truth/`。
-复用 `claim_f1` / `fabrication_rate`；不改 `score_case.py`（仍只打案例树 eval/）。
+复用 `claim_f1` / `fabrication_rate` / `triage_accuracy`；不改 `score_case.py`（仍只打案例树 eval/）。
 """
 
 from __future__ import annotations
@@ -26,12 +26,14 @@ CASE_ROOTS = (
 )
 CLAIM_F1_PATH = REPO / ".benchmark" / "bom" / "scorers" / "claim_f1.py"
 FAB_PATH = REPO / ".benchmark" / "lci" / "scorers" / "fabrication_rate.py"
+TRIAGE_PATH = REPO / ".benchmark" / "lci" / "scorers" / "triage_accuracy.py"
 
 # subcategory → (pred relative under run dir, truth filename, scorer kind)
 SCORE_SPEC: dict[str, tuple[Path, str, str]] = {
     "extract": (Path("artifacts/bom/claims.json"), "claims.json", "claim_f1"),
     "abstention": (Path("artifacts/bom/claims.json"), "claims.json", "claim_f1"),
     "mapping": (Path("artifacts/mapping/mapping.json"), "mapping.json", "fabrication"),
+    "triage": (Path("artifacts/triage/triage.json"), "triage.json", "triage"),
 }
 
 
@@ -79,6 +81,7 @@ def score_run(
     only_completed: bool,
     claim_f1: Any,
     fabrication_rate: Any,
+    triage_accuracy: Any,
     model_filter: str | None,
     workflow_filter: str | None,
 ) -> dict[str, Any] | None:
@@ -191,12 +194,17 @@ def score_run(
             row["hallucination_rate"] = (scores.get("claim_f1") or scores).get(
                 "hallucination_rate"
             )
-        else:
+        elif kind == "fabrication":
             scores = {"fabrication_rate": fabrication_rate.score_mapping(gold, pred)}
             fab = scores["fabrication_rate"]
             row["candidate_hit_rate"] = fab.get("candidate_hit_rate")
             row["fabrication_rate"] = fab.get("fabrication_rate")
             row["exact_match_rate"] = fab.get("exact_match_rate")
+        else:
+            scores = {"triage": triage_accuracy.score_triage(gold, pred)}
+            tri = scores["triage"]
+            row["accuracy"] = tri.get("accuracy")
+            row["f1"] = tri.get("f1")
         row["scores"] = scores
     except Exception as e:
         row["skip"] = f"score_error:{e}"
@@ -226,6 +234,11 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             for r in group
             if r.get("fabrication_rate") is not None
         ]
+        accs = [
+            float(r["accuracy"])
+            for r in group
+            if r.get("accuracy") is not None
+        ]
         if f1s:
             entry["mean_f1"] = _mean(f1s)
             entry["f1s"] = f1s
@@ -233,6 +246,8 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             entry["mean_candidate_hit_rate"] = _mean(hits)
         if fabs:
             entry["mean_fabrication_rate"] = _mean(fabs)
+        if accs:
+            entry["mean_accuracy"] = _mean(accs)
         models = sorted({str(r.get("model") or "") for r in group if r.get("model")})
         if models:
             entry["models"] = models
@@ -261,6 +276,7 @@ def write_table(rows: list[dict[str, Any]], path: Path) -> None:
         "candidate_hit_rate",
         "fabrication_rate",
         "exact_match_rate",
+        "accuracy",
         "skip",
         "truth",
         "pred",
@@ -275,7 +291,7 @@ def write_table(rows: list[dict[str, Any]], path: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="扫 .benchmark/result 真跑产物离线打分（claim_f1 / fabrication_rate）"
+        description="扫 .benchmark/result 真跑产物离线打分（claim_f1 / fabrication_rate / triage）"
     )
     parser.add_argument(
         "--result-root",
@@ -316,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--subcategory",
         default=None,
-        help="只扫某一子类，如 extract / mapping / abstention",
+        help="只扫某一子类，如 extract / mapping / abstention / triage",
     )
     args = parser.parse_args(argv)
 
@@ -328,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
 
     claim_f1 = _load_module(CLAIM_F1_PATH, "claim_f1")
     fabrication_rate = _load_module(FAB_PATH, "fabrication_rate")
+    triage_accuracy = _load_module(TRIAGE_PATH, "triage_accuracy")
 
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir = args.out_dir
@@ -363,6 +380,7 @@ def main(argv: list[str] | None = None) -> int:
             only_completed=only_completed,
             claim_f1=claim_f1,
             fabrication_rate=fabrication_rate,
+            triage_accuracy=triage_accuracy,
             model_filter=args.model,
             workflow_filter=args.workflow,
         )
@@ -413,11 +431,15 @@ def main(argv: list[str] | None = None) -> int:
             bits.append(f"mean_hit={entry['mean_candidate_hit_rate']:.3f}")
         if "mean_fabrication_rate" in entry:
             bits.append(f"mean_fab={entry['mean_fabrication_rate']:.3f}")
+        if "mean_accuracy" in entry:
+            bits.append(f"mean_acc={entry['mean_accuracy']:.3f}")
         lines.append(f"- `{suite}`: " + ", ".join(bits))
     lines.extend(["", "## rows", "", "| case | sub | run | model | metric | skip |", "|---|---|---|---|---|---|"])
     for r in rows:
         metric = ""
-        if r.get("f1") is not None:
+        if r.get("accuracy") is not None and r.get("subcategory") == "triage":
+            metric = f"acc={r['accuracy']:.3f}"
+        elif r.get("f1") is not None:
             metric = f"f1={r['f1']:.3f}"
         elif r.get("candidate_hit_rate") is not None:
             metric = f"hit={r['candidate_hit_rate']:.3f} fab={r.get('fabrication_rate', 0):.3f}"

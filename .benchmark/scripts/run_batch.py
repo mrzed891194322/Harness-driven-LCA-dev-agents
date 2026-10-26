@@ -29,17 +29,25 @@ from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_API = "http://127.0.0.1:8800"
-DEFAULT_WORKFLOW = "bom-extract"
+DEFAULT_WORKFLOW = "bom-extract-03"
 # workflow stem → (大类, 子类, 默认案例根相对仓根)
+# 档位：01 真薄 / 02 产品默认薄（预留）/ 03 中间 / 04 最好
 WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
-    # workflow stem → (大类, 子类, 默认已入库案例根)
-    "bom-extract": ("bom", "extract", ".benchmark/bom/extract"),
-    "lci-mapping": ("lci", "mapping", ".benchmark/lci/mapping"),
+    "bom-extract-03": ("bom", "extract", ".benchmark/bom/extract"),
+    "bom-extract-04": ("bom", "extract", ".benchmark/bom/extract"),
+    "lci-mapping-03": ("lci", "mapping", ".benchmark/lci/mapping"),
+    "lci-mapping-04": ("lci", "mapping", ".benchmark/lci/mapping"),
+    "lci-triage-03": ("lci", "triage", ".benchmark/lci/triage"),
+    "lci-triage-04": ("lci", "triage", ".benchmark/lci/triage"),
 }
-# abstention 复用 bom-extract orch；用 --cases-root 或 --include-imported 挂树
+# abstention 复用 bom-extract-03/04 orch；用 --cases-root 或 --include-imported 挂树
 ARTIFACT_RELS: dict[str, tuple[Path, ...]] = {
-    "bom-extract": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
-    "lci-mapping": (Path("artifacts/mapping/mapping.json"),),
+    "bom-extract-03": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
+    "bom-extract-04": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
+    "lci-mapping-03": (Path("artifacts/mapping/mapping.json"),),
+    "lci-mapping-04": (Path("artifacts/mapping/mapping.json"),),
+    "lci-triage-03": (Path("artifacts/triage/triage.json"),),
+    "lci-triage-04": (Path("artifacts/triage/triage.json"),),
 }
 CLAIMS_REL = Path("artifacts/bom/claims.json")  # 兼容旧引用
 BOM_REL = Path("artifacts/bom/bom.json")
@@ -95,7 +103,7 @@ def api_json(
 
 
 def _truth_path(case_dir: Path) -> Path | None:
-    for name in ("claims.json", "mapping.json"):
+    for name in ("claims.json", "mapping.json", "triage.json"):
         p = case_dir / "truth" / name
         if p.is_file():
             return p
@@ -707,6 +715,24 @@ def optional_fabrication(truth: Path | None, pred: Path) -> dict | None:
         return {"error": str(e)}
 
 
+def optional_triage(truth: Path | None, pred: Path) -> dict | None:
+    if truth is None or not truth.is_file() or not pred.is_file():
+        return None
+    scorer = REPO / ".benchmark/lci/scorers/triage_accuracy.py"
+    if not scorer.is_file():
+        return None
+    try:
+        out = subprocess.check_output(
+            [sys.executable, str(scorer), str(truth), str(pred)],
+            cwd=str(REPO),
+            text=True,
+            timeout=30,
+        )
+        return json.loads(out)
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def copy_result_tree(
     category: str,
     subcategory: str,
@@ -868,7 +894,12 @@ def run_one(
     f1 = optional_f1(case.get("truth"), primary) if claims_ok else None
     fab = (
         optional_fabrication(case.get("truth"), primary)
-        if artifact_ok and workflow == "lci-mapping"
+        if artifact_ok and workflow.startswith("lci-mapping")
+        else None
+    )
+    triage = (
+        optional_triage(case.get("truth"), primary)
+        if artifact_ok and workflow.startswith("lci-triage")
         else None
     )
     term_ok = (status or "").lower() == "completed" and not st.get("_timeout")
@@ -906,6 +937,10 @@ def run_one(
         notes_parts.append(f"hit={fab['candidate_hit_rate']:.3f}(info)")
     elif fab and fab.get("error"):
         notes_parts.append(f"fab_err={fab['error'][:80]}")
+    if triage and "accuracy" in triage and triage.get("accuracy") is not None:
+        notes_parts.append(f"acc={triage['accuracy']:.3f}(info)")
+    elif triage and triage.get("error"):
+        notes_parts.append(f"triage_err={triage['error'][:80]}")
     reason = st.get("reason") or ""
     if reason:
         notes_parts.append(f"reason={reason}")
@@ -927,6 +962,7 @@ def run_one(
         "notes": "; ".join(notes_parts),
         "f1": f1,
         "fabrication": fab,
+        "triage": triage,
         "tokens": tokens,
     }
     tee.log(f"DONE {json.dumps(row, ensure_ascii=False)}")
@@ -946,7 +982,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workflow",
         default=DEFAULT_WORKFLOW,
-        help="orch stem（bom-extract | lci-mapping）；默认 bom-extract",
+        help="orch stem（bom-extract-03/04 | lci-mapping-03/04 | lci-triage-03/04）；默认 bom-extract-03",
     )
     parser.add_argument(
         "--repeat",

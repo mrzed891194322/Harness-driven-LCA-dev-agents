@@ -1,7 +1,7 @@
-id: lci-mapping
-title: 封闭候选集映射（冒烟）
+id: bom-extract-03
+title: 数量声明抽取（03 · 中间）
 produces:
-  - {spec: .benchmark/lci/harness/specs/lci-mapping-closed.yaml, path: mapping/mapping.json}
+  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
 inject:
   - rules/delivery/status.yaml
   - rules/delivery/provenance.yaml

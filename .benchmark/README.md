@@ -58,12 +58,12 @@ python3 .benchmark/scripts/download_pcfbench.py
 # 冒烟两案，指定模型与 workflow（2×2 条件），每案 1 次
 python3 .benchmark/scripts/run_batch.py \
   --model openai/gpt-4o \
-  --workflow bom-extract \
+  --workflow bom-extract-03 \
   --repeat 1
 
 # 只跑指定 case、重复 3 次
 python3 .benchmark/scripts/run_batch.py \
-  --workflow bom-extract --model deepseek/deepseek-chat \
+  --workflow bom-extract-03 --model deepseek/deepseek-chat \
   --case bom-steel-plate --case bom-film-roll --repeat 3
 ```
 
