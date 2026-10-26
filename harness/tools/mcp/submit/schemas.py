@@ -89,8 +89,37 @@ def _norm(entry: str, root: str) -> str:
     return p.strip("/")
 
 
+
+_ARRAY_FIELDS = ("artifacts", "issues")
+
+
+def coerce_stringified_arrays(payload: dict) -> dict:
+    """If an array field arrived as a JSON-array string, parse it to a real list.
+
+    Models (esp. Tongji/Qwen) often stringify arrays; the pi-runtime prepareArguments
+    hook fixes the common path, and this keeps host re-validate / direct MCP calls safe.
+    Non-array parse results and bad JSON are left unchanged so schema still rejects clearly.
+    Does not touch write/edit ``content``.
+    """
+    out = dict(payload)
+    for key in _ARRAY_FIELDS:
+        value = out.get(key)
+        if not isinstance(value, str):
+            continue
+        text = value.strip()
+        if not text.startswith("["):
+            continue
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, list):
+            out[key] = parsed
+    return out
+
 def validate(kind: str, payload: dict, context: dict | None = None, *, check_files: bool = True) -> list[str]:
     ctx = context or {}
+    payload = coerce_stringified_arrays(payload)
     errors = _schema_errors(kind, payload)
     if errors:
         return errors
