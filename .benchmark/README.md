@@ -74,8 +74,9 @@ python3 .benchmark/scripts/run_batch.py \
 
 ```bash
 python3 .benchmark/scripts/download_pcfbench.py
-python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5
-# 全量（默认 task4+task5+task3）进 .benchmark/imported/（不进 git）
+# 图1 extract 全量 36（task4+task5 → imported/bom/extract，不进 git）
+python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --task task5
+# 子集试用：--limit 5；mapping/triage 另加 --task task3 / task2
 python3 .benchmark/scripts/import_pcfbench_cases.py
 ```
 

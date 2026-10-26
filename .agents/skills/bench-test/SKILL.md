@@ -222,12 +222,13 @@ mkdir -p .benchmark/result/_archive
 mv .benchmark/result/bom .benchmark/result/lci .benchmark/result/_logs .benchmark/result/_scores \
   .benchmark/result/_archive/gemma4-full-<YYYYMMDD>/ 2>/dev/null || true
 
-# 1) extract（手写 + imported）
+# 1) 图1 extract 全量 36（imported task4+task5）；03/04 换 stem 即可
 python3 .benchmark/scripts/run_batch.py \
   --model google/gemma-4-31b-it \
   --workflow bom-extract-03 \
-  --include-imported \
+  --cases-root .benchmark/imported/bom/extract \
   --pace-s 90
+# 手写冒烟+imported（2+36）：改用 --include-imported，去掉 --cases-root
 
 # 2) mapping
 python3 .benchmark/scripts/run_batch.py \
@@ -265,7 +266,8 @@ python3 .benchmark/scripts/score_batch.py
 PCFBench 进案例树（不进 git）：
 
 ```bash
-python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5
+python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --task task5   # 图1 全量 36
+python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5      # 子集
 ```
 
 见 [`.benchmark/imported/README.md`](../../../.benchmark/imported/README.md)。

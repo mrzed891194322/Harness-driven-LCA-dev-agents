@@ -9,5 +9,5 @@ scorers:
   - c4_from_events
 doc: .agents/skills/bench-test/docs/bom.md
 notes: >
-  子类：bom/extract/<id>/（抽取）、bom/abstention/<id>/（拒答，paired_case_id 挂抽取）。
+  子类：bom/extract/<id>/（抽取冒烟）、bom/abstention/<id>/（拒答，paired_case_id 挂抽取）。图1 全量 36=PCFBench task4+task5，在 .benchmark/imported/bom/extract/（gitignore）。
   拒答亦可用 meta.tags 含 abstention。单案例：meta.yaml、input/、truth/、eval/。
