@@ -1,5 +1,5 @@
 id: lci-triage-03
-title: 映射分流判定（03 · 中间）
+title: 映射分流判定（03 · 薄注入+reviewer）
 produces:
   - {spec: .benchmark/lci/harness/specs/lci-triage.yaml, path: triage/triage.json}
 inject:

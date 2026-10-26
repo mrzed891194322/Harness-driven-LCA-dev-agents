@@ -200,6 +200,9 @@ curl -sS "$API/api/models/profiles" | python3 -c "import sys,json; d=json.load(s
 | 参数 | 含义 | 默认 / 注意 |
 | --- | --- | --- |
 | `--workflow` | orch stem：`bom-extract-03/04` / `lci-mapping-03/04` / `lci-triage-03/04` | 默认 `bom-extract-03`；abstention **复用** `bom-extract-03/04`，用 `--cases-root .benchmark/bom/abstention` |
+
+档位 **01** 真·薄；**02** 薄编排（无 reviewer，注入同 best）；**03** 薄注入+reviewer；**04** 最好。01/02 orch 未建；本轮图1只跑 extract 03→04。勿再用「02=产品默认 / 03=中间」。
+
 | `--model` | profile_id，见上表 | 必填才换模；会写进日志与 meta |
 | `--cases-root` | 案例根（相对仓根） | 按 workflow 映射；手写树或 imported 树 |
 | `--include-imported` | 主树 + `.benchmark/imported/<大类>/<子类>/` | 同 id 保留入库树 |

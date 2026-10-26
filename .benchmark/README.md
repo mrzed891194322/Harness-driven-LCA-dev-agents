@@ -83,6 +83,9 @@ python3 .benchmark/scripts/import_pcfbench_cases.py
 也可用 `--source .eval/data/pcfbench` 或 `--out-root .cache/benchmark/cases`。
 详见 [`imported/README.md`](imported/README.md)。
 
+评测档位（orch stem 后缀）：**01** 真·薄；**02** 薄编排无 reviewer（注入同 best）；**03** 薄注入+reviewer；**04** 最好。本仓已建 03/04；01/02 预留。
+
+
 ## 许可
 
 [PCFBench](https://huggingface.co/datasets/Watershed-Climate/PCFBench)（`Watershed-Climate/PCFBench`）为 **CC BY-NC-SA 4.0**：非商业、署名、相同方式共享。本仓库只保存文件名、URL 和校验和占位，不保存数据集正文。

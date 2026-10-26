@@ -17,15 +17,17 @@ agent 模板与规则正文继续共用 `harness/workflows/agents/`、`harness/r
 
 ## 档位（工作流名后加 01–04）
 
-| stem | 含义 |
-| --- | --- |
-| `bom-extract-01` | 真·薄（预留，本轮未建） |
-| `bom-extract-02` | 产品默认薄编排（预留） |
-| `bom-extract-03` | 中间：有编排、无 best 技能（原 `bom-extract`） |
-| `bom-extract-04` | 最好：短指针 spec + `bom-claims-best`（原 `bom-extract-best`） |
+| stem | 含义 | 本仓状态 |
+| --- | --- | --- |
+| `bom-extract-01` | **真·薄** | 预留，尚未建 orch |
+| `bom-extract-02` | **薄编排（无 reviewer）**；提示词注入同 best | 预留，尚未建 orch |
+| `bom-extract-03` | **薄注入，但有 reviewer 编排**（现网在跑的「薄注入+双角色」树） | 已有（原 `bom-extract`） |
+| `bom-extract-04` | **最好**（短指针 spec + `bom-claims-best`） | 已有（原 `bom-extract-best`） |
 
-- 03 spec：`.benchmark/bom/harness/specs/bom-claims.yaml`
-- 04 spec：`.benchmark/bom/harness/specs/bom-claims-best.yaml`
+本轮图1仍只对比 **03 → 04**（extract36）；01/02 未实现，勿 invent。
+
+- 03 spec：`.benchmark/bom/harness/specs/bom-claims.yaml`（薄注入长散文）
+- 04 spec：`.benchmark/bom/harness/specs/bom-claims-best.yaml`（短指针）
 - 04 技能：`harness/tools/skills/bom-claims-best/SKILL.md`
 
 abstention 复用 `bom-extract-03` / `bom-extract-04`（`--cases-root .benchmark/bom/abstention`），无单独 abstention orch。

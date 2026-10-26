@@ -16,6 +16,9 @@
    - 列表：`GET /api/models/profiles` → `profiles` 的 key。
    - 详参与全量矩阵示例见 `.agents/skills/bench-test/SKILL.md`「串跑 batch」。
 3. **矩阵顺序**：图1 extract 全量 **36**（`.benchmark/imported/bom/extract`，task4+task5；`--cases-root` 该树或 `--include-imported`）→ 收口 → `lci-mapping-03 --include-imported` → `lci-triage-03`；abstention 另排（复用 extract-03/04）。本轮对比跑 `*-03` vs `*-04`；图2/3 案量不变。
+
+   **档位 01–04**（2026-10-26 定稿，覆盖旧「02=产品默认薄编排 / 03=有编排无 best」）：**01** 真·薄；**02** 薄编排（无 reviewer，注入同 best，orch 未建）；**03** 薄注入但有 reviewer 编排；**04** 最好。本轮图1只跑 extract **03→04**。旧称「中间 / Spark 中间」→ 现 **03**。
+
 4. **限速（按模型档，非全局）**：仅 Gemma4 及同类强限速才开 `--pace-s` / 429 backoff；其它模型默认 `--pace-s 0`。细节见战役笔记 `result/_logs/prerun/RUNBOOK-gemma4.md`。
 5. **References**：extract 默认自动挂 `input/reference.md`（及来源 PDF 文本别名）；PNNL 等缺源案进 `knowledge_skip`，不烧配额重试。
 6. **终态标签**（群口径）：

@@ -31,7 +31,7 @@ REPO = Path(__file__).resolve().parents[2]
 DEFAULT_API = "http://127.0.0.1:8800"
 DEFAULT_WORKFLOW = "bom-extract-03"
 # workflow stem → (大类, 子类, 默认案例根相对仓根)
-# 档位：01 真薄 / 02 产品默认薄（预留）/ 03 中间 / 04 最好
+# 档位：01 真·薄 / 02 薄编排无 reviewer（注入同 best；预留）/ 03 薄注入+reviewer / 04 最好
 WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
     "bom-extract-03": ("bom", "extract", ".benchmark/bom/extract"),
     "bom-extract-04": ("bom", "extract", ".benchmark/bom/extract"),

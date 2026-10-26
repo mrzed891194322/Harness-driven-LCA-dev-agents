@@ -1,5 +1,5 @@
 id: lci-mapping-03
-title: 封闭候选集映射（03 · 中间）
+title: 封闭候选集映射（03 · 薄注入+reviewer）
 produces:
   - {spec: .benchmark/lci/harness/specs/lci-mapping-closed.yaml, path: mapping/mapping.json}
 inject:

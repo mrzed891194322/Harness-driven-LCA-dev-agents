@@ -21,7 +21,7 @@ uv run python .benchmark/scripts/score_batch.py --category lci
 - 假产物：`lci/mapping/<case_id>/eval/artifacts/mapping.json` 与 `events.jsonl`
 - 交付：`.benchmark/schemas/mapping_deliverable.schema.json`
 - 打分：`.benchmark/lci/scorers/fabrication_rate.py`
-- orch：`lci-mapping-03` / `lci-mapping-04`
+- orch：`lci-mapping-03`（薄注入+reviewer）/ `lci-mapping-04`（最好）；01/02 未建
 
 ### triage（task2）
 
@@ -29,5 +29,5 @@ uv run python .benchmark/scripts/score_batch.py --category lci
 - 真值：`lci/triage/<case_id>/truth/triage.json`
 - 交付：`.benchmark/schemas/triage_deliverable.schema.json`
 - 打分：`.benchmark/lci/scorers/triage_accuracy.py`（主指标 accuracy）
-- orch：`lci-triage-03` / `lci-triage-04`
+- orch：`lci-triage-03`（薄注入+reviewer）/ `lci-triage-04`（最好）；01/02 未建
 - 导入：`python3 .benchmark/scripts/import_pcfbench_cases.py --task task2 --limit 10`

@@ -1,5 +1,5 @@
 description: |
-  # 映射分流（PCFBench task2 · 评测中间档）
+  # 映射分流（PCFBench task2 · 03 薄注入+reviewer）
 
   给定一个**市场节点**（拟映射的 ecoinvent/市场过程名与说明）以及该物料的**上级产品语境**，
   判定此刻应 **直接映射**（`should_map: true`）还是 **继续分解**（`should_map: false`）。
