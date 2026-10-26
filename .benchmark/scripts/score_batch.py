@@ -4,6 +4,8 @@
 配对 truth：先 `.benchmark/<大类>/<子类>/<case_id>/truth/`，
 再 `.benchmark/imported/<大类>/<子类>/<case_id>/truth/`。
 复用 `claim_f1` / `fabrication_rate` / `triage_accuracy`；不改 `score_case.py`（仍只打案例树 eval/）。
+
+卡死 / no_submit / 无 claims.json：记 F1=0（precision=0, recall=0），计入均值分母，不 skip。
 """
 
 from __future__ import annotations
@@ -35,6 +37,62 @@ SCORE_SPEC: dict[str, tuple[Path, str, str]] = {
     "mapping": (Path("artifacts/mapping/mapping.json"), "mapping.json", "fabrication"),
     "triage": (Path("artifacts/triage/triage.json"), "triage.json", "triage"),
 }
+
+def _status_fail_reason(status: dict[str, Any]) -> str | None:
+    """Map status.json to a short score reason for missing preds."""
+    blob = " ".join(
+        str(x)
+        for x in (
+            status.get("reason"),
+            status.get("error"),
+            status.get("status"),
+        )
+        if x
+    )
+    for node in status.get("nodes") or []:
+        if isinstance(node, dict):
+            blob += " " + str(node.get("error") or "")
+            blob += " " + str(node.get("status") or "")
+    low = blob.casefold()
+    if "no_submit" in low:
+        return "no_submit"
+    run_status = str(status.get("status") or "").casefold()
+    if run_status in {"failed", "aborted", "error"}:
+        return run_status
+    return None
+
+
+def _zero_claim_row(
+    *,
+    claim_f1: Any,
+    gold: dict[str, Any] | None,
+    reason: str,
+    subcategory: str,
+) -> dict[str, Any]:
+    scores_inner = claim_f1.zero_pred_scores(gold, reason=reason)
+    if subcategory == "abstention":
+        scores: dict[str, Any] = {
+            "claim_f1": scores_inner,
+            "abstention": {
+                "expected_abstain": claim_f1.is_abstain(gold or {}),
+                "predicted_abstain": True,  # no claims delivered
+                "abstention_correct": False,  # stuck ≠ successful abstain
+                "reason": reason,
+            },
+        }
+    else:
+        scores = {"claim_f1": scores_inner}
+    return {
+        "f1": 0.0,
+        "hallucination_rate": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "scores": scores,
+        "score_reason": reason,
+    }
+
+
+
 
 
 def _load_module(path: Path, name: str) -> Any:
@@ -123,7 +181,11 @@ def score_run(
         return None
 
     run_status = str(status.get("status") or "").lower()
-    if only_completed and run_status and run_status != "completed":
+    fail_reason = _status_fail_reason(status)
+    # Terminal submit-failures (no_submit / failed) are scored, not skipped.
+    # only_completed still drops in-flight / unknown non-terminal statuses.
+    terminal_fail = run_status in {"failed", "aborted", "error"} or bool(fail_reason)
+    if only_completed and run_status and run_status != "completed" and not terminal_fail:
         return {
             "category": category,
             "subcategory": subcategory,
@@ -137,30 +199,8 @@ def score_run(
 
     pred_rel, truth_name, kind = SCORE_SPEC[subcategory]
     pred_path = run_dir / pred_rel
-    if not pred_path.is_file():
-        if only_with_artifact:
-            return {
-                "category": category,
-                "subcategory": subcategory,
-                "case_id": case_id,
-                "run_id": run_id,
-                "model": model,
-                "workflow": workflow,
-                "status": run_status,
-                "skip": f"no_artifact:{pred_rel.as_posix()}",
-            }
-        return {
-            "category": category,
-            "subcategory": subcategory,
-            "case_id": case_id,
-            "run_id": run_id,
-            "model": model,
-            "workflow": workflow,
-            "status": run_status,
-            "skip": f"no_artifact:{pred_rel.as_posix()}",
-        }
-
     truth_path = resolve_truth(category, subcategory, case_id, truth_name)
+
     row: dict[str, Any] = {
         "category": category,
         "subcategory": subcategory,
@@ -169,7 +209,7 @@ def score_run(
         "model": model,
         "workflow": workflow,
         "status": run_status or None,
-        "pred": str(pred_path.relative_to(REPO)),
+        "pred": str(pred_path.relative_to(REPO)) if pred_path.is_file() else None,
         "truth": str(truth_path.relative_to(REPO)) if truth_path else None,
         "result_dir": str(run_dir.relative_to(REPO)),
     }
@@ -178,8 +218,59 @@ def score_run(
         row["skip"] = f"no_truth:{truth_name}"
         return row
 
+    gold = _read_json(truth_path)
+
+    # Missing deliverable: claim suites → F1=0 (design lock); other suites → zero-ish.
+    if not pred_path.is_file():
+        reason = fail_reason or "no_artifact"
+        if kind == "claim_f1":
+            row.update(
+                _zero_claim_row(
+                    claim_f1=claim_f1,
+                    gold=gold,
+                    reason=reason,
+                    subcategory=subcategory,
+                )
+            )
+            return row
+        if kind == "fabrication":
+            # No mapping.json: zero hit, count as full miss (not skipped).
+            fab = {
+                "n_items": len((gold.get("items") or [])),
+                "n_selected": 0,
+                "n_hit": 0,
+                "n_fabricated": 0,
+                "candidate_hit_rate": 0.0,
+                "fabrication_rate": 0.0,
+                "exact_match_rate": 0.0,
+                "reason": reason,
+            }
+            row["scores"] = {"fabrication_rate": fab}
+            row["candidate_hit_rate"] = 0.0
+            row["fabrication_rate"] = 0.0
+            row["exact_match_rate"] = 0.0
+            row["score_reason"] = reason
+            return row
+        if kind == "triage":
+            tri = {
+                "accuracy": 0.0,
+                "f1": 0.0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "reason": reason,
+            }
+            row["scores"] = {"triage": tri}
+            row["accuracy"] = 0.0
+            row["f1"] = 0.0
+            row["score_reason"] = reason
+            return row
+        if only_with_artifact:
+            row["skip"] = f"no_artifact:{pred_rel.as_posix()}"
+            return row
+        row["skip"] = f"no_artifact:{pred_rel.as_posix()}"
+        return row
+
     try:
-        gold = _read_json(truth_path)
         pred = _read_json(pred_path)
         if kind == "claim_f1":
             scores = claim_f1.score_claims(gold, pred)
@@ -194,6 +285,8 @@ def score_run(
             row["hallucination_rate"] = (scores.get("claim_f1") or scores).get(
                 "hallucination_rate"
             )
+            row["precision"] = (scores.get("claim_f1") or scores).get("precision")
+            row["recall"] = (scores.get("claim_f1") or scores).get("recall")
         elif kind == "fabrication":
             scores = {"fabrication_rate": fabrication_rate.score_mapping(gold, pred)}
             fab = scores["fabrication_rate"]
@@ -272,7 +365,10 @@ def write_table(rows: list[dict[str, Any]], path: Path) -> None:
         "workflow",
         "status",
         "f1",
+        "precision",
+        "recall",
         "hallucination_rate",
+        "score_reason",
         "candidate_hit_rate",
         "fabrication_rate",
         "exact_match_rate",
@@ -308,19 +404,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--only-completed",
         action="store_true",
-        default=True,
-        help="只评 status=completed（默认开）",
+        help="只评 status=completed（默认会把 failed/no_submit 无产物记为 F1=0）",
     )
     parser.add_argument(
         "--include-non-completed",
         action="store_true",
-        help="连非 completed 也评（若有产物）",
+        default=True,
+        help="包含非 completed；failed/no_submit 无产物记 F1=0（默认开）",
     )
     parser.add_argument(
         "--only-with-artifact",
         action="store_true",
-        default=True,
-        help="无产物则 skip（默认开）",
+        help="无产物则 skip（默认关：claim 无产物记 F1=0）",
     )
     parser.add_argument("--model", default=None, help="只评 meta.model 匹配的 run")
     parser.add_argument("--workflow", default=None, help="只评 meta/status.workflow")
@@ -339,7 +434,8 @@ def main(argv: list[str] | None = None) -> int:
     result_root = args.result_root
     if not result_root.is_absolute():
         result_root = (REPO / result_root).resolve()
-    only_completed = not args.include_non_completed
+    # Default: include terminal failures (no_submit → F1=0). --only-completed opts out.
+    only_completed = bool(args.only_completed)
     only_with_artifact = bool(args.only_with_artifact)
 
     claim_f1 = _load_module(CLAIM_F1_PATH, "claim_f1")
@@ -441,18 +537,28 @@ def main(argv: list[str] | None = None) -> int:
             metric = f"acc={r['accuracy']:.3f}"
         elif r.get("f1") is not None:
             metric = f"f1={r['f1']:.3f}"
+            if r.get("score_reason"):
+                metric += f"({r['score_reason']})"
         elif r.get("candidate_hit_rate") is not None:
             metric = f"hit={r['candidate_hit_rate']:.3f} fab={r.get('fabrication_rate', 0):.3f}"
+            if r.get("score_reason"):
+                metric += f"({r['score_reason']})"
         lines.append(
             f"| {r.get('case_id')} | {r.get('subcategory')} | `{str(r.get('run_id') or '')[:8]}` "
-            f"| {r.get('model') or '-'} | {metric or '-'} | {r.get('skip') or ''} |"
+            f"| {r.get('model') or '-'} | {metric or '-'} | {r.get('skip') or r.get('score_reason') or ''} |"
         )
     lines.append("")
     md_path.write_text("\n".join(lines), encoding="utf-8")
 
-    print(f"summary_json={summary_path.relative_to(REPO)}")
-    print(f"scores_csv={table_path.relative_to(REPO)}")
-    print(f"scores_md={md_path.relative_to(REPO)}")
+    def _rel(p: Path) -> str:
+        try:
+            return str(p.relative_to(REPO))
+        except ValueError:
+            return str(p)
+
+    print(f"summary_json={_rel(summary_path)}")
+    print(f"scores_csv={_rel(table_path)}")
+    print(f"scores_md={_rel(md_path)}")
     print(
         f"counts scored={summary['n_scored']} skipped={summary['n_skipped']} "
         f"suites={list(summary['by_suite'])}"

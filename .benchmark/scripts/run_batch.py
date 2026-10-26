@@ -679,6 +679,45 @@ def stage_case_references(api: str, case: dict[str, Any], tee: Tee) -> list[str]
     return saved
 
 
+def _load_claim_f1():
+    scorer = REPO / ".benchmark/bom/scorers/claim_f1.py"
+    if not scorer.is_file():
+        return None
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("claim_f1", scorer)
+    if spec is None or spec.loader is None:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def zero_f1_scores(truth: Path | None, *, reason: str) -> dict:
+    """no_submit / missing claims.json → F1=0 (not null), kept in batch rows."""
+    gold: dict = {}
+    if truth is not None and truth.is_file():
+        try:
+            gold = json.loads(truth.read_text(encoding="utf-8"))
+        except Exception:
+            gold = {}
+    mod = _load_claim_f1()
+    if mod is not None and hasattr(mod, "zero_pred_scores"):
+        return mod.zero_pred_scores(gold, reason=reason)
+    n_gold = len((gold.get("claims") or []))
+    return {
+        "match": "exact_tuple_one_to_one",
+        "n_gold": n_gold,
+        "n_pred": 0,
+        "matched": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "hallucination_rate": 0.0,
+        "reason": reason,
+    }
+
+
 def optional_f1(truth: Path | None, pred: Path) -> dict | None:
     if truth is None or not truth.is_file() or not pred.is_file():
         return None
@@ -891,7 +930,20 @@ def run_one(
     )
     tee.log(f"  result_dir={out_dir.relative_to(REPO)}")
 
-    f1 = optional_f1(case.get("truth"), primary) if claims_ok else None
+    if claims_ok:
+        f1 = optional_f1(case.get("truth"), primary)
+    else:
+        # stuck / no_submit / no claims.json → F1=0 (not null); still a scored row
+        reason_blob = str(st.get("reason") or "")
+        for node in st.get("nodes") or []:
+            if isinstance(node, dict):
+                reason_blob += " " + str(node.get("error") or "")
+        score_reason = (
+            "no_submit"
+            if "no_submit" in reason_blob.casefold()
+            else "no_artifact"
+        )
+        f1 = zero_f1_scores(case.get("truth"), reason=score_reason)
     fab = (
         optional_fabrication(case.get("truth"), primary)
         if artifact_ok and workflow.startswith("lci-mapping")
@@ -930,7 +982,8 @@ def run_one(
     elif not artifact_ok:
         notes_parts.append(f"no_artifact:{primary_rels[0].as_posix()}")
     if f1 and "f1" in f1:
-        notes_parts.append(f"F1={f1['f1']:.3f}(info)")
+        tag = f1.get("reason") or "info"
+        notes_parts.append(f"F1={f1['f1']:.3f}({tag})")
     elif f1 and f1.get("error"):
         notes_parts.append(f"f1_err={f1['error'][:80]}")
     if fab and "candidate_hit_rate" in fab:
