@@ -171,7 +171,8 @@ class Injector:
         if role == "reviewer":
             if last:
                 out.append(_section("executor_submit", json.dumps(last, ensure_ascii=False, indent=2)))
-            out.append(f"审核笔记可写到 `{runs / agent}`。")
+            notes = runs / agent / "notes.md"
+            out.append(f"审核笔记可写到 `{notes}`（必须是该文件路径；`{runs / agent}` 是节点目录，禁止用 write 覆盖成文件）。")
         else:
             out.append(f"中间文件写到 `{runs}`。")
         if rework and attempt > 1:

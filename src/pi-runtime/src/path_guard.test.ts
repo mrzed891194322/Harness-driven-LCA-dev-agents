@@ -158,3 +158,22 @@ test("stage deny_write glob workspace/artifacts/** blocks the whole subtree", ()
   assert.equal(guard.onToolCall("write", { path: "workspace/artifacts/LCI/human_readable_mapping.md" })?.block, true);
   assert.equal(guard.onToolCall("write", { path: "workspace/runs/03-dataset-mapping/executor-1/LCI/p.json" }), undefined);
 });
+
+test("write to the write-root path itself is denied (must be a child path)", () => {
+  const { guard, root } = setup();
+  const res = guard.onToolCall("write", { path: "workspace", content: "notes" });
+  assert.equal(res?.block, true);
+  assert.match(res!.reason, /不能把写入根目录本身写成文件/);
+  assert.equal(guard.onToolCall("write", { path: "workspace/runs/notes.md", content: "ok" }), undefined);
+  // exact write-root file replace after mkdir root exists
+  const rev = path.join(root, "workspace", "runs", "n", "reviewer");
+  fs.mkdirSync(rev, { recursive: true });
+  const g2 = new PathGuard({
+    sessionKey: "s",
+    cwd: root,
+    readGlobs: [`${root}/workspace/**`],
+    writeGlobs: [`${rev}/**`],
+  });
+  assert.equal(g2.onToolCall("write", { path: rev, content: "notes" })?.block, true);
+  assert.equal(g2.onToolCall("write", { path: path.join(rev, "notes.md"), content: "ok" }), undefined);
+});

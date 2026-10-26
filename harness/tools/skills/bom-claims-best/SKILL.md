@@ -26,4 +26,5 @@
 
 - 执行者写完 `claims.json` 后立刻 `submit`（`status=done` + `summary` + `artifacts`）。
 - 审核者只读核对后立刻 `submit`（`verdict=approve|reject|terminate|approve_redo_upstream`）；未用参数省略，勿传 null。
+- 审核者若写笔记，只用 `workspace/runs/<node>/reviewer/notes.md`；禁止把 `…/reviewer` 目录本身写成文件。
 - 不要在仓库根目录 `ls`/`find`；只读允许的 artifacts / skills / specs 路径。

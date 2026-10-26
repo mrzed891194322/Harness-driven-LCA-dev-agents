@@ -36,3 +36,11 @@ def test_user_sections_and_rework(wf_root):
 def test_schema_summary():
     s = schema_summary({"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}}}}}})
     assert "items（必填）" in s and "name" in s
+
+def test_reviewer_notes_path_is_file_under_agent_dir(wf_root):
+    node = _node(wf_root)
+    specs = {spec_ref("summary"): load_spec(wf_root, spec_ref("summary"))}
+    text = Injector(wf_root)(node, "reviewer", 1, None, specs)
+    assert "reviewer/notes.md" in text
+    assert "禁止用 write 覆盖成文件" in text
+

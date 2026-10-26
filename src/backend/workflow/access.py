@@ -81,6 +81,9 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         read.add(str(root / layout.KNOWLEDGE) + "/**")
     if toggles["artifacts"]:
         read.add(str(art) + "/**")
+    # Specs / skills may cite JSON Schema files and rules outside the produce dirs.
+    read.add(str(root / ".benchmark/schemas") + "/**")
+    read.add(str(root / "harness/rules") + "/**")
 
     write: set[str] = set()
     if node.kind(agent_key) == "artifact":
