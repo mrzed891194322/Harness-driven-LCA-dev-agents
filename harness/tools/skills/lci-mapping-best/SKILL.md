@@ -2,6 +2,12 @@
 
 需要时阅读本文件；按条执行，不要发挥成长散文。
 
+
+## 读资料（若有 `harness/knowledge/inputs/`）
+
+- 映射以题面候选为主；若需核对原文描述：先 `grep` 再 `read`（`offset`/`limit`），**不要**反复整文件 `read`。
+- 同源 `reference.md` / `*.pdf.txt` 只深读一份，另一份用 `grep` 即可。
+
 ## item_id
 
 - 每个题面物料写一条 `items[]`。

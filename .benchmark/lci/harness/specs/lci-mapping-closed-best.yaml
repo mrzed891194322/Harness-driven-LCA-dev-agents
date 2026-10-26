@@ -9,6 +9,7 @@ description: |
   执行前先 `read` 技能 `harness/tools/skills/lci-mapping-best/SKILL.md`，并按其护栏产出。薄条件长散文不适用本节点。要点：
   - `item_id` 优先题面 id；否则 `m1`/`m2`… 与题面一一对应
   - 唯一贴近则必选；无法区分则 name/id 置 null 并在 `selection_reason` 弃权说明；禁止编造集合外名字
+  - 若读 inputs：先 grep 再 offset/limit；勿反复全文 read
   - 工具 `content` 等 object 须先序列化为 string
 
   ## 交付物
