@@ -528,20 +528,27 @@ def poll_until_done(
     max_s: float = 0,
     *,
     workspace: Path | None = None,
+    early_stop_on_length: bool = False,
 ) -> dict[str, Any]:
     """Poll until terminal. max_s<=0: never hard-timeout (warn only).
 
     Du Yuan 2026-10-26: poll_timeout must not conclude a case; ops half-hour
     routine catches true hangs. Positive max_s only emits periodic WARN.
 
-    Design lock: if live Pi session shows assistant stopReason=length, stop the
-    workflow immediately and move on (do not burn more nudges). Marked as
-    early_stop=length → scored like no_submit / F1=0.
+    Length early-stop (opt-in via --early-stop-on-length): if live Pi session
+    shows assistant stopReason=length, stop the workflow immediately and move
+    on (do not burn more nudges). Marked as early_stop=length → scored like
+    no_submit / F1=0. Default OFF (2026-10-27): Tongji/larger models may
+    continue via normal nudges/turns after a length stop_reason.
     """
     t0 = time.time()
     last = ""
     warned_at = 0.0
-    watcher = LengthStopWatcher(workspace) if workspace is not None else None
+    watcher = (
+        LengthStopWatcher(workspace)
+        if early_stop_on_length and workspace is not None
+        else None
+    )
     while True:
         st = api_json(api, "GET", "/api/workflow/status", timeout=20)
         nodes = [
@@ -929,6 +936,7 @@ def run_one(
     poll_s: float,
     max_s: float,
     auto_references: bool = True,
+    early_stop_on_length: bool = False,
 ) -> dict[str, Any]:
     case_id = case["id"]
     qpath: Path = case["query"]
@@ -986,7 +994,14 @@ def run_one(
     resp = api_json(api, "POST", "/api/workflow/start", {"workflow": workflow, "plan": plan})
     tee.log(f"  start_resp={json.dumps(resp, ensure_ascii=False)}")
     time.sleep(1.5)
-    st = poll_until_done(api, tee, poll_s=poll_s, max_s=max_s, workspace=workspace)
+    st = poll_until_done(
+        api,
+        tee,
+        poll_s=poll_s,
+        max_s=max_s,
+        workspace=workspace,
+        early_stop_on_length=early_stop_on_length,
+    )
     rid = st.get("run_id")
     status = st.get("status")
     events = fetch_events_blob(api)
@@ -1206,6 +1221,11 @@ def main(argv: list[str] | None = None) -> int:
         default=".benchmark/result/_logs",
         help="串跑日志目录（相对仓根；落在已 ignore 的 result 下）",
     )
+    parser.add_argument(
+        "--early-stop-on-length",
+        action="store_true",
+        help="遇 Pi stopReason=length 时早停本案并记 F1=0（默认关闭；小模型/Spark 可显式打开）",
+    )
     args = parser.parse_args(argv)
 
     if args.repeat < 1:
@@ -1274,6 +1294,7 @@ def main(argv: list[str] | None = None) -> int:
             f"backoff_max_s={args.backoff_max_s}"
         )
         tee.log(f"auto_references={not args.no_auto_references}")
+        tee.log(f"early_stop_on_length={bool(args.early_stop_on_length)}")
         rate_streak = 0
         started_any = False
 
@@ -1306,6 +1327,7 @@ def main(argv: list[str] | None = None) -> int:
                         poll_s=args.poll,
                         max_s=args.max_s,
                         auto_references=not args.no_auto_references,
+                        early_stop_on_length=bool(args.early_stop_on_length),
                     )
                     rows.append(row)
                     if row.get("rate_limit"):
