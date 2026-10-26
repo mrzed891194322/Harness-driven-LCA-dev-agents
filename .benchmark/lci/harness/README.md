@@ -13,3 +13,10 @@ YAML 里的 `nodes:` / `produces.spec` 一律写**相对仓库根**的路径。A
 产品侧全量映射节点仍是 `harness/workflows/nodes/lca-mapping.yaml`（要 BOM + openLCA），**不要**拿来跑 PCFBench task3 封闭集冒烟。
 
 agent 模板与规则正文继续共用 `harness/workflows/agents/`、`harness/rules/`。
+
+## 最好条件
+
+- orch / 节点：`lci-mapping-best`（薄档 `lci-mapping` 不动）
+- spec：`.benchmark/lci/harness/specs/lci-mapping-closed-best.yaml`（短指针）
+- 技能：`harness/tools/skills/lci-mapping-best/SKILL.md`（节点 `tools.skills` 挂接）
+

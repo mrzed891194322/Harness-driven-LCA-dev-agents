@@ -1,0 +1,17 @@
+id: bom-extract-best
+title: 数量声明抽取（最好条件）
+produces:
+  - {spec: .benchmark/bom/harness/specs/bom-claims-best.yaml, path: bom/claims.json}
+inject:
+  - rules/delivery/status.yaml
+  - rules/delivery/provenance.yaml
+  - rules/lca/knowledge-files.yaml
+agents:
+  executor:
+    agent: executor
+    tools:
+      skills: [bom-claims-best]
+  reviewer:
+    agent: reviewer
+    tools:
+      skills: [bom-claims-best]

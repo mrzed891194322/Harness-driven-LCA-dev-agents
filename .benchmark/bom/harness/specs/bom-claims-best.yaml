@@ -1,0 +1,48 @@
+description: |
+  # 数量声明（claims · 最好条件）
+
+  从计划与 `harness/knowledge/inputs/` 抽取可打分的数量声明。不查询 openLCA、不做映射、不出报告。
+
+  ## 方法（短指针）
+
+  执行前先 `read` 技能 `harness/tools/skills/bom-claims-best/SKILL.md`，并按其护栏产出。薄条件长散文不适用本节点。要点：
+  - 同物料同字段只留一档量；并列双单位 / lbs→kg **勿双 claim**
+  - 工具 `content` 等 object 须先序列化为 string
+  - 输出契约与 abstain 口径见该技能
+
+  ## 交付物
+
+  写到 `workspace/artifacts/bom/claims.json`，形状对齐 `.benchmark/schemas/claim_set.schema.json`。
+
+  ## 验收
+
+  - JSON 通过下方 schema；遵守最好条件技能护栏。
+  - 每条 claim 有原文依据，或明确 abstain。
+  - reviewer 独立核对；缺产物、blocked、编造不得视为完成。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:bom-claims-best
+  title: Claim set (best condition)
+  type: object
+  additionalProperties: false
+  required: [claims]
+  properties:
+    abstained:
+      type: boolean
+    claims:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        properties:
+          claim_id: {type: string, minLength: 1}
+          text: {type: string}
+          item_id: {type: string}
+          field: {type: string}
+          value: {type: [number, "null"]}
+          unit: {type: [string, "null"]}
+          evidence: {type: [string, "null"]}
+        anyOf:
+          - {required: [text]}
+          - {required: [value, unit]}
+checks: []

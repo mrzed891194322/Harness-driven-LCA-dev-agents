@@ -77,6 +77,25 @@ def redo_reason_text(redo: dict) -> str:
             f"- 要求的修改：{redo.get('requested_change')}\n上一版产物保留在原位置（只读），本次写新版本。")
 
 
+
+def _skill_prompt_path(skill: str) -> tuple[str, str]:
+    """Resolve a ``tools.skills`` entry to (repo-rel SKILL.md path, display name).
+
+    Short names map to ``harness/tools/skills/<name>/SKILL.md``. Entries with ``/``
+    or starting with ``.`` are treated as repo-root-relative paths: a ``SKILL.md``
+    file, or a directory that contains one.
+    """
+    raw = (skill or "").strip()
+    if not raw:
+        return "harness/tools/skills/?/SKILL.md", "?"
+    if "/" in raw or raw.startswith("."):
+        rel = Path(raw)
+        if rel.name != "SKILL.md":
+            rel = rel / "SKILL.md"
+        return rel.as_posix(), rel.parent.name
+    return f"harness/tools/skills/{raw}/SKILL.md", raw
+
+
 class Injector:
     def __init__(self, root: Path, workspace: Path | None = None) -> None:
         self.root = root
@@ -101,7 +120,8 @@ class Injector:
         if tools.mcp:
             lines.append("- MCP：" + "、".join(tools.mcp))
         for skill in tools.skills:
-            lines.append(f"- 技能 {skill}：`harness/tools/skills/{skill}/SKILL.md`（需要时自己读取）")
+            rel, label = _skill_prompt_path(skill)
+            lines.append(f"- 技能 {label}：`{rel}`（需要时自己读取）")
         parts.append("\n".join(lines))
         return "\n\n".join(parts) + "\n"
 
