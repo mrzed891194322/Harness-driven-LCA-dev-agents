@@ -83,7 +83,7 @@ python3 .benchmark/scripts/import_pcfbench_cases.py
 也可用 `--source .eval/data/pcfbench` 或 `--out-root .cache/benchmark/cases`。
 详见 [`imported/README.md`](imported/README.md)。
 
-评测档位（orch stem 后缀）：**01** 真·薄；**02** 薄编排无 reviewer（注入同 best）；**03** 薄注入+reviewer；**04** 最好。本仓已建 03/04；01/02 预留。
+评测档位（orch stem 后缀，extract 已对齐）：**01** 真薄（无 reviewer / 无 skills / 无 node.inject）；**02** 同 01 只加 reviewer；**03** 厚=两技能、无 reviewer；**04** 厚+reviewer。详见 `.benchmark/bom/harness/README.md`。
 
 
 ## 许可

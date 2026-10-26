@@ -1,0 +1,5 @@
+id: bom-extract-02
+title: BOM 数量抽取（02 · 真薄+reviewer）
+max_redos: 0
+# 与 01 注入完全相同，只多挂 reviewer
+nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract-02.yaml]

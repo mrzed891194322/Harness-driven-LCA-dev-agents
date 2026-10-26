@@ -34,7 +34,7 @@ description: >-
 - serve 已起，且 checkout 是当前 tip（与评测要对齐的 commit）。
 - 模型已在面板或 `.local/workflow-agent-models.json` 配好（对**下一趟**开跑生效）。
 - API 基址默认 `http://127.0.0.1:7860`（`GUI_PORT`，见 `src/backend/settings.py`）。下文用 `$API`。
-- 冒烟默认工作流：`bom-extract-03`（orch 在 `.benchmark/bom/harness/`，API 用 stem；节点/spec 在 YAML 里写仓根相对路径，产物 `.benchmark/bom/harness/specs/bom-claims.yaml` → `bom/claims.json`）。
+- 冒烟默认工作流：任选 `bom-extract-01`…`04`（orch 在 `.benchmark/bom/harness/`，API 用 stem；01/02 薄短 spec `bom-claims.yaml`，03/04 短指针 `bom-claims-best.yaml` → 皆交付 `bom/claims.json`）。档位开关见该目录 README。
 
 ### 1. 上传参考资料
 
@@ -97,7 +97,7 @@ curl -sS "$API/api/workflow/progress"
 
 `workspace/artifacts/bom/claims.json`
 
-对应 spec：`.benchmark/bom/harness/specs/bom-claims.yaml`（`claim_set`；节点 `bom/claims.json`）。把该路径交给调用方；由调用方再开 `score-only` 或：
+对应 spec：薄档 `bom-claims.yaml` / 厚档 `bom-claims-best.yaml`（`claim_set`；节点 `bom/claims.json`）。把该路径交给调用方；由调用方再开 `score-only` 或：
 
 ```bash
 python3 .benchmark/bom/scorers/claim_f1.py \

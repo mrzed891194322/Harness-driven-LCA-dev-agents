@@ -5,11 +5,9 @@ description: |
 
   ## 方法（短指针）
 
-  执行前先 `read` 技能 `harness/tools/skills/bom-claims-best/SKILL.md`，并按其护栏产出。薄条件长散文不适用本节点。要点：
-  - 同物料同字段只留一档量；并列双单位 / lbs→kg **勿双 claim**
-  - 读 inputs：先 grep 定位再 offset/limit 分段；勿反复全文 read
-  - 工具 `content` 等 object 须先序列化为 string
-  - 输出契约与 abstain 口径见该技能
+  执行前先 `read` 下列技能，并按其护栏产出：
+  - `harness/tools/skills/bom-claims-read/SKILL.md`（读文）
+  - `harness/tools/skills/bom-claims-ops/SKILL.md`（单位 / 输出契约 / 交卷）
 
   ## 交付物
 
@@ -17,9 +15,9 @@ description: |
 
   ## 验收
 
-  - JSON 通过下方 schema；遵守最好条件技能护栏。
+  - JSON 通过下方 schema；遵守上述技能护栏。
   - 每条 claim 有原文依据，或明确 abstain。
-  - reviewer 独立核对；缺产物、blocked、编造不得视为完成。
+  - 有 reviewer 时由其独立核对；缺产物、blocked、编造不得视为完成。
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   $id: urn:harness:spec:bom-claims-best

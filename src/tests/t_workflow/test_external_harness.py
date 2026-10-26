@@ -19,30 +19,64 @@ from tests.t_workflow.conftest import REPO, write_yaml
 
 
 def test_repo_bom_extract_loads_via_orch_stem_and_path_refs():
-    orch = resolve_orchestration(REPO, "bom-extract-03")
-    assert orch.as_posix().endswith(".benchmark/bom/harness/workflows/orchestrations/bom-extract-03.yaml")
-    node = resolve_node_path(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract-03.yaml")
-    assert node.as_posix().endswith(".benchmark/bom/harness/workflows/nodes/bom-extract-03.yaml")
+    orch = resolve_orchestration(REPO, "bom-extract-01")
+    assert orch.as_posix().endswith(".benchmark/bom/harness/workflows/orchestrations/bom-extract-01.yaml")
+    node = resolve_node_path(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract-01.yaml")
+    assert node.as_posix().endswith(".benchmark/bom/harness/workflows/nodes/bom-extract-01.yaml")
     spec = resolve_spec_path(REPO, ".benchmark/bom/harness/specs/bom-claims.yaml")
     assert spec.as_posix().endswith(".benchmark/bom/harness/specs/bom-claims.yaml")
-    wf, nodes = load_workflow(REPO, "bom-extract-03")
-    assert wf.id == "bom-extract-03" and nodes[0].id == "bom-extract-03"
+    wf, nodes = load_workflow(REPO, "bom-extract-01")
+    assert wf.id == "bom-extract-01" and nodes[0].id == "bom-extract-01"
     assert nodes[0].produces[0].spec == ".benchmark/bom/harness/specs/bom-claims.yaml"
+    assert "reviewer" not in nodes[0].agents
+    assert nodes[0].inject == []
     loaded = load_spec(REPO, ".benchmark/bom/harness/specs/bom-claims.yaml")
     assert loaded.id == "bom-claims"
     assert loaded.path == ".benchmark/bom/harness/specs/bom-claims.yaml"
-    assert "bom-extract-03" in list_workflows(REPO)
+    for stem in ("bom-extract-01", "bom-extract-02", "bom-extract-03", "bom-extract-04"):
+        assert stem in list_workflows(REPO)
 
 
 def test_inject_uses_produce_spec_path_not_stem():
     """Regression: inject must not resolve_spec_path(spec.id) — id is a short stem."""
-    wf, nodes = load_workflow(REPO, "bom-extract-03")
+    wf, nodes = load_workflow(REPO, "bom-extract-01")
     node = nodes[0]
     specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
     assert "bom-claims" not in specs  # keyed by path, not stem
     text = Injector(REPO)(node, "executor", 1, None, specs)
     assert "<deliverable_bom-claims>" in text
     assert ".benchmark/bom/harness/specs/bom-claims.yaml" in text
+
+
+def test_bom_extract_tier_switches():
+    """01–04 share orch skeleton; only reviewer / inject / skills flip."""
+    _, n01 = load_workflow(REPO, "bom-extract-01")
+    _, n02 = load_workflow(REPO, "bom-extract-02")
+    _, n03 = load_workflow(REPO, "bom-extract-03")
+    _, n04 = load_workflow(REPO, "bom-extract-04")
+    assert set(n01[0].agents) == {"executor"}
+    assert set(n02[0].agents) == {"executor", "reviewer"}
+    assert set(n03[0].agents) == {"executor"}
+    assert set(n04[0].agents) == {"executor", "reviewer"}
+    assert n01[0].inject == n02[0].inject == []
+    thick_inject = [
+        "rules/delivery/status.yaml",
+        "rules/delivery/provenance.yaml",
+        "rules/lca/knowledge-files.yaml",
+    ]
+    assert n03[0].inject == n04[0].inject == thick_inject
+    assert n01[0].produces[0].spec == n02[0].produces[0].spec == (
+        ".benchmark/bom/harness/specs/bom-claims.yaml"
+    )
+    assert n03[0].produces[0].spec == n04[0].produces[0].spec == (
+        ".benchmark/bom/harness/specs/bom-claims-best.yaml"
+    )
+    skills = ["bom-claims-read", "bom-claims-ops"]
+    assert n03[0].agents["executor"].tools.skills == skills
+    assert n04[0].agents["executor"].tools.skills == skills
+    assert n04[0].agents["reviewer"].tools.skills == skills
+    assert n01[0].agents["executor"].tools.skills == []
+    assert n02[0].agents["executor"].tools.skills == []
 
 
 def test_repo_full_lca_product_path_refs():

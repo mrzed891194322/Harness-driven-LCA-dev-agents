@@ -1,5 +1,5 @@
 id: bom-extract-04
-title: 数量声明抽取（04 · 最好）
+title: 数量声明抽取（04 · 厚注入+reviewer）
 produces:
   - {spec: .benchmark/bom/harness/specs/bom-claims-best.yaml, path: bom/claims.json}
 inject:
@@ -10,8 +10,8 @@ agents:
   executor:
     agent: executor
     tools:
-      skills: [bom-claims-best]
+      skills: [bom-claims-read, bom-claims-ops]
   reviewer:
     agent: reviewer
     tools:
-      skills: [bom-claims-best]
+      skills: [bom-claims-read, bom-claims-ops]

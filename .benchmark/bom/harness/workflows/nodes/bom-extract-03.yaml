@@ -1,11 +1,13 @@
 id: bom-extract-03
-title: 数量声明抽取（03 · 薄注入+reviewer）
+title: 数量声明抽取（03 · 厚注入无 reviewer）
 produces:
-  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
+  - {spec: .benchmark/bom/harness/specs/bom-claims-best.yaml, path: bom/claims.json}
 inject:
   - rules/delivery/status.yaml
   - rules/delivery/provenance.yaml
   - rules/lca/knowledge-files.yaml
 agents:
-  executor: executor
-  reviewer: reviewer
+  executor:
+    agent: executor
+    tools:
+      skills: [bom-claims-read, bom-claims-ops]

@@ -1,5 +1,5 @@
 id: bom-extract-03
-title: BOM 数量抽取（03 · 薄注入+reviewer）
+title: BOM 数量抽取（03 · 厚注入无 reviewer）
 max_redos: 0
-# 单节点：产物仍在 artifacts/bom/，schema 由 bom-claims 注入（claim_set）
+# 单节点：无 reviewer；厚注入 = bom-claims-read + bom-claims-ops；短指针 spec
 nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract-03.yaml]

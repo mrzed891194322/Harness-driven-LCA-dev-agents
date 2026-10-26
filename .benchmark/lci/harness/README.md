@@ -2,6 +2,8 @@
 
 LCI / mapping / triage 测评用的 orch / node / spec（与产品 `harness/` 同构）。
 
+
+> 注：`bom-extract` 01–04 已按「真薄 / 真薄+reviewer / 厚两技能 / 厚+reviewer」对齐；本目录 mapping/triage 本轮**未**跟，仍按下表旧语义。
 ## 档位（工作流名后加 01–04）
 
 | 档 | 含义 |

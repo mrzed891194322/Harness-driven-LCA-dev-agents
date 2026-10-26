@@ -5,29 +5,29 @@ BOM 测评用的工作流 / 节点 / spec，与产品侧 `harness/` **同构**�
 YAML 里的 `nodes:` / `produces.spec` 一律写**相对仓库根**的路径（禁止短名、禁止 `..`、禁止绝对路径），例如：
 
 ```yaml
-nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract-03.yaml]
+nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract-01.yaml]
 produces:
   - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
 ```
 
-API 开跑仍可用 orch 文件 stem（`workflow: bom-extract-03`）；`list_workflows` 会扫描
+API 开跑仍可用 orch 文件 stem（`workflow: bom-extract-01`）；`list_workflows` 会扫描
 `harness/workflows/orchestrations/` 与本目录及 `.benchmark/lci/harness/` 的 `workflows/orchestrations/`。
 
 agent 模板与规则正文继续共用 `harness/workflows/agents/`、`harness/rules/`（节点 `inject:` 照常引用）。
+全局三条（`rules/global/00-redlines` / `10-language` / `20-knowledge`）由宿主对所有档注入，不写在节点 YAML。
 
-## 档位（工作流名后加 01–04）
+## 档位（工作流名后加 01–04 · 同一骨架只拨开关）
 
-| stem | 含义 | 本仓状态 |
-| --- | --- | --- |
-| `bom-extract-01` | **真·薄** | 预留，尚未建 orch |
-| `bom-extract-02` | **薄编排（无 reviewer）**；提示词注入同 best | 预留，尚未建 orch |
-| `bom-extract-03` | **薄注入，但有 reviewer 编排**（现网在跑的「薄注入+双角色」树） | 已有（原 `bom-extract`） |
-| `bom-extract-04` | **最好**（短指针 spec + `bom-claims-best`） | 已有（原 `bom-extract-best`） |
+| stem | reviewer | node.inject | skills | produce spec |
+| --- | --- | --- | --- | --- |
+| `bom-extract-01` | 无 | **无**（去掉 status / provenance / knowledge-files） | 无 | 薄短 `bom-claims.yaml` |
+| `bom-extract-02` | **有** | 同 01（无） | 无 | 同 01 |
+| `bom-extract-03` | 无 | status + provenance + knowledge-files | `bom-claims-read` + `bom-claims-ops` | 短指针 `bom-claims-best.yaml` |
+| `bom-extract-04` | **有** | 同 03 | 同 03（executor **与** reviewer 都挂） | 同 03 |
 
-本轮图1仍只对比 **03 → 04**（extract36）；01/02 未实现，勿 invent。
+- **01 真薄**：题面 ≈ 短指令 + 案题 query；交付 claims submit；环境门（PathGuard / 白名单 / submit / schema 拒收）留环境，长 schema 不灌进提示散文。
+- **02**：与 01 注入完全相同，只多挂 reviewer。
+- **03 / 04 厚注入**：两技能拆自原 `bom-claims-best` 打包；`bom-claims-best/` 目录仅留兼容别名，指向上述两技能。
+- 双单位：厚技能 = 只留一档 `(value,unit)`；薄 spec = 不写「并列双单位各建一条」。
 
-- 03 spec：`.benchmark/bom/harness/specs/bom-claims.yaml`（薄注入长散文）
-- 04 spec：`.benchmark/bom/harness/specs/bom-claims-best.yaml`（短指针）
-- 04 技能：`harness/tools/skills/bom-claims-best/SKILL.md`
-
-abstention 复用 `bom-extract-03` / `bom-extract-04`（`--cases-root .benchmark/bom/abstention`），无单独 abstention orch。
+abstention 复用任一 extract stem（`--cases-root .benchmark/bom/abstention`），无单独 abstention orch。
