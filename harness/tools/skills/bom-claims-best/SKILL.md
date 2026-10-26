@@ -21,3 +21,9 @@
 - 有可用证据：`abstained` 可省略或 `false`，`claims` 非空；每条尽量含 `claim_id`、`item_id`、`field`、`value`、`unit`、`text`、`evidence`。
 - 无可用文档或信息不足：`abstained: true` 且 `claims: []`，不要编造。
 - 只抽题面要求的量；脏表尽量抽可辨数字，完全无法恢复才 abstain。
+
+## 交卷
+
+- 执行者写完 `claims.json` 后立刻 `submit`（`status=done` + `summary` + `artifacts`）。
+- 审核者只读核对后立刻 `submit`（`verdict=approve|reject|terminate|approve_redo_upstream`）；未用参数省略，勿传 null。
+- 不要在仓库根目录 `ls`/`find`；只读允许的 artifacts / skills / specs 路径。

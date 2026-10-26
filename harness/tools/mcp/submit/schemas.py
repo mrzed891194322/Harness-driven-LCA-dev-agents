@@ -117,6 +117,8 @@ def validate(kind: str, payload: dict, context: dict | None = None, *, check_fil
                     errors.append(f"artifact {payload['artifact']!r} 不是 {target} 的交付物 ({', '.join(targets[target])})")
     else:
         last = ctx.get("executor_last") or {}
+        if not isinstance(last, dict):
+            last = {}
         if payload["verdict"] == "approve_redo_upstream" and last.get("status") != "redo_upstream":
             errors.append("approve_redo_upstream 只能在执行者最近一次提交为 redo_upstream 时使用")
         if payload["verdict"] == "approve" and last.get("status") == "redo_upstream":

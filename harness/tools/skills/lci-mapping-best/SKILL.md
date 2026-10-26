@@ -25,3 +25,9 @@
 - 写到 `workspace/artifacts/mapping/mapping.json`，对齐 `.benchmark/schemas/mapping_deliverable.schema.json`。
 - 必有 `items` 数组；每项含 schema 要求字段（含 `selection_reason`、`candidates`）。
 - 缺产物、编造集合外名字、blocked：不得视为完成。
+
+## 交卷
+
+- 执行者写完 `mapping.json` 后立刻 `submit`（`status=done` + `summary` + `artifacts`）。
+- 审核者只读核对后立刻 `submit`（`verdict=approve|reject|terminate|approve_redo_upstream`）；未用参数省略，勿传 null。
+- 不要在仓库根目录 `ls`/`find`；只读允许的 artifacts / skills / specs 路径。
