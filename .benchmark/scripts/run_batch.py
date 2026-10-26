@@ -6,6 +6,9 @@
 
 每案 token（input/output/cache）从 serve `.local/runs/<run_id>/sessions/*/transcript.jsonl`
 汇总写入 meta.json 与 summary.json；provider 未给的字段写字符串 unavailable，不静默填 0。
+
+轮询中若 live session 出现助手 `stopReason=length`：POST /api/workflow/stop 结束本案、跳下一案
+（不再空等 nudge）；按 no_submit/无产物路径记 F1=0。
 """
 
 from __future__ import annotations
@@ -387,6 +390,73 @@ def serve_tip(repo: Path) -> str:
         return "unknown"
 
 
+
+# Pi live session: message.stopReason / exported transcript: stop_reason
+_LENGTH_STOP_RE = re.compile(
+    r'"stopReason"\s*:\s*"length"|"stop_reason"\s*:\s*"length"',
+    re.I,
+)
+
+
+class LengthStopWatcher:
+    """Scan growing session.jsonl (and optional transcript) for stopReason=length.
+
+    Detection source (in priority order):
+    1. workspace/tmp/pi-workflow/**/session.jsonl  (live during settle/nudges)
+    2. .local/runs/<rid>/sessions/**/transcript.jsonl  (if already exported)
+    3. /api/workflow/events blob (if host ever surfaces stop_reason)
+    """
+
+    def __init__(self, workspace: Path) -> None:
+        self.workspace = workspace
+        self._offsets: dict[Path, int] = {}
+
+    def _scan_file(self, path: Path) -> bool:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return False
+        start = self._offsets.get(path, 0)
+        if size < start:
+            start = 0  # truncated/rotated
+        if size == start:
+            return False
+        try:
+            with path.open("rb") as fh:
+                fh.seek(start)
+                chunk = fh.read()
+            self._offsets[path] = start + len(chunk)
+        except OSError:
+            return False
+        try:
+            text = chunk.decode("utf-8", errors="replace")
+        except Exception:
+            return False
+        return bool(_LENGTH_STOP_RE.search(text))
+
+    def check(self, run_id: str | None = None, events_blob: str = "") -> tuple[bool, str]:
+        if events_blob and _LENGTH_STOP_RE.search(events_blob):
+            return True, "api:/workflow/events"
+        root = self.workspace / "tmp" / "pi-workflow"
+        if root.is_dir():
+            for path in sorted(root.rglob("session.jsonl")):
+                if self._scan_file(path):
+                    try:
+                        rel = path.relative_to(self.workspace)
+                    except ValueError:
+                        rel = path
+                    return True, f"session:{rel}"
+        if run_id:
+            sessions = (
+                self.workspace.parent / ".local" / "runs" / str(run_id) / "sessions"
+            )
+            if sessions.is_dir():
+                for path in sorted(sessions.rglob("transcript.jsonl")):
+                    if self._scan_file(path):
+                        return True, f"transcript:{path.name}"
+        return False, ""
+
+
 def stop_workflow(api: str, tee: Tee) -> dict[str, Any]:
     """Best-effort POST /api/workflow/stop so a timed-out run does not block the batch."""
     try:
@@ -452,16 +522,26 @@ def ensure_model(api: str, model: str | None, tee: Tee) -> str:
 
 
 def poll_until_done(
-    api: str, tee: Tee, poll_s: float = 5, max_s: float = 0
+    api: str,
+    tee: Tee,
+    poll_s: float = 5,
+    max_s: float = 0,
+    *,
+    workspace: Path | None = None,
 ) -> dict[str, Any]:
     """Poll until terminal. max_s<=0: never hard-timeout (warn only).
 
     Du Yuan 2026-10-26: poll_timeout must not conclude a case; ops half-hour
     routine catches true hangs. Positive max_s only emits periodic WARN.
+
+    Design lock: if live Pi session shows assistant stopReason=length, stop the
+    workflow immediately and move on (do not burn more nudges). Marked as
+    early_stop=length → scored like no_submit / F1=0.
     """
     t0 = time.time()
     last = ""
     warned_at = 0.0
+    watcher = LengthStopWatcher(workspace) if workspace is not None else None
     while True:
         st = api_json(api, "GET", "/api/workflow/status", timeout=20)
         nodes = [
@@ -479,6 +559,33 @@ def poll_until_done(
         status = (st.get("status") or "").lower()
         if not st.get("running") and status in TERMINAL:
             return st
+
+        if watcher is not None and st.get("running"):
+            hit, via = watcher.check(str(st.get("run_id") or "") or None)
+            if hit:
+                tee.log(
+                    f"  EARLY_STOP stop_reason=length via={via} "
+                    f"→ POST /api/workflow/stop (skip remaining nudges)"
+                )
+                stop_workflow(api, tee)
+                wait_idle(api, tee, timeout_s=60, stop_if_stuck=True)
+                try:
+                    final = api_json(api, "GET", "/api/workflow/status", timeout=20)
+                except Exception as e:
+                    final = dict(st)
+                    final["_status_fetch_error"] = str(e)
+                if not isinstance(final, dict):
+                    final = dict(st)
+                else:
+                    final = dict(final)
+                final["_early_stop"] = "length"
+                final["_early_stop_via"] = via
+                # Prefer no_submit scoring path (missing claims → F1=0).
+                reason = str(final.get("reason") or st.get("reason") or "")
+                tag = "no_submit: early_stop stop_reason=length"
+                final["reason"] = f"{reason}; {tag}".strip("; ") if reason else tag
+                return final
+
         if max_s > 0 and elapsed > max_s and (elapsed - warned_at) >= max(max_s, 60):
             # Soft warn only — do not stop, do not mark _timeout, do not return.
             tee.log(
@@ -879,7 +986,7 @@ def run_one(
     resp = api_json(api, "POST", "/api/workflow/start", {"workflow": workflow, "plan": plan})
     tee.log(f"  start_resp={json.dumps(resp, ensure_ascii=False)}")
     time.sleep(1.5)
-    st = poll_until_done(api, tee, poll_s=poll_s, max_s=max_s)
+    st = poll_until_done(api, tee, poll_s=poll_s, max_s=max_s, workspace=workspace)
     rid = st.get("run_id")
     status = st.get("status")
     events = fetch_events_blob(api)
@@ -964,6 +1071,10 @@ def run_one(
     notes_parts: list[str] = []
     if st.get("_timeout"):
         notes_parts.append("poll_timeout")
+    if st.get("_early_stop") == "length":
+        notes_parts.append(
+            f"early_stop:length via={st.get('_early_stop_via') or '?'}"
+        )
     if transient_hit:
         tag = "429" if rate_hit else "disconnect"
         notes_parts.append(f"transient_hit:{tag}")

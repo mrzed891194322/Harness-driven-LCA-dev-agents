@@ -56,9 +56,14 @@ def _status_fail_reason(status: dict[str, Any]) -> str | None:
     low = blob.casefold()
     if "no_submit" in low:
         return "no_submit"
+    if "stop_reason=length" in low or ("early_stop" in low and "length" in low):
+        return "no_submit"
     run_status = str(status.get("status") or "").casefold()
     if run_status in {"failed", "aborted", "error"}:
         return run_status
+    if run_status in {"stopped", "cancelled", "canceled"}:
+        # Host stop (e.g. batch early_stop on length); missing claims → F1=0 path.
+        return "no_submit"
     return None
 
 
