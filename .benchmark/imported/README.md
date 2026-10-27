@@ -80,3 +80,7 @@ uv run python .benchmark/scripts/score_batch.py --category lci --subcategory map
 
 T1 scorer 为确定性成分集合 F1（`decomposition_f1.py`），notes 标明非官方 LLM judge。
 
+
+### T2/T3 ×30（seed=20261028）
+
+`import_pcfbench_cases.py --task task2 --task task3 --limit 30 --seed 20261028`；详见 `../PCFBENCH_T123_01.md`。T1 本轮不做。

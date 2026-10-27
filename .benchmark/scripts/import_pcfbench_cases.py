@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import random
 import json
 import re
 import sys
@@ -487,6 +488,7 @@ def import_task(
     limit: int | None,
     ids: set[str] | None,
     dry_run: bool,
+    seed: int | None = None,
 ) -> dict[str, Any]:
     task_meta = TASK_MAP[task_key]
     jsonl = resolve_jsonl(task_key, cache_root, source)
@@ -495,10 +497,21 @@ def import_task(
     dest = out_root / task_meta["category"] / task_meta["subcategory"]
     written: list[dict[str, Any]] = []
     skipped = 0
+    rows: list[dict[str, Any]] = []
     for row in iter_rows(jsonl):
         upstream = str(row.get("id") or "")
         if ids is not None and upstream not in ids:
             continue
+        rows.append(row)
+    if seed is not None and limit is not None:
+        rng = random.Random(seed)
+        if len(rows) > limit:
+            rows = rng.sample(rows, limit)
+        # else keep all; sample order not required when pool <= limit
+    elif limit is not None:
+        rows = rows[:limit]
+    for row in rows:
+        upstream = str(row.get("id") or "")
         case_id = slug_case_id(prefix, upstream)
         if kind == "extract":
             info = write_extract_case(
@@ -521,8 +534,6 @@ def import_task(
             (dest / case_id).relative_to(REPO) if not dry_run else dest / case_id
         )
         written.append(info)
-        if limit is not None and len(written) >= limit:
-            break
     if ids is not None:
         got = {w["pcfbench_id"] for w in written}
         missing = ids - got
@@ -534,6 +545,7 @@ def import_task(
         "out": str(dest.relative_to(REPO) if dest.is_relative_to(REPO) else dest),
         "n_written": len(written),
         "n_id_miss": skipped,
+        "seed": seed,
         "cases": written,
     }
 
@@ -566,6 +578,12 @@ def main(argv: list[str] | None = None) -> int:
         help="案例树根，默认 .benchmark/imported（gitignore）",
     )
     parser.add_argument("--limit", type=int, default=None, help="每 task 最多写 N 条")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="与 --limit 同用：对候选行 Random(seed).sample；无 seed 则取前 N 条",
+    )
     parser.add_argument(
         "--id",
         action="append",
@@ -604,11 +622,14 @@ def main(argv: list[str] | None = None) -> int:
                 limit=args.limit,
                 ids=id_set,
                 dry_run=args.dry_run,
+                seed=args.seed,
             )
         )
     payload = {
         "ok": True,
         "dry_run": args.dry_run,
+        "seed": args.seed,
+        "limit": args.limit,
         "out_root": str(out_root.relative_to(REPO) if out_root.is_relative_to(REPO) else out_root),
         "tasks": reports,
     }
