@@ -1,6 +1,6 @@
 id: full-lifecycle
-title: 整体生命周期
-title_en: Full life cycle
+title: 完整 LCA
+title_en: Full LCA
 description: 完整 LCA 计划表单（研究对象到特殊要求）。
 description_en: Full LCA plan form from study object through special requirements.
 align_workflows: [full-lca, revise-lca]

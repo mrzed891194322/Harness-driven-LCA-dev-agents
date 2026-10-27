@@ -1,6 +1,6 @@
 id: lca-only
-title: 单独 LCA
-title_en: LCA only
+title: LCI映射
+title_en: LCI mapping
 description: 侧重映射/评价相关字段（假定 BOM 已有或另跑）。
 description_en: Mapping and LCIA-focused fields when BOM already exists.
 align_workflows: []

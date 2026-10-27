@@ -1,7 +1,10 @@
 # v5 workspace artifacts and revise-lca revisions (I-45)
 
 ## Layout
-- `workspace/artifacts/plan/` — plan files (`main_plan.md`, `revise_plan.md`); always read-only for agents. The /plan form saves here too (I-47); full-lca start clears `revise_plan.md`.
+- `workspace/artifacts/plan/` — plan YAML from the /plan form (`main_plan.yaml`, `revise_plan.yaml`; `template_id` + `items`, no `references` key). Agents read whatever `*.yaml` / `*.md` is present here (injection merges them). `revise-lca` still writes its orchestration `plan_file` (often `revise_plan.md`) at run start. Read-only for agents during a run; full-lca start clears `revise_plan.*`.
+- `workspace/artifacts/bom/references/` and `workspace/artifacts/mapping/references/` — user-uploaded BOM / LCI
+  references copied from `harness/knowledge/uploads/{bom,lci}/` when a fresh workflow run starts (`prepare_fresh`).
+  Knowledge-type uploads stay in `harness/knowledge/inputs/` (injected via knowledge rules, not copied here).
 - `workspace/artifacts/<dir>/` — node deliverables (`bom/`, `mapping/`, `report/`); a node may write only the
   dirs of its `produces`.
 - `workspace/runs/<node>/` — per-node status, submits, feedback, reviewer notes; `runs/_run/` — manifest,

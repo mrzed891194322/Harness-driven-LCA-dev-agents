@@ -79,6 +79,9 @@ export function WorkflowBoard({
     if (!dialog) return;
     if (presetsOpen && !dialog.open) dialog.showModal();
     if (!presetsOpen && dialog.open) dialog.close();
+    return () => {
+      if (dialog.open) dialog.close();
+    };
   }, [presetsOpen]);
 
   useEffect(() => {
@@ -86,6 +89,9 @@ export function WorkflowBoard({
     if (!dialog) return;
     if (topoNodeId && !dialog.open) dialog.showModal();
     if (!topoNodeId && dialog.open) dialog.close();
+    return () => {
+      if (dialog.open) dialog.close();
+    };
   }, [topoNodeId]);
 
   useEffect(() => {
@@ -209,17 +215,13 @@ export function WorkflowBoard({
                 </button>
                 <div
                   className="flow-steps"
-                  role="button"
-                  tabIndex={0}
                   data-testid={`flow-agents-box-${n.id}`}
                   aria-label={t("wf.agentTopoAria", { title: n.title || n.id })}
-                  onClick={(e) => { e.stopPropagation(); setTopoNodeId(n.id); }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setTopoNodeId(n.id);
-                    }
+                  onClick={(e) => {
+                    // Empty padding opens topo; agent <button>s stopPropagation themselves.
+                    if ((e.target as HTMLElement).closest("button")) return;
+                    e.stopPropagation();
+                    setTopoNodeId(n.id);
                   }}
                 >
                   {Object.keys(n.agents).map((name) => (

@@ -159,7 +159,16 @@ class Injector:
         art = self.ws / "artifacts"
         out = []
         plan_dir = art / "plan"
-        plans = sorted(plan_dir.glob("*.md")) if plan_dir.is_dir() else []
+        plans: list[Path] = []
+        if plan_dir.is_dir():
+            seen: set[str] = set()
+            for pattern in ("*.yaml", "*.yml", "*.md"):
+                for path in plan_dir.glob(pattern):
+                    if path.name in seen:
+                        continue
+                    seen.add(path.name)
+                    plans.append(path)
+            plans.sort(key=lambda path: path.name)
         texts = {p.name: p.read_text(encoding="utf-8") for p in plans}
         texts.update(self.plan_override)
         out.append(_section("plan", "\n\n".join(texts[k] for k in sorted(texts)) or "（无计划）"))

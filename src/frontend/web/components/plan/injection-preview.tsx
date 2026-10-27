@@ -28,6 +28,9 @@ export function PromptModal({ node, agent, onClose }: { node: { id: string; titl
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
     if (open) setPart("system");
+    return () => {
+      if (d.open) d.close();
+    };
   }, [open]);
   return (
     <dialog ref={ref} className="settings-dialog" aria-labelledby="prompt-modal-title" data-testid="prompt-modal"

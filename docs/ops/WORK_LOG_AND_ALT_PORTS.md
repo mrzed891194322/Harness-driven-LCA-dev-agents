@@ -14,10 +14,16 @@ GUI：**结果浏览 → 工作记录**。最终交付侧栏只列 BOM / LCI / �
 
 ## 计划模板（YAML）
 
-表单分区由 `harness/plan-templates/*.yaml` 驱动（`full-lifecycle` / `bom-only` / `lca-only`）。  
-计划正文仍写入 `workspace/artifacts/plan/`（full-lca → `main_plan.md`，revise → `revise_plan.md`），不另开存储。
+表单分区由 `harness/plan-templates/*.yaml` 的 `sections` 驱动（`full-lifecycle` / `bom-only` / `lca-only`）。  
+计划页「预设计划类型」与下载模板共用同一 `template_id`；骨架不同（完整 LCA / 仅 BOM / LCI 映射）。
 
-API：`GET /api/plan/templates`、`GET /api/plan/templates/{id}`。
+落盘：`workspace/artifacts/plan/main_plan.yaml`（新工作）或 `revise_plan.yaml`（修订表单）。计划 YAML 只有 `template_id` 与 `items`（一般项 `title`+`content`；仅 `database` / `lcia` 可有 `enable`），**不含** `references`。非法 `items` 在表单与启动时不渲染、不下发。
+
+参考资料单独管理：类型为知识库 / BOM / LCI；编辑期分别在 `harness/knowledge/inputs/`、`uploads/bom/`、`uploads/lci/`；fresh 开跑时 BOM/LCI 复制到 `workspace/artifacts/bom|mapping/references/`（见 `ARTIFACTS.md`）。
+
+预览执行（PreviewBoard）区块顺序：**工作内容 → 参考资料 → 工作流**。
+
+API：`GET /api/plan/templates`、`GET /api/plan/templates/{id}`、`GET /api/plan/template?template_id=`（下载骨架 YAML）。
 
 ## 另开第二套前后端（不占现网 8800/3000）
 

@@ -1,31 +1,49 @@
-"""Structured LCA plan fields, Markdown template, and reference uploads."""
+"""LCA plan YAML (items list), template download, and reference uploads.
+
+Schema principle: upload what you render.
+- General item: {title, content}
+- Special item (only two): {type: database|lcia, enable: bool, content?: str}
+"""
 
 from __future__ import annotations
 
 import json
 import os
-import re
+import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-PLAN_RELATIVE = Path("workspace/artifacts/plan/main_plan.md")  # DESIGN.md §三 / I-47
-REVISE_PLAN_RELATIVE = Path("workspace/artifacts/plan/revise_plan.md")
+import yaml
+
+from backend.services.plan_templates import PlanTemplateError, get_plan_template
+
+PLAN_RELATIVE = Path("workspace/artifacts/plan/main_plan.yaml")
+REVISE_PLAN_RELATIVE = Path("workspace/artifacts/plan/revise_plan.yaml")
 INPUTS_RELATIVE = Path("harness/knowledge/inputs")
-TEMPLATE_NAME = "lca-plan-template.md"
+TEMPLATE_NAME = "lca-plan-template.yaml"
+PLAN_KIND = "lca_execution_plan"
+PLAN_VERSION = 2
+DEFAULT_TEMPLATE_ID = "full-lifecycle"
 NOTES_NAME = "reference-notes.json"
+REFERENCE_TYPES = frozenset({"knowledge", "bom", "lci"})
+DEFAULT_REFERENCE_TYPE = "knowledge"
+REFERENCE_STORAGE: dict[str, Path] = {
+    "knowledge": INPUTS_RELATIVE,
+    "bom": Path("harness/knowledge/uploads/bom"),
+    "lci": Path("harness/knowledge/uploads/lci"),
+}
+RUN_REFERENCE_DEST: dict[str, Path] = {
+    "bom": Path("bom/references"),
+    "lci": Path("mapping/references"),
+}
 DEFAULT_WORKFLOW_NAME = "full-lca"
-# GUI plan file per workflow id (v5 orchestrations).
 PLAN_BY_WORKFLOW = {"full-lca": PLAN_RELATIVE, "revise-lca": REVISE_PLAN_RELATIVE}
 MAX_PLAN_BYTES = 2 * 1024 * 1024
-PLAN_SUFFIXES = {".md", ".markdown", ".txt"}
-FIELD_KEYS = ("研究对象", "功能单位", "生命周期阶段", "附加条件")
-_SKIP_LABELS = {"研究对象", "功能单位", "生命周期阶段", "参考资料"}
-_FRONTMATTER = re.compile(r"\A---\n.*?\n---\n*", re.DOTALL)
-_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
-_H2 = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
-_SECTION_TITLE = re.compile(r"^section\s+(\d+)\b", re.IGNORECASE)
-_BOLD = re.compile(r"^-\s+\*\*(.+?)\*\*\s*[：:]\s*(.*)$", re.MULTILINE)
+UPLOAD_SUFFIXES = {".yaml", ".yml"}
+SPECIAL_TYPES = frozenset({"database", "lcia"})
+SPECIAL_TITLES = {"database": "LCA 数据库", "lcia": "LCIA 方法"}
 
 
 class PlanFormError(ValueError):
@@ -37,154 +55,360 @@ class PlanFormConflict(PlanFormError):
 
 
 @dataclass(frozen=True)
-class PlanFields:
-    subject: str
-    functional_unit: str
-    life_cycle_stages: str
-    conditions: str
+class PlanItem:
+    title: str = ""
+    content: str = ""
+    type: str = ""
+    enable: bool = True
 
-    def as_dict(self) -> dict[str, str]:
+    @property
+    def is_special(self) -> bool:
+        return self.type in SPECIAL_TYPES
+
+    def as_dict(self) -> dict[str, Any]:
+        if self.is_special:
+            row: dict[str, Any] = {"type": self.type, "enable": bool(self.enable)}
+            if self.title.strip() and self.title.strip() != SPECIAL_TITLES.get(self.type, ""):
+                row["title"] = self.title.strip()
+            if self.content.strip() or self.type == "lcia":
+                row["content"] = self.content
+            return row
+        return {"title": self.title, "content": self.content}
+
+
+@dataclass(frozen=True)
+class PlanDocument:
+    items: tuple[PlanItem, ...]
+    template_id: str = DEFAULT_TEMPLATE_ID
+
+    def as_dict(self) -> dict[str, Any]:
         return {
-            "subject": self.subject,
-            "functional_unit": self.functional_unit,
-            "life_cycle_stages": self.life_cycle_stages,
-            "conditions": self.conditions,
+            "template_id": self.template_id or DEFAULT_TEMPLATE_ID,
+            "items": [item.as_dict() for item in self.items],
         }
 
 
-def template_markdown() -> str:
-    return """---
-template_kind: lca_execution_plan
-template_version: 2
----
-
-# LCA 执行计划
-
-## section 1
-
-<!--
-研究对象 / Study object
-请在本注释之后自行填写。有多个对象时，每个对象单独成段。
-Write your own content below this comment. Put each object in its own paragraph.
--->
-
-## section 2
-
-<!--
-计算基准（功能单位）/ Functional unit
-请在本注释之后填写文字，这些文字会进入「附加说明」。数量和单位请到界面填写。
-Write the note below this comment. It is placed in the note field. Enter the quantity and unit in the interface.
--->
-
-## section 3
-
-<!--
-生命周期范围 / Life cycle scope
-请在本注释之后填写文字，这些文字会进入「附加说明」。纳入哪些阶段请到界面选择。
-Write the note below this comment. It is placed in the note field. Select the stages in the interface.
--->
-
-## section 4
-
-<!--
-地域与时间 / Geography and time
-请在本注释之后自行填写，文字会进入同一个文本框。
-Write below this comment. The text goes into one text box.
--->
-
-## section 5
-
-<!--
-LCA 数据库 / LCA database
-用户不能填写，请到界面手动选择。
-Do not fill this section. Select it manually in the interface.
--->
-
-## section 6
-
-<!--
-环境影响评价方法（LCIA）/ LCIA method
-用户不能填写，请到界面手动选择。
-Do not fill this section. Select it manually in the interface.
--->
-
-## section 7
-
-<!--
-关注的环境影响 / Impact categories
-用户不能填写，请到界面手动选择。
-Do not fill this section. Select it manually in the interface.
--->
-
-## section 8
-
-<!--
-特殊要求 / Special requirements
-请在本注释之后自行填写。没有额外限制时写「无」。
-Write any extra requirements below this comment. Write "none" if there are none.
--->
-"""
+# Backward-compatible alias used by a few call sites / tests.
+PlanFields = PlanDocument
 
 
-def parse_plan(text: str) -> PlanFields:
-    """Read the four plan fields. Unrecognized Markdown becomes 附加条件."""
-    sections = _h2_sections(text)
-    numbered = _numbered_sections(text)
-    if numbered is not None and not any(key in sections for key in FIELD_KEYS):
-        return _fields_from_numbered(numbered)
-    if any(key in sections for key in FIELD_KEYS):
-        return PlanFields(
-            subject=_clean(sections.get("研究对象", "")),
-            functional_unit=_clean(sections.get("功能单位", "")),
-            life_cycle_stages=_clean(sections.get("生命周期阶段", "")),
-            conditions=_clean(sections.get("附加条件", "")),
+def empty_plan_document(template_id: str = DEFAULT_TEMPLATE_ID) -> PlanDocument:
+    return PlanDocument(items=(), template_id=template_id or DEFAULT_TEMPLATE_ID)
+
+
+def _section_plan_item(section_id: str) -> PlanItem | None:
+    key = (section_id or "").strip()
+    if key == "study-sec-subject":
+        return PlanItem(title="研究对象", content="")
+    if key == "study-sec-basis":
+        return PlanItem(title="计算基准（功能单位）", content="")
+    if key == "study-sec-life":
+        return PlanItem(title="生命周期范围", content="")
+    if key == "study-sec-place":
+        return PlanItem(title="地域与时间", content="")
+    if key == "study-sec-database":
+        return PlanItem(type="database", enable=True, title=SPECIAL_TITLES["database"])
+    if key == "study-sec-lcia":
+        return PlanItem(type="lcia", enable=True, title=SPECIAL_TITLES["lcia"], content="")
+    if key == "study-sec-impact":
+        return PlanItem(title="关注的环境影响", content="")
+    if key == "study-sec-special":
+        return PlanItem(title="特殊要求", content="")
+    return None
+
+
+def items_for_template(root: Path, template_id: str) -> tuple[PlanItem, ...]:
+    """Plan item skeleton from harness/plan-templates sections (download + empty plan)."""
+    tid = (template_id or DEFAULT_TEMPLATE_ID).strip() or DEFAULT_TEMPLATE_ID
+    try:
+        detail = get_plan_template(root, tid)
+    except PlanTemplateError:
+        detail = get_plan_template(root, DEFAULT_TEMPLATE_ID)
+    items: list[PlanItem] = []
+    for section in detail.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        item = _section_plan_item(str(section.get("id") or ""))
+        if item is not None:
+            items.append(item)
+    if not items:
+        if tid != DEFAULT_TEMPLATE_ID:
+            return items_for_template(root, DEFAULT_TEMPLATE_ID)
+        return (
+            PlanItem(title="研究对象", content=""),
+            PlanItem(title="计算基准（功能单位）", content=""),
+            PlanItem(title="生命周期范围", content=""),
+            PlanItem(title="地域与时间", content=""),
+            PlanItem(type="database", enable=True, title=SPECIAL_TITLES["database"]),
+            PlanItem(type="lcia", enable=True, title=SPECIAL_TITLES["lcia"], content=""),
+            PlanItem(title="关注的环境影响", content=""),
+            PlanItem(title="特殊要求", content=""),
         )
+    return tuple(items)
 
-    labeled = _bold_values(text)
-    if any(labeled.get(key) for key in ("研究对象", "功能单位", "生命周期阶段")):
-        return PlanFields(
-            subject=labeled.get("研究对象", ""),
-            functional_unit=labeled.get("功能单位", ""),
-            life_cycle_stages=labeled.get("生命周期阶段", ""),
-            conditions=_legacy_conditions(text),
+
+def default_items(
+    template_id: str = DEFAULT_TEMPLATE_ID,
+    *,
+    root: Path | None = None,
+) -> tuple[PlanItem, ...]:
+    """Same skeleton as the download template for the given plan type."""
+    if root is not None:
+        return items_for_template(root, template_id)
+    return items_for_template(Path.cwd(), template_id)
+
+
+def template_download_filename(template_id: str = DEFAULT_TEMPLATE_ID) -> str:
+    tid = (template_id or DEFAULT_TEMPLATE_ID).strip() or DEFAULT_TEMPLATE_ID
+    return f"lca-plan-{tid}.yaml"
+
+
+def try_parse_item(raw: Any, *, index: int) -> PlanItem | None:
+    """Return a PlanItem when raw matches schema; None when this entry is illegal."""
+    if not isinstance(raw, dict):
+        return None
+    type_name = str(raw.get("type") or "").strip().lower()
+    if type_name:
+        if type_name not in SPECIAL_TYPES:
+            return None
+        if "enable" not in raw:
+            return None
+        enable = raw.get("enable")
+        if not isinstance(enable, bool):
+            return None
+        # Special items must not look like a general title/content-only row with junk keys only.
+        title = str(raw.get("title") or SPECIAL_TITLES[type_name]).strip() or SPECIAL_TITLES[type_name]
+        content = raw.get("content", "")
+        if content is None:
+            content = ""
+        if not isinstance(content, (str, int, float)):
+            return None
+        return PlanItem(title=title, content=str(content), type=type_name, enable=enable)
+
+    title = str(raw.get("title") or "").strip()
+    if not title:
+        return None
+    if "content" not in raw:
+        return None
+    content = raw.get("content")
+    if content is None:
+        content = ""
+    if not isinstance(content, (str, int, float)):
+        return None
+    return PlanItem(title=title, content=str(content), type="", enable=True)
+
+
+def parse_item(raw: Any, *, index: int) -> PlanItem:
+    item = try_parse_item(raw, index=index)
+    if item is None:
+        if not isinstance(raw, dict):
+            raise PlanFormError(f"计划 YAML 无效：items[{index}] 必须是对象")
+        type_name = str(raw.get("type") or "").strip().lower()
+        if type_name and type_name not in SPECIAL_TYPES:
+            raise PlanFormError(
+                f"计划 YAML 无效：items[{index}].type 只能是 database 或 lcia，收到「{type_name}」"
+            )
+        if type_name:
+            raise PlanFormError(
+                f"计划 YAML 无效：items[{index}]（type={type_name}）须有 enable: true/false"
+            )
+        raise PlanFormError(f"计划 YAML 无效：items[{index}] 一般项须有合法 title 与 content")
+    return item
+
+
+def parse_items(raw_items: Any, *, require_valid: bool) -> list[PlanItem]:
+    """Parse items.
+
+    require_valid=True (upload): any illegal entry fails the whole document —
+    do not half-load dirty data.
+    require_valid=False (soft read / save sanitize): keep only legal entries.
+    """
+    if raw_items is None:
+        if require_valid:
+            raise PlanFormError("计划 YAML 无效：缺少 items 列表")
+        return []
+    if not isinstance(raw_items, list):
+        if require_valid:
+            raise PlanFormError("计划 YAML 无效：items 必须是列表")
+        return []
+    if require_valid and len(raw_items) == 0:
+        raise PlanFormError("计划 YAML 无效：items 不能为空")
+
+    if require_valid:
+        # Fail-fast on the first illegal fragment so the UI never renders a partial dirty set.
+        return [parse_item(raw, index=index) for index, raw in enumerate(raw_items)]
+
+    kept: list[PlanItem] = []
+    for index, raw in enumerate(raw_items):
+        item = try_parse_item(raw, index=index)
+        if item is not None:
+            kept.append(item)
+    return kept
+
+
+def template_yaml(template_id: str = DEFAULT_TEMPLATE_ID, *, root: Path) -> str:
+    tid = (template_id or DEFAULT_TEMPLATE_ID).strip() or DEFAULT_TEMPLATE_ID
+    doc = PlanDocument(items=items_for_template(root, tid), template_id=tid)
+    return render_plan(doc)
+
+
+def template_markdown(*, root: Path) -> str:
+    return template_yaml(root=root)
+
+
+def parse_plan_meta(text: str) -> dict[str, Any]:
+    data = _load_plan_yaml(text)
+    if not isinstance(data, dict):
+        return {"template_id": DEFAULT_TEMPLATE_ID}
+    tid = str(data.get("template_id") or DEFAULT_TEMPLATE_ID).strip() or DEFAULT_TEMPLATE_ID
+    return {"template_id": tid, "kind": data.get("kind") or PLAN_KIND, "version": data.get("version") or PLAN_VERSION}
+
+
+def parse_plan(text: str) -> PlanDocument:
+    """Parse YAML plan into a PlanDocument (legacy fields → items when needed)."""
+    doc = _document_from_yaml(text, require_valid=False)
+    if doc is not None:
+        return doc
+    return empty_plan_document()
+
+
+def render_plan(
+    document: PlanDocument | dict[str, Any],
+    reference_names: list[str] | None = None,
+    *,
+    template_id: str | None = None,
+) -> str:
+    """Serialize plan YAML. Main structure is items only (no references key)."""
+    del reference_names  # references live under harness/knowledge/inputs, not in plan YAML
+    doc = _coerce_document(document, template_id=template_id)
+    payload: dict[str, Any] = {
+        "kind": PLAN_KIND,
+        "version": PLAN_VERSION,
+        "template_id": doc.template_id,
+        "items": [item.as_dict() for item in doc.items],
+    }
+    return yaml.safe_dump(payload, allow_unicode=True, sort_keys=False, default_flow_style=False)
+
+
+def _coerce_document(
+    document: PlanDocument | dict[str, Any],
+    *,
+    template_id: str | None = None,
+) -> PlanDocument:
+    """Keep only schema-legal items for save / start payloads."""
+    if isinstance(document, PlanDocument):
+        tid = (template_id or document.template_id or DEFAULT_TEMPLATE_ID).strip() or DEFAULT_TEMPLATE_ID
+        # Re-validate dataclass items through dict round-trip to drop anything illegal.
+        items = parse_items([item.as_dict() for item in document.items], require_valid=False)
+        return PlanDocument(items=tuple(items), template_id=tid)
+    if isinstance(document, dict):
+        tid = (
+            template_id
+            or str(document.get("template_id") or DEFAULT_TEMPLATE_ID)
+        ).strip() or DEFAULT_TEMPLATE_ID
+        items = parse_items(document.get("items"), require_valid=False)
+        if not items and document.get("fields"):
+            items = _legacy_fields_to_items(document.get("fields"))
+        return PlanDocument(items=tuple(items), template_id=tid)
+    raise PlanFormError("计划无效")
+
+
+def _load_plan_yaml(text: str) -> Any:
+    if not (text or "").strip():
+        return None
+    try:
+        return yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None
+
+
+def _document_from_yaml(text: str, *, require_valid: bool) -> PlanDocument | None:
+    stripped = (text or "").strip()
+    if not stripped:
+        if require_valid:
+            raise PlanFormError("计划 YAML 为空")
+        return None
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        if require_valid:
+            raise PlanFormError(f"计划 YAML 无法解析：{exc}") from exc
+        return None
+    if data is None:
+        if require_valid:
+            raise PlanFormError("计划 YAML 为空")
+        return None
+    if not isinstance(data, dict):
+        if require_valid:
+            raise PlanFormError("计划 YAML 无效：根节点必须是对象")
+        return None
+
+    tid = str(data.get("template_id") or DEFAULT_TEMPLATE_ID).strip() or DEFAULT_TEMPLATE_ID
+
+    if "items" in data:
+        items = parse_items(data.get("items"), require_valid=require_valid)
+        return PlanDocument(items=tuple(items), template_id=tid)
+
+    # Legacy: fields: {subject, ...} → items
+    fields = data.get("fields")
+    if isinstance(fields, dict):
+        items = _legacy_fields_to_items(fields)
+        if require_valid and not items:
+            raise PlanFormError("计划 YAML 无效：缺少 items（或旧版 fields）")
+        return PlanDocument(items=tuple(items), template_id=tid)
+
+    if require_valid:
+        raise PlanFormError("计划 YAML 无效：缺少 items 列表（一般项 title/content；特殊项 type+enable）")
+    return None
+
+
+def _legacy_fields_to_items(fields: Any) -> list[PlanItem]:
+    if not isinstance(fields, dict):
+        return []
+    items: list[PlanItem] = []
+
+    def add_text(title: str, key: str) -> None:
+        value = str(fields.get(key) or "").strip()
+        items.append(PlanItem(title=title, content=value))
+
+    add_text("研究对象", "subject")
+    add_text("计算基准（功能单位）", "functional_unit")
+    add_text("生命周期范围", "life_cycle_stages")
+    place = str(fields.get("place") or "").strip()
+    if not place:
+        conditions = str(fields.get("conditions") or "")
+        for block in conditions.split("\n\n"):
+            text = block.strip()
+            if text.startswith("地域与时间"):
+                place = text.split("：", 1)[-1].split(":", 1)[-1].strip()
+                break
+    items.append(PlanItem(title="地域与时间", content=place))
+    items.append(
+        PlanItem(
+            type="database",
+            enable=True,
+            title=SPECIAL_TITLES["database"],
+            content=str(fields.get("database") or ""),
         )
-
-    body = _clean(_FRONTMATTER.sub("", text))
-    if not body or body == "# LCA 执行计划":
-        return PlanFields("", "", "", "")
-    return PlanFields("", "", "", body)
-
-
-def render_plan(fields: PlanFields, reference_names: list[str]) -> str:
-    names = [name for name in reference_names if name.strip()]
-    if names:
-        ref_lines = "\n".join(f"- `harness/knowledge/inputs/{name}`" for name in names)
-    else:
-        ref_lines = "- 未上传。请在计划页的参考资料区上传文件后再保存。"
-    conditions = fields.conditions.strip() or "无"
-    return (
-        "---\n"
-        "template_kind: lca_execution_plan\n"
-        "template_version: 1\n"
-        "---\n\n"
-        "# LCA 执行计划\n\n"
-        "## 研究对象\n\n"
-        f"{fields.subject.strip()}\n\n"
-        "## 功能单位\n\n"
-        f"{fields.functional_unit.strip()}\n\n"
-        "## 生命周期阶段\n\n"
-        f"{fields.life_cycle_stages.strip()}\n\n"
-        "## 附加条件\n\n"
-        f"{conditions}\n\n"
-        "## 参考资料\n\n"
-        f"{ref_lines}\n"
-        "- Agent 仅可使用上述用户上传资料、项目已有知识库和活动 openLCA 数据库，"
-        "禁止联网搜索或使用其他来源。\n"
     )
+    items.append(
+        PlanItem(
+            type="lcia",
+            enable=True,
+            title=SPECIAL_TITLES["lcia"],
+            content=str(fields.get("lcia") or ""),
+        )
+    )
+    add_text("关注的环境影响", "impacts")
+    special = str(fields.get("special") or "").strip()
+    if not special:
+        # leftover conditions blocks without known labels
+        special = ""
+    items.append(PlanItem(title="特殊要求", content=special))
+    return items
 
 
 def plan_relative_path(root: Path, *, workflow: str | None = None) -> Path:
-    """Fixed plan file per workflow id (full-lca → main_plan.md, revise-lca → revise_plan.md)."""
     del root
     key = (workflow or DEFAULT_WORKFLOW_NAME).strip() or DEFAULT_WORKFLOW_NAME
     if key not in PLAN_BY_WORKFLOW:
@@ -204,22 +428,31 @@ def read_plan_document(root: Path, *, workflow: str | None = None) -> dict[str, 
     relative = plan_relative_path(root, workflow=workflow)
     path = root / relative
     if not path.is_file():
-        fields = PlanFields("", "", "", "")
+        doc = PlanDocument(
+            items=default_items(DEFAULT_TEMPLATE_ID, root=root),
+            template_id=DEFAULT_TEMPLATE_ID,
+        )
         content = ""
     else:
         content = path.read_text(encoding="utf-8")
-        fields = parse_plan(content)
+        doc = parse_plan(content)
+        if not doc.items:
+            doc = PlanDocument(
+                items=default_items(doc.template_id, root=root),
+                template_id=doc.template_id,
+            )
     references = list_references(root)
     return {
         "path": relative.as_posix(),
         "content": content,
-        "fields": fields.as_dict(),
+        "fields": doc.as_dict(),
+        "template_id": doc.template_id,
+        "items": [item.as_dict() for item in doc.items],
         "references": references,
     }
 
 
 def write_text_atomic(path: Path, text: str) -> None:
-    """Replace ``path`` in place (or create it) via a temp file in the same dir."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(
         prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
@@ -233,10 +466,16 @@ def write_text_atomic(path: Path, text: str) -> None:
         raise
 
 
-def save_plan(root: Path, fields: PlanFields, *, workflow: str | None = None) -> None:
+def save_plan(
+    root: Path,
+    document: PlanDocument | dict[str, Any],
+    *,
+    workflow: str | None = None,
+    template_id: str | None = None,
+) -> None:
     path = plan_path(root, workflow=workflow)
     names = [item["name"] for item in list_references(root)]
-    write_text_atomic(path, render_plan(fields, names))
+    write_text_atomic(path, render_plan(document, names, template_id=template_id))
 
 
 def import_plan_bytes(
@@ -247,113 +486,213 @@ def import_plan_bytes(
     data: bytes,
     overwrite: bool = False,
 ) -> dict[str, object]:
-    text = _decode_plan_text(filename, data)
-    fields = parse_plan(text)
+    text = _decode_plan_upload(filename, data)
+    doc = _document_from_yaml(text, require_valid=True)
+    assert doc is not None
     relative = plan_relative_path(root, workflow=workflow)
     path = root / relative
+    names = [item["name"] for item in list_references(root)]
+    rendered = render_plan(doc, names)
     if path.is_file() and not overwrite:
         existing = path.read_text(encoding="utf-8")
-        if existing.strip() and existing != text:
+        if existing.strip() and existing != rendered and existing != text:
             raise PlanFormConflict("计划文件已存在；如需覆盖请设置 overwrite=true")
-    write_text_atomic(path, text)
+    write_text_atomic(path, rendered)
     return {
         "path": relative.as_posix(),
-        "fields": fields.as_dict(),
+        "fields": doc.as_dict(),
+        "template_id": doc.template_id,
+        "items": [item.as_dict() for item in doc.items],
+        "content": rendered,
         "filename": Path(filename or "").name,
     }
 
 
+def normalize_reference_type(value: str | None) -> str:
+    key = (value or "").strip().lower()
+    if key in REFERENCE_TYPES:
+        return key
+    return DEFAULT_REFERENCE_TYPE
+
+
 def list_references(root: Path) -> list[dict[str, object]]:
-    folder = inputs_dir(root)
-    if not folder.is_dir():
-        return []
     notes = _read_notes(root)
     rows: list[dict[str, object]] = []
-    for path in sorted(folder.rglob("*"), key=lambda item: item.as_posix().lower()):
-        if not _is_reference_file(folder, path):
+    for ref_type in sorted(REFERENCE_TYPES):
+        folder = _storage_dir(root, ref_type)
+        if not folder.is_dir():
             continue
-        relative = path.relative_to(folder).as_posix()
-        rows.append(_reference_record(path, relative, notes.get(relative, "")))
+        for path in sorted(folder.rglob("*"), key=lambda item: item.as_posix().lower()):
+            if not _is_reference_file(folder, path):
+                continue
+            relative = path.relative_to(folder).as_posix()
+            note_key = _note_key(ref_type, relative)
+            rows.append(
+                _reference_record(
+                    path,
+                    relative,
+                    notes.get(note_key, notes.get(relative, "") if ref_type == "knowledge" else ""),
+                    ref_type,
+                )
+            )
     return rows
 
 
-def save_reference(root: Path, filename: str, data: bytes) -> dict[str, object]:
-    saved = save_references(root, [(filename, data)])
+def save_reference(root: Path, filename: str, data: bytes, *, ref_type: str = DEFAULT_REFERENCE_TYPE) -> dict[str, object]:
+    saved = save_references(root, [(filename, data)], [ref_type])
     return saved[0]
 
 
-def save_references(root: Path, uploads: list[tuple[str, bytes]]) -> list[dict[str, object]]:
-    folder = inputs_dir(root).resolve()
-    prepared: list[tuple[Path, str, bytes]] = []
+def save_references(
+    root: Path,
+    uploads: list[tuple[str, bytes]],
+    types: list[str] | None = None,
+) -> list[dict[str, object]]:
+    prepared: list[tuple[Path, str, str, bytes]] = []
     seen: set[str] = set()
     conflicts: list[str] = []
-    for filename, data in uploads:
-        path = _reference_path(root, filename)
+    for index, (filename, data) in enumerate(uploads):
+        ref_type = normalize_reference_type(types[index] if types and index < len(types) else None)
+        path = _reference_path(root, filename, ref_type=ref_type)
+        folder = _storage_dir(root, ref_type).resolve()
         relative = path.relative_to(folder).as_posix()
-        # Add-only: an existing name is rejected (never overwritten) and no
-        # other file in inputs/ is ever removed.
-        if relative in seen or path.exists():
+        token = f"{ref_type}:{relative}"
+        if token in seen or path.exists() or _reference_exists(root, relative, exclude_type=None):
             conflicts.append(relative)
             continue
-        seen.add(relative)
-        prepared.append((path, relative, data))
+        seen.add(token)
+        prepared.append((path, relative, ref_type, data))
     if conflicts:
         names = "、".join(f"「{name}」" for name in dict.fromkeys(conflicts))
         raise PlanFormError(f"不能上传同名文件：{names}")
     saved: list[dict[str, object]] = []
     notes = _read_notes(root)
-    for path, relative, data in prepared:
+    for path, relative, ref_type, data in prepared:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(path.name + ".uploading")
         temporary.write_bytes(data)
         temporary.replace(path)
-        saved.append(_reference_record(path, relative, notes.get(relative, "")))
+        note_key = _note_key(ref_type, relative)
+        saved.append(_reference_record(path, relative, notes.get(note_key, ""), ref_type))
     return saved
 
 
-def save_reference_note(root: Path, filename: str, note: str) -> dict[str, object]:
-    path = _reference_path(root, filename)
-    if not path.is_file():
+def save_reference_note(root: Path, filename: str, note: str, *, ref_type: str | None = None) -> dict[str, object]:
+    located = _locate_reference(root, filename, ref_type=ref_type)
+    if located is None:
         raise FileNotFoundError(filename)
-    relative = path.relative_to(inputs_dir(root).resolve()).as_posix()
+    ref_type, path, relative = located
     notes = _read_notes(root)
+    note_key = _note_key(ref_type, relative)
     text = note.strip()
     if text:
-        notes[relative] = text
+        notes[note_key] = text
     else:
-        notes.pop(relative, None)
+        notes.pop(note_key, None)
+        if ref_type == "knowledge":
+            notes.pop(relative, None)
     _write_notes(root, notes)
-    return _reference_record(path, relative, notes.get(relative, ""))
+    return _reference_record(path, relative, notes.get(note_key, ""), ref_type)
 
 
-def delete_reference(root: Path, filename: str) -> None:
-    folder = inputs_dir(root).resolve()
-    path = _reference_path(root, filename)
-    if not path.is_file():
+def save_reference_type(root: Path, filename: str, ref_type: str, *, current_type: str | None = None) -> dict[str, object]:
+    target = normalize_reference_type(ref_type)
+    located = _locate_reference(root, filename, ref_type=current_type)
+    if located is None:
         raise FileNotFoundError(filename)
-    relative = path.relative_to(folder).as_posix()
+    current, path, relative = located
+    if current == target:
+        notes = _read_notes(root)
+        note_key = _note_key(current, relative)
+        return _reference_record(path, relative, notes.get(note_key, ""), current)
+    dest = _reference_path(root, relative, ref_type=target)
+    if dest.exists():
+        raise PlanFormError(f"不能改为「{target}」：目标位置已有同名文件")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(path), str(dest))
+    folder = _storage_dir(root, current)
+    _prune_empty_dirs(folder, path.parent)
+    notes = _read_notes(root)
+    old_key = _note_key(current, relative)
+    note = notes.pop(old_key, None)
+    if current == "knowledge":
+        note = notes.pop(relative, note)
+    if note:
+        notes[_note_key(target, relative)] = note
+    _write_notes(root, notes)
+    return _reference_record(dest, relative, notes.get(_note_key(target, relative), ""), target)
+
+
+def apply_reference_types(root: Path, items: list[dict[str, Any]]) -> None:
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or "").strip()
+        if not name:
+            continue
+        target = normalize_reference_type(str(row.get("type") or ""))
+        located = _locate_reference(root, name)
+        if located is None:
+            continue
+        current, _, _ = located
+        if current != target:
+            save_reference_type(root, name, target, current_type=current)
+
+
+def stage_references_for_run(root: Path, workspace: Path) -> dict[str, list[str]]:
+    """After workspace artifacts reset: copy BOM/LCI uploads into artifact reference dirs."""
+    staged: dict[str, list[str]] = {"bom": [], "lci": []}
+    art = workspace / "artifacts"
+    for ref_type in ("bom", "lci"):
+        src_root = _storage_dir(root, ref_type)
+        dest_root = art / RUN_REFERENCE_DEST[ref_type]
+        if not src_root.is_dir():
+            continue
+        for path in sorted(src_root.rglob("*"), key=lambda item: item.as_posix().lower()):
+            if not _is_reference_file(src_root, path):
+                continue
+            relative = path.relative_to(src_root)
+            target = dest_root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+            staged[ref_type].append(relative.as_posix())
+    return staged
+
+
+def delete_reference(root: Path, filename: str, *, ref_type: str | None = None) -> None:
+    located = _locate_reference(root, filename, ref_type=ref_type)
+    if located is None:
+        raise FileNotFoundError(filename)
+    ref_type, path, relative = located
+    folder = _storage_dir(root, ref_type).resolve()
     path.unlink()
     _prune_empty_dirs(folder, path.parent)
     notes = _read_notes(root)
-    if relative in notes:
+    note_key = _note_key(ref_type, relative)
+    if note_key in notes:
+        notes.pop(note_key, None)
+    if ref_type == "knowledge" and relative in notes:
         notes.pop(relative, None)
-        _write_notes(root, notes)
+    _write_notes(root, notes)
 
 
-def _decode_plan_text(filename: str, data: bytes) -> str:
+def _decode_plan_upload(filename: str, data: bytes) -> str:
     suffix = Path(filename or "").suffix.lower()
-    if suffix not in PLAN_SUFFIXES:
-        raise PlanFormError("请上传 .md 文档")
+    if suffix not in UPLOAD_SUFFIXES:
+        raise PlanFormError("请上传 .yaml / .yml 计划文档")
     if len(data) > MAX_PLAN_BYTES:
-        raise PlanFormError("Markdown 超过 2MB")
+        raise PlanFormError("计划 YAML 超过 2MB")
     try:
         return data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise PlanFormError("文件不是 UTF-8 文本") from exc
 
 
-def decode_plan_upload(filename: str, data: bytes) -> PlanFields:
-    return parse_plan(_decode_plan_text(filename, data))
+def decode_plan_upload(filename: str, data: bytes) -> PlanDocument:
+    text = _decode_plan_upload(filename, data)
+    doc = _document_from_yaml(text, require_valid=True)
+    assert doc is not None
+    return doc
 
 
 def _is_reference_file(folder: Path, path: Path) -> bool:
@@ -368,13 +707,52 @@ def _is_reference_file(folder: Path, path: Path) -> bool:
     return not any(part.startswith(".") for part in relative.parts)
 
 
-def _reference_record(path: Path, relative: str, note: str) -> dict[str, object]:
+def _reference_record(path: Path, relative: str, note: str, ref_type: str) -> dict[str, object]:
+    storage = REFERENCE_STORAGE[ref_type]
     return {
         "name": relative,
+        "type": ref_type,
         "size": path.stat().st_size,
-        "path": f"{INPUTS_RELATIVE.as_posix()}/{relative}",
+        "path": f"{storage.as_posix()}/{relative}",
         "note": note,
     }
+
+
+def _note_key(ref_type: str, relative: str) -> str:
+    if ref_type == DEFAULT_REFERENCE_TYPE:
+        return relative
+    return f"{ref_type}/{relative}"
+
+
+def _storage_dir(root: Path, ref_type: str) -> Path:
+    rel = REFERENCE_STORAGE.get(normalize_reference_type(ref_type), INPUTS_RELATIVE)
+    return root / rel
+
+
+def _reference_exists(root: Path, relative: str, *, exclude_type: str | None) -> bool:
+    for ref_type in REFERENCE_TYPES:
+        if exclude_type and ref_type == exclude_type:
+            continue
+        path = _storage_dir(root, ref_type) / relative
+        if path.is_file():
+            return True
+    return False
+
+
+def _locate_reference(root: Path, filename: str, *, ref_type: str | None = None) -> tuple[str, Path, str] | None:
+    if ref_type:
+        path = _reference_path(root, filename, ref_type=normalize_reference_type(ref_type))
+        if not path.is_file():
+            return None
+        folder = _storage_dir(root, normalize_reference_type(ref_type)).resolve()
+        return normalize_reference_type(ref_type), path, path.relative_to(folder).as_posix()
+    relative = _reference_relative(filename)
+    for candidate in REFERENCE_TYPES:
+        folder = _storage_dir(root, candidate).resolve()
+        path = folder / relative
+        if path.is_file():
+            return candidate, path.resolve(), relative
+    return None
 
 
 def _notes_path(root: Path) -> Path:
@@ -430,9 +808,9 @@ def _reference_relative(filename: str) -> str:
     return "/".join(parts)
 
 
-def _reference_path(root: Path, filename: str) -> Path:
+def _reference_path(root: Path, filename: str, *, ref_type: str = DEFAULT_REFERENCE_TYPE) -> Path:
     relative = _reference_relative(filename)
-    folder = inputs_dir(root).resolve()
+    folder = _storage_dir(root, ref_type).resolve()
     cursor = folder
     for part in relative.split("/"):
         cursor = cursor / part
@@ -456,134 +834,3 @@ def _prune_empty_dirs(folder: Path, directory: Path) -> None:
         except OSError:
             break
         current = current.parent
-
-
-def _numbered_sections(text: str) -> dict[int, str] | None:
-    """Bodies under ``## section N``. None when the file does not use that outline."""
-    matches = list(_H2.finditer(text))
-    sections: dict[int, str] = {}
-    found = False
-    for index, match in enumerate(matches):
-        number = _SECTION_TITLE.match(match.group(1).strip())
-        start = match.end()
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        if number is None:
-            continue
-        found = True
-        sections[int(number.group(1))] = text[start:end]
-    return sections if found else None
-
-
-def _fields_from_numbered(sections: dict[int, str]) -> PlanFields:
-    """Map the v2 worksheet onto the saved fields.
-
-    Written text lands in text boxes. Sections 2 and 3 also have selectable
-    controls, so their whole body stays in ``附加说明`` and does not set those
-    controls. Sections 5–7 are chosen in the interface.
-    """
-    blocks = _place_blocks(sections.get(4, ""))
-    special = _clean(sections.get(8, ""))
-    if special and special not in {"无", "none", "None"}:
-        blocks.append(special)
-    return PlanFields(
-        subject=_clean(sections.get(1, "")),
-        functional_unit=_as_note(sections.get(2, "")),
-        life_cycle_stages=_as_note(sections.get(3, "")),
-        conditions="\n\n".join(blocks),
-    )
-
-
-def _as_note(text: str) -> str:
-    """Keep a template body in 附加说明, even if it mentions 数量 or 阶段."""
-    body = _clean(text)
-    if not body:
-        return ""
-    return f"附加说明：{body}"
-
-
-def _place_blocks(text: str) -> list[str]:
-    """Section 4 is one text box. Keep the body together, including old labels."""
-    body = _clean(text)
-    if not body:
-        return []
-    return [f"地域与时间：{body}"]
-
-
-def _h2_sections(text: str) -> dict[str, str]:
-    """Split by the known H2 fields; unknown H2 sections belong to 附加条件.
-
-    Users often write their own ``## 1. 研究目的…`` headings inside 附加条件; those
-    used to end the section, so the conditions were lost on the next load (#18).
-    """
-    matches = list(_H2.finditer(text))
-    sections: dict[str, str] = {}
-    extra: list[str] = []
-    for index, match in enumerate(matches):
-        key = _section_key(match.group(1))
-        start = match.end()
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        if key is None:
-            extra.append(match.group(0) + text[start:end])
-        elif key not in sections:
-            sections[key] = text[start:end]
-    if extra and any(key in sections for key in FIELD_KEYS):
-        base = sections.get("附加条件", "").rstrip()
-        sections["附加条件"] = "\n\n".join(part for part in (base, *extra) if part.strip())
-    return sections
-
-
-def _section_key(title: str) -> str | None:
-    cleaned = re.sub(r"^\d+\.\s*", "", title).strip()
-    cleaned = re.sub(r"\s*\([^)]*\)\s*$", "", cleaned).strip()
-    for key in (*FIELD_KEYS, "参考资料"):
-        if cleaned == key or cleaned.startswith(key):
-            return key
-    if "参考文献" in cleaned:
-        return "参考资料"
-    return None
-
-
-def _bold_values(text: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for match in _BOLD.finditer(text):
-        key = _section_key(match.group(1))
-        if key in FIELD_KEYS and key not in values:
-            values[key] = match.group(2).strip()
-    return values
-
-
-def _legacy_conditions(text: str) -> str:
-    kept: list[str] = []
-    for raw in _FRONTMATTER.sub("", text).splitlines():
-        line = raw.strip()
-        if not line or line.startswith("# ") or line.startswith(">"):
-            continue
-        if line.startswith("## "):
-            key = _section_key(line[3:].strip())
-            if key in {"研究对象", "功能单位", "生命周期阶段", "参考资料"}:
-                continue
-            kept.append(raw)
-            continue
-        label = _BOLD.match(raw.strip())
-        if label is not None:
-            key = _section_key(label.group(1))
-            if key in _SKIP_LABELS:
-                continue
-        kept.append(raw)
-    return _clean("\n".join(kept))
-
-
-def _clean(text: str) -> str:
-    without_comments = _COMMENT.sub("", text)
-    lines = [line.rstrip() for line in without_comments.splitlines()]
-    compact: list[str] = []
-    blank = False
-    for line in lines:
-        if not line.strip():
-            if compact and not blank:
-                compact.append("")
-            blank = True
-            continue
-        compact.append(line)
-        blank = False
-    return "\n".join(compact).strip()

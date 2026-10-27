@@ -15,9 +15,9 @@ Linux、macOS 或原生 Windows（Windows 需安装 [Git for Windows](https://gi
 | 页面 | 作用 |
 | --- | --- |
 | 项目状态 | 环境检查（Node / Pi SDK、Python、openLCA）与可用模型 |
-| LCA 计划 | 「新工作」写 `main_plan.md`，「修改工作」写 `revise_plan.md`；上传参考资料；「去运行」跳到运行页 |
+| LCA 计划 | 选预设计划类型、填表或导入 YAML（`main_plan.yaml` / `revise_plan.yaml`）；上传参考资料（知识库 / BOM / LCI）；预览执行可从此页开跑 |
 | 运行详情 | 选工作流（full-lca / revise-lca）和模型，开始运行、停止、续跑；节点表显示每个节点的状态、轮次和错误 |
-| 结果浏览 | 最终交付、中间产物、工作记录（每个节点每一轮的提交与审核结论）；修订运行另有「上一版」 |
+| 结果浏览 | **工作记录**（注入与事件摘要）与 **最终交付**（BOM / LCI / 报告；含修订 `.rev<N>` 文件） |
 
 一次运行由若干节点组成（full-lca：bom → mapping → report）。每个节点由执行者产出、审核者给出
 通过或退回；退回会带着反馈进入下一轮。停止后可「续跑」，已通过的节点不会重跑。

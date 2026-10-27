@@ -15,14 +15,13 @@ import { workflowForMode, type WorkflowCard } from "../../lib/workflow-cards";
 import { useLocale } from "../../lib/i18n/locale-context";
 import { translate } from "../../lib/i18n/messages";
 import { uiLang } from "../../lib/run-status";
+import {
+  normalizeReferenceType,
+  referencesPayload,
+  type ReferenceFile,
+} from "../../lib/reference-types";
 
 type Preview = { nodes: { id: string; title: string; agents: { agent: string; system: string; user: string }[] }[]; plan_present: boolean; plan_source?: string };
-
-type ReferenceFile = {
-  name: string;
-  size: number;
-  note?: string;
-};
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -102,21 +101,23 @@ export function PreviewBoard({
               </div>
             ))}
           </dl>
-          <h4>{t("preview.refs")}</h4>
-          {references.length ? (
-            <ul className="preview-files">
+        </section>
+
+        {references.length ? (
+          <section className="preview-section" aria-labelledby="preview-refs-title">
+            <h3 id="preview-refs-title">{t("preview.refs")}</h3>
+            <ul className="preview-ref-chips" data-testid="preview-ref-chips">
               {references.map((file) => (
-                <li key={file.name}>
+                <li key={`${normalizeReferenceType(file.type)}:${file.name}`} className="preview-ref-chip" title={file.note?.trim() || undefined}>
+                  <span className="preview-ref-kind">{t(`plan.refType.${normalizeReferenceType(file.type)}`)}</span>
                   <strong>{file.name}</strong>
                   <small>{formatSize(file.size)}</small>
-                  {file.note?.trim() ? <p>{file.note.trim()}</p> : null}
+                  {file.note?.trim() ? <span className="preview-ref-note">{file.note.trim()}</span> : null}
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="settings-meta">{t("preview.noRefs")}</p>
-          )}
-        </section>
+          </section>
+        ) : null}
 
         <section className="preview-section" aria-labelledby="preview-flow-title">
           <h3 id="preview-flow-title">{t("preview.workflow")}</h3>
@@ -170,7 +171,7 @@ export function PreviewBoard({
           data-testid="preview-start"
           disabled={!canStart || starting}
           onClick={() =>
-            void executeTask(taskId, work.plan, setStarting, setStartError, (href) => router.push(href))
+            void executeTask(taskId, work.plan, references, setStarting, setStartError, (href) => router.push(href))
           }
         >
           <Play className="launch-icon" aria-hidden="true" />
@@ -184,6 +185,7 @@ export function PreviewBoard({
 async function executeTask(
   task: string,
   fields: PlanFields,
+  references: ReferenceFile[],
   setStarting: (value: boolean) => void,
   setStartError: (value: string) => void,
   push: (href: string) => void,
@@ -196,10 +198,10 @@ async function executeTask(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         workflow: task,
-        subject: fields.subject,
-        functional_unit: fields.functional_unit,
-        life_cycle_stages: fields.life_cycle_stages,
-        conditions: fields.conditions,
+        template_id: fields.template_id,
+        // StudyForm only keeps schema-legal items; never send dirty fragments.
+        items: fields.items,
+        references: referencesPayload(references),
       }),
     });
     if (!response.ok) {

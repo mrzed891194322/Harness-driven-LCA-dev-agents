@@ -107,6 +107,11 @@ class Runner:
         for name, text in plans.items():
             (plan_dir / name).write_text(text, encoding="utf-8")
         self.events.emit("plan_written", files=sorted(plans), bytes={k: len(v.encode()) for k, v in plans.items()})
+        from backend.services.plan_form import stage_references_for_run
+
+        staged = stage_references_for_run(self.root, self.ws)
+        if staged["bom"] or staged["lci"]:
+            self.events.emit("references_staged", **staged)
 
     def _drop_unfinished_revs(self) -> None:
         """A fresh ``start_rev: next`` run must not build on the previous run's unfinished revs (failed/stopped)."""

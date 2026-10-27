@@ -935,6 +935,12 @@ button:disabled {
   font-size: 1.45rem;
 }
 
+/* Closed <dialog> must never intercept clicks (stuck showModal / React remount). */
+dialog:not([open]) {
+  display: none;
+  pointer-events: none;
+}
+
 .settings-dialog {
   width: min(880px, calc(100vw - 32px));
   height: min(680px, calc(100vh - 48px));
@@ -1656,12 +1662,14 @@ button:disabled {
 }
 
 .plan-import {
-  justify-content: flex-end;
-  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px 12px;
 }
 
 .plan-import .plan-status {
-  margin: 0 auto 0 0;
+  margin: 0;
   white-space: nowrap;
 }
 
@@ -1675,7 +1683,15 @@ button:disabled {
   white-space: nowrap;
 }
 
-.plan-import button {
+.plan-import-actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.plan-import-actions button {
   flex: none;
 }
 
@@ -1791,6 +1807,16 @@ button:disabled {
   line-height: 1.5;
   color: var(--ink);
   background: #fff;
+}
+
+/* Single-line plan fields (subject / FU / scope / impacts / basis / special). */
+input.study-area.study-line {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 10px;
+  line-height: 36px;
+  resize: none;
 }
 
 .study-objects {
@@ -3425,12 +3451,41 @@ button:disabled {
   background: var(--accent-soft);
 }
 
-.plan-file-index {
+.plan-file-type-row {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.plan-file-type-prefix {
+  flex: none;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.plan-file-type {
+  flex: 1;
+  min-width: 0;
+  min-height: 26px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--line) 85%, var(--accent));
+  border-radius: 8px;
+  background: #fff;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
   color: var(--accent);
+  cursor: pointer;
+}
+
+.plan-files li[data-active="true"] .plan-file-type {
+  background: #fff;
+  border-color: var(--accent);
 }
 
 .plan-file-name {
@@ -3591,42 +3646,58 @@ button:disabled {
   line-height: 1.5;
 }
 
-.preview-section h4 {
-  margin-top: 14px;
-}
-
-.preview-files {
+.preview-ref-chips {
   list-style: none;
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   padding: 0;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.preview-files li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 10px;
-  padding: 8px 10px;
+.preview-ref-kind {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.preview-ref-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 999px;
   background: #fbfcf9;
-}
-
-.preview-files strong {
-  overflow-wrap: anywhere;
-}
-
-.preview-files small,
-.preview-files p {
-  margin: 0;
-  color: var(--muted);
   font-size: 0.78rem;
 }
 
-.preview-files p {
-  grid-column: 1 / -1;
+.preview-ref-chip strong {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.preview-ref-chip small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.preview-ref-note {
+  flex: 1 1 100%;
+  margin: 2px 0 0;
+  padding-left: 2px;
+  color: var(--muted);
+  font-size: 0.75rem;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .preview-flow-meta {
@@ -3639,15 +3710,28 @@ button:disabled {
   list-style: none;
   margin: 10px 0 0;
   padding: 0;
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
 }
 
 .preview-stages > li {
-  padding: 8px 10px;
+  flex: 1 1 200px;
+  max-width: 280px;
+  min-width: 160px;
+  box-sizing: border-box;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fbfcf9;
+}
+
+@media (max-width: 720px) {
+  .preview-stages > li {
+    flex: 1 1 100%;
+    max-width: none;
+  }
 }
 
 .preview-stage-head {
@@ -4675,7 +4759,7 @@ button:disabled {
 .results-kind-tabs {
   flex: none;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
   margin: 0;
   padding: 4px;
@@ -4762,6 +4846,34 @@ button:disabled {
   box-shadow: none;
   padding: 7px 8px;
   min-height: 0;
+}
+
+.results-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.results-tree-dir > .results-tree {
+  margin-top: 2px;
+}
+
+.results-tree-folder {
+  display: flex !important;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.results-tree-folder strong {
+  flex: 1;
+  min-width: 0;
+}
+
+.results-tree-folder span {
+  margin-left: auto;
 }
 
 .results-nav button:hover {
@@ -4947,21 +5059,28 @@ button:disabled {
 }
 
 
-/* Plan YAML template picker (minimal; keeps 599ed0a study form chrome). */
+/* Compact template picker on the plan-import action row (bottom-left). */
 .plan-template-pick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  display: inline-flex;
+  flex: none;
   align-items: center;
-  margin-bottom: 0.75rem;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .plan-template-pick label {
-  font-weight: 600;
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
 }
 .plan-template-pick select {
-  min-width: 12rem;
-}
-.plan-template-pick .plan-import-hint {
-  flex: 1 1 100%;
+  min-width: 10rem;
+  max-width: 14rem;
+  width: auto;
   margin: 0;
 }

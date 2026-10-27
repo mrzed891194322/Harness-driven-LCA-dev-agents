@@ -19,8 +19,10 @@ activity stream are gone from the route (still in git history).
 
 The plan page (`/plan`) form, plan import and reference upload are unchanged (same UI, same endpoints `/api/plan`,
 `/api/plan/import`, `/api/references`). Its start button still posts `/api/workflow/start` with `workflow: full-lca`,
-which v5 maps to `full-lca`. At run start the form content is rendered into `workspace/artifacts/plan/main_plan.md`
-(read-only for agents). `revise-lca` has no v5 workflow yet (start returns 400).
+which v5 maps to `full-lca`. The form persists `workspace/artifacts/plan/main_plan.yaml` (`template_id` + `items`);
+at run start that YAML is written again under the workflow `plan_file` (default `main_plan.yaml`). Plan injection
+reads all `*.yaml` / `*.md` in `artifacts/plan/`. `revise-lca` uses `revise_plan.md` as its orchestration
+`plan_file` while the GUI revise form saves `revise_plan.yaml`.
 
 ## Node cards
 

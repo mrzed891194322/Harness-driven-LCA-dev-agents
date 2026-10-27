@@ -8,27 +8,24 @@ import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSq
 import { PreviewBoard } from "../../components/plan/preview-board";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import type { PlanFields } from "../../components/plan/plan-fields";
-import { emptyStudyWork, StudyForm, type PlanTemplateSection, type StudyWork } from "../../components/plan/study-form";
+import { emptyPlanFields, normalizePlanFields } from "../../components/plan/plan-fields";
+import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
 import { apiFetch } from "../../lib/api";
+import {
+  normalizeReferenceType,
+  referenceRowKey,
+  REFERENCE_TYPES,
+  type ReferenceFile,
+  type ReferenceType,
+} from "../../lib/reference-types";
 import { reviseWorkLocked } from "../../lib/revise-lock";
-
-type ReferenceFile = {
-  name: string;
-  size: number;
-  note?: string;
-};
 
 type PendingUpload = {
   file: File;
   name: string;
 };
 
-const emptyFields: PlanFields = {
-  subject: "",
-  functional_unit: "",
-  life_cycle_stages: "",
-  conditions: "",
-};
+const emptyFields: PlanFields = emptyPlanFields();
 
 type Panel = "fields" | "references" | "workflow" | "preview";
 
@@ -48,33 +45,6 @@ function PanelIcon({ id }: { id: Panel }) {
   const Icon = id === "fields" ? PenLine : id === "references" ? FileText : id === "workflow" ? Workflow : Play;
   return <Icon className="launch-icon" aria-hidden="true" />;
 }
-
-const fields: { key: keyof PlanFields; labelKey: string; hintKey: string; placeholderKey: string }[] = [
-  {
-    key: "subject",
-    labelKey: "plan.field.subject",
-    hintKey: "plan.field.subjectHelp",
-    placeholderKey: "plan.field.subjectPh",
-  },
-  {
-    key: "functional_unit",
-    labelKey: "plan.field.fu",
-    hintKey: "plan.field.fuHelp",
-    placeholderKey: "plan.field.fuPh",
-  },
-  {
-    key: "life_cycle_stages",
-    labelKey: "plan.field.stages",
-    hintKey: "plan.field.stagesHelp",
-    placeholderKey: "plan.field.stagesPh",
-  },
-  {
-    key: "conditions",
-    labelKey: "plan.field.conditions",
-    hintKey: "plan.field.conditionsHelp",
-    placeholderKey: "plan.field.conditionsPh",
-  },
-];
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -145,6 +115,14 @@ async function pendingFromEntry(entry: FileSystemEntry): Promise<PendingUpload[]
   return nested.flat();
 }
 
+function downloadFilenameFromDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const quoted = /filename="([^"]+)"/i.exec(header);
+  if (quoted?.[1]) return quoted[1];
+  const bare = /filename=([^;]+)/i.exec(header);
+  return bare?.[1]?.trim() || fallback;
+}
+
 async function errorMessage(response: Response): Promise<string> {
   try {
     const data = (await response.json()) as { detail?: unknown };
@@ -168,7 +146,6 @@ export default function PlanPage() {
   const [panel, setPanel] = useState<Panel>("fields");
   const [formToken, setFormToken] = useState(0);
   const [planTemplateId, setPlanTemplateId] = useState("full-lifecycle");
-  const [planTemplateSections, setPlanTemplateSections] = useState<PlanTemplateSection[] | undefined>(undefined);
   const [planTemplates, setPlanTemplates] = useState<
     { id: string; title: string; title_en?: string; description?: string }[]
   >([]);
@@ -208,7 +185,9 @@ export default function PlanPage() {
       })
       .then((data) => {
         dirty.current = false;
-        setForm({ ...emptyFields, ...data.fields });
+        const next = normalizePlanFields(data.fields, planTemplateId);
+        setForm(next);
+        if (next.template_id) setPlanTemplateId(next.template_id);
         setFormToken((token) => token + 1);
         setReferences(data.references ?? []);
         setPlanContent(data.content ?? "");
@@ -272,6 +251,9 @@ export default function PlanPage() {
     if (!dialog) return;
     if (noteTarget && !dialog.open) dialog.showModal();
     if (!noteTarget && dialog.open) dialog.close();
+    return () => {
+      if (dialog.open) dialog.close();
+    };
   }, [noteTarget]);
 
   useEffect(() => {
@@ -295,39 +277,24 @@ export default function PlanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch(`/api/plan/templates/${encodeURIComponent(planTemplateId)}`)
-      .then(async (response) => {
-        const data = (await response.json()) as { sections?: PlanTemplateSection[]; detail?: string };
-        if (cancelled) return;
-        if (!response.ok) {
-          setPlanTemplateSections(undefined);
-          return;
-        }
-        setPlanTemplateSections(data.sections || []);
-      })
-      .catch(() => {
-        if (!cancelled) setPlanTemplateSections(undefined);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [planTemplateId]);
-
   async function downloadTemplate() {
     setError("");
     try {
-      const response = await apiFetch("/api/plan/template");
+      const response = await apiFetch(
+        `/api/plan/template?template_id=${encodeURIComponent(planTemplateId)}`,
+      );
       if (!response.ok) throw new Error(await errorMessage(response));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "lca-plan-template.md";
+      link.download = downloadFilenameFromDisposition(
+        response.headers.get("Content-Disposition"),
+        `lca-plan-${planTemplateId}.yaml`,
+      );
       link.click();
       URL.revokeObjectURL(url);
-      setStatus(t("plan.templateDownloaded"));
+      // Success: no bottom-bar status line (errors still use setError).
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("plan.templateFail"));
     }
@@ -335,6 +302,11 @@ export default function PlanPage() {
 
   async function importPlan(file: File) {
     setError("");
+    const suffix = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")).toLowerCase() : "";
+    if (suffix !== ".yaml" && suffix !== ".yml") {
+      setError(t("plan.yamlNeedExt"));
+      return;
+    }
     const overwrite = planContent.trim().length > 0;
     if (
       overwrite &&
@@ -353,20 +325,31 @@ export default function PlanPage() {
         method: "POST",
         body,
       });
-      if (!response.ok) throw new Error(await errorMessage(response));
-      const data = (await response.json()) as { fields: PlanFields; path?: string };
-      const next = { ...emptyFields, ...data.fields };
+      if (!response.ok) {
+        // Illegal YAML / illegal item: show error and keep current form (no half-render).
+        throw new Error(await errorMessage(response));
+      }
+      const data = (await response.json()) as {
+        fields: PlanFields;
+        path?: string;
+        content?: string;
+        template_id?: string;
+      };
+      const next = normalizePlanFields(data.fields, data.template_id || planTemplateId);
+      if (!Array.isArray(data.fields?.items) || !data.fields.items.length) {
+        throw new Error(t("plan.yamlFail"));
+      }
       // The backend already wrote the imported file; don't autosave over it.
       dirty.current = false;
       setForm(next);
       setFormToken((token) => token + 1);
       setPlanPath(data.path ?? planPath);
-      const text = await file.text();
-      setPlanContent(text);
+      if (next.template_id) setPlanTemplateId(next.template_id);
+      setPlanContent(typeof data.content === "string" ? data.content : await file.text());
       setPanel("fields");
-      setStatus(t("plan.mdImported"));
+      setStatus("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("plan.mdFail"));
+      setError(reason instanceof Error ? reason.message : t("plan.yamlFail"));
     }
   }
 
@@ -426,11 +409,32 @@ export default function PlanPage() {
     }
   }
 
-  async function removeReference(name: string) {
+  async function updateReferenceType(file: ReferenceFile, nextType: ReferenceType) {
+    const current = normalizeReferenceType(file.type);
+    if (current === nextType) return;
+    setError("");
+    try {
+      const query = `?ref_type=${encodeURIComponent(current)}`;
+      const response = await apiFetch(`/api/references/${encodeURIComponent(file.name)}/type${query}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: nextType }),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      const data = (await response.json()) as { files?: ReferenceFile[] };
+      setReferences(data.files ?? []);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t("plan.refTypeFail"));
+    }
+  }
+
+  async function removeReference(file: ReferenceFile) {
+    const name = file.name;
     if (!window.confirm(t("plan.confirmRemove", { name }))) return;
     setError("");
     try {
-      const response = await apiFetch(`/api/references/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const query = `?ref_type=${encodeURIComponent(normalizeReferenceType(file.type))}`;
+      const response = await apiFetch(`/api/references/${encodeURIComponent(name)}${query}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await errorMessage(response));
       const data = (await response.json()) as { files?: ReferenceFile[] };
       setReferences(data.files ?? []);
@@ -461,7 +465,9 @@ export default function PlanPage() {
     setNoteSaving(true);
     setError("");
     try {
-      const response = await apiFetch(`/api/references/${encodeURIComponent(noteTarget)}/note`, {
+      const target = references.find((file) => file.name === noteTarget);
+      const query = target ? `?ref_type=${encodeURIComponent(normalizeReferenceType(target.type))}` : "";
+      const response = await apiFetch(`/api/references/${encodeURIComponent(noteTarget)}/note${query}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ note: noteDraft }),
@@ -566,36 +572,47 @@ export default function PlanPage() {
               if ((event.target as HTMLElement).closest(".plan-study button")) dirty.current = true;
             }}
           >
-            <div className="plan-template-pick">
-              <label htmlFor="plan-template-select">{t("plan.templatePick")}</label>
-              <select
-                id="plan-template-select"
-                value={planTemplateId}
-                onChange={(event) => setPlanTemplateId(event.target.value)}
-              >
-                {(planTemplates.length
-                  ? planTemplates
-                  : [
-                      { id: "full-lifecycle", title: t("plan.template.full-lifecycle") },
-                      { id: "bom-only", title: t("plan.template.bom-only") },
-                      { id: "lca-only", title: t("plan.template.lca-only") },
-                    ]
-                ).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
-              <p className="plan-import-hint">{t("plan.templatePickHelp")}</p>
-            </div>
             <StudyForm
               source={form}
               sourceKey={formToken}
               onWork={setWork}
-              templateSections={planTemplateSections}
+              templateId={planTemplateId}
             />
             <div className="row plan-actions plan-import">
-                {status ? <p className="plan-status">{status}</p> : null}
+              <div className="plan-template-pick">
+                <label htmlFor="plan-template-select">{t("plan.templatePick")}</label>
+                <select
+                  id="plan-template-select"
+                  value={planTemplateId}
+                  title={t("plan.templatePickHelp")}
+                  onChange={(event) => {
+                    const nextId = event.target.value;
+                    setPlanTemplateId(nextId);
+                    dirty.current = true;
+                    setForm((prev) => ({ ...prev, template_id: nextId }));
+                    setFormToken((token) => token + 1);
+                  }}
+                >
+                  {(planTemplates.length
+                    ? planTemplates
+                    : [
+                        { id: "full-lifecycle", title: t("plan.template.full-lifecycle") },
+                        { id: "bom-only", title: t("plan.template.bom-only") },
+                        { id: "lca-only", title: t("plan.template.lca-only") },
+                      ]
+                  ).map((item) => {
+                    const titleKey = `plan.template.${item.id}` as const;
+                    const localized = t(titleKey);
+                    return (
+                      <option key={item.id} value={item.id}>
+                        {localized !== titleKey ? localized : item.title}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              {status ? <p className="plan-status">{status}</p> : null}
+              <div className="plan-import-actions">
                 <p className="plan-import-hint">{t("plan.importHint")}</p>
                 <button type="button" onClick={() => void downloadTemplate()}>
                   <Download className="launch-icon" aria-hidden="true" />
@@ -608,13 +625,14 @@ export default function PlanPage() {
                 <input
                   ref={planInput}
                   type="file"
-                  accept=".md,.markdown,.txt,text/markdown,text/plain"
+                  accept=".yaml,.yml,application/yaml,text/yaml"
                   hidden
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) void importPlan(file);
                   }}
                 />
+              </div>
             </div>
           </div>
           {panel === "references" ? (
@@ -684,13 +702,33 @@ export default function PlanPage() {
                   <div className="plan-file-scroll">
                   {references.length ? (
                     <ul className="plan-files">
-                      {references.map((file, index) => (
+                      {references.map((file) => (
                         <li
-                          key={file.name}
+                          key={referenceRowKey(file)}
                           data-active={noteTarget === file.name ? "true" : "false"}
                           data-noted={file.note?.trim() ? "true" : "false"}
                         >
-                          <span className="plan-file-index">{t("plan.fileN", { n: index + 1 })}</span>
+                          <div
+                            className="plan-file-type-row"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <span className="plan-file-type-prefix">{t("plan.refTypePrefix")}</span>
+                            <select
+                              className="plan-file-type"
+                              value={normalizeReferenceType(file.type)}
+                              aria-label={t("plan.refTypeLabel", { name: file.name })}
+                              onChange={(event) =>
+                                void updateReferenceType(file, event.target.value as ReferenceType)
+                              }
+                            >
+                              {REFERENCE_TYPES.map((kind) => (
+                                <option key={kind} value={kind}>
+                                  {t(`plan.refType.${kind}`)}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                           <strong className="plan-file-name" title={file.name}>
                             {file.name}
                           </strong>
@@ -700,7 +738,7 @@ export default function PlanPage() {
                               <MessageSquare className="launch-icon" aria-hidden="true" />
                               {t("plan.note")}
                             </button>
-                            <button type="button" onClick={() => void removeReference(file.name)}>
+                            <button type="button" onClick={() => void removeReference(file)}>
                               <Trash2 className="launch-icon" aria-hidden="true" />
                               {t("plan.remove")}
                             </button>

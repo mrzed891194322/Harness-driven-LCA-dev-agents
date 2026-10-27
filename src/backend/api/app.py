@@ -54,8 +54,7 @@ from backend.services.diagnostics_service import (
 )
 from backend.services.plan_templates import PlanTemplateError, get_plan_template, list_plan_templates
 from backend.services.plan_form import (
-    TEMPLATE_NAME,
-    PlanFields,
+    DEFAULT_TEMPLATE_ID,
     PlanFormConflict,
     PlanFormError,
     delete_reference,
@@ -64,8 +63,11 @@ from backend.services.plan_form import (
     read_plan_document,
     save_plan,
     save_reference_note,
+    save_reference_type,
     save_references,
-    template_markdown,
+    apply_reference_types,
+    template_download_filename,
+    template_yaml,
 )
 from backend.services.project_paths import PROJECT_ROOT
 from backend.services.tutorial_browser import (
@@ -148,23 +150,24 @@ class OpenLcaPortUpdate(BaseModel):
 
 
 class PlanUpdate(BaseModel):
-    subject: str = ""
-    functional_unit: str = ""
-    life_cycle_stages: str = ""
-    conditions: str = ""
+    template_id: str = ""
+    items: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class WorkflowStart(BaseModel):
     workflow: str = ""
     plan: str = ""
-    subject: str = ""
-    functional_unit: str = ""
-    life_cycle_stages: str = ""
-    conditions: str = ""
+    template_id: str = ""
+    items: list[dict[str, Any]] = Field(default_factory=list)
+    references: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ReferenceNoteUpdate(BaseModel):
     note: str = ""
+
+
+class ReferenceTypeUpdate(BaseModel):
+    type: str = "knowledge"
 
 
 class CustomEndpointDelete(BaseModel):
@@ -618,7 +621,7 @@ _workflow_service: Any = None
 @app.post("/api/workflow/start")
 def start_workflow(body: WorkflowStart) -> dict[str, Any]:
     """one whole workflow; the plan (form or imported text) becomes artifacts/plan/main_plan.md."""
-    from backend.services.plan_form import list_references, render_plan
+    from backend.services.plan_form import parse_items, render_plan
     from backend.workflow.config import ConfigError
     from backend.workflow.config import load_workflow as load_workflow_def
 
@@ -629,19 +632,40 @@ def start_workflow(body: WorkflowStart) -> dict[str, Any]:
     except (ValueError, ConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not plan.strip() and wf_def.plan_file == "revise_plan.md":
-        # Revise: the plan form fields describe the original study; use the saved revise plan instead.
         try:
             plan = str(read_plan_document(PROJECT_ROOT, workflow="revise-lca").get("content") or "")
         except PlanFormError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not plan.strip():
             raise HTTPException(status_code=400, detail="修订计划为空：请先在计划页「修订」模式填写或导入 revise_plan.md")
-    elif not plan.strip() and body.subject.strip():
-        fields = PlanFields(subject=body.subject, functional_unit=body.functional_unit,
-                            life_cycle_stages=body.life_cycle_stages, conditions=body.conditions)
-        plan = render_plan(fields, [str(r["name"]) for r in list_references(PROJECT_ROOT)])
+    elif not plan.strip() and body.items:
+        # Only schema-legal items enter the orchestrator payload.
+        legal = parse_items(body.items, require_valid=False)
+        if not legal:
+            raise HTTPException(status_code=400, detail="计划无效：items 中没有合法条目，无法启动")
+        if len(legal) != len(body.items):
+            raise HTTPException(
+                status_code=400,
+                detail="计划无效：items 含非法条目，已拒绝启动（请修正后重试，不会半份下发）",
+            )
+        try:
+            plan = render_plan(
+                {"template_id": body.template_id, "items": [item.as_dict() for item in legal]},
+                template_id=body.template_id or None,
+            )
+        except PlanFormError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    elif not plan.strip():
+        try:
+            plan = str(read_plan_document(PROJECT_ROOT, workflow=workflow).get("content") or "")
+        except PlanFormError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
+        if body.references:
+            apply_reference_types(PROJECT_ROOT, body.references)
         return _workflow().start(workflow, plan_text=plan)
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (ValueError, ConfigError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -696,11 +720,13 @@ def _saved_plan_text(workflow: str) -> str:
         if wf_def.plan_file == "revise_plan.md":
             return str(read_plan_document(PROJECT_ROOT, workflow="revise-lca").get("content") or "")
         doc = read_plan_document(PROJECT_ROOT, workflow="full-lca")
+        content = str(doc.get("content") or "") if isinstance(doc, dict) else ""
+        if content.strip():
+            return content
         fields = doc.get("fields") if isinstance(doc, dict) else None
-        if isinstance(fields, dict) and str(fields.get("subject") or "").strip():
-            pf = PlanFields(**{k: str(fields.get(k) or "") for k in ("subject", "functional_unit", "life_cycle_stages", "conditions")})
-            return render_plan(pf, [str(r["name"]) for r in list_references(PROJECT_ROOT)])
-        return str(doc.get("content") or "") if isinstance(doc, dict) else ""
+        if isinstance(fields, dict) and fields.get("items"):
+            return render_plan(fields, [str(r["name"]) for r in list_references(PROJECT_ROOT)])
+        return ""
     except Exception:  # noqa: BLE001 - preview falls back to the workspace plan
         return ""
 
@@ -807,16 +833,20 @@ def read_plan(workflow: str = "full-lca") -> dict[str, Any]:
 @app.put("/api/plan")
 def write_plan(body: PlanUpdate, workflow: str = "full-lca") -> dict[str, Any]:
     """Autosave the plan form; the file is the workflow YAML's ``plan:`` path."""
+    from backend.services.plan_form import parse_items
+
     try:
+        # Persist only legal items; reject if the client sent illegal fragments.
+        legal = parse_items(body.items, require_valid=False)
+        if body.items and len(legal) != len(body.items):
+            raise PlanFormError("计划无效：items 含非法条目，已拒绝保存")
+        if not legal:
+            raise PlanFormError("计划无效：items 中没有合法条目")
         save_plan(
             PROJECT_ROOT,
-            PlanFields(
-                subject=body.subject,
-                functional_unit=body.functional_unit,
-                life_cycle_stages=body.life_cycle_stages,
-                conditions=body.conditions,
-            ),
+            {"template_id": body.template_id, "items": [item.as_dict() for item in legal]},
             workflow=workflow,
+            template_id=body.template_id or None,
         )
         return {"status": "saved", **read_plan_document(PROJECT_ROOT, workflow=workflow)}
     except PlanFormError as exc:
@@ -824,11 +854,14 @@ def write_plan(body: PlanUpdate, workflow: str = "full-lca") -> dict[str, Any]:
 
 
 @app.get("/api/plan/template")
-def download_plan_template() -> Response:
+def download_plan_template(template_id: str = DEFAULT_TEMPLATE_ID) -> Response:
+    """Empty plan YAML per harness/plan-templates section list (items + template_id only)."""
+    tid = (template_id or DEFAULT_TEMPLATE_ID).strip() or DEFAULT_TEMPLATE_ID
+    filename = template_download_filename(tid)
     return Response(
-        content=template_markdown(),
-        media_type="text/markdown; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{TEMPLATE_NAME}"'},
+        content=template_yaml(tid, root=PROJECT_ROOT),
+        media_type="application/yaml; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -876,25 +909,44 @@ def read_references() -> dict[str, Any]:
 async def upload_references(
     files: list[UploadFile] = File(...),
     paths: list[str] | None = Form(default=None),
+    types: list[str] | None = Form(default=None),
 ) -> dict[str, Any]:
     supplied = [item for item in (paths or []) if item is not None]
     if supplied and len(supplied) != len(files):
         raise HTTPException(status_code=400, detail="文件路径数量不匹配")
+    if types and len(types) != len(files):
+        raise HTTPException(status_code=400, detail="文件类型数量不匹配")
     uploads: list[tuple[str, bytes]] = []
     for index, item in enumerate(files):
         name = supplied[index] if supplied else (item.filename or "")
         uploads.append((name, await item.read()))
     try:
-        saved = save_references(PROJECT_ROOT, uploads)
+        saved = save_references(PROJECT_ROOT, uploads, types)
     except PlanFormError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "saved", "saved": saved, "files": list_references(PROJECT_ROOT)}
 
 
-@app.put("/api/references/{name:path}/note")
-def write_reference_note(name: str, body: ReferenceNoteUpdate) -> dict[str, Any]:
+@app.put("/api/references/{name:path}/type")
+def write_reference_type(name: str, body: ReferenceTypeUpdate, ref_type: str = "") -> dict[str, Any]:
     try:
-        item = save_reference_note(PROJECT_ROOT, name, body.note)
+        item = save_reference_type(
+            PROJECT_ROOT,
+            name,
+            body.type,
+            current_type=ref_type or None,
+        )
+    except PlanFormError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="file not found") from exc
+    return {"status": "saved", "file": item, "files": list_references(PROJECT_ROOT)}
+
+
+@app.put("/api/references/{name:path}/note")
+def write_reference_note(name: str, body: ReferenceNoteUpdate, ref_type: str = "") -> dict[str, Any]:
+    try:
+        item = save_reference_note(PROJECT_ROOT, name, body.note, ref_type=ref_type or None)
     except PlanFormError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -903,9 +955,9 @@ def write_reference_note(name: str, body: ReferenceNoteUpdate) -> dict[str, Any]
 
 
 @app.delete("/api/references/{name:path}")
-def remove_reference(name: str) -> dict[str, Any]:
+def remove_reference(name: str, ref_type: str = "") -> dict[str, Any]:
     try:
-        delete_reference(PROJECT_ROOT, name)
+        delete_reference(PROJECT_ROOT, name, ref_type=ref_type or None)
     except PlanFormError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:

@@ -230,7 +230,7 @@ class Workflow(_Strict):
     title: str = ""
     nodes: list[str]
     # Plan file the GUI/API writes under artifacts/plan/ (revise workflows use revise_plan.md).
-    plan_file: str = "main_plan.md"
+    plan_file: str = "main_plan.yaml"
     # Approved redo_upstream requests per run (0 = never redo).
     max_redos: int = Field(default=2, ge=0, le=20)
     # "next": every node starts at rev = 1 + its highest existing rev and keeps all artifacts (revise-lca).

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ResultFile } from "../../app/results/load-files";
 import { MarkdownView } from "../markdown-view";
+import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
 
 const MAX_ARTIFACT_ROWS = 200;
 
@@ -45,21 +46,13 @@ function baseName(filePath: string): string {
   return parts[parts.length - 1] || filePath;
 }
 
-function navTitle(item: Artifact): string {
-  if ((item.count || 1) > 1) {
-    const parts = item.path.split("/");
-    return parts.slice(-2).join("/");
-  }
-  return baseName(item.path);
-}
-
-function parentName(filePath: string): string {
-  const trimmed = filePath
+/** Strip common workspace prefixes so the tree shows real dirs (e.g. evidence/<id>/). */
+function treeRelPath(filePath: string): string {
+  return filePath
     .replace(/^workspace\/artifacts\//, "")
     .replace(/^workspace\/runs\/_run\//, "")
-    .replace(/^workspace\/runs\//, "");
-  const slash = trimmed.lastIndexOf("/");
-  return slash >= 0 ? trimmed.slice(0, slash) : "";
+    .replace(/^workspace\/runs\//, "")
+    .replace(/^workspace\//, "");
 }
 
 type Props = {
@@ -74,38 +67,135 @@ type Props = {
   onOpen: (path: string) => void;
 };
 
-function FileList({
+type TreeFile = { kind: "file"; name: string; item: Artifact };
+type TreeDir = { kind: "dir"; name: string; path: string; children: TreeNode[] };
+type TreeNode = TreeFile | TreeDir;
+
+function insertPath(root: TreeDir, segments: string[], item: Artifact) {
+  if (segments.length === 0) return;
+  if (segments.length === 1) {
+    root.children.push({ kind: "file", name: segments[0], item });
+    return;
+  }
+  const [head, ...rest] = segments;
+  let dir = root.children.find((child): child is TreeDir => child.kind === "dir" && child.name === head);
+  if (!dir) {
+    dir = { kind: "dir", name: head, path: root.path ? `${root.path}/${head}` : head, children: [] };
+    root.children.push(dir);
+  }
+  insertPath(dir, rest, item);
+}
+
+function buildTree(items: Artifact[]): TreeNode[] {
+  const root: TreeDir = { kind: "dir", name: "", path: "", children: [] };
+  for (const item of items) {
+    const rel = treeRelPath(item.path);
+    const segments = rel.split("/").filter(Boolean);
+    if (!segments.length) continue;
+    insertPath(root, segments, item);
+  }
+  const sortNodes = (nodes: TreeNode[]) => {
+    nodes.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
+    for (const node of nodes) {
+      if (node.kind === "dir") sortNodes(node.children);
+    }
+  };
+  sortNodes(root.children);
+  return root.children;
+}
+
+function FileTree({
   items,
   selected,
   formatSize,
   onOpen,
+  defaultOpen = true,
 }: {
   items: Artifact[];
   selected: string;
   formatSize: (bytes: number) => string;
   onOpen: (path: string) => void;
+  defaultOpen?: boolean;
 }) {
-  const { t } = useLocale();
-  return (
-    <ul>
-      {items.map((item) => (
-        <li key={item.path}>
-          <button
-            type="button"
-            aria-current={selected === item.path ? "page" : undefined}
-            onClick={() => onOpen(item.path)}
-          >
-            <strong>{navTitle(item)}</strong>
-            <span>
-              {item.count && item.count > 1
-                ? t("results.midFiles", { count: item.count })
-                : parentName(item.path) || formatSize(item.size)}
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
+  const tree = useMemo(() => buildTree(items), [items]);
+  const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    // Expand ancestors of the selected file so the active leaf is visible.
+    if (!selected) return;
+    const rel = treeRelPath(selected);
+    const parts = rel.split("/").filter(Boolean);
+    if (parts.length < 2) return;
+    setOpenDirs((prev) => {
+      const next = { ...prev };
+      let acc = "";
+      for (let i = 0; i < parts.length - 1; i += 1) {
+        acc = acc ? `${acc}/${parts[i]}` : parts[i];
+        next[acc] = true;
+      }
+      return next;
+    });
+  }, [selected]);
+
+  function isOpen(path: string) {
+    if (path in openDirs) return openDirs[path];
+    return defaultOpen;
+  }
+
+  function toggle(path: string) {
+    setOpenDirs((prev) => ({ ...prev, [path]: !isOpen(path) }));
+  }
+
+  function renderNodes(nodes: TreeNode[], depth: number): ReactNode {
+    return (
+      <ul className="results-tree" data-depth={depth}>
+        {nodes.map((node) => {
+          if (node.kind === "file") {
+            const item = node.item;
+            return (
+              <li key={item.path} className="results-tree-file">
+                <button
+                  type="button"
+                  style={{ paddingLeft: 8 + depth * 12 }}
+                  aria-current={selected === item.path ? "page" : undefined}
+                  onClick={() => onOpen(item.path)}
+                >
+                  <strong>{node.name}</strong>
+                  <span>
+                    {item.count && item.count > 1 ? String(item.count) : formatSize(item.size)}
+                  </span>
+                </button>
+              </li>
+            );
+          }
+          const open = isOpen(node.path);
+          return (
+            <li key={`dir:${node.path}`} className="results-tree-dir">
+              <button
+                type="button"
+                className="results-tree-folder"
+                style={{ paddingLeft: 8 + depth * 12 }}
+                aria-expanded={open}
+                onClick={() => toggle(node.path)}
+              >
+                {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+                {open ? <FolderOpen size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />}
+                <strong>{node.name}</strong>
+                <span>{node.children.length}</span>
+              </button>
+              {open ? renderNodes(node.children, depth + 1) : null}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  if (!tree.length) return null;
+  return renderNodes(tree, 0);
 }
 
 export function ArtifactsBrowser({
@@ -196,7 +286,7 @@ export function ArtifactsBrowser({
               {records.length ? (
                 <section>
                   <h3>{t("results.otherRecords")}</h3>
-                  <FileList items={records} selected={selected} formatSize={formatSize} onOpen={onOpen} />
+                  <FileTree items={records} selected={selected} formatSize={formatSize} onOpen={onOpen} />
                 </section>
               ) : null}
               {workFiles.length ? (
@@ -207,7 +297,7 @@ export function ArtifactsBrowser({
                       {t("results.omitHint", { max: MAX_ARTIFACT_ROWS, n: omittedWork })}
                     </p>
                   ) : null}
-                  <FileList
+                  <FileTree
                     items={visibleWork}
                     selected={selected}
                     formatSize={formatSize}
@@ -222,7 +312,7 @@ export function ArtifactsBrowser({
           ) : null}
           {kind === "final" ? (
             finals.length ? (
-              <FileList items={finals} selected={selected} formatSize={formatSize} onOpen={onOpen} />
+              <FileTree items={finals} selected={selected} formatSize={formatSize} onOpen={onOpen} />
             ) : (
               <p className="settings-help">{t("results.noFinal")}</p>
             )

@@ -1,6 +1,6 @@
 id: bom-only
-title: 单独 BOM
-title_en: BOM only
+title: BOM
+title_en: BOM
 description: 只填清单相关字段；可与 BOM 编排预设一起用。
 description_en: BOM-focused fields; pairs with a BOM orchestration preset.
 align_workflows: []
