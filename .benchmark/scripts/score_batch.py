@@ -286,10 +286,13 @@ def score_run(
                 }
             else:
                 scores = {"claim_f1": scores}
-            row["f1"] = (scores.get("claim_f1") or scores).get("f1")
-            row["hallucination_rate"] = (scores.get("claim_f1") or scores).get(
-                "hallucination_rate"
-            )
+            cf1 = scores.get("claim_f1") or scores
+            row["f1"] = cf1.get("f1")
+            row["hallucination_rate"] = cf1.get("hallucination_rate")
+            row["n_gold"] = cf1.get("n_gold")
+            row["n_pred"] = cf1.get("n_pred")
+            row["matched"] = cf1.get("matched")
+            row["unit_table"] = cf1.get("unit_table")
             row["precision"] = (scores.get("claim_f1") or scores).get("precision")
             row["recall"] = (scores.get("claim_f1") or scores).get("recall")
         elif kind == "fabrication":
@@ -338,8 +341,27 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             if r.get("accuracy") is not None
         ]
         if f1s:
+            # 案均宏 F1（现状）
             entry["mean_f1"] = _mean(f1s)
+            entry["macro_f1"] = entry["mean_f1"]
             entry["f1s"] = f1s
+        # 微平均 Claim F1（PCFBench headline）：全 suite 汇总 matched/pred/gt 再算一次
+        matched_total = sum(int(r["matched"]) for r in group if r.get("matched") is not None)
+        pred_total = sum(int(r["n_pred"]) for r in group if r.get("n_pred") is not None)
+        gold_total = sum(int(r["n_gold"]) for r in group if r.get("n_gold") is not None)
+        if any(r.get("matched") is not None for r in group):
+            p = matched_total / pred_total if pred_total else 0.0
+            rcall = matched_total / gold_total if gold_total else 0.0
+            micro = (2 * p * rcall / (p + rcall)) if (p + rcall) else 0.0
+            entry["micro_f1"] = micro
+            entry["micro_precision"] = p
+            entry["micro_recall"] = rcall
+            entry["micro_matched"] = matched_total
+            entry["micro_n_pred"] = pred_total
+            entry["micro_n_gold"] = gold_total
+        unit_tables = sorted({str(r.get("unit_table")) for r in group if r.get("unit_table")})
+        if unit_tables:
+            entry["unit_table"] = unit_tables[0] if len(unit_tables) == 1 else unit_tables
         if hits:
             entry["mean_candidate_hit_rate"] = _mean(hits)
         if fabs:
@@ -489,6 +511,17 @@ def main(argv: list[str] | None = None) -> int:
             rows.append(row)
 
     summary = aggregate(rows)
+    unit_table = ""
+    try:
+        unit_table = str(getattr(claim_f1, "UNIT_TABLE_VERSION", "") or "")
+    except Exception:
+        unit_table = ""
+    if unit_table:
+        summary["unit_table"] = unit_table
+        summary["notes"] = (
+            f"Claim F1: mean_f1/macro_f1 = 案均宏平均；micro_f1 = PCFBench 官方 headline 微平均"
+            f"（sum matched / sum pred / sum gold）。单位表 {unit_table}。"
+        )
     payload = {
         "tip": tip,
         "ts": ts,
@@ -520,6 +553,8 @@ def main(argv: list[str] | None = None) -> int:
         "",
         f"- tip: `{tip}`",
         f"- scored: {summary['n_scored']} / rows: {summary['n_rows']} / skipped: {summary['n_skipped']}",
+        f"- unit_table: `{summary.get('unit_table') or ''}`",
+        f"- notes: {summary.get('notes') or ''}",
         "",
         "## by suite",
         "",
@@ -528,6 +563,8 @@ def main(argv: list[str] | None = None) -> int:
         bits = [f"n={entry['n']}"]
         if "mean_f1" in entry:
             bits.append(f"mean_f1={entry['mean_f1']:.3f}")
+        if "micro_f1" in entry:
+            bits.append(f"micro_f1={entry['micro_f1']:.3f}")
         if "mean_candidate_hit_rate" in entry:
             bits.append(f"mean_hit={entry['mean_candidate_hit_rate']:.3f}")
         if "mean_fabrication_rate" in entry:
