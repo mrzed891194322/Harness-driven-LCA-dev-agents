@@ -4,4 +4,7 @@ produces:
   - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
 agents:
   executor: executor
-  reviewer: reviewer
+  reviewer:
+    agent: reviewer
+    tools:
+      skills: [bom-claims-review]

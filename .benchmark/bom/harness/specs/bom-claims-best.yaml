@@ -8,6 +8,7 @@ description: |
   执行前先 `read` 下列技能，并按其护栏产出：
   - `harness/tools/skills/bom-claims-read/SKILL.md`（读文）
   - `harness/tools/skills/bom-claims-ops/SKILL.md`（单位 / 输出契约 / 交卷）
+  - 审核者读 `harness/tools/skills/bom-claims-review/SKILL.md`（只对照题面+claims；勿重读知识库长文）
 
   ## 交付物
 

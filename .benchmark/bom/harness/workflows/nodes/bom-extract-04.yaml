@@ -14,4 +14,4 @@ agents:
   reviewer:
     agent: reviewer
     tools:
-      skills: [bom-claims-read, bom-claims-ops]
+      skills: [bom-claims-review]
