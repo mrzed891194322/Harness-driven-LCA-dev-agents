@@ -43,10 +43,42 @@ def check_path(path: Path) -> str | None:
     return _parse_error(path)
 
 
+def _nonempty_error(path: Path) -> str | None:
+    """Exists + non-empty only (no structural parse). Used for freeform plan text."""
+    if not path.exists():
+        return "不存在"
+    if path.is_dir():
+        files = [p for p in path.rglob("*") if p.is_file()]
+        if not files:
+            return "目录为空"
+        for file in files:
+            try:
+                text = file.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                return f"{file.name} 无法读取：{exc}"
+            if not text.strip():
+                return f"{file.name} 文件为空"
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return f"无法读取：{exc}"
+    if not text.strip():
+        return "文件为空"
+    return None
+
+
 def requires_errors(artifacts: Path, node: Node, plan_required: bool = True) -> list[str]:
+    """Plan under artifacts/plan may be NL query or form YAML; inject reads it as text.
+    Do not yaml.safe_load plan files here — ASCII ': ' in freeform NL (e.g. PCFBench
+    query.md) is valid plan text but invalid YAML and would false-fail requires.
+    """
     errors = []
-    items = (["plan"] if plan_required else []) + list(node.requires)
-    for rel in items:
+    if plan_required:
+        reason = _nonempty_error(artifacts / "plan")
+        if reason:
+            errors.append(f"requires plan: {reason}")
+    for rel in node.requires:
         reason = check_path(artifacts / rel)
         if reason:
             errors.append(f"requires {rel}: {reason}")
