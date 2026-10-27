@@ -8,6 +8,11 @@
 
 当前：`RUNBOOK-gemma4.md`、`OPS_NOTES_gemma4.md`。
 
+
+## PCFBench Task1/2/3（01 机制验跑）
+
+见 [PCFBENCH_T123_01.md](PCFBENCH_T123_01.md)：import→01 orch→交卷→打分；DeepSeek 各 30。
+
 ## 正式脚本应覆盖的步骤
 
 1. **Serve**：切当前 `origin/master` tip；`merge_serve_credentials`（勿整目录覆盖 `pi-auth`）；短 `PI_RUNTIME_SOCKET`（主仓 `.local/run/pi-v5serve.sock`）。
