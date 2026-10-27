@@ -708,6 +708,20 @@ export default function PlanPage() {
                           data-active={noteTarget === file.name ? "true" : "false"}
                           data-noted={file.note?.trim() ? "true" : "false"}
                         >
+                          <div className="plan-file-actions">
+                            <button type="button" onClick={() => openNote(file)}>
+                              <MessageSquare className="launch-icon" aria-hidden="true" />
+                              {t("plan.note")}
+                            </button>
+                            <button type="button" onClick={() => void removeReference(file)}>
+                              <Trash2 className="launch-icon" aria-hidden="true" />
+                              {t("plan.remove")}
+                            </button>
+                          </div>
+                          <strong className="plan-file-name" title={file.name}>
+                            {file.name}
+                          </strong>
+                          <small>{formatSize(file.size)}</small>
                           <div
                             className="plan-file-type-row"
                             onMouseDown={(event) => event.stopPropagation()}
@@ -728,20 +742,6 @@ export default function PlanPage() {
                                 </option>
                               ))}
                             </select>
-                          </div>
-                          <strong className="plan-file-name" title={file.name}>
-                            {file.name}
-                          </strong>
-                          <small>{formatSize(file.size)}</small>
-                          <div className="plan-file-actions">
-                            <button type="button" onClick={() => openNote(file)}>
-                              <MessageSquare className="launch-icon" aria-hidden="true" />
-                              {t("plan.note")}
-                            </button>
-                            <button type="button" onClick={() => void removeReference(file)}>
-                              <Trash2 className="launch-icon" aria-hidden="true" />
-                              {t("plan.remove")}
-                            </button>
                           </div>
                         </li>
                       ))}

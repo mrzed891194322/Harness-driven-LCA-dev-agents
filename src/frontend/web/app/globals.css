@@ -3621,7 +3621,8 @@ input.study-area.study-line {
 
 .preview-facts {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
   margin: 10px 0 0;
 }
 
@@ -3818,6 +3819,10 @@ input.study-area.study-line {
 @media (max-width: 800px) {
   .plan-head {
     flex-direction: column;
+  }
+
+  .preview-facts {
+    grid-template-columns: 1fr;
   }
 
   .plan-grid,
