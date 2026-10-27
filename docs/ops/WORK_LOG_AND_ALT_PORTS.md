@@ -28,7 +28,7 @@ cd /path/to/repo/.local/wt/feat-work-log   # 或本分支任意 checkout
 export GUI_API_PORT=8810
 export GUI_WEB_PORT=3010
 # 可选：显式避开默认 pi-runtime.sock（serve 已用 pi-v5serve.sock 时通常不冲突）
-export PI_RUNTIME_SOCKET="$(pwd)/.local/run/pi-feat-work-log.sock"
+export PI_RUNTIME_SOCKET="/home/yuandu/Programming/202606-harness-agent-LCA/.local/run/pi-feat-work-log.sock"  # short path; nested wt sock exceeds UNIX_SOCK_PATH_MAX=104
 npm run dev
 ```
 
