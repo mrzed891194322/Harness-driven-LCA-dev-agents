@@ -1,7 +1,7 @@
-id: bom-extract
-title: 数量声明抽取（冒烟）
+id: lci-triage-03
+title: 映射分流判定（03 · 薄注入+reviewer）
 produces:
-  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
+  - {spec: .benchmark/lci/harness/specs/lci-triage.yaml, path: triage/triage.json}
 inject:
   - rules/delivery/status.yaml
   - rules/delivery/provenance.yaml

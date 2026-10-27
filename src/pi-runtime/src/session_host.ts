@@ -43,6 +43,7 @@ import {
 } from "./injection.js";
 import { exportTranscript, type TranscriptState } from "./transcript.js";
 import { SettleGuard, settlePolicyOf } from "./settle_guard.js";
+import { installArgCoerceOnSession } from "./arg_coerce.js";
 
 const PROTOCOL_VERSION = 1;
 
@@ -383,6 +384,10 @@ async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession
     extensionFactories: [
       (pi) => {
         pi.on("tool_call", (event) => guard.onToolCall(event.toolName, event.input as Record<string, unknown>));
+        // MCP may re-register tools after connect/reconnect; re-wrap prepareArguments.
+        pi.on("mcp_servers_change", () => {
+          if (sessionRef) installArgCoerceOnSession(sessionRef);
+        });
         hooks.guardMounted = true;
         if (settle) {
           pi.on("turn_end", (event, ctx) => {
@@ -442,6 +447,9 @@ async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession
     await shutdownPiSession(session);
     throw error;
   }
+  // Stringified JSON arrays (e.g. artifacts: '["path"]') must become real arrays
+  // before pi-ai validateToolArguments — attach prepareArguments on every tool.
+  installArgCoerceOnSession(session);
   sessionRef = session;
   let effective: Record<string, unknown>;
   try {

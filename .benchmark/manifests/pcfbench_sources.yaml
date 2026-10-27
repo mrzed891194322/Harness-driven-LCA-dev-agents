@@ -16,6 +16,13 @@ files:
     url: https://huggingface.co/datasets/Watershed-Climate/PCFBench/resolve/main/task1_decomposition.jsonl?download=true
     sha256: "" # placeholder; --write-sha fills this
 
+  - filename: task2_triage.jsonl
+    task: task2
+    rows: 200
+    source: huggingface
+    url: https://huggingface.co/datasets/Watershed-Climate/PCFBench/resolve/main/task2_triage.jsonl?download=true
+    sha256: "" # placeholder; --write-sha fills this
+
   - filename: task3_mapping.jsonl
     task: task3
     rows: 109

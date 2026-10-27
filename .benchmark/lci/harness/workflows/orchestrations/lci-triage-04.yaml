@@ -1,0 +1,5 @@
+id: lci-triage-04
+title: LCI 映射分流（04 · 最好）
+max_redos: 0
+# PCFBench task2：短指针 spec + lci-triage-best 技能
+nodes: [.benchmark/lci/harness/workflows/nodes/lci-triage-04.yaml]

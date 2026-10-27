@@ -307,7 +307,7 @@ export function WorkflowBoard({
           <ul className="flow-preset-list">
             {catalog.map((w) => {
               const active = w.id === workflow.id;
-              const kind = w.start_rev === "next" ? t("wf.revise") : w.id.startsWith("demo") ? t("wf.demo") : w.id === "bom-extract" ? t("wf.smoke") : t("wf.main");
+              const kind = w.start_rev === "next" ? t("wf.revise") : w.id.startsWith("demo") ? t("wf.demo") : w.id.startsWith("bom-extract") ? t("wf.smoke") : t("wf.main");
               return (
                 <li key={w.id}>
                   <button

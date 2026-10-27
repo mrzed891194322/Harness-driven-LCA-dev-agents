@@ -1,0 +1,34 @@
+description: |
+  # 映射分流（PCFBench task2 · 最好条件）
+
+  给定市场节点 + 上级产品语境，判定 **直接映射** vs **继续分解**。
+  **不**查询 openLCA、**不**建 LCI、**不**依赖 BOM / mapping。
+
+  ## 方法（短指针）
+
+  执行前先 `read` 技能 `harness/tools/skills/lci-triage-best/SKILL.md`，并按其护栏产出。薄条件长散文不适用本节点。要点：
+  - 二元：`should_map` true=直接映射 / false=继续分解
+  - 必有中文 `rationale`；可选 `confidence`；可回填 `candidate_name`
+  - 工具 `content` 等 object 须先序列化为 string
+
+  ## 交付物
+
+  写到 `workspace/artifacts/triage/triage.json`，形状对齐 `.benchmark/schemas/triage_deliverable.schema.json`。
+
+  ## 验收
+
+  - JSON 通过下方 schema；遵守最好条件技能护栏。
+  - reviewer 独立核对；缺产物、blocked 不得视为完成。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:lci-triage-best
+  title: Mapping triage deliverable (best condition)
+  type: object
+  additionalProperties: false
+  required: [should_map, rationale]
+  properties:
+    should_map: {type: boolean}
+    confidence: {type: ["number", "null"], minimum: 0, maximum: 1}
+    rationale: {type: string, minLength: 1}
+    candidate_name: {type: ["string", "null"]}
+checks: []

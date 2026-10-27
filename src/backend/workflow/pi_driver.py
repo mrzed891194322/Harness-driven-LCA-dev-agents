@@ -102,6 +102,10 @@ class PiDriver:
         ws = req.workspace
         node_dir = layout.node_dir(ws, req.node.run_key)
         agent_dir = node_dir / req.agent
+        # Agent node dirs hold submit.json / notes; never leave a file at this path (smoke: reviewer wrote "notes").
+        if agent_dir.is_file():
+            agent_dir.unlink()
+        agent_dir.mkdir(parents=True, exist_ok=True)
         submit_file = agent_dir / "submit.json"  # stable path: a live session keeps its MCP env
         agent_access = req.node.agents[req.agent].definition.access
         scope = compute_scope(self.root, req.node, req.agent, agent_access, workspace=ws)

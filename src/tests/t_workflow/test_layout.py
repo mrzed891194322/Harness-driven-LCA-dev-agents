@@ -35,9 +35,12 @@ def test_workflows_three_levels():
 
 def test_benchmark_harness_holds_eval_workflows():
     product = {p.name for p in (ROOT / "harness/workflows/orchestrations").glob("*.yaml")}
-    assert "bom-extract.yaml" not in product
-    assert (ROOT / ".benchmark/bom/harness/workflows/orchestrations/bom-extract.yaml").is_file()
+    assert "bom-extract-03.yaml" not in product
+    assert (ROOT / ".benchmark/bom/harness/workflows/orchestrations/bom-extract-01.yaml").is_file()
+    assert (ROOT / ".benchmark/bom/harness/workflows/orchestrations/bom-extract-03.yaml").is_file()
     assert (ROOT / ".benchmark/bom/harness/specs/bom-claims.yaml").is_file()
-    assert (ROOT / ".benchmark/lci/harness/workflows/orchestrations/lci-mapping.yaml").is_file()
+    assert (ROOT / ".benchmark/lci/harness/workflows/orchestrations/lci-mapping-03.yaml").is_file()
     assert (ROOT / ".benchmark/lci/harness/specs/lci-mapping-closed.yaml").is_file()
+    assert (ROOT / ".benchmark/lci/harness/workflows/orchestrations/lci-triage-03.yaml").is_file()
+    assert (ROOT / ".benchmark/lci/harness/workflows/orchestrations/lci-triage-04.yaml").is_file()
 

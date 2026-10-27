@@ -1,0 +1,63 @@
+description: |
+  # 封闭候选集映射（最好条件）
+
+  只根据计划里的物料说明与**封闭候选名单**选一个背景过程名，写出可打分的 mapping JSON。
+  **不**查询 openLCA、**不**建 LCI、**不**依赖 BOM 上游产物。
+
+  ## 方法（短指针）
+
+  执行前先 `read` 技能 `harness/tools/skills/lci-mapping-best/SKILL.md`，并按其护栏产出。薄条件长散文不适用本节点。要点：
+  - `item_id` 优先题面 id；否则 `m1`/`m2`… 与题面一一对应
+  - 唯一贴近则必选；无法区分则 name/id 置 null 并在 `selection_reason` 弃权说明；禁止编造集合外名字
+  - 若读 inputs：先 grep 再 offset/limit；勿反复全文 read
+  - 工具 `content` 等 object 须先序列化为 string
+
+  ## 交付物
+
+  写到 `workspace/artifacts/mapping/mapping.json`，形状对齐 `.benchmark/schemas/mapping_deliverable.schema.json`。
+
+  ## 验收
+
+  - JSON 通过下方 schema。
+  - 所选过程名落在题面封闭集内，或明确无法选定且未编造集合外名字。
+  - reviewer 独立核对；缺产物、blocked、编造集合外名字不得视为完成。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:lci-mapping-closed-best
+  title: Closed-set mapping deliverable (best condition)
+  type: object
+  additionalProperties: false
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - item_id
+          - flow_name
+          - flow_id
+          - process_name
+          - process_id
+          - provider_name
+          - provider_id
+          - geography_requested
+          - geography_selected
+          - selection_reason
+          - candidates
+        properties:
+          item_id: {type: string, minLength: 1}
+          flow_name: {type: [string, "null"]}
+          flow_id: {type: [string, "null"]}
+          process_name: {type: [string, "null"]}
+          process_id: {type: [string, "null"]}
+          provider_name: {type: [string, "null"]}
+          provider_id: {type: [string, "null"]}
+          geography_requested: {type: [string, "null"]}
+          geography_selected: {type: [string, "null"]}
+          selection_reason: {type: string, minLength: 1}
+          candidates:
+            type: array
+            items: {type: string}
+checks: []

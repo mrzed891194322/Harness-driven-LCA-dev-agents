@@ -1,11 +1,14 @@
 id: lci
 title: 背景数据映射（LCI）
 pcfbench_tasks:
+  - task2_triage
   - task3_mapping
 scorers:
+  - triage_accuracy
   - fabrication_rate
   - c4_from_events
 doc: .agents/skills/bench-test/docs/lci.md
 notes: >
-  子类：lci/mapping/<id>/。P0 用每个案例 truth 里的小型封闭候选集。
-  编造指选出的过程不在该集合内。
+  子类：lci/mapping/<id>/（封闭候选映射）、lci/triage/<id>/（映射分流 task2）。
+  P0 mapping 用每个案例 truth 里的小型封闭候选集；编造指选出的过程不在该集合内。
+  triage 主指标 accuracy（should_map 二元）。档位 orch：01 真·薄 / 02 薄编排无 reviewer（注入同 best）/ 03 薄注入+reviewer / 04 最好；本轮已建 03/04，01/02 预留。

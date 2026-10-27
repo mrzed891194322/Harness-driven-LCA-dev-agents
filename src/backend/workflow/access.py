@@ -59,6 +59,17 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         str(layout.node_dir(ws, node.run_key)) + "/**",
         str(root / layout.TOOLS_SKILLS) + "/**",
     }
+    # Path-style tools.skills (repo-root-relative): grant the skill file/dir itself.
+    for skill in agent.tools.skills:
+        raw = (skill or "").strip()
+        if not raw or ("/" not in raw and not raw.startswith(".")):
+            continue
+        rel = Path(raw)
+        if rel.name == "SKILL.md":
+            read.add(str(root / rel))
+            read.add(str(root / rel.parent) + "/**")
+        else:
+            read.add(str(root / rel) + "/**")
     for base in layout.spec_dirs():  # product + .benchmark specs (read grant, not name lookup)
         read.add(str(root / base) + "/**")
     for req in node.requires:
@@ -70,6 +81,9 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         read.add(str(root / layout.KNOWLEDGE) + "/**")
     if toggles["artifacts"]:
         read.add(str(art) + "/**")
+    # Specs / skills may cite JSON Schema files and rules outside the produce dirs.
+    read.add(str(root / ".benchmark/schemas") + "/**")
+    read.add(str(root / "harness/rules") + "/**")
 
     write: set[str] = set()
     if node.kind(agent_key) == "artifact":

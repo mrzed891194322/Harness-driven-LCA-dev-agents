@@ -21,7 +21,7 @@ description: >-
 | `score-only` | 用案例 `eval/` 假产物（或 `run` 交出的真实产物）对 `truth/` 打分，stdout JSON | 不要 serve |
 | `aggregate` | 同上，stdout 按套件均值；或读已有 `scores.jsonl` | 不要 |
 | `fetch` | 只下载 manifest 到缓存（默认 `.cache/benchmark`） | 要缓存；允许 `.cache/` 或仓外 |
-| `run` | 经 API 上传参考资料、开 `bom-extract`、轮询到结束，交付 `workspace/artifacts/bom/claims.json` | 要 serve（当前 tip） |
+| `run` | 经 API 上传参考资料、开 `bom-extract-03`、轮询到结束，交付 `workspace/artifacts/bom/claims.json` | 要 serve（当前 tip） |
 
 许可：PCFBench 是 CC BY-NC-SA 4.0（非商业）。数据集正文不能提交。说明见 [`.benchmark/README.md`](../../../.benchmark/README.md)。
 
@@ -34,7 +34,7 @@ description: >-
 - serve 已起，且 checkout 是当前 tip（与评测要对齐的 commit）。
 - 模型已在面板或 `.local/workflow-agent-models.json` 配好（对**下一趟**开跑生效）。
 - API 基址默认 `http://127.0.0.1:7860`（`GUI_PORT`，见 `src/backend/settings.py`）。下文用 `$API`。
-- 冒烟默认工作流：`bom-extract`（orch 在 `.benchmark/bom/harness/`，API 用 stem；节点/spec 在 YAML 里写仓根相对路径，产物 `.benchmark/bom/harness/specs/bom-claims.yaml` → `bom/claims.json`）。
+- 冒烟默认工作流：任选 `bom-extract-01`…`04`（orch 在 `.benchmark/bom/harness/`，API 用 stem；01/02 薄短 spec `bom-claims.yaml`，03/04 短指针 `bom-claims-best.yaml` → 皆交付 `bom/claims.json`）。档位开关见该目录 README。
 
 ### 1. 上传参考资料
 
@@ -57,7 +57,7 @@ curl -sS -X POST "$API/api/references" \
 
 | 字段 | 说明 |
 | --- | --- |
-| `workflow` | 必填意图；冒烟用 `"bom-extract"` |
+| `workflow` | 必填意图；冒烟用 `"bom-extract-03"` |
 | `plan` | 计划全文；非空则直接用 |
 | `subject` / `functional_unit` / `life_cycle_stages` / `conditions` | `plan` 为空且 `subject` 非空时，服务端用表单字段 + 已上传 references 渲染计划 |
 
@@ -66,12 +66,12 @@ curl -sS -X POST "$API/api/references" \
 ```bash
 curl -sS -X POST "$API/api/workflow/start" \
   -H 'Content-Type: application/json' \
-  -d '{"workflow":"bom-extract","subject":"低合金钢板一件","functional_unit":"1 件","life_cycle_stages":"原材料获取","conditions":"见已上传 query.md"}'
+  -d '{"workflow":"bom-extract-03","subject":"低合金钢板一件","functional_unit":"1 件","life_cycle_stages":"原材料获取","conditions":"见已上传 query.md"}'
 ```
 
-或直接传 `plan` 全文：`{"workflow":"bom-extract","plan":"..."}`。
+或直接传 `plan` 全文：`{"workflow":"bom-extract-03","plan":"..."}`。
 
-成功大致为 `{"status":"started","workflow":"bom-extract","resume":false}`。**`run_id` 不在 start 响应里**，下一步从 progress/status 读。
+成功大致为 `{"status":"started","workflow":"bom-extract-03","resume":false}`。**`run_id` 不在 start 响应里**，下一步从 progress/status 读。
 
 ### 3. 等待
 
@@ -97,7 +97,7 @@ curl -sS "$API/api/workflow/progress"
 
 `workspace/artifacts/bom/claims.json`
 
-对应 spec：`.benchmark/bom/harness/specs/bom-claims.yaml`（`claim_set`；节点 `bom/claims.json`）。把该路径交给调用方；由调用方再开 `score-only` 或：
+对应 spec：薄档 `bom-claims.yaml` / 厚档 `bom-claims-best.yaml`（`claim_set`；节点 `bom/claims.json`）。把该路径交给调用方；由调用方再开 `score-only` 或：
 
 ```bash
 python3 .benchmark/bom/scorers/claim_f1.py \
@@ -123,7 +123,7 @@ python3 .benchmark/bom/scorers/score_case.py --mode score-only --self-check
 
 常用参数：
 
-- `--suite bom` / `lci` / `abstention`（可重复；别名 `bom-extract`、`mapping`）
+- `--suite bom` / `lci` / `abstention`（可重复；别名 `bom-extract-03`、`mapping`）
 - `--case bom-steel-plate`（可重复）
 - `--harness`、`--model`：可以传，P0 忽略，原样回显
 - `--out-dir /tmp/bench-out`：额外写下 `scores.jsonl`、`summary.json`、`summary.md`、`by_panel/*.csv`
@@ -174,7 +174,7 @@ manifest 列了 task1 / task3 / task4 / task5 / task7 和 `ecoinvent_picklist.js
 ```bash
 python3 .benchmark/scripts/run_batch.py \
   --model <profile_id> \
-  --workflow bom-extract \
+  --workflow bom-extract-03 \
   --repeat 1
 ```
 
@@ -199,7 +199,10 @@ curl -sS "$API/api/models/profiles" | python3 -c "import sys,json; d=json.load(s
 
 | 参数 | 含义 | 默认 / 注意 |
 | --- | --- | --- |
-| `--workflow` | orch stem：`bom-extract` / `lci-mapping` | 默认 `bom-extract`；abstention **复用** `bom-extract`，用 `--cases-root .benchmark/bom/abstention` |
+| `--workflow` | orch stem：`bom-extract-03/04` / `lci-mapping-03/04` / `lci-triage-03/04` | 默认 `bom-extract-03`；abstention **复用** `bom-extract-03/04`，用 `--cases-root .benchmark/bom/abstention` |
+
+档位 **01** 真·薄；**02** 薄编排（无 reviewer，注入同 best）；**03** 薄注入+reviewer；**04** 最好。01/02 orch 未建；本轮图1只跑 extract 03→04。勿再用「02=产品默认 / 03=中间」。
+
 | `--model` | profile_id，见上表 | 必填才换模；会写进日志与 meta |
 | `--cases-root` | 案例根（相对仓根） | 按 workflow 映射；手写树或 imported 树 |
 | `--include-imported` | 主树 + `.benchmark/imported/<大类>/<子类>/` | 同 id 保留入库树 |
@@ -222,24 +225,25 @@ mkdir -p .benchmark/result/_archive
 mv .benchmark/result/bom .benchmark/result/lci .benchmark/result/_logs .benchmark/result/_scores \
   .benchmark/result/_archive/gemma4-full-<YYYYMMDD>/ 2>/dev/null || true
 
-# 1) extract（手写 + imported）
+# 1) 图1 extract 全量 36（imported task4+task5）；03/04 换 stem 即可
 python3 .benchmark/scripts/run_batch.py \
   --model google/gemma-4-31b-it \
-  --workflow bom-extract \
-  --include-imported \
+  --workflow bom-extract-03 \
+  --cases-root .benchmark/imported/bom/extract \
   --pace-s 90
+# 手写冒烟+imported（2+36）：改用 --include-imported，去掉 --cases-root
 
 # 2) mapping
 python3 .benchmark/scripts/run_batch.py \
   --model google/gemma-4-31b-it \
-  --workflow lci-mapping \
+  --workflow lci-mapping-03 \
   --include-imported \
   --pace-s 90
 
 # 3) abstention 手写 2（不扩 imported）
 python3 .benchmark/scripts/run_batch.py \
   --model google/gemma-4-31b-it \
-  --workflow bom-extract \
+  --workflow bom-extract-03 \
   --cases-root .benchmark/bom/abstention \
   --pace-s 90
 
@@ -265,7 +269,8 @@ python3 .benchmark/scripts/score_batch.py
 PCFBench 进案例树（不进 git）：
 
 ```bash
-python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5
+python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --task task5   # 图1 全量 36
+python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5      # 子集
 ```
 
 见 [`.benchmark/imported/README.md`](../../../.benchmark/imported/README.md)。

@@ -184,7 +184,7 @@ export class SettleGuard {
     this.note("nudge", String(this.nudges));
     const text =
       this.policy.nudge_text ||
-      `你还没有成功调用 submit（第 ${this.nudges}/${this.policy.max_nudges} 次提醒）。完成交付物后调用 submit；若 submit 返回校验错误，先修正再重新提交。`;
+      `你还没有成功调用 submit（第 ${this.nudges}/${this.policy.max_nudges} 次提醒）。完成交付物后调用 submit；未用到的可选参数请省略（不要传 null）。若 submit 返回校验错误，先修正再重新提交。`;
     return {
       entries: [{ type: "custom_message", customType: "workflow_nudge", content: text, display: true }],
       continue: true,

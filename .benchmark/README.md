@@ -58,12 +58,12 @@ python3 .benchmark/scripts/download_pcfbench.py
 # 冒烟两案，指定模型与 workflow（2×2 条件），每案 1 次
 python3 .benchmark/scripts/run_batch.py \
   --model openai/gpt-4o \
-  --workflow bom-extract \
+  --workflow bom-extract-03 \
   --repeat 1
 
 # 只跑指定 case、重复 3 次
 python3 .benchmark/scripts/run_batch.py \
-  --workflow bom-extract --model deepseek/deepseek-chat \
+  --workflow bom-extract-03 --model deepseek/deepseek-chat \
   --case bom-steel-plate --case bom-film-roll --repeat 3
 ```
 
@@ -74,13 +74,17 @@ python3 .benchmark/scripts/run_batch.py \
 
 ```bash
 python3 .benchmark/scripts/download_pcfbench.py
-python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --limit 5
-# 全量（默认 task4+task5+task3）进 .benchmark/imported/（不进 git）
+# 图1 extract 全量 36（task4+task5 → imported/bom/extract，不进 git）
+python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --task task5
+# 子集试用：--limit 5；mapping/triage 另加 --task task3 / task2
 python3 .benchmark/scripts/import_pcfbench_cases.py
 ```
 
 也可用 `--source .eval/data/pcfbench` 或 `--out-root .cache/benchmark/cases`。
 详见 [`imported/README.md`](imported/README.md)。
+
+评测档位（orch stem 后缀，extract 已对齐）：**01** 真薄（无 reviewer / 无 skills / 无 node.inject）；**02** 同 01 只加 reviewer；**03** 厚=两技能、无 reviewer；**04** 厚+reviewer。详见 `.benchmark/bom/harness/README.md`。
+
 
 ## 许可
 

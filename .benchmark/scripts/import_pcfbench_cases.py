@@ -6,7 +6,7 @@
 
 也可 ``--out-root .cache/benchmark/cases``（允许的缓存子树）。
 
-最小可用：task4/task5 → bom/extract；task3 → lci/mapping。
+最小可用：task4/task5 → bom/extract；task3 → lci/mapping；task2 → lci/triage。
 不下载；先跑 ``download_pcfbench.py`` 或指向已有 jsonl。
 """
 
@@ -48,6 +48,13 @@ TASK_MAP: dict[str, dict[str, str]] = {
         "subcategory": "mapping",
         "pcfbench_task": "task3_mapping",
         "kind": "mapping",
+    },
+    "task2": {
+        "filename": "task2_triage.jsonl",
+        "category": "lci",
+        "subcategory": "triage",
+        "pcfbench_task": "task2_triage",
+        "kind": "triage",
     },
 }
 
@@ -299,6 +306,96 @@ def write_mapping_case(
     return info
 
 
+
+def write_triage_case(
+    out_dir: Path,
+    *,
+    case_id: str,
+    row: dict[str, Any],
+    task_meta: dict[str, str],
+    dry_run: bool,
+) -> dict[str, Any]:
+    inp = row.get("input") or {}
+    expected = row.get("expected_output") or {}
+    market = inp.get("market") or {}
+    ctx = inp.get("material_context_data") or {}
+    market_name = str(market.get("name") or "").strip()
+    market_desc = str(market.get("description") or "").strip()
+    material_name = str(ctx.get("material_name") or ctx.get("name") or "").strip()
+    material_desc = str(ctx.get("description") or "").strip()
+    should_map = bool(expected.get("should_map"))
+    lines = [
+        f"# {case_id}",
+        "",
+        "## 市场节点",
+        "",
+        f"名称：{market_name or '（未给出）'}",
+    ]
+    if market_desc:
+        lines.append(f"说明：{market_desc}")
+    lines.extend(["", "## 上级产品语境", ""])
+    lines.append(f"物料名：{material_name or '（未给出）'}")
+    if material_desc:
+        lines.append(f"说明：{material_desc}")
+    lines.extend(
+        [
+            "",
+            "## 任务",
+            "",
+            "判定该市场节点此刻应 **直接映射**（should_map=true）还是 **继续分解**（should_map=false）。",
+            "写出 `workspace/artifacts/triage/triage.json`。",
+        ]
+    )
+    query_md = "\n".join(lines) + "\n"
+    meta = {
+        "case_id": case_id,
+        "pcfbench_task": task_meta["pcfbench_task"],
+        "pcfbench_id": row.get("id"),
+        "license_note": "PCFBench CC BY-NC-SA 4.0。由 import_pcfbench_cases.py 生成；默认在 imported/ 不进 git。",
+        "tags": ["imported", "pcfbench", task_meta["pcfbench_task"]],
+        "difficulty": "unrated",
+        "product_category": (row.get("metadata") or {}).get("product_category"),
+    }
+    meta = {k: v for k, v in meta.items() if v is not None}
+    truth = {
+        "should_map": should_map,
+        "candidate_name": market_name or None,
+    }
+    info = {
+        "case_id": case_id,
+        "kind": "triage",
+        "should_map": should_map,
+    }
+    if dry_run:
+        return info
+    case_dir = out_dir / case_id
+    (case_dir / "input").mkdir(parents=True, exist_ok=True)
+    (case_dir / "truth").mkdir(parents=True, exist_ok=True)
+    (case_dir / "eval" / "artifacts").mkdir(parents=True, exist_ok=True)
+    (case_dir / "meta.yaml").write_text(
+        yaml.safe_dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+    (case_dir / "input" / "query.md").write_text(query_md, encoding="utf-8")
+    (case_dir / "truth" / "triage.json").write_text(
+        json.dumps(truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    (case_dir / "eval" / "artifacts" / "triage.json").write_text(
+        json.dumps(
+            {
+                "should_map": should_map,
+                "rationale": "placeholder",
+                "candidate_name": market_name or None,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (case_dir / "eval" / "events.jsonl").write_text("", encoding="utf-8")
+    return info
+
+
 def import_task(
     task_key: str,
     *,
@@ -311,7 +408,8 @@ def import_task(
 ) -> dict[str, Any]:
     task_meta = TASK_MAP[task_key]
     jsonl = resolve_jsonl(task_key, cache_root, source)
-    prefix = "bom" if task_meta["kind"] == "extract" else "map"
+    kind = task_meta["kind"]
+    prefix = {"extract": "bom", "mapping": "map", "triage": "triage"}.get(kind, kind)
     dest = out_root / task_meta["category"] / task_meta["subcategory"]
     written: list[dict[str, Any]] = []
     skipped = 0
@@ -320,8 +418,12 @@ def import_task(
         if ids is not None and upstream not in ids:
             continue
         case_id = slug_case_id(prefix, upstream)
-        if task_meta["kind"] == "extract":
+        if kind == "extract":
             info = write_extract_case(
+                dest, case_id=case_id, row=row, task_meta=task_meta, dry_run=dry_run
+            )
+        elif kind == "triage":
+            info = write_triage_case(
                 dest, case_id=case_id, row=row, task_meta=task_meta, dry_run=dry_run
             )
         else:
@@ -358,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
         "--task",
         action="append",
         choices=sorted(TASK_MAP),
-        help="可重复；默认 task4 task5 task3",
+        help="可重复；默认 task4 task5 task3；含 task2→triage",
     )
     parser.add_argument(
         "--cache-root",

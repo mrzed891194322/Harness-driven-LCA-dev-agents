@@ -50,3 +50,9 @@ def test_openlca_category_lock():
     for bad in ("lca-pi13", "Root", OPENLCA_PROJECT_CATEGORY + "-old", "/"):
         with pytest.raises(ValueError):
             locked_category(bad)
+
+
+def test_schemas_and_rules_readable(wf_root):
+    s = _scope(wf_root, agent="reviewer")
+    assert any(g.endswith(".benchmark/schemas/**") for g in s.read_globs)
+    assert any(g.endswith("harness/rules/**") for g in s.read_globs)

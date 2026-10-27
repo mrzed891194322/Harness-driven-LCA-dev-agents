@@ -1,0 +1,17 @@
+id: lci-mapping-04
+title: 封闭候选集映射（04 · 最好）
+produces:
+  - {spec: .benchmark/lci/harness/specs/lci-mapping-closed-best.yaml, path: mapping/mapping.json}
+inject:
+  - rules/delivery/status.yaml
+  - rules/delivery/provenance.yaml
+  - rules/lca/knowledge-files.yaml
+agents:
+  executor:
+    agent: executor
+    tools:
+      skills: [lci-mapping-best]
+  reviewer:
+    agent: reviewer
+    tools:
+      skills: [lci-mapping-best]

@@ -1,31 +1,14 @@
 description: |
-  # 数量声明（claims，落在 BOM 阶段目录）
+  # 数量声明（claims）
 
-  从计划与 `harness/knowledge/inputs/` 声明资料抽取可打分的数量声明。本节点不查询 openLCA、不做映射、不出报告。
+  从计划与 `harness/knowledge/inputs/` 抽取可打分的数量声明。不查询 openLCA、不做映射、不出报告。
 
-  ## 方法
-
-  - 只读声明资料与计划；数值须能回链原文（`evidence`）。
-  - 单位用短符号：`g` / `kg` / `%` / `lbs` 等，**不要**写 `grams`、`gram`、`percent`。
-  - 原文同一数量并列写出两种单位时：对每种已写出的 `(数值, 单位)` 各建一条 claim，不要只保留换算后的一种。
-  - 数值区间（如 a–b、约 a~b）：拆成两端点两条数值 claim；`value` 必须是数，禁止 `value: null` 仅写 `text`。
-  - 只抽取题面要求的量；不要多抽未要求的细分百分比或其它旁支数字。
-  - 脏表 / OCR 乱码：尽量抽取仍可辨认的数字；完全无法恢复时才 `abstained: true` 且 `claims: []`。
-  - 无可用文档或信息不足：`abstained: true` 且 `claims: []`，不要编造。
-
-  ## 交付物
-
-  写到 `workspace/artifacts/bom/claims.json`（仍在 BOM 阶段桶内），形状对齐 `.benchmark/schemas/claim_set.schema.json`：
-
-  - `abstained`（可选 boolean）
+  写到 `workspace/artifacts/bom/claims.json`，形状对齐 `.benchmark/schemas/claim_set.schema.json`：
   - `claims`：数组；建议含 `claim_id`、`item_id`、`field`、`value`、`unit`、`text`、`evidence`
-  - 打分主要看规范化后的 `(value, unit)`
+  - 打分主要看规范化后的 `(value, unit)`；单位用短符号（`g` / `kg` / `%` / `lbs`）
+  - 有依据则填 claims；信息不足则 `abstained: true` 且 `claims: []`，不要编造
 
-  ## 验收
-
-  - JSON 通过下方 schema；单位为短符号。
-  - 每条 claim 有原文依据，或明确 abstain。
-  - reviewer 独立核对；缺产物、blocked、编造不得视为完成。
+  完成后对交付路径调用 submit。
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   $id: urn:harness:spec:bom-claims

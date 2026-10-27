@@ -1,0 +1,17 @@
+id: lci-triage-04
+title: 映射分流判定（04 · 最好）
+produces:
+  - {spec: .benchmark/lci/harness/specs/lci-triage-best.yaml, path: triage/triage.json}
+inject:
+  - rules/delivery/status.yaml
+  - rules/delivery/provenance.yaml
+  - rules/lca/knowledge-files.yaml
+agents:
+  executor:
+    agent: executor
+    tools:
+      skills: [lci-triage-best]
+  reviewer:
+    agent: reviewer
+    tools:
+      skills: [lci-triage-best]

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:harness:schema:triage_deliverable",
+  "title": "Mapping triage deliverable",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["should_map", "rationale"],
+  "properties": {
+    "should_map": {"type": "boolean"},
+    "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "rationale": {"type": "string", "minLength": 1},
+    "candidate_name": {"type": ["string", "null"]}
+  }
+}

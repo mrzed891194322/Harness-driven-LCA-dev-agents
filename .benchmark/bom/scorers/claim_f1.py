@@ -62,6 +62,30 @@ def _f1(precision: float, recall: float) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
+def zero_pred_scores(
+    gold: dict[str, Any] | None = None,
+    *,
+    reason: str = "no_artifact",
+) -> dict[str, Any]:
+    """Stuck / no_submit / missing claims.json: count as F1=0 (not skipped).
+
+    Design lock: precision=0, recall=0, f1=0 and keep the row in the mean
+    denominator. Overrides the both-empty → F1=1 agreement path in score_claims.
+    """
+    n_gold = len((gold or {}).get("claims") or [])
+    return {
+        "match": "exact_tuple_one_to_one",
+        "n_gold": n_gold,
+        "n_pred": 0,
+        "matched": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "hallucination_rate": 0.0,
+        "reason": reason,
+    }
+
+
 def score_claims(gold: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
     """One-to-one multiset F1. Both-empty agreement scores F1 = 1."""
     gold_keys = [claim_key(c) for c in gold.get("claims") or []]

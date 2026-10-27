@@ -7,7 +7,7 @@ import json
 from backend.workflow import events as events_mod
 from backend.workflow.events import TAIL_BYTES, EventLog, tail_seq
 from backend.workflow.service import WorkflowService
-from harness.tools.mcp.submit.schemas import validate
+from harness.tools.mcp.submit.schemas import coerce_stringified_arrays, validate
 from tests.t_workflow.test_service import _ok_driver, _project
 
 
@@ -80,3 +80,26 @@ def test_reviewer_comment_is_optional_string():
     assert validate("verdict", {"verdict": "reject", "comment": "附注",
                                 "issues": [{"where": "a", "problem": "b", "expected": "c"}]}, ctx) == []
     assert validate("verdict", {"verdict": "approve", "comment": 3}, ctx)
+
+
+def test_coerce_stringified_artifacts_before_validate(tmp_path):
+    claims = tmp_path / "claims.json"
+    claims.write_text("{\"claims\":[],\"abstained\":true}", encoding="utf-8")
+    ctx = {
+        "artifacts_root": str(tmp_path),
+        "produces": [{"path": str(claims)}],
+    }
+    # stringified array must be accepted after coerce
+    payload = {
+        "status": "done",
+        "summary": "ok",
+        "artifacts": json.dumps([str(claims)]),
+    }
+    assert coerce_stringified_arrays(dict(payload))["artifacts"] == [str(claims)]
+    assert validate("artifact", payload, ctx) == []
+    # already-array unchanged
+    assert coerce_stringified_arrays({"artifacts": ["/a"]})["artifacts"] == ["/a"]
+    # bad string left for schema to reject
+    bad = coerce_stringified_arrays({"status": "done", "summary": "x", "artifacts": "[oops"})
+    assert bad["artifacts"] == "[oops"
+    assert validate("artifact", {"status": "done", "summary": "x", "artifacts": "[oops"}, ctx)

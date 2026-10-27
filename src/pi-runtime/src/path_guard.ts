@@ -85,6 +85,14 @@ export function isInside(target: string, roots: string[]): boolean {
   });
 }
 
+/** True only for a path strictly under a root (not the root itself). Write tools must not replace a write-root directory with a file. */
+export function isStrictlyInside(target: string, roots: string[]): boolean {
+  return roots.some((root) => {
+    const rel = path.relative(root, target);
+    return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+  });
+}
+
 export interface CheckResult {
   allowed: boolean;
   requested: string;
@@ -116,8 +124,16 @@ export class PathGuard {
           reason: "这是正式交付路径，只能由 spec_mcp 写入：先把草稿写在 workspace 其他位置，再调用 spec_mcp 的 submit 提交",
         };
       }
-      if (isInside(resolved, this.writeRoots)) {
+      if (isStrictlyInside(resolved, this.writeRoots)) {
         return { allowed: true, requested, resolved };
+      }
+      if (isInside(resolved, this.writeRoots)) {
+        return {
+          allowed: false,
+          requested,
+          resolved,
+          reason: `不能把写入根目录本身写成文件，请写到其下的子路径（如 notes.md；允许根：${this.writeRoots.join(", ") || "无"}）`,
+        };
       }
       return {
         allowed: false,

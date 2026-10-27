@@ -6,6 +6,9 @@
 
 每案 token（input/output/cache）从 serve `.local/runs/<run_id>/sessions/*/transcript.jsonl`
 汇总写入 meta.json 与 summary.json；provider 未给的字段写字符串 unavailable，不静默填 0。
+
+轮询中若 live session 出现助手 `stopReason=length`：POST /api/workflow/stop 结束本案、跳下一案
+（不再空等 nudge）；按 no_submit/无产物路径记 F1=0。
 """
 
 from __future__ import annotations
@@ -29,17 +32,25 @@ from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_API = "http://127.0.0.1:8800"
-DEFAULT_WORKFLOW = "bom-extract"
+DEFAULT_WORKFLOW = "bom-extract-03"
 # workflow stem → (大类, 子类, 默认案例根相对仓根)
+# 档位：01 真·薄 / 02 薄编排无 reviewer（注入同 best；预留）/ 03 薄注入+reviewer / 04 最好
 WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
-    # workflow stem → (大类, 子类, 默认已入库案例根)
-    "bom-extract": ("bom", "extract", ".benchmark/bom/extract"),
-    "lci-mapping": ("lci", "mapping", ".benchmark/lci/mapping"),
+    "bom-extract-03": ("bom", "extract", ".benchmark/bom/extract"),
+    "bom-extract-04": ("bom", "extract", ".benchmark/bom/extract"),
+    "lci-mapping-03": ("lci", "mapping", ".benchmark/lci/mapping"),
+    "lci-mapping-04": ("lci", "mapping", ".benchmark/lci/mapping"),
+    "lci-triage-03": ("lci", "triage", ".benchmark/lci/triage"),
+    "lci-triage-04": ("lci", "triage", ".benchmark/lci/triage"),
 }
-# abstention 复用 bom-extract orch；用 --cases-root 或 --include-imported 挂树
+# abstention 复用 bom-extract-03/04 orch；用 --cases-root 或 --include-imported 挂树
 ARTIFACT_RELS: dict[str, tuple[Path, ...]] = {
-    "bom-extract": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
-    "lci-mapping": (Path("artifacts/mapping/mapping.json"),),
+    "bom-extract-03": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
+    "bom-extract-04": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
+    "lci-mapping-03": (Path("artifacts/mapping/mapping.json"),),
+    "lci-mapping-04": (Path("artifacts/mapping/mapping.json"),),
+    "lci-triage-03": (Path("artifacts/triage/triage.json"),),
+    "lci-triage-04": (Path("artifacts/triage/triage.json"),),
 }
 CLAIMS_REL = Path("artifacts/bom/claims.json")  # 兼容旧引用
 BOM_REL = Path("artifacts/bom/bom.json")
@@ -95,7 +106,7 @@ def api_json(
 
 
 def _truth_path(case_dir: Path) -> Path | None:
-    for name in ("claims.json", "mapping.json"):
+    for name in ("claims.json", "mapping.json", "triage.json"):
         p = case_dir / "truth" / name
         if p.is_file():
             return p
@@ -379,6 +390,73 @@ def serve_tip(repo: Path) -> str:
         return "unknown"
 
 
+
+# Pi live session: message.stopReason / exported transcript: stop_reason
+_LENGTH_STOP_RE = re.compile(
+    r'"stopReason"\s*:\s*"length"|"stop_reason"\s*:\s*"length"',
+    re.I,
+)
+
+
+class LengthStopWatcher:
+    """Scan growing session.jsonl (and optional transcript) for stopReason=length.
+
+    Detection source (in priority order):
+    1. workspace/tmp/pi-workflow/**/session.jsonl  (live during settle/nudges)
+    2. .local/runs/<rid>/sessions/**/transcript.jsonl  (if already exported)
+    3. /api/workflow/events blob (if host ever surfaces stop_reason)
+    """
+
+    def __init__(self, workspace: Path) -> None:
+        self.workspace = workspace
+        self._offsets: dict[Path, int] = {}
+
+    def _scan_file(self, path: Path) -> bool:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return False
+        start = self._offsets.get(path, 0)
+        if size < start:
+            start = 0  # truncated/rotated
+        if size == start:
+            return False
+        try:
+            with path.open("rb") as fh:
+                fh.seek(start)
+                chunk = fh.read()
+            self._offsets[path] = start + len(chunk)
+        except OSError:
+            return False
+        try:
+            text = chunk.decode("utf-8", errors="replace")
+        except Exception:
+            return False
+        return bool(_LENGTH_STOP_RE.search(text))
+
+    def check(self, run_id: str | None = None, events_blob: str = "") -> tuple[bool, str]:
+        if events_blob and _LENGTH_STOP_RE.search(events_blob):
+            return True, "api:/workflow/events"
+        root = self.workspace / "tmp" / "pi-workflow"
+        if root.is_dir():
+            for path in sorted(root.rglob("session.jsonl")):
+                if self._scan_file(path):
+                    try:
+                        rel = path.relative_to(self.workspace)
+                    except ValueError:
+                        rel = path
+                    return True, f"session:{rel}"
+        if run_id:
+            sessions = (
+                self.workspace.parent / ".local" / "runs" / str(run_id) / "sessions"
+            )
+            if sessions.is_dir():
+                for path in sorted(sessions.rglob("transcript.jsonl")):
+                    if self._scan_file(path):
+                        return True, f"transcript:{path.name}"
+        return False, ""
+
+
 def stop_workflow(api: str, tee: Tee) -> dict[str, Any]:
     """Best-effort POST /api/workflow/stop so a timed-out run does not block the batch."""
     try:
@@ -444,16 +522,33 @@ def ensure_model(api: str, model: str | None, tee: Tee) -> str:
 
 
 def poll_until_done(
-    api: str, tee: Tee, poll_s: float = 5, max_s: float = 0
+    api: str,
+    tee: Tee,
+    poll_s: float = 5,
+    max_s: float = 0,
+    *,
+    workspace: Path | None = None,
+    early_stop_on_length: bool = False,
 ) -> dict[str, Any]:
     """Poll until terminal. max_s<=0: never hard-timeout (warn only).
 
     Du Yuan 2026-10-26: poll_timeout must not conclude a case; ops half-hour
     routine catches true hangs. Positive max_s only emits periodic WARN.
+
+    Length early-stop (opt-in via --early-stop-on-length): if live Pi session
+    shows assistant stopReason=length, stop the workflow immediately and move
+    on (do not burn more nudges). Marked as early_stop=length → scored like
+    no_submit / F1=0. Default OFF (2026-10-27): Tongji/larger models may
+    continue via normal nudges/turns after a length stop_reason.
     """
     t0 = time.time()
     last = ""
     warned_at = 0.0
+    watcher = (
+        LengthStopWatcher(workspace)
+        if early_stop_on_length and workspace is not None
+        else None
+    )
     while True:
         st = api_json(api, "GET", "/api/workflow/status", timeout=20)
         nodes = [
@@ -471,6 +566,33 @@ def poll_until_done(
         status = (st.get("status") or "").lower()
         if not st.get("running") and status in TERMINAL:
             return st
+
+        if watcher is not None and st.get("running"):
+            hit, via = watcher.check(str(st.get("run_id") or "") or None)
+            if hit:
+                tee.log(
+                    f"  EARLY_STOP stop_reason=length via={via} "
+                    f"→ POST /api/workflow/stop (skip remaining nudges)"
+                )
+                stop_workflow(api, tee)
+                wait_idle(api, tee, timeout_s=60, stop_if_stuck=True)
+                try:
+                    final = api_json(api, "GET", "/api/workflow/status", timeout=20)
+                except Exception as e:
+                    final = dict(st)
+                    final["_status_fetch_error"] = str(e)
+                if not isinstance(final, dict):
+                    final = dict(st)
+                else:
+                    final = dict(final)
+                final["_early_stop"] = "length"
+                final["_early_stop_via"] = via
+                # Prefer no_submit scoring path (missing claims → F1=0).
+                reason = str(final.get("reason") or st.get("reason") or "")
+                tag = "no_submit: early_stop stop_reason=length"
+                final["reason"] = f"{reason}; {tag}".strip("; ") if reason else tag
+                return final
+
         if max_s > 0 and elapsed > max_s and (elapsed - warned_at) >= max(max_s, 60):
             # Soft warn only — do not stop, do not mark _timeout, do not return.
             tee.log(
@@ -671,6 +793,45 @@ def stage_case_references(api: str, case: dict[str, Any], tee: Tee) -> list[str]
     return saved
 
 
+def _load_claim_f1():
+    scorer = REPO / ".benchmark/bom/scorers/claim_f1.py"
+    if not scorer.is_file():
+        return None
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("claim_f1", scorer)
+    if spec is None or spec.loader is None:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def zero_f1_scores(truth: Path | None, *, reason: str) -> dict:
+    """no_submit / missing claims.json → F1=0 (not null), kept in batch rows."""
+    gold: dict = {}
+    if truth is not None and truth.is_file():
+        try:
+            gold = json.loads(truth.read_text(encoding="utf-8"))
+        except Exception:
+            gold = {}
+    mod = _load_claim_f1()
+    if mod is not None and hasattr(mod, "zero_pred_scores"):
+        return mod.zero_pred_scores(gold, reason=reason)
+    n_gold = len((gold.get("claims") or []))
+    return {
+        "match": "exact_tuple_one_to_one",
+        "n_gold": n_gold,
+        "n_pred": 0,
+        "matched": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "hallucination_rate": 0.0,
+        "reason": reason,
+    }
+
+
 def optional_f1(truth: Path | None, pred: Path) -> dict | None:
     if truth is None or not truth.is_file() or not pred.is_file():
         return None
@@ -693,6 +854,24 @@ def optional_fabrication(truth: Path | None, pred: Path) -> dict | None:
     if truth is None or not truth.is_file() or not pred.is_file():
         return None
     scorer = REPO / ".benchmark/lci/scorers/fabrication_rate.py"
+    if not scorer.is_file():
+        return None
+    try:
+        out = subprocess.check_output(
+            [sys.executable, str(scorer), str(truth), str(pred)],
+            cwd=str(REPO),
+            text=True,
+            timeout=30,
+        )
+        return json.loads(out)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def optional_triage(truth: Path | None, pred: Path) -> dict | None:
+    if truth is None or not truth.is_file() or not pred.is_file():
+        return None
+    scorer = REPO / ".benchmark/lci/scorers/triage_accuracy.py"
     if not scorer.is_file():
         return None
     try:
@@ -757,6 +936,7 @@ def run_one(
     poll_s: float,
     max_s: float,
     auto_references: bool = True,
+    early_stop_on_length: bool = False,
 ) -> dict[str, Any]:
     case_id = case["id"]
     qpath: Path = case["query"]
@@ -814,7 +994,14 @@ def run_one(
     resp = api_json(api, "POST", "/api/workflow/start", {"workflow": workflow, "plan": plan})
     tee.log(f"  start_resp={json.dumps(resp, ensure_ascii=False)}")
     time.sleep(1.5)
-    st = poll_until_done(api, tee, poll_s=poll_s, max_s=max_s)
+    st = poll_until_done(
+        api,
+        tee,
+        poll_s=poll_s,
+        max_s=max_s,
+        workspace=workspace,
+        early_stop_on_length=early_stop_on_length,
+    )
     rid = st.get("run_id")
     status = st.get("status")
     events = fetch_events_blob(api)
@@ -865,10 +1052,28 @@ def run_one(
     )
     tee.log(f"  result_dir={out_dir.relative_to(REPO)}")
 
-    f1 = optional_f1(case.get("truth"), primary) if claims_ok else None
+    if claims_ok:
+        f1 = optional_f1(case.get("truth"), primary)
+    else:
+        # stuck / no_submit / no claims.json → F1=0 (not null); still a scored row
+        reason_blob = str(st.get("reason") or "")
+        for node in st.get("nodes") or []:
+            if isinstance(node, dict):
+                reason_blob += " " + str(node.get("error") or "")
+        score_reason = (
+            "no_submit"
+            if "no_submit" in reason_blob.casefold()
+            else "no_artifact"
+        )
+        f1 = zero_f1_scores(case.get("truth"), reason=score_reason)
     fab = (
         optional_fabrication(case.get("truth"), primary)
-        if artifact_ok and workflow == "lci-mapping"
+        if artifact_ok and workflow.startswith("lci-mapping")
+        else None
+    )
+    triage = (
+        optional_triage(case.get("truth"), primary)
+        if artifact_ok and workflow.startswith("lci-triage")
         else None
     )
     term_ok = (status or "").lower() == "completed" and not st.get("_timeout")
@@ -881,6 +1086,10 @@ def run_one(
     notes_parts: list[str] = []
     if st.get("_timeout"):
         notes_parts.append("poll_timeout")
+    if st.get("_early_stop") == "length":
+        notes_parts.append(
+            f"early_stop:length via={st.get('_early_stop_via') or '?'}"
+        )
     if transient_hit:
         tag = "429" if rate_hit else "disconnect"
         notes_parts.append(f"transient_hit:{tag}")
@@ -899,13 +1108,18 @@ def run_one(
     elif not artifact_ok:
         notes_parts.append(f"no_artifact:{primary_rels[0].as_posix()}")
     if f1 and "f1" in f1:
-        notes_parts.append(f"F1={f1['f1']:.3f}(info)")
+        tag = f1.get("reason") or "info"
+        notes_parts.append(f"F1={f1['f1']:.3f}({tag})")
     elif f1 and f1.get("error"):
         notes_parts.append(f"f1_err={f1['error'][:80]}")
     if fab and "candidate_hit_rate" in fab:
         notes_parts.append(f"hit={fab['candidate_hit_rate']:.3f}(info)")
     elif fab and fab.get("error"):
         notes_parts.append(f"fab_err={fab['error'][:80]}")
+    if triage and "accuracy" in triage and triage.get("accuracy") is not None:
+        notes_parts.append(f"acc={triage['accuracy']:.3f}(info)")
+    elif triage and triage.get("error"):
+        notes_parts.append(f"triage_err={triage['error'][:80]}")
     reason = st.get("reason") or ""
     if reason:
         notes_parts.append(f"reason={reason}")
@@ -927,6 +1141,7 @@ def run_one(
         "notes": "; ".join(notes_parts),
         "f1": f1,
         "fabrication": fab,
+        "triage": triage,
         "tokens": tokens,
     }
     tee.log(f"DONE {json.dumps(row, ensure_ascii=False)}")
@@ -946,7 +1161,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workflow",
         default=DEFAULT_WORKFLOW,
-        help="orch stem（bom-extract | lci-mapping）；默认 bom-extract",
+        help="orch stem（bom-extract-03/04 | lci-mapping-03/04 | lci-triage-03/04）；默认 bom-extract-03",
     )
     parser.add_argument(
         "--repeat",
@@ -1005,6 +1220,11 @@ def main(argv: list[str] | None = None) -> int:
         "--log-dir",
         default=".benchmark/result/_logs",
         help="串跑日志目录（相对仓根；落在已 ignore 的 result 下）",
+    )
+    parser.add_argument(
+        "--early-stop-on-length",
+        action="store_true",
+        help="遇 Pi stopReason=length 时早停本案并记 F1=0（默认关闭；小模型/Spark 可显式打开）",
     )
     args = parser.parse_args(argv)
 
@@ -1074,6 +1294,7 @@ def main(argv: list[str] | None = None) -> int:
             f"backoff_max_s={args.backoff_max_s}"
         )
         tee.log(f"auto_references={not args.no_auto_references}")
+        tee.log(f"early_stop_on_length={bool(args.early_stop_on_length)}")
         rate_streak = 0
         started_any = False
 
@@ -1106,6 +1327,7 @@ def main(argv: list[str] | None = None) -> int:
                         poll_s=args.poll,
                         max_s=args.max_s,
                         auto_references=not args.no_auto_references,
+                        early_stop_on_length=bool(args.early_stop_on_length),
                     )
                     rows.append(row)
                     if row.get("rate_limit"):

@@ -1,0 +1,6 @@
+id: bom-extract-01
+title: 数量声明抽取（01 · 真薄）
+produces:
+  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
+agents:
+  executor: executor
