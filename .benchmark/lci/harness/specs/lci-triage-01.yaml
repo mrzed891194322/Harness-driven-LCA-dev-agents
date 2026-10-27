@@ -1,0 +1,19 @@
+description: |
+  # 映射分流（PCFBench task2 · 01 真薄）
+
+  判定题面市场节点应 **直接映射**（`should_map: true`）还是 **继续分解**（`should_map: false`）。
+  不查 openLCA、不建 LCI。写出 `workspace/artifacts/triage/triage.json`
+  （必有 `should_map`、`rationale`；可选 `confidence`、`candidate_name`）。完成后 submit。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:lci-triage-01
+  title: Mapping triage deliverable (01 thin)
+  type: object
+  additionalProperties: false
+  required: [should_map, rationale]
+  properties:
+    should_map: {type: boolean}
+    confidence: {type: ["number", "null"], minimum: 0, maximum: 1}
+    rationale: {type: string, minLength: 1}
+    candidate_name: {type: ["string", "null"]}
+checks: []

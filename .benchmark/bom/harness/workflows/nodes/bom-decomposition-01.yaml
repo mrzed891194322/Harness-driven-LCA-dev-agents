@@ -1,0 +1,6 @@
+id: bom-decomposition-01
+title: 产品组成分解（01 · 真薄）
+produces:
+  - {spec: .benchmark/bom/harness/specs/bom-decomposition.yaml, path: bom/decomposition.json}
+agents:
+  executor: executor

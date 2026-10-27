@@ -6,7 +6,7 @@
 
 也可 ``--out-root .cache/benchmark/cases``（允许的缓存子树）。
 
-最小可用：task4/task5 → bom/extract；task3 → lci/mapping；task2 → lci/triage。
+最小可用：task4/task5 → bom/extract；task1 → bom/decomposition；task3 → lci/mapping；task2 → lci/triage。
 不下载；先跑 ``download_pcfbench.py`` 或指向已有 jsonl。
 """
 
@@ -28,6 +28,13 @@ DEFAULT_OUT = REPO / ".benchmark" / "imported"
 FALLBACK_DATA = REPO / ".eval" / "data" / "pcfbench"
 
 TASK_MAP: dict[str, dict[str, str]] = {
+    "task1": {
+        "filename": "task1_decomposition.jsonl",
+        "category": "bom",
+        "subcategory": "decomposition",
+        "pcfbench_task": "task1_decomposition",
+        "kind": "decomposition",
+    },
     "task4": {
         "filename": "task4_extraction_material.jsonl",
         "category": "bom",
@@ -233,6 +240,81 @@ def mapping_truth(expected: dict[str, Any], material_name: str) -> dict[str, Any
     return {"candidates": candidates, "items": [item]}
 
 
+
+def write_decomposition_case(
+    out_dir: Path,
+    *,
+    case_id: str,
+    row: dict[str, Any],
+    task_meta: dict[str, str],
+    dry_run: bool,
+) -> dict[str, Any]:
+    inp = row.get("input") or {}
+    expected = row.get("expected_output") or {}
+    product = str(inp.get("product_name") or "").strip()
+    description = str(inp.get("description") or "").strip()
+    unit = str(inp.get("quantity_unit") or "").strip()
+    components = [
+        str(c).strip()
+        for c in list((expected or {}).get("components") or [])
+        if str(c).strip()
+    ]
+    lines = [
+        f"# {case_id}",
+        "",
+        f"产品：{product or '（未给出）'}",
+    ]
+    if unit:
+        lines.append(f"单位：{unit}")
+    if description:
+        lines.extend(["", "说明：", description])
+    lines.extend(
+        [
+            "",
+            "## 任务",
+            "",
+            "列出组成该产品的物料/成分清单（BOM components）。",
+            "写出 `workspace/artifacts/bom/decomposition.json`（字段 `components: string[]`）。",
+        ]
+    )
+    query_md = "\n".join(lines) + "\n"
+    meta = {
+        "case_id": case_id,
+        "pcfbench_task": task_meta["pcfbench_task"],
+        "pcfbench_id": row.get("id"),
+        "license_note": "PCFBench CC BY-NC-SA 4.0。由 import_pcfbench_cases.py 生成；默认在 imported/ 不进 git。",
+        "tags": ["imported", "pcfbench", task_meta["pcfbench_task"]],
+        "difficulty": "unrated",
+        "product_category": (row.get("metadata") or {}).get("product_category"),
+    }
+    meta = {k: v for k, v in meta.items() if v is not None}
+    truth = {"components": components}
+    info = {
+        "case_id": case_id,
+        "kind": "decomposition",
+        "n_components": len(components),
+    }
+    if dry_run:
+        return info
+    case_dir = out_dir / case_id
+    (case_dir / "input").mkdir(parents=True, exist_ok=True)
+    (case_dir / "truth").mkdir(parents=True, exist_ok=True)
+    (case_dir / "eval" / "artifacts").mkdir(parents=True, exist_ok=True)
+    (case_dir / "meta.yaml").write_text(
+        yaml.safe_dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+    (case_dir / "input" / "query.md").write_text(query_md, encoding="utf-8")
+    (case_dir / "truth" / "decomposition.json").write_text(
+        json.dumps(truth, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    (case_dir / "eval" / "artifacts" / "decomposition.json").write_text(
+        json.dumps({"components": []}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (case_dir / "eval" / "events.jsonl").write_text("", encoding="utf-8")
+    return info
+
+
 def write_mapping_case(
     out_dir: Path,
     *,
@@ -409,7 +491,7 @@ def import_task(
     task_meta = TASK_MAP[task_key]
     jsonl = resolve_jsonl(task_key, cache_root, source)
     kind = task_meta["kind"]
-    prefix = {"extract": "bom", "mapping": "map", "triage": "triage"}.get(kind, kind)
+    prefix = {"extract": "bom", "decomposition": "decomp", "mapping": "map", "triage": "triage"}.get(kind, kind)
     dest = out_root / task_meta["category"] / task_meta["subcategory"]
     written: list[dict[str, Any]] = []
     skipped = 0
@@ -420,6 +502,10 @@ def import_task(
         case_id = slug_case_id(prefix, upstream)
         if kind == "extract":
             info = write_extract_case(
+                dest, case_id=case_id, row=row, task_meta=task_meta, dry_run=dry_run
+            )
+        elif kind == "decomposition":
+            info = write_decomposition_case(
                 dest, case_id=case_id, row=row, task_meta=task_meta, dry_run=dry_run
             )
         elif kind == "triage":
@@ -460,7 +546,7 @@ def main(argv: list[str] | None = None) -> int:
         "--task",
         action="append",
         choices=sorted(TASK_MAP),
-        help="可重复；默认 task4 task5 task3；含 task2→triage",
+        help="可重复；默认 task4 task5 task3；task1→decomposition；task2→triage",
     )
     parser.add_argument(
         "--cache-root",

@@ -36,19 +36,27 @@ DEFAULT_WORKFLOW = "bom-extract-03"
 # workflow stem → (大类, 子类, 默认案例根相对仓根)
 # 档位：01 真·薄 / 02 薄编排无 reviewer（注入同 best；预留）/ 03 薄注入+reviewer / 04 最好
 WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
+    "bom-extract-01": ("bom", "extract", ".benchmark/bom/extract"),
     "bom-extract-03": ("bom", "extract", ".benchmark/bom/extract"),
     "bom-extract-04": ("bom", "extract", ".benchmark/bom/extract"),
+    "bom-decomposition-01": ("bom", "decomposition", ".benchmark/bom/decomposition"),
+    "lci-mapping-01": ("lci", "mapping", ".benchmark/lci/mapping"),
     "lci-mapping-03": ("lci", "mapping", ".benchmark/lci/mapping"),
     "lci-mapping-04": ("lci", "mapping", ".benchmark/lci/mapping"),
+    "lci-triage-01": ("lci", "triage", ".benchmark/lci/triage"),
     "lci-triage-03": ("lci", "triage", ".benchmark/lci/triage"),
     "lci-triage-04": ("lci", "triage", ".benchmark/lci/triage"),
 }
 # abstention 复用 bom-extract-03/04 orch；用 --cases-root 或 --include-imported 挂树
 ARTIFACT_RELS: dict[str, tuple[Path, ...]] = {
+    "bom-extract-01": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
     "bom-extract-03": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
     "bom-extract-04": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
+    "bom-decomposition-01": (Path("artifacts/bom/decomposition.json"),),
+    "lci-mapping-01": (Path("artifacts/mapping/mapping.json"),),
     "lci-mapping-03": (Path("artifacts/mapping/mapping.json"),),
     "lci-mapping-04": (Path("artifacts/mapping/mapping.json"),),
+    "lci-triage-01": (Path("artifacts/triage/triage.json"),),
     "lci-triage-03": (Path("artifacts/triage/triage.json"),),
     "lci-triage-04": (Path("artifacts/triage/triage.json"),),
 }
@@ -106,7 +114,7 @@ def api_json(
 
 
 def _truth_path(case_dir: Path) -> Path | None:
-    for name in ("claims.json", "mapping.json", "triage.json"):
+    for name in ("claims.json", "decomposition.json", "mapping.json", "triage.json"):
         p = case_dir / "truth" / name
         if p.is_file():
             return p
@@ -868,6 +876,25 @@ def optional_fabrication(truth: Path | None, pred: Path) -> dict | None:
         return {"error": str(e)}
 
 
+
+def optional_decomposition(truth: Path | None, pred: Path) -> dict | None:
+    if truth is None or not truth.is_file() or not pred.is_file():
+        return None
+    scorer = REPO / ".benchmark/bom/scorers/decomposition_f1.py"
+    if not scorer.is_file():
+        return None
+    try:
+        out = subprocess.check_output(
+            [sys.executable, str(scorer), str(truth), str(pred)],
+            cwd=str(REPO),
+            text=True,
+            timeout=30,
+        )
+        return json.loads(out)
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def optional_triage(truth: Path | None, pred: Path) -> dict | None:
     if truth is None or not truth.is_file() or not pred.is_file():
         return None
@@ -1052,19 +1079,39 @@ def run_one(
     )
     tee.log(f"  result_dir={out_dir.relative_to(REPO)}")
 
-    if claims_ok:
+    reason_blob = str(st.get("reason") or "")
+    for node in st.get("nodes") or []:
+        if isinstance(node, dict):
+            reason_blob += " " + str(node.get("error") or "")
+    score_reason = (
+        "no_submit"
+        if "no_submit" in reason_blob.casefold()
+        else "no_artifact"
+    )
+    if workflow.startswith("bom-decomposition"):
+        if artifact_ok:
+            f1 = optional_decomposition(case.get("truth"), primary)
+        else:
+            # no_submit / missing decomposition.json → F1=0
+            scorer = REPO / ".benchmark/bom/scorers/decomposition_f1.py"
+            try:
+                import importlib.util
+
+                spec = importlib.util.spec_from_file_location("decomposition_f1", scorer)
+                mod = importlib.util.module_from_spec(spec)
+                assert spec.loader is not None
+                spec.loader.exec_module(mod)
+                gold = None
+                tp = case.get("truth")
+                if tp and Path(tp).is_file():
+                    gold = json.loads(Path(tp).read_text(encoding="utf-8"))
+                f1 = mod.zero_pred_scores(gold, reason=score_reason)
+            except Exception as e:
+                f1 = {"f1": 0.0, "precision": 0.0, "recall": 0.0, "error": str(e), "reason": score_reason}
+    elif claims_ok:
         f1 = optional_f1(case.get("truth"), primary)
     else:
         # stuck / no_submit / no claims.json → F1=0 (not null); still a scored row
-        reason_blob = str(st.get("reason") or "")
-        for node in st.get("nodes") or []:
-            if isinstance(node, dict):
-                reason_blob += " " + str(node.get("error") or "")
-        score_reason = (
-            "no_submit"
-            if "no_submit" in reason_blob.casefold()
-            else "no_artifact"
-        )
         f1 = zero_f1_scores(case.get("truth"), reason=score_reason)
     fab = (
         optional_fabrication(case.get("truth"), primary)
@@ -1112,6 +1159,8 @@ def run_one(
         notes_parts.append(f"F1={f1['f1']:.3f}({tag})")
     elif f1 and f1.get("error"):
         notes_parts.append(f"f1_err={f1['error'][:80]}")
+    if fab and "exact_match_rate" in fab:
+        notes_parts.append(f"top1={fab['exact_match_rate']:.3f}(info)")
     if fab and "candidate_hit_rate" in fab:
         notes_parts.append(f"hit={fab['candidate_hit_rate']:.3f}(info)")
     elif fab and fab.get("error"):
@@ -1161,7 +1210,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workflow",
         default=DEFAULT_WORKFLOW,
-        help="orch stem（bom-extract-03/04 | lci-mapping-03/04 | lci-triage-03/04）；默认 bom-extract-03",
+        help="orch stem（*-01 真薄 | *-03/04）；含 bom-decomposition-01 / lci-mapping-01 / lci-triage-01；默认 bom-extract-03",
     )
     parser.add_argument(
         "--repeat",

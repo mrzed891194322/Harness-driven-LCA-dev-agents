@@ -1,0 +1,5 @@
+id: lci-mapping-01
+title: LCI 封闭集映射（01 · 真薄）
+max_redos: 0
+# PCFBench task3 Top-1；无 reviewer / 无 skills / 无 node.inject
+nodes: [.benchmark/lci/harness/workflows/nodes/lci-mapping-01.yaml]

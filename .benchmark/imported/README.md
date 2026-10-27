@@ -5,6 +5,7 @@
 ```
 .benchmark/imported/
   bom/extract/<case_id>/     # 图1 全量：task4+task5 = 36（不进 git）
+  bom/decomposition/<case_id>/  # task1 组成（按需 import；DeepSeek 01×30）
   lci/mapping/<case_id>/
   lci/triage/<case_id>/      # task2（按需 import）
 ```
@@ -52,3 +53,30 @@ uv run python .benchmark/scripts/run_batch.py --model <profile> \
 uv run python .benchmark/scripts/run_batch.py --model <profile> \
   --workflow bom-extract-03 --cases-root .benchmark/bom/abstention
 ```
+
+## DeepSeek 01 × Task1/2/3（各 30）
+
+```bash
+python3 .benchmark/scripts/import_pcfbench_cases.py --source .eval/data/pcfbench \
+  --task task1 --task task2 --task task3 --limit 30
+# 期望各 30：
+ls -d .benchmark/imported/bom/decomposition/*/ | wc -l
+ls -d .benchmark/imported/lci/triage/*/ | wc -l
+ls -d .benchmark/imported/lci/mapping/*/ | wc -l
+
+# 跑批（serve 须挂含 *-01 的 tip；--cases-root 指 imported）
+uv run python .benchmark/scripts/run_batch.py --model <profile> \
+  --workflow bom-decomposition-01 --cases-root .benchmark/imported/bom/decomposition
+uv run python .benchmark/scripts/run_batch.py --model <profile> \
+  --workflow lci-triage-01 --cases-root .benchmark/imported/lci/triage
+uv run python .benchmark/scripts/run_batch.py --model <profile> \
+  --workflow lci-mapping-01 --cases-root .benchmark/imported/lci/mapping
+
+# 打分（T1=decomposition F1；T2=accuracy；T3 主报 mean_top1=exact_match_rate）
+uv run python .benchmark/scripts/score_batch.py --category bom --subcategory decomposition
+uv run python .benchmark/scripts/score_batch.py --category lci --subcategory triage
+uv run python .benchmark/scripts/score_batch.py --category lci --subcategory mapping
+```
+
+T1 scorer 为确定性成分集合 F1（`decomposition_f1.py`），notes 标明非官方 LLM judge。
+

@@ -1,0 +1,6 @@
+id: lci-mapping-01
+title: 封闭候选集映射（01 · 真薄）
+produces:
+  - {spec: .benchmark/lci/harness/specs/lci-mapping-01.yaml, path: mapping/mapping.json}
+agents:
+  executor: executor

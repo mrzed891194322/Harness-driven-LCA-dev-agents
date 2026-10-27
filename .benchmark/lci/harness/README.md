@@ -15,7 +15,7 @@ LCI / mapping / triage 测评用的 orch / node / spec（与产品 `harness/` �
 
 | API stem | 说明 | 状态 |
 | --- | --- | --- |
-| `lci-mapping-01` / `lci-triage-01` | 真·薄 | 预留未建 |
+| `lci-mapping-01` / `lci-triage-01` | 真·薄 | 已有 |
 | `lci-mapping-02` / `lci-triage-02` | 薄编排无 reviewer；注入同 best | 预留未建 |
 | `lci-mapping-03` | 封闭候选集映射（薄注入 + reviewer）；产物 `artifacts/mapping/mapping.json` | 已有 |
 | `lci-mapping-04` | 最好：短指针 spec + `lci-mapping-best` | 已有 |

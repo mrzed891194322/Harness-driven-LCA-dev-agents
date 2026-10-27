@@ -3,7 +3,7 @@
 
 配对 truth：先 `.benchmark/<大类>/<子类>/<case_id>/truth/`，
 再 `.benchmark/imported/<大类>/<子类>/<case_id>/truth/`。
-复用 `claim_f1` / `fabrication_rate` / `triage_accuracy`；不改 `score_case.py`（仍只打案例树 eval/）。
+复用 `claim_f1` / `decomposition_f1` / `fabrication_rate` / `triage_accuracy`；不改 `score_case.py`（仍只打案例树 eval/）。
 
 卡死 / no_submit / 无 claims.json：记 F1=0（precision=0, recall=0），计入均值分母，不 skip。
 """
@@ -29,11 +29,13 @@ CASE_ROOTS = (
 CLAIM_F1_PATH = REPO / ".benchmark" / "bom" / "scorers" / "claim_f1.py"
 FAB_PATH = REPO / ".benchmark" / "lci" / "scorers" / "fabrication_rate.py"
 TRIAGE_PATH = REPO / ".benchmark" / "lci" / "scorers" / "triage_accuracy.py"
+DECOMP_PATH = REPO / ".benchmark" / "bom" / "scorers" / "decomposition_f1.py"
 
 # subcategory → (pred relative under run dir, truth filename, scorer kind)
 SCORE_SPEC: dict[str, tuple[Path, str, str]] = {
     "extract": (Path("artifacts/bom/claims.json"), "claims.json", "claim_f1"),
     "abstention": (Path("artifacts/bom/claims.json"), "claims.json", "claim_f1"),
+    "decomposition": (Path("artifacts/bom/decomposition.json"), "decomposition.json", "decomposition"),
     "mapping": (Path("artifacts/mapping/mapping.json"), "mapping.json", "fabrication"),
     "triage": (Path("artifacts/triage/triage.json"), "triage.json", "triage"),
 }
@@ -145,6 +147,7 @@ def score_run(
     claim_f1: Any,
     fabrication_rate: Any,
     triage_accuracy: Any,
+    decomposition_f1: Any,
     model_filter: str | None,
     workflow_filter: str | None,
 ) -> dict[str, Any] | None:
@@ -269,6 +272,14 @@ def score_run(
             row["f1"] = 0.0
             row["score_reason"] = reason
             return row
+        if kind == "decomposition":
+            decomp = decomposition_f1.zero_pred_scores(gold, reason=reason)
+            row["scores"] = {"decomposition_f1": decomp}
+            row["f1"] = 0.0
+            row["precision"] = 0.0
+            row["recall"] = 0.0
+            row["score_reason"] = reason
+            return row
         if only_with_artifact:
             row["skip"] = f"no_artifact:{pred_rel.as_posix()}"
             return row
@@ -300,7 +311,19 @@ def score_run(
             fab = scores["fabrication_rate"]
             row["candidate_hit_rate"] = fab.get("candidate_hit_rate")
             row["fabrication_rate"] = fab.get("fabrication_rate")
+            # PCFBench Task3 primary: Top-1 exact match against gold options
             row["exact_match_rate"] = fab.get("exact_match_rate")
+            row["top1"] = fab.get("exact_match_rate")
+        elif kind == "decomposition":
+            scores = {"decomposition_f1": decomposition_f1.score_decomposition(gold, pred)}
+            d = scores["decomposition_f1"]
+            row["f1"] = d.get("f1")
+            row["precision"] = d.get("precision")
+            row["recall"] = d.get("recall")
+            row["n_gold"] = d.get("n_gold")
+            row["n_pred"] = d.get("n_pred")
+            row["matched"] = d.get("matched")
+            row["judge"] = d.get("judge")
         else:
             scores = {"triage": triage_accuracy.score_triage(gold, pred)}
             tri = scores["triage"]
@@ -366,6 +389,14 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             entry["mean_candidate_hit_rate"] = _mean(hits)
         if fabs:
             entry["mean_fabrication_rate"] = _mean(fabs)
+        exacts = [
+            float(r["exact_match_rate"])
+            for r in group
+            if r.get("exact_match_rate") is not None
+        ]
+        if exacts:
+            entry["mean_exact_match_rate"] = _mean(exacts)
+            entry["mean_top1"] = entry["mean_exact_match_rate"]  # PCFBench Task3 headline
         if accs:
             entry["mean_accuracy"] = _mean(accs)
         models = sorted({str(r.get("model") or "") for r in group if r.get("model")})
@@ -454,7 +485,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--subcategory",
         default=None,
-        help="只扫某一子类，如 extract / mapping / abstention / triage",
+        help="只扫某一子类，如 extract / decomposition / mapping / abstention / triage",
     )
     args = parser.parse_args(argv)
 
@@ -468,6 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     claim_f1 = _load_module(CLAIM_F1_PATH, "claim_f1")
     fabrication_rate = _load_module(FAB_PATH, "fabrication_rate")
     triage_accuracy = _load_module(TRIAGE_PATH, "triage_accuracy")
+    decomposition_f1 = _load_module(DECOMP_PATH, "decomposition_f1")
 
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir = args.out_dir
@@ -504,6 +536,7 @@ def main(argv: list[str] | None = None) -> int:
             claim_f1=claim_f1,
             fabrication_rate=fabrication_rate,
             triage_accuracy=triage_accuracy,
+            decomposition_f1=decomposition_f1,
             model_filter=args.model,
             workflow_filter=args.workflow,
         )

@@ -1,0 +1,5 @@
+id: lci-triage-01
+title: LCI 映射分流（01 · 真薄）
+max_redos: 0
+# PCFBench task2：直接映射 vs 继续分解；无 reviewer / 无 skills / 无 node.inject
+nodes: [.benchmark/lci/harness/workflows/nodes/lci-triage-01.yaml]

@@ -1,0 +1,25 @@
+description: |
+  # 产品组成分解（PCFBench task1 · 01 真薄）
+
+  根据题面中的产品名称、说明与单位，列出组成该产品的**物料/成分清单**（BOM components）。
+  **不**查询 openLCA、**不**做数量抽取、**不**做映射。
+
+  写到 `workspace/artifacts/bom/decomposition.json`：
+  - 必有 `components`：字符串数组，每项一个成分名（英文原文风格即可，与题面一致优先）
+  - 可选 `rationale`：简短理由
+  - 信息不足时仍交尽量合理的成分列表，不要交空数组滥竽充数；确实无从判断时可 `components: []` 并在 rationale 说明
+
+  完成后对交付路径调用 submit。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:bom-decomposition
+  title: Product decomposition
+  type: object
+  additionalProperties: false
+  required: [components]
+  properties:
+    components:
+      type: array
+      items: {type: string, minLength: 1}
+    rationale: {type: ["string", "null"]}
+checks: []

@@ -20,6 +20,7 @@ agent 模板与规则正文继续共用 `harness/workflows/agents/`、`harness/r
 
 | stem | reviewer | node.inject | skills | produce spec |
 | --- | --- | --- | --- | --- |
+| `bom-decomposition-01` | 产品组成（PCFBench task1）真薄 | 已有 |
 | `bom-extract-01` | 无 | **无**（去掉 status / provenance / knowledge-files） | 无 | 薄短 `bom-claims.yaml` |
 | `bom-extract-02` | **有** | 同 01（无） | 无 | 同 01 |
 | `bom-extract-03` | 无 | status + provenance + knowledge-files | `bom-claims-read` + `bom-claims-ops` | 短指针 `bom-claims-best.yaml` |
