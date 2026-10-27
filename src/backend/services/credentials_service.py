@@ -371,6 +371,65 @@ def save_custom_endpoint(
     return providers[name]
 
 
+def sync_custom_profiles_into_pi_models(project_root: Path) -> bool:
+    """Backfill pi-models.json from local profiles that define compatible endpoints.
+
+    Settings persist profiles in `.local/model_profiles.json`. The status home
+    page and Pi catalog only see providers that also exist in pi-models.json.
+    Older saves (or hand-edited profiles) can leave the two files out of sync;
+    call this before listing available providers.
+    """
+    from backend.core.runtime.model_profiles import load_profiles
+
+    profiles = load_profiles(project_root)
+    models = load_pi_models(project_root)
+    providers = dict(models.get("providers") or {})
+    dirty = False
+    for profile in profiles.values():
+        if not isinstance(profile, dict):
+            continue
+        base_url = str(profile.get("base_url") or "").strip()
+        if not base_url:
+            continue
+        provider = str(profile.get("provider") or "").strip()
+        model_id = str(profile.get("model_id") or "").strip()
+        if not provider or not model_id:
+            continue
+        api_type = str(profile.get("api_type") or "").strip() or "openai-completions"
+        display = str(profile.get("display_name") or model_id).strip() or model_id
+        existing = dict(providers.get(provider) or {})
+        items = _custom_model_items(existing)
+        changed = False
+        if str(existing.get("baseUrl") or "").strip() != base_url:
+            existing["baseUrl"] = base_url
+            changed = True
+        if str(existing.get("api") or "").strip() != api_type:
+            existing["api"] = api_type
+            changed = True
+        if not str(existing.get("apiKey") or "").strip():
+            existing["apiKey"] = "local"
+            changed = True
+        matched = False
+        for item in items:
+            if str(item.get("id")) != model_id:
+                continue
+            matched = True
+            if display and str(item.get("name") or "") != display:
+                item["name"] = display
+                changed = True
+            break
+        if not matched:
+            items.append({"id": model_id, "name": display})
+            changed = True
+        if changed:
+            existing["models"] = items
+            providers[provider] = existing
+            dirty = True
+    if dirty:
+        save_pi_models(project_root, {"providers": providers})
+    return dirty
+
+
 def delete_custom_endpoint(
     project_root: Path,
     *,
@@ -422,6 +481,7 @@ def list_custom_endpoints(project_root: Path) -> list[dict[str, Any]]:
     """Saved compatible endpoints. Other providers are left untouched."""
     from backend.core.runtime.model_profiles import load_profiles
 
+    sync_custom_profiles_into_pi_models(project_root)
     profiles = load_profiles(project_root)
     stored = load_pi_models(project_root)
     providers = stored.get("providers") if isinstance(stored.get("providers"), dict) else {}
@@ -487,6 +547,7 @@ def available_providers(project_root: Path) -> list[dict[str, Any]]:
 
     Availability is this list. Model catalogs are loaded separately on demand.
     """
+    sync_custom_profiles_into_pi_models(project_root)
     creds = credentials_status(project_root)
     overrides = provider_overrides_status(project_root)
     catalog = list_provider_catalog()
@@ -494,20 +555,27 @@ def available_providers(project_root: Path) -> list[dict[str, Any]]:
     ordered: list[str] = []
     seen: set[str] = set()
 
-    def consider(provider: str) -> None:
+    def consider(provider: str, *, require_auth: bool = True) -> None:
         name = (provider or "").strip()
         if not name or name in seen:
             return
         cred = creds.get(name) or {}
         override = overrides.get(name) or {}
-        if cred.get("set") or override.get("has_api_key"):
-            seen.add(name)
-            ordered.append(name)
+        if require_auth and not (cred.get("set") or override.get("has_api_key")):
+            return
+        if not require_auth and not (cred.get("set") or override.get("has_api_key") or override.get("model_ids")):
+            return
+        seen.add(name)
+        ordered.append(name)
 
     for item in catalog:
         consider(str(item["id"]))
     for provider in [*creds, *overrides]:
         consider(str(provider))
+    # Custom endpoints always belong on the status home list once profiled.
+    for provider, override in overrides.items():
+        if override.get("model_ids") or override.get("base_url"):
+            consider(str(provider), require_auth=False)
 
     rows: list[dict[str, Any]] = []
     for provider in ordered:

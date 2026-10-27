@@ -223,8 +223,32 @@ def model_profiles() -> dict[str, Any]:
     }
 
 
+def _declared_custom_models(project_root: Path, provider: str) -> list[dict[str, Any]]:
+    """Models registered for a compatible endpoint (settings / pi-models)."""
+    name = (provider or "").strip()
+    if not name:
+        return []
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in list_custom_endpoints(project_root):
+        if str(item.get("provider") or "").strip() != name:
+            continue
+        model_id = str(item.get("model_id") or "").strip()
+        if not model_id or model_id in seen:
+            continue
+        seen.add(model_id)
+        rows.append(
+            {
+                "id": model_id,
+                "name": str(item.get("display_name") or model_id).strip() or model_id,
+            }
+        )
+    return rows
+
+
 def _provider_catalog(project_root: Path, provider: str) -> dict[str, Any]:
     """Models a connected provider can actually serve right now."""
+    declared = _declared_custom_models(project_root, provider)
     cred_dir = project_root / ".local" / "credentials"
     runtime = shared_runtime(project_root)
     try:
@@ -237,15 +261,31 @@ def _provider_catalog(project_root: Path, provider: str) -> dict[str, Any]:
             timeout=90.0,
         )
     except Exception as exc:
+        if declared:
+            return {
+                "ok": True,
+                "provider": provider,
+                "models": declared,
+                "message": str(exc),
+            }
         return {"ok": False, "provider": provider, "models": [], "message": str(exc)}
     if isinstance(result, dict):
         models = result.get("models") if isinstance(result.get("models"), list) else []
+        if models or not declared:
+            return {
+                "ok": bool(result.get("ok")) or bool(models),
+                "provider": provider,
+                "models": models,
+                "message": str(result.get("message") or ""),
+            }
         return {
-            "ok": bool(result.get("ok")),
+            "ok": True,
             "provider": provider,
-            "models": models,
+            "models": declared,
             "message": str(result.get("message") or ""),
         }
+    if declared:
+        return {"ok": True, "provider": provider, "models": declared, "message": ""}
     return {
         "ok": False,
         "provider": provider,
@@ -283,6 +323,32 @@ def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[st
     rows: list[dict[str, str]] = []
     warnings: list[str] = []
     seen: set[str] = set()
+
+    def add_row(
+        *,
+        provider: str,
+        provider_name: str,
+        model_id: str,
+        label: str,
+        reasoning: bool = False,
+        thinking_levels: list[str] | None = None,
+    ) -> None:
+        ref = f"{provider}/{model_id}"
+        if not provider or not model_id or ref in seen:
+            return
+        seen.add(ref)
+        row: dict[str, Any] = {
+            "id": ref,
+            "label": label,
+            "provider": provider,
+            "provider_name": provider_name,
+            "model_id": model_id,
+            "reasoning": reasoning,
+        }
+        if thinking_levels:
+            row["thinking_levels"] = thinking_levels
+        rows.append(row)
+
     for item in available_providers(project_root):
         provider = str(item.get("id") or "").strip()
         provider_name = str(item.get("name") or provider)
@@ -292,6 +358,14 @@ def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[st
         if not catalog.get("ok"):
             message = str(catalog.get("message") or "无法读取模型")
             warnings.append(f"{provider_name}：{message}")
+            for declared in _declared_custom_models(project_root, provider):
+                model_id = str(declared.get("id") or "").strip()
+                add_row(
+                    provider=provider,
+                    provider_name=provider_name,
+                    model_id=model_id,
+                    label=str(declared.get("name") or model_id).strip() or model_id,
+                )
             continue
         models = catalog.get("models") if isinstance(catalog.get("models"), list) else []
         for model in models:
@@ -300,23 +374,30 @@ def _connected_models(project_root: Path) -> tuple[list[dict[str, str]], list[st
             model_id = str(model.get("id") or "").strip()
             if not model_id:
                 continue
-            ref = f"{provider}/{model_id}"
-            if ref in seen:
-                continue
-            seen.add(ref)
-            label = str(model.get("name") or model_id).strip() or model_id
-            row: dict[str, Any] = {
-                "id": ref,
-                "label": label,
-                "provider": provider,
-                "provider_name": provider_name,
-                "model_id": model_id,
-                "reasoning": bool(model.get("reasoning")),
-            }
             levels = model.get("thinking_levels")
-            if isinstance(levels, list):
-                row["thinking_levels"] = [str(level) for level in levels if str(level).strip()]
-            rows.append(row)
+            thinking = (
+                [str(level) for level in levels if str(level).strip()]
+                if isinstance(levels, list)
+                else None
+            )
+            add_row(
+                provider=provider,
+                provider_name=provider_name,
+                model_id=model_id,
+                label=str(model.get("name") or model_id).strip() or model_id,
+                reasoning=bool(model.get("reasoning")),
+                thinking_levels=thinking,
+            )
+    # Always surface saved custom endpoints, even when the live catalog skipped them.
+    for endpoint in list_custom_endpoints(project_root):
+        provider = str(endpoint.get("provider") or "").strip()
+        model_id = str(endpoint.get("model_id") or "").strip()
+        add_row(
+            provider=provider,
+            provider_name=provider,
+            model_id=model_id,
+            label=str(endpoint.get("display_name") or model_id).strip() or model_id,
+        )
     return rows, warnings
 
 

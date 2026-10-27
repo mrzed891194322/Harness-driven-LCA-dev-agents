@@ -757,7 +757,6 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                               {item.api_type ? ` · ${item.api_type}` : ""}
                             </p>
                             {item.base_url ? <p className="settings-meta">{item.base_url}</p> : null}
-                            <p className="settings-meta">{item.has_api_key ? t("models.keySaved") : t("models.keyNotSaved")}</p>
                           </>
                         )}
                       </div>
