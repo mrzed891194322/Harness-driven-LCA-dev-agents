@@ -17,6 +17,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
+export type PlanTemplateSection = { id: string; required?: boolean };
+
 export type PlanFields = {
   subject: string;
   functional_unit: string;
@@ -307,12 +309,21 @@ export function StudyForm({
   source,
   sourceKey,
   onWork,
+  templateSections,
 }: {
   source: PlanFields;
   sourceKey: number;
   onWork?: (work: StudyWork) => void;
+  /** YAML template sections; when set, only these blocks render / validate. */
+  templateSections?: PlanTemplateSection[];
 }) {
   const { t } = useLocale();
+  const sectionMeta = templateSections?.length
+    ? STUDY_SECTIONS.filter((section) => templateSections.some((item) => item.id === section.id))
+    : STUDY_SECTIONS;
+  const sectionRequired = new Map(
+    (templateSections || []).map((item) => [item.id, item.required !== false] as const),
+  );
   const sourceRef = useRef(source);
   sourceRef.current = source;
   const mainRef = useRef<HTMLDivElement>(null);
@@ -340,8 +351,8 @@ export function StudyForm({
     const update = () => {
       const scroller = scrollContainer(root);
       const origin = scroller.getBoundingClientRect().top;
-      let current: (typeof STUDY_SECTIONS)[number]["id"] = STUDY_SECTIONS[0].id;
-      for (const section of STUDY_SECTIONS) {
+      let current: (typeof STUDY_SECTIONS)[number]["id"] = (sectionMeta[0]?.id || STUDY_SECTIONS[0].id);
+      for (const section of sectionMeta) {
         const element = document.getElementById(section.id);
         if (element && element.getBoundingClientRect().top - origin <= 48) current = section.id;
       }
@@ -396,13 +407,28 @@ export function StudyForm({
   const summaries = sectionSummaries(draft, databaseLabel);
 
   useEffect(() => {
-    onWorkRef.current?.(studyWork(draft, databaseLabel, databaseName));
-  }, [draft, databaseLabel, databaseName]);
+    const work = studyWork(draft, databaseLabel, databaseName);
+    if (!templateSections?.length) {
+      onWorkRef.current?.(work);
+      return;
+    }
+    const allowed = new Set(sectionMeta.map((section) => section.id));
+    onWorkRef.current?.({
+      ...work,
+      rows: work.rows
+        .filter((row) => allowed.has(row.id))
+        .map((row) => ({
+          ...row,
+          required: sectionRequired.has(row.id) ? Boolean(sectionRequired.get(row.id)) : row.required,
+          gaps: sectionRequired.get(row.id) === false ? [] : row.gaps,
+        })),
+    });
+  }, [draft, databaseLabel, databaseName, templateSections, sectionMeta, sectionRequired]);
 
   return (
     <div className="plan-study">
       <div className="plan-study-main" ref={mainRef}>
-        <section className="study-block" id="study-sec-subject">
+        <section className="study-block" id="study-sec-subject" hidden={!sectionMeta.some((section) => section.id === "study-sec-subject")}>
           <div className="study-block-head">
             <h3>
               <span className="study-num">1</span>
@@ -450,7 +476,7 @@ export function StudyForm({
           </ul>
         </section>
 
-        <section className="study-block" id="study-sec-basis">
+        <section className="study-block" id="study-sec-basis" hidden={!sectionMeta.some((section) => section.id === "study-sec-basis")}>
           <h3>
             <span className="study-num">2</span>
             {t("study.fu")}
@@ -520,7 +546,7 @@ export function StudyForm({
           </div>
         </section>
 
-        <section className="study-block" id="study-sec-life">
+        <section className="study-block" id="study-sec-life" hidden={!sectionMeta.some((section) => section.id === "study-sec-life")}>
           <h3>
             <span className="study-num">3</span>
             {t("study.scope")}
@@ -561,7 +587,7 @@ export function StudyForm({
           </label>
         </section>
 
-        <section className="study-block" id="study-sec-place">
+        <section className="study-block" id="study-sec-place" hidden={!sectionMeta.some((section) => section.id === "study-sec-place")}>
           <h3>
             <span className="study-num">4</span>
             {t("study.geoTime")}
@@ -577,7 +603,7 @@ export function StudyForm({
           />
         </section>
 
-        <section className="study-block" id="study-sec-database">
+        <section className="study-block" id="study-sec-database" hidden={!sectionMeta.some((section) => section.id === "study-sec-database")}>
           <div className="study-block-head">
             <h3>
               <span className="study-num">5</span>
@@ -601,7 +627,7 @@ export function StudyForm({
           />
         </section>
 
-        <section className="study-block" id="study-sec-lcia">
+        <section className="study-block" id="study-sec-lcia" hidden={!sectionMeta.some((section) => section.id === "study-sec-lcia")}>
           <div className="study-block-head">
             <h3>
               <span className="study-num">6</span>
@@ -625,7 +651,7 @@ export function StudyForm({
           </select>
         </section>
 
-        <section className="study-block" id="study-sec-impact">
+        <section className="study-block" id="study-sec-impact" hidden={!sectionMeta.some((section) => section.id === "study-sec-impact")}>
           <h3>
             <span className="study-num">7</span>
             {t("study.impacts")}
@@ -661,7 +687,7 @@ export function StudyForm({
           ) : null}
         </section>
 
-        <section className="study-block" id="study-sec-special">
+        <section className="study-block" id="study-sec-special" hidden={!sectionMeta.some((section) => section.id === "study-sec-special")}>
           <h3>
             <span className="study-num">8</span>
             {t("study.special")}
@@ -688,7 +714,7 @@ export function StudyForm({
           </div>
           <p>{t("study.previewHelp")}</p>
           <ol className="study-nav">
-            {STUDY_SECTIONS.map((section) => {
+            {sectionMeta.map((section) => {
               const summary = summaries[section.id];
               return (
                 <li key={section.id}>

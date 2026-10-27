@@ -11,6 +11,23 @@ from typing import Any
 
 from backend.workflow import layout
 
+# 最终交付：仅 BOM / LCI(mapping) / 报告。其余产物与 runs 过程文件归工作记录。
+_FINAL_ARTIFACT_PREFIXES = ("bom/", "mapping/", "report/", "LCI/")
+_FINAL_ARTIFACT_NAMES = {
+    "extracted-bom.json",
+    "extracted-bom.md",
+    "lca_report.md",
+    "human_readable_mapping.md",
+}
+
+
+def _is_final_deliverable(rel_posix: str) -> bool:
+    """``rel_posix`` is relative to workspace/artifacts/."""
+    if any(rel_posix == p.rstrip("/") or rel_posix.startswith(p) for p in _FINAL_ARTIFACT_PREFIXES):
+        return True
+    name = rel_posix.rsplit("/", 1)[-1]
+    return name in _FINAL_ARTIFACT_NAMES
+
 
 class Results:
     def __init__(self, project_root: Path) -> None:
@@ -96,7 +113,8 @@ def _list_deliverable_artifacts(root: Path) -> list[dict[str, Any]]:
                 "size": path.stat().st_size,
                 "count": 1,
                 # revise-lca rev files (<name>.rev<N>.<ext>) list next to the originals (I-45).
-                "category": "deliverable",
+                # Only BOM / LCI(mapping) / report are 最终交付; other artifact files → work.
+                "category": "deliverable" if _is_final_deliverable(rel) else "work",
             }
         )
     return items
@@ -182,11 +200,11 @@ def _list_run_attempt_artifacts(runs_root: Path) -> list[dict[str, Any]]:
                 "path": f"workspace/runs/{relative.as_posix()}",
                 "size": path.stat().st_size,
                 "count": 1,
-                "category": "intermediate",  # per-node work files (I-34)
+                "category": "work",  # per-node process files → 工作记录
             }
         )
     for path, bucket in sorted(grouped.items()):
-        items.append({"path": path, "size": bucket["size"], "count": bucket["count"], "category": "intermediate"})
+        items.append({"path": path, "size": bucket["size"], "count": bucket["count"], "category": "work"})
     return items
 
 
@@ -218,6 +236,7 @@ def _list_run_level_files(workspace_root: Path) -> list[dict[str, Any]]:
                 "path": f"{prefix}/{relative.as_posix()}",
                 "size": path.stat().st_size,
                 "count": 1,
+                "category": "work",
             }
         )
     return items

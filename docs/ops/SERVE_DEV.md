@@ -64,3 +64,14 @@ Before stopping or switching: `GET /api/workflow/status` must not be `running`, 
 Copied secrets live in `serve/.local/credentials/`, `serve/config.toml` and, per session, `serve/workspace/tmp/pi-workflow/*/agent/auth.json`;
 the dev worktree holds the same copies. Remove them when the worktrees are retired (`git worktree remove`
 without force after deleting untracked copies; never `rm -r` through the `node_modules` / `.venv` links).
+
+
+## Alternate ports (second stack)
+
+To smoke another checkout without taking 8800/3000 from serve:
+
+```bash
+GUI_API_PORT=8810 GUI_WEB_PORT=3010 npm run dev
+```
+
+Env vars override `config.toml` `[gui]`. See `docs/ops/WORK_LOG_AND_ALT_PORTS.md`.

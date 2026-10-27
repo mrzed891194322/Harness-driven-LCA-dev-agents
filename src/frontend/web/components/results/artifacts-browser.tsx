@@ -6,7 +6,7 @@ import { MarkdownView } from "../markdown-view";
 
 const MAX_ARTIFACT_ROWS = 200;
 
-import { KIND_LABEL, resultKind, VERDICT_LABEL, type ArtifactCategory, type ResultKind } from "../../lib/result-kind";
+import { KIND_LABEL, RESULT_KINDS, resultKind, VERDICT_LABEL, type ArtifactCategory, type ResultKind } from "../../lib/result-kind";
 import { useLocale } from "../../lib/i18n/locale-context";
 
 export { resultKind, type ResultKind };
@@ -127,11 +127,9 @@ export function ArtifactsBrowser({
     setKind(resultKind(selected));
   }, [selected]);
 
-  const intermediate = useMemo(
+  const workFiles = useMemo(
     () =>
-      artifacts.filter(
-        (item) => resultKind(item.path, item.category) === "intermediate",
-      ),
+      artifacts.filter((item) => resultKind(item.path, item.category) === "work"),
     [artifacts],
   );
   const finals = useMemo(
@@ -139,8 +137,8 @@ export function ArtifactsBrowser({
       artifacts.filter((item) => resultKind(item.path, item.category) === "final"),
     [artifacts],
   );
-  const visibleIntermediate = intermediate.slice(0, MAX_ARTIFACT_ROWS);
-  const omittedIntermediate = Math.max(0, intermediate.length - visibleIntermediate.length);
+  const visibleWork = workFiles.slice(0, MAX_ARTIFACT_ROWS);
+  const omittedWork = Math.max(0, workFiles.length - visibleWork.length);
 
   function chooseKind(next: ResultKind) {
     kindTouched.current = true;
@@ -151,7 +149,7 @@ export function ArtifactsBrowser({
     <div className="results-columns">
       <div className="results-side">
         <div className="results-kind-tabs" role="tablist" aria-label={t("results.categories")}>
-          {(Object.keys(KIND_LABEL) as ResultKind[]).map((item) => (
+          {RESULT_KINDS.map((item) => (
             <button
               key={item}
               type="button"
@@ -201,27 +199,26 @@ export function ArtifactsBrowser({
                   <FileList items={records} selected={selected} formatSize={formatSize} onOpen={onOpen} />
                 </section>
               ) : null}
-              {!handoffs.length && !records.length ? <p className="settings-help">{t("results.noWorkLog")}</p> : null}
+              {workFiles.length ? (
+                <section>
+                  <h3>{t("results.processFiles")}</h3>
+                  {omittedWork ? (
+                    <p className="settings-help">
+                      {t("results.omitHint", { max: MAX_ARTIFACT_ROWS, n: omittedWork })}
+                    </p>
+                  ) : null}
+                  <FileList
+                    items={visibleWork}
+                    selected={selected}
+                    formatSize={formatSize}
+                    onOpen={onOpen}
+                  />
+                </section>
+              ) : null}
+              {!handoffs.length && !records.length && !workFiles.length ? (
+                <p className="settings-help">{t("results.noWorkLog")}</p>
+              ) : null}
             </>
-          ) : null}
-          {kind === "intermediate" ? (
-            intermediate.length ? (
-              <>
-                {omittedIntermediate ? (
-                  <p className="settings-help">
-                    {t("results.omitHint", { max: MAX_ARTIFACT_ROWS, n: omittedIntermediate })}
-                  </p>
-                ) : null}
-                <FileList
-                  items={visibleIntermediate}
-                  selected={selected}
-                  formatSize={formatSize}
-                  onOpen={onOpen}
-                />
-              </>
-            ) : (
-              <p className="settings-help">{t("results.noIntermediate")}</p>
-            )
           ) : null}
           {kind === "final" ? (
             finals.length ? (

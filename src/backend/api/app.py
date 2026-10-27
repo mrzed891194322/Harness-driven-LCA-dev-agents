@@ -52,6 +52,7 @@ from backend.services.diagnostics_service import (
     openlca_endpoint,
     save_openlca_port,
 )
+from backend.services.plan_templates import PlanTemplateError, get_plan_template, list_plan_templates
 from backend.services.plan_form import (
     TEMPLATE_NAME,
     PlanFields,
@@ -829,6 +830,20 @@ def download_plan_template() -> Response:
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{TEMPLATE_NAME}"'},
     )
+
+
+@app.get("/api/plan/templates")
+def plan_templates() -> dict[str, Any]:
+    """YAML-driven plan form templates under harness/plan-templates/."""
+    return {"templates": list_plan_templates(PROJECT_ROOT)}
+
+
+@app.get("/api/plan/templates/{template_id}")
+def plan_template_detail(template_id: str) -> dict[str, Any]:
+    try:
+        return get_plan_template(PROJECT_ROOT, template_id)
+    except PlanTemplateError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/api/plan/import")

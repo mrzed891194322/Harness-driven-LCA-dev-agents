@@ -1,0 +1,15 @@
+id: full-lifecycle
+title: 整体生命周期
+title_en: Full life cycle
+description: 完整 LCA 计划表单（研究对象到特殊要求）。
+description_en: Full LCA plan form from study object through special requirements.
+align_workflows: [full-lca, revise-lca]
+sections:
+  - {id: study-sec-subject, required: true}
+  - {id: study-sec-basis, required: true}
+  - {id: study-sec-life, required: true}
+  - {id: study-sec-place, required: true}
+  - {id: study-sec-database, required: true}
+  - {id: study-sec-lcia, required: true}
+  - {id: study-sec-impact, required: true}
+  - {id: study-sec-special, required: false}

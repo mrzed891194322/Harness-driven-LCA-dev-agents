@@ -182,6 +182,13 @@ class NodeGraph:
             if system_fn is not None:
                 req.extra["system"] = system_fn(node, agent)
             ev = ctx.events.bind(agent=agent, attempt=attempt, step=step)
+            describe = getattr(ctx.prompt_builder, "describe_injection", None)
+            if callable(describe):
+                try:
+                    snap = describe(node, agent)
+                    ev.emit("injection", planned=snap.get("planned"), actual=snap.get("actual"))
+                except Exception:  # noqa: BLE001
+                    ev.emit("injection", planned={}, actual={"ok": False, "failed": [{"path": "(describe)", "error": "describe_injection failed"}]})
             ev.emit("turn_start", model=node.agents[agent].model, resume=req.resume)
             result = ctx.driver.run_turn(req)
             ev.emit("turn_end", submitted=result.submit is not None, abort_reason=result.abort_reason,

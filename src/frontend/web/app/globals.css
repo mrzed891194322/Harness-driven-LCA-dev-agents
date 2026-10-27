@@ -4945,3 +4945,23 @@ button:disabled {
   max-height: 50vh;
   overflow: auto;
 }
+
+
+/* Plan YAML template picker (minimal; keeps 599ed0a study form chrome). */
+.plan-template-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.plan-template-pick label {
+  font-weight: 600;
+}
+.plan-template-pick select {
+  min-width: 12rem;
+}
+.plan-template-pick .plan-import-hint {
+  flex: 1 1 100%;
+  margin: 0;
+}

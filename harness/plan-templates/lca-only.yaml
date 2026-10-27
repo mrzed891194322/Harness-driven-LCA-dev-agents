@@ -1,0 +1,15 @@
+id: lca-only
+title: 单独 LCA
+title_en: LCA only
+description: 侧重映射/评价相关字段（假定 BOM 已有或另跑）。
+description_en: Mapping and LCIA-focused fields when BOM already exists.
+align_workflows: []
+sections:
+  - {id: study-sec-subject, required: true}
+  - {id: study-sec-basis, required: true}
+  - {id: study-sec-life, required: true}
+  - {id: study-sec-place, required: true}
+  - {id: study-sec-database, required: true}
+  - {id: study-sec-lcia, required: true}
+  - {id: study-sec-impact, required: true}
+  - {id: study-sec-special, required: false}

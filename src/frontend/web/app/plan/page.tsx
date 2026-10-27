@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight, ClipboardList, Download, FileText, MessageSq
 import { PreviewBoard } from "../../components/plan/preview-board";
 import { WorkflowBoard } from "../../components/plan/workflow-board";
 import type { PlanFields } from "../../components/plan/plan-fields";
-import { emptyStudyWork, StudyForm, type StudyWork } from "../../components/plan/study-form";
+import { emptyStudyWork, StudyForm, type PlanTemplateSection, type StudyWork } from "../../components/plan/study-form";
 import { apiFetch } from "../../lib/api";
 import { reviseWorkLocked } from "../../lib/revise-lock";
 
@@ -167,6 +167,11 @@ export default function PlanPage() {
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
   const [formToken, setFormToken] = useState(0);
+  const [planTemplateId, setPlanTemplateId] = useState("full-lifecycle");
+  const [planTemplateSections, setPlanTemplateSections] = useState<PlanTemplateSection[] | undefined>(undefined);
+  const [planTemplates, setPlanTemplates] = useState<
+    { id: string; title: string; title_en?: string; description?: string }[]
+  >([]);
   const [work, setWork] = useState<StudyWork>(() => emptyStudyWork());
   const [noteTarget, setNoteTarget] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -268,6 +273,47 @@ export default function PlanPage() {
     if (noteTarget && !dialog.open) dialog.showModal();
     if (!noteTarget && dialog.open) dialog.close();
   }, [noteTarget]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/api/plan/templates")
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          templates?: { id: string; title: string; title_en?: string; description?: string }[];
+        };
+        if (!response.ok || cancelled) return;
+        const list = data.templates || [];
+        setPlanTemplates(list);
+        if (list.length && !list.some((item) => item.id === planTemplateId)) {
+          setPlanTemplateId(list[0].id);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(`/api/plan/templates/${encodeURIComponent(planTemplateId)}`)
+      .then(async (response) => {
+        const data = (await response.json()) as { sections?: PlanTemplateSection[]; detail?: string };
+        if (cancelled) return;
+        if (!response.ok) {
+          setPlanTemplateSections(undefined);
+          return;
+        }
+        setPlanTemplateSections(data.sections || []);
+      })
+      .catch(() => {
+        if (!cancelled) setPlanTemplateSections(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [planTemplateId]);
 
   async function downloadTemplate() {
     setError("");
@@ -520,7 +566,34 @@ export default function PlanPage() {
               if ((event.target as HTMLElement).closest(".plan-study button")) dirty.current = true;
             }}
           >
-            <StudyForm source={form} sourceKey={formToken} onWork={setWork} />
+            <div className="plan-template-pick">
+              <label htmlFor="plan-template-select">{t("plan.templatePick")}</label>
+              <select
+                id="plan-template-select"
+                value={planTemplateId}
+                onChange={(event) => setPlanTemplateId(event.target.value)}
+              >
+                {(planTemplates.length
+                  ? planTemplates
+                  : [
+                      { id: "full-lifecycle", title: t("plan.template.full-lifecycle") },
+                      { id: "bom-only", title: t("plan.template.bom-only") },
+                      { id: "lca-only", title: t("plan.template.lca-only") },
+                    ]
+                ).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+              <p className="plan-import-hint">{t("plan.templatePickHelp")}</p>
+            </div>
+            <StudyForm
+              source={form}
+              sourceKey={formToken}
+              onWork={setWork}
+              templateSections={planTemplateSections}
+            />
             <div className="row plan-actions plan-import">
                 {status ? <p className="plan-status">{status}</p> : null}
                 <p className="plan-import-hint">{t("plan.importHint")}</p>

@@ -2,6 +2,10 @@
 
 工作目录是仓库根。先读日志，再查 openLCA。两边都做完再写建议。不要粘贴密钥，不要粘贴整份 JSON，不要改 `.env`。
 
+## 工作记录（优先）
+
+工作流跑挂或结果不对时，**先**看 `workspace/runs/_run/work-record.md`（及同目录 `events.jsonl`）：步数、各 agent 注入 planned vs actual、逐步事件。GUI 在「结果浏览 → 工作记录」。详见 `docs/ops/WORK_LOG_AND_ALT_PORTS.md`。
+
 ## 后端日志
 
 读 `.local/logs/backend.log` 的末尾约 80 行。用户指出了某句报错或某个时间时，在这份日志里搜那一句，往上看到该错误的开头。

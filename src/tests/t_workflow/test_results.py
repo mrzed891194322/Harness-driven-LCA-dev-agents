@@ -57,5 +57,24 @@ def test_run_files_are_intermediate(tmp_path):
     (tmp_path / "runs" / "lca-bom" / "status.json").write_text("{}")
     cats = {a["path"]: a.get("category") for a in _list_workspace_artifacts(tmp_path)}
     assert cats["workspace/artifacts/bom/bom.md"] == "deliverable"
-    assert cats["workspace/runs/lca-bom/status.json"] == "intermediate"
+    assert cats["workspace/runs/lca-bom/status.json"] == "work"
     assert all(c for c in cats.values())
+
+
+def test_final_deliverables_only_bom_lci_report(tmp_path):
+    from backend.workflow.results import _list_workspace_artifacts
+    art = tmp_path / "artifacts"
+    (art / "bom").mkdir(parents=True)
+    (art / "bom" / "bom.json").write_text("{}")
+    (art / "mapping" / "LCI").mkdir(parents=True)
+    (art / "mapping" / "mapping.json").write_text("{}")
+    (art / "mapping" / "LCI" / "x.json").write_text("{}")
+    (art / "report").mkdir(parents=True)
+    (art / "report" / "lca_report.md").write_text("# r")
+    (art / "calculation-plan.json").write_text("{}")
+    cats = {a["path"]: a.get("category") for a in _list_workspace_artifacts(tmp_path)}
+    assert cats["workspace/artifacts/bom/bom.json"] == "deliverable"
+    assert cats["workspace/artifacts/mapping/mapping.json"] == "deliverable"
+    assert cats["workspace/artifacts/mapping/LCI/x.json"] == "deliverable"
+    assert cats["workspace/artifacts/report/lca_report.md"] == "deliverable"
+    assert cats["workspace/artifacts/calculation-plan.json"] == "work"

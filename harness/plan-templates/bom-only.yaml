@@ -1,0 +1,13 @@
+id: bom-only
+title: 单独 BOM
+title_en: BOM only
+description: 只填清单相关字段；可与 BOM 编排预设一起用。
+description_en: BOM-focused fields; pairs with a BOM orchestration preset.
+align_workflows: []
+sections:
+  - {id: study-sec-subject, required: true}
+  - {id: study-sec-basis, required: true}
+  - {id: study-sec-life, required: true}
+  - {id: study-sec-place, required: false}
+  - {id: study-sec-database, required: false}
+  - {id: study-sec-special, required: false}

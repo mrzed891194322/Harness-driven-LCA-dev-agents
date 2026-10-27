@@ -23,6 +23,7 @@ from backend.workflow import layout, revisions
 from backend.workflow.checks import produce_errors, requires_errors
 from backend.workflow.config import Node, Spec, Workflow, load_spec
 from backend.workflow.events import EventLog
+from backend.workflow.work_record import write_work_record
 from backend.workflow.node_graph import NodeContext, NodeGraph, NodeOutcome
 from backend.workflow.turn import AgentDriver, PromptBuilder, TurnRequest, TurnResult
 
@@ -249,6 +250,12 @@ class Runner:
         except Exception:  # noqa: BLE001
             log.exception("run_end event failed")
         self._manifest(status=status, status_reason=reason, current_node=None, current_rev=None, ended_at=time.time())
+        try:
+            man_path = self.run_dir / "manifest.json"
+            man = json.loads(man_path.read_text(encoding="utf-8")) if man_path.is_file() else {}
+            write_work_record(self.ws, manifest=man if isinstance(man, dict) else {})
+        except Exception:  # noqa: BLE001
+            log.exception("work-record write failed")
         return status
 
     def _preflight(self) -> str | None:

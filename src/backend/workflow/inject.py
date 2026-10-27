@@ -84,6 +84,52 @@ class Injector:
         # Preview only: {plan file name: text} shown instead of / in addition to artifacts/plan (no writes).
         self.plan_override: dict[str, str] = {}
 
+
+    def describe_injection(self, node: Node, agent: str) -> dict:
+        """Planned rule paths vs what actually loaded (for work-record / events)."""
+        role = node.role(agent)
+        planned_global = []
+        loaded: list[str] = []
+        failed: list[dict] = []
+        try:
+            for rule in load_global_rules(self.root, role):
+                planned_global.append(rule.id)
+                loaded.append(rule.id)
+        except Exception as exc:  # noqa: BLE001
+            failed.append({"path": "rules/global/*", "error": str(exc)[:300]})
+        planned_inject = list(node.inject)
+        planned_agent = list(node.agents[agent].rules)
+        for rel in planned_inject + planned_agent:
+            try:
+                rule = load_rule(self.root, rel)
+                if rule.enabled and (rule.applies_to is None or role in rule.applies_to):
+                    loaded.append(rule.id or rel)
+                else:
+                    failed.append({"path": rel, "error": "disabled_or_not_applicable"})
+            except Exception as exc:  # noqa: BLE001
+                failed.append({"path": rel, "error": str(exc)[:300]})
+        try:
+            system = self.system(node, agent)
+            system_chars = len(system)
+            ok = not failed
+        except Exception as exc:  # noqa: BLE001
+            system_chars = 0
+            ok = False
+            failed.append({"path": "(system)", "error": str(exc)[:300]})
+        return {
+            "planned": {
+                "global_rules": planned_global,
+                "inject": planned_inject,
+                "agent_rules": planned_agent,
+            },
+            "actual": {
+                "loaded": loaded,
+                "failed": failed,
+                "system_chars": system_chars,
+                "ok": ok,
+            },
+        }
+
     # ---- system prompt (1, 3, 4) ----
     def system(self, node: Node, agent: str) -> str:
         parts = []
