@@ -12,6 +12,13 @@ T1 decomposition **搁置**（官方要 LLM judge，确定性 F1 骨架可留着
 
 01 = 真薄（对齐 `bom-extract-01`）：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍注入。
 
+### 计划 / 知识接线（Du Yuan 2026-10-28 最简 01）
+
+- **计划**：`run_batch` POST `/api/workflow/start` 走 YAML `items`（一项即可）。extract 默认 title=`文献提取`，triage=`映射分流`，mapping=`LCI封闭集映射`；`content` = 本案 `input/query.md`。
+- **知识**：extract 只挂 **一份** `input/reference.md` → type=`knowledge`（去掉同文 PDF 别名）；**不**挂 BOM。
+- **T2/T3**：有 BOM 文件则 type=`bom`；仅有 `reference.md` 则 knowledge；都没有则不上传（题面全在计划 items 里）。
+
+
 ## 1. Import（seed=20261028 抽 30，写 imported，不进 git）
 
 全量 jsonl 在 `.eval/data/pcfbench/`（或 `.cache/benchmark/pcfbench/`，先 `download_pcfbench.py`）。  

@@ -25,7 +25,7 @@
    **档位 01–04**（extract 已对齐，见 `.benchmark/bom/harness/README.md`）：**01** 真薄；**02** 真薄+reviewer；**03** 厚两技能、无 reviewer；**04** 厚+reviewer。mapping/triage 本轮未跟，仍为旧 03/04 语义。
 
 4. **限速（按模型档，非全局）**：仅 Gemma4 及同类强限速才开 `--pace-s` / 429 backoff；其它模型默认 `--pace-s 0`。细节见战役笔记 `result/_logs/prerun/RUNBOOK-gemma4.md`。
-5. **References**：extract 默认自动挂 `input/reference.md`（及来源 PDF 文本别名）；PNNL 等缺源案进 `knowledge_skip`，不烧配额重试。
+5. **References / 计划**：extract 只挂一份 `input/reference.md`（knowledge，无同文别名、不挂 BOM）；计划走 YAML `items`（title+content=`query.md`）。T2/T3 有 BOM→type=bom，仅知识→knowledge，皆无则只写计划。PNNL 等缺源案进 `knowledge_skip`，不烧配额重试。
 6. **终态标签**（群口径）：
    - `completed`：节点通过且有产物
    - `transient_hit`：途中 429 / disconnect（可与 completed 并存）

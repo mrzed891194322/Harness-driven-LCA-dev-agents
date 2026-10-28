@@ -677,11 +677,14 @@ def api_multipart(
     *,
     field: str = "files",
     paths: list[str] | None = None,
+    types: list[str] | None = None,
     timeout: float = 120,
 ) -> Any:
     """POST multipart/form-data（stdlib）。``files`` 为 (filename, bytes)。"""
     if paths is not None and len(paths) != len(files):
         raise ValueError("paths 数量须与 files 一致")
+    if types is not None and len(types) != len(files):
+        raise ValueError("types 数量须与 files 一致")
     boundary = f"----BatchBoundary{uuid.uuid4().hex}"
     chunks: list[bytes] = []
     for i, (filename, data) in enumerate(files):
@@ -700,6 +703,10 @@ def api_multipart(
             chunks.append(f"--{boundary}\r\n".encode())
             chunks.append(b'Content-Disposition: form-data; name="paths"\r\n\r\n')
             chunks.append(name.encode() + b"\r\n")
+        if types is not None:
+            chunks.append(f"--{boundary}\r\n".encode())
+            chunks.append(b'Content-Disposition: form-data; name="types"\r\n\r\n')
+            chunks.append(types[i].encode() + b"\r\n")
     chunks.append(f"--{boundary}--\r\n".encode())
     body = b"".join(chunks)
     req = urllib.request.Request(
@@ -719,85 +726,129 @@ def api_multipart(
 
 def clear_references(api: str, tee: Tee) -> None:
     listing = api_json(api, "GET", "/api/references", timeout=30)
-    names = [str(f.get("name") or "") for f in (listing.get("files") or [])]
-    names = [n for n in names if n]
-    for name in names:
+    for f in listing.get("files") or []:
+        if not isinstance(f, dict):
+            continue
+        name = str(f.get("name") or "")
+        if not name:
+            continue
         enc = urllib.parse.quote(name, safe="/")
+        ref_type = str(f.get("type") or "").strip()
+        q = f"?ref_type={urllib.parse.quote(ref_type)}" if ref_type else ""
         try:
-            api_json(api, "DELETE", f"/api/references/{enc}", timeout=30)
-            tee.log(f"  refs_delete name={name}")
+            api_json(api, "DELETE", f"/api/references/{enc}{q}", timeout=30)
+            tee.log(f"  refs_delete name={name} type={ref_type or '-'}")
         except Exception as e:
             tee.log(f"  refs_delete_fail name={name} err={e}")
 
 
-def _source_basenames(case_dir: Path) -> list[str]:
-    found: list[str] = []
-    meta = case_dir / "meta.yaml"
-    if meta.is_file():
-        try:
-            import yaml
+PLAN_ITEM_TITLE: dict[str, str] = {
+    "bom-extract-01": "文献提取",
+    "bom-extract-03": "文献提取",
+    "bom-extract-04": "文献提取",
+    "bom-decomposition-01": "组成分解",
+    "lci-triage-01": "映射分流",
+    "lci-mapping-01": "LCI封闭集映射",
+    "lci-triage-03": "映射分流",
+    "lci-triage-04": "映射分流",
+    "lci-mapping-03": "LCI封闭集映射",
+    "lci-mapping-04": "LCI封闭集映射",
+}
 
-            data = yaml.safe_load(meta.read_text(encoding="utf-8")) or {}
-            url = str(data.get("source_url") or "").strip()
-            if url:
-                base = Path(urllib.parse.urlparse(url).path).name
-                if base:
-                    found.append(base)
-        except Exception:
-            pass
-    query = case_dir / "input" / "query.md"
-    if query.is_file():
-        for m in re.finditer(
-            r"https?://\S+?/([^/\s]+?\.(?:pdf|PDF))(?:\?\S*)?",
-            query.read_text(encoding="utf-8"),
-        ):
-            found.append(m.group(1))
-    out: list[str] = []
-    seen: set[str] = set()
-    for name in found:
-        key = name.casefold()
-        if key in seen:
+PLAN_TEMPLATE_ID: dict[str, str] = {
+    "bom-extract-01": "bom-only",
+    "bom-extract-03": "bom-only",
+    "bom-extract-04": "bom-only",
+    "bom-decomposition-01": "bom-only",
+    "lci-triage-01": "lca-only",
+    "lci-mapping-01": "lca-only",
+    "lci-triage-03": "lca-only",
+    "lci-triage-04": "lca-only",
+    "lci-mapping-03": "lca-only",
+    "lci-mapping-04": "lca-only",
+}
+
+
+def build_plan_start_body(workflow: str, query_text: str) -> dict[str, Any]:
+    """Du Yuan 最简 01：计划走 YAML items（一项 title+content=query.md），不塞裸题面字符串。"""
+    title = PLAN_ITEM_TITLE.get(workflow) or (
+        "文献提取" if "extract" in workflow else
+        "映射分流" if "triage" in workflow else
+        "LCI封闭集映射" if "mapping" in workflow else
+        "任务说明"
+    )
+    template_id = PLAN_TEMPLATE_ID.get(workflow) or (
+        "lca-only" if workflow.startswith("lci-") else "bom-only"
+    )
+    return {
+        "workflow": workflow,
+        "plan": "",
+        "template_id": template_id,
+        "items": [{"title": title, "content": query_text}],
+    }
+
+
+def _bom_input_files(input_dir: Path) -> list[Path]:
+    if not input_dir.is_dir():
+        return []
+    out: list[Path] = []
+    for p in sorted(input_dir.iterdir()):
+        if not p.is_file():
             continue
-        seen.add(key)
-        out.append(name)
+        if p.name in {"query.md", "reference.md", "plan.yaml"}:
+            continue
+        low = p.name.casefold()
+        if low in {"bom.json", "bom.csv", "bom.md", "bom.yaml", "bom.yml"}:
+            out.append(p)
+            continue
+        if "bom" in low and p.suffix.lower() in {".json", ".csv", ".md", ".yaml", ".yml", ".xlsx"}:
+            out.append(p)
     return out
 
 
-def stage_case_references(api: str, case: dict[str, Any], tee: Tee) -> list[str]:
-    """清空 knowledge/inputs 后挂上本案 input/reference.md（及来源 PDF 文本别名）。"""
+def stage_case_references(
+    api: str, case: dict[str, Any], tee: Tee, *, workflow: str
+) -> list[str]:
+    """按任务挂参考：extract 只挂一份 knowledge/reference.md（无同文别名、不挂 BOM）；
+    triage/mapping 有 BOM 文件则 type=bom，仅有 reference 则 knowledge，都没有则清空不传。
+    """
     case_dir: Path = case["dir"]
     input_dir = case_dir / "input"
     uploads: list[tuple[str, bytes]] = []
+    types: list[str] = []
+    is_extract = "extract" in workflow
+
     ref = input_dir / "reference.md"
-    if ref.is_file() and ref.stat().st_size > 0:
-        data = ref.read_bytes()
-        uploads.append(("reference.md", data))
-        for base in _source_basenames(case_dir):
-            stem = Path(base).stem
-            for alias in (f"{stem}.md", f"{base}.txt", base):
-                if alias.casefold() == "reference.md":
-                    continue
-                uploads.append((alias, data))
-    if input_dir.is_dir():
-        for p in sorted(input_dir.iterdir()):
-            if not p.is_file() or p.name in {"query.md", "reference.md"}:
-                continue
-            uploads.append((p.name, p.read_bytes()))
-    dedup: list[tuple[str, bytes]] = []
-    seen: set[str] = set()
-    for name, data in uploads:
-        key = name.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        dedup.append((name, data))
+    bom_files = _bom_input_files(input_dir)
+
+    if is_extract:
+        # T4/T5：知识只用 knowledge；单份 reference.md；不用 BOM 上传
+        if ref.is_file() and ref.stat().st_size > 0:
+            uploads.append(("reference.md", ref.read_bytes()))
+            types.append("knowledge")
+    else:
+        if bom_files:
+            for p in bom_files:
+                uploads.append((p.name, p.read_bytes()))
+                types.append("bom")
+        elif ref.is_file() and ref.stat().st_size > 0:
+            uploads.append(("reference.md", ref.read_bytes()))
+            types.append("knowledge")
+        # else: 全写进计划，不上传
+
     clear_references(api, tee)
-    if not dedup:
-        tee.log("  refs_stage empty (no input reference files)")
+    if not uploads:
+        tee.log("  refs_stage empty (plan-only or no reference.md)")
         return []
-    resp = api_multipart(api, "/api/references", dedup, paths=[n for n, _ in dedup])
+    resp = api_multipart(
+        api,
+        "/api/references",
+        uploads,
+        paths=[n for n, _ in uploads],
+        types=types,
+    )
     saved = [str(x.get("name") or "") for x in (resp.get("saved") or [])]
-    tee.log(f"  refs_stage saved={saved} status={resp.get('status')}")
+    tee.log(f"  refs_stage saved={saved} types={types} status={resp.get('status')}")
     return saved
 
 
@@ -990,12 +1041,12 @@ def run_one(
         tee.log(f"DONE {json.dumps(row, ensure_ascii=False)}")
         return row
 
-    plan = qpath.read_text(encoding="utf-8")
+    query_text = qpath.read_text(encoding="utf-8")
     wait_idle(api, tee)
     staged_refs: list[str] = []
     if auto_references:
         try:
-            staged_refs = stage_case_references(api, case, tee)
+            staged_refs = stage_case_references(api, case, tee, workflow=workflow)
         except Exception as e:
             tee.log(f"  refs_stage_error={e}")
             row = {
@@ -1018,7 +1069,12 @@ def run_one(
     primary_rels = ARTIFACT_RELS.get(workflow, (CLAIMS_REL,))
     primary = workspace / primary_rels[0]
     before_mtime = primary.stat().st_mtime if primary.is_file() else None
-    resp = api_json(api, "POST", "/api/workflow/start", {"workflow": workflow, "plan": plan})
+    start_body = build_plan_start_body(workflow, query_text)
+    resp = api_json(api, "POST", "/api/workflow/start", start_body)
+    tee.log(
+        f"  plan_items title={start_body['items'][0]['title']!r} "
+        f"template_id={start_body['template_id']} chars={len(query_text)}"
+    )
     tee.log(f"  start_resp={json.dumps(resp, ensure_ascii=False)}")
     time.sleep(1.5)
     st = poll_until_done(

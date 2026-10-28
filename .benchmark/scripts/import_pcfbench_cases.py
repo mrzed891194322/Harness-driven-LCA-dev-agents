@@ -3,6 +3,7 @@
 
 默认写出到 ``.benchmark/imported/<大类>/<子类>/<case_id>/``（整树 gitignore，
 仅 README 进仓）。大体积 ``document_text`` 进 ``input/reference.md``，不进 git。
+跑批时由 ``run_batch`` 挂 knowledge（单份 reference.md，无同文别名）；计划 YAML items 的 content 取 ``query.md``。
 
 也可 ``--out-root .cache/benchmark/cases``（允许的缓存子树）。
 
