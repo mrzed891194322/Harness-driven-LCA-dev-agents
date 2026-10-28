@@ -15,9 +15,11 @@ version: 2
 template_id: bom-only   # 或 lca-only / 自定 minimal；extract 默认 bom-only，lci-* 默认 lca-only
 items:
   - title: 文献提取      # 可自拟；triage 默认「映射分流」，mapping 默认「LCI封闭集映射」
-    content: |           # = 本案 input/query.md 全文
+    content: |           # = 本案 input/query.md（题面-only）
       …
 ```
+
+**`query.md`（extract）**：`import_pcfbench_cases.write_extract_case` 只写 PCFBench `input.query` **英文题原文**——不加 `# {case_id}`、不加「来源…」脚注；`source_url` 只在 `meta.yaml`；knowledge 仍单份 `reference.md`=`document_text`。计划 `items[].content` = 该题面全文。
 
 等价 JSON 请求体：
 
@@ -26,7 +28,7 @@ items:
   "workflow": "bom-extract-01",
   "plan": "",
   "template_id": "bom-only",
-  "items": [{"title": "文献提取", "content": "<query.md 全文>"}]
+  "items": [{"title": "文献提取", "content": "<query.md 题面-only 英文题>"}]
 }
 ```
 

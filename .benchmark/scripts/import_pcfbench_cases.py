@@ -3,7 +3,7 @@
 
 默认写出到 ``.benchmark/imported/<大类>/<子类>/<case_id>/``（整树 gitignore，
 仅 README 进仓）。大体积 ``document_text`` 进 ``input/reference.md``，不进 git。
-跑批时由 ``run_batch`` 挂 knowledge（单份 reference.md，无同文别名）；计划 YAML items 的 content 取 ``query.md``。
+跑批时由 ``run_batch`` 挂 knowledge（单份 reference.md，无同文别名）；计划 YAML items 的 content 取 ``query.md``（extract：仅 PCFBench ``input.query`` 英文题原文；``source_url`` 只写 ``meta.yaml``）。
 
 也可 ``--out-root .cache/benchmark/cases``（允许的缓存子树）。
 
@@ -183,9 +183,8 @@ def write_extract_case(
     }
     # drop nulls for cleaner yaml
     meta = {k: v for k, v in meta.items() if v is not None}
-    query_md = f"# {case_id}\n\n{query}\n"
-    if source_url:
-        query_md += f"\n来源（勿把全文 PDF 进 git）：{source_url}\n"
+    # 题面-only：只留 PCFBench 英文题；勿加 case_id 标题或来源脚注（source_url 在 meta.yaml）
+    query_md = f"{query}\n" if query else "\n"
     truth = claims_from_expected(expected if isinstance(expected, dict) else {})
     info = {
         "case_id": case_id,
