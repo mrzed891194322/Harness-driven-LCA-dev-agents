@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | `bom-claims-read` | `bom-extract-03` / `04` executor | 读文：ls→grep→offset/limit |
 | `bom-claims-ops` | `bom-extract-03` / `04` executor | 单位 / 只交所问 / 交卷 |
-| `bom-claims-review` | `bom-extract-02` / `04` reviewer | 审核：对照题面+claims；禁重读知识库 |
+| `bom-claims-review` | `bom-extract-02` / `04` reviewer | 审核：对照原文+claims（对错/多报/漏报/单位） |
 | `bom-claims-best` | （无挂接） | **兼容别名**：正文只指向 read/ops |
 | `lci-mapping-best` | `lci-mapping-04` | （本轮未拆） |
 | `lci-triage-best` | `lci-triage-04` | （本轮未拆） |
