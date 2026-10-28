@@ -638,9 +638,15 @@ def main(argv: list[str] | None = None) -> int:
                 metric += f"({r['score_reason']})"
             elif r.get("score_reason") and r.get("score_reason") != "no_artifact":
                 metric += f"({r['score_reason']})"
+        # skip col: real skip, or missing-pred reason. Never surface claim_f1 no_artifact on mapping/triage.
+        skip_cell = r.get("skip") or ""
+        if not skip_cell and r.get("score_reason") and not r.get("pred"):
+            skip_cell = r.get("score_reason") or ""
+        elif not skip_cell and r.get("score_reason") and r.get("subcategory") in {"extract", "abstention", "decomposition"}:
+            skip_cell = r.get("score_reason") or ""
         lines.append(
             f"| {r.get('case_id')} | {r.get('subcategory')} | `{str(r.get('run_id') or '')[:8]}` "
-            f"| {r.get('model') or '-'} | {metric or '-'} | {r.get('skip') or r.get('score_reason') or ''} |"
+            f"| {r.get('model') or '-'} | {metric or '-'} | {skip_cell} |"
         )
     lines.append("")
     md_path.write_text("\n".join(lines), encoding="utf-8")

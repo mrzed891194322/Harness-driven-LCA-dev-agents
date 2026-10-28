@@ -87,6 +87,8 @@ Import / 抽 30：`import_pcfbench_cases.py --task … --limit 30 --seed 2026102
 
 对齐规则（mapping）：**单 gold +（单 pred 或仅一条有过程名）→ 按位对齐比过程名**；多条仍按 `item_id`。headline 用 `mean_top1`，勿把 claim 系 `no_artifact` 叙事套到已有 mapping 产物上。
 
+`run_batch` notes：`lci-mapping` / `lci-triage` **不跑 claim_f1**，缺 `claims.json` 属正常；notes 只写本任务 metric（mapping→`top1`/`hit`；triage→`acc`）。有产物时禁止再写 `F1=…(no_artifact)`。
+
 
 ## 5. serve / tip 要点
 

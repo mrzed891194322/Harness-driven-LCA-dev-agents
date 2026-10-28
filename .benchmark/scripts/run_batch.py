@@ -866,6 +866,20 @@ def _load_claim_f1():
     return mod
 
 
+
+def uses_claim_f1(workflow: str) -> bool:
+    """Whether this workflow's primary deliverable is claims.json / claim_f1.
+
+    lci-mapping / lci-triage / bom-decomposition have their own artifacts and
+    metrics; missing claims.json there is normal and must NOT become
+    claim_f1 no_artifact noise in notes/rows.
+    """
+    wf = workflow or ""
+    if wf.startswith(("lci-mapping", "lci-triage", "bom-decomposition")):
+        return False
+    return True
+
+
 def zero_f1_scores(truth: Path | None, *, reason: str) -> dict:
     """no_submit / missing claims.json → F1=0 (not null), kept in batch rows."""
     gold: dict = {}
@@ -1199,6 +1213,9 @@ def run_one(
                 f1 = mod.zero_pred_scores(gold, reason=score_reason)
             except Exception as e:
                 f1 = {"f1": 0.0, "precision": 0.0, "recall": 0.0, "error": str(e), "reason": score_reason}
+    elif not uses_claim_f1(workflow):
+        # mapping/triage: own metric only — never invent claim_f1 / no_artifact
+        f1 = None
     elif claims_ok:
         f1 = optional_f1(case.get("truth"), primary)
     else:
@@ -1245,11 +1262,12 @@ def run_one(
         notes_parts.append(f"items_n={items_n}")
     elif not artifact_ok:
         notes_parts.append(f"no_artifact:{primary_rels[0].as_posix()}")
-    if f1 and "f1" in f1:
-        tag = f1.get("reason") or "info"
-        notes_parts.append(f"F1={f1['f1']:.3f}({tag})")
-    elif f1 and f1.get("error"):
-        notes_parts.append(f"f1_err={f1['error'][:80]}")
+    if uses_claim_f1(workflow):
+        if f1 and "f1" in f1:
+            tag = f1.get("reason") or "info"
+            notes_parts.append(f"F1={f1['f1']:.3f}({tag})")
+        elif f1 and f1.get("error"):
+            notes_parts.append(f"f1_err={f1['error'][:80]}")
     if fab and "exact_match_rate" in fab:
         notes_parts.append(f"top1={fab['exact_match_rate']:.3f}(info)")
     if fab and "candidate_hit_rate" in fab:
@@ -1260,6 +1278,11 @@ def run_one(
         notes_parts.append(f"acc={triage['accuracy']:.3f}(info)")
     elif triage and triage.get("error"):
         notes_parts.append(f"triage_err={triage['error'][:80]}")
+    # mapping/triage with artifact but scorer returned nothing → N/A (not claim no_artifact)
+    if workflow.startswith("lci-mapping") and artifact_ok and not fab:
+        notes_parts.append("top1=N/A")
+    if workflow.startswith("lci-triage") and artifact_ok and not triage:
+        notes_parts.append("acc=N/A")
     reason = st.get("reason") or ""
     if reason:
         notes_parts.append(f"reason={reason}")
