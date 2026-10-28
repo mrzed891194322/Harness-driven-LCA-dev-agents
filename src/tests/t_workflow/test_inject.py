@@ -1,6 +1,11 @@
 
 from backend.workflow.config import load_node, load_spec
-from backend.workflow.inject import Injector, schema_summary
+from backend.workflow.inject import (
+    Injector,
+    injection_event_payload,
+    schema_summary,
+    write_session_injection_doc,
+)
 from tests.t_workflow.conftest import make_node, node_ref, spec_ref
 
 
@@ -44,3 +49,25 @@ def test_reviewer_notes_path_is_file_under_agent_dir(wf_root):
     assert "reviewer/notes.md" in text
     assert "禁止用 write 覆盖成文件" in text
 
+
+
+def test_session_injection_doc(wf_root):
+    node = _node(wf_root)
+    (wf_root / "workspace/artifacts/plan").mkdir(parents=True)
+    (wf_root / "workspace/artifacts/plan/main_plan.md").write_text("# P", encoding="utf-8")
+    (wf_root / "workspace/artifacts/text").mkdir(parents=True)
+    (wf_root / "workspace/artifacts/text/p.md").write_text("x", encoding="utf-8")
+    specs = {spec_ref("summary"): load_spec(wf_root, spec_ref("summary"))}
+    inj = Injector(wf_root)
+    user = inj(node, "executor", 1, None, specs)
+    report = inj.build_session_injection_report(
+        node, "executor", attempt=1, user_prompt=user, run_id="ut-session-inj"
+    )
+    dest = write_session_injection_doc(wf_root, report)
+    assert (dest / "injection.md").is_file() and (dest / "injection.json").is_file()
+    md = (dest / "injection.md").read_text(encoding="utf-8")
+    assert "顶层提示词" in md and "普通提示词" in md
+    payload = injection_event_payload(report, session_doc="x")
+    assert payload["schema"] == "harness.injection.session/2"
+    assert "system_prompt" in payload["sections"]
+    assert report["ok"] is True

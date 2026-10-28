@@ -8,6 +8,8 @@
 2. `workspace/runs/_run/work-record.json` — 同上结构化  
 3. `workspace/runs/_run/events.jsonl` — 逐步完整日志（含 `injection` / `turn_*` / `node_*`）
 
+会话级注入全文见 `.local/runs/<run_id>/sessions/<node>.<agent>.<attempt>/injection.md`（字段说明：[SESSION_INJECTION.md](SESSION_INJECTION.md)）。
+
 GUI：**结果浏览 → 工作记录**。最终交付侧栏只列 BOM / LCI / 报告；过程文件与注入记录都在工作记录。
 
 `issue-diag` 除 `.local/logs/backend.log` 外，也应先核对上述工作记录。

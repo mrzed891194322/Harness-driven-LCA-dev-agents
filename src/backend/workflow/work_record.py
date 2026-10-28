@@ -37,6 +37,10 @@ def build_work_record(workspace: Path, *, manifest: dict[str, Any] | None = None
             }
         )
         if kind == "injection":
+            actual = rec.get("actual") or {}
+            ok = rec.get("ok")
+            if ok is None:
+                ok = bool(actual.get("ok", True))
             injections.append(
                 {
                     "seq": rec.get("seq"),
@@ -46,8 +50,10 @@ def build_work_record(workspace: Path, *, manifest: dict[str, Any] | None = None
                     "attempt": rec.get("attempt"),
                     "step": rec.get("step"),
                     "planned": rec.get("planned") or {},
-                    "actual": rec.get("actual") or {},
-                    "ok": bool((rec.get("actual") or {}).get("ok", True)),
+                    "actual": actual,
+                    "sections": rec.get("sections") or {},
+                    "session_doc": rec.get("session_doc") or "",
+                    "ok": bool(ok),
                 }
             )
     man = manifest or {}
@@ -80,7 +86,7 @@ def render_work_record_md(data: dict[str, Any]) -> str:
         f"- injections: **{data.get('injection_count', 0)}** "
         f"(ok {data.get('injections_ok', 0)} / failed {data.get('injections_failed', 0)})",
         "",
-        "## 注入 planned vs actual",
+        "## 注入（三段：顶层 / 工具 / 普通提示词）",
         "",
     ]
     injections = data.get("injections") or []
@@ -105,6 +111,26 @@ def render_work_record_md(data: dict[str, Any]) -> str:
                 lines.append(f"- actual.failed: {failed}")
             if actual.get("system_chars") is not None:
                 lines.append(f"- system_chars: {actual.get('system_chars')}")
+            if item.get("session_doc"):
+                lines.append(f"- session_doc: `{item.get('session_doc')}`")
+            sections = item.get("sections") or {}
+            for key in ("system_prompt", "tools", "user_prompt"):
+                sec = sections.get(key) or {}
+                if not sec:
+                    continue
+                mark = "OK" if sec.get("ok") else "FAIL"
+                label = sec.get("label") or key
+                extra = ""
+                if key == "system_prompt":
+                    extra = f" paths={len(sec.get('paths') or [])} chars={sec.get('chars', 0)}"
+                elif key == "tools":
+                    extra = (
+                        f" skills={len(sec.get('skills') or [])}"
+                        f" mcp={len(sec.get('mcp') or [])}"
+                    )
+                else:
+                    extra = f" segments={sec.get('segments') or []} chars={sec.get('chars', 0)}"
+                lines.append(f"- section.{key} [{mark}] {label}{extra}")
             lines.append("")
     lines.extend(["## 逐步事件（摘要）", ""])
     for step in data.get("steps") or []:

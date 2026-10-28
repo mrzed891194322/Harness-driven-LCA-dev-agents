@@ -19,6 +19,7 @@ from langgraph.types import RetryPolicy
 from backend.workflow import layout
 from backend.workflow.config import SUBMIT_FIELD, TERMINALS, Node, Spec
 from backend.workflow.events import EventLog
+from backend.workflow.inject import injection_event_payload, write_session_injection_doc
 from backend.workflow.turn import AgentDriver, PromptBuilder, TurnRequest
 
 from harness.tools.mcp.submit.schemas import validate as validate_submit
@@ -182,13 +183,47 @@ class NodeGraph:
             if system_fn is not None:
                 req.extra["system"] = system_fn(node, agent)
             ev = ctx.events.bind(agent=agent, attempt=attempt, step=step)
-            describe = getattr(ctx.prompt_builder, "describe_injection", None)
-            if callable(describe):
+            build_inj = getattr(ctx.prompt_builder, "build_session_injection_report", None)
+            if callable(build_inj):
                 try:
-                    snap = describe(node, agent)
-                    ev.emit("injection", planned=snap.get("planned"), actual=snap.get("actual"))
-                except Exception:  # noqa: BLE001
-                    ev.emit("injection", planned={}, actual={"ok": False, "failed": [{"path": "(describe)", "error": "describe_injection failed"}]})
+                    report = build_inj(
+                        node,
+                        agent,
+                        attempt=attempt,
+                        user_prompt=prompt,
+                        run_id=ctx.run_id,
+                    )
+                    session_doc = ""
+                    root = getattr(ctx.prompt_builder, "root", None)
+                    if root is not None:
+                        dest = write_session_injection_doc(Path(root), report)
+                        try:
+                            session_doc = dest.relative_to(Path(root)).as_posix()
+                        except ValueError:
+                            session_doc = str(dest)
+                    ev.emit("injection", **injection_event_payload(report, session_doc=session_doc))
+                except Exception as exc:  # noqa: BLE001
+                    ev.emit(
+                        "injection",
+                        schema="harness.injection.session/2",
+                        ok=False,
+                        planned={},
+                        actual={"ok": False, "failed": [{"path": "(session_injection)", "error": str(exc)[:300]}]},
+                        sections={},
+                        session_doc="",
+                    )
+            else:
+                describe = getattr(ctx.prompt_builder, "describe_injection", None)
+                if callable(describe):
+                    try:
+                        snap = describe(node, agent)
+                        ev.emit("injection", planned=snap.get("planned"), actual=snap.get("actual"))
+                    except Exception:  # noqa: BLE001
+                        ev.emit(
+                            "injection",
+                            planned={},
+                            actual={"ok": False, "failed": [{"path": "(describe)", "error": "describe_injection failed"}]},
+                        )
             ev.emit("turn_start", model=node.agents[agent].model, resume=req.resume)
             result = ctx.driver.run_turn(req)
             ev.emit("turn_end", submitted=result.submit is not None, abort_reason=result.abort_reason,

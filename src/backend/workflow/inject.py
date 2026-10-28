@@ -9,7 +9,10 @@ Knowledge is not injected; a global rule explains where it is and when to read i
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from backend.workflow import layout
 from backend.workflow.config import Node, Spec, load_global_rules, load_rule, resolve_spec_path
@@ -103,39 +106,133 @@ class Injector:
         # Preview only: {plan file name: text} shown instead of / in addition to artifacts/plan (no writes).
         self.plan_override: dict[str, str] = {}
 
-
     def describe_injection(self, node: Node, agent: str) -> dict:
-        """Planned rule paths vs what actually loaded (for work-record / events)."""
+        """Backward-compatible planned/actual rule snapshot (work-record)."""
+        report = self.build_session_injection_report(node, agent, attempt=0, user_prompt="")
+        return {
+            "planned": report.get("planned") or {},
+            "actual": report.get("actual") or {},
+            "sections": report.get("sections") or {},
+            "ok": report.get("ok"),
+        }
+
+    def build_session_injection_report(
+        self,
+        node: Node,
+        agent: str,
+        *,
+        attempt: int,
+        user_prompt: str,
+        run_id: str = "",
+        rev: int | None = None,
+    ) -> dict[str, Any]:
+        """Today's口径: three sections (system / tools / user) with ok/fail each.
+
+        Not the 10-10 intended↔effective diff. Host-authored; pi first_request.json is对照 only.
+        """
         role = node.role(agent)
-        planned_global = []
+        planned_global: list[str] = []
         loaded: list[str] = []
-        failed: list[dict] = []
+        rule_failed: list[dict[str, str]] = []
+        rule_paths: list[str] = []
+
         try:
             for rule in load_global_rules(self.root, role):
                 planned_global.append(rule.id)
                 loaded.append(rule.id)
+                rule_paths.append(rule.id)
         except Exception as exc:  # noqa: BLE001
-            failed.append({"path": "rules/global/*", "error": str(exc)[:300]})
+            rule_failed.append({"path": "rules/global/*", "error": str(exc)[:300]})
+
         planned_inject = list(node.inject)
         planned_agent = list(node.agents[agent].rules)
+        skipped_rules: list[dict[str, str]] = []
         for rel in planned_inject + planned_agent:
             try:
                 rule = load_rule(self.root, rel)
                 if rule.enabled and (rule.applies_to is None or role in rule.applies_to):
                     loaded.append(rule.id or rel)
+                    rule_paths.append(rel)
                 else:
-                    failed.append({"path": rel, "error": "disabled_or_not_applicable"})
+                    skipped_rules.append({"path": rel, "error": "disabled_or_not_applicable"})
             except Exception as exc:  # noqa: BLE001
-                failed.append({"path": rel, "error": str(exc)[:300]})
+                rule_failed.append({"path": rel, "error": str(exc)[:300]})
+
+        system_text = ""
+        system_errors: list[dict[str, str]] = list(rule_failed)
         try:
-            system = self.system(node, agent)
-            system_chars = len(system)
-            ok = not failed
+            system_text = self.system(node, agent)
         except Exception as exc:  # noqa: BLE001
-            system_chars = 0
-            ok = False
-            failed.append({"path": "(system)", "error": str(exc)[:300]})
+            system_errors.append({"path": "(system)", "error": str(exc)[:300]})
+        system_ok = bool(system_text.strip()) and not system_errors
+
+        tools = node.agents[agent].tools
+        file_tools = (
+            ["read", "ls", "grep", "find", "write", "edit"]
+            if role == "executor"
+            else ["read", "ls", "grep", "find", "write"]
+        )
+        skill_rows: list[dict[str, Any]] = []
+        tool_errors: list[dict[str, str]] = []
+        for skill in tools.skills:
+            rel, label = _skill_prompt_path(skill)
+            path = self.root / rel
+            exists = path.is_file()
+            skill_rows.append({"name": label, "path": rel, "ok": exists})
+            if not exists:
+                tool_errors.append({"path": rel, "error": "skill_missing"})
+        tools_ok = not tool_errors
+
+        user_text = user_prompt or ""
+        user_errors: list[dict[str, str]] = []
+        segments: list[str] = []
+        for name in ("plan", "inputs", "rework", "redo_policy", "redo_reason", "executor_submit"):
+            if f"<{name}>" in user_text:
+                segments.append(name)
+        segments += [f"deliverable_{m}" for m in re.findall(r"<deliverable_([^>]+)>", user_text)]
+        if not user_text.strip():
+            user_errors.append({"path": "(user_prompt)", "error": "empty_user_prompt"})
+        user_ok = bool(user_text.strip()) and not user_errors
+
+        overall = system_ok and tools_ok and user_ok
+        sections = {
+            "system_prompt": {
+                "ok": system_ok,
+                "label": "顶层提示词",
+                "paths": rule_paths,
+                "skipped": skipped_rules,
+                "agent_title": (node.agents[agent].definition.title or ""),
+                "chars": len(system_text),
+                "content": system_text,
+                "errors": system_errors,
+            },
+            "tools": {
+                "ok": tools_ok,
+                "label": "工具",
+                "file_tools": file_tools + ["submit"],
+                "mcp": list(tools.mcp),
+                "skills": skill_rows,
+                "errors": tool_errors,
+            },
+            "user_prompt": {
+                "ok": user_ok,
+                "label": "普通提示词",
+                "segments": segments,
+                "chars": len(user_text),
+                "content": user_text,
+                "errors": user_errors,
+            },
+        }
         return {
+            "schema": "harness.injection.session/2",
+            "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "run_id": run_id,
+            "node": node.id,
+            "run_key": node.run_key,
+            "rev": node.rev if rev is None else rev,
+            "agent": agent,
+            "attempt": attempt,
+            "role": role,
             "planned": {
                 "global_rules": planned_global,
                 "inject": planned_inject,
@@ -143,10 +240,12 @@ class Injector:
             },
             "actual": {
                 "loaded": loaded,
-                "failed": failed,
-                "system_chars": system_chars,
-                "ok": ok,
+                "failed": rule_failed,
+                "system_chars": len(system_text),
+                "ok": overall,
             },
+            "sections": sections,
+            "ok": overall,
         }
 
     # ---- system prompt (1, 3, 4) ----
@@ -233,3 +332,141 @@ class Injector:
         if rework and attempt > 1:
             out.append(_section("rework", "只改下面这些问题，其他保持不变。\n\n" + rework))
         return "\n\n".join(out) + "\n"
+
+
+SESSION_INJECTION_SCHEMA = "harness.injection.session/2"
+
+
+def session_snapshot_dir(
+    root: Path, run_id: str, node_id: str, agent: str, attempt: int, *, rev: int = 0
+) -> Path:
+    """Match pi-runtime sessionSnapshotDir: .local/runs/<run>/sessions/<node>[@rev].<agent>.<attempt>/"""
+
+    def safe(s: str) -> str:
+        return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in (s or "x"))
+
+    node_part = f"{node_id}@rev{rev}" if rev else node_id
+    return (
+        root
+        / ".local"
+        / "runs"
+        / safe(run_id or "adhoc")
+        / "sessions"
+        / f"{safe(node_part)}.{safe(agent)}.{int(attempt) or 0}"
+    )
+
+
+def render_session_injection_md(report: dict[str, Any]) -> str:
+    """Human-readable per-session injection doc (today's three-section口径)."""
+    sections = report.get("sections") or {}
+    lines = [
+        "# 会话注入文档 / Session injection",
+        "",
+        f"- schema: `{report.get('schema')}`",
+        f"- run_id: `{report.get('run_id') or '—'}`",
+        f"- node: `{report.get('node')}` run_key=`{report.get('run_key')}` rev={report.get('rev')}",
+        f"- agent: `{report.get('agent')}` role=`{report.get('role')}` attempt={report.get('attempt')}",
+        f"- overall: **{'OK' if report.get('ok') else 'FAIL'}**",
+        "",
+        "> 对齐 docs/architecture/DESIGN.md：顶层规则 → 工具技能 → 任务上下文用户消息。",
+        "> 非 10-10 intended↔effective；pi-runtime `injection/first_request.json` 仅作对照。",
+        "",
+    ]
+    for key in ("system_prompt", "tools", "user_prompt"):
+        sec = sections.get(key) or {}
+        mark = "成功" if sec.get("ok") else "失败"
+        lines.append(f"## {sec.get('label') or key}（注入{mark}）")
+        lines.append("")
+        if key == "system_prompt":
+            paths = sec.get("paths") or []
+            lines.append(f"- 路径/规则：{', '.join(f'`{p}`' for p in paths) or '（无）'}")
+            if sec.get("agent_title"):
+                lines.append(f"- agent prompt：{sec['agent_title']}")
+            lines.append(f"- 字符数：{sec.get('chars', 0)}")
+            for err in sec.get("errors") or []:
+                lines.append(f"- ERROR `{err.get('path')}`: {err.get('error')}")
+            lines.append("")
+            lines.append("### 内容")
+            lines.append("")
+            lines.append("```text")
+            lines.append((sec.get("content") or "").rstrip() or "（空）")
+            lines.append("```")
+        elif key == "tools":
+            lines.append(f"- 文件工具：{', '.join(sec.get('file_tools') or []) or '（无）'}")
+            lines.append(f"- MCP：{', '.join(sec.get('mcp') or []) or '（无）'}")
+            skills = sec.get("skills") or []
+            if not skills:
+                lines.append("- 技能：（无）")
+            else:
+                for sk in skills:
+                    st = "OK" if sk.get("ok") else "MISSING"
+                    lines.append(f"- 技能 [{st}] `{sk.get('name')}` → `{sk.get('path')}`")
+            for err in sec.get("errors") or []:
+                lines.append(f"- ERROR `{err.get('path')}`: {err.get('error')}")
+        else:
+            segs = sec.get("segments") or []
+            lines.append(f"- 分段：{', '.join(segs) or '（未解析到标签）'}")
+            lines.append(f"- 字符数：{sec.get('chars', 0)}")
+            for err in sec.get("errors") or []:
+                lines.append(f"- ERROR `{err.get('path')}`: {err.get('error')}")
+            lines.append("")
+            lines.append("### 内容")
+            lines.append("")
+            lines.append("```text")
+            lines.append((sec.get("content") or "").rstrip() or "（空）")
+            lines.append("```")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_session_injection_doc(root: Path, report: dict[str, Any]) -> Path:
+    """Write injection.md + injection.json under the session snapshot dir."""
+    dest = session_snapshot_dir(
+        root,
+        str(report.get("run_id") or "adhoc"),
+        str(report.get("node") or "node"),
+        str(report.get("agent") or "agent"),
+        int(report.get("attempt") or 0),
+        rev=int(report.get("rev") or 0),
+    )
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "injection.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    (dest / "injection.md").write_text(render_session_injection_md(report), encoding="utf-8")
+    return dest
+
+
+def injection_event_payload(report: dict[str, Any], *, session_doc: str = "") -> dict[str, Any]:
+    """Compact structured fields for events.jsonl ``injection``."""
+    sections = report.get("sections") or {}
+    compact: dict[str, Any] = {}
+    for key, sec in sections.items():
+        if not isinstance(sec, dict):
+            continue
+        row: dict[str, Any] = {
+            "ok": sec.get("ok"),
+            "label": sec.get("label"),
+            "errors": sec.get("errors") or [],
+        }
+        if key == "system_prompt":
+            row.update({"paths": sec.get("paths") or [], "chars": sec.get("chars", 0)})
+        elif key == "tools":
+            row.update(
+                {
+                    "file_tools": sec.get("file_tools") or [],
+                    "mcp": sec.get("mcp") or [],
+                    "skills": sec.get("skills") or [],
+                }
+            )
+        else:
+            row.update({"segments": sec.get("segments") or [], "chars": sec.get("chars", 0)})
+        compact[key] = row
+    return {
+        "schema": report.get("schema"),
+        "ok": report.get("ok"),
+        "planned": report.get("planned") or {},
+        "actual": report.get("actual") or {},
+        "sections": compact,
+        "session_doc": session_doc,
+    }
