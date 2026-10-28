@@ -311,9 +311,11 @@ def score_run(
             fab = scores["fabrication_rate"]
             row["candidate_hit_rate"] = fab.get("candidate_hit_rate")
             row["fabrication_rate"] = fab.get("fabrication_rate")
-            # PCFBench Task3 primary: Top-1 exact match against gold options
+            # PCFBench Task3 primary: Top-1 exact match of process_name against options
             row["exact_match_rate"] = fab.get("exact_match_rate")
-            row["top1"] = fab.get("exact_match_rate")
+            row["top1"] = fab.get("top1", fab.get("exact_match_rate"))
+            row["abstained"] = fab.get("abstained")
+            row["align"] = fab.get("align")
         elif kind == "decomposition":
             scores = {"decomposition_f1": decomposition_f1.score_decomposition(gold, pred)}
             d = scores["decomposition_f1"]
@@ -598,6 +600,10 @@ def main(argv: list[str] | None = None) -> int:
             bits.append(f"mean_f1={entry['mean_f1']:.3f}")
         if "micro_f1" in entry:
             bits.append(f"micro_f1={entry['micro_f1']:.3f}")
+        if "mean_top1" in entry:
+            bits.append(f"mean_top1={entry['mean_top1']:.3f}")
+        elif "mean_exact_match_rate" in entry:
+            bits.append(f"mean_top1={entry['mean_exact_match_rate']:.3f}")
         if "mean_candidate_hit_rate" in entry:
             bits.append(f"mean_hit={entry['mean_candidate_hit_rate']:.3f}")
         if "mean_fabrication_rate" in entry:
@@ -614,9 +620,23 @@ def main(argv: list[str] | None = None) -> int:
             metric = f"f1={r['f1']:.3f}"
             if r.get("score_reason"):
                 metric += f"({r['score_reason']})"
-        elif r.get("candidate_hit_rate") is not None:
-            metric = f"hit={r['candidate_hit_rate']:.3f} fab={r.get('fabrication_rate', 0):.3f}"
-            if r.get("score_reason"):
+        elif r.get("candidate_hit_rate") is not None or r.get("top1") is not None or r.get("exact_match_rate") is not None:
+            # Mapping headline = top1 (process_name ∈ options); hit/fab are harness side metrics.
+            top1 = r.get("top1")
+            if top1 is None:
+                top1 = r.get("exact_match_rate")
+            parts = []
+            if top1 is not None:
+                parts.append(f"top1={float(top1):.3f}")
+            if r.get("candidate_hit_rate") is not None:
+                parts.append(f"hit={r['candidate_hit_rate']:.3f}")
+            if r.get("fabrication_rate") is not None:
+                parts.append(f"fab={r['fabrication_rate']:.3f}")
+            metric = " ".join(parts) if parts else "-"
+            # Only annotate missing-artifact zeros; never label a present mapping as claim no_artifact.
+            if r.get("score_reason") and not r.get("pred"):
+                metric += f"({r['score_reason']})"
+            elif r.get("score_reason") and r.get("score_reason") != "no_artifact":
                 metric += f"({r['score_reason']})"
         lines.append(
             f"| {r.get('case_id')} | {r.get('subcategory')} | `{str(r.get('run_id') or '')[:8]}` "

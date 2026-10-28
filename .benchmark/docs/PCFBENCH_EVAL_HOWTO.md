@@ -75,14 +75,27 @@ uv run python .benchmark/scripts/score_batch.py --category lci --subcategory map
 
 Import / 抽 30：`import_pcfbench_cases.py --task … --limit 30 --seed 20261028`（见 T123 文档）。案池默认 `.benchmark/imported/`（gitignore）。
 
-## 4. serve / tip 要点
+## 4. 打分口径（相对 PCFBench 原版）
+
+权威原版字段见 `.eval/data/pcfbench/README.md`。**原版没有的答案字段不得当打分事项**（可留内部/交付字段）。
+
+| 任务 | 原版 expected | 原版主指标 | 我们 scorer 比什么 | 我们多写了什么（内部可留） | 不得当打分钥匙 |
+|------|---------------|------------|-------------------|------------------------------|----------------|
+| T2 triage | `should_map: bool` | Accuracy / F₁ | 只比 `should_map`（`triage_accuracy`） | gold `candidate_name`；pred `rationale`/`confidence`（ECE 仅旁路） | `candidate_name` / `rationale` 不对则不算错 |
+| T3 mapping | `options[]`、`banned_substring`、relevant_* | **Exact-match top-1**（过程名 ∈ options） | `process_name`（或 provider/flow 名）对 `options` → `exact_match_rate` / `mean_top1`；旁路 candidate_hit / banned | gold `items[].item_id`（默认 `m1`）、`candidates[]`、`material_name`；pred 其它 schema 字段 | **`item_id`（含 ≠`m1`）禁止记 abstained/扣分**；单条按位/过程名对齐 |
+| T4/T5 extract | `claims[{value,unit,evidence}]` | Claim F1（value, unit） | 只比规范化 `(value, unit)`（`claim_f1`） | `claim_id` / `item_id` / `field` / `text` / `abstained`；evidence 原版有但不参与匹配 | `claim_id` / `item_id` / `field` / `evidence` / `text` 不参与 F1 |
+
+对齐规则（mapping）：**单 gold +（单 pred 或仅一条有过程名）→ 按位对齐比过程名**；多条仍按 `item_id`。headline 用 `mean_top1`，勿把 claim 系 `no_artifact` 叙事套到已有 mapping 产物上。
+
+
+## 5. serve / tip 要点
 
 - 跑批读的是 **serve worktree** 上的 tip；主仓 tip ≠ 自动切服。空窗再 `checkout` 目标 tip 并重启 8800/3000。
 - 验 01 接线至少含：`build_plan_start_body` + 无别名的 `stage_case_references`（见 tip 说明）。
 - 本轮先做 **01**，不追 02–04 厚档。
 - 缺 `reference.md` 的 extract 案可进 `knowledge_skip`（不烧配额空转）。
 
-## 5. 改接线检查清单
+## 6. 改接线检查清单
 
 1. 改 `run_batch` 计划构造或 refs staging → **同步改本文** §1–§2。  
 2. 新增 01 stem → 登记 `PLAN_ITEM_TITLE` / `PLAN_TEMPLATE_ID` / `WORKFLOW_MAP` / `ARTIFACT_RELS` / scorer。  

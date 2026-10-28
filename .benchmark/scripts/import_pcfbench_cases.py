@@ -231,6 +231,8 @@ def mapping_truth(expected: dict[str, Any], material_name: str) -> dict[str, Any
         {"id": f"opt-{i}", "name": name} for i, name in enumerate(options, start=1)
     ]
     # 若只有 options、无封闭候选，candidates=options 本身（打分看 candidates）
+    # item_id 仅金标内部键（默认 m1）；PCFBench 原版无比 item_id。
+    # scorer 单条按过程名/按位对齐，pred item_id≠m1 不记弃权。
     item: dict[str, Any] = {
         "item_id": "m1",
         "options": options,
