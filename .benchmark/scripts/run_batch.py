@@ -808,27 +808,12 @@ def _bom_input_files(input_dir: Path) -> list[Path]:
     return out
 
 
-def _extract_reference_pdf(input_dir: Path) -> Path | None:
-    """Extract knowledge must be the original PCFBench PDF (no md/txt aliases)."""
-    preferred = input_dir / "reference.pdf"
-    if preferred.is_file() and preferred.stat().st_size > 0:
-        return preferred
-    if not input_dir.is_dir():
-        return None
-    pdfs = sorted(
-        p
-        for p in input_dir.iterdir()
-        if p.is_file() and p.suffix.lower() == ".pdf" and p.stat().st_size > 0
-    )
-    return pdfs[0] if pdfs else None
-
-
 def stage_case_references(
     api: str, case: dict[str, Any], tee: Tee, *, workflow: str
 ) -> list[str]:
-    """按任务挂参考：extract 只挂原 PDF（input/reference.pdf）type=knowledge，
-    禁止 reference.md / txt 别名；T1/T2/T3 挂 pcfbench_input.json（及 mapping
-    options.json）等原件 type=bom，禁止 document_text→md 回退。
+    """官方给法：extract 挂 document_text→input/reference.md（knowledge）；
+    T1/T2/T3 挂 pcfbench_input.json（及 mapping options.json）原件 type=bom。
+    PDF 不当 agent 附件。
     """
     case_dir: Path = case["dir"]
     input_dir = case_dir / "input"
@@ -840,15 +825,13 @@ def stage_case_references(
     bom_files = _bom_input_files(input_dir)
 
     if is_extract:
-        # T4/T5：原 PDF knowledge only；勿挂 md/txt / 勿 BOM
-        pdf = _extract_reference_pdf(input_dir)
-        if pdf is None:
+        # T4/T5：官方知识 = document_text 纯文本；勿挂 PDF
+        if not (ref_md.is_file() and ref_md.stat().st_size > 0):
             raise RuntimeError(
-                "extract requires input/reference.pdf (PCFBench source PDF); "
-                "no document_text/md fallback. "
-                "Re-import after: python3 .benchmark/scripts/download_pcfbench.py --source-pdfs"
+                "extract requires input/reference.md (PCFBench document_text); "
+                "PDF is not eval input. Re-import after tip."
             )
-        uploads.append((pdf.name, pdf.read_bytes()))
+        uploads.append(("reference.md", ref_md.read_bytes()))
         types.append("knowledge")
     else:
         # T1/T2/T3：只挂原件（pcfbench_input.json / options.json / 显式 BOM），
@@ -1413,7 +1396,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-auto-references",
         action="store_true",
-        help="不开跑前自动清空并 POST /api/references（extract 默认挂 input/reference.pdf）",
+        help="不开跑前自动清空并 POST /api/references（extract 默认挂 input/reference.md=document_text）",
     )
     parser.add_argument("--poll", type=float, default=5.0, help="轮询间隔秒")
     parser.add_argument(

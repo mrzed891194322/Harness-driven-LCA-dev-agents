@@ -23,7 +23,7 @@ items:
 
 | 任务 | `query.md` 内容 |
 |------|-----------------|
-| **T4/T5 extract** | `input.query` 英文题原文；`source_url` 只在 `meta.yaml` |
+| **T4/T5 extract** | `input.query` 英文题原文；`source_url` 只在 `meta.yaml`（非附件）；知识另挂 `document_text`→`reference.md` |
 | **T2 triage** | 官方 user prompt：`MARKET` + `ROOT MATERIAL CONTEXT` 块 |
 | **T3 mapping** | 官方 user prompt：`Material` / `Description` / … + `Ecoinvent reference products`（`expected.options`） |
 | **T1 decomposition** | 官方 user prompt：`Product` / `Description` / `Functional unit` + `List the BOM components.` |
@@ -45,14 +45,22 @@ items:
 
 ## 2. 上传（references）
 
+### 官方给法（extract / T2 / T3）
+
+| 题 | plan（`query.md`） | 给 agent 的知识/附件 | 不作评测输入 |
+|----|-------------------|----------------------|--------------|
+| **extract** | `input.query` only | `document_text` → `reference.md`（knowledge） | `source_url` 元数据；PDF cache 可选核对 |
+| **T2 triage** | 官方 MARKET + ROOT CONTEXT | `pcfbench_input.json`（原 `input`） | — |
+| **T3 mapping** | 官方 Material/… + options 列表 | `pcfbench_input.json` + `options.json` | — |
+
 上传走 `POST /api/references`，`types` 与文件一一对应。`run_batch.stage_case_references` 实现下列规则。
 
 | 任务 | 规则 |
 |------|------|
-| **T4/T5 extract** | 只挂 **一份原 PDF** `input/reference.pdf`（`source_url` → `.cache/benchmark/pcfbench/source_pdfs/by_url/<url_sha>.pdf`），`type=knowledge`。**禁止** `reference.md` / `.txt` / `document_text` 转写。缺 PDF → staging 报错（失败清单；不静默回退 md）。 |
-| **T2 triage** | 挂原件 `input/pcfbench_input.json`（jsonl `input` 原对象），`type=bom`。**禁止** md 转写 / 别名副本。 |
-| **T3 mapping** | 挂原件 `pcfbench_input.json` + `options.json`（`expected.options`），`type=bom`。**禁止** md 转写。 |
-| **T1 decomposition** | 挂原件 `pcfbench_input.json`，`type=bom`。**禁止** md 转写。 |
+| **T4/T5 extract** | **官方给法**：挂 `input/reference.md` = jsonl `document_text`（纯文本），`type=knowledge`。`source_url` 仅 meta，**不当附件**。PDF（`--source-pdfs`→`.cache/.../source_pdfs/`）可选人工核对，**非评测输入**。缺 `document_text`/`reference.md` → 失败清单。 |
+| **T2 triage** | **官方给法**：plan=官方 MARKET+CONTEXT 题面；挂原件 `pcfbench_input.json`（jsonl `input`），`type=bom`。勿 PDF 替代。 |
+| **T3 mapping** | **官方给法**：plan=官方 Material/… 题面；挂 `pcfbench_input.json` + `options.json`，`type=bom`。勿 PDF 替代。 |
+| **T1 decomposition** | plan=官方 Product/… 题面；挂 `pcfbench_input.json`，`type=bom`。 |
 
 开跑前会清空已有 references，再按上表挂本案文件。
 
@@ -88,7 +96,7 @@ uv run python .benchmark/scripts/score_batch.py --category lci --subcategory map
 
 Import / 抽 30：`import_pcfbench_cases.py --task … --limit 30 --seed 20261028`（见 T123 文档）。案池默认 `.benchmark/imported/`（gitignore）。
 
-extract 原 PDF：`python3 .benchmark/scripts/download_pcfbench.py --source-pdfs` （可加 `--jsonl-source .eval/data/pcfbench`）→ 失败清单 `.cache/benchmark/pcfbench/source_pdfs/failures.jsonl`；再 `import_pcfbench_cases.py --task task4 --task task5`。
+extract 知识来自 jsonl `document_text`（import→`reference.md`）。可选 PDF 缓存核对：`download_pcfbench.py --source-pdfs`（失败见 `.cache/.../source_pdfs/failures.jsonl`）；**PDF 非评测输入**。
 
 ## 4. 打分口径（相对 PCFBench 原版）
 
@@ -110,7 +118,7 @@ extract 原 PDF：`python3 .benchmark/scripts/download_pcfbench.py --source-pdfs
 - 跑批读的是 **serve worktree** 上的 tip；主仓 tip ≠ 自动切服。空窗再 `checkout` 目标 tip 并重启 8800/3000。
 - 验 01 接线至少含：`build_plan_start_body` + 无别名的 `stage_case_references`（见 tip 说明）。
 - 本轮先做 **01**，不追 02–04 厚档。
-- 缺 `reference.pdf` 的 extract 案：staging 失败（`script_error` / `refs_stage_error`）；须先 `download_pcfbench.py --source-pdfs` 再重导，**勿**用 md 顶上。
+- 缺 `reference.md`（`document_text`）的 extract 案：staging 失败；须重导补知识文本。PDF 缺失不影响评测输入。
 
 ## 6. 改接线检查清单
 

@@ -24,11 +24,10 @@ ignored_filenames:
   - ecoinvent_picklist.jsonl
 
 pdf_note: >
-  Hugging Face 数据集没有单独的 PDF 附件；task4/task5 的原文 PDF 按 jsonl
-  input.source_url 下载到 {BENCHMARK_CACHE}/pcfbench/source_pdfs/by_url/<url_sha256>.pdf
-  （download_pcfbench.py --source-pdfs）。失败写入同目录 failures.jsonl，禁止回退
-  document_text→md。import 把 PDF 挂到案 input/reference.pdf。gitignore 仍挡
-  .benchmark/**/*.pdf。
+  评测知识用 jsonl document_text（import→input/reference.md）。可选按 source_url
+  下载原 PDF 到 {BENCHMARK_CACHE}/pcfbench/source_pdfs/by_url/<url_sha256>.pdf
+  （download_pcfbench.py --source-pdfs）供人工核对；失败见 failures.jsonl。
+  PDF 非评测输入、不进 agent knowledge。gitignore 仍挡 .benchmark/**/*.pdf。
 
 source_pdfs:
   path_template: "{BENCHMARK_CACHE}/pcfbench/source_pdfs/by_url/{url_sha256}.pdf"

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """把 PCFBench jsonl（cache 或本地副本）转化成案例树。
 
-默认写出到 ``.benchmark/imported/<大类>/<子类>/<case_id>/``（整树 gitignore，
-仅 README 进仓）。extract 的参考文献必须是 PCFBench ``source_url`` 原 PDF：
-先 ``download_pcfbench.py --source-pdfs``，再把缓存 PDF 挂到 ``input/reference.pdf``；
-**禁止**把 ``document_text`` 转成 md 给 agent（``document_text`` 可留 ``truth/document_text.md`` 供人工核对）。
-跑批时由 ``run_batch``：extract 只挂原 PDF（``type=knowledge``）；T1/T2/T3 挂 ``pcfbench_input.json``（及 mapping 的 ``options.json``）为原件，``type=bom``，禁止 md 转写。计划 items.content = ``query.md`` 题面-only（extract=`input.query`；T1/T2/T3=PCFBench 官方英文 user prompt；禁自拟中文壳/来源脚注）。
+默认写出到 ``.benchmark/imported/<大类>/<子类>/<case_id>/``（整树 gitignore，仅 README 进仓）。
 
-也可 ``--out-root .cache/benchmark/cases``（允许的缓存子树）。
+官方给法（与 PCFBench 一致）：
+- **extract**：plan/``query.md`` = ``input.query`` 题面-only；知识 = ``document_text`` → ``input/reference.md``；
+  ``source_url`` 只写 ``meta.yaml``（非 agent 附件）。``--source-pdfs`` 可选落 ``.cache`` 供核对，非评测输入。
+- **T1/T2/T3**：plan = 官方英文 user prompt 题面-only；附件 = ``pcfbench_input.json``（mapping 另 ``options.json``）原件。
 
-最小可用：task4/task5 → bom/extract；task1 → bom/decomposition；task3 → lci/mapping；task2 → lci/triage。
-jsonl 不下载；先跑 ``download_pcfbench.py``（及 extract 的 ``--source-pdfs``）或指向已有 jsonl。
+跑批：extract 挂 ``reference.md`` ``type=knowledge``；T1/T2/T3 挂原件 ``type=bom``。
+
+也可 ``--out-root .cache/benchmark/cases``。最小可用：task4/5→extract；task1→decomposition；task3→mapping；task2→triage。
 """
 
 from __future__ import annotations
@@ -280,7 +280,8 @@ def write_extract_case(
     source_url = str(inp.get("source_url") or "").strip()
     document_text = str(inp.get("document_text") or "")
     expected = row.get("expected_output") or {}
-    pdf_src = cached_source_pdf(cache_root, source_url)
+    # PDF cache 仅人工核对（可选）；不作 agent 知识、不进 input/
+    pdf_src = cached_source_pdf(cache_root, source_url) if source_url else None
     meta = {
         "case_id": case_id,
         "pcfbench_task": task_meta["pcfbench_task"],
@@ -290,28 +291,24 @@ def write_extract_case(
         "difficulty": "unrated",
         "source_url": source_url or None,
         "product_category": (row.get("metadata") or {}).get("product_category"),
-        "reference_pdf": "input/reference.pdf" if pdf_src is not None else None,
+        "knowledge": "input/reference.md",
     }
-    # drop nulls for cleaner yaml
+    if pdf_src is not None:
+        meta["source_pdf_cache"] = str(pdf_src)
     meta = {k: v for k, v in meta.items() if v is not None}
     # 题面-only：只留 PCFBench 英文题；勿加 case_id 标题或来源脚注（source_url 在 meta.yaml）
-    query_md = (query + "\n") if query else "\n"
+    query_md = f"{query}\n" if query else "\n"
     truth = claims_from_expected(expected if isinstance(expected, dict) else {})
+    has_doc = bool(document_text.strip())
     info: dict[str, Any] = {
         "case_id": case_id,
         "kind": "extract",
         "n_claims": len(truth["claims"]),
-        "has_reference": pdf_src is not None,
+        "has_reference": has_doc,
         "source_url": source_url or None,
     }
-    if not source_url:
-        info["pdf_error"] = "missing_source_url"
-    elif pdf_src is None:
-        info["pdf_error"] = (
-            "pdf_not_in_cache: run "
-            "`python3 .benchmark/scripts/download_pcfbench.py --source-pdfs` "
-            f"first; url={source_url}"
-        )
+    if not has_doc:
+        info["knowledge_error"] = "missing_document_text"
     if dry_run:
         return info
     case_dir = out_dir / case_id
@@ -322,30 +319,20 @@ def write_extract_case(
         yaml.safe_dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8"
     )
     (case_dir / "input" / "query.md").write_text(query_md, encoding="utf-8")
-    # 禁止 document_text → reference.md；清掉旧案遗留
-    legacy_md = case_dir / "input" / "reference.md"
-    if legacy_md.exists() or legacy_md.is_symlink():
-        legacy_md.unlink()
-    if pdf_src is not None:
-        dest_pdf = case_dir / "input" / "reference.pdf"
-        method = link_or_copy(pdf_src, dest_pdf)
-        info["reference_pdf"] = "input/reference.pdf"
-        info["pdf_link"] = method
+    # 官方知识 = document_text 纯文本；清掉曾误挂的 reference.pdf
+    legacy_pdf = case_dir / "input" / "reference.pdf"
+    if legacy_pdf.exists() or legacy_pdf.is_symlink():
+        legacy_pdf.unlink()
+    if has_doc:
+        (case_dir / "input" / "reference.md").write_text(document_text, encoding="utf-8")
     else:
-        # 勿静默用 md 顶上；不写 reference.pdf
-        legacy_pdf = case_dir / "input" / "reference.pdf"
-        if legacy_pdf.exists() or legacy_pdf.is_symlink():
-            legacy_pdf.unlink()
-    # document_text 仅人工核对，不进 agent 输入
-    if document_text.strip():
-        (case_dir / "truth" / "document_text.md").write_text(
-            document_text, encoding="utf-8"
-        )
+        legacy_md = case_dir / "input" / "reference.md"
+        if legacy_md.exists() or legacy_md.is_symlink():
+            legacy_md.unlink()
     nl = chr(10)
     (case_dir / "truth" / "claims.json").write_text(
         json.dumps(truth, ensure_ascii=False, indent=2) + nl, encoding="utf-8"
     )
-    # eval 占位：空 claims，方便 score-only 冒烟目录存在
     (case_dir / "eval" / "artifacts" / "claims.json").write_text(
         json.dumps({"abstained": True, "claims": []}, ensure_ascii=False, indent=2)
         + nl,
@@ -739,17 +726,17 @@ def main(argv: list[str] | None = None) -> int:
                 seed=args.seed,
             )
         )
-    pdf_failures: list[dict[str, Any]] = []
+    knowledge_failures: list[dict[str, Any]] = []
     input_failures: list[dict[str, Any]] = []
     for rep in reports:
         for case in rep.get("cases") or []:
-            if case.get("kind") == "extract" and case.get("pdf_error"):
-                pdf_failures.append(
+            if case.get("kind") == "extract" and case.get("knowledge_error"):
+                knowledge_failures.append(
                     {
                         "case_id": case.get("case_id"),
                         "pcfbench_id": case.get("pcfbench_id"),
                         "source_url": case.get("source_url"),
-                        "error": case.get("pdf_error"),
+                        "error": case.get("knowledge_error"),
                     }
                 )
             if case.get("input_error"):
@@ -761,7 +748,7 @@ def main(argv: list[str] | None = None) -> int:
                         "error": case.get("input_error"),
                     }
                 )
-    n_fail = len(pdf_failures) + len(input_failures)
+    n_fail = len(knowledge_failures) + len(input_failures)
     payload = {
         "ok": n_fail == 0,
         "dry_run": args.dry_run,
@@ -769,17 +756,16 @@ def main(argv: list[str] | None = None) -> int:
         "limit": args.limit,
         "out_root": str(out_root.relative_to(REPO) if out_root.is_relative_to(REPO) else out_root),
         "tasks": reports,
-        "pdf_failures": pdf_failures,
-        "n_pdf_failures": len(pdf_failures),
+        "knowledge_failures": knowledge_failures,
+        "n_knowledge_failures": len(knowledge_failures),
         "input_failures": input_failures,
         "n_input_failures": len(input_failures),
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
-    if pdf_failures:
+    if knowledge_failures:
         print(
-            f"[import] {len(pdf_failures)} extract case(s) missing source PDF "
-            "(no md fallback). Run: python3 .benchmark/scripts/download_pcfbench.py "
-            "--source-pdfs",
+            f"[import] {len(knowledge_failures)} extract case(s) missing document_text "
+            "(official knowledge text).",
             file=sys.stderr,
         )
     if input_failures:

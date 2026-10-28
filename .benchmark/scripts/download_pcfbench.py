@@ -5,9 +5,10 @@ or under ``<repo>/.cache/``. Other in-repo paths (e.g. ``.benchmark/``) are
 rejected. Never writes the git tree except ``--write-sha``, which fills empty
 sha256 fields in the source manifest.
 
-Also supports ``--source-pdfs``: download original PDFs named by task4/task5
-jsonl ``input.source_url`` into ``{cache}/pcfbench/source_pdfs/by_url/``.
-Failures are listed (stdout + failures.jsonl); never falls back to document_text md.
+Also supports ``--source-pdfs``: optional cache of original PDFs by task4/task5
+jsonl ``input.source_url`` under ``{cache}/pcfbench/source_pdfs/by_url/`` for human
+check only (not agent/eval knowledge; extract uses ``document_text``). Failures
+are listed (stdout + failures.jsonl).
 """
 
 from __future__ import annotations

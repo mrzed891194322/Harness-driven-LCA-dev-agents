@@ -17,8 +17,8 @@ T1 decomposition **搁置**（官方要 LLM judge，确定性 F1 骨架可留着
 ### 计划 / 知识接线（Du Yuan 2026-10-28 硬口径：原版题面 + 原件）
 
 - **计划**：`run_batch` YAML `items` 一项；`title` = PCFBench 英文任务名；`content` = `query.md` **题面-only**（T2/T3 = 官方英文 user prompt，禁自拟中文壳）。
-- **extract**：只挂 `input/reference.pdf`（`source_url` 原 PDF）→ `knowledge`；禁 `document_text`→md。
-- **T2/T3**：挂 `pcfbench_input.json`（及 mapping `options.json`）→ `bom`；禁 md 回退。详见 [docs/PCFBENCH_EVAL_HOWTO.md](docs/PCFBENCH_EVAL_HOWTO.md)。
+- **extract**：挂 `input/reference.md` = `document_text` → `knowledge`；`source_url` 仅 meta；PDF cache 可选核对、非评测输入。
+- **T2/T3**：挂 `pcfbench_input.json`（及 mapping `options.json`）→ `bom`（官方原输入）。详见 [docs/PCFBENCH_EVAL_HOWTO.md](docs/PCFBENCH_EVAL_HOWTO.md)。
 
 
 ## 1. Import（seed=20261028 抽 30，写 imported，不进 git）
