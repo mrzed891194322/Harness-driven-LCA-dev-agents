@@ -141,6 +141,11 @@ extract 知识来自 jsonl `document_text`（import→`reference.md`）。可选
 
 `leaf` = `<node>[@revN].<agent>.<attempt>`。口径与查法详见 [`docs/ops/SESSION_INJECTION.md`](../../docs/ops/SESSION_INJECTION.md)。
 
+## 8. workspace 与 serve 根一致
+
+`run_batch.resolve_workspace()` 跟 **活 uvicorn 的 PROJECT_ROOT**（读 `.local/run/backend.pid` → `/proc/<pid>/cwd`），再拼 `workspace/`。  
+**不要**仅因 `.local/wt/serve/.../workspace` 目录存在就拷它——serve 若跑在主仓，会把 WT 里过期 `claims.json` 打进 result_dir（假零分）。
+
 ## 相关路径
 
 | 项 | 路径 |

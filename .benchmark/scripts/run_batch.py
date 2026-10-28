@@ -377,17 +377,57 @@ def sum_token_field(rows: list[dict[str, Any]], key: str) -> int | str:
     return total if any_num else TOKEN_UNAVAILABLE
 
 
+_SERVE_WT_REL = Path(".local/wt/serve/202606-harness-agent-LCA")
+
+
+def _backend_pid_cwd(pid_file: Path) -> Path | None:
+    """Return cwd of a live backend process named by ``pid_file``, else None."""
+    try:
+        raw = pid_file.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+        pid = int(raw)
+    except (OSError, ValueError, IndexError):
+        return None
+    proc = Path(f"/proc/{pid}")
+    if not proc.is_dir():
+        return None
+    try:
+        return (proc / "cwd").resolve()
+    except OSError:
+        return None
+
+
+def resolve_serve_project_root(repo: Path) -> Path:
+    """Project root where the live uvicorn writes (``PROJECT_ROOT``).
+
+    Reads ``.local/run/backend.pid`` under the main repo and the serve worktree;
+    the alive process's cwd wins. Does **not** assume the serve WT is live merely
+    because ``.local/wt/serve/.../workspace`` exists (that mis-copied stale WT
+    artifacts while uvicorn was writing the main-repo ``workspace/``).
+    """
+    repo = repo.resolve()
+    serve_wt = repo / _SERVE_WT_REL
+    for pid_file in (
+        repo / ".local" / "run" / "backend.pid",
+        serve_wt / ".local" / "run" / "backend.pid",
+    ):
+        cwd = _backend_pid_cwd(pid_file)
+        if cwd is None:
+            continue
+        if (cwd / "pyproject.toml").is_file() or (cwd / "workspace").is_dir():
+            return cwd
+    # No live backend: stay on the main repo (run_batch's home). Stale WT
+    # workspace must not win by directory presence alone.
+    return repo
+
+
 def resolve_workspace(repo: Path) -> Path:
-    """Prefer serve worktree workspace; fall back to repo workspace/."""
-    serve_ws = repo / ".local/wt/serve/202606-harness-agent-LCA/workspace"
-    if serve_ws.is_dir():
-        return serve_ws
-    return repo / "workspace"
+    """Workspace matching the live serve's ``WORKSPACE_ROOT`` (``PROJECT_ROOT/workspace``)."""
+    return resolve_serve_project_root(repo) / "workspace"
 
 
 def serve_tip(repo: Path) -> str:
-    serve_git = repo / ".local/wt/serve/202606-harness-agent-LCA"
-    root = serve_git if (serve_git / ".git").exists() or serve_git.is_dir() else repo
+    """Short HEAD of the live serve project root (same root as ``resolve_workspace``)."""
+    root = resolve_serve_project_root(repo)
     try:
         return subprocess.check_output(
             ["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
