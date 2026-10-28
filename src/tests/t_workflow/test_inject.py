@@ -63,8 +63,15 @@ def test_session_injection_doc(wf_root):
     report = inj.build_session_injection_report(
         node, "executor", attempt=1, user_prompt=user, run_id="ut-session-inj"
     )
-    dest = write_session_injection_doc(wf_root, report)
+    ws = wf_root / "workspace"
+    dest = write_session_injection_doc(wf_root, report, workspace=ws)
     assert (dest / "injection.md").is_file() and (dest / "injection.json").is_file()
+    # primary = workspace/_run/sessions
+    assert "runs/_run/sessions" in dest.as_posix().replace("\\", "/")
+    local = wf_root / ".local/runs/ut-session-inj/sessions/summarize.executor.1"
+    audit = ws / "audit/runs/ut-session-inj/sessions/summarize.executor.1"
+    assert (local / "injection.md").is_file()
+    assert (audit / "injection.json").is_file()
     md = (dest / "injection.md").read_text(encoding="utf-8")
     assert "顶层提示词" in md and "普通提示词" in md
     payload = injection_event_payload(report, session_doc="x")

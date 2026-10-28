@@ -101,6 +101,21 @@ Import / 抽 30：`import_pcfbench_cases.py --task … --limit 30 --seed 2026102
 2. 新增 01 stem → 登记 `PLAN_ITEM_TITLE` / `PLAN_TEMPLATE_ID` / `WORKFLOW_MAP` / `ARTIFACT_RELS` / scorer。  
 3. 群里报 tip + 本文路径；操作员用约定模型 profile（如英伟达）开跑。
 
+
+## 7. 会话注入日志（随案可查）
+
+每一次工作流调用（每个 agent 轮次）必须有会话注入日志：**顶层 system / 工具 tools / 普通 user** 三段 + 各自成败。  
+**不要**只去翻 serve 的 `.local/runs/...`；workspace 与 `result_dir` 也能带走。
+
+| 落点 | 路径 |
+|------|------|
+| result_dir（首选） | `.benchmark/result/<cat>/<sub>/<case>/<run_id>/sessions/<leaf>/injection.{md,json}` + 同级 `work-record.{md,json}` |
+| workspace 耐久 | `workspace/audit/runs/<run_id>/sessions/<leaf>/injection.{md,json}` + `work-record.*`（**按 run_id 分目录，后案不盖前案**） |
+| workspace 当前 | `workspace/runs/_run/sessions/<leaf>/injection.{md,json}`（下一案 `prepare_fresh` 会清） |
+| serve 快照 | `.local/runs/<run_id>/sessions/<leaf>/injection.{md,json}` |
+
+`leaf` = `<node>[@revN].<agent>.<attempt>`。口径与查法详见 [`docs/ops/SESSION_INJECTION.md`](../../docs/ops/SESSION_INJECTION.md)。
+
 ## 相关路径
 
 | 项 | 路径 |
@@ -110,3 +125,4 @@ Import / 抽 30：`import_pcfbench_cases.py --task … --limit 30 --seed 2026102
 | import | `.benchmark/scripts/import_pcfbench_cases.py` |
 | orch 01 | `.benchmark/{bom,lci}/harness/workflows/orchestrations/*-01.yaml` |
 | scorers | `.benchmark/{bom,lci}/scorers/` |
+| 会话注入口径 | `docs/ops/SESSION_INJECTION.md` |

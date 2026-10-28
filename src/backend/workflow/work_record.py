@@ -151,10 +151,31 @@ def render_work_record_md(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def audit_work_record_paths(workspace: Path, run_id: str) -> tuple[Path, Path]:
+    """Durable per-run work-record (survives prepare_fresh wiping runs/_run)."""
+    def safe(s: str) -> str:
+        return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in (s or "x"))
+
+    root = workspace / "audit" / "runs" / safe(run_id or "adhoc")
+    return root / WORK_RECORD_JSON, root / WORK_RECORD_MD
+
+
 def write_work_record(workspace: Path, *, manifest: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Write live ``runs/_run/work-record.*`` and a durable audit copy per run_id.
+
+    Later cases overwrite ``runs/_run/work-record.*`` (and wipe ``runs/`` on prepare_fresh),
+    but ``workspace/audit/runs/<run_id>/work-record.*`` is kept per case.
+    """
     data = build_work_record(workspace, manifest=manifest)
     json_path, md_path = work_record_paths(workspace)
     json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    md_path.write_text(render_work_record_md(data), encoding="utf-8")
+    blob = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    md = render_work_record_md(data)
+    json_path.write_text(blob, encoding="utf-8")
+    md_path.write_text(md, encoding="utf-8")
+    run_id = str((manifest or {}).get("run_id") or data.get("run_id") or "adhoc")
+    a_json, a_md = audit_work_record_paths(workspace, run_id)
+    a_json.parent.mkdir(parents=True, exist_ok=True)
+    a_json.write_text(blob, encoding="utf-8")
+    a_md.write_text(md, encoding="utf-8")
     return data

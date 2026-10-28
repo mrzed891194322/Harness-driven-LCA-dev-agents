@@ -196,10 +196,17 @@ class NodeGraph:
                     session_doc = ""
                     root = getattr(ctx.prompt_builder, "root", None)
                     if root is not None:
-                        dest = write_session_injection_doc(Path(root), report)
-                        try:
-                            session_doc = dest.relative_to(Path(root)).as_posix()
-                        except ValueError:
+                        dest = write_session_injection_doc(
+                            Path(root), report, workspace=ctx.workspace
+                        )
+                        # Prefer workspace-relative path (随案可查); fall back to repo-relative.
+                        for base in (ctx.workspace.parent, Path(root), ctx.workspace):
+                            try:
+                                session_doc = dest.relative_to(base).as_posix()
+                                break
+                            except ValueError:
+                                continue
+                        else:
                             session_doc = str(dest)
                     ev.emit("injection", **injection_event_payload(report, session_doc=session_doc))
                 except Exception as exc:  # noqa: BLE001

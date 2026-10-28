@@ -996,7 +996,42 @@ def copy_result_tree(
             dest = out / "artifacts" / rel.relative_to("artifacts")
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
+    # Also copy workflow ARTIFACT_RELS primary (triage/decomposition) when present.
+    # CLAIMS/BOM/MAPPING already covered above; skip duplicates.
+    # Session injection + work-record: live _run first, then durable audit/<run_id>.
+    _copy_injection_and_work_record(workspace, out, run_id)
     return out
+
+
+def _copy_injection_and_work_record(workspace: Path, out: Path, run_id: str) -> None:
+    """Bring session injection docs + work-record into result_dir (随案可带走)."""
+    rid = run_id or "norun"
+    candidates: list[Path] = [
+        workspace / "runs" / "_run",
+        workspace / "audit" / "runs" / rid,
+    ]
+    # work-record.{json,md}
+    for base in candidates:
+        for name in ("work-record.json", "work-record.md"):
+            src = base / name
+            if src.is_file() and not (out / name).is_file():
+                shutil.copy2(src, out / name)
+    # sessions/<leaf>/injection.{md,json}
+    for base in candidates:
+        sessions = base / "sessions"
+        if not sessions.is_dir():
+            continue
+        for leaf in sessions.iterdir():
+            if not leaf.is_dir():
+                continue
+            for name in ("injection.md", "injection.json"):
+                src = leaf / name
+                if not src.is_file():
+                    continue
+                dest = out / "sessions" / leaf.name / name
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                if not dest.is_file():
+                    shutil.copy2(src, dest)
 
 
 def run_one(

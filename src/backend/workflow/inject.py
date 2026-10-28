@@ -419,22 +419,83 @@ def render_session_injection_md(report: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_session_injection_doc(root: Path, report: dict[str, Any]) -> Path:
-    """Write injection.md + injection.json under the session snapshot dir."""
-    dest = session_snapshot_dir(
-        root,
-        str(report.get("run_id") or "adhoc"),
-        str(report.get("node") or "node"),
-        str(report.get("agent") or "agent"),
-        int(report.get("attempt") or 0),
-        rev=int(report.get("rev") or 0),
+def _session_leaf_name(node_id: str, agent: str, attempt: int, *, rev: int = 0) -> str:
+    def safe(s: str) -> str:
+        return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in (s or "x"))
+
+    node_part = f"{node_id}@rev{rev}" if rev else node_id
+    return f"{safe(node_part)}.{safe(agent)}.{int(attempt) or 0}"
+
+
+def workspace_session_injection_dir(
+    workspace: Path, node_id: str, agent: str, attempt: int, *, rev: int = 0
+) -> Path:
+    """Live workspace mirror: workspace/runs/_run/sessions/<node>.<agent>.<attempt>/"""
+    return workspace / "runs" / "_run" / "sessions" / _session_leaf_name(
+        node_id, agent, attempt, rev=rev
     )
+
+
+def audit_session_injection_dir(
+    workspace: Path, run_id: str, node_id: str, agent: str, attempt: int, *, rev: int = 0
+) -> Path:
+    """Durable per-run copy (survives prepare_fresh): workspace/audit/runs/<run_id>/sessions/..."""
+    def safe(s: str) -> str:
+        return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in (s or "x"))
+
+    return (
+        workspace
+        / "audit"
+        / "runs"
+        / safe(run_id or "adhoc")
+        / "sessions"
+        / _session_leaf_name(node_id, agent, attempt, rev=rev)
+    )
+
+
+def _write_injection_pair(dest: Path, report: dict[str, Any]) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "injection.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     (dest / "injection.md").write_text(render_session_injection_md(report), encoding="utf-8")
     return dest
+
+
+def write_session_injection_doc(
+    root: Path,
+    report: dict[str, Any],
+    *,
+    workspace: Path | None = None,
+) -> Path:
+    """Write injection.md + injection.json.
+
+    Always writes under ``.local/runs/<run>/sessions/...`` (serve-side snapshot).
+    When ``workspace`` is set, also writes:
+    - ``workspace/runs/_run/sessions/...`` (live, wiped by next prepare_fresh)
+    - ``workspace/audit/runs/<run_id>/sessions/...`` (durable across cases)
+
+    Returns the workspace ``_run`` dest when available, else the audit dest, else ``.local``.
+    """
+    run_id = str(report.get("run_id") or "adhoc")
+    node_id = str(report.get("node") or "node")
+    agent = str(report.get("agent") or "agent")
+    attempt = int(report.get("attempt") or 0)
+    rev = int(report.get("rev") or 0)
+
+    local_dest = session_snapshot_dir(root, run_id, node_id, agent, attempt, rev=rev)
+    _write_injection_pair(local_dest, report)
+
+    primary = local_dest
+    if workspace is not None:
+        ws_dest = workspace_session_injection_dir(workspace, node_id, agent, attempt, rev=rev)
+        _write_injection_pair(ws_dest, report)
+        audit_dest = audit_session_injection_dir(
+            workspace, run_id, node_id, agent, attempt, rev=rev
+        )
+        _write_injection_pair(audit_dest, report)
+        primary = ws_dest
+    return primary
 
 
 def injection_event_payload(report: dict[str, Any], *, session_doc: str = "") -> dict[str, Any]:
