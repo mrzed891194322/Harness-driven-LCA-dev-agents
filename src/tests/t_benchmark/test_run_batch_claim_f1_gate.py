@@ -27,6 +27,7 @@ def test_uses_claim_f1_false_for_mapping_triage_decomp():
 def test_uses_claim_f1_true_for_extract_abstention():
     m = _mod()
     assert m.uses_claim_f1("bom-extract-01") is True
+    assert m.uses_claim_f1("bom-extract-02") is True
     assert m.uses_claim_f1("bom-extract-03") is True
     assert m.uses_claim_f1("bom-claims-03") is True  # legacy / unknown claim suites
 

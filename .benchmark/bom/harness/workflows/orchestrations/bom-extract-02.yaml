@@ -1,5 +1,5 @@
 id: bom-extract-02
-title: BOM 数量抽取（02 · 真薄+reviewer）
+title: BOM 数量抽取（02 · 真薄+薄约束）
 max_redos: 0
-# 与 01 注入完全相同，只多挂 reviewer
+# 与 01 同拓扑（单节点 executor，无 reviewer）；仅挂 bom-claims-slim 薄约束
 nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract-02.yaml]

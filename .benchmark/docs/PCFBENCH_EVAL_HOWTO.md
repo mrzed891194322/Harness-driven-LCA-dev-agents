@@ -64,13 +64,15 @@ items:
 
 开跑前会清空已有 references，再按上表挂本案文件。
 
-## 3. 01 薄档怎么跑
+## 3. 01 / 02 薄档怎么跑
 
-01 = 真薄：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍由宿主注入。
+01 = 真薄：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍由宿主注入。  
+**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 **只多**挂 `bom-claims-slim` 薄约束（只交所问、禁多报无关量、单位照抄禁换算、宁漏勿堆）——对症 01 基线 B2/B3；**不加 reviewer**（那是更后档）。
 
 | stem | cases-root（全量/抽样子集） | 主产物 | 主指标 |
 |------|------------------------------|--------|--------|
 | `bom-extract-01` | `.benchmark/imported/bom/extract/` | `artifacts/bom/claims.json` | Claim F1 |
+| `bom-extract-02` | 同 01 | 同 01 | Claim F1 |
 | `lci-triage-01` | `.benchmark/imported/lci/triage/` | `artifacts/triage/triage.json` | `triage_accuracy` |
 | `lci-mapping-01` | `.benchmark/imported/lci/mapping/` | `artifacts/mapping/mapping.json` | **Top-1** = `mean_top1` |
 
@@ -78,6 +80,11 @@ items:
 # 例：extract 01（英伟达 profile_id 替换 <profile>）
 uv run python .benchmark/scripts/run_batch.py --model <profile> \
   --workflow bom-extract-01 \
+  --cases-root .benchmark/imported/bom/extract
+
+# 02：同案池，仅薄约束 skill
+uv run python .benchmark/scripts/run_batch.py --model <profile> \
+  --workflow bom-extract-02 \
   --cases-root .benchmark/imported/bom/extract
 
 uv run python .benchmark/scripts/run_batch.py --model <profile> \

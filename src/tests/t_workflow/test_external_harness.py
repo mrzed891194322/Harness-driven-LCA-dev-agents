@@ -49,13 +49,13 @@ def test_inject_uses_produce_spec_path_not_stem():
 
 
 def test_bom_extract_tier_switches():
-    """01–04 share orch skeleton; only reviewer / inject / skills flip."""
+    """01–04 share orch skeleton; reviewer / inject / skills flip per tier."""
     _, n01 = load_workflow(REPO, "bom-extract-01")
     _, n02 = load_workflow(REPO, "bom-extract-02")
     _, n03 = load_workflow(REPO, "bom-extract-03")
     _, n04 = load_workflow(REPO, "bom-extract-04")
     assert set(n01[0].agents) == {"executor"}
-    assert set(n02[0].agents) == {"executor", "reviewer"}
+    assert set(n02[0].agents) == {"executor"}  # 02: still no reviewer
     assert set(n03[0].agents) == {"executor"}
     assert set(n04[0].agents) == {"executor", "reviewer"}
     assert n01[0].inject == n02[0].inject == []
@@ -74,9 +74,9 @@ def test_bom_extract_tier_switches():
     skills = ["bom-claims-read", "bom-claims-ops"]
     assert n03[0].agents["executor"].tools.skills == skills
     assert n04[0].agents["executor"].tools.skills == skills
-    assert n04[0].agents["reviewer"].tools.skills == skills
+    assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
     assert n01[0].agents["executor"].tools.skills == []
-    assert n02[0].agents["executor"].tools.skills == []
+    assert n02[0].agents["executor"].tools.skills == ["bom-claims-slim"]
 
 
 def test_repo_full_lca_product_path_refs():

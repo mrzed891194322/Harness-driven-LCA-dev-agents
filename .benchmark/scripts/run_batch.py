@@ -34,9 +34,10 @@ REPO = Path(__file__).resolve().parents[2]
 DEFAULT_API = "http://127.0.0.1:8800"
 DEFAULT_WORKFLOW = "bom-extract-03"
 # workflow stem → (大类, 子类, 默认案例根相对仓根)
-# 档位：01 真·薄 / 02 薄编排无 reviewer（注入同 best；预留）/ 03 薄注入+reviewer / 04 最好
+# 档位：01 真薄 / 02 真薄+bom-claims-slim / 03 厚注入 / 04 厚注入+reviewer
 WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
     "bom-extract-01": ("bom", "extract", ".benchmark/bom/extract"),
+    "bom-extract-02": ("bom", "extract", ".benchmark/bom/extract"),
     "bom-extract-03": ("bom", "extract", ".benchmark/bom/extract"),
     "bom-extract-04": ("bom", "extract", ".benchmark/bom/extract"),
     "bom-decomposition-01": ("bom", "decomposition", ".benchmark/bom/decomposition"),
@@ -50,6 +51,7 @@ WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
 # abstention 复用 bom-extract-03/04 orch；用 --cases-root 或 --include-imported 挂树
 ARTIFACT_RELS: dict[str, tuple[Path, ...]] = {
     "bom-extract-01": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
+    "bom-extract-02": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
     "bom-extract-03": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
     "bom-extract-04": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
     "bom-decomposition-01": (Path("artifacts/bom/decomposition.json"),),
@@ -745,6 +747,7 @@ def clear_references(api: str, tee: Tee) -> None:
 PLAN_ITEM_TITLE: dict[str, str] = {
     # titles = PCFBench task labels (English); content = query.md 题面-only
     "bom-extract-01": "Material/energy extraction",
+    "bom-extract-02": "Material/energy extraction",
     "bom-extract-03": "Material/energy extraction",
     "bom-extract-04": "Material/energy extraction",
     "bom-decomposition-01": "Product decomposition",
@@ -758,6 +761,7 @@ PLAN_ITEM_TITLE: dict[str, str] = {
 
 PLAN_TEMPLATE_ID: dict[str, str] = {
     "bom-extract-01": "bom-only",
+    "bom-extract-02": "bom-only",
     "bom-extract-03": "bom-only",
     "bom-extract-04": "bom-only",
     "bom-decomposition-01": "bom-only",
@@ -1368,7 +1372,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workflow",
         default=DEFAULT_WORKFLOW,
-        help="orch stem（*-01 真薄 | *-03/04）；含 bom-decomposition-01 / lci-mapping-01 / lci-triage-01；默认 bom-extract-03",
+        help="orch stem（*-01 真薄 | *-02 薄约束 | *-03/04）；含 bom-decomposition-01 / lci-mapping-01 / lci-triage-01；默认 bom-extract-03",
     )
     parser.add_argument(
         "--repeat",
