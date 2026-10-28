@@ -1,5 +1,9 @@
 # `.benchmark`
 
+## 评测规范（权威）
+
+如何跑 PCFBench / 01 计划与上传口径：见 [docs/PCFBENCH_EVAL_HOWTO.md](docs/PCFBENCH_EVAL_HOWTO.md)。改接线须同步改该文档。
+
 可复现的 LCA 评测资产。P0 只带合成案例和离线打分：不跑模型，不需要 API key，也不把 PCFBench 的 jsonl / PDF 放进 git。
 
 任意 agent 的入口是 [`.agents/skills/bench-test/SKILL.md`](../.agents/skills/bench-test/SKILL.md)。

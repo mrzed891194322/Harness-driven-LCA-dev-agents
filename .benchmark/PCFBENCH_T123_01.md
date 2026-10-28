@@ -1,3 +1,5 @@
+**权威总规范**：[docs/PCFBENCH_EVAL_HOWTO.md](docs/PCFBENCH_EVAL_HOWTO.md)。
+
 # PCFBench T2/T3 · 01 真薄（本轮可验跑）
 
 **本轮范围（Du Yuan 2026-10-28）：只落 T2 triage + T3 mapping。**  
