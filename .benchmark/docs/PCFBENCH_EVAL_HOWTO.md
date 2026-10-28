@@ -64,15 +64,18 @@ items:
 
 开跑前会清空已有 references，再按上表挂本案文件。
 
-## 3. 01 / 02 薄档怎么跑
+## 3. 01 / 02 / 03 extract 档怎么跑
 
 01 = 真薄：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍由宿主注入。  
-**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 **只多**挂 `bom-claims-slim` 薄约束（只交所问、禁多报无关量、单位照抄禁换算、宁漏勿堆）——对症 01 基线 B2/B3；**不加 reviewer**（那是更后档）。
+**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 **只多**挂 `bom-claims-slim` 薄约束（只交所问、禁多报无关量、单位照抄禁换算、宁漏勿堆）——对症 01 基线 B2/B3。  
+**02→03**：给法不变；executor **仍**只挂 `bom-claims-slim`；**新加** reviewer（`bom-claims-review`：必须读长文；文中无支持→删压 B2；单位须照抄原文、禁换算/改写压 B3；漏报仅当原文明确且答题面才可要求补，高门槛勿滥补）。对照基线 TAG `opencode-deepseek-flash-extract02-20261029-003412`（兼看 vs `…extract01-…233421`）；钉 03 tip **先不开批**。  
+**04**：厚注入（read+ops）+ reviewer（另档）。
 
 | stem | cases-root（全量/抽样子集） | 主产物 | 主指标 |
 |------|------------------------------|--------|--------|
 | `bom-extract-01` | `.benchmark/imported/bom/extract/` | `artifacts/bom/claims.json` | Claim F1 |
 | `bom-extract-02` | 同 01 | 同 01 | Claim F1 |
+| `bom-extract-03` | 同 01 | 同 01 | Claim F1 |
 | `lci-triage-01` | `.benchmark/imported/lci/triage/` | `artifacts/triage/triage.json` | `triage_accuracy` |
 | `lci-mapping-01` | `.benchmark/imported/lci/mapping/` | `artifacts/mapping/mapping.json` | **Top-1** = `mean_top1` |
 
@@ -85,6 +88,11 @@ uv run python .benchmark/scripts/run_batch.py --model <profile> \
 # 02：同案池，仅薄约束 skill
 uv run python .benchmark/scripts/run_batch.py --model <profile> \
   --workflow bom-extract-02 \
+  --cases-root .benchmark/imported/bom/extract
+
+# 03：同 02 executor + reviewer（先 tip，开批另令）
+uv run python .benchmark/scripts/run_batch.py --model <profile> \
+  --workflow bom-extract-03 \
   --cases-root .benchmark/imported/bom/extract
 
 uv run python .benchmark/scripts/run_batch.py --model <profile> \

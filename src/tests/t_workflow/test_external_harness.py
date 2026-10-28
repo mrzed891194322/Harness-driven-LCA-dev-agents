@@ -56,27 +56,28 @@ def test_bom_extract_tier_switches():
     _, n04 = load_workflow(REPO, "bom-extract-04")
     assert set(n01[0].agents) == {"executor"}
     assert set(n02[0].agents) == {"executor"}  # 02: still no reviewer
-    assert set(n03[0].agents) == {"executor"}
+    assert set(n03[0].agents) == {"executor", "reviewer"}  # 03: slim + reviewer
     assert set(n04[0].agents) == {"executor", "reviewer"}
-    assert n01[0].inject == n02[0].inject == []
+    assert n01[0].inject == n02[0].inject == n03[0].inject == []
     thick_inject = [
         "rules/delivery/status.yaml",
         "rules/delivery/provenance.yaml",
         "rules/lca/knowledge-files.yaml",
     ]
-    assert n03[0].inject == n04[0].inject == thick_inject
-    assert n01[0].produces[0].spec == n02[0].produces[0].spec == (
+    assert n04[0].inject == thick_inject
+    assert n01[0].produces[0].spec == n02[0].produces[0].spec == n03[0].produces[0].spec == (
         ".benchmark/bom/harness/specs/bom-claims.yaml"
     )
-    assert n03[0].produces[0].spec == n04[0].produces[0].spec == (
+    assert n04[0].produces[0].spec == (
         ".benchmark/bom/harness/specs/bom-claims-best.yaml"
     )
-    skills = ["bom-claims-read", "bom-claims-ops"]
-    assert n03[0].agents["executor"].tools.skills == skills
-    assert n04[0].agents["executor"].tools.skills == skills
-    assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
+    thick_skills = ["bom-claims-read", "bom-claims-ops"]
     assert n01[0].agents["executor"].tools.skills == []
     assert n02[0].agents["executor"].tools.skills == ["bom-claims-slim"]
+    assert n03[0].agents["executor"].tools.skills == ["bom-claims-slim"]
+    assert n03[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
+    assert n04[0].agents["executor"].tools.skills == thick_skills
+    assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
 
 
 def test_repo_full_lca_product_path_refs():

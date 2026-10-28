@@ -5,5 +5,6 @@
 - `harness/tools/skills/bom-claims-read/SKILL.md` — 读文（ls→grep→offset/limit）
 - `harness/tools/skills/bom-claims-ops/SKILL.md` — 单位 / 只交所问 / 交卷
 - `harness/tools/skills/bom-claims-review/SKILL.md` — 审核者专用（对照原文核对 claims）
+- `harness/tools/skills/bom-claims-slim/SKILL.md` — 02/03 executor 薄约束
 
-`bom-extract-03` / `04` executor 挂 read+ops；`bom-extract-04` reviewer 挂 review；`bom-extract-02` 挂薄技能 `bom-claims-slim`。本目录仅作旧名兼容，不要再往这里堆护栏。
+`bom-extract-02` / `03` executor 挂 slim；`bom-extract-03` / `04` reviewer 挂 review；`bom-extract-04` executor 挂 read+ops。本目录仅作旧名兼容，不要再往这里堆护栏。

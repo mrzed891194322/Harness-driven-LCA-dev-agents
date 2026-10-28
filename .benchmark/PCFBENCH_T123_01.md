@@ -14,6 +14,7 @@ T1 decomposition **搁置**（官方要 LLM judge，确定性 F1 骨架可留着
 
 01 = 真薄（对齐 `bom-extract-01`）：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍注入。
 02 = 同拓扑 + `bom-claims-slim` 薄约束（压多报/单位硬伤）；仍无 reviewer。
+03 = 02 之上加 reviewer（`bom-claims-review`：读长文；删无支持；单位照抄；慎补漏）；executor 仍 slim。
 
 ### 计划 / 知识接线（Du Yuan 2026-10-28 硬口径：原版题面 + 原件）
 

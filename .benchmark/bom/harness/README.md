@@ -22,13 +22,14 @@ agent 模板与规则正文继续共用 `harness/workflows/agents/`、`harness/r
 | --- | --- | --- | --- | --- |
 | `bom-decomposition-01` | 产品组成（PCFBench task1）真薄 | 已有 |
 | `bom-extract-01` | 无 | **无** | 无 | 薄短 `bom-claims.yaml` |
-| `bom-extract-02` | 无 | **无**（同 01） | **`bom-claims-slim`**（短 bullet：只交所问 / 禁多报 / 单位照抄 / 宁漏勿堆） | 同 01 |
-| `bom-extract-03` | 无 | status + provenance + knowledge-files | `bom-claims-read` + `bom-claims-ops` | 短指针 `bom-claims-best.yaml` |
-| `bom-extract-04` | **有** | 同 03 | 同 03（executor **与** reviewer 都挂） | 同 03 |
+| `bom-extract-02` | 无 | **无**（同 01） | **`bom-claims-slim`**（executor） | 同 01 |
+| `bom-extract-03` | **有** | **无**（同 01/02） | executor=`bom-claims-slim`；reviewer=`bom-claims-review` | 同 01 |
+| `bom-extract-04` | **有** | status + provenance + knowledge-files | executor=`bom-claims-read`+`bom-claims-ops`；reviewer=`bom-claims-review` | 短指针 `bom-claims-best.yaml` |
 
 - **01 真薄**：题面 ≈ 短指令 + 案题 query；交付 claims submit；环境门留环境，长 schema 不灌进提示散文。
 - **02**：与 01 **同拓扑**（单 executor、无 reviewer、无 node.inject）；仅挂薄技能 `bom-claims-slim`（压 B2 多报 / B3 单位硬伤）。给法仍官方 query + `reference.md`。
-- **03 / 04 厚注入**：两技能拆自原 `bom-claims-best` 打包；`bom-claims-best/` 目录仅留兼容别名。04 另挂 reviewer。
+- **03**：在 02 之上 **加 reviewer**（挂 `bom-claims-review`：必须读长文；无支持→删压 B2；单位照抄禁换算压 B3；漏报高门槛才补）。executor 仍只挂 slim；**无**厚 inject / 无 read+ops。对照基线 TAG `opencode-deepseek-flash-extract02-20261029-003412`（兼看 vs `…extract01-…233421`）—本档 tip 只钉 workflow，**不开批**。
+- **04 厚注入+reviewer**：executor 挂 read+ops（拆自原 `bom-claims-best`）；`bom-claims-best/` 目录仅留兼容别名。
 - 双单位：厚技能 = 只留一档 `(value,unit)`；薄 spec = 不写「并列双单位各建一条」。
 
 abstention 复用任一 extract stem（`--cases-root .benchmark/bom/abstention`），无单独 abstention orch。

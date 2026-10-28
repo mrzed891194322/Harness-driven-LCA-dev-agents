@@ -9,10 +9,10 @@
 
 | 技能 | 挂接 orch | 说明 |
 | --- | --- | --- |
-| `bom-claims-slim` | `bom-extract-02` executor | 薄约束：只交所问 / 禁多报 / 单位照抄 / 宁漏勿堆 |
-| `bom-claims-read` | `bom-extract-03` / `04` executor | 读文：ls→grep→offset/limit |
-| `bom-claims-ops` | `bom-extract-03` / `04` executor | 单位 / 只交所问 / 交卷 |
-| `bom-claims-review` | `bom-extract-04` reviewer | 审核：对照原文+claims（对错/多报/漏报/单位） |
-| `bom-claims-best` | （无挂接） | **兼容别名**：正文只指向 read/ops |
+| `bom-claims-slim` | `bom-extract-02` / `03` executor | 薄约束：只交所问 / 禁多报 / 单位照抄 / 宁漏勿堆 |
+| `bom-claims-review` | `bom-extract-03` / `04` reviewer | 审核：必须读长文；无支持→删；单位照抄；漏报高门槛才补 |
+| `bom-claims-read` | `bom-extract-04` executor | 读文：ls→grep→offset/limit |
+| `bom-claims-ops` | `bom-extract-04` executor | 单位 / 只交所问 / 交卷 |
+| `bom-claims-best` | （无挂接） | **兼容别名**：正文只指向 read/ops/review |
 | `lci-mapping-best` | `lci-mapping-04` | （本轮未拆） |
 | `lci-triage-best` | `lci-triage-04` | （本轮未拆） |
