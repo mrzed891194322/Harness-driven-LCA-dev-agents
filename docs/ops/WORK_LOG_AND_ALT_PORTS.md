@@ -43,4 +43,4 @@ npm run dev
 健康检查：`curl --noproxy '*' http://127.0.0.1:8810/api/health`  
 浏览器：`http://127.0.0.1:3010`
 
-停止：在同一目录 `npm run stop`（勿停 serve worktree）。
+停止：在同一目录 `npm run stop`（评测默认主仓；勿误停无关可选 WT）。

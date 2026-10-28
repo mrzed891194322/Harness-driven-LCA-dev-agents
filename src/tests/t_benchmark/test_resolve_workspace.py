@@ -1,4 +1,4 @@
-"""run_batch.resolve_workspace follows live serve cwd, not WT dir presence."""
+"""run_batch.resolve_workspace is main-repo only (单根主仓)."""
 
 from __future__ import annotations
 
@@ -17,52 +17,33 @@ def _mod():
     return mod
 
 
-def test_resolve_workspace_ignores_stale_serve_wt_when_no_live_backend(tmp_path: Path, monkeypatch):
-    """WT workspace dir existing must NOT beat main repo/workspace."""
+def test_resolve_workspace_is_main_repo_workspace(tmp_path: Path):
     m = _mod()
     repo = tmp_path / "repo"
     (repo / "workspace").mkdir(parents=True)
+    # Stale serve WT must never win
     wt_ws = repo / ".local/wt/serve/202606-harness-agent-LCA/workspace"
     wt_ws.mkdir(parents=True)
     (wt_ws / "artifacts").mkdir()
-    monkeypatch.setattr(m, "_backend_pid_cwd", lambda _pf: None)
-    assert m.resolve_workspace(repo) == (repo / "workspace").resolve()
-    assert m.resolve_serve_project_root(repo) == repo.resolve()
-
-
-def test_resolve_workspace_follows_live_backend_cwd_on_main(tmp_path: Path, monkeypatch):
-    m = _mod()
-    repo = tmp_path / "repo"
-    (repo / "workspace").mkdir(parents=True)
-    (repo / "pyproject.toml").write_text("[project]\nname=\"x\"\n", encoding="utf-8")
-    wt_ws = repo / ".local/wt/serve/202606-harness-agent-LCA/workspace"
-    wt_ws.mkdir(parents=True)
-    (repo / ".local/run").mkdir(parents=True)
-    (repo / ".local/run/backend.pid").write_text("1\n", encoding="utf-8")
-
-    def fake_cwd(pid_file: Path) -> Path | None:
-        if pid_file == repo / ".local/run/backend.pid":
-            return repo.resolve()
-        return None
-
-    monkeypatch.setattr(m, "_backend_pid_cwd", fake_cwd)
     assert m.resolve_workspace(repo) == (repo / "workspace").resolve()
 
 
-def test_resolve_workspace_follows_live_backend_cwd_on_serve_wt(tmp_path: Path, monkeypatch):
+def test_resolve_workspace_ignores_serve_wt_even_if_only_wt_has_claims(tmp_path: Path):
     m = _mod()
     repo = tmp_path / "repo"
     (repo / "workspace").mkdir(parents=True)
-    serve_root = repo / ".local/wt/serve/202606-harness-agent-LCA"
-    (serve_root / "workspace").mkdir(parents=True)
-    (serve_root / "pyproject.toml").write_text("[project]\nname=\"x\"\n", encoding="utf-8")
-    (serve_root / ".local/run").mkdir(parents=True)
-    (serve_root / ".local/run/backend.pid").write_text("2\n", encoding="utf-8")
+    wt = repo / ".local/wt/serve/202606-harness-agent-LCA"
+    (wt / "workspace/artifacts/bom").mkdir(parents=True)
+    (wt / "workspace/artifacts/bom/claims.json").write_text("{}", encoding="utf-8")
+    (wt / "pyproject.toml").write_text("[project]\nname=\"x\"\n", encoding="utf-8")
+    (wt / ".local/run").mkdir(parents=True)
+    (wt / ".local/run/backend.pid").write_text("99999\n", encoding="utf-8")
+    assert m.resolve_workspace(repo) == (repo / "workspace").resolve()
 
-    def fake_cwd(pid_file: Path) -> Path | None:
-        if pid_file == serve_root / ".local/run/backend.pid":
-            return serve_root.resolve()
-        return None
 
-    monkeypatch.setattr(m, "_backend_pid_cwd", fake_cwd)
-    assert m.resolve_workspace(repo) == (serve_root / "workspace").resolve()
+def test_no_resolve_serve_project_root_helper():
+    """单根后不再导出/依赖跟 pid 选 WT 的 resolve_serve_project_root。"""
+    m = _mod()
+    assert not hasattr(m, "resolve_serve_project_root")
+    assert not hasattr(m, "_SERVE_WT_REL")
+    assert not hasattr(m, "_backend_pid_cwd")

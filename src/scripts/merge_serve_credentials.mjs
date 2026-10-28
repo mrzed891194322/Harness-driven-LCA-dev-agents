@@ -2,7 +2,7 @@
 // Merge main-repo credentials into a serve (or other) worktree credentials dir.
 //
 // Rule: never wipe provider keys the target already has. Panel BYOK writes into
-// the serve worktree; a blind `cp -r` from the main repo used to overwrite
+// an optional serve worktree; a blind `cp -r` from the main repo used to overwrite
 // pi-auth.json and drop providers (e.g. google) that only lived in serve.
 //
 //   node src/scripts/merge_serve_credentials.mjs
@@ -12,13 +12,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-const DEFAULT_SERVE_REL = path.join(
-  ".local",
-  "wt",
-  "serve",
-  "202606-harness-agent-LCA",
-);
 
 export function parseArgs(argv) {
   const out = { source: null, target: null, help: false };
@@ -168,13 +161,14 @@ function printSummary(summary) {
 }
 
 function usage() {
-  console.log(`Usage: node src/scripts/merge_serve_credentials.mjs [--source DIR] [--target DIR]
+  console.log(`Usage: node src/scripts/merge_serve_credentials.mjs --target DIR [--source DIR]
 
-Merge main-repo .local/credentials into a serve worktree credentials dir.
-Target providers in pi-auth.json and existing marker files are preserved.
-Defaults:
-  --source  <repo>/.local/credentials
-  --target  <repo>/.local/wt/serve/202606-harness-agent-LCA/.local/credentials`);
+Optional helper: merge main-repo .local/credentials into an optional short-lived
+worktree credentials dir. Eval serve is **单根主仓** (tip-of-master) — tip switch
+is pull/restart on main; do **not** default to .local/wt/serve.
+
+  --source  <repo>/.local/credentials  (default)
+  --target  required (e.g. optional WT .../.local/credentials)`);
 }
 
 function main(argv = process.argv.slice(2)) {
@@ -185,9 +179,16 @@ function main(argv = process.argv.slice(2)) {
   }
   const root = repoRootFromHere();
   const source = path.resolve(args.source ?? path.join(root, ".local", "credentials"));
-  const target = path.resolve(
-    args.target ?? path.join(root, DEFAULT_SERVE_REL, ".local", "credentials"),
-  );
+  if (!args.target) {
+    console.error(
+      "merge_serve_credentials: --target is required.\n" +
+        "Eval serve uses the main repo (单根主仓); this script is only for optional WT.\n" +
+        "Example: --target .local/wt/serve/202606-harness-agent-LCA/.local/credentials",
+    );
+    usage();
+    return 2;
+  }
+  const target = path.resolve(args.target);
   const summary = mergeCredentials(source, target);
   printSummary(summary);
   return 0;

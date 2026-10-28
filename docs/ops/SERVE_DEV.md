@@ -1,11 +1,22 @@
 # Serve / dev worktrees
 
-Live services must never read files that are being edited.
+## 评测默认：**单根主仓**
+
+评测 **serve 与 `run_batch` 钉 tip-of-master 主仓**（`PROJECT_ROOT/workspace`）。  
+切 tip = 主仓空窗 `git pull` / checkout 目标 tip 后重启 8800/3000。  
+**不要**长期维持「主仓编辑 + serve WT 跑服」两套根；分支短命合进 master。  
+`.local/wt/serve/...` 若保留，只作可选短命开发旁路，**不得**被批跑默认选中。
+
+---
+
+## 可选：短命 worktree（非评测默认）
+
+Live services must never read files that are being edited. Optional short-lived WTs:
 
 | Worktree | Path (under the main repo) | Checkout | Purpose |
 | --- | --- | --- | --- |
-| dev | `.local/wt/202606-harness-agent-LCA` | branch `refactor/harness-v5-minimal` | editing, commits, pytest |
-| serve | `.local/wt/serve/202606-harness-agent-LCA` | detached HEAD at a tested commit | runs backend / pi-runtime / web on 8800 / 3000 |
+| dev | `.local/wt/202606-harness-agent-LCA` | short-lived feature branch | editing, commits, pytest |
+| serve | `.local/wt/serve/202606-harness-agent-LCA` | detached HEAD（可选） | 仅临时旁路；**评测默认改走主仓** |
 
 Both folders are named `202606-harness-agent-LCA`; the openLCA category is a constant anyway (`category.py`).
 
@@ -28,13 +39,15 @@ cp workspace/artifacts/plan/main_plan.md $S/workspace/artifacts/plan/
 (cd $S/src/pi-runtime && npm run build)
 ```
 
-**切 tip / 更新 serve 时必须 merge 凭证，禁止整目录覆盖 `pi-auth`。** 一律用
-`node src/scripts/merge_serve_credentials.mjs`（默认源/目标即上表路径；可用
-`--source` / `--target` 覆盖）。脚本会：保留目标已有 provider；只补目标缺失的；
+**评测切 tip（单根主仓）**：主仓空窗 `git pull` / checkout 目标 tip → `npm run stop` → `npm run dev`（或 restart）。无需 WT、无需 merge 进 `.local/wt/serve`。
+
+**仅当使用可选短命 serve WT 时**：必须 merge 凭证，禁止整目录覆盖 `pi-auth`。用
+`node src/scripts/merge_serve_credentials.mjs --source .local/credentials --target $S/.local/credentials`
+（`--target` 必填）。脚本会：保留目标已有 provider；只补目标缺失的；
 保留目标多出来的 marker（如 `google.json`）；`pi-agent/` 仅在目标没有时复制。
 
-Update to a newer commit (only when no run is live): `npm run stop` in serve, then in serve
-`git checkout --detach <commit>`, rebuild pi-runtime, **re-run the merge script above**
+Optional WT tip update (only when no run is live): `npm run stop` in that WT, then
+`git checkout --detach <commit>`, rebuild pi-runtime, **re-run merge with explicit --target**
 (do not `cp -r` credentials), start again.
 
 ## Start / stop
@@ -46,8 +59,11 @@ export `PI_RUNTIME_SOCKET` for the usual serve path. An explicit `PI_RUNTIME_SOC
 overrides that default.
 
 ```bash
-cd .local/wt/serve/202606-harness-agent-LCA
-npm run dev      # start; check curl --noproxy '*' localhost:8800/api/health
+# 评测默认：在主仓启动
+cd <main repo>
+npm run dev
+# 可选旁路（非默认）：
+# cd .local/wt/serve/202606-harness-agent-LCA && npm run dev      # start; check curl --noproxy '*' localhost:8800/api/health
 npm run stop     # stop (same default short socket)
 # optional override:
 # export PI_RUNTIME_SOCKET=<main repo>/.local/run/pi-v5serve.sock

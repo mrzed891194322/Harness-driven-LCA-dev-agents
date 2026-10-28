@@ -1,5 +1,9 @@
 # `.benchmark`
 
+## 单根主仓（评测）
+
+serve / `run_batch` 都钉 **tip-of-master 主仓** `workspace/`；`.local/wt/serve` 不进批跑默认。切 tip：主仓空窗 pull/restart。详见 [docs/PCFBENCH_EVAL_HOWTO.md](docs/PCFBENCH_EVAL_HOWTO.md) §5 / §8。
+
 ## 评测规范（权威）
 
 如何跑 PCFBench / 01 计划与上传口径：见 [docs/PCFBENCH_EVAL_HOWTO.md](docs/PCFBENCH_EVAL_HOWTO.md)。改接线须同步改该文档。

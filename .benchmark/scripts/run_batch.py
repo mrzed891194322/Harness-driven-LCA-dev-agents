@@ -344,7 +344,7 @@ def collect_token_usage(
     bucket = _token_bucket()
     rid = str(run_id or "").strip()
     if rid and rid != "norun":
-        # serve WT project root is workspace.parent; also try main repo .local/runs
+        # 主仓单根：workspace.parent == repo；保留 REPO 路径作显式兜底
         candidates = [
             workspace.parent / ".local" / "runs" / rid / "sessions",
             REPO / ".local" / "runs" / rid / "sessions",
@@ -377,60 +377,20 @@ def sum_token_field(rows: list[dict[str, Any]], key: str) -> int | str:
     return total if any_num else TOKEN_UNAVAILABLE
 
 
-_SERVE_WT_REL = Path(".local/wt/serve/202606-harness-agent-LCA")
-
-
-def _backend_pid_cwd(pid_file: Path) -> Path | None:
-    """Return cwd of a live backend process named by ``pid_file``, else None."""
-    try:
-        raw = pid_file.read_text(encoding="utf-8").strip().splitlines()[0].strip()
-        pid = int(raw)
-    except (OSError, ValueError, IndexError):
-        return None
-    proc = Path(f"/proc/{pid}")
-    if not proc.is_dir():
-        return None
-    try:
-        return (proc / "cwd").resolve()
-    except OSError:
-        return None
-
-
-def resolve_serve_project_root(repo: Path) -> Path:
-    """Project root where the live uvicorn writes (``PROJECT_ROOT``).
-
-    Reads ``.local/run/backend.pid`` under the main repo and the serve worktree;
-    the alive process's cwd wins. Does **not** assume the serve WT is live merely
-    because ``.local/wt/serve/.../workspace`` exists (that mis-copied stale WT
-    artifacts while uvicorn was writing the main-repo ``workspace/``).
-    """
-    repo = repo.resolve()
-    serve_wt = repo / _SERVE_WT_REL
-    for pid_file in (
-        repo / ".local" / "run" / "backend.pid",
-        serve_wt / ".local" / "run" / "backend.pid",
-    ):
-        cwd = _backend_pid_cwd(pid_file)
-        if cwd is None:
-            continue
-        if (cwd / "pyproject.toml").is_file() or (cwd / "workspace").is_dir():
-            return cwd
-    # No live backend: stay on the main repo (run_batch's home). Stale WT
-    # workspace must not win by directory presence alone.
-    return repo
-
-
 def resolve_workspace(repo: Path) -> Path:
-    """Workspace matching the live serve's ``WORKSPACE_ROOT`` (``PROJECT_ROOT/workspace``)."""
-    return resolve_serve_project_root(repo) / "workspace"
+    """主仓单根：``<repo>/workspace``（与 tip-of-master serve 的 PROJECT_ROOT 一致）。
+
+    评测 serve / run_batch 都钉主仓；``.local/wt/serve/.../workspace`` 不得当默认，
+    即使该目录存在或曾有过期 claims。WT 仅可选短命开发，不进批跑默认路径。
+    """
+    return repo.resolve() / "workspace"
 
 
 def serve_tip(repo: Path) -> str:
-    """Short HEAD of the live serve project root (same root as ``resolve_workspace``)."""
-    root = resolve_serve_project_root(repo)
+    """Short HEAD of the main repo (eval tip = tip-of-master)."""
     try:
         return subprocess.check_output(
-            ["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
+            ["git", "-C", str(repo.resolve()), "rev-parse", "--short", "HEAD"],
             text=True,
             stderr=subprocess.DEVNULL,
         ).strip()

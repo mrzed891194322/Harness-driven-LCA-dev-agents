@@ -113,9 +113,11 @@ extract 知识来自 jsonl `document_text`（import→`reference.md`）。可选
 `run_batch` notes：`lci-mapping` / `lci-triage` **不跑 claim_f1**，缺 `claims.json` 属正常；notes 只写本任务 metric（mapping→`top1`/`hit`；triage→`acc`）。有产物时禁止再写 `F1=…(no_artifact)`。
 
 
-## 5. serve / tip 要点
+## 5. serve / tip 要点（**单根主仓**）
 
-- 跑批读的是 **serve worktree** 上的 tip；主仓 tip ≠ 自动切服。空窗再 `checkout` 目标 tip 并重启 8800/3000。
+- 评测 **serve 与 run_batch 都钉 tip-of-master 主仓**：`PROJECT_ROOT/workspace`。**不要**长期两套根；分支短命合进 master。
+- 切 tip = 主仓空窗 `git pull` / `checkout` 目标 tip 后重启 8800/3000（勿靠长期 `.local/wt/serve` 旁路）。
+- `.local/wt/serve/...` 若仍在盘上，只作可选短命开发；**批跑默认不得选中**其 `workspace/`。
 - 验 01 接线至少含：`build_plan_start_body` + 无别名的 `stage_case_references`（见 tip 说明）。
 - 本轮先做 **01**，不追 02–04 厚档。
 - 缺 `reference.md`（`document_text`）的 extract 案：staging 失败；须重导补知识文本。PDF 缺失不影响评测输入。
@@ -141,10 +143,10 @@ extract 知识来自 jsonl `document_text`（import→`reference.md`）。可选
 
 `leaf` = `<node>[@revN].<agent>.<attempt>`。口径与查法详见 [`docs/ops/SESSION_INJECTION.md`](../../docs/ops/SESSION_INJECTION.md)。
 
-## 8. workspace 与 serve 根一致
+## 8. workspace = 主仓单根
 
-`run_batch.resolve_workspace()` 跟 **活 uvicorn 的 PROJECT_ROOT**（读 `.local/run/backend.pid` → `/proc/<pid>/cwd`），再拼 `workspace/`。  
-**不要**仅因 `.local/wt/serve/.../workspace` 目录存在就拷它——serve 若跑在主仓，会把 WT 里过期 `claims.json` 打进 result_dir（假零分）。
+`run_batch.resolve_workspace()` **固定** `<主仓>/workspace`（与 tip-of-master serve 的 `PROJECT_ROOT/workspace` 一致）。  
+**禁止**把 `.local/wt/serve/.../workspace` 当默认——曾因此拷走 WT 过期 `claims.json` 致 result_dir 假零分。
 
 ## 相关路径
 
