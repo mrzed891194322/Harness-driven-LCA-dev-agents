@@ -141,6 +141,9 @@ export default function PlanPage() {
   const [error, setError] = useState("");
   const [workMode, setWorkMode] = useState<"new" | "revise">("new");
   const [pickedWorkflowId, setPickedWorkflowId] = useState<string | null>(null);
+  /** When status is running/completed/…, board follows /api/workflow/status.workflow. */
+  const [liveWorkflowId, setLiveWorkflowId] = useState<string | null>(null);
+  const [liveRunStatus, setLiveRunStatus] = useState<string>("idle");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
@@ -164,6 +167,56 @@ export default function PlanPage() {
   useEffect(() => {
     setPickedWorkflowId(null);
   }, [workMode]);
+
+  // Follow live orch from /api/workflow/status while a run is active or finished;
+  // idle keeps the current default (null → workflowForMode → full-lca / revise-lca).
+  useEffect(() => {
+    let cancelled = false;
+    let busy = false;
+    let wasFollowing = false;
+    const FOLLOW = new Set(["running", "completed", "failed", "interrupted", "aborted", "stopped"]);
+
+    async function tick() {
+      if (busy) return;
+      busy = true;
+      try {
+        const response = await apiFetch("/api/workflow/status", { cache: "no-store" });
+        const data = (await response.json()) as {
+          status?: string;
+          workflow?: string | null;
+          detail?: string;
+        };
+        if (!response.ok || cancelled) return;
+        const st = String(data.status || "idle");
+        const wf = String(data.workflow || "").trim() || null;
+        setLiveRunStatus(st);
+        if (FOLLOW.has(st) && wf) {
+          wasFollowing = true;
+          setLiveWorkflowId(wf);
+          setPickedWorkflowId(wf);
+        } else {
+          setLiveWorkflowId(null);
+          // Idle (or no workflow): drop auto-follow so default full-lca / revise-lca applies.
+          // Do not clear a manual preset pick that was never driven by status.
+          if (wasFollowing) {
+            wasFollowing = false;
+            setPickedWorkflowId(null);
+          }
+        }
+      } catch {
+        // Keep last known pick; board still usable offline.
+      } finally {
+        busy = false;
+      }
+    }
+
+    void tick();
+    const timer = setInterval(() => void tick(), 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   const workflowName = planWorkflow(workMode);
   const planInput = useRef<HTMLInputElement>(null);
@@ -754,7 +807,13 @@ export default function PlanPage() {
               </div>
             </div>
           ) : panel === "workflow" ? (
-            <WorkflowBoard mode={workMode} pickedId={pickedWorkflowId} onPickWorkflow={setPickedWorkflowId} />
+            <WorkflowBoard
+              mode={workMode}
+              pickedId={pickedWorkflowId}
+              onPickWorkflow={setPickedWorkflowId}
+              liveWorkflowId={liveWorkflowId}
+              liveRunStatus={liveRunStatus}
+            />
           ) : panel === "preview" ? (
             <PreviewBoard mode={workMode} work={work} references={references} workflowId={pickedWorkflowId} />
           ) : null}

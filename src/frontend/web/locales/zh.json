@@ -480,6 +480,8 @@
   "wf.loadingOrch": "正在读取编排…",
   "wf.loadPreset": "加载预设工作流",
   "wf.configPanel": "配置面板",
+  "wf.liveOrch": "当前运行 · {id} · {status}",
+  "wf.liveOrchHint": "画布已跟 /api/workflow/status.workflow（{id}，{status}）；空闲时仍默认 full-lca / revise-lca。",
   "wf.maxRoundsShort": "最多 {n} 轮 · {id}",
   "wf.agentTopoAria": "{title} 代理拓扑",
   "wf.presetHelp": "选择 harness 编排，替换画布预览；预览执行页将按当前选中的编排开跑（不改计划正文）。未选时仍按工作类型默认 full-lca / revise-lca。",

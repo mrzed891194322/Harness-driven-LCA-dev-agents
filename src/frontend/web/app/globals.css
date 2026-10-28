@@ -2234,6 +2234,22 @@ input.study-area.study-line {
 .flow-config {
   margin-left: auto;
 }
+.flow-live-orch {
+  margin-left: 4px;
+  min-width: 0;
+  max-width: min(420px, 48vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent, #0b6e4f);
+  background: color-mix(in srgb, var(--accent, #0b6e4f) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #0b6e4f) 35%, transparent);
+}
+
 
 .flow-presets-dialog {
   width: min(560px, calc(100vw - 32px));
