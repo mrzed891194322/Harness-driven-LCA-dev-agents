@@ -514,5 +514,7 @@
   "plan.templatePickHelp": "Type sets form sections; plan still saves under artifacts/plan/.",
   "plan.template.full-lifecycle": "Full LCA",
   "plan.template.bom-only": "BOM",
-  "plan.template.lca-only": "LCI mapping"
+  "plan.template.lca-only": "LCI mapping",
+  "wf.anchorPlan": "Plan & references",
+  "wf.anchorResult": "Results"
 }

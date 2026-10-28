@@ -514,5 +514,7 @@
   "plan.templatePickHelp": "类型决定表单分区；计划仍保存到 artifacts/plan/。",
   "plan.template.full-lifecycle": "完整 LCA",
   "plan.template.bom-only": "BOM",
-  "plan.template.lca-only": "LCI映射"
+  "plan.template.lca-only": "LCI映射",
+  "wf.anchorPlan": "计划&参考资料",
+  "wf.anchorResult": "结果"
 }

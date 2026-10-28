@@ -2408,11 +2408,70 @@ input.study-area.study-line {
 
 .flow-arrow {
   flex: none;
-  width: 18px;
+  width: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--muted);
+}
+
+.flow-arrow svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Inspector open: shrink left canvas; pin first/last to edges so 结果 hugs the panel. */
+.flow-board[data-inspector="true"] .flow-stages {
+  justify-content: space-between;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+}
+
+.flow-board[data-inspector="true"] .flow-arrow {
+  width: 22px;
+}
+
+.flow-board[data-inspector="true"] .flow-arrow svg {
+  width: 18px;
+  height: 18px;
+}
+
+.flow-board[data-inspector="true"] .flow-stage {
+  flex-basis: 168px;
+  width: 168px;
+  max-width: 168px;
+  min-width: 140px;
+  height: 220px;
+  padding: 12px 10px;
+  gap: 8px;
+}
+
+.flow-board[data-inspector="true"] .flow-stage:hover {
+  flex-basis: 186px;
+  width: 186px;
+  max-width: 186px;
+  height: 240px;
+}
+
+.flow-board[data-inspector="true"] .flow-stage-head strong {
+  font-size: 0.88rem;
+}
+
+.flow-board[data-inspector="true"] .flow-anchor {
+  min-width: 5.75rem;
+  max-width: 6.5rem;
+  padding: 12px 10px;
+  gap: 8px;
+}
+
+.flow-board[data-inspector="true"] .flow-anchor strong {
+  font-size: 0.82rem;
+}
+
+.flow-board[data-inspector="true"] .flow-anchor-glyph {
+  width: 24px;
+  height: 24px;
 }
 
 @keyframes flow-stage-float {
@@ -2421,12 +2480,12 @@ input.study-area.study-line {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
   }
 }
 
 .flow-stage {
-  flex: 0 1 224px;
+  flex: 0 0 224px;
   width: 224px;
   max-width: 224px;
   min-width: 132px;
@@ -2441,7 +2500,29 @@ input.study-area.study-line {
   background: #fff;
   cursor: pointer;
   animation: flow-stage-float 4.8s ease-in-out infinite;
-  will-change: transform;
+  translate: 0 0;
+  transition:
+    width 0.22s ease,
+    max-width 0.22s ease,
+    flex-basis 0.22s ease,
+    height 0.22s ease,
+    translate 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.flow-stage:hover {
+  z-index: 3;
+  animation-play-state: paused;
+  flex-basis: 252px;
+  width: 252px;
+  max-width: 252px;
+  height: 276px;
+  translate: 0 -6px;
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  box-shadow:
+    0 12px 24px color-mix(in srgb, var(--ink) 12%, transparent),
+    0 0 0 3px var(--accent-soft);
 }
 
 .flow-stage-wrap:nth-child(1) .flow-stage {
@@ -2475,7 +2556,16 @@ input.study-area.study-line {
 @media (prefers-reduced-motion: reduce) {
   .flow-stage {
     animation: none;
-    will-change: auto;
+    transition: none;
+  }
+
+  .flow-stage:hover {
+    flex-basis: 240px;
+    width: 240px;
+    max-width: 240px;
+    height: 264px;
+    translate: 0;
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 }
 
@@ -2488,6 +2578,45 @@ input.study-area.study-line {
   border-color: var(--accent);
   background: #fff;
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.flow-anchor-wrap {
+  align-items: center;
+}
+
+.flow-anchor {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: auto;
+  min-width: 7.5rem;
+  max-width: 8.5rem;
+  height: auto;
+  padding: 16px 14px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 48%, white);
+  color: var(--accent);
+  text-align: center;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.flow-anchor-glyph {
+  flex: none;
+  display: block;
+}
+
+.flow-anchor strong {
+  max-width: 100%;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--ink) 90%, var(--accent));
+  overflow-wrap: anywhere;
 }
 
 .flow-stage-head {

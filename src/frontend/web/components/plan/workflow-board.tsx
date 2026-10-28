@@ -7,7 +7,7 @@ import { uiLang } from "../../lib/run-status";
 // workflow data: /api/workflow/workflows (harness YAML). Default model: /api/workflow/models + /api/models/selection
 // (shown in 配置面板). Per-agent model + thinking: /api/workflow/agent-models.
 // 加载预设 / 节点内代理拓扑均为 dialog；拓扑来自节点 YAML flow（静态），不含运行时状态。
-import { ArrowDownToLine, ArrowUpFromLine, Bot, Boxes, ChevronRight, Cpu, FileText, ScrollText, Shield, SlidersHorizontal, Workflow, Wrench, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Bot, Boxes, ChevronRight, ClipboardList, Cpu, FileText, FolderOpen, ScrollText, Shield, SlidersHorizontal, Workflow, Wrench, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "../../lib/api";
@@ -211,15 +211,19 @@ export function WorkflowBoard({
       </div>
 
       <div className="flow-stages">
+        <FlowAnchor
+          testId="flow-anchor-plan"
+          icon={ClipboardList}
+          title={t("wf.anchorPlan")}
+          showArrow={false}
+        />
         {workflow.details.map((n, index) => {
           const active = (selection.kind === "node" || selection.kind === "agent") && selection.id === n.id;
           return (
             <div className="flow-stage-wrap" key={n.id}>
-              {index > 0 ? (
-                <div className="flow-arrow" aria-hidden="true">
-                  <ChevronRight size={16} />
-                </div>
-              ) : null}
+              <div className="flow-arrow" aria-hidden="true">
+                <ChevronRight size={22} />
+              </div>
               <article className="flow-stage" data-active={active ? "true" : "false"} data-testid={`flow-node-${n.id}`}
                 onClick={() => choose({ kind: "node", id: n.id })}>
                 <button type="button" className="flow-stage-head" aria-pressed={active}
@@ -256,6 +260,12 @@ export function WorkflowBoard({
             </div>
           );
         })}
+        <FlowAnchor
+          testId="flow-anchor-result"
+          icon={FolderOpen}
+          title={t("wf.anchorResult")}
+          showArrow
+        />
       </div>
 
       {inspectorOpen ? (
@@ -368,6 +378,33 @@ export function WorkflowBoard({
           );
         })()}
       </dialog>
+    </div>
+  );
+}
+
+/** Fixed bookends: icon + title only (not YAML stage cards). */
+function FlowAnchor({
+  testId,
+  icon: Icon,
+  title,
+  showArrow,
+}: {
+  testId: string;
+  icon: LucideIcon;
+  title: string;
+  showArrow: boolean;
+}) {
+  return (
+    <div className="flow-stage-wrap flow-anchor-wrap">
+      {showArrow ? (
+        <div className="flow-arrow" aria-hidden="true">
+          <ChevronRight size={22} />
+        </div>
+      ) : null}
+      <div className="flow-anchor" data-testid={testId} aria-label={title}>
+        <Icon className="flow-anchor-glyph" size={30} strokeWidth={1.75} aria-hidden="true" />
+        <strong>{title}</strong>
+      </div>
     </div>
   );
 }
