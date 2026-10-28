@@ -78,7 +78,9 @@ python3 .benchmark/scripts/run_batch.py \
 
 ```bash
 python3 .benchmark/scripts/download_pcfbench.py
-# 图1 extract 全量 36（task4+task5 → imported/bom/extract，不进 git）
+# extract 原 PDF（按 jsonl source_url；失败见 .cache/benchmark/pcfbench/source_pdfs/failures.jsonl）
+python3 .benchmark/scripts/download_pcfbench.py --source-pdfs --jsonl-source .eval/data/pcfbench
+# 图1 extract 全量 36（task4+task5 → imported/bom/extract，挂 input/reference.pdf，不进 git）
 python3 .benchmark/scripts/import_pcfbench_cases.py --task task4 --task task5
 # 子集试用：--limit 5；mapping/triage 另加 --task task3 / task2
 python3 .benchmark/scripts/import_pcfbench_cases.py

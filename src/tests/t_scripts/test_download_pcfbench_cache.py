@@ -60,3 +60,19 @@ def test_dest_for_rejects_non_cache_in_repo(dl):
     with pytest.raises(SystemExit) as exc:
         dl.dest_for(bad_root, "a.jsonl", None)
     assert ".cache/" in str(exc.value)
+
+
+def test_source_pdf_dest(dl, tmp_path):
+    url = "https://example.com/docs/a%20b.pdf"
+    pdf, meta = dl.source_pdf_dest(tmp_path, url)
+    assert pdf.parent == tmp_path / "pcfbench" / "source_pdfs" / "by_url"
+    assert pdf.name.endswith(".pdf")
+    assert meta.name.endswith(".meta.json")
+    key = dl.url_sha256(url)
+    assert pdf.name == f"{key}.pdf"
+    assert meta.name == f"{key}.meta.json"
+
+
+def test_basename_from_url(dl):
+    assert dl.basename_from_url("https://x/y/Heat%20Treating.pdf") == "Heat_Treating.pdf"
+    assert dl.basename_from_url("https://x/y/noext").endswith(".pdf")

@@ -743,16 +743,17 @@ def clear_references(api: str, tee: Tee) -> None:
 
 
 PLAN_ITEM_TITLE: dict[str, str] = {
-    "bom-extract-01": "文献提取",
-    "bom-extract-03": "文献提取",
-    "bom-extract-04": "文献提取",
-    "bom-decomposition-01": "组成分解",
-    "lci-triage-01": "映射分流",
-    "lci-mapping-01": "LCI封闭集映射",
-    "lci-triage-03": "映射分流",
-    "lci-triage-04": "映射分流",
-    "lci-mapping-03": "LCI封闭集映射",
-    "lci-mapping-04": "LCI封闭集映射",
+    # titles = PCFBench task labels (English); content = query.md 题面-only
+    "bom-extract-01": "Material/energy extraction",
+    "bom-extract-03": "Material/energy extraction",
+    "bom-extract-04": "Material/energy extraction",
+    "bom-decomposition-01": "Product decomposition",
+    "lci-triage-01": "Mapping triage",
+    "lci-mapping-01": "Background-database mapping",
+    "lci-triage-03": "Mapping triage",
+    "lci-triage-04": "Mapping triage",
+    "lci-mapping-03": "Background-database mapping",
+    "lci-mapping-04": "Background-database mapping",
 }
 
 PLAN_TEMPLATE_ID: dict[str, str] = {
@@ -772,10 +773,11 @@ PLAN_TEMPLATE_ID: dict[str, str] = {
 def build_plan_start_body(workflow: str, query_text: str) -> dict[str, Any]:
     """Du Yuan 最简 01：计划走 YAML items（一项 title+content=query.md），不塞裸题面字符串。"""
     title = PLAN_ITEM_TITLE.get(workflow) or (
-        "文献提取" if "extract" in workflow else
-        "映射分流" if "triage" in workflow else
-        "LCI封闭集映射" if "mapping" in workflow else
-        "任务说明"
+        "Material/energy extraction" if "extract" in workflow else
+        "Mapping triage" if "triage" in workflow else
+        "Background-database mapping" if "mapping" in workflow else
+        "Product decomposition" if "decomposition" in workflow else
+        "query"
     )
     template_id = PLAN_TEMPLATE_ID.get(workflow) or (
         "lca-only" if workflow.startswith("lci-") else "bom-only"
@@ -795,7 +797,7 @@ def _bom_input_files(input_dir: Path) -> list[Path]:
     for p in sorted(input_dir.iterdir()):
         if not p.is_file():
             continue
-        if p.name in {"query.md", "reference.md", "plan.yaml"}:
+        if p.name in {"query.md", "reference.md", "reference.pdf", "plan.yaml", "pcfbench_input.json", "options.json"}:
             continue
         low = p.name.casefold()
         if low in {"bom.json", "bom.csv", "bom.md", "bom.yaml", "bom.yml"}:
@@ -806,11 +808,27 @@ def _bom_input_files(input_dir: Path) -> list[Path]:
     return out
 
 
+def _extract_reference_pdf(input_dir: Path) -> Path | None:
+    """Extract knowledge must be the original PCFBench PDF (no md/txt aliases)."""
+    preferred = input_dir / "reference.pdf"
+    if preferred.is_file() and preferred.stat().st_size > 0:
+        return preferred
+    if not input_dir.is_dir():
+        return None
+    pdfs = sorted(
+        p
+        for p in input_dir.iterdir()
+        if p.is_file() and p.suffix.lower() == ".pdf" and p.stat().st_size > 0
+    )
+    return pdfs[0] if pdfs else None
+
+
 def stage_case_references(
     api: str, case: dict[str, Any], tee: Tee, *, workflow: str
 ) -> list[str]:
-    """按任务挂参考：extract 只挂一份 knowledge/reference.md（无同文别名、不挂 BOM）；
-    triage/mapping 有 BOM 文件则 type=bom，仅有 reference 则 knowledge，都没有则清空不传。
+    """按任务挂参考：extract 只挂原 PDF（input/reference.pdf）type=knowledge，
+    禁止 reference.md / txt 别名；T1/T2/T3 挂 pcfbench_input.json（及 mapping
+    options.json）等原件 type=bom，禁止 document_text→md 回退。
     """
     case_dir: Path = case["dir"]
     input_dir = case_dir / "input"
@@ -818,27 +836,70 @@ def stage_case_references(
     types: list[str] = []
     is_extract = "extract" in workflow
 
-    ref = input_dir / "reference.md"
+    ref_md = input_dir / "reference.md"
     bom_files = _bom_input_files(input_dir)
 
     if is_extract:
-        # T4/T5：知识只用 knowledge；单份 reference.md；不用 BOM 上传
-        if ref.is_file() and ref.stat().st_size > 0:
-            uploads.append(("reference.md", ref.read_bytes()))
-            types.append("knowledge")
+        # T4/T5：原 PDF knowledge only；勿挂 md/txt / 勿 BOM
+        pdf = _extract_reference_pdf(input_dir)
+        if pdf is None:
+            raise RuntimeError(
+                "extract requires input/reference.pdf (PCFBench source PDF); "
+                "no document_text/md fallback. "
+                "Re-import after: python3 .benchmark/scripts/download_pcfbench.py --source-pdfs"
+            )
+        uploads.append((pdf.name, pdf.read_bytes()))
+        types.append("knowledge")
     else:
-        if bom_files:
+        # T1/T2/T3：只挂原件（pcfbench_input.json / options.json / 显式 BOM），
+        # 禁止 document_text→md / reference.md 回退。
+        raw_names = ("pcfbench_input.json", "options.json")
+        raw_files = [
+            input_dir / n
+            for n in raw_names
+            if (input_dir / n).is_file() and (input_dir / n).stat().st_size > 0
+        ]
+        if raw_files:
+            for p in raw_files:
+                uploads.append((p.name, p.read_bytes()))
+                types.append("bom")
+        elif bom_files:
             for p in bom_files:
                 uploads.append((p.name, p.read_bytes()))
                 types.append("bom")
-        elif ref.is_file() and ref.stat().st_size > 0:
-            uploads.append(("reference.md", ref.read_bytes()))
+        elif ref_md.is_file() and ref_md.stat().st_size > 0:
+            # 显式拒绝用 md 顶原件：T1/T2/T3 imported 案必须有 pcfbench_input.json
+            is_lci = workflow.startswith("lci-") or "triage" in workflow or "mapping" in workflow
+            is_decomp = "decomposition" in workflow
+            if is_lci or is_decomp:
+                raise RuntimeError(
+                    f"{workflow} requires input/pcfbench_input.json (PCFBench original input); "
+                    "no reference.md / document_text fallback. Re-import after tip."
+                )
+            uploads.append(("reference.md", ref_md.read_bytes()))
             types.append("knowledge")
-        # else: 全写进计划，不上传
+        # else: 合成案可能把题面写进计划；imported T2/T3 应已有 raw json
 
     clear_references(api, tee)
     if not uploads:
-        tee.log("  refs_stage empty (plan-only or no reference.md)")
+        # imported triage/mapping/decomposition must hang original input
+        needs_raw = (
+            "triage" in workflow
+            or "mapping" in workflow
+            or "decomposition" in workflow
+        )
+        if needs_raw and (case_dir / "meta.yaml").is_file():
+            # heuristic: imported cases declare pcfbench_task in meta
+            try:
+                meta_txt = (case_dir / "meta.yaml").read_text(encoding="utf-8")
+            except OSError:
+                meta_txt = ""
+            if "pcfbench_task:" in meta_txt:
+                raise RuntimeError(
+                    f"{workflow} imported case missing original input files "
+                    "(pcfbench_input.json); no md fallback"
+                )
+        tee.log("  refs_stage empty (plan-only or no reference)")
         return []
     resp = api_multipart(
         api,
@@ -1352,7 +1413,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-auto-references",
         action="store_true",
-        help="不开跑前自动清空并 POST /api/references（默认会挂 input/reference.md）",
+        help="不开跑前自动清空并 POST /api/references（extract 默认挂 input/reference.pdf）",
     )
     parser.add_argument("--poll", type=float, default=5.0, help="轮询间隔秒")
     parser.add_argument(

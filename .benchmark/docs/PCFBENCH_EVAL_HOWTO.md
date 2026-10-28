@@ -12,14 +12,23 @@
 ```yaml
 kind: lca_execution_plan
 version: 2
-template_id: bom-only   # 或 lca-only / 自定 minimal；extract 默认 bom-only，lci-* 默认 lca-only
+template_id: bom-only   # 或 lca-only；extract/decomp 默认 bom-only，lci-* 默认 lca-only
 items:
-  - title: 文献提取      # 可自拟；triage 默认「映射分流」，mapping 默认「LCI封闭集映射」
-    content: |           # = 本案 input/query.md（题面-only）
+  - title: Material/energy extraction   # PCFBench 英文任务名；禁自拟中文壳
+    content: |                          # = 本案 input/query.md（题面-only）
       …
 ```
 
-**`query.md`（extract）**：`import_pcfbench_cases.write_extract_case` 只写 PCFBench `input.query` **英文题原文**——不加 `# {case_id}`、不加「来源…」脚注；`source_url` 只在 `meta.yaml`；knowledge 仍单份 `reference.md`=`document_text`。计划 `items[].content` = 该题面全文。
+**`query.md` 题面-only（T1/T2/T3/T4/T5 同口径）**：只留 PCFBench **原版提示词**，禁止 `# {case_id}`、来源脚注、自拟中文「任务/交卷」壳。
+
+| 任务 | `query.md` 内容 |
+|------|-----------------|
+| **T4/T5 extract** | `input.query` 英文题原文；`source_url` 只在 `meta.yaml` |
+| **T2 triage** | 官方 user prompt：`MARKET` + `ROOT MATERIAL CONTEXT` 块 |
+| **T3 mapping** | 官方 user prompt：`Material` / `Description` / … + `Ecoinvent reference products`（`expected.options`） |
+| **T1 decomposition** | 官方 user prompt：`Product` / `Description` / `Functional unit` + `List the BOM components.` |
+
+计划 `items[].content` = 该题面全文；`items[].title` 用上表英文任务名（见 `PLAN_ITEM_TITLE`）。
 
 等价 JSON 请求体：
 
@@ -28,11 +37,11 @@ items:
   "workflow": "bom-extract-01",
   "plan": "",
   "template_id": "bom-only",
-  "items": [{"title": "文献提取", "content": "<query.md 题面-only 英文题>"}]
+  "items": [{"title": "Material/energy extraction", "content": "<query.md 题面-only>"}]
 }
 ```
 
-适用：`bom-extract-01`、`lci-triage-01`、`lci-mapping-01`（及同族 01）。
+适用：`bom-extract-01`、`bom-decomposition-01`、`lci-triage-01`、`lci-mapping-01`（及同族 01）。
 
 ## 2. 上传（references）
 
@@ -40,8 +49,10 @@ items:
 
 | 任务 | 规则 |
 |------|------|
-| **T4/T5 extract** | 只挂 **一份** `input/reference.md`，`type=knowledge`。**去掉** stem 同文别名（`.md` / `.txt` / 伪 PDF 名）。**不**挂 BOM。 |
-| **T2 triage / T3 mapping** | 有 BOM 素材文件 → `type=bom`；仅有 `reference.md` → `knowledge`；都没有 → **可不上传**（题面写进计划 items 即可）。 |
+| **T4/T5 extract** | 只挂 **一份原 PDF** `input/reference.pdf`（`source_url` → `.cache/benchmark/pcfbench/source_pdfs/by_url/<url_sha>.pdf`），`type=knowledge`。**禁止** `reference.md` / `.txt` / `document_text` 转写。缺 PDF → staging 报错（失败清单；不静默回退 md）。 |
+| **T2 triage** | 挂原件 `input/pcfbench_input.json`（jsonl `input` 原对象），`type=bom`。**禁止** md 转写 / 别名副本。 |
+| **T3 mapping** | 挂原件 `pcfbench_input.json` + `options.json`（`expected.options`），`type=bom`。**禁止** md 转写。 |
+| **T1 decomposition** | 挂原件 `pcfbench_input.json`，`type=bom`。**禁止** md 转写。 |
 
 开跑前会清空已有 references，再按上表挂本案文件。
 
@@ -77,6 +88,8 @@ uv run python .benchmark/scripts/score_batch.py --category lci --subcategory map
 
 Import / 抽 30：`import_pcfbench_cases.py --task … --limit 30 --seed 20261028`（见 T123 文档）。案池默认 `.benchmark/imported/`（gitignore）。
 
+extract 原 PDF：`python3 .benchmark/scripts/download_pcfbench.py --source-pdfs` （可加 `--jsonl-source .eval/data/pcfbench`）→ 失败清单 `.cache/benchmark/pcfbench/source_pdfs/failures.jsonl`；再 `import_pcfbench_cases.py --task task4 --task task5`。
+
 ## 4. 打分口径（相对 PCFBench 原版）
 
 权威原版字段见 `.eval/data/pcfbench/README.md`。**原版没有的答案字段不得当打分事项**（可留内部/交付字段）。
@@ -97,7 +110,7 @@ Import / 抽 30：`import_pcfbench_cases.py --task … --limit 30 --seed 2026102
 - 跑批读的是 **serve worktree** 上的 tip；主仓 tip ≠ 自动切服。空窗再 `checkout` 目标 tip 并重启 8800/3000。
 - 验 01 接线至少含：`build_plan_start_body` + 无别名的 `stage_case_references`（见 tip 说明）。
 - 本轮先做 **01**，不追 02–04 厚档。
-- 缺 `reference.md` 的 extract 案可进 `knowledge_skip`（不烧配额空转）。
+- 缺 `reference.pdf` 的 extract 案：staging 失败（`script_error` / `refs_stage_error`）；须先 `download_pcfbench.py --source-pdfs` 再重导，**勿**用 md 顶上。
 
 ## 6. 改接线检查清单
 
