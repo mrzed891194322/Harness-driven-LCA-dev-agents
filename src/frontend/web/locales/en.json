@@ -480,7 +480,7 @@
   "wf.loadingOrch": "Loading orchestration…",
   "wf.loadPreset": "Load preset workflow",
   "wf.configPanel": "Config panel",
-  "wf.liveOrch": "Live run · {id} · {status}",
+  "wf.liveOrch": "{id} · {status}",
   "wf.liveOrchHint": "Canvas follows /api/workflow/status.workflow ({id}, {status}); idle still defaults to full-lca / revise-lca.",
   "wf.maxRoundsShort": "Max {n} rounds · {id}",
   "wf.agentTopoAria": "{title} agent topology",

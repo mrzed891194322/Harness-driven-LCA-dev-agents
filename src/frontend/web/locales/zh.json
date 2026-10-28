@@ -480,7 +480,7 @@
   "wf.loadingOrch": "正在读取编排…",
   "wf.loadPreset": "加载预设工作流",
   "wf.configPanel": "配置面板",
-  "wf.liveOrch": "当前运行 · {id} · {status}",
+  "wf.liveOrch": "{id} · {status}",
   "wf.liveOrchHint": "画布已跟 /api/workflow/status.workflow（{id}，{status}）；空闲时仍默认 full-lca / revise-lca。",
   "wf.maxRoundsShort": "最多 {n} 轮 · {id}",
   "wf.agentTopoAria": "{title} 代理拓扑",

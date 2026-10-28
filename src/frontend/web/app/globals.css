@@ -2428,6 +2428,14 @@ input.study-area.study-line {
   padding: 0;
 }
 
+/* Few stages: space-between leaves huge gaps; pack toward center instead. */
+.flow-board[data-inspector="true"] .flow-stages[data-stage-count="0"],
+.flow-board[data-inspector="true"] .flow-stages[data-stage-count="1"],
+.flow-board[data-inspector="true"] .flow-stages[data-stage-count="2"] {
+  justify-content: center;
+  gap: 10px;
+}
+
 .flow-board[data-inspector="true"] .flow-arrow {
   width: 22px;
 }

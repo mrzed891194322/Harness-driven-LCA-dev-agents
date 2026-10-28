@@ -210,7 +210,7 @@ export function WorkflowBoard({
         ) : null}
       </div>
 
-      <div className="flow-stages">
+      <div className="flow-stages" data-stage-count={workflow.details.length}>
         <FlowAnchor
           testId="flow-anchor-plan"
           icon={ClipboardList}
