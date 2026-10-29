@@ -5,11 +5,11 @@
 ## 工作流（按序）
 
 1. **读文**：`refs/read-window.md`（优先 `reference.md`；小窗 `grep`→`read offset/limit`）。
-2. **提取**：对照题面，交能回答所问的 `(value, unit)` 初稿（写 `workspace/artifacts/bom/claims.json`）。
+2. **提取**：对照题面，交能回答所问的 `(value, unit)` 初稿（写 `workspace/artifacts/bom/claims.json`）。`unit` 对齐 produce 短符号 → `refs/units.md`。
 3. **轻自检**（只改确认违规；**勿过砍真 claim**）：
    - 黑名单仅 `h` / `°C` 等 → `refs/types.md`
    - 短防多报（同表邻居 / 扫参端点）→ `refs/types.md`「短防多报」
-   - 单位只抄 + 硬反例 → `refs/units.md`
+   - 单位短符号 + 硬反例 → `refs/units.md`
 4. **交付**：立刻 `submit`（`status=done` + `summary` + `artifacts`）。
 
 ## 硬禁
@@ -22,6 +22,6 @@
 
 - `harness/tools/skills/bom-claims-flow/refs/read-window.md`
 - `harness/tools/skills/bom-claims-flow/refs/types.md` — 黑名单（仅 h/°C）+ 短防多报
-- `harness/tools/skills/bom-claims-flow/refs/units.md` — 单位只抄 + 硬反例
+- `harness/tools/skills/bom-claims-flow/refs/units.md` — 短符号契约 + 硬反例
 
 有 `<rework>` 时只改所列问题后再交付。

@@ -67,14 +67,14 @@ def test_bom_extract_tier_switches():
     assert n04[0].inject == thick_inject
     shared_spec = ".benchmark/bom/harness/specs/bom-claims.yaml"
     phrase_spec = ".benchmark/bom/harness/specs/bom-claims-unit-phrase.yaml"
-    assert n01[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
-    assert n02[0].produces[0].spec == phrase_spec
+    # 02 与 01/03 同绑共享短符号；unit-phrase 仅留档废弃（f4ff815 实验失败）
+    assert n01[0].produces[0].spec == n02[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
     shared = load_spec(REPO, shared_spec)
     phrase = load_spec(REPO, phrase_spec)
-    assert "短符号" in shared.prompt and "短符号" not in phrase.prompt
-    assert "完整原始单位短语" in phrase.prompt
+    assert "短符号" in shared.prompt
+    assert "废弃" in phrase.prompt or "deprecated" in phrase.prompt.lower()
     abstain = "有依据则填 claims；信息不足则 `abstained: true` 且 `claims: []`，不要编造"
-    assert abstain in shared.prompt and abstain in phrase.prompt
+    assert abstain in shared.prompt
     assert n04[0].produces[0].spec == (
         ".benchmark/bom/harness/specs/bom-claims-best.yaml"
     )

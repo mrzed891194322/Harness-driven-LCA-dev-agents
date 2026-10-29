@@ -1,7 +1,7 @@
 id: bom-extract-02
 title: 数量声明抽取（02 · 真薄+自检工作流）
 produces:
-  - {spec: .benchmark/bom/harness/specs/bom-claims-unit-phrase.yaml, path: bom/claims.json}
+  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
 agents:
   executor:
     agent: executor

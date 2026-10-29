@@ -1,5 +1,11 @@
 description: |
-  # 数量声明（claims）
+  # 数量声明（claims）· 已废弃实验规格
+
+  **废弃**：`f4ff815` unit-phrase 实验对 Nemotron `…163522` mean≈0.503 vs 对照 `…144453` Δ−0.026；
+  原因=交付「原文完整单位短语」与 exact_tuple / PCFBench 规范化短符号金标冲突。
+  02 已改回共享 `.benchmark/bom/harness/specs/bom-claims.yaml`（短符号）。本文件仅留档，勿再绑 node produces。
+
+  （以下正文为原实验契约，不再使用。）
 
   从计划与 `harness/knowledge/inputs/` 抽取可打分的数量声明。不查询 openLCA、不做映射、不出报告。
 
@@ -12,7 +18,7 @@ description: |
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   $id: urn:harness:spec:bom-claims-unit-phrase
-  title: Claim set
+  title: Claim set (deprecated unit-phrase experiment)
   type: object
   additionalProperties: false
   required: [claims]

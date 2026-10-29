@@ -1,15 +1,17 @@
-# 单位：只抄不译 / 不换算（含硬反例）
+# 单位：对齐 produce / schema 短符号（含硬反例）
+
+契约以 **`.benchmark/bom/harness/specs/bom-claims.yaml`** 为准：`unit` 用短符号（`g` / `kg` / `%` / `lbs` / `kg/ha` / `MJ/kg` 等），与 exact_tuple / PCFBench `unit_norm` 金标对齐。
 
 ## 规则
 
-- `unit` **照抄原文完整短语**：勿翻译、勿缩短、勿改写量纲名（勿丢 `of X` / `glass` / `per kg …` / `nre` 等）。
-- **禁止换算**：勿 MJ↔kWh、lbs↔kg、parts↔kg/kg 等；原文写什么就交什么。
-- 同一物料同一量只留一条 `(value, unit)`；原文并列双单位时只留主写那一档。
-- 交付写原文单位；不要为对齐 scorer 改写成别的符号族。
+- **交付短符号**：从原文识别量纲后写成 schema 短符号；**不要**把整句单位散文（`kg fresh tomatoes per kg polpa`、`% of dissolved tin`、`MJ nre/kg PET`…）原样塞进 `unit`。
+- **禁止量纲换算**：勿 MJ↔kWh、lbs↔kg、parts↔kg/kg；数值保持原文，只规范单位写法。
+- 同一物料同一量只留一条 `(value, unit)`；原文并列双单位时只留主写那一档对应的短符号。
+- 上下界 a–b → 拆成两端点两条；`value` 必须是数。
 
 ## 硬反例（必须避免）
 
-1. **`parts` ≠ `kg/kg`**：原文是 `parts`（或 `parts per …`）就交 `parts`，**禁止**改成 `kg/kg` / `g/g` 等。
-2. **上下界勿交中点**：题面/原文给 a–b 或上下界 → **拆成两端点两条**（`value=a` 与 `value=b`）；**禁止**只交 `(a+b)/2` 一条代替。
-3. **勿漏同段精确量**：证据窗口里已出现的精确数（例：`463.4 kg/ha`）若答题面，必须交；不要只交粗值/邻近行而漏关键精确量。
-4. **单位散文勿砍**：`% of dissolved tin`、`MJ nre/kg PET`、`g/g glass`、`kg fresh tomatoes per kg polpa` 等须整句照抄，勿缩成 `%` / `MJ/kg` / `g/g` / `kg/kg`。
+1. **`parts` ≠ `kg/kg`**：原文是 `parts` 就交 `parts`（或题面/金标等价短符号），**禁止**擅自改成 `kg/kg` / `g/g`。
+2. **上下界勿交中点**：给 a–b → 交两端点；**禁止**只交 `(a+b)/2`。
+3. **勿漏同段精确量**：窗口内精确数（例：`463.4 kg/ha`）若答题面必须交；`unit` 写 `kg/ha`（短符号），勿漏这条。
+4. **勿交完整原文单位短语当 unit**：与 `f4ff815` 失败实验相反——短语会与规范化金标错配；修饰语可写进 `text`/`evidence`，`unit` 仍短符号。
