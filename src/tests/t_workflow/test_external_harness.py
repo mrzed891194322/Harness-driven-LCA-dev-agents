@@ -65,9 +65,16 @@ def test_bom_extract_tier_switches():
         "rules/lca/knowledge-files.yaml",
     ]
     assert n04[0].inject == thick_inject
-    assert n01[0].produces[0].spec == n02[0].produces[0].spec == n03[0].produces[0].spec == (
-        ".benchmark/bom/harness/specs/bom-claims.yaml"
-    )
+    shared_spec = ".benchmark/bom/harness/specs/bom-claims.yaml"
+    phrase_spec = ".benchmark/bom/harness/specs/bom-claims-unit-phrase.yaml"
+    assert n01[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
+    assert n02[0].produces[0].spec == phrase_spec
+    shared = load_spec(REPO, shared_spec)
+    phrase = load_spec(REPO, phrase_spec)
+    assert "短符号" in shared.prompt and "短符号" not in phrase.prompt
+    assert "完整原始单位短语" in phrase.prompt
+    abstain = "有依据则填 claims；信息不足则 `abstained: true` 且 `claims: []`，不要编造"
+    assert abstain in shared.prompt and abstain in phrase.prompt
     assert n04[0].produces[0].spec == (
         ".benchmark/bom/harness/specs/bom-claims-best.yaml"
     )
