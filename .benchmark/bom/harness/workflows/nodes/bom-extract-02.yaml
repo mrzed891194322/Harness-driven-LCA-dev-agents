@@ -7,3 +7,5 @@ agents:
     agent: executor
     tools:
       skills: [bom-claims-flow]
+    rules:
+      - rules/delivery/read-skills-first.yaml

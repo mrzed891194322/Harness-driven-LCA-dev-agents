@@ -1,0 +1,12 @@
+title: 先读已挂技能
+description: 开干前先 read tools.skills 列出的 SKILL.md（及技能点名的 refs）；抬技能到达率
+enabled: true
+order: 70
+applies_to: [executor]
+prompt: |
+  ## 先读已挂技能（到达率）
+
+  - 本节点若挂了 `tools.skills`：在写 `claims` / 调用 submit **之前**，对每个技能用文件工具 **`read`** 打开对应 `harness/tools/skills/<name>/SKILL.md`。
+  - SKILL 正文若点名 `refs/` 或其他路径，按工作流需要再 `read`；不要只凭系统提示里「技能 …（需要时自己读取）」那一行摘要动手。
+  - 未读完已挂技能正文，不得 `submit`。
+  - 本规则通用薄护栏：不点名案例 ID、金标或题号；不替代技能正文里的抽取细则。

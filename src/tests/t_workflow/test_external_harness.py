@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from backend.workflow.config import (
+    load_rule,
     ConfigError,
     list_workflows,
     load_spec,
@@ -82,6 +83,11 @@ def test_bom_extract_tier_switches():
     assert n01[0].agents["executor"].tools.skills == []
     assert n02[0].agents["executor"].tools.skills == ["bom-claims-flow"]
     assert n02[0].agents["executor"].agent == "executor"
+    assert n01[0].agents["executor"].rules == []
+    assert n02[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml"]
+    assert n03[0].agents["executor"].rules == []  # 03 HOLD: no read-skills-first this tip
+    rsf = load_rule(REPO, "rules/delivery/read-skills-first.yaml")
+    assert rsf.applies_to == ["executor"] and "先读" in rsf.prompt
     # 03: path-ref dedicated agents, no skills
     assert n03[0].agents["executor"].agent.endswith("bom-extract-executor.yaml")
     assert n03[0].agents["reviewer"].agent.endswith("bom-extract-reviewer.yaml")
