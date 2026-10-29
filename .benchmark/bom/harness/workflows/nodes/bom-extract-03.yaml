@@ -1,13 +1,10 @@
 id: bom-extract-03
-title: 数量声明抽取（03 · 薄约束+reviewer）
+title: 数量声明抽取（03 · 专用 agent 编排）
 produces:
   - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
+# 本档不靠技能抬分：executor/reviewer 用 .benchmark 专用 agent；技能留 04
 agents:
   executor:
-    agent: executor
-    tools:
-      skills: [bom-claims-slim]
+    agent: .benchmark/bom/harness/workflows/agents/bom-extract-executor.yaml
   reviewer:
-    agent: reviewer
-    tools:
-      skills: [bom-claims-review]
+    agent: .benchmark/bom/harness/workflows/agents/bom-extract-reviewer.yaml

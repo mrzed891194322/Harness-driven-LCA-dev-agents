@@ -49,7 +49,7 @@ class Tools(_Strict):
 
 
 class Agent(_Strict):
-    agent: str = ""  # template name: harness/workflows/agents/<agent>.yaml ("" = inline definition)
+    agent: str = ""  # template short name or repo-rel path; "" = inline definition
     model: str = ""
     thinking: str = ""
     max_turns: int | None = Field(default=None, ge=1)  # per-node override of the template's deliver.max_turns (Q1)
@@ -397,12 +397,18 @@ def _resolve_agents(root: Path, node: Node, path: Path, inline_defs: dict[str, "
             continue
         if not agent.agent:
             raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: agent {key!r} needs a template name")
-        tpl = root / layout.AGENTS / f"{agent.agent}.yaml"
-        if not tpl.is_file():
+        try:
+            agent._definition = load_agent_def(root, agent.agent)
+        except ConfigError as exc:
+            # Prefer node-YAML line for short-name misses (compat with prior error shape).
+            if _is_path_ref(agent.agent):
+                raise
             known = sorted(p.stem for p in (root / layout.AGENTS).glob("*.yaml"))
-            raise ConfigError(f"{_line_of(path, rf'^\s*{key}:')}: unknown agent {agent.agent!r} "
-                              f"(no {tpl.relative_to(root)}; known: {', '.join(known) or 'none'})")
-        agent._definition = load_agent_def(root, agent.agent)
+            raise ConfigError(
+                f"{_line_of(path, rf'^\s*{key}:')}: unknown agent {agent.agent!r} "
+                f"(no {(root / layout.AGENTS / f'{agent.agent}.yaml').relative_to(root)}; "
+                f"known: {', '.join(known) or 'none'})"
+            ) from exc
 
 
 def _build_node(root: Path, data: dict, path: Path) -> Node:
@@ -559,8 +565,18 @@ def load_spec(root: Path, spec_id: str) -> Spec:
 
 
 def load_agent_def(root: Path, name: str) -> AgentDef:
-    """Load agent template ``harness/workflows/agents/<name>.yaml``."""
-    path = root / layout.AGENTS / f"{name}.yaml"
+    """Load agent template by short name or repo-root-relative path.
+
+    Short name → ``harness/workflows/agents/<name>.yaml``.
+    Path ref (contains ``/`` or starts with ``.``) → that ``.yaml`` under the repo
+    (used by ``.benchmark/.../agents/`` dedicated extract agents).
+    """
+    if _is_path_ref(name):
+        path = _resolve_repo_rel(root, name, "agent")
+    else:
+        path = root / layout.AGENTS / f"{name}.yaml"
+        if not path.is_file():
+            raise ConfigError(f"agent {name!r}: missing {path.relative_to(root)}")
     agent_def = _validate(AgentDef, _load_yaml(path), path)
     agent_def.prompt = render(agent_def.prompt, path)
     return agent_def

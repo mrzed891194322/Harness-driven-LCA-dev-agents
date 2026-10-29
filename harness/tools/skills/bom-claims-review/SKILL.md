@@ -4,7 +4,7 @@
 
 ## 角色分工
 
-- **executor**：从长文抽出 claims（03 挂 `bom-claims-slim`）。
+- **executor**：从长文抽出 claims（04 挂 read+ops；03 用专用 agent、不挂本技能）。
 - **reviewer**：读**同一份**长文（`harness/knowledge/inputs/` 下的 `reference.md` / `document_text`），**对照原文**核对；侧重点是核对，不是自己重抽一套再交卷。
 - 宿主 reviewer **只读**：不能直接改产物。有问题一律 `reject`，在 `issues` 写清 `where` / `problem` / `expected`，由 executor 改写后再交。
 

@@ -4,7 +4,7 @@ Product harness lives under ``harness/``. Eval variants live under
 ``.benchmark/bom/harness/`` and ``.benchmark/lci/harness/`` (same sub-layout). Orchestration **API ids** are still
 file stems discovered by scanning both orch folders; YAML ``nodes:`` /
 ``produces.spec`` refs are always **repo-root-relative paths** (no short-name
-lookup, no extras-first fallback). Agents / rules stay product-side.
+lookup, no extras-first fallback). Rules stay product-side. Agents default to product ``harness/workflows/agents/``; nodes may also path-ref ``.benchmark/.../agents/*.yaml``.
 """
 from __future__ import annotations
 

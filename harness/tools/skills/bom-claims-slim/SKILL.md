@@ -1,8 +1,5 @@
-# BOM 数量抽取 · 02 薄约束（压多报 / 单位硬伤）
+# bom-claims-slim · 已弃用
 
-短护栏；需要时阅读。按条执行，勿扩写成厚档。
+请改用 **`bom-claims-flow`**（`harness/tools/skills/bom-claims-flow/SKILL.md`）。
 
-- **只交能回答题面的数值 claim**：原文 `value` + `unit`；题面未问的量不要交。
-- **禁多报无关量**：工时 `h`、温度 `°C`、未问的分解项 / 同表邻居行 / 扫参端点等。
-- **单位照抄原文**：禁止 MJ↔kWh（及其它）换算；禁止改写或缩短单位散文（如丢掉 `of X` / `per kg …`）。
-- **吃不准宁可漏一条**：勿为凑全而堆假 extras（多报与漏报同等有害，本档优先压多报）。
+`bom-extract-02` 只挂 `bom-claims-flow`；本目录仅旧名占位，勿再挂接。

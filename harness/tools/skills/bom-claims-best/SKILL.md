@@ -2,9 +2,9 @@
 
 本技能已拆成短技能，请改读：
 
-- `harness/tools/skills/bom-claims-read/SKILL.md` — 读文（ls→grep→offset/limit）
-- `harness/tools/skills/bom-claims-ops/SKILL.md` — 单位 / 只交所问 / 交卷
-- `harness/tools/skills/bom-claims-review/SKILL.md` — 审核者专用（对照原文核对 claims）
-- `harness/tools/skills/bom-claims-slim/SKILL.md` — 02/03 executor 薄约束
+- `harness/tools/skills/bom-claims-flow/SKILL.md` — 02 executor 自检工作流（含读文 refs）
+- `harness/tools/skills/bom-claims-read/SKILL.md` — 读文（04）
+- `harness/tools/skills/bom-claims-ops/SKILL.md` — 单位 / 只交所问 / 交卷（04）
+- `harness/tools/skills/bom-claims-review/SKILL.md` — 审核（04；03 用专用 agent）
 
-`bom-extract-02` / `03` executor 挂 slim；`bom-extract-03` / `04` reviewer 挂 review；`bom-extract-04` executor 挂 read+ops。本目录仅作旧名兼容，不要再往这里堆护栏。
+`bom-extract-02` 挂 `bom-claims-flow`；`bom-extract-03` **不挂技能**（专用 agent）；`bom-extract-04` 挂 read+ops / review。本目录仅旧名兼容。

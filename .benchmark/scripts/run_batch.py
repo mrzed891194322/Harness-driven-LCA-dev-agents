@@ -34,7 +34,7 @@ REPO = Path(__file__).resolve().parents[2]
 DEFAULT_API = "http://127.0.0.1:8800"
 DEFAULT_WORKFLOW = "bom-extract-03"
 # workflow stem → (大类, 子类, 默认案例根相对仓根)
-# 档位：01 真薄 / 02 真薄+slim / 03 slim+reviewer / 04 厚注入+reviewer
+# 档位：01 真薄 / 02 +bom-claims-flow / 03 专用agent无技能 / 04 厚注入+reviewer
 WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
     "bom-extract-01": ("bom", "extract", ".benchmark/bom/extract"),
     "bom-extract-02": ("bom", "extract", ".benchmark/bom/extract"),
@@ -1372,7 +1372,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workflow",
         default=DEFAULT_WORKFLOW,
-        help="orch stem（*-01 真薄 | *-02 薄约束 | *-03 slim+reviewer | *-04 厚+reviewer）；含 bom-decomposition-01 / lci-mapping-01 / lci-triage-01；默认 bom-extract-03",
+        help="orch stem（*-01 真薄 | *-02 flow技能 | *-03 专用agent | *-04 厚+reviewer）；含 bom-decomposition-01 / lci-mapping-01 / lci-triage-01；默认 bom-extract-03",
     )
     parser.add_argument(
         "--repeat",

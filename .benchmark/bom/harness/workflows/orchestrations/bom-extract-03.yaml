@@ -1,5 +1,5 @@
 id: bom-extract-03
-title: BOM 数量抽取（03 · 薄约束+reviewer）
+title: BOM 数量抽取（03 · 专用 agent 编排）
 max_redos: 0
-# 拓扑：executor（同 02 / bom-claims-slim）→ reviewer（bom-claims-review）；给法仍官方 query + reference.md
+# executor / reviewer = .benchmark 专用薄 agent（无挂技能）；给法仍官方 query + reference.md
 nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract-03.yaml]

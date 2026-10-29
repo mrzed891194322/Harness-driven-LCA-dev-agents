@@ -67,8 +67,8 @@ items:
 ## 3. 01 / 02 / 03 extract 档怎么跑
 
 01 = 真薄：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍由宿主注入。  
-**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 **只多**挂 `bom-claims-slim` 薄约束（只交所问、禁多报无关量、单位照抄禁换算、宁漏勿堆）——对症 01 基线 B2/B3。  
-**02→03**：给法不变；executor **仍**只挂 `bom-claims-slim`；**新加** reviewer（`bom-claims-review`：必须读长文；文中无支持→删压 B2；单位须照抄原文、禁换算/改写压 B3；漏报仅当原文明确且答题面才可要求补，高门槛勿滥补）。对照基线 TAG `opencode-deepseek-flash-extract02-20261029-003412`（兼看 vs `…extract01-…233421`）；钉 03 tip **先不开批**。  
+**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 **只多**挂一个技能 `bom-claims-flow`（工作流：提取→初稿→自检硬规则→不合则改→交付；读窗/类型黑名单/单位细则在技能 `refs/`；合并读文档，勿另挂 read 技能）。旧 `bom-claims-slim` 已弃用。  
+**02→03**：给法不变；**专用** `.benchmark/.../agents/bom-extract-{executor,reviewer}.yaml` 薄提示词编排；**本档不挂技能**（不靠厚技能抬分，04 再挂）。对照基线 TAG `…extract03-…015220` / `…extract02-…003412`；钉 tip **先不开批**。  
 **04**：厚注入（read+ops）+ reviewer（另档）。
 
 | stem | cases-root（全量/抽样子集） | 主产物 | 主指标 |
@@ -85,12 +85,12 @@ uv run python .benchmark/scripts/run_batch.py --model <profile> \
   --workflow bom-extract-01 \
   --cases-root .benchmark/imported/bom/extract
 
-# 02：同案池，仅薄约束 skill
+# 02：同案池，仅 bom-claims-flow
 uv run python .benchmark/scripts/run_batch.py --model <profile> \
   --workflow bom-extract-02 \
   --cases-root .benchmark/imported/bom/extract
 
-# 03：同 02 executor + reviewer（先 tip，开批另令）
+# 03：专用 agent 编排、无技能（先 tip，开批另令）
 uv run python .benchmark/scripts/run_batch.py --model <profile> \
   --workflow bom-extract-03 \
   --cases-root .benchmark/imported/bom/extract
