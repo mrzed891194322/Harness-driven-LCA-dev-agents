@@ -139,6 +139,7 @@ class PiDriver:
             "WORKFLOW_READ_GLOBS": json.dumps([remap(g) for g in scope.read_globs]),
             "WORKFLOW_WRITE_GLOBS": json.dumps([remap(g) for g in scope.write_globs]),
             "WORKFLOW_DENIED_WRITE_GLOBS": json.dumps([remap(g) for g in scope.denied_write_globs]),
+            "WORKFLOW_ARTIFACTS_ROOT": str(ws / "artifacts"),
         }
         for name, binding in bindings.items():
             if name != "submit":

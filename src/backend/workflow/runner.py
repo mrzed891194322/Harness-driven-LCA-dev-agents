@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.workflow import layout, revisions
-from backend.workflow.checks import produce_errors, requires_errors
+from backend.workflow.checks import host_produce_errors, requires_errors
 from backend.workflow.config import Node, Spec, Workflow, load_spec
 from backend.workflow.events import EventLog
 from backend.workflow.work_record import write_work_record
@@ -329,7 +329,7 @@ class Runner:
         self._set_item(item, "running", round=1)
         ctx = NodeContext(workspace=self.ws, run_id=self.run_id, driver=self.driver,
                           prompt_builder=self.prompt_builder, specs=self.specs, events=ev,
-                          host_checks=lambda n: produce_errors(self.art, n, self.specs),
+                          host_checks=lambda n: host_produce_errors(self.art, n, self.specs),
                           stop_requested=self.stop_requested, redo_targets=self._redo_targets(item),
                           redo=item.reason, retry_interval=self.retry_interval)
         out = NodeGraph(node, ctx).run()

@@ -39,6 +39,7 @@ def test_benchmark_harness_holds_eval_workflows():
     assert (ROOT / ".benchmark/bom/harness/workflows/orchestrations/bom-extract-01.yaml").is_file()
     assert (ROOT / ".benchmark/bom/harness/workflows/orchestrations/bom-extract-03.yaml").is_file()
     assert (ROOT / ".benchmark/bom/harness/specs/bom-claims.yaml").is_file()
+    assert (ROOT / ".benchmark/bom/harness/specs/bom-claims-02.yaml").is_file()
     assert (ROOT / ".benchmark/lci/harness/workflows/orchestrations/lci-mapping-03.yaml").is_file()
     assert (ROOT / ".benchmark/lci/harness/specs/lci-mapping-closed.yaml").is_file()
     assert (ROOT / ".benchmark/lci/harness/workflows/orchestrations/lci-triage-03.yaml").is_file()

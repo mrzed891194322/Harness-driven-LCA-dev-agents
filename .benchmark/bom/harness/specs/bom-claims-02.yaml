@@ -1,0 +1,43 @@
+description: |
+  # 数量声明（claims）· bom-extract-02
+
+  与 `bom-claims.yaml` **同 schema / 短符号契约**；仅 02 挂载。01/03 仍用薄 `bom-claims.yaml`（无 checks）。
+
+  从计划与 `harness/knowledge/inputs/` 抽取可打分的数量声明。不查询 openLCA、不做映射、不出报告。
+
+  写到 `workspace/artifacts/bom/claims.json`，形状对齐 `.benchmark/schemas/claim_set.schema.json`：
+  - `claims`：数组；建议含 `claim_id`、`item_id`、`field`、`value`、`unit`、`text`、`evidence`
+  - 打分主要看规范化后的 `(value, unit)`；单位用短符号（`g` / `kg` / `%` / `lbs`）
+  - 有依据则填 claims；信息不足则 `abstained: true` 且 `claims: []`，不要编造
+
+  交卷前须经薄 MCP `bom_claims_check.check_claims`（只告警、禁自动删）；宿主对 `checks` 做窄硬闸（黑名单单位）。
+
+  完成后对交付路径调用 submit。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:bom-claims-02
+  title: Claim set (02)
+  type: object
+  additionalProperties: false
+  required: [claims]
+  properties:
+    abstained:
+      type: boolean
+    claims:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        properties:
+          claim_id: {type: string, minLength: 1}
+          text: {type: string}
+          item_id: {type: string}
+          field: {type: string}
+          value: {type: [number, "null"]}
+          unit: {type: [string, "null"]}
+          evidence: {type: [string, "null"]}
+        anyOf:
+          - {required: [text]}
+          - {required: [value, unit]}
+checks:
+  - id: bom_claims_blacklist_units

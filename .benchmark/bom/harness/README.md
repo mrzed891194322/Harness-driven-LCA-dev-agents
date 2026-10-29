@@ -23,12 +23,12 @@ API 开跑仍可用 orch 文件 stem（`workflow: bom-extract-01`）；`list_wor
 | --- | --- | --- | --- | --- |
 | `bom-decomposition-01` | 产品组成（PCFBench task1）真薄 | 已有 |
 | `bom-extract-01` | 无 | **无** | 产品 `executor`；无 skills | 薄短 `bom-claims.yaml` |
-| `bom-extract-02` | 无 | **无**（技能到达用 **agent.rules**） | 产品 `executor` + **`bom-claims-flow`** + `rules/delivery/read-skills-first.yaml` | 同 01：`bom-claims.yaml`（短符号） |
+| `bom-extract-02` | 无 | **无**（技能到达用 **agent.rules**） | 产品 `executor` + **`bom-claims-flow`** + MCP `bom_claims_check` + `rules/delivery/read-skills-first.yaml` | **`bom-claims-02.yaml`**（schema 同 01；+ blacklist 窄硬闸） |
 | `bom-extract-03` | **有** | **无** | **三件套** orch+executor(助手)+reviewer（专用 agent）；**不挂技能** | 同 01 |
 | `bom-extract-04` | **有** | status + provenance + knowledge-files | 产品 agent；executor=`bom-claims-read`+`ops`；reviewer=`bom-claims-review` | 短指针 `bom-claims-best.yaml` |
 
 - **01 真薄**：题面 ≈ 短指令 + 案题 query；交付 claims submit。
-- **02**：同 01 拓扑；挂 `bom-claims-flow` + executor `agent.rules: read-skills-first`（先读技能；**node.inject 仍空**）。技能：轻自检、禁弃权；黑名单仅 h/°C；单位短符号+硬反例；**证据关系局部删**（替短防多报）。**produce 同 01**。unit-phrase 废弃（`f4ff815`）。验收：读取率≥90%；本 tip 仅 OpenCode DeepSeek×02 验；对照 `…221418`≈0.554 @`e65878c`。给法仍官方 query + `reference.md`。
+- **02**：同 01 拓扑；挂 `bom-claims-flow` + 薄 MCP `bom_claims_check`（只告警禁自动删；flow 强制 `check_claims`） + executor `agent.rules: read-skills-first`（**node.inject 仍空**）。技能：轻自检、禁弃权；黑名单仅 h/°C；单位短符号+硬反例；证据关系局部删。**produce=`bom-claims-02.yaml`**（勿拖 01/03）；宿主 `bom_claims_blacklist_units` 窄硬闸。薄 MCP tip 基线 `4cdecfd`；切服后 NV+DeepSeek×02。给法仍官方 query + `reference.md`。
 - **03**：三件套（orchestrator 主交卷 / executor 写作者助手 / reviewer）；LangGraph 强制审核环；**不靠技能抬分**（04 再挂）。tip 不开批。
 - **04 厚注入+reviewer**：技能拆自原 `bom-claims-best`；`bom-claims-best/` 仅兼容别名。
 

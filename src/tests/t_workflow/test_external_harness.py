@@ -67,12 +67,21 @@ def test_bom_extract_tier_switches():
     ]
     assert n04[0].inject == thick_inject
     shared_spec = ".benchmark/bom/harness/specs/bom-claims.yaml"
+    spec_02 = ".benchmark/bom/harness/specs/bom-claims-02.yaml"
     phrase_spec = ".benchmark/bom/harness/specs/bom-claims-unit-phrase.yaml"
-    # 02 与 01/03 同绑共享短符号；unit-phrase 仅留档废弃（f4ff815 实验失败）
-    assert n01[0].produces[0].spec == n02[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
+    # 01/03 共享薄 bom-claims.yaml；02 独绑 bom-claims-02.yaml（同 schema + checks）
+    assert n01[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
+    assert n02[0].produces[0].spec == spec_02
     shared = load_spec(REPO, shared_spec)
+    loaded_02 = load_spec(REPO, spec_02)
     phrase = load_spec(REPO, phrase_spec)
     assert "短符号" in shared.prompt
+    assert loaded_02.schema_ == shared.schema_ or (
+        loaded_02.schema_ and shared.schema_
+        and loaded_02.schema_.get("required") == shared.schema_.get("required")
+    )
+    assert any(c.get("id") == "bom_claims_blacklist_units" for c in loaded_02.checks)
+    assert shared.checks == []
     assert "废弃" in phrase.prompt or "deprecated" in phrase.prompt.lower()
     abstain = "有依据则填 claims；信息不足则 `abstained: true` 且 `claims: []`，不要编造"
     assert abstain in shared.prompt
@@ -82,6 +91,9 @@ def test_bom_extract_tier_switches():
     thick_skills = ["bom-claims-read", "bom-claims-ops"]
     assert n01[0].agents["executor"].tools.skills == []
     assert n02[0].agents["executor"].tools.skills == ["bom-claims-flow"]
+    assert n02[0].agents["executor"].tools.mcp == ["bom_claims_check"]
+    assert n01[0].agents["executor"].tools.mcp == []
+    assert n03[0].agents["orchestrator"].tools.mcp == []
     assert n02[0].agents["executor"].agent == "executor"
     assert n01[0].agents["executor"].rules == []
     assert n02[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml"]

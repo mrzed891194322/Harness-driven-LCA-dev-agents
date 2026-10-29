@@ -67,7 +67,7 @@ items:
 ## 3. 01 / 02 / 03 extract 档怎么跑
 
 01 = 真薄：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍由宿主注入。  
-**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 挂 `bom-claims-flow` + executor `rules: [rules/delivery/read-skills-first.yaml]`（先读已挂技能；抬到达率；**node.inject 仍空**）。技能：轻自检、禁弃权空交；黑名单仅 h/°C；单位短符号+硬反例；**证据关系局部删**（替短防多报；`refs/types.md`）。旧 `bom-claims-slim` 已弃用。**produce 与 01 同绑**共享 `bom-claims.yaml`。`bom-claims-unit-phrase.yaml` 已废弃（`f4ff815`）。**验收（操作员）**：技能读取率≥90%；本 tip 仅 OpenCode DeepSeek×02 验；对照现认最佳 `…221418`≈0.554 @`e65878c`（此前 NV 口径 `--repeat 2`≥0.54 / `…144453`/`…201457` 仍可参）。  
+**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 挂 `bom-claims-flow` + executor `rules: [rules/delivery/read-skills-first.yaml]`（先读已挂技能；抬到达率；**node.inject 仍空**）+ 薄 MCP `bom_claims_check`（`check_claims` **只告警、禁自动删**；flow 强制调取）。技能：轻自检、禁弃权空交；黑名单仅 h/°C；单位短符号+硬反例；**证据关系局部删**（`refs/types.md`）。旧 `bom-claims-slim` 已弃用。**produce**：02 独绑 `bom-claims-02.yaml`（schema 同 01 的 `bom-claims.yaml` + `checks: [bom_claims_blacklist_units]` 宿主窄硬闸）；**勿拖 01/03** 共用该 checks。`bom-claims-unit-phrase.yaml` 已废弃（`f4ff815`）。**验收（操作员）**：技能读取率≥90%；薄 MCP tip 基线 tip-of-master `4cdecfd`；对照口径现认最佳 `…221418`≈0.554 @`e65878c` / 证据 tip DS `…012724`≈0.577 @`4cdecfd`；本 tip 切服后 **NV+DeepSeek 同跑 02**（不开 03）。  
 **02→03**：给法不变；**三件套** `orchestrator`+`executor`(助手无 submit)+`reviewer`（专用 `.benchmark/.../agents/bom-extract-*.yaml`）；LangGraph 强制 executor↔reviewer→orch 交卷；**不挂技能**。对照基线另记；钉 tip **先不开批**。  
 **04**：厚注入（read+ops）+ reviewer（另档）。
 

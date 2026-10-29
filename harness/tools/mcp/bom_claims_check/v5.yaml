@@ -1,0 +1,8 @@
+# Thin read-only BOM claims check for bom-extract-02 (warn only; no auto-delete).
+id: bom_claims_check
+command: uv
+args: [run, python, harness/tools/mcp/bom_claims_check/main.py]
+tool_timeout_sec: 30
+readonly_tools: [check_claims]
+write_tools: []
+deny_tools: []
