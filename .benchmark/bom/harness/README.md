@@ -23,12 +23,12 @@ API 开跑仍可用 orch 文件 stem（`workflow: bom-extract-01`）；`list_wor
 | --- | --- | --- | --- | --- |
 | `bom-decomposition-01` | 产品组成（PCFBench task1）真薄 | 已有 |
 | `bom-extract-01` | 无 | **无** | 产品 `executor`；无 skills | 薄短 `bom-claims.yaml` |
-| `bom-extract-02` | 无 | **无** | 产品 `executor` + **`bom-claims-flow`**（单技能工作流） | 同 01 |
+| `bom-extract-02` | 无 | **无** | 产品 `executor` + **`bom-claims-flow`**（轻自检+短防多报） | 同 01 |
 | `bom-extract-03` | **有** | **无** | **专用** `.benchmark/.../agents/bom-extract-{executor,reviewer}.yaml`；**不挂技能** | 同 01 |
 | `bom-extract-04` | **有** | status + provenance + knowledge-files | 产品 agent；executor=`bom-claims-read`+`ops`；reviewer=`bom-claims-review` | 短指针 `bom-claims-best.yaml` |
 
 - **01 真薄**：题面 ≈ 短指令 + 案题 query；交付 claims submit。
-- **02**：同 01 拓扑；只多挂一个技能 `bom-claims-flow`（提取→初稿→自检硬规则→改→交付；读文/类型黑名单/单位细则在 `refs/`）。给法仍官方 query + `reference.md`。旧名 `bom-claims-slim` 已弃用占位。
+- **02**：同 01 拓扑；只多挂 `bom-claims-flow`（轻自检、禁弃权；黑名单仅 h/°C；单位硬反例；短防多报；`refs/`）。给法仍官方 query + `reference.md`。旧名 `bom-claims-slim` 已弃用占位。
 - **03**：专用薄 agent 编排（职责写在 agent 提示词）；**本档不靠技能抬分**（04 再挂）。对照基线 TAG 记 HOWTO；tip 不开批。
 - **04 厚注入+reviewer**：技能拆自原 `bom-claims-best`；`bom-claims-best/` 仅兼容别名。
 

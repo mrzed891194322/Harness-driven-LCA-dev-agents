@@ -67,7 +67,7 @@ items:
 ## 3. 01 / 02 / 03 extract 档怎么跑
 
 01 = 真薄：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍由宿主注入。  
-**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 **只多**挂一个技能 `bom-claims-flow`（工作流：提取→初稿→自检硬规则→不合则改→交付；读窗/类型黑名单/单位细则在技能 `refs/`；合并读文档，勿另挂 read 技能）。旧 `bom-claims-slim` 已弃用。  
+**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 **只多**挂 `bom-claims-flow`（轻自检、禁弃权空交；黑名单仅 h/°C；单位硬反例；短防多报；细则在 `refs/`）。旧 `bom-claims-slim` 已弃用。  
 **02→03**：给法不变；**专用** `.benchmark/.../agents/bom-extract-{executor,reviewer}.yaml` 薄提示词编排；**本档不挂技能**（不靠厚技能抬分，04 再挂）。对照基线 TAG `…extract03-…015220` / `…extract02-…003412`；钉 tip **先不开批**。  
 **04**：厚注入（read+ops）+ reviewer（另档）。
 
