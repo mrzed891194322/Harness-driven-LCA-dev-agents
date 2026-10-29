@@ -65,7 +65,7 @@ class PiDriver:
             "submit": {
                 "command": sys.executable,
                 "args": [str(self.root / "harness/tools/mcp/submit/main.py")],
-                "env": {"WORKFLOW_SUBMIT_FILE": str(submit_file), "WORKFLOW_SUBMIT_KIND": req.node.kind(req.agent),
+                "env": {"WORKFLOW_SUBMIT_FILE": str(submit_file), "WORKFLOW_SUBMIT_KIND": req.node.kind(req.agent) or "assistant",
                         "PYTHONPATH": str(self.root)},
                 "timeout_ms": 60_000,
                 "exposure": "direct",
@@ -113,12 +113,15 @@ class PiDriver:
         default_ws = str(self.root / layout.WORKSPACE)
         remap = (lambda g: g.replace(default_ws, str(ws), 1)) if str(ws) != default_ws else (lambda g: g)
         bindings, mcp_allowed = self._mcp_bindings(req, submit_file)
+        from backend.workflow.config import DEFAULT_MAX_TURNS
         deliver = req.node.agents[req.agent].definition.deliver
+        kind = req.node.kind(req.agent)
+        is_assistant = kind is None
         context = req.extra.get("submit_context")
         if context is None:
-            context = {"kind": req.node.kind(req.agent), "artifacts_root": str(ws / "artifacts"),
+            context = {"kind": kind or "assistant", "artifacts_root": str(ws / "artifacts"),
                        "produces": [{"path": str(ws / "artifacts" / p.path), "schema": load_spec(self.root, p.spec).schema_}
-                                    for p in req.node.produces] if req.node.kind(req.agent) == "artifact" else [],
+                                    for p in req.node.produces] if kind == "artifact" else [],
                        "redo_targets": {}, "executor_last": None}
         # Submit context (produces + JSON schemas, redo targets, executor's last submit) goes in a file, never
         # inline: pi resolves MCP env values as templates, so "$schema"/"$id" broke the server (I-30). The path is
@@ -126,8 +129,12 @@ class PiDriver:
         context_file = ws / "tmp" / "pi-workflow" / req.session_key / "submit_context.json"
         context_file.parent.mkdir(parents=True, exist_ok=True)
         context_file.write_text(json.dumps(context, ensure_ascii=False), encoding="utf-8")
-        bindings["submit"]["env"]["WORKFLOW_SUBMIT_CONTEXT"] = str(context_file)
-        bindings["submit"]["env"]["WORKFLOW_REJECTIONS_FILE"] = str(agent_dir / "submit_rejections.jsonl")
+        if not is_assistant:
+            bindings["submit"]["env"]["WORKFLOW_SUBMIT_CONTEXT"] = str(context_file)
+            bindings["submit"]["env"]["WORKFLOW_REJECTIONS_FILE"] = str(agent_dir / "submit_rejections.jsonl")
+        else:
+            bindings.pop("submit", None)
+            mcp_allowed = [t for t in mcp_allowed if not t.startswith("mcp__submit__")]
         scope_env = {
             "WORKFLOW_READ_GLOBS": json.dumps([remap(g) for g in scope.read_globs]),
             "WORKFLOW_WRITE_GLOBS": json.dumps([remap(g) for g in scope.write_globs]),
@@ -137,9 +144,22 @@ class PiDriver:
             if name != "submit":
                 binding["env"] = {**binding["env"], **scope_env}
         check_mcp_env(bindings)
-        file_tools = FILE_TOOLS_EXEC if req.node.kind(req.agent) == "artifact" else FILE_TOOLS_REVIEW
+        # Writers (artifact or executor assistant) get exec file tools; reviewers read-only.
+        file_tools = FILE_TOOLS_EXEC if (kind == "artifact" or req.agent == "executor") else FILE_TOOLS_REVIEW
         system = req.extra.get("system", "")
         storage = ws / "tmp" / "pi-workflow" / req.session_key
+        max_turns = req.node.agents[req.agent].max_turns or (deliver.max_turns if deliver else DEFAULT_MAX_TURNS)
+        timeout_min = deliver.timeout_min if deliver else 120.0
+        max_nudges = deliver.max_nudges if deliver else 0
+        max_rejections = deliver.max_rejections if deliver else 0
+        same_tool_limit = req.node.flow.same_tool_limit
+        settle = {"node": req.node.id, "agent": req.agent, "submit_file": str(submit_file),
+                  "max_nudges": max_nudges, "max_turns": max_turns, "timeout_min": timeout_min,
+                  "max_rejections": max_rejections,
+                  "rejections_file": str(agent_dir / "submit_rejections.jsonl"),
+                  "model_retry_delays_s": model_retry_delays_s(),
+                  "require_submit": not is_assistant,
+                  "same_tool_limit": 0 if same_tool_limit is None else int(same_tool_limit)}
         spec = SessionLaunchSpec(
             run_id=req.run_id,
             node=req.node.id,
@@ -150,11 +170,7 @@ class PiDriver:
             model_profile=self.model,
             system_sections=[SystemSection(id="workflow_system", content=system, source_hash=_sha(system))],
             turn_context={"engine": "workflow", "node": req.node.id, "rev": req.node.rev, "attempt": req.attempt,
-                          "settle": {"node": req.node.id, "agent": req.agent, "submit_file": str(submit_file), "max_nudges": deliver.max_nudges,
-                                     "max_turns": req.node.agents[req.agent].max_turns or deliver.max_turns, "timeout_min": deliver.timeout_min,
-                                     "max_rejections": deliver.max_rejections,
-                                     "rejections_file": str(agent_dir / "submit_rejections.jsonl"),
-                                     "model_retry_delays_s": model_retry_delays_s()}},
+                          "settle": settle},
             knowledge_bindings=[],
             resource_bindings={
                 "project_root": str(self.root.resolve()),

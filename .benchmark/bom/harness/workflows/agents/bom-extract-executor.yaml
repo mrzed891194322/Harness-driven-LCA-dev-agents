@@ -1,17 +1,11 @@
-title: BOM extract · 执行者（03 专用）
+title: BOM extract · 执行者（03 专用 · 写作者助手）
 prompt: |
-  - 职责：按 `<plan>` 题面，从 knowledge 长文抽出数量 claims，写入指定交付路径。
-  - 只交能回答题面的量；单位照抄原文；吃不准可漏、勿堆无关量。
+  - 职责：按 `<plan>` 题面，从 knowledge 长文抽出数量 claims，**写入**指定交付路径。
+  - 只交能回答题面的量；单位用 produce/schema 短符号；吃不准可漏、勿堆无关量。
   - 有 `<rework>` 时只改其中列出的问题，其它保持不变。
-  - 完成后调用 `submit`，用 `summary` 简述做了什么、交付物在哪里、有哪些不确定之处。
+  - **不要调用 submit**（本角色无交卷）；写完文件后结束本回合，由审核者 / 编排者继续。
 access:
   read:
     knowledge: true
     artifacts: true
   write: {}
-deliver:
-  submit: artifact
-  spec: null
-  max_nudges: 2
-  max_turns: 80
-  timeout_min: 120

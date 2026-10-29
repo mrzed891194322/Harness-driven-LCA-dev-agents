@@ -16,11 +16,15 @@
 
 | 角色 | `deliver.submit` | 职责 |
 |------|------------------|------|
-| 主 agent | `artifact` | 写产物并 `submit`：`status ∈ {done, blocked, redo_upstream}`（以 `SUBMIT_VALUES["artifact"]` 为准） |
-| Reviewer | `verdict` | 只评主 agent 产物：`verdict ∈ {approve, reject, approve_redo_upstream, terminate}`；不改产物 |
-| 子 agent / 工具角色 | 无 / 不挂交卷包 | 查资料、写脚本等，结果回给主 agent |
+| 主 agent（常名 orchestrator） | `artifact` | **调度/汇总交卷**，默认不改文件；`status ∈ {done, blocked, redo_upstream}` |
+| 写作者（常名 executor） | 无 `deliver`（助手）或薄档下自己兼主 agent | 写产物；三件套中回合结束即交 reviewer |
+| Reviewer | `verdict` | 只评产物：`approve/reject/approve_redo_upstream/terminate`；不改产物 |
+| 其它助手 | 无 `deliver` | 查资料等，可进 flow（无条件边） |
 
-节点内 flow（与现默认一致）：主 agent `done` → reviewer；`blocked` → 节点 blocked；`redo_upstream` → reviewer 审批；reviewer `approve` → 节点 done；`reject` → 回主 agent；`approve_redo_upstream` → 外层 redo；`terminate` → 停止。
+节点内 flow：
+- **薄档**（单 executor）：executor `done` → done（或经 reviewer）。
+- **三件套**：executor → reviewer；`reject` → executor；`approve` → orchestrator `done` → done；`blocked`/`redo_upstream` 由编排者交卷枚举处理。
+- LangGraph 强制上述边，不靠提示词。
 
 ## 3. 配置与校验
 
@@ -29,7 +33,7 @@
   - 每个节点 **恰好一个** `deliver.submit: artifact`（0 或多个都失败）。
   - 已有：`flow.start` 必须是 artifact agent；flow 边的 `when` 必须属于该 agent 的 submit 枚举；`redo_upstream` 须经 verdict 审批。
 - Reviewer 可有 0 或 1 个（现 LCA 节点为 1）；无 reviewer 时沿用现「仅 artifact 终态」默认 flow。
-- 子 agent：可出现在 `agents` 但不进入交卷边，或仅由主 agent 通过工具/会话调用（实现阶段二选一，默认先不进 flow）。
+- 无交卷助手：可进 flow（无条件边）；也可不进 flow 仅工具调用。
 
 ## 4. Rules vs Spec
 
@@ -60,7 +64,7 @@
 ## 7. 与技能 / 共享文档
 
 - 实现后：`docs/architecture/DESIGN.md`、`docs/architecture/WORKFLOW_DESIGN.md`（或本文链过去）作为 `harness-edit` / `code-dev` 共享底本；改 YAML 契约时同步改文档。
-- `harness-edit` 生成节点时必须能通过「恰好一个 artifact submit」校验。
+- `harness-edit` 生成节点时必须能通过「恰好一个 artifact submit」校验；有编排节点默认建议三件套（orchestrator 不改文件）。
 
 ## 8. 建议实现顺序
 

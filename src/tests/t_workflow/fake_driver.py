@@ -61,14 +61,23 @@ class FakeDriver:
         if isinstance(action, TurnResult):
             return action
         done = {"status": "done", "summary": "done", "artifacts": [p.path for p in req.node.produces]}
-        if req.node.kind(req.agent) == "artifact":
+        kind = req.node.kind(req.agent)
+        if kind is None:
+            if isinstance(action, TurnResult):
+                return action
+            if action != "skip_write":
+                body = None if action == "ok" else (action if isinstance(action, str) else None)
+                self._write(req, body)
+            return TurnResult(submit=None)
+        if kind == "artifact":
             if action == "blocked":
                 return TurnResult(submit={"status": "blocked", "reason": BLOCK})
             if isinstance(action, dict):
-                if action.get("status") == "done":
+                if action.get("status") == "done" and req.agent != "orchestrator":
                     self._write(req, None)
                 return TurnResult(submit=action)
-            self._write(req, None if action == "ok" else action)
+            if req.agent != "orchestrator":
+                self._write(req, None if action == "ok" else action)
             return TurnResult(submit=done)
         if isinstance(action, dict):
             return TurnResult(submit=action)

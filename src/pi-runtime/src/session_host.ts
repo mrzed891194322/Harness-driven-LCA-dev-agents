@@ -383,7 +383,13 @@ async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession
     systemPrompt: systemPromptFromSpec(spec),
     extensionFactories: [
       (pi) => {
-        pi.on("tool_call", (event) => guard.onToolCall(event.toolName, event.input as Record<string, unknown>));
+        pi.on("tool_call", (event) => {
+          const input = event.input as Record<string, unknown>;
+          const pathBlock = guard.onToolCall(event.toolName, input);
+          if (pathBlock) return pathBlock;
+          if (settle) return settle.onToolCall(event.toolName, input, () => {});
+          return undefined;
+        });
         // MCP may re-register tools after connect/reconnect; re-wrap prepareArguments.
         pi.on("mcp_servers_change", () => {
           if (sessionRef) installArgCoerceOnSession(sessionRef);

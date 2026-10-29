@@ -1,9 +1,10 @@
 """Inner graph (WORKFLOW_DESIGN §2): one LangGraph StateGraph per queue item, built from the node's agents + flow.
 
 Each graph node = one agent turn: build prompt -> driver.run_turn -> host re-validates the submit -> route.
-Routing reads only the structured submit (status / verdict). Back edges count against ``max``; all turns
-against ``flow.max_steps``. Transport/model errors without a submit are retried once (RetryPolicy).
-No checkpointer: a stopped or crashed node reruns whole (node-level resume in the outer queue).
+Routing reads structured submit (status / verdict), or turn-end for assistants (no submit).
+Back edges count against ``max``. Node-wide ``max_steps`` removed; per-agent ``max_turns`` + optional
+``flow.recursion_limit`` / ``flow.same_tool_limit`` are the fuses. Transport/model errors without a
+submit are retried once (RetryPolicy). No checkpointer: a stopped or crashed node reruns whole.
 """
 from __future__ import annotations
 
@@ -127,14 +128,19 @@ class NodeGraph:
             reason = "redo_needs_reviewer"
         return {"kind": "failed", "reason": sub.get("reason") if sub.get("verdict") == "terminate" else reason}
 
-    def _next(self, agent: str, sub: dict, state: NodeState, update: dict) -> None:
+    def _next(self, agent: str, sub: dict | None, state: NodeState, update: dict) -> None:
         kind = self.node.kind(agent)
-        value = sub.get(SUBMIT_FIELD[kind])
+        if kind is None:
+            value = None  # assistant: unconditional edge only
+            reason_key = "turn_end"
+        else:
+            value = (sub or {}).get(SUBMIT_FIELD[kind])
+            reason_key = str(value)
         edge = next((e for e in self.node.outgoing(agent) if e.when in (value, None)), None)
         if edge is None:
-            update["outcome"] = {"kind": "failed", "reason": f"no_edge: {agent} {value}"}
+            update["outcome"] = {"kind": "failed", "reason": f"no_edge: {agent} {reason_key}"}
             return
-        to, reason, count = edge.to, f"{agent}:{value}", None
+        to, reason, count = edge.to, f"{agent}:{reason_key}", None
         if edge.max is not None:
             counts = dict(state.get("edges") or {})
             key = f"{agent}|{edge.when}"
@@ -160,24 +166,22 @@ class NodeGraph:
                 raise NodeStopped(f"{node.run_key} 被用户停止")
             attempts = dict(state.get("attempts") or {})
             step = int(state.get("step") or 0) + 1
-            if step > node.flow.max_steps:
-                ctx.events.emit("route", agent=agent, step=step, to="failed", reason="max_steps")
-                return {"outcome": {"kind": "failed", "reason": f"max_steps: 超过 {node.flow.max_steps} 轮"}}
             attempt = attempts.get(agent, 0) + 1
             last = dict(state.get("last") or {})
             executor_last = next((v for k, v in last.items() if node.kind(k) == "artifact"), None)
             context = {"redo": ctx.redo, "executor_last": executor_last, "redo_targets": ctx.redo_targets}
-            feedback = state.get("feedback") if kind == "artifact" else None
+            # rework feedback goes to writers: artifact main or conventional executor assistant
+            feedback = state.get("feedback") if (kind == "artifact" or agent == "executor") else None
             prompt = ctx.prompt_builder(node, agent, attempt, feedback, ctx.specs, context)
             submit_context = {
-                "kind": kind, "artifacts_root": str(self.art),
+                "kind": kind or "assistant", "artifacts_root": str(self.art),
                 "produces": [{"path": str(self.art / p.path), "schema": ctx.specs[p.spec].schema_}
                              for p in node.produces] if kind == "artifact" else [],
                 "redo_targets": ctx.redo_targets, "executor_last": executor_last,
             }
             req = TurnRequest(node=node, agent=agent, attempt=attempt, prompt=prompt, workspace=ctx.workspace,
                               run_id=ctx.run_id, session_key=f"{node.run_key}.{agent}",
-                              resume=kind == "artifact" and attempt > 1, step=step,
+                              resume=(kind == "artifact" or agent == "executor") and attempt > 1, step=step,
                               extra={"submit_context": submit_context})
             system_fn = getattr(ctx.prompt_builder, "system", None)
             if system_fn is not None:
@@ -242,10 +246,21 @@ class NodeGraph:
                     raise NodeStopped(f"{node.run_key} 被用户停止（{agent} 第 {attempt} 轮中断）")
                 if result.error and not result.abort_reason and not result.aborted:
                     raise TransientTurnError(result.error)
+                if kind is None and not result.aborted and not result.abort_reason:
+                    # assistant: turn end without submit → unconditional route
+                    attempts[agent] = attempt
+                    update = {"attempts": attempts, "step": step, "last": last,
+                              "history": [{"agent": agent, "attempt": attempt, "assistant_turn_end": True}]}
+                    self._next(agent, None, state, update)
+                    return update
                 why = result.abort_reason or ("aborted" if result.aborted else "no_submit")
                 detail = f"no_submit: {agent} 未成功提交（{why}）" + (f"：{result.error}" if result.error else "")
                 return {"attempts": {**attempts, agent: attempt}, "step": step,
                         "outcome": {"kind": "failed", "reason": detail, "code": why}}
+            if kind is None:
+                return {"attempts": {**attempts, agent: attempt}, "step": step,
+                        "outcome": {"kind": "failed",
+                                    "reason": f"assistant_submit: {agent} 无交卷职责却调用了 submit"}}
             sub = {k: v for k, v in result.submit.items() if k not in ("submitted_at", "agent")}
             attempts[agent] = attempt
             update: dict[str, Any] = {"attempts": attempts, "step": step, "last": {**last, agent: sub},
@@ -268,9 +283,10 @@ class NodeGraph:
                     update["feedback"] = self._write_feedback(attempt, "host_checks",
                                                               "宿主检查未通过，只改这些问题，其他保持不变：\n"
                                                               + "\n".join(f"- {e}" for e in errs))
-                    ev.emit("route", frm=agent, when="checks_failed", to=agent, back_edge_count=checks,
+                    fix = "executor" if ("executor" in node.agents and node.kind("executor") is None) else agent
+                    ev.emit("route", frm=agent, when="checks_failed", to=fix, back_edge_count=checks,
                             max=node.flow.max_check_retries)
-                    update["next"] = agent
+                    update["next"] = fix
                     return update
             if kind == "artifact" and sub["status"] == "redo_upstream":
                 ev.emit("redo_requested", target=sub["target_node"], artifact=sub["artifact"], field=sub["field"])
@@ -294,10 +310,23 @@ class NodeGraph:
         self.ctx.events.emit("feedback_written", attempt=attempt, source=source, path=str(path))
         return text
 
+    def _recursion_limit(self) -> int:
+        """LangGraph fuse: explicit flow.recursion_limit, else derive from per-agent max_turns."""
+        from backend.workflow.config import DEFAULT_MAX_TURNS
+        if self.node.flow.recursion_limit is not None:
+            return self.node.flow.recursion_limit
+        total = 0
+        for name, agent in self.node.agents.items():
+            deliver = agent.definition.deliver
+            turns = agent.max_turns or (deliver.max_turns if deliver else DEFAULT_MAX_TURNS)
+            total += int(turns)
+        # graph steps ≈ agent turns + routing; leave headroom without locking a single magic path
+        return max(total * 2 + 10, 32)
+
     def run(self) -> NodeOutcome:
         init: NodeState = {"node": self.node.id, "rev": self.node.rev, "step": 0, "attempts": {}, "last": {},
                            "history": [], "feedback": None, "edges": {}, "checks": 0, "outcome": None}
-        limit = self.node.flow.max_steps * 2 + 10
+        limit = self._recursion_limit()
         try:
             final = self.graph.invoke(init, {"recursion_limit": limit})
         except NodeStopped as exc:
@@ -306,6 +335,12 @@ class NodeGraph:
             return NodeOutcome("failed", str(exc), fatal=True, code="fatal")
         except TransientTurnError as exc:
             return NodeOutcome("failed", f"transient_error: 重试后仍失败：{exc}", code="transient_error")
+        except Exception as exc:  # noqa: BLE001 — LangGraph GraphRecursionError et al.
+            name = type(exc).__name__
+            if "Recursion" in name or "recursion" in str(exc).lower():
+                return NodeOutcome("failed", f"recursion_limit: 超过 LangGraph 保险丝 {limit}：{exc}",
+                                   code="recursion_limit")
+            raise
         out = final.get("outcome") or {"kind": "failed", "reason": "graph ended without outcome"}
         reason = out.get("reason") or ""
         return NodeOutcome(out["kind"], reason, out.get("redo"), int(final.get("step") or 0),

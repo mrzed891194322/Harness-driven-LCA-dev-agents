@@ -80,9 +80,19 @@ def test_free_agent_keys_and_inline_checker(wf_root):
     assert node.role("writer") == "executor" and node.role("checker") == "reviewer"
 
 
-def test_start_must_be_artifact_agent(wf_root):
-    make_node(wf_root, "a", flow={"start": "reviewer", "edges": [{"from": "reviewer", "when": "approve", "to": "done"}]})
-    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: flow.start 'reviewer' must be an artifact agent"):
+def test_artifact_agent_must_be_reachable_from_start(wf_root):
+    """start may be an assistant; the sole artifact agent must still be reachable before done."""
+    flow = {"start": "reviewer", "edges": [
+        {"from": "reviewer", "when": "approve", "to": "done"},
+        {"from": "reviewer", "when": "reject", "to": "failed"},
+        {"from": "reviewer", "when": "terminate", "to": "failed"},
+        {"from": "reviewer", "when": "approve_redo_upstream", "to": "failed"},
+        {"from": "executor", "when": "done", "to": "done"},
+        {"from": "executor", "when": "blocked", "to": "blocked"},
+        {"from": "executor", "when": "redo_upstream", "to": "failed"},
+    ]}
+    make_node(wf_root, "a", flow=flow)
+    with pytest.raises(ConfigError, match=r"a\.yaml:\d+: artifact agent 'executor' is not reachable"):
         load_node(wf_root, node_ref("a"))
 
 
@@ -136,7 +146,7 @@ def test_short_name_agents_resolve(wf_root):
 
 def test_unknown_agent_name_has_file_and_line(wf_root):
     make_node(wf_root, "a", agents={"executor": "nobody", "reviewer": "reviewer"})
-    with pytest.raises(ConfigError, match=r"nodes/a\.yaml:\d+: unknown agent 'nobody'.*known: executor, reviewer"):
+    with pytest.raises(ConfigError, match=r"nodes/a\.yaml:\d+: unknown agent 'nobody'.*known: executor, orchestrator, reviewer"):
         load_node(wf_root, node_ref("a"))
 
 
@@ -156,8 +166,9 @@ def test_inline_agent_in_node(wf_root):
 
 
 def test_bad_inline_agent_names_file_and_line(wf_root):
-    make_node(wf_root, "a", agents={"executor": {"prompt": "x"}, "reviewer": "reviewer"})
-    with pytest.raises(ConfigError, match=r"nodes/a\.yaml:\d+: inline agent 'executor' needs 'prompt' and 'deliver'"):
+    # missing prompt on inline artifact agent
+    make_node(wf_root, "a", agents={"executor": {"deliver": {"submit": "artifact"}}, "reviewer": "reviewer"})
+    with pytest.raises(ConfigError, match=r"nodes/a\.yaml:\d+: inline agent 'executor' needs 'prompt'"):
         load_node(wf_root, node_ref("a"))
 
 

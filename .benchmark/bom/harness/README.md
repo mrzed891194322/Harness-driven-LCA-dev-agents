@@ -24,12 +24,12 @@ API 开跑仍可用 orch 文件 stem（`workflow: bom-extract-01`）；`list_wor
 | `bom-decomposition-01` | 产品组成（PCFBench task1）真薄 | 已有 |
 | `bom-extract-01` | 无 | **无** | 产品 `executor`；无 skills | 薄短 `bom-claims.yaml` |
 | `bom-extract-02` | 无 | **无**（技能到达用 **agent.rules**） | 产品 `executor` + **`bom-claims-flow`** + `rules/delivery/read-skills-first.yaml` | 同 01：`bom-claims.yaml`（短符号） |
-| `bom-extract-03` | **有** | **无** | **专用** `.benchmark/.../agents/bom-extract-{executor,reviewer}.yaml`；**不挂技能** | 同 01 |
+| `bom-extract-03` | **有** | **无** | **三件套** orch+executor(助手)+reviewer（专用 agent）；**不挂技能** | 同 01 |
 | `bom-extract-04` | **有** | status + provenance + knowledge-files | 产品 agent；executor=`bom-claims-read`+`ops`；reviewer=`bom-claims-review` | 短指针 `bom-claims-best.yaml` |
 
 - **01 真薄**：题面 ≈ 短指令 + 案题 query；交付 claims submit。
 - **02**：同 01 拓扑；挂 `bom-claims-flow` + executor `agent.rules: read-skills-first`（先读技能；**node.inject 仍空**）。技能：轻自检、禁弃权；黑名单仅 h/°C；单位短符号+硬反例；短防多报。**produce 同 01**。unit-phrase 废弃（`f4ff815`）。验收口径：读取率≥90%；NV×02 `--repeat 2` ≥0.54；对照 `…144453` / `…201457`。给法仍官方 query + `reference.md`。
-- **03**：专用薄 agent 编排（职责写在 agent 提示词）；**本档不靠技能抬分**（04 再挂）。对照基线 TAG 记 HOWTO；tip 不开批。
+- **03**：三件套（orchestrator 主交卷 / executor 写作者助手 / reviewer）；LangGraph 强制审核环；**不靠技能抬分**（04 再挂）。tip 不开批。
 - **04 厚注入+reviewer**：技能拆自原 `bom-claims-best`；`bom-claims-best/` 仅兼容别名。
 
 abstention 复用任一 extract stem（`--cases-root .benchmark/bom/abstention`），无单独 abstention orch。

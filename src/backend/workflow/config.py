@@ -77,14 +77,37 @@ class Edge(_Strict):
 
 class Flow(_Strict):
     start: str = "executor"
-    max_steps: int = Field(default=12, ge=1, le=100)  # agent turns per node (all agents)
-    max_check_retries: int = Field(default=3, ge=0, le=20)  # host-check failures sent back to the executor
+    # Node-wide agent-turn cap removed (was max_steps). Use per-agent max_turns + fuses below.
+    recursion_limit: int | None = Field(default=None, ge=1)  # LangGraph fuse; None = derive from agent budgets
+    same_tool_limit: int | None = Field(default=3, ge=0)  # consecutive identical tool calls; 0/None = off
+    max_check_retries: int = Field(default=3, ge=0, le=20)  # host-check failures sent back to the writer
     on_exhausted: Literal["failed", "blocked"] = "failed"
     edges: list[Edge]
 
 
+DEFAULT_MAX_TURNS = 30  # per-agent turn budget default (Deliver.max_turns / assistant fallback)
+
+
 def default_flow(agents: dict) -> dict:
-    """Flow used when a node omits ``flow``: executor -> reviewer (if any) per WORKFLOW_DESIGN §5."""
+    """Flow when a node omits ``flow``.
+
+    - Thin (single writer): executor only.
+    - Review pair: executor ↔ reviewer (reject → executor → reviewer).
+    - Trio (orchestrator + executor + reviewer): executor writes → reviewer; approve → orchestrator
+      (主 agent, artifact submit, no file edits); reject → executor again. LangGraph-enforced.
+    """
+    keys = set(agents)
+    if {"orchestrator", "executor", "reviewer"} <= keys:
+        return {"start": "executor", "edges": [
+            {"from": "executor", "to": "reviewer"},  # assistant: turn end → reviewer
+            {"from": "reviewer", "when": "approve", "to": "orchestrator"},
+            {"from": "reviewer", "when": "reject", "to": "executor", "max": 3},
+            {"from": "reviewer", "when": "approve_redo_upstream", "to": "redo_upstream"},
+            {"from": "reviewer", "when": "terminate", "to": "failed"},
+            {"from": "orchestrator", "when": "done", "to": "done"},
+            {"from": "orchestrator", "when": "blocked", "to": "blocked"},
+            {"from": "orchestrator", "when": "redo_upstream", "to": "reviewer", "max": 2},
+        ]}
     if "reviewer" in agents:
         return {"start": "executor", "edges": [
             {"from": "executor", "when": "done", "to": "reviewer"},
@@ -94,10 +117,11 @@ def default_flow(agents: dict) -> dict:
             {"from": "reviewer", "when": "reject", "to": "executor", "max": 3},
             {"from": "reviewer", "when": "approve_redo_upstream", "to": "redo_upstream"},
             {"from": "reviewer", "when": "terminate", "to": "failed"}]}
-    return {"start": "executor", "edges": [
-        {"from": "executor", "when": "done", "to": "done"},
-        {"from": "executor", "when": "blocked", "to": "blocked"},
-        {"from": "executor", "when": "redo_upstream", "to": "failed"}]}  # redo_needs_reviewer
+    start = "executor" if "executor" in agents else next(iter(agents))
+    return {"start": start, "edges": [
+        {"from": start, "when": "done", "to": "done"},
+        {"from": start, "when": "blocked", "to": "blocked"},
+        {"from": start, "when": "redo_upstream", "to": "failed"}]}  # redo_needs_reviewer
 
 
 class Produce(_Strict):
@@ -120,12 +144,18 @@ class Node(_Strict):
     def run_key(self) -> str:
         return self.id if not self.rev else f"{self.id}@rev{self.rev}"
 
-    def kind(self, agent: str) -> str:
-        """deliver.submit of an agent: ``artifact`` (executor-like) or ``verdict`` (reviewer-like)."""
-        return self.agents[agent].definition.deliver.submit
+    def kind(self, agent: str) -> str | None:
+        """deliver.submit: ``artifact`` | ``verdict`` | ``None`` (assistant, no submit)."""
+        deliver = self.agents[agent].definition.deliver
+        return deliver.submit if deliver is not None else None
 
     def role(self, agent: str) -> str:
-        return "executor" if self.kind(agent) == "artifact" else "reviewer"
+        k = self.kind(agent)
+        if k == "artifact":
+            return "executor"
+        if k == "verdict":
+            return "reviewer"
+        return "assistant"
 
     def outgoing(self, agent: str) -> list[Edge]:
         return [e for e in self.flow.edges if e.from_ == agent]
@@ -156,8 +186,6 @@ def validate_flow(node: Node, path: Path) -> None:
         )
     if flow.start not in agents:
         raise ConfigError(f"{where(r'^\s*start:')}: flow.start {flow.start!r} is not an agent of the node")
-    if node.kind(flow.start) != "artifact":
-        raise ConfigError(f"{where(r'^\s*start:')}: flow.start {flow.start!r} must be an artifact agent (deliver.submit: artifact)")
     states = set(agents) | set(TERMINALS)
     graph: dict[str, set[str]] = {}
     seen: set[tuple[str, str | None]] = set()
@@ -168,7 +196,14 @@ def validate_flow(node: Node, path: Path) -> None:
         if edge.to not in states:
             raise ConfigError(f"{loc}: edge to unknown state {edge.to!r} (agents or {', '.join(TERMINALS)})")
         kind = node.kind(edge.from_)
-        if edge.when is not None and edge.when not in SUBMIT_VALUES[kind]:
+        if kind is None:
+            # assistant: only unconditional edges (turn end → next)
+            if edge.when is not None:
+                raise ConfigError(
+                    f"{loc}: assistant {edge.from_!r} cannot use when={edge.when!r} "
+                    f"(no submit; use unconditional edges)"
+                )
+        elif edge.when is not None and edge.when not in SUBMIT_VALUES[kind]:
             raise ConfigError(f"{loc}: when {edge.when!r} is not a {kind} submit value {SUBMIT_VALUES[kind]}")
         if (edge.from_, edge.when) in seen:
             raise ConfigError(f"{loc}: duplicate edge {edge.from_}/{edge.when or '(unconditional)'}")
@@ -194,6 +229,11 @@ def validate_flow(node: Node, path: Path) -> None:
     reachable = reach(flow.start) | {flow.start}
     if not reachable & {"done"}:
         raise ConfigError(f"{where(r'^\s*(flow|edges):')}: flow cannot reach done")
+    if artifacts[0] not in reachable:
+        raise ConfigError(
+            f"{where(r'^\s*(flow|edges):')}: artifact agent {artifacts[0]!r} is not reachable from "
+            f"flow.start {flow.start!r}"
+        )
     for state in reachable - set(TERMINALS):
         if not graph.get(state):
             raise ConfigError(f"{where(rf'^\s*{re.escape(state)}:')}: agent {state!r} has no outgoing edge")
@@ -265,7 +305,7 @@ class Deliver(_Strict):
     submit: Literal["artifact", "verdict"]
     spec: str | None = None
     max_nudges: int = Field(default=2, ge=0)
-    max_turns: int = Field(default=80, ge=1)
+    max_turns: int = Field(default=DEFAULT_MAX_TURNS, ge=1)
     timeout_min: float = Field(default=120, gt=0)
     max_rejections: int = Field(default=5, ge=1)
 
@@ -274,7 +314,7 @@ class AgentDef(_Strict):
     title: str = ""
     prompt: str
     access: Access = Field(default_factory=Access)
-    deliver: Deliver
+    deliver: Deliver | None = None  # None = assistant (in-flow, no submit)
 
 
 class Rule(_Strict):
@@ -374,9 +414,9 @@ def _normalize_agents(data: dict, path: Path) -> dict[str, "AgentDef"]:
         elif isinstance(value, dict) and "agent" not in value:
             # inline agent: the template fields (prompt / access / deliver / title) live right here
             where = _line_of(path, rf'^\s*{key}:')
-            if "prompt" not in value or "deliver" not in value:
-                raise ConfigError(f"{where}: inline agent {key!r} needs 'prompt' and 'deliver' "
-                                  f"(or give a template name: `{key}: executor`)")
+            if "prompt" not in value:
+                raise ConfigError(f"{where}: inline agent {key!r} needs 'prompt' "
+                                  f"(omit deliver for assistant; or give a template name: `{key}: executor`)")
             tpl = {k: value[k] for k in ("title", "prompt", "access", "deliver") if k in value}
             try:
                 definition = AgentDef.model_validate(tpl)
@@ -425,9 +465,13 @@ def _build_node(root: Path, data: dict, path: Path) -> Node:
     validate_flow(node, path)
     for produce in node.produces:
         if not produce.spec:
-            default = node.agents[node.flow.start].definition.deliver.spec
+            artifact = next(n for n, a in node.agents.items() if node.kind(n) == "artifact")
+            deliver = node.agents[artifact].definition.deliver
+            default = deliver.spec if deliver else None
             if not default:
-                raise ConfigError(f"{path}: produces {produce.path!r} has no spec and the executor agent has no deliver.spec")
+                raise ConfigError(
+                    f"{path}: produces {produce.path!r} has no spec and the artifact agent has no deliver.spec"
+                )
             produce.spec = default
     return node
 

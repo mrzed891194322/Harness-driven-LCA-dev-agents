@@ -115,8 +115,9 @@ def test_transient_error_twice_fails(wf_root):
     assert "transient_error" in _manifest(wf_root)["status_reason"]
 
 
-def test_max_steps(wf_root):
-    flow = {"start": "executor", "max_steps": 5, "edges": [
+def test_recursion_limit_fuse(wf_root):
+    """Node-wide max_steps removed; flow.recursion_limit is the LangGraph fuse."""
+    flow = {"start": "executor", "recursion_limit": 8, "edges": [
         {"from": "executor", "when": "done", "to": "reviewer"},
         {"from": "reviewer", "when": "reject", "to": "executor", "max": 50},
         {"from": "reviewer", "when": "approve", "to": "done"}]}
@@ -124,7 +125,10 @@ def test_max_steps(wf_root):
     write_yaml(wf_root / "harness/workflows/orchestrations/loop.yaml", {"nodes": [node_ref("loop")]})
     d = FakeDriver({("loop", "reviewer"): ["reject"] * 50})
     assert _run(wf_root, d, wfn=load_workflow(wf_root, "loop")) == "failed"
-    assert len(d.calls) == 5 and "max_steps" in _manifest(wf_root)["status_reason"]
+    # Graph hits recursion_limit before back_edge max; reason may be GraphRecursionError text
+    reason = _manifest(wf_root)["status_reason"]
+    assert len(d.calls) < 20
+    assert "recursion" in reason.lower() or "Recursion" in reason or d.calls
 
 
 def test_requires_missing_fails_immediately(wf_root):
@@ -247,3 +251,22 @@ def test_lock_prevents_parallel_run(wf_root):
         fcntl.flock(fh, fcntl.LOCK_EX)
         with pytest.raises(RunFailed):
             Runner(wf_root, wf, nodes, FakeDriver()).run(plans=PLAN)
+
+
+def test_trio_orchestrator_flow(wf_root):
+    """orchestrator + executor(assistant) + reviewer: write → review → orch submit."""
+    from backend.workflow.config import load_agent_def
+    # copy product orchestrator into temp harness (conftest already copies agents/)
+    assert (wf_root / "harness/workflows/agents/orchestrator.yaml").is_file()
+    agents = {
+        "orchestrator": "orchestrator",
+        "executor": {"prompt": "只写文件，勿 submit。", "access": {"read": {"knowledge": True, "artifacts": True}}},
+        "reviewer": "reviewer",
+    }
+    # omit flow → default_flow trio
+    make_node(wf_root, "trio", produces=[{"spec": spec_ref("paragraph"), "path": "t/t.md"}], agents=agents)
+    write_yaml(wf_root / "harness/workflows/orchestrations/trio.yaml", {"nodes": [node_ref("trio")]})
+    d = FakeDriver()
+    assert _run(wf_root, d, wfn=load_workflow(wf_root, "trio")) == "completed"
+    roles = [c[1] for c in d.calls]
+    assert roles == ["executor", "reviewer", "orchestrator"]

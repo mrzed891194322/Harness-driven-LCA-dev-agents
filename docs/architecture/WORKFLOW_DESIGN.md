@@ -78,7 +78,10 @@ class NodeState(TypedDict):
 - 条件边 `{from, when: <verdict|status>, to}`；`when` 只能是该 agent 提交 schema 里的枚举值（见 §3），路由函数只读 `state["last"][from]["status"|"verdict"]`。
 - `join`: `{from: [a, b], to: c}`（并行 agent 汇合，LangGraph 原生 fan-in；当前 LCA 节点用不到，保留语法）。
 - 回边（指向已执行过的节点）必须带 `max: <n>`，超过则走 `on_exhausted` 目标（默认 `failed`，原因 `back_edge_limit`）。
-- `max_steps`（默认 12）：全节点 agent 轮数上限，超过 → `failed: max_steps`（作为 LangGraph `recursion_limit` 之外的显式检查）。
+- **已删除**节点共用 `max_steps`。每 agent 各自 `max_turns`（默认 30）。
+- `flow.recursion_limit`（可选）：LangGraph 递归保险丝；省略则按各 agent `max_turns` 推导。
+- `flow.same_tool_limit`（默认 3，`0` 关闭）：连续相同工具+参数调用熔断 → `same_tool_limit`。
+- 允许无交卷助手（`deliver` 省略）进 flow：回合结束走无条件边。
 - 终点：`done`、`failed`、`blocked`、`redo_upstream`，映射为图的 `END` 并在 state.outcome 里记种类。
 **重试**：仅对"传输/模型错误"（`TurnResult.error` 且非 fatal、无 submit）用 `RetryPolicy(max_attempts=2, retry_on=TransientTurnError)`；没有提交、鉴权失败等不重试。
 **YAML 错误**：沿用 `config.py` 的 `ConfigError` + `_line_of`，所有错误带 `file:line`：未知 agent、条件值不在枚举、回边缺 `max`、终点不可达、`when` 与无条件边混用同一 from 等。
@@ -152,6 +155,13 @@ upstream:
 ```
 生成的 prompt 固定加一句：「凡是你自己能在本节点修正的问题，不得报告 blocked，也不得请求回溯上游；只有满足上面判据时才用 redo_upstream，并给出证据。」reviewer 的提示同理："不满足判据的回溯请求一律 reject。"
 
+
+### 默认三件套（有编排节点）
+
+有编排的节点默认最佳实践：**orchestrator**（主 agent，`submit: artifact`，不改文件）+ **executor**（写产物；可无 `deliver` = 助手）+ **reviewer**（`submit: verdict`）。
+LangGraph **强制**：executor 做完 → reviewer；`reject` → executor → 再 reviewer；`approve` → orchestrator 汇总交卷 → `done`。
+薄档（如 bom-extract-01/02）仍可单 executor。可自由编排；不要更死的骨架开关。节点间 `max_redos` / 断线 Retry 与回合预算分开。
+
 ## 5. YAML 示例（三层）
 
 ```yaml
@@ -193,7 +203,7 @@ agents:
     deliver: {submit: verdict}
 flow:
   start: executor
-  max_steps: 12
+  # recursion_limit / same_tool_limit 可选；默认 same_tool_limit=3
   edges:
     - {from: executor, when: done, to: reviewer}
     - {from: executor, when: blocked, to: blocked}
@@ -258,7 +268,7 @@ events.jsonl 每行一个结构化记录；GUI 活动流直接用这些记录（
 
 1. 依赖与骨架：加 `langgraph`；LangSmith 显式关闭 + doctor 检查；新 `flow` 模型与 YAML 校验（file:line）；旧 Flow 删除；全部节点 YAML 重写。
 2. submit 新 schema（MCP + 宿主双校验），`approve_redo_upstream` 前置条件。
-3. 内层图：`node_graph.py` 构建 StateGraph，调用 `run_turn`，RetryPolicy，max_steps / 回边 max。
+3. 内层图：`node_graph.py` 构建 StateGraph，调用 `run_turn`，RetryPolicy，recursion_limit / same_tool_limit / 回边 max。
 4. 外层队列：`runner.py` 重写为队列 + redo 追加 + `max_redos` + rev 目录/命名 + `queue.json` 续跑；revise-lca 改 `start_rev: next`，删 `revisions.py` 多余部分。
 5. spec `upstream` 段 + `<redo_policy>` prompt 生成。
 6. 事件与活动流（#1）：统一 events schema + seq；progress API 改 items；前端切换（外观不变）；删 progress_view。
@@ -281,7 +291,7 @@ events.jsonl 每行一个结构化记录；GUI 活动流直接用这些记录（
 | 回溯目标非法 | submit 被 MCP 拒收（target 不在之前） |
 | 未提交 | failed: no_submit（及 max_turns/timeout 细分） |
 | 传输错误重试 | 第一次 TransientTurnError，RetryPolicy 重试后通过 |
-| max_steps | 无限回边被 max_steps 截断 |
+| recursion_limit / same_tool_limit | LangGraph 保险丝与连续同工具熔断 |
 | YAML 错误 | 未知 when、回边无 max、终点不可达、未知 agent 名 → 报错含 `file:line` |
 | 续跑 | 中途停止后从 queue.json 第一个未完成项继续，已过节点不重跑 |
 | LangSmith 关闭 | 运行时环境变量为 false，无外部请求 |

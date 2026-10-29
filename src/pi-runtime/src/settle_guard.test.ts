@@ -150,3 +150,38 @@ test("failed model requests do not count toward max_turns; exhausted retries giv
   assert.match(last.detail ?? "", /lca-mapping \/ executor 的模型请求重试 2 次后仍失败.*503/);
   g.clear();
 });
+
+test("same_tool_limit blocks consecutive identical tool calls", () => {
+  const g = new SettleGuard({
+    submit_file: "/nope",
+    max_nudges: 2,
+    max_turns: 30,
+    timeout_min: 1,
+    max_rejections: 5,
+    model_retry_delays_s: [1],
+    require_submit: true,
+    same_tool_limit: 3,
+  });
+  g.begin(() => {});
+  assert.equal(g.onToolCall("read", { path: "a" }), undefined);
+  assert.equal(g.onToolCall("read", { path: "a" }), undefined);
+  const block = g.onToolCall("read", { path: "a" });
+  assert.equal(block?.block, true);
+  assert.match(block!.reason, /same_tool_limit/);
+  assert.equal(g.summary().abort_reason, "same_tool_limit");
+});
+
+test("require_submit false settles without submit file", async () => {
+  const g = new SettleGuard({
+    submit_file: "/nope",
+    max_nudges: 2,
+    max_turns: 30,
+    timeout_min: 1,
+    max_rejections: 5,
+    model_retry_delays_s: [1],
+    require_submit: false,
+    same_tool_limit: 0,
+  });
+  g.begin(() => {});
+  assert.equal(await g.beforeSettle(), undefined);
+});

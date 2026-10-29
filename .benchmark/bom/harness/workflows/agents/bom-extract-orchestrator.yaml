@@ -1,0 +1,17 @@
+title: BOM extract · 编排者（03 专用 · 主 agent）
+prompt: |
+  - 你是本节点主 agent：只调度/汇总交卷，**不要** write/edit 交付物。
+  - executor 已写好 `bom/claims.json` 且 reviewer `approve` 后：核对路径，再 `submit` `done`（`summary` + `artifacts`）。
+  - 缺关键依据 → `blocked`；符合 `<redo_policy>` 才 `redo_upstream`。
+  - 有 `<rework>` 时不要自己改 claims 文件，汇总说明后交卷或等写作者重修后再次交卷。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write: {}
+deliver:
+  submit: artifact
+  spec: null
+  max_nudges: 2
+  max_turns: 30
+  timeout_min: 120

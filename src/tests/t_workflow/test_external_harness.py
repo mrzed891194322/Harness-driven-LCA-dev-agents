@@ -57,7 +57,7 @@ def test_bom_extract_tier_switches():
     _, n04 = load_workflow(REPO, "bom-extract-04")
     assert set(n01[0].agents) == {"executor"}
     assert set(n02[0].agents) == {"executor"}  # 02: still no reviewer
-    assert set(n03[0].agents) == {"executor", "reviewer"}  # 03: dedicated agents
+    assert set(n03[0].agents) == {"orchestrator", "executor", "reviewer"}  # 03: trio
     assert set(n04[0].agents) == {"executor", "reviewer"}
     assert n01[0].inject == n02[0].inject == n03[0].inject == []
     thick_inject = [
@@ -85,17 +85,24 @@ def test_bom_extract_tier_switches():
     assert n02[0].agents["executor"].agent == "executor"
     assert n01[0].agents["executor"].rules == []
     assert n02[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml"]
-    assert n03[0].agents["executor"].rules == []  # 03 HOLD: no read-skills-first this tip
+    assert n03[0].agents["orchestrator"].rules == []
+    assert n03[0].agents["executor"].rules == []
     rsf = load_rule(REPO, "rules/delivery/read-skills-first.yaml")
     assert rsf.applies_to == ["executor"] and "先读" in rsf.prompt
-    # 03: path-ref dedicated agents, no skills
+    # 03: trio — orchestrator (artifact) + executor (assistant writer) + reviewer; no skills
+    assert n03[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator.yaml")
     assert n03[0].agents["executor"].agent.endswith("bom-extract-executor.yaml")
     assert n03[0].agents["reviewer"].agent.endswith("bom-extract-reviewer.yaml")
     assert n03[0].agents["executor"].tools.skills == []
     assert n03[0].agents["reviewer"].tools.skills == []
-    assert "执行者" in n03[0].agents["executor"].definition.title or "executor" in n03[0].agents["executor"].definition.title.lower() or "执行" in n03[0].agents["executor"].definition.prompt
-    assert n03[0].agents["executor"].definition.deliver.submit == "artifact"
+    assert n03[0].agents["orchestrator"].tools.skills == []
+    assert n03[0].kind("orchestrator") == "artifact"
+    assert n03[0].kind("executor") is None  # assistant
+    assert n03[0].kind("reviewer") == "verdict"
+    assert n03[0].flow.start == "executor"
     assert n03[0].agents["reviewer"].definition.deliver.submit == "verdict"
+    assert n03[0].agents["orchestrator"].definition.deliver.submit == "artifact"
+    assert n03[0].agents["executor"].definition.deliver is None
     assert n04[0].agents["executor"].tools.skills == thick_skills
     assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
 

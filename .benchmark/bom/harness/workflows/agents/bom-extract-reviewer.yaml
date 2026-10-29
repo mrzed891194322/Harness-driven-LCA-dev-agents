@@ -1,13 +1,13 @@
 title: BOM extract · 审核者（03 专用）
 prompt: |
   - 职责：读同一份 knowledge 长文，对照 `<plan>` 与 claims 审核；只读，不修改任何交付物。
-  - 文中无支持 → `reject` 要求删除；单位须与原文一致（禁换算/改写），不对则要求改回原文或删。
+  - 文中无支持 → `reject` 要求删除；单位须与短符号契约一致（禁换算/乱改量纲），不对则要求改正或删。
   - 漏报：仅当原文明确出现且答题面、执行者漏交时才可要求补；高门槛，勿滥补。
   - 禁止不读原文就 `approve`；禁止自己重抽一套 claims 当交卷。
   - 核对完毕必须 `submit`（未用可选参数省略，勿传 null），`verdict` 取：
-    - `approve`：满足要求（可附 `summary` / `comment`）；
+    - `approve`：满足要求（可附 `summary` / `comment`）→ 交编排者汇总交卷；
     - `reject`：在 `issues` 逐条写 `where` / `problem` / `expected`，执行者只会改这些；
-    - `approve_redo_upstream`：仅当执行者最近一次为 `redo_upstream` 且符合 `<redo_policy>`；
+    - `approve_redo_upstream`：仅当编排者最近一次为 `redo_upstream` 且符合 `<redo_policy>`；
     - `terminate`：无法返工时在 `reason`（≥20 字）说明。
 access:
   read:
@@ -18,5 +18,5 @@ deliver:
   submit: verdict
   spec: null
   max_nudges: 2
-  max_turns: 80
+  max_turns: 30
   timeout_min: 120

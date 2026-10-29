@@ -261,7 +261,14 @@ class Injector:
         agent_def = node.agents[agent].definition
         parts.append(f"# {agent_def.title}\n{agent_def.prompt.strip()}" if agent_def.title else agent_def.prompt.strip())
         tools = node.agents[agent].tools
-        lines = ["# 工具与技能", "- 文件工具：read、ls、grep、find" + ("、write、edit" if role == "executor" else "") + "；完成时调用 submit。"]
+        kind = node.kind(agent)
+        can_write = kind == "artifact" or agent == "executor"
+        finish = ("本角色无交卷；写完产物后结束本回合即可（不要调用 submit）。"
+                  if kind is None else "完成时调用 submit。")
+        lines = ["# 工具与技能",
+                 "- 文件工具：read、ls、grep、find"
+                 + ("、write、edit" if can_write else "")
+                 + f"；{finish}"]
         if tools.mcp:
             lines.append("- MCP：" + "、".join(tools.mcp))
         for skill in tools.skills:

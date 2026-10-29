@@ -9,7 +9,8 @@ description: >-
 
 `harness/` 是工作流装配图和注入内容，不是 Python 编排实现。编排引擎在 `src/backend/core/`。要改加载、派工或界面时，改读 `.agents/skills/code-dev/SKILL.md`。
 
-两份工作流各自完整，互不引用：`src/backend/workflows/LCA-main.yaml`（`whole-lca`）和 `src/backend/workflows/LCA-revise.yaml`（`revise-lca`）。YAML 只写 ID 和路径，不写任务正文。自然语言只放 `rules/`，机器契约只放 `specs/`，两者冲突时以 spec 为准。GUI 里的用户改动写 `harness/.user/<相对路径>`，不进 git；没有用户版时用仓库里的默认文件。编排画布只读，改元素就是改这些文件。
+编排在 `harness/workflows/`（`orchestrations/` / `nodes/` / `agents/`）。YAML 只写 ID 和路径，不写任务长文。自然语言放 `rules/`，机器契约放 `specs/`，冲突以 spec 为准。
+**默认最佳实践**：有编排节点用三件套（不改文件的 orchestrator 作主 agent + executor 写产物 + reviewer）；薄档可单 executor。详见 [references/workflow.md](references/workflow.md)。
 
 先确定要动的元素，只读那一份参考：
 

@@ -12,5 +12,5 @@ deliver:
   submit: artifact
   spec: null
   max_nudges: 2
-  max_turns: 80
+  max_turns: 30
   timeout_min: 120

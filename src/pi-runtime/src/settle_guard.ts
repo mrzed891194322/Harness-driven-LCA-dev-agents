@@ -19,13 +19,17 @@ export interface SettlePolicy {
   model_retry_delays_s: number[];
   node?: string;
   agent?: string;
+  /** When false (assistant), turn may end without submit. Default true. */
+  require_submit?: boolean;
+  /** Consecutive identical tool+args calls before abort. 0 = off. Default 3 from host. */
+  same_tool_limit?: number;
 }
 
 export interface SettleSummary {
   submitted: boolean;
   nudges: number;
   turns: number;
-  abort_reason: "" | "max_turns" | "timeout" | "too_many_rejections" | "model_error";
+  abort_reason: "" | "max_turns" | "timeout" | "too_many_rejections" | "model_error" | "same_tool_limit";
   model_errors: number;
   rejections: number;
   log: { ts: string; kind: string; detail?: string }[];
@@ -45,6 +49,8 @@ export function settlePolicyOf(turnContext: Record<string, unknown> | undefined)
     node: typeof raw.node === "string" ? raw.node : undefined,
     agent: typeof raw.agent === "string" ? raw.agent : undefined,
     model_retry_delays_s: Array.isArray(raw.model_retry_delays_s) ? raw.model_retry_delays_s.map(Number) : [10, 30, 60],
+    require_submit: raw.require_submit !== false,
+    same_tool_limit: Number(raw.same_tool_limit ?? 0),
   };
 }
 
@@ -56,6 +62,8 @@ export class SettleGuard {
   private log: SettleSummary["log"] = [];
   private seenRejections = 0;
   private modelErrors = 0;
+  private lastToolFp = "";
+  private sameToolStreak = 0;
   /** Live listener for each log entry (I-31): pi-runtime streams it to the host as it happens. */
   notify: ((entry: { ts: string; kind: string; detail?: string }) => void) | null = null;
   private lastError = "";
@@ -90,6 +98,8 @@ export class SettleGuard {
     this.log = [];
     this.modelErrors = 0;
     this.lastError = "";
+    this.lastToolFp = "";
+    this.sameToolStreak = 0;
     this.seenRejections = this.rejections();
     this.clear();
     const ms = this.policy.timeout_min * 60_000;
@@ -114,10 +124,33 @@ export class SettleGuard {
     }
   }
 
-  private abort(reason: "max_turns" | "timeout" | "too_many_rejections", abort: () => void): void {
+  /** Consecutive identical tool calls (name+args). Returns block reason when limit hit. */
+  onToolCall(toolName: string, input: Record<string, unknown>, abort?: () => void): { block: true; reason: string } | undefined {
+    const limit = this.policy.same_tool_limit ?? 0;
+    if (!limit || limit < 1) return undefined;
+    let fp = toolName;
+    try {
+      fp = `${toolName}:${JSON.stringify(input, Object.keys(input).sort())}`;
+    } catch {
+      fp = `${toolName}:[unstringifiable]`;
+    }
+    if (fp === this.lastToolFp) this.sameToolStreak += 1;
+    else {
+      this.lastToolFp = fp;
+      this.sameToolStreak = 1;
+    }
+    if (this.sameToolStreak >= limit) {
+      const reason = `same_tool_limit: 连续 ${this.sameToolStreak} 次相同工具调用（${toolName}）`;
+      this.abort("same_tool_limit", abort ?? (() => {}), reason);
+      return { block: true, reason };
+    }
+    return undefined;
+  }
+
+  private abort(reason: "max_turns" | "timeout" | "too_many_rejections" | "same_tool_limit", abort: () => void, detail?: string): void {
     if (this.abortReason) return;
     this.abortReason = reason;
-    this.note("abort", reason);
+    this.note("abort", detail || reason);
     try {
       abort();
     } catch {
@@ -140,6 +173,7 @@ export class SettleGuard {
   /** agent_before_settle handler body. */
   async beforeSettle(): Promise<{ entries?: any[]; continue?: boolean } | undefined> {
     if (this.abortReason || this.submitted()) return undefined;
+    if (this.policy.require_submit === false) return undefined; // assistant: no submit required
     if (this.lastError) {
       // A provider error is not a missing submit: retry after a wait without spending a nudge.
       const err = this.lastError;

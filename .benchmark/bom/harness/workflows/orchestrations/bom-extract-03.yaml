@@ -1,5 +1,5 @@
 id: bom-extract-03
-title: BOM 数量抽取（03 · 专用 agent 编排）
+title: BOM 数量抽取（03 · 三件套：orch + executor + reviewer）
 max_redos: 0
-# executor / reviewer = .benchmark 专用薄 agent（无挂技能）；给法仍官方 query + reference.md
+# orchestrator=主交卷；executor=写作者助手（无 submit）；reviewer=verdict；给法仍官方 query + reference.md
 nodes: [.benchmark/bom/harness/workflows/nodes/bom-extract-03.yaml]
