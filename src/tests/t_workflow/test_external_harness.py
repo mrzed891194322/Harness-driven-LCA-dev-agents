@@ -67,20 +67,19 @@ def test_bom_extract_tier_switches():
     ]
     assert n04[0].inject == thick_inject
     shared_spec = ".benchmark/bom/harness/specs/bom-claims.yaml"
-    spec02 = ".benchmark/bom/harness/specs/bom-claims-02.yaml"
     phrase_spec = ".benchmark/bom/harness/specs/bom-claims-unit-phrase.yaml"
-    # 01/03 共享薄 bom-claims.yaml（短符号）；02 单独 bom-claims-02.yaml（原文单位短语；无宿主闸）
-    assert n01[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
-    assert n02[0].produces[0].spec == spec02
+    # 01/02/03 共用 bom-claims.yaml（unit=原文短语；无宿主闸）；同义表只在 02 技能
+    assert n01[0].produces[0].spec == n02[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
     shared = load_spec(REPO, shared_spec)
-    loaded02 = load_spec(REPO, spec02)
     phrase = load_spec(REPO, phrase_spec)
-    assert "短符号" in shared.prompt
-    assert "原文单位短语" in loaded02.prompt and "同义表" in loaded02.prompt
-    assert shared.checks == [] and loaded02.checks == []
+    assert "原文单位短语" in shared.prompt
+    assert "短符号" not in shared.prompt
+    assert "无量纲" in shared.prompt and '"-"' in shared.prompt
+    assert "同义表" not in shared.prompt  # synonym table stays in 02 skill, not shared spec
+    assert shared.checks == []
     assert "废弃" in phrase.prompt or "deprecated" in phrase.prompt.lower()
     abstain = "有依据则填 claims；信息不足则 `abstained: true` 且 `claims: []`，不要编造"
-    assert abstain in shared.prompt and abstain in loaded02.prompt
+    assert abstain in shared.prompt
     assert n04[0].produces[0].spec == (
         ".benchmark/bom/harness/specs/bom-claims-best.yaml"
     )
