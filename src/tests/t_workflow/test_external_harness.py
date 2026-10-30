@@ -69,9 +69,8 @@ def test_bom_extract_tier_switches():
     shared_spec = ".benchmark/bom/harness/specs/bom-claims.yaml"
     spec_02 = ".benchmark/bom/harness/specs/bom-claims-02.yaml"
     phrase_spec = ".benchmark/bom/harness/specs/bom-claims-unit-phrase.yaml"
-    # 01/03 共享薄 bom-claims.yaml；02 独绑 bom-claims-02.yaml（同 schema + checks）
-    assert n01[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
-    assert n02[0].produces[0].spec == spec_02
+    # 01/02/03 共享薄 bom-claims.yaml；bom-claims-02.yaml 保留但 02 暂不绑（题意锚定 tip）
+    assert n01[0].produces[0].spec == n02[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
     shared = load_spec(REPO, shared_spec)
     loaded_02 = load_spec(REPO, spec_02)
     phrase = load_spec(REPO, phrase_spec)
@@ -91,7 +90,7 @@ def test_bom_extract_tier_switches():
     thick_skills = ["bom-claims-read", "bom-claims-ops"]
     assert n01[0].agents["executor"].tools.skills == []
     assert n02[0].agents["executor"].tools.skills == ["bom-claims-flow"]
-    assert n02[0].agents["executor"].tools.mcp == ["bom_claims_check"]
+    assert n02[0].agents["executor"].tools.mcp == []
     assert n01[0].agents["executor"].tools.mcp == []
     assert n03[0].agents["orchestrator"].tools.mcp == []
     assert n02[0].agents["executor"].agent == "executor"

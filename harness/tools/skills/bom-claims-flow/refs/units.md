@@ -1,6 +1,6 @@
 # 单位：对齐 produce / schema 短符号（含硬反例）
 
-契约以 **`.benchmark/bom/harness/specs/bom-claims-02.yaml`**（02；schema 同 `bom-claims.yaml`）为准：`unit` 用短符号（`g` / `kg` / `%` / `lbs` / `kg/ha` / `MJ/kg` 等），与 exact_tuple / PCFBench `unit_norm` 金标对齐。
+契约以 **`.benchmark/bom/harness/specs/bom-claims.yaml`** 为准：`unit` 用短符号（`g` / `kg` / `%` / `lbs` / `kg/ha` / `MJ/kg` 等），与 exact_tuple / PCFBench `unit_norm` 金标对齐。
 
 ## 规则
 
