@@ -186,8 +186,18 @@ def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> 
     return status, warns, struct
 
 
-def check_claims_payload(data: Any, *, sources: Iterable[str] | None = None) -> dict[str, Any]:
-    """Warn-only check. Returns status/warnings; never mutates ``data``."""
+def check_claims_payload(
+    data: Any,
+    *,
+    sources: Iterable[str] | None = None,
+    expected_count: int | None = None,
+) -> dict[str, Any]:
+    """Warn-only check. Returns status/warnings; never mutates ``data``.
+
+    ``expected_count`` is the agent-declared N from the question-facing short
+    checklist (never gold). When provided and claim count differs, warn only.
+    When omitted/None, skip the count check and remind that N was not supplied.
+    """
     src = [_squash(s) for s in sources] if sources is not None else None
     warnings: list[str] = []
     structural: list[str] = []
@@ -205,6 +215,29 @@ def check_claims_payload(data: Any, *, sources: Iterable[str] | None = None) -> 
         structural.append("abstained=true 但 claims 非空；二者不一致")
     if not abstained and not claims:
         warnings.append("claims 为空且未 abstained；确认原文是否确无可答数字")
+
+    # Count check: warn-only; N from question checklist only (never gold / hard gate).
+    if expected_count is None:
+        warnings.append(
+            "未提供 expected_count（题面短清单 N）；跳过条数核对。"
+            "调用时传入 expected_count=清单条数（可枚举时）。"
+        )
+    elif not isinstance(expected_count, int) or isinstance(expected_count, bool) or expected_count < 0:
+        warnings.append(
+            f"expected_count={expected_count!r} 非法（应为非负整数）；跳过条数核对"
+        )
+    elif abstained is True:
+        # abstained empty set: count mismatch vs positive N is still useful signal
+        if expected_count != 0 and len(claims) != expected_count:
+            warnings.append(
+                f"abstained=true 且 claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
+                f"检查是否应交付非空 claims（勿按告警批量删条）"
+            )
+    elif len(claims) != expected_count:
+        warnings.append(
+            f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
+            f"检查多报或漏报（勿按告警批量删条）"
+        )
 
     for i, claim in enumerate(claims):
         where = f"claims[{i}]"
@@ -234,7 +267,12 @@ def _result(status: str, warnings: list[str], structural: list[str], per_claim: 
     }
 
 
-def check_claims_file(path: Path, *, sources: Iterable[str] | None = None) -> dict[str, Any]:
+def check_claims_file(
+    path: Path,
+    *,
+    sources: Iterable[str] | None = None,
+    expected_count: int | None = None,
+) -> dict[str, Any]:
     """Load JSON at ``path`` and run :func:`check_claims_payload` (read-only)."""
     try:
         text = path.read_text(encoding="utf-8")
@@ -246,4 +284,4 @@ def check_claims_file(path: Path, *, sources: Iterable[str] | None = None) -> di
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         return _result("unavailable", [], [f"JSON 无法解析：{exc}"], [], 0)
-    return check_claims_payload(data, sources=sources)
+    return check_claims_payload(data, sources=sources, expected_count=expected_count)
