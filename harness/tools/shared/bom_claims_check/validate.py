@@ -1,12 +1,13 @@
 """Read-only BOM claims check (warn-only). Never deletes or rewrites claims.
 
 Each numeric claim is compared with its own ``evidence`` quote:
-- the unit string must occur in the evidence (case-sensitive, whole-token);
+- the unit string (source unit phrase) must occur in the evidence
+  (case-sensitive, whole-token / word-boundary; not forced to short symbols);
 - the value must occur as a number near that unit (exact, no float tolerance);
 - optionally, the evidence quote is located in source texts.
 
 Results are *status*, not correctness: ``checked`` means the check ran, not that
-the claim is right. Nothing here references gold answers or scorer unit tables.
+the claim is right. Does not apply the scorer synonym table or rewrite units.
 """
 from __future__ import annotations
 
@@ -165,7 +166,8 @@ def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> 
     elif not spans:
         status["value_unit"] = "unit_not_verbatim"
         warns.append(
-            f"{cid}: unit {unit!r} 未在 evidence 中逐字出现；请确认它与引文中的原单位写法对应"
+            f"{cid}: unit {unit!r} 未在 evidence 中作为原文单位短语逐字出现"
+            f"（整词边界）；请照抄引文中的单位短语，勿压成短符号"
         )
     else:
         all_spans = [(s, e) for (_, s, e) in nums]

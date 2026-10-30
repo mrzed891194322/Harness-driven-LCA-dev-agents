@@ -87,3 +87,19 @@ def test_file_roundtrip_no_write(tmp_path: Path):
     assert path.read_bytes() == raw and path.stat().st_mtime_ns == mtime
     assert result["status"] == "checked"
     assert check_claims_file(tmp_path / "nope.json")["status"] == "unavailable"
+
+
+def test_source_unit_phrase_verbatim():
+    """unit must be the source phrase (word-boundary); short symbols that drop qualifiers warn."""
+    ok = {"claim_id": "a", "value": 12, "unit": "kg N/ha", "evidence": "f.md T1: rate 12 kg N/ha"}
+    assert not _one(ok)["warnings"] and _one(ok)["claims"][0]["value_unit"] == "near"
+    short = {"claim_id": "a", "value": 12, "unit": "kg/ha", "evidence": "f.md T1: rate 12 kg N/ha"}
+    out = _one(short)
+    assert out["warnings"] and out["claims"][0]["value_unit"] == "unit_not_verbatim"
+    phrase = {
+        "claim_id": "a",
+        "value": 0.4,
+        "unit": "% of dissolved tin",
+        "evidence": "share is 0.4 % of dissolved tin",
+    }
+    assert not _one(phrase)["warnings"]

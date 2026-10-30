@@ -67,7 +67,7 @@ items:
 ## 3. 01 / 02 / 03 extract 档怎么跑
 
 01 = 真薄：无 reviewer / 无 skills / 无 node.inject；全局交卷规则仍由宿主注入。  
-**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 挂 `bom-claims-flow` + executor `rules: [rules/delivery/read-skills-first.yaml]`（先读已挂技能；**node.inject 仍空**）+ 薄 MCP `bom_claims_check`（`check_claims` 对照 evidence 核 value/unit、定位引文；**只告警、禁自动删、无宿主闸**）。技能（重构版，单 SKILL 无 refs）：只交所问；unit 短符号、原文写法在 evidence；evidence 可回源，原文不足标 `[推断]`；有数字就交、全无才弃权；无黑名单/单位例表/反例/金标口径。**produce**：`bom-claims.yaml`（与 01/03 同 schema，`checks: []`；`bom-claims-02.yaml` 已删）。`bom-claims-unit-phrase.yaml` 已废弃（`f4ff815`）。新分作新基线，不与旧技能逐项比。  
+**01→02**：同拓扑、同给法（官方 query + `reference.md`）；02 挂 `bom-claims-flow` + executor `rules: [rules/delivery/read-skills-first.yaml]`（先读已挂技能；**node.inject 仍空**）+ 薄 MCP `bom_claims_check`（`check_claims` 对照 evidence 核 value/原文单位短语、定位引文；**只告警、禁自动删、无宿主闸**）。技能（重构版，单 SKILL）：只交所问；**unit 照抄原文单位短语**（含限定语）；附评分器 `UNIT_NORMALIZATION` 同义表（规则词汇、非金标）；evidence 可回源，原文不足标 `[推断]`；有数字就交、全无才弃权；无黑名单/反例/金标答案。**produce**：`bom-claims-02.yaml`（与 01 同 schema，`checks: []`；01/03 仍用 `bom-claims.yaml` 短符号）。`bom-claims-unit-phrase.yaml` 仍为历史废弃档（`f4ff815`），勿再绑。新分作新基线，不与旧技能逐项比。  
 **02→03**：给法不变；**三件套** `orchestrator`+`executor`(助手无 submit)+`reviewer`（专用 `.benchmark/.../agents/bom-extract-*.yaml`）；LangGraph 强制 executor↔reviewer→orch 交卷；**不挂技能**。对照基线另记；钉 tip **先不开批**。  
 **04**：厚注入（read+ops）+ reviewer（另档）。
 
