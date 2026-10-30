@@ -57,7 +57,8 @@ def _default_prompt(node: Node, agent: str, attempt: int, feedback: str | None, 
                     context: dict | None = None) -> str:
     text = f"节点 {node.run_key}，agent {agent}，第 {attempt} 轮。"
     if feedback:
-        text += f"\n<rework>\n{feedback}\n</rework>"
+        tag = "re_review" if node.role(agent) == "reviewer" else "rework"
+        text += f"\n<{tag}>\n{feedback}\n</{tag}>"
     return text
 
 

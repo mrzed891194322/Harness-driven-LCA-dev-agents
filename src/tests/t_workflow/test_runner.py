@@ -69,6 +69,17 @@ def test_reject_then_pass_reuses_executor_session(wf_root):
                            ("write", "executor", 2, True), ("write", "reviewer", 2, False)]
     assert "第一段太短" in (wf_root / "workspace/runs/write/feedback/round_1.md").read_text(encoding="utf-8")
     assert "<rework>" in d.prompts[2] and "第一段太短" in d.prompts[2] and "<rework>" not in d.prompts[0]
+    # Astra B: verdict session_key isolates by attempt; writers keep stable key for resume.
+    keys = [r.session_key for r in d.reqs if r.node.run_key == "write"]
+    assert keys == [
+        "write.executor",
+        "write.reviewer.1",
+        "write.executor",
+        "write.reviewer.2",
+    ]
+    # Cursor B: reviewer attempt>1 gets prior reject issues as <re_review>.
+    assert "<re_review>" in d.prompts[3] and "第一段太短" in d.prompts[3]
+    assert "<re_review>" not in d.prompts[1]
 
 
 def test_reject_limit_back_edge(wf_root):
@@ -240,6 +251,20 @@ def test_runner_with_injector_prompts(wf_root):
     assert "<executor_submit>" in review
     assert d.systems[0].startswith("# 红线")
 
+
+def test_reviewer_rereview_injector_and_session_key(wf_root):
+    """B tip: Injector <re_review> on reject→re-entry; verdict session_key includes attempt."""
+    from backend.workflow.inject import Injector
+
+    wf, nodes = _setup(wf_root, order=("write",))
+    d = FakeDriver({("write", "reviewer"): ["reject", "approve"]})
+    assert Runner(wf_root, wf, nodes, d, prompt_builder=Injector(wf_root)).run(plans=PLAN) == "completed"
+    rev = [(r.attempt, r.session_key, r.prompt) for r in d.reqs if r.agent == "reviewer"]
+    assert [a for a, _, _ in rev] == [1, 2]
+    assert rev[0][1] == "write.reviewer.1" and rev[1][1] == "write.reviewer.2"
+    assert "<re_review>" not in rev[0][2]
+    assert "<re_review>" in rev[1][2] and "必须再次调用 submit" in rev[1][2]
+    assert "第一段太短" in rev[1][2] and "<rework>" not in rev[1][2]
 
 def test_lock_prevents_parallel_run(wf_root):
     import fcntl

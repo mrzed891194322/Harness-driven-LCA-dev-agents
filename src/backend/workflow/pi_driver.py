@@ -161,6 +161,10 @@ class PiDriver:
                   "model_retry_delays_s": model_retry_delays_s(),
                   "require_submit": not is_assistant,
                   "same_tool_limit": 0 if same_tool_limit is None else int(same_tool_limit)}
+        if kind == "verdict" and req.attempt > 1:
+            settle["nudge_text"] = (
+                "复审回合：上轮 verdict 不算本回合交付；请重读当前产物后再次调用 submit。"
+            )
         spec = SessionLaunchSpec(
             run_id=req.run_id,
             node=req.node.id,

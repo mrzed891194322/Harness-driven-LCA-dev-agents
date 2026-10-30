@@ -50,6 +50,21 @@ def test_reviewer_notes_path_is_file_under_agent_dir(wf_root):
     assert "禁止用 write 覆盖成文件" in text
 
 
+def test_reviewer_re_review_section(wf_root):
+    """attempt>1 reviewer gets <re_review> must-submit; prior issues optional; no <rework>."""
+    node = _node(wf_root)
+    specs = {spec_ref("summary"): load_spec(wf_root, spec_ref("summary"))}
+    inj = Injector(wf_root)
+    first = inj(node, "reviewer", 1, None, specs)
+    assert "<re_review>" not in first
+    second = inj(node, "reviewer", 2, "- 位置：claims[0]；问题：单位缩短", specs)
+    assert "<re_review>" in second
+    assert "必须再次调用 submit" in second
+    assert "上轮已接受的 verdict 不算本回合交付" in second
+    assert "上轮 reject 要点" in second and "单位缩短" in second
+    assert "<rework>" not in second
+
+
 
 def test_session_injection_doc(wf_root):
     node = _node(wf_root)

@@ -336,7 +336,17 @@ class Injector:
             out.append(f"审核笔记可写到 `{notes}`（必须是该文件路径；`{runs / agent}` 是节点目录，禁止用 write 覆盖成文件）。")
         else:
             out.append(f"中间文件写到 `{runs}`。")
-        if rework and attempt > 1:
+        if role == "reviewer" and attempt > 1:
+            # Cursor B: re-review must newly submit; prior reject issues optional.
+            parts = [
+                "执行者已按上轮 issues 改过产物；请重读当前交付文件，"
+                "**本回合必须再次调用 submit 提交新的 verdict**；"
+                "上轮已接受的 verdict 不算本回合交付。"
+            ]
+            if rework:
+                parts.append("上轮 reject 要点：\n" + rework.strip())
+            out.append(_section("re_review", "\n\n".join(parts)))
+        elif rework and attempt > 1:
             out.append(_section("rework", "只改下面这些问题，其他保持不变。\n\n" + rework))
         return "\n\n".join(out) + "\n"
 

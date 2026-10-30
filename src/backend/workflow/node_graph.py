@@ -170,8 +170,14 @@ class NodeGraph:
             last = dict(state.get("last") or {})
             executor_last = next((v for k, v in last.items() if node.kind(k) == "artifact"), None)
             context = {"redo": ctx.redo, "executor_last": executor_last, "redo_targets": ctx.redo_targets}
-            # rework feedback goes to writers: artifact main or conventional executor assistant
-            feedback = state.get("feedback") if (kind == "artifact" or agent == "executor") else None
+            # Rework feedback: writers always; verdict re-entry (attempt>1) gets prior reject
+            # issues so inject can build <re_review> (Cursor B).
+            if kind == "artifact" or agent == "executor":
+                feedback = state.get("feedback")
+            elif kind == "verdict" and attempt > 1:
+                feedback = state.get("feedback")
+            else:
+                feedback = None
             prompt = ctx.prompt_builder(node, agent, attempt, feedback, ctx.specs, context)
             submit_context = {
                 "kind": kind or "assistant", "artifacts_root": str(self.art),
@@ -179,8 +185,14 @@ class NodeGraph:
                              for p in node.produces] if kind == "artifact" else [],
                 "redo_targets": ctx.redo_targets, "executor_last": executor_last,
             }
+            # Astra B: isolate verdict sessions by attempt. resume=False alone is not enough —
+            # SessionManager.open still reloads an existing session_file at a stable path.
+            if kind == "verdict":
+                session_key = f"{node.run_key}.{agent}.{attempt}"
+            else:
+                session_key = f"{node.run_key}.{agent}"
             req = TurnRequest(node=node, agent=agent, attempt=attempt, prompt=prompt, workspace=ctx.workspace,
-                              run_id=ctx.run_id, session_key=f"{node.run_key}.{agent}",
+                              run_id=ctx.run_id, session_key=session_key,
                               resume=(kind == "artifact" or agent == "executor") and attempt > 1, step=step,
                               extra={"submit_context": submit_context})
             system_fn = getattr(ctx.prompt_builder, "system", None)
