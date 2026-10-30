@@ -186,24 +186,3 @@ def run_spec_checks(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list
 def host_produce_errors(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list[str]:
     """Schema validate produces, then run ``spec.checks`` (post-deliver host gate)."""
     return produce_errors(artifacts, node, specs) + run_spec_checks(artifacts, node, specs)
-
-
-# --- built-in runners ---------------------------------------------------------
-
-@register_check("bom_claims_blacklist_units")
-def _bom_claims_blacklist_units(
-    path: Path,
-    check: dict[str, Any],
-    *,
-    artifacts: Path | None = None,
-    produce_path: str = "",
-) -> list[str]:
-    """Narrow hard gate: blacklist units (h/°C family). Never mutates the file."""
-    from harness.tools.shared.bom_claims_check.validate import hard_errors_for_host
-
-    target = path
-    if path.is_dir():
-        candidate = path / "claims.json"
-        target = candidate if candidate.is_file() else path
-    rel = produce_path or path.name
-    return [f"{rel}: {e}" for e in hard_errors_for_host(target)]

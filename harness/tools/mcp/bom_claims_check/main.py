@@ -1,5 +1,5 @@
 # ruff: noqa: E402
-"""Thin MCP: read-only BOM claims check. Warn + list hard errors; never rewrite claims."""
+"""Thin MCP: read-only BOM claims check. Warn-only; never rewrites claims."""
 from __future__ import annotations
 
 import os
@@ -21,12 +21,14 @@ from harness.tools.shared.bom_claims_check.validate import check_claims_file
 mcp = MCPServer(
     "bom_claims_check",
     instructions=(
-        "BOM claims 只读自检。调用 check_claims 查看 warnings/hard_errors；"
-        "本工具绝不删改 claims.json。仅对确认违规手动改文件后再交卷。"
+        "BOM claims 只读核对：把每条 claim 的 value/unit 与其 evidence 引文对照，并尝试在知识库原文中定位引文。"
+        "只给提醒，不删改 claims.json，也不拦交卷。"
     ),
 )
 
 DEFAULT_REL = "workspace/artifacts/bom/claims.json"
+KNOWLEDGE_REL = "harness/knowledge/inputs"
+_TEXT_SUFFIXES = {".md", ".txt", ".csv", ".json", ".html", ".htm", ".xml", ".tsv"}
 
 
 def _resolve(path: str | None) -> Path:
@@ -48,25 +50,34 @@ def _resolve(path: str | None) -> Path:
     return cwd_candidate
 
 
+def _sources() -> list[str] | None:
+    """Text of knowledge inputs, or None when unavailable (evidence_source stays unavailable)."""
+    for base in (Path.cwd() / KNOWLEDGE_REL, PROJECT_ROOT / KNOWLEDGE_REL):
+        if base.is_dir():
+            texts: list[str] = []
+            for f in sorted(base.rglob("*")):
+                if f.is_file() and f.suffix.lower() in _TEXT_SUFFIXES:
+                    try:
+                        texts.append(f.read_text(encoding="utf-8", errors="ignore"))
+                    except OSError:
+                        continue
+            return texts or None
+    return None
+
+
 @mcp.tool(
     description=(
-        "只读检查 workspace/artifacts/bom/claims.json（或给定 path）。"
-        "返回 warnings（软提醒）与 hard_errors（黑名单单位等硬问题）。"
-        "**绝不**自动删除或改写任何 claim；调用方只应根据确认违规手动改文件。"
-        "交卷前必须调用一次。"
+        "只读核对 workspace/artifacts/bom/claims.json（或给定 path）：value 是否以同一数值出现在 evidence 中、"
+        "unit 是否在 evidence 中与该数相邻、evidence 能否在知识库原文中逐字找到，另列结构提醒。"
+        "返回 status（checked/unavailable，仅表示核对是否执行，不代表正确）与 warnings。"
+        "不删改任何 claim；提醒不要求清零，请逐条回原文确认后自行决定。"
     )
 )
 def check_claims(path: str | None = None) -> dict:
     target = _resolve(path)
-    result = check_claims_file(target)
+    result = check_claims_file(target, sources=_sources())
     result["path"] = str(target)
     result["auto_deleted"] = False  # contract: this tool never mutates
-    # Surface env hint if artifacts root was injected (optional).
-    art = os.environ.get("WORKFLOW_ARTIFACTS_ROOT")
-    if art and not path:
-        alt = Path(art) / "bom" / "claims.json"
-        if alt.is_file() and alt.resolve() != target.resolve():
-            result["note"] = f"也检测到 {alt}；默认检查 {target}"
     return result
 
 

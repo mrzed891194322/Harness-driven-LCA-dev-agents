@@ -23,12 +23,12 @@ API 开跑仍可用 orch 文件 stem（`workflow: bom-extract-01`）；`list_wor
 | --- | --- | --- | --- | --- |
 | `bom-decomposition-01` | 产品组成（PCFBench task1）真薄 | 已有 |
 | `bom-extract-01` | 无 | **无** | 产品 `executor`；无 skills | 薄短 `bom-claims.yaml` |
-| `bom-extract-02` | 无 | **无**（技能到达用 **agent.rules**） | 产品 `executor` + **`bom-claims-flow`** + `rules/delivery/read-skills-first.yaml`（MCP 暂不绑） | `bom-claims.yaml`（同 01；`bom-claims-02.yaml` 保留未绑） |
+| `bom-extract-02` | 无 | **无**（技能到达用 **agent.rules**） | 产品 `executor` + **`bom-claims-flow`** + `rules/delivery/read-skills-first.yaml` + 薄 MCP `bom_claims_check`（只告警） | `bom-claims.yaml`（同 01；无宿主闸） |
 | `bom-extract-03` | **有** | **无** | **三件套** orch+executor(助手)+reviewer（专用 agent）；**不挂技能** | 同 01 |
 | `bom-extract-04` | **有** | status + provenance + knowledge-files | 产品 agent；executor=`bom-claims-read`+`ops`；reviewer=`bom-claims-review` | 短指针 `bom-claims-best.yaml` |
 
 - **01 真薄**：题面 ≈ 短指令 + 案题 query；交付 claims submit。
-- **02**：同 01 拓扑；挂 `bom-claims-flow` + executor `agent.rules: read-skills-first`（**node.inject 仍空**）。技能 = `e65878c` 包（轻自检、禁弃权；黑名单仅 h/°C；单位短符号+硬反例；短防多报）+ **题意/图例/符号锚定**（SKILL 第 2 步 + `refs/types.md`「题意锚定」）。不含 `4cdecfd` 证据关系、不绑 `0d20b0d` 薄 MCP / 宿主闸（代码保留未绑）。produce=`bom-claims.yaml`。给法仍官方 query + `reference.md`。
+- **02**：同 01 拓扑；挂 `bom-claims-flow` + executor `agent.rules: read-skills-first`（**node.inject 仍空**）+ 薄 MCP `bom_claims_check`。技能为重构版单文件 SKILL（无 refs）：读技能→grep 定位小窗读（不足可扩窗）→题意/图例锚定、只交所问→claims（`claim_id`、`value`+`unit` 成对；unit 短符号、原文单位写法在 evidence；evidence 可回源：文件/位置/逐字引文；原文不足时 evidence 以 `[推断]` 开头写依据）→`check_claims`（只提醒、不删、不拦交卷）→submit；有数字就交、全无才弃权。无黑名单、无单位例表/反例、不引用金标。produce=`bom-claims.yaml`（`checks: []`）。给法仍官方 query + `reference.md`。
 - **03**：三件套（orchestrator 主交卷 / executor 写作者助手 / reviewer）；LangGraph 强制审核环；**不靠技能抬分**（04 再挂）。tip 不开批。
 - **04 厚注入+reviewer**：技能拆自原 `bom-claims-best`；`bom-claims-best/` 仅兼容别名。
 

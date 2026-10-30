@@ -1,4 +1,4 @@
-"""Generic spec.checks host interface (post-deliver narrow gate)."""
+"""Generic spec.checks host interface (no built-in BOM gate)."""
 from __future__ import annotations
 
 import json
@@ -34,35 +34,6 @@ def test_empty_checks_unchanged(tmp_path: Path):
     assert produce_errors(art, node, specs) == []
     assert run_spec_checks(art, node, specs) == []
     assert host_produce_errors(art, node, specs) == []
-
-
-def test_blacklist_check_gates_host(tmp_path: Path):
-    art = tmp_path
-    (art / "bom").mkdir()
-    (art / "bom" / "claims.json").write_text(
-        json.dumps({"claims": [{"claim_id": "bad", "value": 3, "unit": "h"}]}),
-        encoding="utf-8",
-    )
-    schema = {
-        "type": "object",
-        "required": ["claims"],
-        "properties": {
-            "claims": {"type": "array"},
-            "abstained": {"type": "boolean"},
-        },
-    }
-    spec = Spec(
-        id="bom-claims-02",
-        prompt="p",
-        schema_=schema,
-        checks=[{"id": "bom_claims_blacklist_units"}],
-    )
-    node = _node([_prod("s")])
-    specs = {"s": spec}
-    # schema alone passes
-    assert produce_errors(art, node, specs) == []
-    errs = host_produce_errors(art, node, specs)
-    assert errs and any("黑名单" in e or "h" in e for e in errs)
 
 
 def test_unknown_check_id_errors(tmp_path: Path):

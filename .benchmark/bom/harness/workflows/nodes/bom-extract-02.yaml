@@ -7,5 +7,6 @@ agents:
     agent: executor
     tools:
       skills: [bom-claims-flow]
+      mcp: [bom_claims_check]
     rules:
       - rules/delivery/read-skills-first.yaml

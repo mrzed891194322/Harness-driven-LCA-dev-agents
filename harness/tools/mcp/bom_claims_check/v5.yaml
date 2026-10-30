@@ -1,4 +1,4 @@
-# Thin read-only BOM claims check for bom-extract-02 (warn only; no auto-delete).
+# Thin read-only BOM claims check for bom-extract-02 (warn-only; no auto-delete; no host gate).
 id: bom_claims_check
 command: uv
 args: [run, python, harness/tools/mcp/bom_claims_check/main.py]

@@ -1,30 +1,17 @@
-# BOM 数量抽取 · 02 工作流（单技能）
+# BOM 数量抽取 · 02 工作流
 
-需要时阅读。流程短：读文 → 抽题面所问 → **轻自检** → 交付。细则只读 `refs/`，勿扩写本文件。
+按序执行，不扩写。
 
-## 工作流（按序）
+1. **读技能**：先读完本文件。
+2. **读文**：在 `harness/knowledge/inputs/` 用 `grep` 定位，再 `read`（带 offset/limit）读证据窗口；窗口不足以确认上下文（表头、图例、所属对象）时扩窗或读相关章节。
+3. **锚定题意**：从题面/plan 写下所问的对象、量纲、范围；表格/图表按图例、行列名与所问对象对齐。只交题面所问的量。
+4. **抽取**：写 `workspace/artifacts/bom/claims.json`，每条 claim 必有 `claim_id`，数值 claim 的 `value` 与 `unit` 成对填写。
+   - `value`：原文数值，数字与正负号一致；不做单位换算，不改写数值。
+   - `unit`：该原文单位的规范短符号；原文单位写法保留在 `evidence` 引文中。
+   - `evidence`：可回源——写明文件名、位置（章节/行/表名），并逐字摘录含该数值及其单位的原文；表格须带表头、行名及单位所在位置。
+   - 原文不足以直接给出该值、只能由你推断或估算时，不要编造引文：`evidence` 以 `[推断]` 开头，写明推断依据及所用原文出处。
+5. **核对**：调用 `check_claims`。它只提醒，不删改 claim、不拦交卷。告警不要求清零；逐条回原文确认后再决定是否修改，禁止按告警批量删条。
+6. **交付**：`submit`。
 
-1. **读文**：`refs/read-window.md`（优先 `reference.md`；小窗 `grep`→`read offset/limit`）。
-2. **提取**：对照题面，交能回答所问的 `(value, unit)` 初稿（写 `workspace/artifacts/bom/claims.json`）。`unit` 对齐 produce 短符号 → `refs/units.md`。
-   - 写 claims 前先锚定题意 → `refs/types.md`「题意锚定」：从 plan/题面抽出**所问对象 + 量纲 + 范围**，再去原文找对应证据行。
-   - 表格 / 饼图 / 柱图：按 **legend / 行列名词** 与题面对象对齐取值（问 A 就取 A 扇区/行），勿交互补项或相邻类别。
-   - 符号与形态：`value` 的正负号、数值形态须与证据原文数字一致（损失 / 负值照原文带 `-`）。
-3. **轻自检**（只改确认违规；**勿过砍真 claim**）：
-   - 黑名单仅 `h` / `°C` 等 → `refs/types.md`
-   - 短防多报（同表邻居 / 扫参端点）→ `refs/types.md`「短防多报」
-   - 单位短符号 + 硬反例 → `refs/units.md`
-4. **交付**：立刻 `submit`（`status=done` + `summary` + `artifacts`）。
-
-## 硬禁
-
-- **禁止鼓励弃权 / 空交**：有任一原文依据可答题面时，必须交非空 `claims`；**不要** `abstained: true` + `claims: []` 当「稳妥」。
-- 仅当 knowledge **完全没有**可答数字时才可空 claims；勿因自检过严清空整卷。
-- 自检只删**确认**黑名单项与确认多报；吃不准是否该交 → **保留**（勿宁漏过砍）。
-
-## 参考文档
-
-- `harness/tools/skills/bom-claims-flow/refs/read-window.md`
-- `harness/tools/skills/bom-claims-flow/refs/types.md` — 黑名单（仅 h/°C）+ 短防多报 + 题意锚定
-- `harness/tools/skills/bom-claims-flow/refs/units.md` — 短符号契约 + 硬反例
-
+原文有可答题面的数字就交非空 claims；完全没有时才 `abstained: true` + `claims: []`。
 有 `<rework>` 时只改所列问题后再交付。
