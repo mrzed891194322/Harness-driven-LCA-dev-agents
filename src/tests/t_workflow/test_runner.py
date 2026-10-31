@@ -294,4 +294,4 @@ def test_trio_orchestrator_flow(wf_root):
     d = FakeDriver()
     assert _run(wf_root, d, wfn=load_workflow(wf_root, "trio")) == "completed"
     roles = [c[1] for c in d.calls]
-    assert roles == ["executor", "reviewer", "orchestrator"]
+    assert roles == ["orchestrator", "executor", "orchestrator", "reviewer", "orchestrator"]

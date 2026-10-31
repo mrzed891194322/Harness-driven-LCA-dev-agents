@@ -86,13 +86,13 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     read.add(str(root / "harness/rules") + "/**")
 
     write: set[str] = set()
-    # Writers: artifact 主 agent, or conventional executor key (assistant in trio who writes produces).
-    if node.kind(agent_key) == "artifact" or agent_key == "executor":
+    # Writers: Node.is_writer (orthogonal to primary/submit). Non-writers: notes dir only.
+    if node.is_writer(agent_key):
         write.add(str(layout.node_dir(ws, node.run_key)) + "/**")
         for prod in node.produces:
             write.add(str(art / produce_dir(prod.path)) + "/**")
     else:
-        # reviewer / other assistants: notes dir only
+        # reviewer / primary orch / other non-writers: notes dir only
         write.add(str(layout.node_dir(ws, node.run_key) / agent_key) + "/**")
     denied = [str(art / "plan") + "/**"]  # lock 1 beats everything
     if node.rev:

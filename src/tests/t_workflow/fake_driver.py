@@ -76,8 +76,14 @@ class FakeDriver:
                 if action.get("status") == "done" and req.agent != "orchestrator":
                     self._write(req, None)
                 return TurnResult(submit=action)
-            if req.agent != "orchestrator":
-                self._write(req, None if action == "ok" else action)
+            if req.agent == "orchestrator":
+                orch_turns = sum(1 for c in self.calls if c[1] == "orchestrator")
+                if orch_turns == 1:
+                    return TurnResult(submit={"status": "assign_executor", "summary": "派工写作者"})
+                if orch_turns == 2:
+                    return TurnResult(submit={"status": "assign_reviewer", "summary": "派工审核"})
+                return TurnResult(submit=done)
+            self._write(req, None if action == "ok" else action)
             return TurnResult(submit=done)
         if isinstance(action, dict):
             return TurnResult(submit=action)

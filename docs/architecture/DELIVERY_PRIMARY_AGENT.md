@@ -16,14 +16,14 @@
 
 | 角色 | `deliver.submit` | 职责 |
 |------|------------------|------|
-| 主 agent（常名 orchestrator） | `artifact` | **调度/汇总交卷**，默认不改文件；`status ∈ {done, blocked, redo_upstream}` |
-| 写作者（常名 executor） | 无 `deliver`（助手）或薄档下自己兼主 agent | 写产物；三件套中回合结束即交 reviewer |
+| 主 agent（常名 orchestrator） | `artifact` | **调度/汇总交卷**，默认不改文件；`status ∈ {done, blocked, redo_upstream, assign_executor, assign_reviewer}`（后两者为编排中枢派工，非终态） |
+| 写作者（常名 executor） | 无 `deliver`（助手）或薄档下自己兼主 agent | 写产物；三件套中回合结束回 orchestrator（无条件边），无 submit |
 | Reviewer | `verdict` | 只评产物：`approve/reject/approve_redo_upstream/terminate`；不改产物 |
 | 其它助手 | 无 `deliver` | 查资料等，可进 flow（无条件边） |
 
 节点内 flow：
 - **薄档**（单 executor）：executor `done` → done（或经 reviewer）。
-- **三件套**：executor → reviewer；`reject` → executor；`approve` → orchestrator `done` → done；`blocked`/`redo_upstream` 由编排者交卷枚举处理。
+- **三件套**：start=`orchestrator`；`assign_executor` → executor → orchestrator → `assign_reviewer` → reviewer → orchestrator；`reject` → orchestrator（再 `assign_executor`）；`approve` → orchestrator `done` → done；`blocked`/`redo_upstream` 由 orchestrator 终态 submit 处理。
 - LangGraph 强制上述边，不靠提示词。
 
 ## 3. 配置与校验
@@ -31,7 +31,7 @@
 - **主 agent 判定**：节点 `agents` 里 `deliver.submit == artifact` 的那个（模板解析后）。不另加 `primary:` 字段。
 - **硬校验**（`load_node` / 编排加载，`ConfigError`）：
   - 每个节点 **恰好一个** `deliver.submit: artifact`（0 或多个都失败）。
-  - 已有：`flow.start` 必须是 artifact agent；flow 边的 `when` 必须属于该 agent 的 submit 枚举；`redo_upstream` 须经 verdict 审批。
+  - 已有：`flow.start` 须为节点 agent；主 artifact agent 须从 start 可达；flow 边的 `when` 须属于该 agent 的 submit 枚举；`redo_upstream` 须经 verdict 审批。
 - Reviewer 可有 0 或 1 个（现 LCA 节点为 1）；无 reviewer 时沿用现「仅 artifact 终态」默认 flow。
 - 无交卷助手：可进 flow（无条件边）；也可不进 flow 仅工具调用。
 

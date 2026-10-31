@@ -33,6 +33,16 @@ from backend.workflow.turn import TurnRequest, TurnResult
 AUTH_RE = re.compile(r"\b(401|403)\b|api[_ ]?key|unauthori[sz]ed|authentication|expired", re.I)
 FILE_TOOLS_EXEC = ["read", "ls", "grep", "find", "write", "edit"]
 FILE_TOOLS_REVIEW = ["read", "ls", "grep", "find", "write"]
+FILE_TOOLS_READ = ["read", "ls", "grep", "find"]
+
+
+def effective_file_tools(node, agent: str) -> list[str]:
+    """File tools from writer/verdict/primary capabilities (not kind==artifact alone)."""
+    if node.is_writer(agent):
+        return list(FILE_TOOLS_EXEC)
+    if node.kind(agent) == "verdict":
+        return list(FILE_TOOLS_REVIEW)
+    return list(FILE_TOOLS_READ)
 
 
 def is_auth_error(text: str) -> bool:
@@ -145,8 +155,8 @@ class PiDriver:
             if name != "submit":
                 binding["env"] = {**binding["env"], **scope_env}
         check_mcp_env(bindings)
-        # Writers (artifact or executor assistant) get exec file tools; reviewers read-only.
-        file_tools = FILE_TOOLS_EXEC if (kind == "artifact" or req.agent == "executor") else FILE_TOOLS_REVIEW
+        # Writers get exec tools; verdict gets notes write; primary non-writer (orch) read-only.
+        file_tools = effective_file_tools(req.node, req.agent)
         system = req.extra.get("system", "")
         storage = ws / "tmp" / "pi-workflow" / req.session_key
         max_turns = req.node.agents[req.agent].max_turns or (deliver.max_turns if deliver else DEFAULT_MAX_TURNS)

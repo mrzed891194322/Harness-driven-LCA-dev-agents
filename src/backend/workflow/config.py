@@ -24,7 +24,8 @@ from backend.workflow import layout
 
 TERMINALS = ("done", "failed", "blocked", "redo_upstream")
 # Submit enums by deliver.submit kind; a conditional edge's `when` must be one of these (WORKFLOW_DESIGN §3).
-SUBMIT_VALUES = {"artifact": ("done", "blocked", "redo_upstream"),
+# artifact routing: assign_* are non-terminal (orchestrator hub); done|blocked|redo_upstream terminal.
+SUBMIT_VALUES = {"artifact": ("done", "blocked", "redo_upstream", "assign_executor", "assign_reviewer"),
                  "verdict": ("approve", "reject", "approve_redo_upstream", "terminate")}
 SUBMIT_FIELD = {"artifact": "status", "verdict": "verdict"}
 
@@ -93,15 +94,18 @@ def default_flow(agents: dict) -> dict:
 
     - Thin (single writer): executor only.
     - Review pair: executor ↔ reviewer (reject → executor → reviewer).
-    - Trio (orchestrator + executor + reviewer): executor writes → reviewer; approve → orchestrator
-      (主 agent, artifact submit, no file edits); reject → executor again. LangGraph-enforced.
+    - Trio (orchestrator + executor + reviewer): start at orchestrator hub — assign_executor → executor
+      (assistant, turn end) → orchestrator → assign_reviewer → reviewer → orchestrator; orchestrator
+      submit done|blocked|redo_upstream. LangGraph-enforced.
     """
     keys = set(agents)
     if {"orchestrator", "executor", "reviewer"} <= keys:
-        return {"start": "executor", "edges": [
-            {"from": "executor", "to": "reviewer"},  # assistant: turn end → reviewer
-            {"from": "reviewer", "when": "approve", "to": "orchestrator"},
-            {"from": "reviewer", "when": "reject", "to": "executor", "max": 3},
+        return {"start": "orchestrator", "edges": [
+            {"from": "orchestrator", "when": "assign_executor", "to": "executor"},
+            {"from": "executor", "to": "orchestrator", "max": 5},
+            {"from": "orchestrator", "when": "assign_reviewer", "to": "reviewer"},
+            {"from": "reviewer", "when": "approve", "to": "orchestrator", "max": 5},
+            {"from": "reviewer", "when": "reject", "to": "orchestrator", "max": 3},
             {"from": "reviewer", "when": "approve_redo_upstream", "to": "redo_upstream"},
             {"from": "reviewer", "when": "terminate", "to": "failed"},
             {"from": "orchestrator", "when": "done", "to": "done"},
@@ -156,6 +160,30 @@ class Node(_Strict):
         if k == "verdict":
             return "reviewer"
         return "assistant"
+
+    @property
+    def primary(self) -> str:
+        """唯一主 agent：deliver.submit == artifact（validate_flow 保证恰一）。"""
+        for name in self.agents:
+            if self.kind(name) == "artifact":
+                return name
+        raise ConfigError(f"node {self.id!r}: no primary (artifact) agent")
+
+    def is_primary(self, agent: str) -> bool:
+        """主交卷者：仅 primary 可对节点产物 submit。"""
+        return self.kind(agent) == "artifact"
+
+    def is_writer(self, agent: str) -> bool:
+        """产物写权（与主交卷权正交）。勿再从 kind==artifact 自动推出写权。
+
+        - 有 executor 槽时：仅 executor 写产物（03 三件套：assistant 写、orch 主交卷不写）。
+        - 无 orchestrator 的薄节点：唯一 artifact agent 亦写（01/02 单执行者 = primary∧writer）。
+        """
+        if agent == "executor":
+            return True
+        if self.kind(agent) == "artifact" and "orchestrator" not in self.agents:
+            return True
+        return False
 
     def outgoing(self, agent: str) -> list[Edge]:
         return [e for e in self.flow.edges if e.from_ == agent]
@@ -324,6 +352,11 @@ class Rule(_Strict):
     enabled: bool = True
     order: int = 100
     applies_to: list[Literal["executor", "reviewer"]] | None = None  # roles (deliver.submit artifact/verdict)
+    # Capability gate (orthogonal to applies_to / role()):
+    #   writer  → is_writer ∧ is_primary（薄单执行者写+交卷文案）
+    #   primary → is_primary ∧ ¬is_writer（主交卷仅汇总，如 03 orch）
+    #   verdict → kind == verdict
+    inject_when: Literal["primary", "writer", "verdict"] | None = None
     prompt: str
 
 
@@ -635,8 +668,42 @@ def load_rule(root: Path, rel: str) -> Rule:
     return rule
 
 
-def load_global_rules(root: Path, agent_key: str) -> list[Rule]:
+def inject_when_matches(node: Node, agent: str, gate: str | None) -> bool:
+    """Match Rule.inject_when against Node capability tags (primary / writer / verdict)."""
+    if gate is None:
+        return True
+    if gate == "writer":
+        return node.is_writer(agent) and node.is_primary(agent)
+    if gate == "primary":
+        return node.is_primary(agent) and not node.is_writer(agent)
+    if gate == "verdict":
+        return node.kind(agent) == "verdict"
+    return False
+
+
+def load_global_rules(
+    root: Path,
+    role: str | None = None,
+    *,
+    node: Node | None = None,
+    agent: str | None = None,
+) -> list[Rule]:
+    """Load global rules.
+
+    Preferred: ``load_global_rules(root, node=node, agent=agent)`` — filters by
+    ``applies_to`` (via ``node.role(agent)``) **and** ``inject_when`` capability gates.
+
+    Legacy/tests: ``load_global_rules(root, role)`` — ``applies_to`` only; rules with
+    ``inject_when`` set are skipped (need a live agent instance to evaluate).
+    """
     folder = root / layout.RULES_GLOBAL
     rules = [load_rule(root, str(p.relative_to(root / "harness"))) for p in sorted(folder.glob("*.yaml"))]
-    rules = [r for r in rules if r.enabled and (r.applies_to is None or agent_key in r.applies_to)]
+    rules = [r for r in rules if r.enabled]
+    if node is not None and agent is not None:
+        role = node.role(agent)
+        rules = [r for r in rules if r.applies_to is None or role in r.applies_to]
+        rules = [r for r in rules if inject_when_matches(node, agent, r.inject_when)]
+    elif role is not None:
+        rules = [r for r in rules if r.applies_to is None or role in r.applies_to]
+        rules = [r for r in rules if r.inject_when is None]
     return sorted(rules, key=lambda r: (r.order, r.id))

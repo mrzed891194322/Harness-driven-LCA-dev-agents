@@ -106,7 +106,7 @@ def test_bom_extract_tier_switches():
     assert n03[0].kind("orchestrator") == "artifact"
     assert n03[0].kind("executor") is None  # assistant
     assert n03[0].kind("reviewer") == "verdict"
-    assert n03[0].flow.start == "executor"
+    assert n03[0].flow.start == "orchestrator"
     assert n03[0].agents["reviewer"].definition.deliver.submit == "verdict"
     assert n03[0].agents["orchestrator"].definition.deliver.submit == "artifact"
     assert n03[0].agents["executor"].definition.deliver is None

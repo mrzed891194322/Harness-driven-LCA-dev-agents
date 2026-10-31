@@ -2,7 +2,7 @@ id: bom-extract-03
 title: 数量声明抽取（03 · 三件套编排）
 produces:
   - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
-# 三件套：orchestrator（主/交卷）+ executor（写产物助手）+ reviewer；省略 flow = default_flow 三件套
+# 三件套：orchestrator（主/交卷）+ executor（写产物助手）+ reviewer；省略 flow = default_flow（start=orchestrator 中枢）
 # 本档不挂技能（技能留 04）
 agents:
   orchestrator:

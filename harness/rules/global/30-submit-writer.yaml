@@ -1,9 +1,10 @@
-title: 交卷
-description: 必须走 submit；artifacts 真数组 vs write/edit content 须 string；未用参数勿传 null
+title: 交卷（写作者）
+description: 主执行者写完产物后必须 submit；artifacts 真数组；未用参数勿传 null
 enabled: true
 order: 30
+inject_when: writer
 prompt: |
   - 产物交付与结案**必须**调用交付工具 `submit`（MCP 交卷）。写完 claims 等交付物后立刻 `submit`；不要只落盘不交卷。
   - `submit` 的 `artifacts`：**必须是 JSON 数组**（真 array），**禁止**先序列化成字符串再传入（否则 schema 报 `artifacts: must be array`）。
   - 对比：`write` / `edit` 的 `content` 仍须是 **string**（对象先序列化成文本）——两条不要写反。
-  - 执行者：`status=done|blocked|redo_upstream` + 对应字段（`done` 时含 `summary` 与 `artifacts`）；审核者：`verdict=…`。未用到的参数省略，不要传 null。
+  - 执行者：`status=done|blocked|redo_upstream` + 对应字段（`done` 时含 `summary` 与 `artifacts`）。未用到的参数省略，不要传 null。

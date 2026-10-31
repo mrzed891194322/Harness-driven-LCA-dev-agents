@@ -23,6 +23,10 @@ EXECUTOR_SCHEMA: dict[str, Any] = {"oneOf": [
                                       "requested_change": {"type": "string", "minLength": 10}},
      "required": ["status", "target_node", "artifact", "field", "evidence", "requested_change"],
      "additionalProperties": False},
+    {"type": "object", "properties": {"status": {"const": "assign_executor"}, "summary": _STR},
+     "required": ["status"], "additionalProperties": False},
+    {"type": "object", "properties": {"status": {"const": "assign_reviewer"}, "summary": _STR},
+     "required": ["status"], "additionalProperties": False},
 ]}
 _ISSUE = {"type": "object", "required": ["where", "problem", "expected"],
           "properties": {"where": _STR, "problem": _STR, "expected": _STR}}

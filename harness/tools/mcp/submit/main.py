@@ -1,7 +1,8 @@
 # ruff: noqa: E402
 """Fixed workflow submit tool. The host binds it to every agent; the accepted answer lands in WORKFLOW_SUBMIT_FILE.
 
-artifact agents: status done | blocked | redo_upstream;  verdict agents: approve | reject | approve_redo_upstream |
+artifact agents: status done | blocked | redo_upstream | assign_executor | assign_reviewer (hub routing);
+verdict agents: approve | reject | approve_redo_upstream |
 terminate. Schemas + preconditions: schemas.py (the host validates again).
 
 LLM tool-calls often send unused optional fields as JSON null. Pydantic ``str = ""`` rejects null, which used to
@@ -92,10 +93,11 @@ if KIND == "verdict":
 
 else:
 
-    @mcp.tool(description="执行者交付。status=done（summary + artifacts 列出全部交付物路径）| blocked（reason ≥20 字，"
-                          "只用于本节点确实无法处理的问题）| redo_upstream（target_node、artifact、field、evidence ≥20 字、"
-                          "requested_change ≥10 字，仅当符合 <redo_policy>）。未用到的可选参数请省略，不要传 null。")
-    def submit(status: Literal["done", "blocked", "redo_upstream"], summary: str | None = None,
+    @mcp.tool(description="主 agent 交付。status=done（summary + artifacts 列出全部交付物路径）| blocked（reason ≥20 字）| "
+                          "redo_upstream（须符合 <redo_policy>）| assign_executor / assign_reviewer（编排中枢派工，非终态）。"
+                          "未用到的可选参数请省略，不要传 null。")
+    def submit(status: Literal["done", "blocked", "redo_upstream", "assign_executor", "assign_reviewer"],
+               summary: str | None = None,
                artifacts: list[str] | None = None, reason: str | None = None, target_node: str | None = None,
                artifact: str | None = None, field: str | None = None, evidence: str | None = None,
                requested_change: str | None = None) -> dict:

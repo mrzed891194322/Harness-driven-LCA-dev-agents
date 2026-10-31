@@ -137,7 +137,7 @@ class Injector:
         rule_paths: list[str] = []
 
         try:
-            for rule in load_global_rules(self.root, role):
+            for rule in load_global_rules(self.root, node=node, agent=agent):
                 planned_global.append(rule.id)
                 loaded.append(rule.id)
                 rule_paths.append(rule.id)
@@ -167,11 +167,10 @@ class Injector:
         system_ok = bool(system_text.strip()) and not system_errors
 
         tools = node.agents[agent].tools
-        file_tools = (
-            ["read", "ls", "grep", "find", "write", "edit"]
-            if role == "executor"
-            else ["read", "ls", "grep", "find", "write"]
-        )
+        from backend.workflow.pi_driver import effective_file_tools
+        file_tools = effective_file_tools(node, agent)
+        # Report tools must match real MCP/permission: submit only for primary or verdict.
+        report_file_tools = list(file_tools) + (["submit"] if node.kind(agent) is not None else [])
         skill_rows: list[dict[str, Any]] = []
         tool_errors: list[dict[str, str]] = []
         for skill in tools.skills:
@@ -209,7 +208,7 @@ class Injector:
             "tools": {
                 "ok": tools_ok,
                 "label": "工具",
-                "file_tools": file_tools + ["submit"],
+                "file_tools": report_file_tools,
                 "mcp": list(tools.mcp),
                 "skills": skill_rows,
                 "errors": tool_errors,
@@ -252,7 +251,7 @@ class Injector:
     def system(self, node: Node, agent: str) -> str:
         parts = []
         role = node.role(agent)
-        for rule in load_global_rules(self.root, role):
+        for rule in load_global_rules(self.root, node=node, agent=agent):
             parts.append(f"# {rule.title}\n{rule.prompt.strip()}")
         for extra in node.inject + node.agents[agent].rules:
             rule = load_rule(self.root, extra)
@@ -262,13 +261,19 @@ class Injector:
         parts.append(f"# {agent_def.title}\n{agent_def.prompt.strip()}" if agent_def.title else agent_def.prompt.strip())
         tools = node.agents[agent].tools
         kind = node.kind(agent)
-        can_write = kind == "artifact" or agent == "executor"
-        finish = ("本角色无交卷；写完产物后结束本回合即可（不要调用 submit）。"
-                  if kind is None else "完成时调用 submit。")
+        can_write = node.is_writer(agent)
+        # Finish copy follows real submit MCP: only primary (artifact) or verdict may submit.
+        if kind is None:
+            finish = "本角色无交卷；写完产物后结束本回合即可（不要调用 submit）。"
+        else:
+            finish = "完成时调用 submit。"
+        tool_bits = "read、ls、grep、find"
+        if can_write:
+            tool_bits += "、write、edit"
+        elif kind == "verdict":
+            tool_bits += "、write"  # notes only; scope-limited
         lines = ["# 工具与技能",
-                 "- 文件工具：read、ls、grep、find"
-                 + ("、write、edit" if can_write else "")
-                 + f"；{finish}"]
+                 f"- 文件工具：{tool_bits}；{finish}"]
         if tools.mcp:
             lines.append("- MCP：" + "、".join(tools.mcp))
         for skill in tools.skills:

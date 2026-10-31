@@ -1,0 +1,8 @@
+title: 交卷（审核）
+description: 审核者必须 submit verdict；未用参数勿传 null
+enabled: true
+order: 32
+inject_when: verdict
+prompt: |
+  - 核对完毕**必须**调用交付工具 `submit`（MCP）提交 `verdict`；不要只读不交卷。
+  - 审核者：`verdict=…` 及对应字段。未用到的参数省略，不要传 null。

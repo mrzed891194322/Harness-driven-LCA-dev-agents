@@ -21,7 +21,7 @@
 
 ## LangGraph 强制（三件套 default_flow）
 
-executor → reviewer；`reject` → executor（`max`）→ reviewer；`approve` → orchestrator → `done`。
+start=`orchestrator`：`assign_executor` → executor（无条件回 orchestrator）→ `assign_reviewer` → reviewer；`reject` → orchestrator（`max`）→ 再 `assign_executor`；`approve` → orchestrator → `done`。
 不要靠提示词模拟这条边。
 
 ## 改完

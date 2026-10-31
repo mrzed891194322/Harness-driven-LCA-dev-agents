@@ -172,7 +172,7 @@ class NodeGraph:
             context = {"redo": ctx.redo, "executor_last": executor_last, "redo_targets": ctx.redo_targets}
             # Rework feedback: writers always; verdict re-entry (attempt>1) gets prior reject
             # issues so inject can build <re_review> (Cursor B).
-            if kind == "artifact" or agent == "executor":
+            if node.is_writer(agent):
                 feedback = state.get("feedback")
             elif kind == "verdict" and attempt > 1:
                 feedback = state.get("feedback")
@@ -193,7 +193,7 @@ class NodeGraph:
                 session_key = f"{node.run_key}.{agent}"
             req = TurnRequest(node=node, agent=agent, attempt=attempt, prompt=prompt, workspace=ctx.workspace,
                               run_id=ctx.run_id, session_key=session_key,
-                              resume=(kind == "artifact" or agent == "executor") and attempt > 1, step=step,
+                              resume=node.is_writer(agent) and attempt > 1, step=step,
                               extra={"submit_context": submit_context})
             system_fn = getattr(ctx.prompt_builder, "system", None)
             if system_fn is not None:
