@@ -29,7 +29,7 @@ _TYPO = str.maketrans({
 })
 _DASHES = "-\u2010\u2011\u2012\u2013\u2014\u2212"
 # A number token: digits with optional , or . groups, or a leading-dot decimal; optional exponent.
-_NUM_RE = re.compile(r"(?<![\w.,])(\d+(?:[.,]\d+)*|\.\d+)(?:[eE]([+\-\u2212]?\d+))?(?![\w])")
+_NUM_RE = re.compile(r"(?<![\w.,])(\d+(?:[.,]\d+)*|\.\d+)(?:[eE]([+\-\u2212]?\d+))?(?![0-9])")
 
 
 def _typo(s: str) -> str:
@@ -93,7 +93,8 @@ def _numbers(evidence: str) -> list[tuple[Decimal, int, int]]:
 
 
 def _unit_spans(unit: str, evidence: str) -> list[tuple[int, int]]:
-    pat = re.compile(r"(?<![A-Za-z0-9])" + re.escape(unit) + r"(?![A-Za-z0-9])")
+    left = r"(?<![A-Za-z0-9])" if unit[:1].isdigit() else r"(?<![A-Za-z])"
+    pat = re.compile(left + re.escape(unit) + r"(?![A-Za-z0-9])")
     return [(m.start(), m.end()) for m in pat.finditer(evidence)]
 
 

@@ -223,3 +223,18 @@ def test_correctness_value_not_in_evidence_and_not_in_source():
 def test_correctness_inferred_not_warned():
     data = {"claims": [{"claim_id": "a", "value": 7, "unit": "kg", "evidence": "[推断] 按 f.md 表 2 推算"}]}
     assert not check_claims_payload(data, sources=["x"], checklist=["a"])["warnings"]
+
+
+def test_unit_glued_to_number():
+    for v, u, ev in [(5.0, "MJ/kg", "LHV 5.0MJ/kg"), (10, "%", "loss 10%"), (3, "kg", "3kg")]:
+        out = _one({"claim_id": "a", "value": v, "unit": u, "evidence": ev}, expected_count=1)
+        assert out["claims"][0]["value_unit"] == "near" and not out["warnings"]
+    # letter-glued prefixes still rejected
+    assert _one({"claim_id": "a", "value": 3, "unit": "g", "evidence": "3kg"}, expected_count=1)["warnings"]
+
+
+def test_inferred_evidence_not_reported_missing_in_source():
+    c = {"claim_id": "a", "value": 7, "unit": "kg", "evidence": "[推断] 由 f.md L3 的 3 kg 与 L4 的 4 kg 合并"}
+    out = _one(c, sources=["unrelated text"], expected_count=1)
+    assert out["claims"][0]["evidence_source"] == "inferred"
+    assert not out["warnings"] and not any("未逐字找到" in w for w in out["warnings"])
