@@ -10,3 +10,4 @@ agents:
       mcp: [bom_claims_check]
     rules:
       - rules/delivery/read-skills-first.yaml
+      - rules/delivery/answer-scope.yaml
