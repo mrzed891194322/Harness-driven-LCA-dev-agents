@@ -2,14 +2,10 @@
 
 按序执行，不扩写。
 
-1. **清单（先于读文）**：从题面/plan 列所问「对象×指标」及范围；可枚举则记 **N=条数**，否则 N 未知。双向：清单外不写；清单项原文有数则都有 claim。不为凑 N 编造或批量删条。
-2. **读文**：按清单在 `harness/knowledge/inputs/` 用 `grep` 定位，再 `read`（offset/limit）；窗口不足则扩窗以确认表头/图例/所属对象。不先广搜再补清单。
-3. **抽取**：写 `workspace/artifacts/bom/claims.json`；每条有 `claim_id`，数值 claim 的 `value`/`unit` 成对。
-   - `value`：原文数值与正负号；不换算、不改写。
-   - `unit`：证据中的**完整单位短语**原样照抄（含限定语）；题面单位≠原文仍交原文；不压短、不改标签、不另添换算条。原文明确无量纲时 `unit` 填 `"-"`，原写法留在 `evidence`。
-   - `evidence`：文件名+位置，逐字摘录含该数及其单位的原文；表格带头/行名/单位位置。只能推断时以 `[推断]` 开头并写依据与出处。
-4. **核对**：调用 `check_claims`；N 已知则传 `expected_count=N`，未知不传。有 `value`/`unit`/`evidence` 告警 → 回原文改**该条**再 `submit`；勿按告警批量删条或假装未见。工具只提醒，不删改、不拦交卷。
-5. **交付**：`submit`。原文有可答数字则交非空 claims；完全没有才 `abstained: true` + `claims: []`。
-6. 有 `<rework>` 时只改所列问题后再交付。
+1. **读技能与题面**：读本技能与题面（plan/query）。
+2. **定目标/条数**：只依题面列短清单，每项「对象×所问指标」；清单条数即 N（`expected_count`）。不依原文或其他来源增删清单。
+3. **读原文并抽取**：按清单在 `harness/knowledge/inputs/` 用 `grep` 定位、`read` 确认，写 `workspace/artifacts/bom/claims.json`。每条有 `claim_id`；`value` 照原文数值与正负号；`unit` 照抄证据中的完整单位短语；`evidence` 写文件名+位置并逐字摘录含该数与单位的原文，只能推断时以 `[推断]` 开头并写依据。
+4. **核对**：调用 `check_claims(checklist=[清单项...])`，同时查数量（条数 vs N）与正确性（value/unit 在 evidence、evidence 在原文）。工具只提醒，不删改、不拦交卷。
+5. **交付**：交卷前若有告警，回到对应步骤（清单→2，抽取/证据→3）改**该条**，再核对；最多 2 轮核对。仍剩的告警在 `submit` 说明里逐条写一句保留理由，然后 `submit`。勿按告警批量删条。原文完全无可答数字才 `abstained: true` + `claims: []`。
 
-评分器对单位的规范化另见评分代码，不是交卷写法；agent 不读同义表。
+有 `<rework>` 时只改所列问题后再交付。
