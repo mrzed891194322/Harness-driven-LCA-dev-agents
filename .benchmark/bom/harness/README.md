@@ -23,12 +23,12 @@ API 开跑仍可用 orch 文件 stem（`workflow: bom-extract-01`）；`list_wor
 | --- | --- | --- | --- | --- |
 | `bom-decomposition-01` | 产品组成（PCFBench task1）真薄 | 已有 |
 | `bom-extract-01` | 无 | **无** | 产品 `executor`；无 skills | 共用 `bom-claims.yaml`（unit=原文短语） |
-| `bom-extract-02` | 无 | **无**（技能到达用 **agent.rules**） | 产品 `executor` + **`bom-claims-flow`** + `rules/delivery/read-skills-first.yaml` + `rules/delivery/answer-scope.yaml` + 薄 MCP `bom_claims_check`（只告警） | 同 01 共用 `bom-claims.yaml` |
+| `bom-extract-02` | 无 | **无**（技能到达用 **agent.rules**） | 产品 `executor` + **`bom-claims-flow`** + `rules/delivery/read-skills-first.yaml` + 薄 MCP `bom_claims_check`（只告警） | 同 01 共用 `bom-claims.yaml` |
 | `bom-extract-03` | **有** | **无** | **三件套** orch+executor(助手)+reviewer（专用 agent）；**不挂技能** | 同 01 |
 | `bom-extract-04` | **有** | status + provenance + knowledge-files | 产品 agent；executor=`bom-claims-read`+`ops`；reviewer=`bom-claims-review` | 短指针 `bom-claims-best.yaml` |
 
 - **01 真薄**：题面 ≈ 短指令 + 案题 query；交付 claims submit。
-- **02**：同 01 拓扑；挂 `bom-claims-flow` + executor `agent.rules: read-skills-first` + `answer-scope`（**node.inject 仍空**）+ 薄 MCP `bom_claims_check`。技能为重构版单文件 SKILL：读技能→grep 定位小窗读（不足可扩窗）→题意/图例锚定、只交所问→claims（`claim_id`、`value`+`unit` 成对；**unit 照抄原文单位短语**含限定语；SKILL 附评分器 `UNIT_NORMALIZATION` 同义表作规则词汇、非金标；evidence 可回源：文件/位置/逐字引文；原文不足时 evidence 以 `[推断]` 开头写依据）→`check_claims`（对照 evidence 整词匹配 unit 短语，只提醒、不删、不拦交卷）→submit；有数字就交、全无才弃权。无黑名单、无反例、不引用金标答案。**01/02/03 共用** `bom-claims.yaml`（unit=原文短语；`checks: []`；同义表只在 02 技能，不进 spec）。给法仍官方 query + `reference.md`。
+- **02**：同 01 拓扑；挂 `bom-claims-flow` + executor `agent.rules: read-skills-first`（**node.inject 仍空**）+ 薄 MCP `bom_claims_check`。技能为重构版单文件 SKILL：读技能→grep 定位小窗读（不足可扩窗）→题意/图例锚定、只交所问→claims（`claim_id`、`value`+`unit` 成对；**unit 照抄原文单位短语**含限定语；SKILL 附评分器 `UNIT_NORMALIZATION` 同义表作规则词汇、非金标；evidence 可回源：文件/位置/逐字引文；原文不足时 evidence 以 `[推断]` 开头写依据）→`check_claims`（对照 evidence 整词匹配 unit 短语，只提醒、不删、不拦交卷）→submit；有数字就交、全无才弃权。无黑名单、无反例、不引用金标答案。**01/02/03 共用** `bom-claims.yaml`（unit=原文短语；`checks: []`；同义表只在 02 技能，不进 spec）。给法仍官方 query + `reference.md`。
 - **03**：三件套（orchestrator 主交卷 / executor 写作者助手 / reviewer）；LangGraph 强制审核环；**不靠技能抬分**（04 再挂）。tip 不开批。
 - **04 厚注入+reviewer**：技能拆自原 `bom-claims-best`；`bom-claims-best/` 仅兼容别名。
 
