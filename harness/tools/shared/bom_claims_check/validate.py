@@ -191,8 +191,12 @@ def check_claims_payload(
     *,
     sources: Iterable[str] | None = None,
     expected_count: int | None = None,
+    checklist: list[str] | None = None,
 ) -> dict[str, Any]:
     """Warn-only check. Returns status/warnings; never mutates ``data``.
+
+    ``checklist`` is the model-written question list (object × value asked);
+    when given, N = len(checklist) and overrides ``expected_count``.
 
     ``expected_count`` is the agent-declared N from the question-facing short
     checklist (never gold). When provided and claim count differs, warn only.
@@ -216,11 +220,19 @@ def check_claims_payload(
     if not abstained and not claims:
         warnings.append("claims 为空且未 abstained；确认原文是否确无可答数字")
 
+    checklist_items: list[str] | None = None
+    if checklist is not None:
+        if isinstance(checklist, list) and all(isinstance(x, str) and x.strip() for x in checklist):
+            checklist_items = [x.strip() for x in checklist]
+            expected_count = len(checklist_items)
+        else:
+            warnings.append("checklist 应为非空字符串数组（每项=题面所问 对象×指标）；已忽略")
+
     # Count check: warn-only; N from question checklist only (never gold / hard gate).
     if expected_count is None:
         warnings.append(
-            "未提供 expected_count（题面短清单 N）；跳过条数核对。"
-            "调用时传入 expected_count=清单条数（可枚举时）。"
+            "未提供 checklist/expected_count（题面短清单 N）；跳过条数核对。"
+            "调用时传入 checklist=[题面所问 对象×指标, ...]（可枚举时）。"
         )
     elif not isinstance(expected_count, int) or isinstance(expected_count, bool) or expected_count < 0:
         warnings.append(
@@ -238,6 +250,8 @@ def check_claims_payload(
             f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
             f"检查多报或漏报（勿按告警批量删条）"
         )
+        if checklist_items is not None:
+            warnings.extend(_coverage_hints(checklist_items, claims))
 
     for i, claim in enumerate(claims):
         where = f"claims[{i}]"
@@ -250,6 +264,33 @@ def check_claims_payload(
         warnings.extend(w)
         structural.extend(s)
     return _result("checked", warnings, structural, per_claim, len(claims))
+
+
+def _claim_label(claim: Any) -> str:
+    if not isinstance(claim, dict):
+        return ""
+    parts = [claim.get(k) for k in ("object", "item", "name", "text", "claim_id")]
+    return _squash(" ".join(str(p) for p in parts if isinstance(p, str))).lower()
+
+
+def _coverage_hints(items: list[str], claims: list[Any]) -> list[str]:
+    """Best-effort missing/extra hints by plain substring match (hint only)."""
+    labels = [_claim_label(c) for c in claims]
+    keys = [_squash(i).lower() for i in items]
+    out: list[str] = []
+    if len(claims) < len(items):
+        missing = [i for i, k in zip(items, keys) if not any(k and k in lb for lb in labels)]
+        if missing and len(missing) < len(items):
+            out.append(f"清单项可能无对应 claim：{missing}")
+    elif len(claims) > len(items):
+        extra = [
+            str(c.get("claim_id") or f"claims[{n}]")
+            for n, (c, lb) in enumerate(zip(claims, labels))
+            if isinstance(c, dict) and lb and not any(k and k in lb for k in keys)
+        ]
+        if extra and len(extra) < len(claims):
+            out.append(f"这些 claim 未匹配任何清单项（可能多报）：{extra}")
+    return out
 
 
 def _result(status: str, warnings: list[str], structural: list[str], per_claim: list[dict], n: int) -> dict[str, Any]:
@@ -272,6 +313,7 @@ def check_claims_file(
     *,
     sources: Iterable[str] | None = None,
     expected_count: int | None = None,
+    checklist: list[str] | None = None,
 ) -> dict[str, Any]:
     """Load JSON at ``path`` and run :func:`check_claims_payload` (read-only)."""
     try:
@@ -284,4 +326,4 @@ def check_claims_file(
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         return _result("unavailable", [], [f"JSON 无法解析：{exc}"], [], 0)
-    return check_claims_payload(data, sources=sources, expected_count=expected_count)
+    return check_claims_payload(data, sources=sources, expected_count=expected_count, checklist=checklist)
