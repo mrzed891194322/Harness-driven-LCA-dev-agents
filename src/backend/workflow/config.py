@@ -174,16 +174,10 @@ class Node(_Strict):
         return self.kind(agent) == "artifact"
 
     def is_writer(self, agent: str) -> bool:
-        """产物写权（与主交卷权正交）。勿再从 kind==artifact 自动推出写权。
+        """产物写权：``access.write.produces``（模板 + 节点 override 合并）。与 ``is_primary`` 正交。"""
+        from backend.workflow.access import produces_write_enabled
 
-        - 有 executor 槽时：仅 executor 写产物（03 三件套：assistant 写、orch 主交卷不写）。
-        - 无 orchestrator 的薄节点：唯一 artifact agent 亦写（01/02 单执行者 = primary∧writer）。
-        """
-        if agent == "executor":
-            return True
-        if self.kind(agent) == "artifact" and "orchestrator" not in self.agents:
-            return True
-        return False
+        return produces_write_enabled(self, agent)
 
     def outgoing(self, agent: str) -> list[Edge]:
         return [e for e in self.flow.edges if e.from_ == agent]
@@ -352,9 +346,9 @@ class Rule(_Strict):
     enabled: bool = True
     order: int = 100
     applies_to: list[Literal["executor", "reviewer"]] | None = None  # roles (deliver.submit artifact/verdict)
-    # Capability gate (orthogonal to applies_to / role()):
-    #   writer  → is_writer ∧ is_primary（薄单执行者写+交卷文案）
-    #   primary → is_primary ∧ ¬is_writer（主交卷仅汇总，如 03 orch）
+    # inject_when gate (orthogonal to applies_to / role()):
+    #   writer  → access.write.produces ∧ is_primary（薄档写+交卷文案）
+    #   primary → is_primary ∧ ¬access.write.produces（主交卷不写产物，如 03 orch）
     #   verdict → kind == verdict
     inject_when: Literal["primary", "writer", "verdict"] | None = None
     prompt: str
@@ -669,7 +663,7 @@ def load_rule(root: Path, rel: str) -> Rule:
 
 
 def inject_when_matches(node: Node, agent: str, gate: str | None) -> bool:
-    """Match Rule.inject_when against Node capability tags (primary / writer / verdict)."""
+    """Match Rule.inject_when against deliver.submit + access.write.produces (via Node.is_writer / is_primary)."""
     if gate is None:
         return True
     if gate == "writer":
@@ -691,7 +685,7 @@ def load_global_rules(
     """Load global rules.
 
     Preferred: ``load_global_rules(root, node=node, agent=agent)`` — filters by
-    ``applies_to`` (via ``node.role(agent)``) **and** ``inject_when`` capability gates.
+    ``applies_to`` (via ``node.role(agent)``) **and** ``inject_when`` gates (primary / writer / verdict).
 
     Legacy/tests: ``load_global_rules(root, role)`` — ``applies_to`` only; rules with
     ``inject_when`` set are skipped (need a live agent instance to evaluate).

@@ -37,6 +37,14 @@ def test_reviewer_cannot_write_artifacts(wf_root):
     assert all("/runs/a/reviewer" in g for g in s.write_globs)
 
 
+def test_produces_write_toggle(wf_root):
+    s = _scope(wf_root, node_access={"write": {"produces": False}})
+    ws = wf_root / "workspace"
+    assert s.write_globs == [f"{ws}/runs/a/executor/**"]
+    s_on = _scope(wf_root, node_access={"write": {"produces": True}})
+    assert f"{ws}/artifacts/summary/**" in s_on.write_globs
+
+
 def test_openlca_category_lock():
     import pytest
 

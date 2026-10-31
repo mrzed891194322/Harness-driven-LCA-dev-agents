@@ -8,4 +8,5 @@ access:
   read:
     knowledge: true
     artifacts: true
-  write: {}
+  write:
+    produces: true

@@ -19,6 +19,8 @@ from backend.workflow.config import Access, Node
 
 # toggleable read areas (default on); locked areas are not listed here
 READ_TOGGLES = ("knowledge", "artifacts")
+# toggleable write areas (default off); ``produces`` grants node ``produces`` dirs + full runs dir
+WRITE_TOGGLES = ("produces",)
 LOCKED = ("plan_readable", "write_only_produces", "openlca_project_category")
 
 
@@ -46,6 +48,21 @@ def merge_toggles(*layers: Access) -> dict[str, bool]:
             if key in toggles:
                 toggles[key] = bool(value)
     return toggles
+
+
+def merge_write_toggles(*layers: Access) -> dict[str, bool]:
+    toggles = {name: False for name in WRITE_TOGGLES}
+    for layer in layers:
+        for key, value in layer.write.items():
+            if key in toggles:
+                toggles[key] = bool(value)
+    return toggles
+
+
+def produces_write_enabled(node: Node, agent_key: str) -> bool:
+    """True when merged ``access.write.produces`` allows writing deliverable dirs (PathGuard + tools)."""
+    agent = node.agents[agent_key]
+    return merge_write_toggles(agent.definition.access, agent.access)["produces"]
 
 
 def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, workspace: Path | None = None) -> Scope:
@@ -86,8 +103,8 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     read.add(str(root / "harness/rules") + "/**")
 
     write: set[str] = set()
-    # Writers: Node.is_writer (orthogonal to primary/submit). Non-writers: notes dir only.
-    if node.is_writer(agent_key):
+    # Produces writers: access.write.produces (orthogonal to deliver.submit / primary). Others: notes only.
+    if produces_write_enabled(node, agent_key):
         write.add(str(layout.node_dir(ws, node.run_key)) + "/**")
         for prod in node.produces:
             write.add(str(art / produce_dir(prod.path)) + "/**")

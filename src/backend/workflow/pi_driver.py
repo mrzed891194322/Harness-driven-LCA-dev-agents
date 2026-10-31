@@ -37,7 +37,7 @@ FILE_TOOLS_READ = ["read", "ls", "grep", "find"]
 
 
 def effective_file_tools(node, agent: str) -> list[str]:
-    """File tools from writer/verdict/primary capabilities (not kind==artifact alone)."""
+    """File tools from access.write.produces and deliver.submit kind (not slot names)."""
     if node.is_writer(agent):
         return list(FILE_TOOLS_EXEC)
     if node.kind(agent) == "verdict":
