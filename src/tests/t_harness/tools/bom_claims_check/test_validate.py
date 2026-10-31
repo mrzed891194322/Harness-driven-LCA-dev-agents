@@ -127,7 +127,7 @@ def test_expected_count_mismatch_warn_only():
     out = check_claims_payload({"claims": claims}, expected_count=3)
     assert out["status"] == "checked" and out["auto_deleted"] is False
     assert "hard_errors" not in out
-    assert any("claims 条数 1 ≠ 题面清单 N=3" in w and "疑似漏报" in w for w in out["warnings"])
+    assert any("claims 条数 1 ≠ 题面清单 N=3" in w and "请逐条说明其对应的清单项" in w for w in out["warnings"])
     for bad in ("勿按告警批量删条", "告警不要求清零"):
         assert not any(bad in w for w in out["warnings"])
     # still does not mutate
@@ -165,7 +165,7 @@ def test_checklist_sets_count_and_flags_missing():
     out = check_claims_payload(data, checklist=["steel frame mass", "glass mass"])
     joined = " ".join(out["warnings"])
     assert "N=2" in joined and "glass mass" in joined
-    assert "疑似漏报" in joined
+    assert "请逐条说明其对应的清单项" in joined
     assert out["auto_deleted"] is False and len(data["claims"]) == 1
 
 
@@ -182,7 +182,7 @@ def test_checklist_flags_extra():
     ]}
     out = check_claims_payload(data, checklist=["frame"])
     joined = " ".join(out["warnings"])
-    assert "若条数 > N" in joined and "须删去多余条" in joined
+    assert "请逐条说明其对应的清单项" in joined and "删" not in joined
     assert any("'b'" in w and "多报" in w for w in out["warnings"])
 
 

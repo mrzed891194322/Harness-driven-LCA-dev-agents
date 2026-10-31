@@ -246,18 +246,9 @@ def check_claims_payload(
                 f"检查是否应交付非空 claims"
             )
     elif len(claims) != expected_count:
-        if len(claims) > expected_count:
-            warnings.append(
-                f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
-                f"若条数 > N：仅同一清单项在原文确为区间两端点或并列实测值时可保留多条；"
-                f"凡清单外对象/工况、同量异单位或概数、多候选口径押宝、value=null 占位条，"
-                f"须删去多余条（勿盲截前 N 条）后重核"
-            )
-        else:
-            warnings.append(
-                f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
-                f"疑似漏报：对照题面清单补齐缺失项，或确认原文确无可答后再核"
-            )
+        warnings.append(
+            f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}：请逐条说明其对应的清单项"
+        )
         if checklist_items is not None:
             warnings.extend(_coverage_hints(checklist_items, claims))
 
