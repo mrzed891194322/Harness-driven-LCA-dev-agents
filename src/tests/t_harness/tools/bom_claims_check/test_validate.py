@@ -17,7 +17,7 @@ def _one(claim, **kw):
 
 def _warn_body(out):
     """Warnings excluding the missing-expected_count reminder (when N not passed)."""
-    return [w for w in out["warnings"] if "未提供 expected_count" not in w]
+    return [w for w in out["warnings"] if "未提供 checklist" not in w]
 
 
 def test_no_blacklist_or_hard_errors():
@@ -119,7 +119,7 @@ def test_expected_count_match_no_count_warning():
     assert out["status"] == "checked" and out["auto_deleted"] is False
     assert out["claim_count"] == 2
     assert not any("题面清单 N=" in w for w in out["warnings"])
-    assert not any("未提供 expected_count" in w for w in out["warnings"])
+    assert not any("未提供 checklist" in w for w in out["warnings"])
 
 
 def test_expected_count_mismatch_warn_only():
@@ -136,7 +136,7 @@ def test_expected_count_missing_reminds_and_skips():
     out = check_claims_payload(
         {"claims": [{"claim_id": "a", "value": 1, "unit": "kg", "evidence": "1 kg"}]}
     )
-    assert any("未提供 expected_count" in w for w in out["warnings"])
+    assert any("未提供 checklist" in w for w in out["warnings"])
     assert not any("题面清单 N=" in w for w in out["warnings"])
 
 
@@ -156,3 +156,43 @@ def test_expected_count_never_hard_gate_or_gold():
     assert "hard_errors" not in out and "ok" not in out
     # empty + not abstained already warns; plus count mismatch
     assert any("题面清单 N=5" in w for w in out["warnings"])
+
+
+def test_checklist_sets_count_and_flags_missing():
+    data = {"claims": [{"claim_id": "a", "object": "steel frame mass", "value": 3, "unit": "kg", "evidence": "3 kg"}]}
+    out = check_claims_payload(data, checklist=["steel frame mass", "glass mass"])
+    joined = " ".join(out["warnings"])
+    assert "N=2" in joined and "glass mass" in joined
+    assert out["auto_deleted"] is False and len(data["claims"]) == 1
+
+
+def test_checklist_match_no_count_warning():
+    data = {"claims": [{"claim_id": "a", "value": 3, "unit": "kg", "evidence": "3 kg"}]}
+    out = check_claims_payload(data, checklist=["x"])
+    assert not out["warnings"]
+
+
+def test_checklist_flags_extra():
+    data = {"claims": [
+        {"claim_id": "a", "object": "frame", "value": 3, "unit": "kg", "evidence": "3 kg"},
+        {"claim_id": "b", "object": "solvent", "value": 4, "unit": "kg", "evidence": "4 kg"},
+    ]}
+    out = check_claims_payload(data, checklist=["frame"])
+    assert any("'b'" in w and "多报" in w for w in out["warnings"])
+
+
+def test_bad_checklist_ignored_with_warning():
+    out = check_claims_payload({"claims": []}, checklist=["", 3])
+    assert any("checklist" in w for w in out["warnings"])
+
+
+def test_correctness_value_not_in_evidence_and_not_in_source():
+    data = {"claims": [{"claim_id": "a", "value": 7, "unit": "kg", "evidence": "f.md: 3 kg"}]}
+    out = check_claims_payload(data, sources=["other text"], checklist=["a"])
+    joined = " ".join(out["warnings"])
+    assert "未在 evidence" in joined and "未逐字找到" in joined
+
+
+def test_correctness_inferred_not_warned():
+    data = {"claims": [{"claim_id": "a", "value": 7, "unit": "kg", "evidence": "[推断] 按 f.md 表 2 推算"}]}
+    assert not check_claims_payload(data, sources=["x"], checklist=["a"])["warnings"]
