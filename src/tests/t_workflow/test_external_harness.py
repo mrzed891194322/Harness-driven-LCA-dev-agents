@@ -58,7 +58,7 @@ def test_bom_extract_tier_switches():
     assert set(n01[0].agents) == {"executor"}
     assert set(n02[0].agents) == {"executor"}  # 02: still no reviewer
     assert set(n03[0].agents) == {"orchestrator", "executor", "reviewer"}  # 03: trio
-    assert set(n04[0].agents) == {"executor", "reviewer"}
+    assert set(n04[0].agents) == {"orchestrator", "executor", "reviewer"}
     assert n01[0].inject == n02[0].inject == n03[0].inject == []
     thick_inject = [
         "rules/delivery/status.yaml",
@@ -83,7 +83,6 @@ def test_bom_extract_tier_switches():
     assert n04[0].produces[0].spec == (
         ".benchmark/bom/harness/specs/bom-claims-best.yaml"
     )
-    thick_skills = ["bom-claims-read", "bom-claims-ops"]
     assert n01[0].agents["executor"].tools.skills == []
     assert n02[0].agents["executor"].tools.skills == ["bom-claims-flow"]
     assert n02[0].agents["executor"].tools.mcp == ["bom_claims_check"]
@@ -110,8 +109,18 @@ def test_bom_extract_tier_switches():
     assert n03[0].agents["reviewer"].definition.deliver.submit == "verdict"
     assert n03[0].agents["orchestrator"].definition.deliver.submit == "artifact"
     assert n03[0].agents["executor"].definition.deliver is None
-    assert n04[0].agents["executor"].tools.skills == thick_skills
+    assert n04[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator.yaml")
+    assert n04[0].agents["executor"].agent.endswith("bom-extract-executor.yaml")
+    assert n04[0].agents["reviewer"].agent.endswith("bom-extract-reviewer.yaml")
+    assert n04[0].agents["executor"].tools.skills == ["bom-claims-flow"]
+    assert n04[0].agents["executor"].tools.mcp == []
+    assert n04[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml"]
     assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
+    assert n04[0].agents["reviewer"].tools.mcp == ["bom_claims_check"]
+    assert n04[0].kind("orchestrator") == "artifact"
+    assert n04[0].kind("executor") is None
+    assert n04[0].kind("reviewer") == "verdict"
+    assert n04[0].flow.start == "orchestrator"
 
 
 def test_repo_full_lca_product_path_refs():

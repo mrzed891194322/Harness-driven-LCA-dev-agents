@@ -9,11 +9,11 @@
 
 | 技能 | 挂接 orch | 说明 |
 | --- | --- | --- |
-| `bom-claims-flow` | `bom-extract-02` executor | 单技能工作流：提取→初稿→自检→改→交付；`refs/` 含读窗/类型黑名单/单位 |
+| `bom-claims-flow` | `bom-extract-02` executor；`bom-extract-04` executor | r21 单文件工作流（定清单→读文→claims→核对循环→交付）；04 executor **无** check MCP |
 | `bom-claims-slim` | （弃用） | 旧薄约束；勿挂接，改用 `bom-claims-flow` |
-| `bom-claims-review` | `bom-extract-04` reviewer | 审核护栏（03 改靠专用 agent，不挂） |
-| `bom-claims-read` | `bom-extract-04` executor | 读文：ls→grep→offset/limit |
-| `bom-claims-ops` | `bom-extract-04` executor | 单位 / 只交所问 / 交卷 |
+| `bom-claims-review` | `bom-extract-04` reviewer | 先 MCP `check_claims` 再对照长文；多报/范围外/单位类须 reject（03 专用 agent，不挂） |
+| `bom-claims-read` | （档内保留；04 不挂） | 读文：ls→grep→offset/limit |
+| `bom-claims-ops` | （档内保留；04 不挂） | 单位 / 只交所问 / 交卷 |
 | `bom-claims-best` | （无挂接） | **兼容别名** |
 | `lci-mapping-best` | `lci-mapping-04` | （本轮未拆） |
 | `lci-triage-best` | `lci-triage-04` | （本轮未拆） |

@@ -6,9 +6,8 @@ description: |
   ## 方法（短指针）
 
   执行前先 `read` 下列技能，并按其护栏产出：
-  - `harness/tools/skills/bom-claims-read/SKILL.md`（读文）
-  - `harness/tools/skills/bom-claims-ops/SKILL.md`（单位 / 输出契约 / 交卷）
-  - 审核者读 `harness/tools/skills/bom-claims-review/SKILL.md`（对照同一份 knowledge 长文核对 claims；勿自己重抽一套）
+  - executor：`harness/tools/skills/bom-claims-flow/SKILL.md`（定清单→读原文→写 claims→薄规则；04 executor 不挂 check MCP）
+  - reviewer：`harness/tools/skills/bom-claims-review/SKILL.md`（**先** MCP `bom_claims_check` / `check_claims(checklist=…)`，再对照 knowledge 长文；多报/范围外/单位类问题须 reject）
 
   ## 交付物
 
