@@ -76,7 +76,7 @@ def _sources() -> list[str] | None:
         "claims 条数≠N 时仅提醒并尽量列出疑似漏/多项（旧参数 expected_count 仍可用）；未传则跳过条数核对。"
         "正确性：每条 value+unit 须在 evidence 中、evidence 须在原文中；无据且未标 [推断] 即提醒。"
         "返回 status（checked/unavailable，仅表示核对是否执行，不代表正确）与 warnings。"
-        "不删改任何 claim；提醒不要求清零，请逐条回原文确认后自行决定。"
+        "不删改任何 claim；请按告警逐条对照题面清单处置后再核。"
     )
 )
 def check_claims(

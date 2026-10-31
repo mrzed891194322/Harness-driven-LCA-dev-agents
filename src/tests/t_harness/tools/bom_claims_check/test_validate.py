@@ -127,7 +127,9 @@ def test_expected_count_mismatch_warn_only():
     out = check_claims_payload({"claims": claims}, expected_count=3)
     assert out["status"] == "checked" and out["auto_deleted"] is False
     assert "hard_errors" not in out
-    assert any("claims 条数 1 ≠ 题面清单 N=3" in w for w in out["warnings"])
+    assert any("claims 条数 1 ≠ 题面清单 N=3" in w and "疑似漏报" in w for w in out["warnings"])
+    for bad in ("勿按告警批量删条", "告警不要求清零"):
+        assert not any(bad in w for w in out["warnings"])
     # still does not mutate
     assert len(claims) == 1
 
@@ -159,10 +161,11 @@ def test_expected_count_never_hard_gate_or_gold():
 
 
 def test_checklist_sets_count_and_flags_missing():
-    data = {"claims": [{"claim_id": "a", "object": "steel frame mass", "value": 3, "unit": "kg", "evidence": "3 kg"}]}
+    data = {"claims": [{"claim_id": "a", "text": "steel frame mass", "value": 3, "unit": "kg", "evidence": "3 kg"}]}
     out = check_claims_payload(data, checklist=["steel frame mass", "glass mass"])
     joined = " ".join(out["warnings"])
     assert "N=2" in joined and "glass mass" in joined
+    assert "疑似漏报" in joined
     assert out["auto_deleted"] is False and len(data["claims"]) == 1
 
 
@@ -174,11 +177,35 @@ def test_checklist_match_no_count_warning():
 
 def test_checklist_flags_extra():
     data = {"claims": [
-        {"claim_id": "a", "object": "frame", "value": 3, "unit": "kg", "evidence": "3 kg"},
-        {"claim_id": "b", "object": "solvent", "value": 4, "unit": "kg", "evidence": "4 kg"},
+        {"claim_id": "a", "text": "frame", "value": 3, "unit": "kg", "evidence": "3 kg"},
+        {"claim_id": "b", "text": "solvent", "value": 4, "unit": "kg", "evidence": "4 kg"},
     ]}
     out = check_claims_payload(data, checklist=["frame"])
+    joined = " ".join(out["warnings"])
+    assert "若条数 > N" in joined and "须删去多余条" in joined
     assert any("'b'" in w and "多报" in w for w in out["warnings"])
+
+
+def test_coverage_hints_token_match_item_id_field():
+    """Legal fields + token overlap: matching claim kept out of 多报 list."""
+    data = {"claims": [
+        {"claim_id": "keep", "item_id": "steel", "field": "mass", "value": 3, "unit": "kg", "evidence": "3 kg"},
+        {"claim_id": "drop", "text": "solvent volume", "value": 4, "unit": "L", "evidence": "4 L"},
+    ]}
+    out = check_claims_payload(data, checklist=["steel frame mass"])
+    extra_warns = [w for w in out["warnings"] if "可能多报" in w]
+    assert extra_warns and "'drop'" in extra_warns[0] and "'keep'" not in extra_warns[0]
+
+
+def test_message_has_no_exemption_openings():
+    out = check_claims_payload(
+        {"claims": [{"claim_id": "a", "value": 1, "unit": "kg", "evidence": "1 kg"}]},
+        expected_count=1,
+    )
+    msg = out["message"]
+    assert "仅提醒" in msg and "未改写" in msg
+    for bad in ("告警不要求清零", "不要按告警批量删条", "勿按告警批量删条"):
+        assert bad not in msg
 
 
 def test_bad_checklist_ignored_with_warning():

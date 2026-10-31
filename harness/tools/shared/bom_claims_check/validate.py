@@ -243,13 +243,21 @@ def check_claims_payload(
         if expected_count != 0 and len(claims) != expected_count:
             warnings.append(
                 f"abstained=true 且 claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
-                f"检查是否应交付非空 claims（勿按告警批量删条）"
+                f"检查是否应交付非空 claims"
             )
     elif len(claims) != expected_count:
-        warnings.append(
-            f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
-            f"检查多报或漏报（勿按告警批量删条）"
-        )
+        if len(claims) > expected_count:
+            warnings.append(
+                f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
+                f"若条数 > N：仅同一清单项在原文确为区间两端点或并列实测值时可保留多条；"
+                f"凡清单外对象/工况、同量异单位或概数、多候选口径押宝、value=null 占位条，"
+                f"须删去多余条（勿盲截前 N 条）后重核"
+            )
+        else:
+            warnings.append(
+                f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
+                f"疑似漏报：对照题面清单补齐缺失项，或确认原文确无可答后再核"
+            )
         if checklist_items is not None:
             warnings.extend(_coverage_hints(checklist_items, claims))
 
@@ -266,27 +274,63 @@ def check_claims_payload(
     return _result("checked", warnings, structural, per_claim, len(claims))
 
 
+_TOKEN_RE = re.compile("[A-Za-z0-9]+|[\u4e00-\u9fff]+")
+
+
+def _tokens(s: str) -> set[str]:
+    """Alnum / CJK runs longer than 1 char (for checklist↔claim matching)."""
+    return {t.lower() for t in _TOKEN_RE.findall(s) if len(t) > 1}
+
+
+def _label_matches_item(label: str, item_key: str) -> bool:
+    """True if label covers checklist item via substring either way or meaningful token overlap.
+
+    Meaningful = smaller token set is mostly covered; a single shared token only
+    counts when the smaller side itself has just one token (avoids ``mass`` alone
+    linking unrelated ``steel frame mass`` ↔ ``glass mass``).
+    """
+    if not label or not item_key:
+        return False
+    if item_key in label or label in item_key:
+        return True
+    lt, it = _tokens(label), _tokens(item_key)
+    if not lt or not it:
+        return False
+    smaller, larger = (it, lt) if len(it) <= len(lt) else (lt, it)
+    overlap = smaller & larger
+    if not overlap:
+        return False
+    need = max(1, (len(smaller) + 1) // 2)
+    if len(overlap) < need:
+        return False
+    return len(overlap) >= 2 or len(smaller) == 1
+
+
 def _claim_label(claim: Any) -> str:
+    """Join legal schema fields only (item_id/field/text/claim_id); never object/item/name."""
     if not isinstance(claim, dict):
         return ""
-    parts = [claim.get(k) for k in ("object", "item", "name", "text", "claim_id")]
+    parts = [claim.get(k) for k in ("item_id", "field", "text", "claim_id")]
     return _squash(" ".join(str(p) for p in parts if isinstance(p, str))).lower()
 
 
 def _coverage_hints(items: list[str], claims: list[Any]) -> list[str]:
-    """Best-effort missing/extra hints by plain substring match (hint only)."""
+    """Best-effort missing/extra hints by token/substring match (hint only)."""
     labels = [_claim_label(c) for c in claims]
     keys = [_squash(i).lower() for i in items]
     out: list[str] = []
     if len(claims) < len(items):
-        missing = [i for i, k in zip(items, keys) if not any(k and k in lb for lb in labels)]
+        missing = [
+            i for i, k in zip(items, keys)
+            if not any(_label_matches_item(lb, k) for lb in labels)
+        ]
         if missing and len(missing) < len(items):
             out.append(f"清单项可能无对应 claim：{missing}")
     elif len(claims) > len(items):
         extra = [
             str(c.get("claim_id") or f"claims[{n}]")
             for n, (c, lb) in enumerate(zip(claims, labels))
-            if isinstance(c, dict) and lb and not any(k and k in lb for k in keys)
+            if isinstance(c, dict) and lb and not any(_label_matches_item(lb, k) for k in keys)
         ]
         if extra and len(extra) < len(claims):
             out.append(f"这些 claim 未匹配任何清单项（可能多报）：{extra}")
@@ -302,8 +346,7 @@ def _result(status: str, warnings: list[str], structural: list[str], per_claim: 
         "claim_count": n,
         "auto_deleted": False,
         "message": (
-            "仅提醒，未改写 claims。告警不要求清零：逐条回原文确认后再决定是否修改；"
-            "不要按告警批量删条。"
+            "仅提醒，未改写 claims。请按告警逐条对照题面清单处置后再核。"
         ),
     }
 
