@@ -65,6 +65,22 @@ def produces_write_enabled(node: Node, agent_key: str) -> bool:
     return merge_write_toggles(agent.definition.access, agent.access)["produces"]
 
 
+def node_uses_run_checklist(root: Path, node: Node) -> bool:
+    """True when a produce spec declares a host check with ``checklist_from_run``."""
+    from backend.workflow.config import load_spec
+
+    seen: set[str] = set()
+    for prod in node.produces:
+        sid = prod.spec
+        if not sid or sid in seen:
+            continue
+        seen.add(sid)
+        for check in load_spec(root, sid).checks:
+            if check.get("checklist_from_run"):
+                return True
+    return False
+
+
 def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, workspace: Path | None = None) -> Scope:
     ws = workspace or (root / layout.WORKSPACE)
     art = ws / "artifacts"
@@ -74,9 +90,10 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     read = {
         str(art / "plan") + "/**",  # lock 1
         str(layout.node_dir(ws, node.run_key)) + "/**",
-        str(layout.node_checklist_dir(ws)) + "/**",
         str(root / layout.TOOLS_SKILLS) + "/**",
     }
+    if node_uses_run_checklist(root, node):
+        read.add(str(layout.node_checklist_path(ws, node.run_key)))
     # Path-style tools.skills (repo-root-relative): grant the skill file/dir itself.
     for skill in agent.tools.skills:
         raw = (skill or "").strip()
@@ -107,7 +124,8 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     # Produces writers: access.write.produces (orthogonal to deliver.submit / primary). Others: notes only.
     if produces_write_enabled(node, agent_key):
         write.add(str(layout.node_dir(ws, node.run_key)) + "/**")
-        write.add(str(layout.node_checklist_dir(ws)) + "/**")
+        if node_uses_run_checklist(root, node):
+            write.add(str(layout.node_checklist_path(ws, node.run_key)))
         for prod in node.produces:
             write.add(str(art / produce_dir(prod.path)) + "/**")
     else:

@@ -1,6 +1,7 @@
+from backend.workflow import layout
 from backend.workflow.access import compute_scope
 from backend.workflow.config import Access, load_node
-from tests.t_workflow.conftest import make_node, node_ref, spec_ref
+from tests.t_workflow.conftest import REPO, make_node, node_ref, spec_ref
 
 
 def _scope(root, agent="executor", access=None, node_access=None):
@@ -16,6 +17,21 @@ def test_executor_writes_only_produces_and_runs(wf_root):
     ws = wf_root / "workspace"
     assert s.write_globs == sorted([f"{ws}/artifacts/summary/**", f"{ws}/runs/a/**"])
     assert f"{ws}/artifacts/plan/**" in s.denied_write_globs
+
+
+def test_checklist_path_only_when_checklist_from_run():
+    ws = REPO / "workspace"
+    n04 = load_node(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract-04.yaml")
+    cl = str(layout.node_checklist_path(ws, n04.run_key))
+    ex = compute_scope(REPO, n04, "executor", n04.agents["executor"].definition.access)
+    assert cl in ex.read_globs
+    assert cl in ex.write_globs
+    assert not any("checklists" in g and g != cl for g in ex.read_globs)
+
+    plain = load_node(REPO, node_ref("lca-mapping"))
+    ex_plain = compute_scope(REPO, plain, "executor", plain.agents["executor"].definition.access)
+    assert not any("checklists" in g for g in ex_plain.read_globs)
+    assert not any("checklists" in g for g in ex_plain.write_globs)
 
 
 def test_plan_readable_even_if_toggles_off(wf_root):
