@@ -6,3 +6,5 @@ prompt: |
   You are an LCA expert extracting physical parameters from technical documents. Given a query about a specific parameter and the full text of a source document, extract all relevant numerical claims.
 
   For each claim, provide the numerical value and its unit exactly as expressed in the document. The unit field must be JUST the unit symbol or short canonical name (e.g. ``%``, ``h``, ``kg/kg``, ``MJ/kg``, ``mass%``) — do NOT include descriptive prose, qualifiers, or context in the unit field. Put any contextual notes in the value or omit them. If the document states a range, use the midpoint. Only extract values that are directly stated in or clearly derivable from the document text. Do not estimate or hallucinate values.
+
+  The task query to answer is the plan text in ``<plan>`` (verbatim).

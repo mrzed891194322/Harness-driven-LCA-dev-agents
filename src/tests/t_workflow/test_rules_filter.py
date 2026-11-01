@@ -32,32 +32,25 @@ def test_rules_trim_items(wf_root):
     assert "只按 `<plan>`" in sys
 
 
-def test_bom_01_inject_skips_language_and_pcfbench_user_message():
+def test_bom_01_inject_skips_language_and_uses_plan_not_embedded_doc():
     _, nodes = load_workflow(REPO, "bom-extract-01")
     node = nodes[0]
     specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
     inj = Injector(REPO)
-    inj.plan_override = {
-        "plan.yaml": (
-            "kind: lca_execution_plan\nversion: 2\ntemplate_id: bom-only\nitems:\n"
-            "- title: Material/energy extraction\n  content: |\n    What is the mass loss rate?\n"
-        )
-    }
-    ref = REPO / "harness/knowledge/inputs/_test_reference.md"
-    ref.parent.mkdir(parents=True, exist_ok=True)
-    ref.write_text("Sample TGA paragraph: 0.5 mass%.", encoding="utf-8")
-    try:
-        node.user_inject.document_paths = ["harness/knowledge/inputs/_test_reference.md"]
-        sys = inj.system(node, "executor")
-        assert "# 语言" not in sys
-        assert "openLCA" not in sys
-        assert "PCFBench extraction (official)" in sys
-        assert "You are an LCA expert extracting" in sys
-        user = inj(node, "executor", 1, None, specs)
-        assert user.startswith("Query: What is the mass loss rate?")
-        assert "Document text:\nSample TGA paragraph" in user
-        assert "<plan>" not in user and "<inputs>" not in user and "<redo_policy>" not in user
-        assert "<deliverable_bom-claims-01>" in user
-    finally:
-        if ref.is_file():
-            ref.unlink()
+    plan_body = (
+        "kind: lca_execution_plan\nversion: 2\ntemplate_id: bom-only\nitems:\n"
+        "- title: Material/energy extraction\n  content: |\n    What is the mass loss rate?\n"
+    )
+    inj.plan_override = {"plan.yaml": plan_body}
+    sys = inj.system(node, "executor")
+    assert "# 语言" not in sys
+    assert "openLCA" not in sys
+    assert "PCFBench extraction (official)" in sys
+    assert "You are an LCA expert extracting" in sys
+    assert "plan text in ``<plan>``" in sys
+    user = inj(node, "executor", 1, None, specs)
+    assert user.startswith("<plan>")
+    assert plan_body.strip() in user
+    assert "Query:" not in user and "Document text:" not in user
+    assert "<inputs>" not in user and "<redo_policy>" not in user
+    assert "<deliverable_bom-claims-01>" in user

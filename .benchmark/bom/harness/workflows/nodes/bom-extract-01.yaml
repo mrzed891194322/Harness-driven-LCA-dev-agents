@@ -9,10 +9,7 @@ rules_trim:
   rules/global/20-knowledge.yaml: [read_on_demand_cite, plan_overrides_conflict]
   rules/global/30-submit-writer.yaml: [submit_required, write_content_string]
 user_inject:
-  mode: pcfbench_extraction
-  document_paths:
-    - harness/knowledge/inputs/reference.md
-  omit_sections: [inputs, redo_policy, plan]
+  omit_sections: [inputs, redo_policy]
 agents:
   executor:
     agent: .benchmark/bom/harness/workflows/agents/bom-extract-executor-01.yaml

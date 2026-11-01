@@ -136,8 +136,6 @@ class Produce(_Strict):
 
 
 class UserInject(_Strict):
-    mode: Literal["default", "pcfbench_extraction"] = "default"
-    document_paths: list[str] = Field(default_factory=list)
     omit_sections: list[str] = Field(default_factory=list)
 
 

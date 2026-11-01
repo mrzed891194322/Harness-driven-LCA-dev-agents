@@ -66,7 +66,7 @@ def test_bom_extract_tier_switches():
     skip_lang = "rules/global/10-language.yaml"
     trim_red = "rules/global/00-redlines.yaml"
     assert n01[0].produces[0].spec == ".benchmark/bom/harness/specs/bom-claims-01.yaml"
-    assert n01[0].user_inject.mode == "pcfbench_extraction"
+    assert set(n01[0].user_inject.omit_sections) == {"inputs", "redo_policy"}
     assert official_rule in n01[0].agents["executor"].rules
     s01 = load_spec(REPO, n01[0].produces[0].spec)
     assert "abstained" not in s01.prompt
