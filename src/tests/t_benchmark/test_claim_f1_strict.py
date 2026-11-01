@@ -42,8 +42,13 @@ def _official_counts(gold: dict, pred: dict):
         out = []
         for c in doc.get("claims") or []:
             v, u = c.get("value"), c.get("unit")
-            if v is not None and u:
-                out.append((float(v), str(u)))
+            if v is None:
+                continue
+            if u is None:
+                u = ""
+            else:
+                u = str(u)
+            out.append((float(v), u))
         return out
 
     gt, pr = tuples(gold), tuples(pred)
@@ -115,6 +120,24 @@ def test_zero_pred_includes_gold_in_micro_denominator():
     assert suite["strict_micro_n_gold"] == 1
     assert suite["ext_micro_n_gold"] == 2
     assert suite["macro_f1"] == 0.0
+
+
+def test_empty_unit_claim_in_strict_n_gold_and_match():
+    cf1s = _load(CLAIM_F1_STRICT, "claim_f1_strict")
+    gold = {
+        "claims": [
+            {"value": 42.0, "unit": ""},
+            {"value": 1.0, "unit": "kg"},
+        ]
+    }
+    pred = {"claims": [{"value": 42.0, "unit": ""}]}
+    got = cf1s.score_claims(gold, pred)
+    matched, n_pred, n_gold = _official_counts(gold, pred)
+    assert got["n_gold"] == 2
+    assert got["n_pred"] == 1
+    assert got["matched"] == matched == 1
+    assert got["n_gold"] == n_gold
+    assert got["recall"] == pytest.approx(0.5)
 
 
 def test_extended_extra_mass_not_in_strict():

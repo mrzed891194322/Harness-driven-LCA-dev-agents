@@ -19,13 +19,30 @@ STRICT_UNIT_TABLE_VERSION = (
 )
 
 
+def _claim_vu_tuple(claim: dict[str, Any]) -> tuple[float, str] | None:
+    """Mirror PCFBench ``(float(value), unit)`` claim rows passed to ``_match_extraction_claims``.
+
+    Upstream skips claims with ``value is None`` (cannot ``float``). Empty or missing
+    ``unit`` is kept as ``""`` and normalizes to canonical ``""`` (see upstream
+    ``extraction._unit_candidates`` L36–37 and ``normalize_value_and_unit``).
+    """
+    value = claim.get("value")
+    if value is None:
+        return None
+    unit = claim.get("unit")
+    if unit is None:
+        unit = ""
+    else:
+        unit = str(unit)
+    return (float(value), unit)
+
+
 def _vu_tuples(doc: dict[str, Any]) -> list[tuple[float, str]]:
     out: list[tuple[float, str]] = []
     for claim in doc.get("claims") or []:
-        value = claim.get("value")
-        unit = claim.get("unit")
-        if value is not None and unit:
-            out.append((float(value), str(unit)))
+        t = _claim_vu_tuple(claim)
+        if t is not None:
+            out.append(t)
     return out
 
 

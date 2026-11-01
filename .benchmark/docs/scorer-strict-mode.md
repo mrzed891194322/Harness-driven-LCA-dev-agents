@@ -45,7 +45,7 @@
 ## 无法 1:1 对齐的点
 
 1. **Text-only gold/pred**：extended 计 claim；strict 完全跳过——这是官方 extraction API 只接受 `(float, str)` 的固有限制，不是实现偏差。
-2. **Gold/pred 空 unit 字符串**：与 upstream 一致，仅 `(value, unit)` 且 **truthy `unit`** 才进入 `_match_extraction_claims`（见 vendored `extraction._unit_candidates` L36–37；harness `claim_f1_strict._vu_tuples` 同规则）。金标 JSON 保留 `""` / 缺 unit，不在 strict 分母里额外删改或填默认值。
+2. **Gold/pred 空 unit 字符串**：与 upstream 一致，凡 `value is not None` 的 claim 都进入 strict 计数与匹配；`unit` 为 `""` / 缺字段时按 `""` 传入官方 matcher（`extraction.py` L80：`gt_normalized = [normalize_value_and_unit(v, u) for v, u in gt_claims]`；L36–37：`if not unit: return [unit]`）。`value is None` 的 text-only 行 upstream 不会 `float`，harness 同样跳过。
 3. **绝对质量 g/kg/lb**：extended 用 harness `_EXTRA_MASS`；strict 未知单位走官方 pass-through key——同一数值可能在 extended 匹配、strict 不匹配。
 4. **宏平均语义**：两者均为案均 F1；strict 空空案为 0 会拉低 strict macro，extended 为 1 则抬高——与上表双空规则一致。
 
