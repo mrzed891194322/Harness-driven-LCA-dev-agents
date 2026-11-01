@@ -9,5 +9,7 @@ agents:
     agent: .benchmark/bom/harness/workflows/agents/bom-extract-orchestrator.yaml
   executor:
     agent: .benchmark/bom/harness/workflows/agents/bom-extract-executor.yaml
+    rules:
+      - rules/lca/pcfbench-extraction-official.yaml
   reviewer:
     agent: .benchmark/bom/harness/workflows/agents/bom-extract-reviewer.yaml

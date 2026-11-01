@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from backend.workflow import layout
 
@@ -56,6 +56,8 @@ class Agent(_Strict):
     max_turns: int | None = Field(default=None, ge=1)  # per-node override of the template's deliver.max_turns (Q1)
     tools: Tools = Field(default_factory=Tools)
     rules: list[str] = Field(default_factory=list)
+    rules_skip: list[str] = Field(default_factory=list)
+    rules_trim: dict[str, list[str]] = Field(default_factory=dict)
     access: Access = Field(default_factory=Access)
     _definition: "AgentDef | None" = PrivateAttr(default=None)
 
@@ -133,12 +135,21 @@ class Produce(_Strict):
     path: str  # relative to workspace/artifacts, e.g. "bom" or "bom/bom.json"
 
 
+class UserInject(_Strict):
+    mode: Literal["default", "pcfbench_extraction"] = "default"
+    document_paths: list[str] = Field(default_factory=list)
+    omit_sections: list[str] = Field(default_factory=list)
+
+
 class Node(_Strict):
     id: str
     title: str = ""
     requires: list[str] = Field(default_factory=list)  # paths relative to workspace/artifacts
     produces: list[Produce] = Field(default_factory=list)
     inject: list[str] = Field(default_factory=list)  # extra rules files (harness-relative)
+    rules_skip: list[str] = Field(default_factory=list)
+    rules_trim: dict[str, list[str]] = Field(default_factory=dict)
+    user_inject: UserInject = Field(default_factory=UserInject)
     agents: dict[str, Agent]
     flow: Flow
     accept: list[str] = Field(default_factory=list)  # spec ids whose checks gate the reviewer
@@ -339,6 +350,11 @@ class AgentDef(_Strict):
     deliver: Deliver | None = None  # None = assistant (in-flow, no submit)
 
 
+class PromptItem(_Strict):
+    id: str
+    text: str
+
+
 class Rule(_Strict):
     id: str = ""
     title: str
@@ -351,7 +367,15 @@ class Rule(_Strict):
     #   primary → is_primary ∧ ¬access.write.produces（主交卷不写产物，如 03 orch）
     #   verdict → kind == verdict
     inject_when: Literal["primary", "writer", "verdict"] | None = None
-    prompt: str
+    prompt: str = ""
+    prompt_items: list[PromptItem] = Field(default_factory=list)
+    _source_path: str = PrivateAttr(default="")
+
+    @model_validator(mode="after")
+    def _prompt_source(self) -> "Rule":
+        if not self.prompt_items and not (self.prompt or "").strip():
+            raise ValueError("rule needs 'prompt' or 'prompt_items'")
+        return self
 
 
 class SpecFile(_Strict):
@@ -658,8 +682,57 @@ def load_rule(root: Path, rel: str) -> Rule:
     path = root / "harness" / rel
     rule = _validate(Rule, _load_yaml(path), path)
     rule.id = rule.id or rel
-    rule.prompt = render(rule.prompt, path)
+    object.__setattr__(rule, "_source_path", rel)
+    for item in rule.prompt_items:
+        item.text = render(item.text, path)
+    if rule.prompt:
+        rule.prompt = render(rule.prompt, path)
+    if rule.prompt_items:
+        rule.prompt = assemble_rule_prompt(rule)
     return rule
+
+
+def assemble_rule_prompt(rule: Rule, *, skip_item_ids: set[str] | None = None) -> str:
+    skip = skip_item_ids or set()
+    if rule.prompt_items:
+        lines = [
+            f"- {item.text.strip()}"
+            for item in rule.prompt_items
+            if item.id not in skip
+        ]
+        return "\n".join(lines)
+    return rule.prompt.strip()
+
+
+def _rule_ref_match(rule_rel: str, entry: str) -> bool:
+    entry = (entry or "").strip()
+    if not entry:
+        return False
+    norm = rule_rel.replace("\\", "/")
+    if entry == norm or entry == norm.split("harness/", 1)[-1]:
+        return True
+    return norm.endswith("/" + entry) or norm.endswith(entry)
+
+
+def merged_rules_policy(node: Node, agent: str) -> tuple[set[str], dict[str, set[str]]]:
+    ag = node.agents[agent]
+    skip_files = {e.strip() for e in node.rules_skip + ag.rules_skip if e.strip()}
+    trim: dict[str, set[str]] = {}
+    for src, ids in {**node.rules_trim, **ag.rules_trim}.items():
+        trim.setdefault(src, set()).update(ids)
+    return skip_files, trim
+
+
+def rule_skipped(rule_rel: str, skip_files: set[str]) -> bool:
+    return any(_rule_ref_match(rule_rel, entry) for entry in skip_files)
+
+
+def rule_trim_ids(rule_rel: str, trim: dict[str, set[str]]) -> set[str]:
+    out: set[str] = set()
+    for key, ids in trim.items():
+        if _rule_ref_match(rule_rel, key):
+            out.update(ids)
+    return out
 
 
 def inject_when_matches(node: Node, agent: str, gate: str | None) -> bool:

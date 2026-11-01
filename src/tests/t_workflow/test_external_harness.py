@@ -28,12 +28,12 @@ def test_repo_bom_extract_loads_via_orch_stem_and_path_refs():
     assert spec.as_posix().endswith(".benchmark/bom/harness/specs/bom-claims.yaml")
     wf, nodes = load_workflow(REPO, "bom-extract-01")
     assert wf.id == "bom-extract-01" and nodes[0].id == "bom-extract-01"
-    assert nodes[0].produces[0].spec == ".benchmark/bom/harness/specs/bom-claims.yaml"
+    assert nodes[0].produces[0].spec == ".benchmark/bom/harness/specs/bom-claims-01.yaml"
     assert "reviewer" not in nodes[0].agents
     assert nodes[0].inject == []
-    loaded = load_spec(REPO, ".benchmark/bom/harness/specs/bom-claims.yaml")
-    assert loaded.id == "bom-claims"
-    assert loaded.path == ".benchmark/bom/harness/specs/bom-claims.yaml"
+    loaded = load_spec(REPO, ".benchmark/bom/harness/specs/bom-claims-01.yaml")
+    assert loaded.id == "bom-claims-01"
+    assert loaded.path == ".benchmark/bom/harness/specs/bom-claims-01.yaml"
     for stem in ("bom-extract-01", "bom-extract-02", "bom-extract-03", "bom-extract-04"):
         assert stem in list_workflows(REPO)
 
@@ -45,8 +45,8 @@ def test_inject_uses_produce_spec_path_not_stem():
     specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
     assert "bom-claims" not in specs  # keyed by path, not stem
     text = Injector(REPO)(node, "executor", 1, None, specs)
-    assert "<deliverable_bom-claims>" in text
-    assert ".benchmark/bom/harness/specs/bom-claims.yaml" in text
+    assert "<deliverable_bom-claims-01>" in text
+    assert ".benchmark/bom/harness/specs/bom-claims-01.yaml" in text
 
 
 def test_bom_extract_tier_switches():
@@ -68,8 +68,16 @@ def test_bom_extract_tier_switches():
     assert n04[0].inject == thick_inject
     shared_spec = ".benchmark/bom/harness/specs/bom-claims.yaml"
     phrase_spec = ".benchmark/bom/harness/specs/bom-claims-unit-phrase.yaml"
+    official_rule = "rules/lca/pcfbench-extraction-official.yaml"
+    assert n01[0].produces[0].spec == ".benchmark/bom/harness/specs/bom-claims-01.yaml"
+    assert n01[0].user_inject.mode == "pcfbench_extraction"
+    assert official_rule in n01[0].agents["executor"].rules
+    s01 = load_spec(REPO, n01[0].produces[0].spec)
+    assert "abstained" not in s01.prompt
+    assert "含限定语" not in s01.prompt
+    assert s01.schema_["properties"]["claims"]["items"]["required"] == ["value", "unit"]
     # 01/02/03 共用 bom-claims.yaml（unit=原文短语；无宿主闸）；同义表只在 02 技能
-    assert n01[0].produces[0].spec == n02[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
+    assert n02[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
     shared = load_spec(REPO, shared_spec)
     phrase = load_spec(REPO, phrase_spec)
     assert "原文单位短语" in shared.prompt
@@ -87,16 +95,23 @@ def test_bom_extract_tier_switches():
     assert best.checks and any(
         c.get("id") == "bom_claims_hard_warns" and c.get("checklist_from_run") for c in best.checks
     )
-    assert n01[0].agents["executor"].tools.skills == []
+    assert n01[0].agents["executor"].tools.mcp == []
+    assert official_rule in n02[0].agents["executor"].rules
+    assert n02[0].agents["executor"].rules == [
+        "rules/delivery/read-skills-first.yaml",
+        official_rule,
+    ]
     assert n02[0].agents["executor"].tools.skills == ["bom-claims-flow"]
+    assert n01[0].agents["executor"].tools.skills == []
+    assert n01[0].agents["executor"].agent.endswith("bom-extract-executor-01.yaml")
     assert n02[0].agents["executor"].tools.mcp == ["bom_claims_check"]
     assert n01[0].agents["executor"].tools.mcp == []
     assert n03[0].agents["orchestrator"].tools.mcp == []
     assert n02[0].agents["executor"].agent == "executor"
-    assert n01[0].agents["executor"].rules == []
-    assert n02[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml"]
+    assert n01[0].agents["executor"].rules == [official_rule]
+    assert n02[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml", official_rule]
     assert n03[0].agents["orchestrator"].rules == []
-    assert n03[0].agents["executor"].rules == []
+    assert n03[0].agents["executor"].rules == [official_rule]
     rsf = load_rule(REPO, "rules/delivery/read-skills-first.yaml")
     assert set(rsf.applies_to or []) >= {"executor", "assistant", "reviewer"} and "先读" in rsf.prompt
     # 03: trio — orchestrator (artifact) + executor (assistant writer) + reviewer; no skills
@@ -118,7 +133,10 @@ def test_bom_extract_tier_switches():
     assert n04[0].agents["reviewer"].agent.endswith("bom-extract-reviewer-04.yaml")
     assert n04[0].agents["executor"].tools.skills == ["bom-claims-flow"]
     assert n04[0].agents["executor"].tools.mcp == []
-    assert n04[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml"]
+    assert n04[0].agents["executor"].rules == [
+        "rules/delivery/read-skills-first.yaml",
+        official_rule,
+    ]
     assert n04[0].agents["reviewer"].rules == ["rules/delivery/read-skills-first.yaml"]
     assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
     assert n04[0].agents["reviewer"].tools.mcp == ["bom_claims_check"]

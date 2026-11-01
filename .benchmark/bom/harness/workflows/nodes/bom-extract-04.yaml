@@ -15,6 +15,7 @@ agents:
       skills: [bom-claims-flow]
     rules:
       - rules/delivery/read-skills-first.yaml
+      - rules/lca/pcfbench-extraction-official.yaml
   reviewer:
     agent: .benchmark/bom/harness/workflows/agents/bom-extract-reviewer-04.yaml
     tools:

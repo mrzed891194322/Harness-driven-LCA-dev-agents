@@ -1,6 +1,20 @@
 id: bom-extract-01
-title: 数量声明抽取（01 · 真薄）
+title: 数量声明抽取（01 · PCFBench 忠实）
 produces:
-  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
+  - {spec: .benchmark/bom/harness/specs/bom-claims-01.yaml, path: bom/claims.json}
+rules_skip:
+  - rules/global/10-language.yaml
+rules_trim:
+  rules/global/00-redlines.yaml: [plan_readonly, openlca_scope, network_sources]
+  rules/global/20-knowledge.yaml: [read_on_demand_cite, plan_overrides_conflict]
+  rules/global/30-submit-writer.yaml: [submit_required, write_content_string]
+user_inject:
+  mode: pcfbench_extraction
+  document_paths:
+    - harness/knowledge/inputs/reference.md
+  omit_sections: [inputs, redo_policy, plan]
 agents:
-  executor: executor
+  executor:
+    agent: .benchmark/bom/harness/workflows/agents/bom-extract-executor-01.yaml
+    rules:
+      - rules/lca/pcfbench-extraction-official.yaml

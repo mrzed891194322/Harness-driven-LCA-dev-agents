@@ -14,8 +14,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from backend.workflow import layout
-from backend.workflow.config import Node, Spec, load_global_rules, load_rule, resolve_spec_path
+from backend.workflow.config import (
+    Node,
+    Spec,
+    assemble_rule_prompt,
+    load_global_rules,
+    load_rule,
+    merged_rules_policy,
+    resolve_spec_path,
+    rule_skipped,
+    rule_trim_ids,
+)
 
 MAX_SCHEMA_SUMMARY = 4000
 
@@ -99,6 +111,41 @@ def _skill_prompt_path(skill: str) -> tuple[str, str]:
     return f"harness/tools/skills/{raw}/SKILL.md", raw
 
 
+def extract_plan_query(plan_texts: dict[str, str]) -> str:
+    """Pull the PCFBench query string from workspace plan YAML (items[].content)."""
+    for name in sorted(plan_texts):
+        if not name.endswith((".yaml", ".yml")):
+            continue
+        try:
+            data = yaml.safe_load(plan_texts[name]) or {}
+        except yaml.YAMLError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        parts: list[str] = []
+        for item in data.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            content = str(item.get("content") or "").strip()
+            if content:
+                parts.append(content)
+        if parts:
+            return "\n\n".join(parts)
+    joined = "\n\n".join(plan_texts[k] for k in sorted(plan_texts)).strip()
+    return joined
+
+
+def embed_document_text(root: Path, rel_paths: list[str]) -> str:
+    chunks: list[str] = []
+    for rel in rel_paths:
+        path = root / rel
+        if not path.is_file():
+            chunks.append(f"[missing document: {rel}]")
+            continue
+        chunks.append(path.read_text(encoding="utf-8"))
+    return "\n\n".join(chunks).strip()
+
+
 class Injector:
     def __init__(self, root: Path, workspace: Path | None = None) -> None:
         self.root = root
@@ -135,28 +182,34 @@ class Injector:
         loaded: list[str] = []
         rule_failed: list[dict[str, str]] = []
         rule_paths: list[str] = []
-
-        try:
-            for rule in load_global_rules(self.root, node=node, agent=agent):
-                planned_global.append(rule.id)
-                loaded.append(rule.id)
-                rule_paths.append(rule.id)
-        except Exception as exc:  # noqa: BLE001
-            rule_failed.append({"path": "rules/global/*", "error": str(exc)[:300]})
-
         planned_inject = list(node.inject)
         planned_agent = list(node.agents[agent].rules)
         skipped_rules: list[dict[str, str]] = []
-        for rel in planned_inject + planned_agent:
-            try:
-                rule = load_rule(self.root, rel)
-                if rule.enabled and (rule.applies_to is None or role in rule.applies_to):
+
+        try:
+            skip_files, trim_map = merged_rules_policy(node, agent)
+            for rule in load_global_rules(self.root, node=node, agent=agent):
+                planned_global.append(rule.id)
+                if rule_skipped(rule.id, skip_files):
+                    skipped_rules.append({"path": rule.id, "error": "rules_skip"})
+                    continue
+                loaded.append(rule.id)
+                rule_paths.append(rule.id)
+            for rel in planned_inject + planned_agent:
+                try:
+                    rule = load_rule(self.root, rel)
+                    if not rule.enabled or (rule.applies_to is not None and role not in rule.applies_to):
+                        skipped_rules.append({"path": rel, "error": "disabled_or_not_applicable"})
+                        continue
+                    if rule_skipped(rule.id, skip_files):
+                        skipped_rules.append({"path": rel, "error": "rules_skip"})
+                        continue
                     loaded.append(rule.id or rel)
                     rule_paths.append(rel)
-                else:
-                    skipped_rules.append({"path": rel, "error": "disabled_or_not_applicable"})
-            except Exception as exc:  # noqa: BLE001
-                rule_failed.append({"path": rel, "error": str(exc)[:300]})
+                except Exception as exc:  # noqa: BLE001
+                    rule_failed.append({"path": rel, "error": str(exc)[:300]})
+        except Exception as exc:  # noqa: BLE001
+            rule_failed.append({"path": "rules/global/*", "error": str(exc)[:300]})
 
         system_text = ""
         system_errors: list[dict[str, str]] = list(rule_failed)
@@ -247,16 +300,29 @@ class Injector:
             "ok": overall,
         }
 
+    def _rule_prompt_text(self, node: Node, agent: str, rule, *, skip_files: set[str], trim_map: dict[str, set[str]]) -> str:
+        rule_ref = rule.id
+        if rule_skipped(rule_ref, skip_files):
+            return ""
+        trim_ids = rule_trim_ids(rule_ref, trim_map)
+        return assemble_rule_prompt(rule, skip_item_ids=trim_ids).strip()
+
     # ---- system prompt (1, 3, 4) ----
     def system(self, node: Node, agent: str) -> str:
         parts = []
         role = node.role(agent)
+        skip_files, trim_map = merged_rules_policy(node, agent)
         for rule in load_global_rules(self.root, node=node, agent=agent):
-            parts.append(f"# {rule.title}\n{rule.prompt.strip()}")
+            text = self._rule_prompt_text(node, agent, rule, skip_files=skip_files, trim_map=trim_map)
+            if text:
+                parts.append(f"# {rule.title}\n{text}")
         for extra in node.inject + node.agents[agent].rules:
             rule = load_rule(self.root, extra)
-            if rule.enabled and (rule.applies_to is None or role in rule.applies_to):
-                parts.append(f"# {rule.title}\n{rule.prompt.strip()}")
+            if not rule.enabled or (rule.applies_to is not None and role not in rule.applies_to):
+                continue
+            text = self._rule_prompt_text(node, agent, rule, skip_files=skip_files, trim_map=trim_map)
+            if text:
+                parts.append(f"# {rule.title}\n{text}")
         agent_def = node.agents[agent].definition
         parts.append(f"# {agent_def.title}\n{agent_def.prompt.strip()}" if agent_def.title else agent_def.prompt.strip())
         tools = node.agents[agent].tools
@@ -302,15 +368,30 @@ class Injector:
             plans.sort(key=lambda path: path.name)
         texts = {p.name: p.read_text(encoding="utf-8") for p in plans}
         texts.update(self.plan_override)
-        out.append(_section("plan", "\n\n".join(texts[k] for k in sorted(texts)) or "（无计划）"))
-        inputs = []
-        for req in node.requires:
-            target = art / req
-            kind = "目录" if target.is_dir() else "文件"
-            count = f"，{sum(1 for p in target.rglob('*') if p.is_file())} 个文件" if target.is_dir() else ""
-            note = "，最新版本" if ".rev" in req else ""
-            inputs.append(f"- `{target}`（{kind}{count}{note}，上游产物，只读）")
-        out.append(_section("inputs", "\n".join(inputs) or "（本节点没有上游产物）"))
+        ui = node.user_inject
+        omit = set(ui.omit_sections)
+        if ui.mode == "pcfbench_extraction":
+            if not omit:
+                omit = {"inputs", "redo_policy", "plan"}
+            else:
+                omit.add("plan")
+            query = extract_plan_query(texts)
+            doc_paths = ui.document_paths or ["harness/knowledge/inputs/reference.md"]
+            doc_text = embed_document_text(self.root, doc_paths)
+            header = f"Query: {query}\n\nDocument text:\n{doc_text}"
+            out.append(header)
+        else:
+            if "plan" not in omit:
+                out.append(_section("plan", "\n\n".join(texts[k] for k in sorted(texts)) or "（无计划）"))
+        if "inputs" not in omit:
+            inputs = []
+            for req in node.requires:
+                target = art / req
+                kind = "目录" if target.is_dir() else "文件"
+                count = f"，{sum(1 for p in target.rglob('*') if p.is_file())} 个文件" if target.is_dir() else ""
+                note = "，最新版本" if ".rev" in req else ""
+                inputs.append(f"- `{target}`（{kind}{count}{note}，上游产物，只读）")
+            out.append(_section("inputs", "\n".join(inputs) or "（本节点没有上游产物）"))
         runs = layout.node_dir(self.ws, node.run_key)
         for prod in node.produces:
             spec = specs[prod.spec]
@@ -329,7 +410,7 @@ class Injector:
                 body.insert(0, "审核对象：")
             out.append(_section(f"deliverable_{spec.id}", "\n\n".join(body)))
         policy = redo_policy(node, specs, ctx.get("redo_targets") or {}, role)
-        if policy:
+        if policy and "redo_policy" not in omit:
             out.append(_section("redo_policy", policy))
         if ctx.get("redo"):
             out.append(_section("redo_reason", redo_reason_text(ctx["redo"])))
