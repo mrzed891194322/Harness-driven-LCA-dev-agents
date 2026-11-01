@@ -53,3 +53,24 @@ def test_disconnect_false_on_connection_word_in_summary_only():
     )
     ok, _ = m.detect_model_disconnect(status, events)
     assert ok is False
+
+
+def test_disconnect_false_on_429_in_args_path_and_summary():
+    m = _mod()
+    status = {"reason": "", "nodes": [{"error": ""}]}
+    events = json.dumps(
+        {
+            "events": [
+                {
+                    "kind": "tool_call",
+                    "summary": "wrote runs/_run/feedback/429-case/round.md",
+                    "tool_call_id": "call_abc429def",
+                    "args": {"path": "workspace/artifacts/runs/_run/feedback/429-case/round.md"},
+                }
+            ]
+        },
+        ensure_ascii=False,
+    )
+    ok, note = m.detect_model_disconnect(status, events)
+    assert ok is False
+    assert note == ""

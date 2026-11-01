@@ -21,6 +21,7 @@ from backend.workflow import layout
 from backend.workflow.config import SUBMIT_FIELD, TERMINALS, Node, Spec
 from backend.workflow.events import EventLog
 from backend.workflow.checks import review_claims_gate_errors
+from backend.workflow.inject import injection_event_payload, write_session_injection_doc
 from backend.workflow.turn import AgentDriver, PromptBuilder, TurnRequest
 
 from harness.tools.mcp.submit.schemas import validate as validate_submit
