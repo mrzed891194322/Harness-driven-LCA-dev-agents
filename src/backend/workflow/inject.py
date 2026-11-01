@@ -393,6 +393,7 @@ class Injector:
                 inputs.append(f"- `{target}`（{kind}{count}{note}，上游产物，只读）")
             out.append(_section("inputs", "\n".join(inputs) or "（本节点没有上游产物）"))
         runs = layout.node_dir(self.ws, node.run_key)
+        checklist_path = layout.node_checklist_path(self.ws, node.run_key)
         for prod in node.produces:
             spec = specs[prod.spec]
             body = [f"交付路径：`{art / prod.path}`", spec.prompt.strip()]
@@ -422,6 +423,11 @@ class Injector:
             out.append(f"审核笔记可写到 `{notes}`（必须是该文件路径；`{runs / agent}` 是节点目录，禁止用 write 覆盖成文件）。")
         else:
             out.append(f"中间文件写到 `{runs}`。")
+            if node.id.startswith("bom-extract-04"):
+                out.append(
+                    f"题面短清单（checklist）写到 `{checklist_path}`，"
+                    f'形状 {{"items":["对象×所问指标", ...]}}（只依题面，读文前写入）。'
+                )
         if role == "reviewer" and attempt > 1:
             # Cursor B: re-review must newly submit; prior reject issues optional.
             parts = [

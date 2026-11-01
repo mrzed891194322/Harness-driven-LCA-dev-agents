@@ -1,22 +1,16 @@
 description: |
-  # 数量声明（claims · 最好条件）
-
-  从计划与 `harness/knowledge/inputs/` 抽取可打分的数量声明。不查询 openLCA、不做映射、不出报告。
-
   ## 方法（短指针）
 
-  执行前先 `read` 下列技能，并按其护栏产出：
-  - executor：`harness/tools/skills/bom-claims-flow/SKILL.md`（读文前写 runs 下 `checklist.json` → 读原文→写 claims；04 executor 不挂 check MCP）
-  - reviewer：`harness/tools/skills/bom-claims-review/SKILL.md`（**先** MCP `bom_claims_check` / `check_claims(checklist=…)`，再对照 knowledge 长文；多报/范围外/单位类问题须 reject）
+  - executor：`harness/tools/skills/bom-claims-flow-04/SKILL.md`（读文前写题面契约 checklist → 读原文 → 写 claims；04 executor 不挂 check MCP）
+  - reviewer：`harness/tools/skills/bom-claims-review/SKILL.md`（**先** MCP `bom_claims_check` / `check_claims(checklist=…)`，再对照 knowledge 长文）
 
   ## 交付物
 
-  写到 `workspace/artifacts/bom/claims.json`，形状对齐 `.benchmark/schemas/claim_set.schema.json`。
+  写到 `workspace/artifacts/bom/claims.json`，形状可对齐 `.benchmark/schemas/claim_set.schema.json`。
 
   ## 验收
 
-  - JSON 通过下方 schema；遵守上述技能护栏。
-  - 每条 claim 有原文依据，或明确 abstain。
+  - JSON 通过下方 schema；遵守上述技能与挂载的官方抽取 rule。
   - 有 reviewer 时由其独立核对；缺产物、blocked、编造不得视为完成。
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
@@ -28,6 +22,7 @@ schema:
   properties:
     abstained:
       type: boolean
+      description: 可选兼容字段；无依据时交空 claims 即可。
     claims:
       type: array
       items:

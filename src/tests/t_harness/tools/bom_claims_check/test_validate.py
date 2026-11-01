@@ -72,7 +72,7 @@ def test_structural_warnings_separate():
 
 def test_missing_evidence_vs_inferred_mark():
     out = _one({"claim_id": "a", "value": 1, "unit": "kg"}, expected_count=1)
-    assert any("[推断]" in w for w in out["warnings"])
+    assert any("缺 evidence" in w for w in out["warnings"])
     out = _one({"claim_id": "a", "value": 1, "unit": "kg", "evidence": "[推断] 由 f.md 表2 两行相加"}, expected_count=1)
     assert out["warnings"] == [] and out["claims"][0]["value_unit"] == "inferred"
     assert _warn_body(_one({"claim_id": "a", "value": 1, "unit": "kg", "evidence": "[推断]"}, expected_count=1))

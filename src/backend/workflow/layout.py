@@ -55,6 +55,15 @@ def node_dir(workspace: Path, node: str) -> Path:
     return workspace / "runs" / node
 
 
+def node_checklist_dir(workspace: Path) -> Path:
+    """Per workflow-run checklist store (under ``runs/_run/``; cleared on prepare_fresh)."""
+    return workspace / "runs" / "_run" / "checklists"
+
+
+def node_checklist_path(workspace: Path, node_run_key: str) -> Path:
+    return node_checklist_dir(workspace) / f"{node_run_key}.json"
+
+
 def orch_dirs() -> tuple[Path, ...]:
     return ORCH_SCAN_DIRS
 

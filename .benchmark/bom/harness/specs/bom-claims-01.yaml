@@ -22,9 +22,4 @@ schema:
               Just the unit symbol or short canonical form (e.g. '%', 'h', 'kg/kg', 'MJ/kg', 'mass%').
               Do NOT include descriptive prose, qualifiers, or context — those belong in surrounding
               metadata, not in the unit field.
-          claim_id: {type: string, minLength: 1}
-          text: {type: string}
-          item_id: {type: string}
-          field: {type: string}
-          evidence: {type: string}
 checks: []

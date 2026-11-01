@@ -21,7 +21,7 @@ from harness.tools.shared.bom_claims_check.validate import check_claims_file
 mcp = MCPServer(
     "bom_claims_check",
     instructions=(
-        "BOM claims 只读核对：把每条 claim 的 value 与 unit（原文单位短语）与其 evidence 引文对照"
+        "BOM claims 只读核对：把每条 claim 的 value 与 unit 与其 evidence 引文对照"
         "（unit 按整词边界匹配，不强制短符号），并尝试在知识库原文中定位引文；"
         "可选 checklist=题面短清单（对象×指标，非金标），条数即 N，做数量提醒。"
         "只给提醒，不删改 claims.json，也不拦交卷。"

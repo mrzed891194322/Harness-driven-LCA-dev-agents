@@ -185,8 +185,7 @@ def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> 
             warns,
             warn_details,
             WARN_EVIDENCE_MISSING,
-            f"{cid}: 缺 evidence 且未标 {INFERRED_MARK}；请补原文引文，"
-            f"或原文不足时在 evidence 写 {INFERRED_MARK} + 推断依据",
+            f"{cid}: 缺 evidence；请补原文引文（可清晰推导时简要说明依据）",
         )
         return status, warns, struct, warn_details
     if ev.lstrip().startswith(INFERRED_MARK):
@@ -242,8 +241,7 @@ def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> 
             warns,
             warn_details,
             WARN_UNIT_NOT_VERBATIM,
-            f"{cid}: unit {unit!r} 未在 evidence 中作为原文单位短语逐字出现"
-            f"（整词边界）；请照抄引文中的单位短语，勿压成短符号",
+            f"{cid}: unit {unit!r} 未在 evidence 中出现（整词边界）；请核对 unit 是否与引文一致",
         )
     else:
         all_spans = [(s, e) for (_, s, e) in nums]
@@ -299,13 +297,7 @@ def check_claims_payload(
         structural.append("abstained 应为布尔值")
     if abstained is True and claims:
         structural.append("abstained=true 但 claims 非空；二者不一致")
-    if not abstained and not claims:
-        _add_warn(
-            warnings,
-            warning_details,
-            WARN_CLAIMS_EMPTY_NO_ABSTAIN,
-            "claims 为空且未 abstained；确认原文是否确无可答数字",
-        )
+    # Empty claims without abstained is valid (PCFBench: no abstain protocol).
 
     checklist_items: list[str] | None = None
     if checklist is not None:

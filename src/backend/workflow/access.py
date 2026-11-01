@@ -74,6 +74,7 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     read = {
         str(art / "plan") + "/**",  # lock 1
         str(layout.node_dir(ws, node.run_key)) + "/**",
+        str(layout.node_checklist_dir(ws)) + "/**",
         str(root / layout.TOOLS_SKILLS) + "/**",
     }
     # Path-style tools.skills (repo-root-relative): grant the skill file/dir itself.
@@ -106,6 +107,7 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     # Produces writers: access.write.produces (orthogonal to deliver.submit / primary). Others: notes only.
     if produces_write_enabled(node, agent_key):
         write.add(str(layout.node_dir(ws, node.run_key)) + "/**")
+        write.add(str(layout.node_checklist_dir(ws)) + "/**")
         for prod in node.produces:
             write.add(str(art / produce_dir(prod.path)) + "/**")
     else:

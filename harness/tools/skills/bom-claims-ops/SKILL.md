@@ -11,11 +11,9 @@
 ## 单位（防双 claim / 防丢修饰）
 
 - 同一物料、同一数量字段：**只留一条** `(value, unit)` claim。
-- 原文并列写出两种单位（如 `2.16lbs (0.98kg)`）：**只保留一档**，优先保留原文主写单位（通常是 lbs / kg 中先出现的）；**禁止**再为换算结果另建一条 claim。
-- 自行做 lbs→kg（或其它）换算时：交付物里仍只写一条；不要「原文一条 + 换算一条」。
-- **`unit` 抄原文完整单位短语**：勿丢 `of X` / `glass` 等修饰；`lbm` 与 `lb` 勿混写。短符号可用（`g` / `kg` / `%`），但不要把原文修饰砍掉。
-- 打分端会做官方单位归一（如 `BTU/lb`↔`Btu/lbm`、`GJ/t`↔`MJ/kg`）；**交付仍写原文单位**，不要为了对齐 scorer 擅自改写成别的符号族。
-- 数值区间（a–b）：拆成两端点两条数值 claim；`value` 必须是数。
+- 原文并列写出两种单位（如 `2.16lbs (0.98kg)`）：**只保留一档**，优先保留原文主写单位；**禁止**再为换算结果另建一条 claim。
+- **`unit` 用短符号/短规范名**（如 `kg`、`%`、`MJ/kg`）；勿把描述性短语、限定语写进 `unit`。
+- 数值区间（a–b）：用**中点**作一条数值 claim；`value` 必须是数。
 
 ## 工具参数类型
 
@@ -25,9 +23,9 @@
 ## 输出契约
 
 - 写到 `workspace/artifacts/bom/claims.json`，对齐 `.benchmark/schemas/claim_set.schema.json`。
-- 有可用证据：`abstained` 可省略或 `false`，`claims` 非空；每条尽量含 `claim_id`、`item_id`、`field`、`value`、`unit`、`text`、`evidence`。
-- 无可用文档或信息不足：`abstained: true` 且 `claims: []`，不要编造。
-- 只抽题面要求的量；脏表尽量抽可辨数字，完全无法恢复才 abstain。
+- 有可用证据：`claims` 非空；每条尽量含 `claim_id`、`item_id`、`field`、`value`、`unit`、`text`、`evidence`。
+- 无可用文档或信息不足：交 **`claims: []`**，不要编造（`abstained` 字段可选，非必需）。
+- 只抽题面要求的量；完全无法恢复才交空数组。
 
 ## 交卷
 

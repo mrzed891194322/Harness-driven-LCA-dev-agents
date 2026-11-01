@@ -59,16 +59,12 @@ def test_bom_extract_tier_switches():
     assert set(n02[0].agents) == {"executor"}  # 02: still no reviewer
     assert set(n03[0].agents) == {"orchestrator", "executor", "reviewer"}  # 03: trio
     assert set(n04[0].agents) == {"orchestrator", "executor", "reviewer"}
-    assert n01[0].inject == n02[0].inject == n03[0].inject == []
-    thick_inject = [
-        "rules/delivery/status.yaml",
-        "rules/delivery/provenance.yaml",
-        "rules/lca/knowledge-files.yaml",
-    ]
-    assert n04[0].inject == thick_inject
+    assert n01[0].inject == n02[0].inject == n03[0].inject == n04[0].inject == []
     shared_spec = ".benchmark/bom/harness/specs/bom-claims.yaml"
     phrase_spec = ".benchmark/bom/harness/specs/bom-claims-unit-phrase.yaml"
     official_rule = "rules/lca/pcfbench-extraction-official.yaml"
+    skip_lang = "rules/global/10-language.yaml"
+    trim_red = "rules/global/00-redlines.yaml"
     assert n01[0].produces[0].spec == ".benchmark/bom/harness/specs/bom-claims-01.yaml"
     assert n01[0].user_inject.mode == "pcfbench_extraction"
     assert official_rule in n01[0].agents["executor"].rules
@@ -76,18 +72,20 @@ def test_bom_extract_tier_switches():
     assert "abstained" not in s01.prompt
     assert "含限定语" not in s01.prompt
     assert s01.schema_["properties"]["claims"]["items"]["required"] == ["value", "unit"]
-    # 01/02/03 共用 bom-claims.yaml（unit=原文短语；无宿主闸）；同义表只在 02 技能
+    assert set(s01.schema_["properties"]["claims"]["items"]["properties"]) == {"value", "unit"}
     assert n02[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
+    for n in (n02, n03, n04):
+        assert skip_lang in n[0].rules_skip
+        assert trim_red in n[0].rules_trim
     shared = load_spec(REPO, shared_spec)
     phrase = load_spec(REPO, phrase_spec)
-    assert "原文单位短语" in shared.prompt
-    assert "短符号" not in shared.prompt
-    assert "无量纲" in shared.prompt and '"-"' in shared.prompt
-    assert "同义表" not in shared.prompt  # synonym table stays in 02 skill, not shared spec
+    assert "原文单位短语" not in shared.prompt
+    assert "含限定语" not in shared.prompt
+    assert "短符号" in shared.prompt or "短规范" in shared.prompt
+    assert "claims: []" in shared.prompt
+    assert "abstained: true" not in shared.prompt
     assert shared.checks == []
     assert "废弃" in phrase.prompt or "deprecated" in phrase.prompt.lower()
-    abstain = "有依据则填 claims；信息不足则 `abstained: true` 且 `claims: []`，不要编造"
-    assert abstain in shared.prompt
     assert n04[0].produces[0].spec == (
         ".benchmark/bom/harness/specs/bom-claims-best.yaml"
     )
@@ -112,10 +110,11 @@ def test_bom_extract_tier_switches():
     assert n02[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml", official_rule]
     assert n03[0].agents["orchestrator"].rules == []
     assert n03[0].agents["executor"].rules == [official_rule]
+    assert n03[0].agents["reviewer"].rules == [official_rule]
     rsf = load_rule(REPO, "rules/delivery/read-skills-first.yaml")
     assert set(rsf.applies_to or []) >= {"executor", "assistant", "reviewer"} and "先读" in rsf.prompt
     # 03: trio — orchestrator (artifact) + executor (assistant writer) + reviewer; no skills
-    assert n03[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator.yaml")
+    assert n03[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator-03.yaml")
     assert n03[0].agents["executor"].agent.endswith("bom-extract-executor.yaml")
     assert n03[0].agents["reviewer"].agent.endswith("bom-extract-reviewer.yaml")
     assert n03[0].agents["executor"].tools.skills == []
@@ -131,13 +130,16 @@ def test_bom_extract_tier_switches():
     assert n04[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator-04.yaml")
     assert n04[0].agents["executor"].agent.endswith("bom-extract-executor-04.yaml")
     assert n04[0].agents["reviewer"].agent.endswith("bom-extract-reviewer-04.yaml")
-    assert n04[0].agents["executor"].tools.skills == ["bom-claims-flow"]
+    assert n04[0].agents["executor"].tools.skills == ["bom-claims-flow-04"]
     assert n04[0].agents["executor"].tools.mcp == []
     assert n04[0].agents["executor"].rules == [
         "rules/delivery/read-skills-first.yaml",
         official_rule,
     ]
-    assert n04[0].agents["reviewer"].rules == ["rules/delivery/read-skills-first.yaml"]
+    assert n04[0].agents["reviewer"].rules == [
+        "rules/delivery/read-skills-first.yaml",
+        official_rule,
+    ]
     assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
     assert n04[0].agents["reviewer"].tools.mcp == ["bom_claims_check"]
     assert n04[0].kind("orchestrator") == "artifact"

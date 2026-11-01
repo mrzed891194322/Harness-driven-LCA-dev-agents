@@ -2,17 +2,18 @@ id: bom-extract-04
 title: 数量声明抽取（04 · 技能+三件套）
 produces:
   - {spec: .benchmark/bom/harness/specs/bom-claims-best.yaml, path: bom/claims.json}
-inject:
-  - rules/delivery/status.yaml
-  - rules/delivery/provenance.yaml
-  - rules/lca/knowledge-files.yaml
+rules_skip:
+  - rules/global/10-language.yaml
+rules_trim:
+  rules/global/00-redlines.yaml: [plan_readonly, openlca_scope, network_sources]
+  rules/global/20-knowledge.yaml: [read_on_demand_cite, plan_overrides_conflict]
 agents:
   orchestrator:
     agent: .benchmark/bom/harness/workflows/agents/bom-extract-orchestrator-04.yaml
   executor:
     agent: .benchmark/bom/harness/workflows/agents/bom-extract-executor-04.yaml
     tools:
-      skills: [bom-claims-flow]
+      skills: [bom-claims-flow-04]
     rules:
       - rules/delivery/read-skills-first.yaml
       - rules/lca/pcfbench-extraction-official.yaml
@@ -23,3 +24,4 @@ agents:
       mcp: [bom_claims_check]
     rules:
       - rules/delivery/read-skills-first.yaml
+      - rules/lca/pcfbench-extraction-official.yaml

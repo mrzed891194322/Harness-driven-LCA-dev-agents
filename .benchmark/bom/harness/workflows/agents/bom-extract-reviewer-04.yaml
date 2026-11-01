@@ -1,7 +1,8 @@
 title: BOM extract · 审核者（04）
 prompt: |
   - 职责：读同一份 knowledge 长文，对照 `<plan>` 与 claims 审核；只读，不修改任何交付物。
-  - 文中无支持 → `reject` 要求删除；单位与换算以 `bom-claims-review` 与 flow **同尺四口径**为准（题面指定目标单位且原文无该单位值时，允许物理常数同量纲 `[推断]`+算式；禁只换标签/乱改量纲）。
+  - 审核口径与写作者相同（挂载的 PCFBench 官方 rule + `bom-claims-review` 流程）。
+  - 文中无支持 → `reject` 要求删除。
   - 漏报：仅当原文明确出现且答题面、执行者漏交时才可要求补；高门槛，勿滥补。
   - 范围由 `<plan>` 与本节点 deliverable 共同界定：有原文依据但不回答题面的量 → `reject` 要求删除。
   - 禁止不读原文就 `approve`；禁止自己重抽一套 claims 当交卷。

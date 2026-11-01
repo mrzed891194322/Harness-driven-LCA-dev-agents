@@ -161,7 +161,7 @@ _CHECKLIST_CONTRACT_MISSING = "CHECKLIST_CONTRACT_MISSING"
 
 def _load_run_checklist(artifacts: Path, node: Node) -> tuple[list[str] | None, list[str]]:
     """Return (items, host_errors). items=None when contract invalid/missing."""
-    cl_path = layout.node_dir(artifacts.parent, node.run_key) / "checklist.json"
+    cl_path = layout.node_checklist_path(artifacts.parent, node.run_key)
     if not cl_path.is_file():
         return None, [
             f"题面契约缺失：应在 {cl_path.relative_to(artifacts.parent)} 写入 "
@@ -220,7 +220,7 @@ def check_bom_claims_hard_warns(
     """Re-run bom_claims_check logic; promote checklist contract + unmatched-over-report to host errors.
 
     Optional check fields: ``checklist`` (list[str]); ``checklist_from_run: true`` loads
-    ``workspace/runs/<node>/checklist.json``; ``load_knowledge: true`` for evidence lookup (soft only).
+    ``workspace/runs/_run/checklists/<node_run_key>.json``; ``load_knowledge: true`` for evidence lookup (soft only).
     """
     path = target if target.is_file() else target / "claims.json"
     checklist = check.get("checklist")

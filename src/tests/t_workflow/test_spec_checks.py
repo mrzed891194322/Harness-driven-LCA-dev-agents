@@ -57,6 +57,10 @@ def _art_root(tmp_path: Path) -> Path:
     return art
 
 
+def _checklist_path(art: Path, node_id: str = "bom-extract-04") -> Path:
+    return art.parent / "runs" / "_run" / "checklists" / f"{node_id}.json"
+
+
 def test_bom_hard_missing_checklist_contract(tmp_path: Path):
     art = _art_root(tmp_path)
     (art / "bom").mkdir()
@@ -68,9 +72,9 @@ def test_bom_hard_missing_checklist_contract(tmp_path: Path):
 
 def test_bom_hard_unmatched_over_report(tmp_path: Path):
     art = _art_root(tmp_path)
-    runs = art.parent / "runs" / "bom-extract-04"
+    runs = _checklist_path(art).parent
     runs.mkdir(parents=True)
-    (runs / "checklist.json").write_text(
+    _checklist_path(art).write_text(
         json.dumps({"items": ["steel frame mass"]}), encoding="utf-8"
     )
     (art / "bom").mkdir()
@@ -88,9 +92,9 @@ def test_bom_hard_unmatched_over_report(tmp_path: Path):
 
 def test_bom_no_hard_empty_claims_with_checklist(tmp_path: Path):
     art = _art_root(tmp_path)
-    runs = art.parent / "runs" / "bom-extract-04"
+    runs = _checklist_path(art).parent
     runs.mkdir(parents=True)
-    (runs / "checklist.json").write_text(json.dumps({"items": ["a"]}), encoding="utf-8")
+    _checklist_path(art).write_text(json.dumps({"items": ["a"]}), encoding="utf-8")
     (art / "bom").mkdir()
     (art / "bom" / "claims.json").write_text(json.dumps({"claims": []}), encoding="utf-8")
     spec = Spec(id="best", prompt="p", schema_=None, checks=[_best_check()])
@@ -100,9 +104,9 @@ def test_bom_no_hard_empty_claims_with_checklist(tmp_path: Path):
 
 def test_bom_no_hard_unit_phrase(tmp_path: Path):
     art = _art_root(tmp_path)
-    runs = art.parent / "runs" / "bom-extract-04"
+    runs = _checklist_path(art).parent
     runs.mkdir(parents=True)
-    (runs / "checklist.json").write_text(json.dumps({"items": ["mass"]}), encoding="utf-8")
+    _checklist_path(art).write_text(json.dumps({"items": ["mass"]}), encoding="utf-8")
     (art / "bom").mkdir()
     payload = {
         "claims": [{"claim_id": "a", "value": 3, "unit": "g", "evidence": "mass 3 kg"}],
@@ -115,9 +119,9 @@ def test_bom_no_hard_unit_phrase(tmp_path: Path):
 
 def test_bom_no_hard_count_mismatch_with_checklist(tmp_path: Path):
     art = _art_root(tmp_path)
-    runs = art.parent / "runs" / "bom-extract-04"
+    runs = _checklist_path(art).parent
     runs.mkdir(parents=True)
-    (runs / "checklist.json").write_text(json.dumps({"items": ["a", "b"]}), encoding="utf-8")
+    _checklist_path(art).write_text(json.dumps({"items": ["a", "b"]}), encoding="utf-8")
     (art / "bom").mkdir()
     payload = {"claims": [{"claim_id": "a", "value": 1, "unit": "kg", "evidence": "1 kg", "text": "a"}]}
     (art / "bom" / "claims.json").write_text(json.dumps(payload), encoding="utf-8")
@@ -128,9 +132,9 @@ def test_bom_no_hard_count_mismatch_with_checklist(tmp_path: Path):
 
 def test_bom_hard_warns_far_apart_not_host_error(tmp_path: Path):
     art = _art_root(tmp_path)
-    runs = art.parent / "runs" / "bom-extract-04"
+    runs = _checklist_path(art).parent
     runs.mkdir(parents=True)
-    (runs / "checklist.json").write_text(json.dumps({"items": ["steel mass"]}), encoding="utf-8")
+    _checklist_path(art).write_text(json.dumps({"items": ["steel mass"]}), encoding="utf-8")
     (art / "bom").mkdir()
     payload = {
         "claims": [{"claim_id": "a", "value": 3, "unit": "kg", "evidence": "A 3 m; B 8 kg", "text": "steel mass"}],
