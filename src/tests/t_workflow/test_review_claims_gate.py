@@ -74,6 +74,41 @@ def test_review_claims_gate_errors_empty_claims(tmp_path):
     assert any("CLAIMS_EMPTY_NO_ABSTAIN" in e for e in errs)
 
 
+def test_review_claims_gate_same_slot_extra_only_ok(tmp_path):
+    ws = _workspace(tmp_path)
+    node = _node([_prod("bom-claims-best")])
+    cl = _checklist_path(ws)
+    cl.parent.mkdir(parents=True, exist_ok=True)
+    cl.write_text(
+        json.dumps({"items": ["Lower heating value (LHV) of fuel in MJ/kg"]}),
+        encoding="utf-8",
+    )
+    _write_claims(
+        ws,
+        node,
+        {
+            "claims": [
+                {
+                    "claim_id": "c1",
+                    "text": "LHV 2.4 MJ/kg",
+                    "value": 2.4,
+                    "unit": "MJ/kg",
+                    "evidence": "LHV 2.4 MJ/kg",
+                },
+                {
+                    "claim_id": "c2",
+                    "text": "LHV 5.0 MJ/kg",
+                    "value": 5.0,
+                    "unit": "MJ/kg",
+                    "evidence": "also 5.0 MJ/kg",
+                },
+            ],
+        },
+    )
+    spec = Spec(id="best", prompt="p", schema_=None, checks=[_best_check()])
+    assert review_claims_gate_errors(ws, node, {"bom-claims-best": spec}) == []
+
+
 def test_review_claims_gate_count_mismatch_only_ok(tmp_path):
     ws = _workspace(tmp_path)
     node = _node([_prod("bom-claims-best")])

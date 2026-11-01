@@ -30,6 +30,7 @@ WARN_CLAIMS_COUNT_MISMATCH = "CLAIMS_COUNT_MISMATCH"
 WARN_ABSTAIN_COUNT_MISMATCH = "ABSTAIN_COUNT_MISMATCH"
 WARN_CHECKLIST_ITEM_UNCOVERED = "CHECKLIST_ITEM_UNCOVERED"
 WARN_CLAIMS_UNMATCHED_CHECKLIST = "CLAIMS_UNMATCHED_CHECKLIST"
+WARN_CLAIMS_SAME_SLOT_EXTRA = "CLAIMS_SAME_SLOT_EXTRA"
 WARN_CLAIMS_EMPTY_NO_ABSTAIN = "CLAIMS_EMPTY_NO_ABSTAIN"
 WARN_EVIDENCE_MISSING = "EVIDENCE_MISSING"
 WARN_INFERRED_BASIS_MISSING = "INFERRED_BASIS_MISSING"
@@ -466,23 +467,82 @@ def _claim_id_at(claim: Any, index: int) -> str:
     return f"claims[{index}]"
 
 
-def _slot_overflow_ids(claims: list[Any], indices: list[int]) -> list[str]:
-    """Within one checklist slot, keep primary + unit-convertible dupes; flag conflicting extras."""
+def _approx_sum_eq(target: Decimal, parts: Iterable[Decimal]) -> bool:
+    parts_list = list(parts)
+    if not parts_list:
+        return False
+    total = sum(parts_list)
+    tol = max(Decimal("0.5"), abs(target) * Decimal("0.02"))
+    return abs(total - target) <= tol
+
+
+def _ids_subset_summing_to(target: Decimal, items: list[tuple[str, Decimal]]) -> list[str]:
+    """Largest claim-id subset whose values sum to ``target`` (within tolerance), or []."""
+    n = len(items)
+    best: list[str] = []
+    for mask in range(1, 1 << n):
+        ids: list[str] = []
+        vals: list[Decimal] = []
+        for j in range(n):
+            if mask & (1 << j):
+                ids.append(items[j][0])
+                vals.append(items[j][1])
+        if _approx_sum_eq(target, vals) and len(ids) > len(best):
+            best = ids
+    return best
+
+
+def _partition_overflow_ids(
+    primary: dict[str, Any],
+    claims: list[Any],
+    overflow_indices: list[int],
+) -> tuple[list[str], list[str]]:
+    """Split same-slot overflow into sum-split (hard UNMATCHED) vs independent extras (soft)."""
+    if not overflow_indices:
+        return [], []
+    primary_val = _as_decimal(primary.get("value"))
+    with_val: list[tuple[str, Decimal]] = []
+    independent: list[str] = []
+    for i in overflow_indices:
+        c = claims[i]
+        cid = _claim_id_at(c, i)
+        if not isinstance(c, dict):
+            independent.append(cid)
+            continue
+        val = _as_decimal(c.get("value"))
+        if val is None:
+            independent.append(cid)
+        else:
+            with_val.append((cid, val))
+    if primary_val is None or not with_val:
+        independent.extend(cid for cid, _ in with_val)
+        return [], independent
+    all_ids = [cid for cid, _ in with_val]
+    all_vals = [v for _, v in with_val]
+    if _approx_sum_eq(primary_val, all_vals):
+        return all_ids, independent
+    split_ids = _ids_subset_summing_to(primary_val, with_val)
+    if split_ids:
+        split_set = set(split_ids)
+        return split_ids, independent + [cid for cid in all_ids if cid not in split_set]
+    return [], independent + all_ids
+
+
+def _slot_overflow_indices(claims: list[Any], indices: list[int]) -> list[int]:
+    """Within one checklist slot, keep primary + unit-convertible dupes; return extra claim indices."""
     if len(indices) <= 1:
         return []
     ordered = sorted(indices)
     primary = claims[ordered[0]]
-    if not isinstance(primary, dict):
-        return [_claim_id_at(claims[i], i) for i in ordered[1:]]
-    overflow: list[str] = []
+    overflow: list[int] = []
     for i in ordered[1:]:
         c = claims[i]
         if not isinstance(c, dict):
-            overflow.append(_claim_id_at(c, i))
+            overflow.append(i)
             continue
         if isinstance(primary, dict) and _claims_convertible(primary, c):
             continue
-        overflow.append(_claim_id_at(c, i))
+        overflow.append(i)
     return overflow
 
 
@@ -523,12 +583,27 @@ def _checklist_coverage(items: list[str], claims: list[Any]) -> list[tuple[str, 
         msg = f"清单项可能无对应 claim：{missing}"
         out.append((msg, {"code": WARN_CHECKLIST_ITEM_UNCOVERED, "msg": msg}))
 
-    overflow: list[str] = list(clear_miss)
+    unmatched_ids: list[str] = list(clear_miss)
+    same_slot_extra: list[str] = []
     for idxs in buckets:
-        overflow.extend(_slot_overflow_ids(claims, idxs))
-    if overflow:
-        msg = f"这些 claim 未匹配任何清单项（可能多报）：{overflow}"
+        extra_idx = _slot_overflow_indices(claims, idxs)
+        if not extra_idx:
+            continue
+        ordered = sorted(idxs)
+        primary = claims[ordered[0]]
+        if isinstance(primary, dict):
+            sum_split, independent = _partition_overflow_ids(primary, claims, extra_idx)
+        else:
+            sum_split = []
+            independent = [_claim_id_at(claims[i], i) for i in extra_idx]
+        unmatched_ids.extend(sum_split)
+        same_slot_extra.extend(independent)
+    if unmatched_ids:
+        msg = f"这些 claim 未匹配任何清单项（可能多报）：{unmatched_ids}"
         out.append((msg, {"code": WARN_CLAIMS_UNMATCHED_CHECKLIST, "msg": msg}))
+    if same_slot_extra:
+        msg = f"同一清单项下有多余 claim（同源多值/同行多口径，请核对）：{same_slot_extra}"
+        out.append((msg, {"code": WARN_CLAIMS_SAME_SLOT_EXTRA, "msg": msg}))
     return out
 
 

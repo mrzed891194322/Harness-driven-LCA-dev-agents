@@ -8,6 +8,7 @@ import harness.tools.shared.bom_claims_check as pkg
 from harness.tools.shared.bom_claims_check.validate import (
     WARN_CHECKLIST_ITEM_UNCOVERED,
     WARN_CLAIMS_COUNT_MISMATCH,
+    WARN_CLAIMS_SAME_SLOT_EXTRA,
     WARN_CLAIMS_UNMATCHED_CHECKLIST,
     WARN_INFERRED_FORMULA_VALUE_MISSING,
     check_claims_file,
@@ -293,6 +294,46 @@ def test_d210_convertible_unit_dupes_no_unmatched():
     codes = out.get("warning_codes", [])
     assert WARN_CLAIMS_UNMATCHED_CHECKLIST not in codes
     assert WARN_CLAIMS_COUNT_MISMATCH in codes
+
+
+def test_20fb_style_same_slot_independent_multi_value_soft_only():
+    checklist = ["Lower heating value (LHV) of fuel / energy carrier in MJ/kg"]
+    claims = [
+        {
+            "claim_id": "c1",
+            "text": "LHV 2.4 MJ/kg",
+            "value": 2.4,
+            "unit": "MJ/kg",
+            "evidence": "LHV 2.4 MJ/kg",
+        },
+        {
+            "claim_id": "c2",
+            "text": "LHV 5.0 MJ/kg",
+            "value": 5.0,
+            "unit": "MJ/kg",
+            "evidence": "also listed 5.0 MJ/kg",
+        },
+        {
+            "claim_id": "c3",
+            "text": "LHV 6 MJ/kg",
+            "value": 6,
+            "unit": "MJ/kg",
+            "evidence": "row value 6 MJ/kg",
+        },
+        {
+            "claim_id": "c4",
+            "text": "LHV 10 MJ/kg",
+            "value": 10,
+            "unit": "MJ/kg",
+            "evidence": "max 10 MJ/kg",
+        },
+    ]
+    out = check_claims_payload({"claims": claims}, checklist=checklist)
+    codes = out.get("warning_codes", [])
+    assert WARN_CLAIMS_SAME_SLOT_EXTRA in codes
+    assert WARN_CLAIMS_UNMATCHED_CHECKLIST not in codes
+    soft = next(d for d in out["warning_details"] if d["code"] == WARN_CLAIMS_SAME_SLOT_EXTRA)
+    assert "c2" in soft["msg"] and "c3" in soft["msg"]
 
 
 def test_c7ff_same_slot_distinct_percent_overflow_unmatched():
