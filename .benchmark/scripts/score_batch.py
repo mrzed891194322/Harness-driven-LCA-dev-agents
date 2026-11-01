@@ -27,6 +27,7 @@ CASE_ROOTS = (
     REPO / ".benchmark" / "imported",
 )
 CLAIM_F1_PATH = REPO / ".benchmark" / "bom" / "scorers" / "claim_f1.py"
+CLAIM_F1_STRICT_PATH = REPO / ".benchmark" / "bom" / "scorers" / "claim_f1_strict.py"
 FAB_PATH = REPO / ".benchmark" / "lci" / "scorers" / "fabrication_rate.py"
 TRIAGE_PATH = REPO / ".benchmark" / "lci" / "scorers" / "triage_accuracy.py"
 DECOMP_PATH = REPO / ".benchmark" / "bom" / "scorers" / "decomposition_f1.py"
@@ -69,17 +70,52 @@ def _status_fail_reason(status: dict[str, Any]) -> str | None:
     return None
 
 
+def _apply_claim_f1_row(
+    row: dict[str, Any],
+    *,
+    ext: dict[str, Any],
+    strict: dict[str, Any],
+    scores: dict[str, Any],
+) -> None:
+    """Fill row + legacy aliases (extended) and strict_* fields for aggregate."""
+    row["scores"] = scores
+    row["f1"] = ext["f1"]
+    row["precision"] = ext["precision"]
+    row["recall"] = ext["recall"]
+    row["hallucination_rate"] = ext.get("hallucination_rate")
+    row["n_gold"] = ext["n_gold"]
+    row["n_pred"] = ext["n_pred"]
+    row["matched"] = ext["matched"]
+    row["unit_table"] = ext.get("unit_table")
+    row["ext_f1"] = ext["f1"]
+    row["ext_precision"] = ext["precision"]
+    row["ext_recall"] = ext["recall"]
+    row["ext_n_gold"] = ext["n_gold"]
+    row["ext_n_pred"] = ext["n_pred"]
+    row["ext_matched"] = ext["matched"]
+    row["strict_f1"] = strict["f1"]
+    row["strict_precision"] = strict["precision"]
+    row["strict_recall"] = strict["recall"]
+    row["strict_n_gold"] = strict["n_gold"]
+    row["strict_n_pred"] = strict["n_pred"]
+    row["strict_matched"] = strict["matched"]
+    row["strict_unit_table"] = strict.get("unit_table")
+
+
 def _zero_claim_row(
     *,
     claim_f1: Any,
+    claim_f1_strict: Any,
     gold: dict[str, Any] | None,
     reason: str,
     subcategory: str,
 ) -> dict[str, Any]:
     scores_inner = claim_f1.zero_pred_scores(gold, reason=reason)
+    strict_inner = claim_f1_strict.zero_pred_scores(gold, reason=reason)
     if subcategory == "abstention":
         scores: dict[str, Any] = {
             "claim_f1": scores_inner,
+            "claim_f1_strict": strict_inner,
             "abstention": {
                 "expected_abstain": claim_f1.is_abstain(gold or {}),
                 "predicted_abstain": True,  # no claims delivered
@@ -88,15 +124,10 @@ def _zero_claim_row(
             },
         }
     else:
-        scores = {"claim_f1": scores_inner}
-    return {
-        "f1": 0.0,
-        "hallucination_rate": 0.0,
-        "precision": 0.0,
-        "recall": 0.0,
-        "scores": scores,
-        "score_reason": reason,
-    }
+        scores = {"claim_f1": scores_inner, "claim_f1_strict": strict_inner}
+    out: dict[str, Any] = {"score_reason": reason}
+    _apply_claim_f1_row(out, ext=scores_inner, strict=strict_inner, scores=scores)
+    return out
 
 
 
@@ -145,6 +176,7 @@ def score_run(
     only_with_artifact: bool,
     only_completed: bool,
     claim_f1: Any,
+    claim_f1_strict: Any,
     fabrication_rate: Any,
     triage_accuracy: Any,
     decomposition_f1: Any,
@@ -235,6 +267,7 @@ def score_run(
             row.update(
                 _zero_claim_row(
                     claim_f1=claim_f1,
+                    claim_f1_strict=claim_f1_strict,
                     gold=gold,
                     reason=reason,
                     subcategory=subcategory,
@@ -289,23 +322,17 @@ def score_run(
     try:
         pred = _read_json(pred_path)
         if kind == "claim_f1":
-            scores = claim_f1.score_claims(gold, pred)
+            ext = claim_f1.score_claims(gold, pred)
+            strict = claim_f1_strict.score_claims(gold, pred)
             if subcategory == "abstention":
                 scores = {
-                    "claim_f1": scores,
+                    "claim_f1": ext,
+                    "claim_f1_strict": strict,
                     "abstention": claim_f1.score_abstention(gold, pred),
                 }
             else:
-                scores = {"claim_f1": scores}
-            cf1 = scores.get("claim_f1") or scores
-            row["f1"] = cf1.get("f1")
-            row["hallucination_rate"] = cf1.get("hallucination_rate")
-            row["n_gold"] = cf1.get("n_gold")
-            row["n_pred"] = cf1.get("n_pred")
-            row["matched"] = cf1.get("matched")
-            row["unit_table"] = cf1.get("unit_table")
-            row["precision"] = (scores.get("claim_f1") or scores).get("precision")
-            row["recall"] = (scores.get("claim_f1") or scores).get("recall")
+                scores = {"claim_f1": ext, "claim_f1_strict": strict}
+            _apply_claim_f1_row(row, ext=ext, strict=strict, scores=scores)
         elif kind == "fabrication":
             scores = {"fabrication_rate": fabrication_rate.score_mapping(gold, pred)}
             fab = scores["fabrication_rate"]
@@ -341,6 +368,42 @@ def _mean(vals: list[float]) -> float | None:
     return statistics.mean(vals) if vals else None
 
 
+def _micro_from_totals(*, matched: int, n_pred: int, n_gold: int) -> dict[str, float]:
+    p = matched / n_pred if n_pred else 0.0
+    rcall = matched / n_gold if n_gold else 0.0
+    micro = (2 * p * rcall / (p + rcall)) if (p + rcall) else 0.0
+    return {
+        "micro_f1": micro,
+        "micro_precision": p,
+        "micro_recall": rcall,
+        "micro_matched": float(matched),
+        "micro_n_pred": float(n_pred),
+        "micro_n_gold": float(n_gold),
+    }
+
+
+def _claim_micro_block(
+    group: list[dict[str, Any]],
+    *,
+    matched_key: str,
+    pred_key: str,
+    gold_key: str,
+    prefix: str,
+) -> dict[str, Any] | None:
+    claim_rows = [r for r in group if r.get(gold_key) is not None]
+    if not claim_rows:
+        return None
+    matched_total = sum(int(r[matched_key]) for r in claim_rows)
+    pred_total = sum(int(r[pred_key]) for r in claim_rows)
+    gold_total = sum(int(r[gold_key]) for r in claim_rows)
+    block = _micro_from_totals(
+        matched=matched_total, n_pred=pred_total, n_gold=gold_total
+    )
+    if prefix:
+        return {f"{prefix}_{k}": v for k, v in block.items()}
+    return block
+
+
 def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     scored = [r for r in rows if "scores" in r and not r.get("skip")]
     by_sub: dict[str, list[dict[str, Any]]] = {}
@@ -366,24 +429,35 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             if r.get("accuracy") is not None
         ]
         if f1s:
-            # 案均宏 F1（现状）
             entry["mean_f1"] = _mean(f1s)
             entry["macro_f1"] = entry["mean_f1"]
+            entry["ext_macro_f1"] = entry["macro_f1"]
             entry["f1s"] = f1s
-        # 微平均 Claim F1（PCFBench headline）：全 suite 汇总 matched/pred/gt 再算一次
-        matched_total = sum(int(r["matched"]) for r in group if r.get("matched") is not None)
-        pred_total = sum(int(r["n_pred"]) for r in group if r.get("n_pred") is not None)
-        gold_total = sum(int(r["n_gold"]) for r in group if r.get("n_gold") is not None)
-        if any(r.get("matched") is not None for r in group):
-            p = matched_total / pred_total if pred_total else 0.0
-            rcall = matched_total / gold_total if gold_total else 0.0
-            micro = (2 * p * rcall / (p + rcall)) if (p + rcall) else 0.0
-            entry["micro_f1"] = micro
-            entry["micro_precision"] = p
-            entry["micro_recall"] = rcall
-            entry["micro_matched"] = matched_total
-            entry["micro_n_pred"] = pred_total
-            entry["micro_n_gold"] = gold_total
+        strict_f1s = [
+            float(r["strict_f1"]) for r in group if r.get("strict_f1") is not None
+        ]
+        if strict_f1s:
+            entry["strict_macro_f1"] = _mean(strict_f1s)
+            entry["strict_f1s"] = strict_f1s
+        ext_micro = _claim_micro_block(
+            group, matched_key="ext_matched", pred_key="ext_n_pred", gold_key="ext_n_gold", prefix=""
+        ) or _claim_micro_block(
+            group, matched_key="matched", pred_key="n_pred", gold_key="n_gold", prefix=""
+        )
+        if ext_micro:
+            entry.update(ext_micro)
+            entry["ext_micro_f1"] = ext_micro["micro_f1"]
+        strict_micro = _claim_micro_block(
+            group,
+            matched_key="strict_matched",
+            pred_key="strict_n_pred",
+            gold_key="strict_n_gold",
+            prefix="strict",
+        )
+        if strict_micro:
+            entry.update(strict_micro)
+        no_output = sum(1 for r in group if r.get("score_reason"))
+        entry["n_no_output"] = no_output
         unit_tables = sorted({str(r.get("unit_table")) for r in group if r.get("unit_table")})
         if unit_tables:
             entry["unit_table"] = unit_tables[0] if len(unit_tables) == 1 else unit_tables
@@ -425,8 +499,16 @@ def write_table(rows: list[dict[str, Any]], path: Path) -> None:
         "workflow",
         "status",
         "f1",
+        "ext_f1",
+        "strict_f1",
         "precision",
         "recall",
+        "n_gold",
+        "n_pred",
+        "matched",
+        "strict_n_gold",
+        "strict_n_pred",
+        "strict_matched",
         "hallucination_rate",
         "score_reason",
         "candidate_hit_rate",
@@ -499,6 +581,7 @@ def main(argv: list[str] | None = None) -> int:
     only_with_artifact = bool(args.only_with_artifact)
 
     claim_f1 = _load_module(CLAIM_F1_PATH, "claim_f1")
+    claim_f1_strict = _load_module(CLAIM_F1_STRICT_PATH, "claim_f1_strict")
     fabrication_rate = _load_module(FAB_PATH, "fabrication_rate")
     triage_accuracy = _load_module(TRIAGE_PATH, "triage_accuracy")
     decomposition_f1 = _load_module(DECOMP_PATH, "decomposition_f1")
@@ -536,6 +619,7 @@ def main(argv: list[str] | None = None) -> int:
             only_with_artifact=only_with_artifact,
             only_completed=only_completed,
             claim_f1=claim_f1,
+            claim_f1_strict=claim_f1_strict,
             fabrication_rate=fabrication_rate,
             triage_accuracy=triage_accuracy,
             decomposition_f1=decomposition_f1,
@@ -554,8 +638,9 @@ def main(argv: list[str] | None = None) -> int:
     if unit_table:
         summary["unit_table"] = unit_table
         summary["notes"] = (
-            f"Claim F1: mean_f1/macro_f1 = 案均宏平均；micro_f1 = PCFBench 官方 headline 微平均"
-            f"（sum matched / sum pred / sum gold）。单位表 {unit_table}。"
+            f"Claim F1: mean_f1/macro_f1/ext_* = extended（含 _EXTRA_MASS 与 text claim）；"
+            f"micro_f1/ext_micro_f1 = extended 微平均；strict_* = 官方 vendored matcher（仅 value+unit）。"
+            f" extended 单位表 {unit_table}。"
         )
     payload = {
         "tip": tip,
@@ -599,7 +684,11 @@ def main(argv: list[str] | None = None) -> int:
         if "mean_f1" in entry:
             bits.append(f"mean_f1={entry['mean_f1']:.3f}")
         if "micro_f1" in entry:
-            bits.append(f"micro_f1={entry['micro_f1']:.3f}")
+            bits.append(f"ext_micro={entry['micro_f1']:.3f}")
+        if "strict_micro_f1" in entry:
+            bits.append(f"strict_micro={entry['strict_micro_f1']:.3f}")
+        if "strict_macro_f1" in entry:
+            bits.append(f"strict_macro={entry['strict_macro_f1']:.3f}")
         if "mean_top1" in entry:
             bits.append(f"mean_top1={entry['mean_top1']:.3f}")
         elif "mean_exact_match_rate" in entry:
