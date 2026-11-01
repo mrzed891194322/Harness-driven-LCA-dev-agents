@@ -351,7 +351,9 @@ class NodeGraph:
         return fn
 
     def _write_feedback(self, attempt: int, source: str, text: str) -> str:
-        path = layout.node_dir(self.ctx.workspace, self.node.run_key) / "feedback" / f"round_{attempt}.md"
+        path = layout.node_feedback_path(
+            self.ctx.workspace, self.node.run_key, attempt, self.node.id
+        )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"<!-- source: {source} -->\n{text}\n", encoding="utf-8")
         self.ctx.events.emit("feedback_written", attempt=attempt, source=source, path=str(path))

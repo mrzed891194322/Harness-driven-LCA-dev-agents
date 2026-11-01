@@ -54,7 +54,7 @@ def test_host_feedback_dir_injected_for_orchestrator_and_executor(tmp_path: Path
     (ws / "artifacts").mkdir(parents=True)
     _, nodes = load_workflow(REPO, "bom-extract-04")
     node = nodes[0]
-    fb = layout.node_feedback_dir(ws, node.run_key)
+    fb = layout.node_feedback_dir(ws, node.run_key, node.id)
     fb.mkdir(parents=True)
     (fb / "round_3.md").write_text("fix", encoding="utf-8")
     specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
@@ -67,8 +67,7 @@ def test_host_feedback_dir_injected_for_orchestrator_and_executor(tmp_path: Path
     scope_orch = compute_scope(
         REPO, node, "orchestrator", node.agents["orchestrator"].definition.access, workspace=ws
     )
-    node_runs_glob = str(layout.node_dir(ws, node.run_key)) + "/**"
-    assert node_runs_glob in scope_orch.read_globs
+    assert layout.node_feedback_read_glob(ws, node) in scope_orch.read_globs
 
 
 def test_bom_extract_02_03_no_checklist_from_run():

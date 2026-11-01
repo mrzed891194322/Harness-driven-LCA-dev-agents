@@ -361,7 +361,7 @@ class Injector:
         checklist_path = layout.node_checklist_path(self.ws, node.run_key)
         run_deliverables = layout.node_uses_run_deliverables(node)
         runs = layout.node_dir(self.ws, node.run_key)
-        fb_dir = layout.node_feedback_dir(self.ws, node.run_key)
+        fb_dir = layout.node_feedback_dir(self.ws, node.run_key, node.id)
         for prod in node.produces:
             spec = specs[prod.spec]
             body = [f"交付路径：`{layout.produce_target(self.ws, node, prod.path)}`", spec.prompt.strip()]

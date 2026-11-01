@@ -109,7 +109,8 @@ def test_bom_extract_01_submit_tool_and_deliverable_path():
     user = inj(node, "executor", 1, None, specs)
     assert "runs/_run/artifacts/bom/claims.json" in user
     assert "runs/_run/notes/bom-extract-01/executor" in user
-    assert "runs/bom-extract-01/feedback" in user
+    assert "runs/_run/feedback/bom-extract-01" in user
+    assert "runs/bom-extract-01/feedback" not in user
     assert "runs/bom-extract-01/executor" not in user
     report = inj.build_session_injection_report(node, "executor", attempt=1, user_prompt=user, run_id="dry")
     ft = report["sections"]["tools"]["file_tools"]

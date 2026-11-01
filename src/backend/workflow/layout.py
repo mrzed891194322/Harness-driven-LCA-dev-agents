@@ -48,6 +48,9 @@ RUN_META = RUNS / "_run"
 RUN_DELIVERABLES_REL = Path("runs") / "_run" / "artifacts"
 # Agent-owned intermediates (notes, drafts); cleared with ``runs/_run`` on prepare_fresh.
 RUN_NOTES_REL = Path("runs") / "_run" / "notes"
+RUN_FEEDBACK_REL = Path("runs") / "_run" / "feedback"
+# Legacy batch snapshots (pre _run deliverables): ``artifacts/bom/claims.json`` under run dir.
+LEGACY_CLAIMS_REL = Path("artifacts") / "bom" / "claims.json"
 
 # Injected on bom-extract tiers instead of the LCA ``write_boundary`` bullet in 00-redlines.yaml.
 BOM_EXTRACT_WRITE_BOUNDARY_ITEM = (
@@ -123,9 +126,26 @@ def node_checklist_write_glob(workspace: Path) -> str:
     return str(node_checklist_dir(workspace)) + "/**"
 
 
-def node_feedback_dir(workspace: Path, node_run_key: str) -> Path:
-    """Host rework files for one node run (under ``runs/<run_key>/``, not ``runs/_run/``)."""
+def node_feedback_dir(workspace: Path, node_run_key: str, node_id: str | None = None) -> Path:
+    """Host rework files.
+
+    bom-extract: ``runs/_run/feedback/<run_key>/`` (cleared with ``runs/_run`` on prepare_fresh).
+    LCA formal nodes: ``runs/<run_key>/feedback/`` (kept under per-node dir for resume).
+    """
+    nid = node_id if node_id is not None else node_run_key
+    if node_uses_run_deliverables(nid):
+        return workspace / RUN_FEEDBACK_REL / node_run_key
     return node_dir(workspace, node_run_key) / "feedback"
+
+
+def node_feedback_path(
+    workspace: Path, node_run_key: str, round_no: int, node_id: str | None = None
+) -> Path:
+    return node_feedback_dir(workspace, node_run_key, node_id) / f"round_{int(round_no)}.md"
+
+
+def node_feedback_read_glob(workspace: Path, node) -> str:
+    return str(node_feedback_dir(workspace, node.run_key, node.id)) + "/**"
 
 
 def run_agent_work_dir(workspace: Path, node_run_key: str, agent: str) -> Path:

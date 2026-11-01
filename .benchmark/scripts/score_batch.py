@@ -26,6 +26,7 @@ CASE_ROOTS = (
     REPO / ".benchmark",
     REPO / ".benchmark" / "imported",
 )
+_active_case_roots: tuple[Path, ...] = CASE_ROOTS
 CLAIM_F1_PATH = REPO / ".benchmark" / "bom" / "scorers" / "claim_f1.py"
 CLAIM_F1_STRICT_PATH = REPO / ".benchmark" / "bom" / "scorers" / "claim_f1_strict.py"
 FAB_PATH = REPO / ".benchmark" / "lci" / "scorers" / "fabrication_rate.py"
@@ -40,6 +41,29 @@ SCORE_SPEC: dict[str, tuple[Path, str, str]] = {
     "mapping": (Path("artifacts/mapping/mapping.json"), "mapping.json", "fabrication"),
     "triage": (Path("artifacts/triage/triage.json"), "triage.json", "triage"),
 }
+
+LEGACY_CLAIMS_REL = Path("artifacts/bom/claims.json")
+
+
+def resolve_claims_pred_path(run_dir: Path) -> tuple[Path, str | None]:
+    """Prefer live ``runs/_run/artifacts/bom/claims.json``; fall back to legacy batch layout."""
+    primary = run_dir / SCORE_SPEC["extract"][0]
+    legacy = run_dir / LEGACY_CLAIMS_REL
+    if primary.is_file():
+        return primary, None
+    if legacy.is_file():
+        return legacy, "legacy_artifacts_bom"
+    return primary, None
+
+
+def load_case_subset(path: Path) -> set[str]:
+    out: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            out.add(line)
+    return out
+
 
 def _status_fail_reason(status: dict[str, Any]) -> str | None:
     """Map status.json to a short score reason for missing preds."""
@@ -147,7 +171,7 @@ def _read_json(path: Path) -> Any:
 
 
 def resolve_truth(category: str, subcategory: str, case_id: str, truth_name: str) -> Path | None:
-    for root in CASE_ROOTS:
+    for root in _active_case_roots:
         cand = root / category / subcategory / case_id / "truth" / truth_name
         if cand.is_file():
             return cand
@@ -173,6 +197,7 @@ def iter_run_dirs(result_root: Path) -> list[Path]:
 def score_run(
     run_dir: Path,
     *,
+    result_root: Path,
     only_with_artifact: bool,
     only_completed: bool,
     claim_f1: Any,
@@ -183,7 +208,7 @@ def score_run(
     model_filter: str | None,
     workflow_filter: str | None,
 ) -> dict[str, Any] | None:
-    rel = run_dir.relative_to(RESULT_ROOT)
+    rel = run_dir.relative_to(result_root)
     parts = rel.parts
     if len(parts) < 4:
         return None
@@ -238,7 +263,11 @@ def score_run(
         }
 
     pred_rel, truth_name, kind = SCORE_SPEC[subcategory]
-    pred_path = run_dir / pred_rel
+    if kind == "claim_f1":
+        pred_path, pred_source = resolve_claims_pred_path(run_dir)
+    else:
+        pred_path = run_dir / pred_rel
+        pred_source = None
     truth_path = resolve_truth(category, subcategory, case_id, truth_name)
 
     row: dict[str, Any] = {
@@ -249,9 +278,12 @@ def score_run(
         "model": model,
         "workflow": workflow,
         "status": run_status or None,
-        "pred": str(pred_path.relative_to(REPO)) if pred_path.is_file() else None,
-        "truth": str(truth_path.relative_to(REPO)) if truth_path else None,
-        "result_dir": str(run_dir.relative_to(REPO)),
+        "pred": str(pred_path.relative_to(run_dir)) if pred_path.is_file() else None,
+        "pred_source": pred_source,
+        "truth": str(truth_path.relative_to(REPO)) if truth_path and truth_path.is_relative_to(REPO) else (
+            str(truth_path) if truth_path else None
+        ),
+        "result_dir": str(run_dir.relative_to(result_root)),
     }
 
     if truth_path is None:
@@ -467,6 +499,17 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
             entry.update(ext_micro)
         no_output = sum(1 for r in group if r.get("score_reason"))
         entry["n_no_output"] = no_output
+        entry["n_f1_eq_1"] = sum(
+            1 for r in group if r.get("f1") == 1.0 and not r.get("score_reason")
+        )
+        entry["n_over_report"] = sum(
+            1
+            for r in group
+            if r.get("strict_n_pred") is not None
+            and r.get("strict_n_gold") is not None
+            and int(r["strict_n_pred"]) > int(r["strict_n_gold"])
+            and (r.get("f1") or 0) < 1.0
+        )
         unit_tables = sorted(
             {str(r.get("strict_unit_table") or r.get("unit_table")) for r in group if r.get("strict_unit_table") or r.get("unit_table")}
         )
@@ -582,7 +625,27 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="只扫某一子类，如 extract / decomposition / mapping / abstention / triage",
     )
+    parser.add_argument(
+        "--subset",
+        type=Path,
+        default=None,
+        help="案例 id 列表（一行一个 case_id）；summary 额外输出 subset 块",
+    )
+    parser.add_argument(
+        "--case-root",
+        type=Path,
+        action="append",
+        default=None,
+        help="额外 truth 案例根（可重复；默认 worktree .benchmark + imported）",
+    )
     args = parser.parse_args(argv)
+
+    global _active_case_roots
+    extra_roots = list(CASE_ROOTS)
+    if args.case_root:
+        for p in args.case_root:
+            extra_roots.append(p if p.is_absolute() else (REPO / p).resolve())
+    _active_case_roots = tuple(extra_roots)
 
     result_root = args.result_root
     if not result_root.is_absolute():
@@ -617,6 +680,11 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:
         tip = ""
 
+    subset_ids: set[str] | None = None
+    if args.subset is not None:
+        subset_path = args.subset if args.subset.is_absolute() else (REPO / args.subset).resolve()
+        subset_ids = load_case_subset(subset_path)
+
     runs = iter_run_dirs(result_root)
     rows: list[dict[str, Any]] = []
     for run_dir in runs:
@@ -627,6 +695,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         row = score_run(
             run_dir,
+            result_root=result_root,
             only_with_artifact=only_with_artifact,
             only_completed=only_completed,
             claim_f1=claim_f1,
@@ -641,6 +710,14 @@ def main(argv: list[str] | None = None) -> int:
             rows.append(row)
 
     summary = aggregate(rows)
+    if subset_ids is not None:
+        sub_rows = [r for r in rows if r.get("case_id") in subset_ids]
+        summary["subset"] = {
+            "file": str(args.subset),
+            "n_listed": len(subset_ids),
+            "n_matched_rows": len(sub_rows),
+            **aggregate(sub_rows),
+        }
     unit_table = ""
     try:
         unit_table = str(getattr(claim_f1, "UNIT_TABLE_VERSION", "") or "")
@@ -666,6 +743,7 @@ def main(argv: list[str] | None = None) -> int:
             "workflow": args.workflow,
             "category": args.category,
             "subcategory": args.subcategory,
+            "subset": str(args.subset) if args.subset else None,
         },
         "summary": summary,
         "rows": rows,

@@ -95,6 +95,8 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     }
     if node_uses_run_checklist(root, node):
         read.add(str(layout.node_checklist_path(ws, node.run_key)))
+    if bom_extract:
+        read.add(layout.node_feedback_read_glob(ws, node))
     # Path-style tools.skills (repo-root-relative): grant the skill file/dir itself.
     for skill in agent.tools.skills:
         raw = (skill or "").strip()

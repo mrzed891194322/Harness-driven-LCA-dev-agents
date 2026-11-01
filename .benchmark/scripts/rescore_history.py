@@ -225,6 +225,7 @@ def rescore_batch_summary(
             continue
         row = sb.score_run(
             run_dir,
+            result_root=main_repo / ".benchmark" / "result",
             only_with_artifact=False,
             only_completed=False,
             claim_f1=claim_f1,

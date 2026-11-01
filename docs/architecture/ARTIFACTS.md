@@ -7,8 +7,10 @@
   Knowledge-type uploads stay in `harness/knowledge/inputs/` (injected via knowledge rules, not copied here).
 - `workspace/artifacts/<dir>/` — node deliverables (`bom/`, `mapping/`, `report/`); a node may write only the
   dirs of its `produces`.
-- `workspace/runs/<node>/` — per-node status, submits, feedback, reviewer notes; `runs/_run/` — manifest,
-  `events.jsonl`, `orchestrator.lock`, `revisions.json` (revise runs).
+- `workspace/runs/<node>/` — per-node status, submits; LCA formal workflows also keep host `feedback/` here (resume).
+  bom-extract tiers put host feedback under `runs/_run/feedback/<run_key>/` (cleared with `_run` on `prepare_fresh`).
+  `runs/_run/` — manifest, `events.jsonl`, `orchestrator.lock`, per-run deliverables (`artifacts/`), notes,
+  checklists, feedback (bom-extract); `revisions.json` (revise runs).
 - `workspace/tmp/` — scratch (pi sessions under `tmp/pi-workflow/`).
 
 A fresh full-lca clears `artifacts/` (except `README.md`), `runs/` (keeps the lock) and `tmp/`.

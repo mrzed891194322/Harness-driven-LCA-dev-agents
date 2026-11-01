@@ -225,7 +225,7 @@ class WorkflowService:
             nid, rev = item["id"], int(item.get("rev") or 0)
             key = item.get("key") or nid
             st = _read_json(layout.node_dir(self.ws, key) / "status.json")
-            fb = layout.node_dir(self.ws, key) / "feedback"
+            fb = layout.node_feedback_dir(self.ws, key, nid)
             nodes.append({"id": nid, "rev": rev, "key": key, "status": st.get("status", "pending"),
                           "round": st.get("round", 0),
                           "error": st.get("error", ""),
@@ -268,7 +268,7 @@ class WorkflowService:
     def feedback(self, node: str, rnd: int) -> str:
         if not node.replace("-", "").replace("_", "").replace("@", "").isalnum():
             raise ValueError("bad node id")
-        path = layout.node_dir(self.ws, node) / "feedback" / f"round_{int(rnd)}.md"
+        path = layout.node_feedback_path(self.ws, node, rnd, node)
         if not path.is_file():
             raise FileNotFoundError(str(path))
         return path.read_text(encoding="utf-8")

@@ -23,16 +23,31 @@
 | 字段 | 含义 |
 | --- | --- |
 | `f1` / `precision` / `recall` / `n_gold` / `n_pred` / `matched` | **strict 主结果**（兼容旧字段名，语义已指向严格） |
-| `mean_f1` / `macro_f1` / `micro_f1` | **strict 汇总主结果** |
+| `mean_f1` / `macro_f1` / `micro_f1` | **strict 汇总主结果**（headline = strict micro F1） |
 | `strict_*` | strict 明示（与上表同义，便于脚本只读 strict 前缀） |
 | `ext_*` | extended **调试** |
 | `n_no_output` | 有 `score_reason` 的案（无产物 / no_submit / failed 等） |
+| `n_f1_eq_1` | strict F1=1 且非 no-output 的案数 |
+| `n_over_report` | strict n_pred > n_gold 且 F1<1 的案数 |
+
+## claims.json 路径（score_batch / rescore_history）
+
+1. **首选**：`<run_dir>/runs/_run/artifacts/bom/claims.json`（当前 bom-extract 工作区交付，与 `layout.produce_target` 一致）。
+2. **回退**：`<run_dir>/artifacts/bom/claims.json`（历史 batch 快照，仅复制 workspace `artifacts/` 的旧布局）。
+3. 两者皆无 → claim 套件走 F1=0（`score_reason` / `no_artifact`），仍计入分母。
+
+行级 `pred_source=legacy_artifacts_bom` 表示使用了回退路径。
+
+## `--subset`
+
+`--subset FILE`：`FILE` 每行一个 `case_id`（可 `#` 注释）。`summary.json` 在完整 `aggregate` 之外增加 `summary.subset`（同结构，仅 subset 内行）。
 
 ## 无法 1:1 对齐的点
 
 1. **Text-only gold/pred**：extended 计 claim；strict 完全跳过——这是官方 extraction API 只接受 `(float, str)` 的固有限制，不是实现偏差。
-2. **绝对质量 g/kg/lb**：extended 用 harness `_EXTRA_MASS`；strict 未知单位走官方 pass-through key——同一数值可能在 extended 匹配、strict 不匹配。
-3. **宏平均语义**：两者均为案均 F1；strict 空空案为 0 会拉低 strict macro，extended 为 1 则抬高——与上表双空规则一致。
+2. **Gold/pred 空 unit 字符串**：与 upstream 一致，仅 `(value, unit)` 且 **truthy `unit`** 才进入 `_match_extraction_claims`（见 vendored `extraction._unit_candidates` L36–37；harness `claim_f1_strict._vu_tuples` 同规则）。金标 JSON 保留 `""` / 缺 unit，不在 strict 分母里额外删改或填默认值。
+3. **绝对质量 g/kg/lb**：extended 用 harness `_EXTRA_MASS`；strict 未知单位走官方 pass-through key——同一数值可能在 extended 匹配、strict 不匹配。
+4. **宏平均语义**：两者均为案均 F1；strict 空空案为 0 会拉低 strict macro，extended 为 1 则抬高——与上表双空规则一致。
 
 ## 上游来源
 
