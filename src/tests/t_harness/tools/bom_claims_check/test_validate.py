@@ -6,6 +6,7 @@ from pathlib import Path
 
 import harness.tools.shared.bom_claims_check as pkg
 from harness.tools.shared.bom_claims_check.validate import (
+    WARN_INFERRED_FORMULA_VALUE_MISSING,
     check_claims_file,
     check_claims_payload,
 )
@@ -231,6 +232,29 @@ def test_unit_glued_to_number():
         assert out["claims"][0]["value_unit"] == "near" and not out["warnings"]
     # letter-glued prefixes still rejected
     assert _one({"claim_id": "a", "value": 3, "unit": "g", "evidence": "3kg"}, expected_count=1)["warnings"]
+
+
+def test_inferred_formula_value_missing_warns():
+    c = {
+        "claim_id": "a",
+        "value": 2.456,
+        "unit": "kWh/kg",
+        "evidence": "[推断] 8.84 MJ/kg ÷ 3.6 = 2.46 kWh/kg（原文引文）",
+    }
+    out = _one(c, expected_count=1)
+    assert any("算式" in w or "数值" in w for w in out["warnings"])
+    assert WARN_INFERRED_FORMULA_VALUE_MISSING in out.get("warning_codes", [])
+
+
+def test_inferred_formula_value_present_ok():
+    c = {
+        "claim_id": "a",
+        "value": 2.456,
+        "unit": "kWh/kg",
+        "evidence": "[推断] 8.84 MJ/kg；2.456 = 8.84/3.6 kWh/kg",
+    }
+    out = _one(c, expected_count=1)
+    assert not _warn_body(out)
 
 
 def test_inferred_evidence_not_reported_missing_in_source():

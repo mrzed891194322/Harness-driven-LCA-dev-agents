@@ -84,7 +84,9 @@ def test_bom_extract_tier_switches():
         ".benchmark/bom/harness/specs/bom-claims-best.yaml"
     )
     best = load_spec(REPO, ".benchmark/bom/harness/specs/bom-claims-best.yaml")
-    assert best.checks and any(c.get("id") == "bom_claims_hard_warns" for c in best.checks)
+    assert best.checks and any(
+        c.get("id") == "bom_claims_hard_warns" and c.get("checklist_from_run") for c in best.checks
+    )
     assert n01[0].agents["executor"].tools.skills == []
     assert n02[0].agents["executor"].tools.skills == ["bom-claims-flow"]
     assert n02[0].agents["executor"].tools.mcp == ["bom_claims_check"]
@@ -96,7 +98,7 @@ def test_bom_extract_tier_switches():
     assert n03[0].agents["orchestrator"].rules == []
     assert n03[0].agents["executor"].rules == []
     rsf = load_rule(REPO, "rules/delivery/read-skills-first.yaml")
-    assert rsf.applies_to == ["executor"] and "先读" in rsf.prompt
+    assert set(rsf.applies_to or []) >= {"executor", "assistant", "reviewer"} and "先读" in rsf.prompt
     # 03: trio — orchestrator (artifact) + executor (assistant writer) + reviewer; no skills
     assert n03[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator.yaml")
     assert n03[0].agents["executor"].agent.endswith("bom-extract-executor.yaml")
@@ -111,12 +113,13 @@ def test_bom_extract_tier_switches():
     assert n03[0].agents["reviewer"].definition.deliver.submit == "verdict"
     assert n03[0].agents["orchestrator"].definition.deliver.submit == "artifact"
     assert n03[0].agents["executor"].definition.deliver is None
-    assert n04[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator.yaml")
-    assert n04[0].agents["executor"].agent.endswith("bom-extract-executor.yaml")
-    assert n04[0].agents["reviewer"].agent.endswith("bom-extract-reviewer.yaml")
+    assert n04[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator-04.yaml")
+    assert n04[0].agents["executor"].agent.endswith("bom-extract-executor-04.yaml")
+    assert n04[0].agents["reviewer"].agent.endswith("bom-extract-reviewer-04.yaml")
     assert n04[0].agents["executor"].tools.skills == ["bom-claims-flow"]
     assert n04[0].agents["executor"].tools.mcp == []
     assert n04[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml"]
+    assert n04[0].agents["reviewer"].rules == ["rules/delivery/read-skills-first.yaml"]
     assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
     assert n04[0].agents["reviewer"].tools.mcp == ["bom_claims_check"]
     assert n04[0].kind("orchestrator") == "artifact"

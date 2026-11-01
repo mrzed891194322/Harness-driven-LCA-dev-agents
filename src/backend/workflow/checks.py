@@ -9,8 +9,12 @@ from typing import Any
 
 import yaml
 
+from backend.workflow import layout
 from backend.workflow.config import Node, Spec
-from harness.tools.shared.bom_claims_check.validate import check_claims_file
+from harness.tools.shared.bom_claims_check.validate import (
+    WARN_CLAIMS_UNMATCHED_CHECKLIST,
+    check_claims_file,
+)
 
 # id → runner(path, check_dict, *, artifacts, produce_path) -> list[str] errors
 CheckRunner = Callable[..., list[str]]
@@ -148,36 +152,39 @@ def _resolve_runner(check: dict[str, Any]) -> CheckRunner | None:
     return _CHECK_RUNNERS.get(cid)
 
 
-# Host hard gate (04 bom-claims-best only): MCP stays warn-only; these classes fail produce checks.
-_SOFT_WARN_FRAGMENTS = (
-    "在知识库原文中未逐字找到",
-    "相距较远",
-    "未提供 checklist/expected_count",
-)
-_HARD_WARN_FRAGMENTS = (
-    "claims 为空且未 abstained",
-    "claims 条数",
-    "abstained=true 且 claims 条数",
-    "清单项可能无对应 claim",
-    "这些 claim 未匹配任何清单项",
-    "未在 evidence 中作为原文单位短语逐字出现",
-)
-_HARD_STRUCTURAL_FRAGMENTS = (
-    "abstained=true 但 claims 非空",
-)
+# Host hard gate (04 bom-claims-best + checklist_from_run): classify by stable warning codes.
+_HARD_WARNING_CODES = frozenset({
+    WARN_CLAIMS_UNMATCHED_CHECKLIST,
+})
+_CHECKLIST_CONTRACT_MISSING = "CHECKLIST_CONTRACT_MISSING"
+
+
+def _load_run_checklist(artifacts: Path, node: Node) -> tuple[list[str] | None, list[str]]:
+    """Return (items, host_errors). items=None when contract invalid/missing."""
+    cl_path = layout.node_dir(artifacts.parent, node.run_key) / "checklist.json"
+    if not cl_path.is_file():
+        return None, [
+            f"题面契约缺失：应在 {cl_path.relative_to(artifacts.parent)} 写入 "
+            f'{{"items":["对象×指标", ...]}}（只依题面）',
+        ]
+    try:
+        raw = json.loads(cl_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, [f"题面契约无法解析：{exc}"]
+    items = raw.get("items") if isinstance(raw, dict) else None
+    if not isinstance(items, list) or not all(isinstance(x, str) and x.strip() for x in items):
+        return None, ['题面契约非法：checklist.json 须为 {"items": ["对象×指标", ...]} 且 items 非空字符串数组']
+    return [x.strip() for x in items], []
 
 
 def _bom_hard_messages(result: dict[str, Any]) -> list[str]:
     out: list[str] = []
-    for msg in result.get("warnings") or []:
-        if not isinstance(msg, str):
+    for detail in result.get("warning_details") or []:
+        if not isinstance(detail, dict):
             continue
-        if any(s in msg for s in _SOFT_WARN_FRAGMENTS):
-            continue
-        if any(h in msg for h in _HARD_WARN_FRAGMENTS):
-            out.append(msg)
-    for msg in result.get("structural_warnings") or []:
-        if isinstance(msg, str) and any(h in msg for h in _HARD_STRUCTURAL_FRAGMENTS):
+        code = detail.get("code")
+        msg = detail.get("msg")
+        if code in _HARD_WARNING_CODES and isinstance(msg, str):
             out.append(msg)
     return out
 
@@ -208,17 +215,27 @@ def check_bom_claims_hard_warns(
     *,
     artifacts: Path | None = None,
     produce_path: str | None = None,
+    node: Node | None = None,
 ) -> list[str]:
-    """Re-run bom_claims_check logic; promote selected WARN classes to host errors.
+    """Re-run bom_claims_check logic; promote checklist contract + unmatched-over-report to host errors.
 
-    Optional check fields: ``checklist`` (list[str]) for N / coverage / abstain-vs-N;
-    ``load_knowledge: true`` to pass workspace knowledge into evidence lookup (soft only).
-    Without checklist, hard-rejects empty/abstain inconsistency and unit-phrase warns only.
+    Optional check fields: ``checklist`` (list[str]); ``checklist_from_run: true`` loads
+    ``workspace/runs/<node>/checklist.json``; ``load_knowledge: true`` for evidence lookup (soft only).
     """
     path = target if target.is_file() else target / "claims.json"
     checklist = check.get("checklist")
     if checklist is not None and not isinstance(checklist, list):
         checklist = None
+    contract_errors: list[str] = []
+    if check.get("checklist_from_run"):
+        if artifacts is None or node is None:
+            contract_errors.append("checklist_from_run 需要宿主 artifacts 与 node 上下文")
+        else:
+            loaded, contract_errors = _load_run_checklist(artifacts, node)
+            if loaded is not None:
+                checklist = loaded
+    if contract_errors:
+        return [f"bom_claims_hard_warns: {_CHECKLIST_CONTRACT_MISSING}: {m}" for m in contract_errors]
     sources = _knowledge_sources(artifacts) if check.get("load_knowledge") else None
     result = check_claims_file(
         path,
@@ -256,9 +273,12 @@ def run_spec_checks(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list
                 errors.append(f"{prod.path}: 未知 check id={cid!r}")
                 continue
             try:
-                got = runner(target, raw, artifacts=artifacts, produce_path=prod.path)
+                got = runner(target, raw, artifacts=artifacts, produce_path=prod.path, node=node)
             except TypeError:
-                got = runner(target, raw)  # allow simple (path, check) signatures
+                try:
+                    got = runner(target, raw, artifacts=artifacts, produce_path=prod.path)
+                except TypeError:
+                    got = runner(target, raw)  # allow simple (path, check) signatures
             except Exception as exc:  # noqa: BLE001 — surface to host feedback
                 errors.append(f"{prod.path} check {cid}: 执行失败：{type(exc).__name__}: {exc}")
                 continue

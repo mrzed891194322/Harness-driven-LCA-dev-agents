@@ -22,6 +22,23 @@ NEAR_CHARS = 40
 # Evidence prefix marking a value the agent inferred/estimated because the source is insufficient.
 INFERRED_MARK = "[推断]"  # max gap between a number and its unit inside one quote
 
+# Stable warning codes for host/MCP classification (messages stay human-readable).
+WARN_CHECKLIST_INVALID = "CHECKLIST_INVALID"
+WARN_EXPECTED_COUNT_MISSING = "EXPECTED_COUNT_MISSING"
+WARN_EXPECTED_COUNT_INVALID = "EXPECTED_COUNT_INVALID"
+WARN_CLAIMS_COUNT_MISMATCH = "CLAIMS_COUNT_MISMATCH"
+WARN_ABSTAIN_COUNT_MISMATCH = "ABSTAIN_COUNT_MISMATCH"
+WARN_CHECKLIST_ITEM_UNCOVERED = "CHECKLIST_ITEM_UNCOVERED"
+WARN_CLAIMS_UNMATCHED_CHECKLIST = "CLAIMS_UNMATCHED_CHECKLIST"
+WARN_CLAIMS_EMPTY_NO_ABSTAIN = "CLAIMS_EMPTY_NO_ABSTAIN"
+WARN_EVIDENCE_MISSING = "EVIDENCE_MISSING"
+WARN_INFERRED_BASIS_MISSING = "INFERRED_BASIS_MISSING"
+WARN_INFERRED_FORMULA_VALUE_MISSING = "INFERRED_FORMULA_VALUE_MISSING"
+WARN_EVIDENCE_NOT_IN_SOURCE = "EVIDENCE_NOT_IN_SOURCE"
+WARN_VALUE_NOT_IN_EVIDENCE = "VALUE_NOT_IN_EVIDENCE"
+WARN_UNIT_NOT_VERBATIM = "UNIT_NOT_VERBATIM"
+WARN_VALUE_UNIT_FAR_APART = "VALUE_UNIT_FAR_APART"
+
 # Unambiguous typographic normalisation only (applied to unit and evidence alike).
 _TYPO = str.maketrans({
     "\u00a0": " ", "\u2009": " ", "\u202f": " ",
@@ -98,6 +115,24 @@ def _unit_spans(unit: str, evidence: str) -> list[tuple[int, int]]:
     return [(m.start(), m.end()) for m in pat.finditer(evidence)]
 
 
+def _looks_like_formula(text: str) -> bool:
+    if "=" in text and re.search(r"\d", text):
+        return True
+    if re.search(r"[\×*/]", text) and re.search(r"\d", text):
+        return True
+    return False
+
+
+def _formula_mentions_value(value: Any, body: str) -> bool:
+    target = _as_decimal(value)
+    if target is None:
+        return True
+    for n in _numbers(_typo(body)):
+        if n[0] == target:
+            return True
+    return False
+
+
 def _as_decimal(value: Any) -> Decimal | None:
     try:
         return Decimal(repr(value)) if isinstance(value, float) else Decimal(value)
@@ -109,8 +144,19 @@ def _squash(s: str) -> str:
     return re.sub(r"\s+", " ", _typo(s)).strip()
 
 
-def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> tuple[dict, list[str], list[str]]:
+def _add_warn(
+    warns: list[str],
+    details: list[dict[str, str]],
+    code: str,
+    msg: str,
+) -> None:
+    warns.append(msg)
+    details.append({"code": code, "msg": msg})
+
+
+def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> tuple[dict, list[str], list[str], list[dict[str, str]]]:
     warns: list[str] = []
+    warn_details: list[dict[str, str]] = []
     struct: list[str] = []
     value, unit, ev = claim.get("value"), claim.get("unit"), claim.get("evidence")
     status = {"claim_id": cid, "value_unit": "unavailable", "evidence_source": "unavailable"}
@@ -135,27 +181,48 @@ def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> 
         struct.append(f"{cid}: 既无 value/unit 也无 text")
 
     if not ev or not ev.strip():
-        warns.append(
+        _add_warn(
+            warns,
+            warn_details,
+            WARN_EVIDENCE_MISSING,
             f"{cid}: 缺 evidence 且未标 {INFERRED_MARK}；请补原文引文，"
-            f"或原文不足时在 evidence 写 {INFERRED_MARK} + 推断依据"
+            f"或原文不足时在 evidence 写 {INFERRED_MARK} + 推断依据",
         )
-        return status, warns, struct
+        return status, warns, struct, warn_details
     if ev.lstrip().startswith(INFERRED_MARK):
         status["value_unit"] = "inferred"
         status["evidence_source"] = "inferred"
-        if not ev.lstrip()[len(INFERRED_MARK):].strip():
-            warns.append(f"{cid}: 标了 {INFERRED_MARK} 但未写推断依据")
-        return status, warns, struct
+        body = ev.lstrip()[len(INFERRED_MARK):].strip()
+        if not body:
+            _add_warn(
+                warns,
+                warn_details,
+                WARN_INFERRED_BASIS_MISSING,
+                f"{cid}: 标了 {INFERRED_MARK} 但未写推断依据",
+            )
+        elif value is not None and _looks_like_formula(body) and not _formula_mentions_value(value, body):
+            _add_warn(
+                warns,
+                warn_details,
+                WARN_INFERRED_FORMULA_VALUE_MISSING,
+                f"{cid}: [推断] 算式/依据中未出现与 value 相同的数值 {value!r}；请核对换算或算式",
+            )
+        return status, warns, struct, warn_details
 
     ev_n = _typo(ev)
     if sources is not None:
         needle = _squash(ev)
         status["evidence_source"] = "found" if any(needle in s for s in sources) else "not_found"
         if status["evidence_source"] == "not_found":
-            warns.append(f"{cid}: evidence 在知识库原文中未逐字找到；请回原文核对引文")
+            _add_warn(
+                warns,
+                warn_details,
+                WARN_EVIDENCE_NOT_IN_SOURCE,
+                f"{cid}: evidence 在知识库原文中未逐字找到；请回原文核对引文",
+            )
 
     if value is None or not unit:
-        return status, warns, struct
+        return status, warns, struct, warn_details
 
     target = _as_decimal(value)
     nums = _numbers(ev_n)
@@ -163,12 +230,20 @@ def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> 
     spans = _unit_spans(_typo(unit), ev_n)
     if not hits:
         status["value_unit"] = "value_not_found"
-        warns.append(f"{cid}: value {value!r} 未在 evidence 中以相同数值/正负号出现；请回原文确认")
+        _add_warn(
+            warns,
+            warn_details,
+            WARN_VALUE_NOT_IN_EVIDENCE,
+            f"{cid}: value {value!r} 未在 evidence 中以相同数值/正负号出现；请回原文确认",
+        )
     elif not spans:
         status["value_unit"] = "unit_not_verbatim"
-        warns.append(
+        _add_warn(
+            warns,
+            warn_details,
+            WARN_UNIT_NOT_VERBATIM,
             f"{cid}: unit {unit!r} 未在 evidence 中作为原文单位短语逐字出现"
-            f"（整词边界）；请照抄引文中的单位短语，勿压成短符号"
+            f"（整词边界）；请照抄引文中的单位短语，勿压成短符号",
         )
     else:
         all_spans = [(s, e) for (_, s, e) in nums]
@@ -183,8 +258,13 @@ def _check_claim(cid: str, claim: dict[str, Any], sources: list[str] | None) -> 
         )
         status["value_unit"] = "near" if near else "far_apart"
         if not near:
-            warns.append(f"{cid}: value 与 unit 在 evidence 中相距较远；请确认该数确属该单位")
-    return status, warns, struct
+            _add_warn(
+                warns,
+                warn_details,
+                WARN_VALUE_UNIT_FAR_APART,
+                f"{cid}: value 与 unit 在 evidence 中相距较远；请确认该数确属该单位",
+            )
+    return status, warns, struct, warn_details
 
 
 def check_claims_payload(
@@ -205,12 +285,13 @@ def check_claims_payload(
     """
     src = [_squash(s) for s in sources] if sources is not None else None
     warnings: list[str] = []
+    warning_details: list[dict[str, str]] = []
     structural: list[str] = []
     per_claim: list[dict] = []
 
     if not isinstance(data, dict) or not isinstance(data.get("claims"), list):
         structural.append("claims.json 根应为 object 且含 claims 数组")
-        return _result("checked", warnings, structural, per_claim, 0)
+        return _result("checked", warnings, warning_details, structural, per_claim, 0)
 
     claims = data["claims"]
     abstained = data.get("abstained")
@@ -219,7 +300,12 @@ def check_claims_payload(
     if abstained is True and claims:
         structural.append("abstained=true 但 claims 非空；二者不一致")
     if not abstained and not claims:
-        warnings.append("claims 为空且未 abstained；确认原文是否确无可答数字")
+        _add_warn(
+            warnings,
+            warning_details,
+            WARN_CLAIMS_EMPTY_NO_ABSTAIN,
+            "claims 为空且未 abstained；确认原文是否确无可答数字",
+        )
 
     checklist_items: list[str] | None = None
     if checklist is not None:
@@ -227,31 +313,49 @@ def check_claims_payload(
             checklist_items = [x.strip() for x in checklist]
             expected_count = len(checklist_items)
         else:
-            warnings.append("checklist 应为非空字符串数组（每项=题面所问 对象×指标）；已忽略")
+            _add_warn(
+                warnings,
+                warning_details,
+                WARN_CHECKLIST_INVALID,
+                "checklist 应为非空字符串数组（每项=题面所问 对象×指标）；已忽略",
+            )
 
     # Count check: warn-only; N from question checklist only (never gold / hard gate).
     if expected_count is None:
-        warnings.append(
+        _add_warn(
+            warnings,
+            warning_details,
+            WARN_EXPECTED_COUNT_MISSING,
             "未提供 checklist/expected_count（题面短清单 N）；跳过条数核对。"
-            "调用时传入 checklist=[题面所问 对象×指标, ...]（可枚举时）。"
+            "调用时传入 checklist=[题面所问 对象×指标, ...]（可枚举时）。",
         )
     elif not isinstance(expected_count, int) or isinstance(expected_count, bool) or expected_count < 0:
-        warnings.append(
-            f"expected_count={expected_count!r} 非法（应为非负整数）；跳过条数核对"
+        _add_warn(
+            warnings,
+            warning_details,
+            WARN_EXPECTED_COUNT_INVALID,
+            f"expected_count={expected_count!r} 非法（应为非负整数）；跳过条数核对",
         )
     elif abstained is True:
-        # abstained empty set: count mismatch vs positive N is still useful signal
         if expected_count != 0 and len(claims) != expected_count:
-            warnings.append(
+            _add_warn(
+                warnings,
+                warning_details,
+                WARN_ABSTAIN_COUNT_MISMATCH,
                 f"abstained=true 且 claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}；"
-                f"检查是否应交付非空 claims"
+                f"检查是否应交付非空 claims",
             )
     elif len(claims) != expected_count:
-        warnings.append(
-            f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}：请逐条说明其对应的清单项"
+        _add_warn(
+            warnings,
+            warning_details,
+            WARN_CLAIMS_COUNT_MISMATCH,
+            f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}：请逐条说明其对应的清单项",
         )
         if checklist_items is not None:
-            warnings.extend(_coverage_hints(checklist_items, claims))
+            for w, d in _coverage_hints(checklist_items, claims):
+                warnings.append(w)
+                warning_details.append(d)
 
     for i, claim in enumerate(claims):
         where = f"claims[{i}]"
@@ -259,11 +363,12 @@ def check_claims_payload(
             structural.append(f"{where}: 应为 object")
             continue
         cid = str(claim.get("claim_id") or where)
-        st, w, s = _check_claim(cid, claim, src)
+        st, w, s, wd = _check_claim(cid, claim, src)
         per_claim.append(st)
         warnings.extend(w)
+        warning_details.extend(wd)
         structural.extend(s)
-    return _result("checked", warnings, structural, per_claim, len(claims))
+    return _result("checked", warnings, warning_details, structural, per_claim, len(claims))
 
 
 _TOKEN_RE = re.compile("[A-Za-z0-9]+|[\u4e00-\u9fff]+")
@@ -306,18 +411,19 @@ def _claim_label(claim: Any) -> str:
     return _squash(" ".join(str(p) for p in parts if isinstance(p, str))).lower()
 
 
-def _coverage_hints(items: list[str], claims: list[Any]) -> list[str]:
+def _coverage_hints(items: list[str], claims: list[Any]) -> list[tuple[str, dict[str, str]]]:
     """Best-effort missing/extra hints by token/substring match (hint only)."""
     labels = [_claim_label(c) for c in claims]
     keys = [_squash(i).lower() for i in items]
-    out: list[str] = []
+    out: list[tuple[str, dict[str, str]]] = []
     if len(claims) < len(items):
         missing = [
             i for i, k in zip(items, keys)
             if not any(_label_matches_item(lb, k) for lb in labels)
         ]
         if missing and len(missing) < len(items):
-            out.append(f"清单项可能无对应 claim：{missing}")
+            msg = f"清单项可能无对应 claim：{missing}"
+            out.append((msg, {"code": WARN_CHECKLIST_ITEM_UNCOVERED, "msg": msg}))
     elif len(claims) > len(items):
         extra = [
             str(c.get("claim_id") or f"claims[{n}]")
@@ -325,14 +431,25 @@ def _coverage_hints(items: list[str], claims: list[Any]) -> list[str]:
             if isinstance(c, dict) and lb and not any(_label_matches_item(lb, k) for k in keys)
         ]
         if extra and len(extra) < len(claims):
-            out.append(f"这些 claim 未匹配任何清单项（可能多报）：{extra}")
+            msg = f"这些 claim 未匹配任何清单项（可能多报）：{extra}"
+            out.append((msg, {"code": WARN_CLAIMS_UNMATCHED_CHECKLIST, "msg": msg}))
     return out
 
 
-def _result(status: str, warnings: list[str], structural: list[str], per_claim: list[dict], n: int) -> dict[str, Any]:
+def _result(
+    status: str,
+    warnings: list[str],
+    warning_details: list[dict[str, str]],
+    structural: list[str],
+    per_claim: list[dict],
+    n: int,
+) -> dict[str, Any]:
+    codes = [d["code"] for d in warning_details if isinstance(d.get("code"), str)]
     return {
-        "status": status,  # checked = the check ran; it says nothing about correctness
+        "status": status,
         "warnings": warnings,
+        "warning_details": warning_details,
+        "warning_codes": codes,
         "structural_warnings": structural,
         "claims": per_claim,
         "claim_count": n,
@@ -354,11 +471,11 @@ def check_claims_file(
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        return _result("unavailable", [f"无法读取 {path}：{exc}"], [], [], 0)
+        return _result("unavailable", [f"无法读取 {path}：{exc}"], [], [], [], 0)
     if not text.strip():
-        return _result("unavailable", [f"{path} 为空"], [], [], 0)
+        return _result("unavailable", [f"{path} 为空"], [], [], [], 0)
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
-        return _result("unavailable", [], [f"JSON 无法解析：{exc}"], [], 0)
+        return _result("unavailable", [], [], [f"JSON 无法解析：{exc}"], [], 0)
     return check_claims_payload(data, sources=sources, expected_count=expected_count, checklist=checklist)

@@ -345,7 +345,7 @@ class Rule(_Strict):
     description: str = ""
     enabled: bool = True
     order: int = 100
-    applies_to: list[Literal["executor", "reviewer"]] | None = None  # roles (deliver.submit artifact/verdict)
+    applies_to: list[Literal["executor", "assistant", "reviewer"]] | None = None  # Node.role(); deliver.submit artifact/verdict/assistant
     # inject_when gate (orthogonal to applies_to / role()):
     #   writer  → access.write.produces ∧ is_primary（薄档写+交卷文案）
     #   primary → is_primary ∧ ¬access.write.produces（主交卷不写产物，如 03 orch）

@@ -2,7 +2,7 @@ title: 先读已挂技能
 description: 开干前先 read tools.skills 列出的 SKILL.md（及技能点名的 refs）；抬技能到达率
 enabled: true
 order: 70
-applies_to: [executor]
+applies_to: [executor, assistant, reviewer]
 prompt: |
   ## 先读已挂技能（到达率）
 

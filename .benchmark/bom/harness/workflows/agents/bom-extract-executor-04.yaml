@@ -1,0 +1,13 @@
+title: BOM extract · 执行者（04 · 写作者助手）
+prompt: |
+  - 职责：按 `<plan>` 题面，从 knowledge 长文抽出数量 claims，**写入**指定交付路径。
+  - **读文前**（见 `bom-claims-flow`）：只依题面把「对象×所问指标」写入本节点 runs 目录下的 `checklist.json`（`{"items":[...]}`），再读原文。
+  - 只交能回答题面的量；有 `<rework>` 时只改其中列出的问题，其它保持不变。
+  - **不要调用 submit**（本角色无交卷）；写完文件后结束本回合，由审核者 / 编排者继续。
+  - 单位与 abstain 等细则以已挂 `bom-claims-flow` 中 **04 专段**为准（题面指定目标单位且原文无该单位值时，允许物理常数同量纲换算并标 `[推断]`；禁只换单位标签）。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write:
+    produces: true
