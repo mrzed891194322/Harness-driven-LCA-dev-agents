@@ -1,9 +1,11 @@
 # Claim F1 strict vs extended
 
+**主结果=严格，扩展=调试。**
+
 ## 目的
 
-- **extended**（默认）：现有 `claim_f1.py`——含 `_EXTRA_MASS`（g/kg 绝对质量）、text-only claim 的文本匹配、与 PCFBench 相同的 `unit_candidates` 与 multiset Counter 匹配。
-- **strict**：vendored 官方 `pcfbench_official/{unit_normalization,extraction}.py`，仅 `(value, unit)` claim，匹配算法与 upstream `extraction._match_extraction_claims` 一致。
+- **strict**（主结果）：vendored 官方 `pcfbench_official/{unit_normalization,extraction}.py`，仅 `(value, unit)` claim，匹配算法与 upstream `extraction._match_extraction_claims` 一致。
+- **extended**（调试）：现有 `claim_f1.py`——含 `_EXTRA_MASS`（g/kg 绝对质量）、text-only claim 的文本匹配、与 PCFBench 相同的 `unit_candidates` 与 multiset Counter 匹配。
 
 ## 行级映射
 
@@ -20,9 +22,10 @@
 
 | 字段 | 含义 |
 | --- | --- |
-| `f1` / `micro_f1` / `macro_f1` | extended 别名（兼容旧读者） |
-| `ext_*` | extended 明示 |
-| `strict_*` | strict 明示 |
+| `f1` / `precision` / `recall` / `n_gold` / `n_pred` / `matched` | **strict 主结果**（兼容旧字段名，语义已指向严格） |
+| `mean_f1` / `macro_f1` / `micro_f1` | **strict 汇总主结果** |
+| `strict_*` | strict 明示（与上表同义，便于脚本只读 strict 前缀） |
+| `ext_*` | extended **调试** |
 | `n_no_output` | 有 `score_reason` 的案（无产物 / no_submit / failed 等） |
 
 ## 无法 1:1 对齐的点

@@ -77,16 +77,16 @@ def _apply_claim_f1_row(
     strict: dict[str, Any],
     scores: dict[str, Any],
 ) -> None:
-    """Fill row + legacy aliases (extended) and strict_* fields for aggregate."""
+    """Fill row: primary = strict; ext_* = extended（调试）."""
     row["scores"] = scores
-    row["f1"] = ext["f1"]
-    row["precision"] = ext["precision"]
-    row["recall"] = ext["recall"]
+    row["f1"] = strict["f1"]
+    row["precision"] = strict["precision"]
+    row["recall"] = strict["recall"]
     row["hallucination_rate"] = ext.get("hallucination_rate")
-    row["n_gold"] = ext["n_gold"]
-    row["n_pred"] = ext["n_pred"]
-    row["matched"] = ext["matched"]
-    row["unit_table"] = ext.get("unit_table")
+    row["n_gold"] = strict["n_gold"]
+    row["n_pred"] = strict["n_pred"]
+    row["matched"] = strict["matched"]
+    row["unit_table"] = strict.get("unit_table")
     row["ext_f1"] = ext["f1"]
     row["ext_precision"] = ext["precision"]
     row["ext_recall"] = ext["recall"]
@@ -431,34 +431,45 @@ def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if f1s:
             entry["mean_f1"] = _mean(f1s)
             entry["macro_f1"] = entry["mean_f1"]
-            entry["ext_macro_f1"] = entry["macro_f1"]
             entry["f1s"] = f1s
         strict_f1s = [
             float(r["strict_f1"]) for r in group if r.get("strict_f1") is not None
         ]
         if strict_f1s:
-            entry["strict_macro_f1"] = _mean(strict_f1s)
+            entry["strict_macro_f1"] = entry.get("macro_f1") or _mean(strict_f1s)
             entry["strict_f1s"] = strict_f1s
-        ext_micro = _claim_micro_block(
-            group, matched_key="ext_matched", pred_key="ext_n_pred", gold_key="ext_n_gold", prefix=""
-        ) or _claim_micro_block(
-            group, matched_key="matched", pred_key="n_pred", gold_key="n_gold", prefix=""
-        )
-        if ext_micro:
-            entry.update(ext_micro)
-            entry["ext_micro_f1"] = ext_micro["micro_f1"]
+        ext_f1s = [float(r["ext_f1"]) for r in group if r.get("ext_f1") is not None]
+        if ext_f1s:
+            entry["ext_macro_f1"] = _mean(ext_f1s)
+            entry["ext_f1s"] = ext_f1s
         strict_micro = _claim_micro_block(
             group,
             matched_key="strict_matched",
             pred_key="strict_n_pred",
             gold_key="strict_n_gold",
-            prefix="strict",
+            prefix="",
+        ) or _claim_micro_block(
+            group, matched_key="matched", pred_key="n_pred", gold_key="n_gold", prefix=""
         )
         if strict_micro:
             entry.update(strict_micro)
+            entry["strict_micro_f1"] = strict_micro["micro_f1"]
+            for k, v in strict_micro.items():
+                entry[f"strict_{k}"] = v
+        ext_micro = _claim_micro_block(
+            group,
+            matched_key="ext_matched",
+            pred_key="ext_n_pred",
+            gold_key="ext_n_gold",
+            prefix="ext",
+        )
+        if ext_micro:
+            entry.update(ext_micro)
         no_output = sum(1 for r in group if r.get("score_reason"))
         entry["n_no_output"] = no_output
-        unit_tables = sorted({str(r.get("unit_table")) for r in group if r.get("unit_table")})
+        unit_tables = sorted(
+            {str(r.get("strict_unit_table") or r.get("unit_table")) for r in group if r.get("strict_unit_table") or r.get("unit_table")}
+        )
         if unit_tables:
             entry["unit_table"] = unit_tables[0] if len(unit_tables) == 1 else unit_tables
         if hits:
@@ -638,8 +649,8 @@ def main(argv: list[str] | None = None) -> int:
     if unit_table:
         summary["unit_table"] = unit_table
         summary["notes"] = (
-            f"Claim F1: mean_f1/macro_f1/ext_* = extended（含 _EXTRA_MASS 与 text claim）；"
-            f"micro_f1/ext_micro_f1 = extended 微平均；strict_* = 官方 vendored matcher（仅 value+unit）。"
+            f"Claim F1 主结果=严格：f1/mean_f1/macro_f1/micro_f1/n_* = strict（官方 vendored matcher，仅 value+unit）；"
+            f"ext_* = extended 调试（含 _EXTRA_MASS 与 text claim）。"
             f" extended 单位表 {unit_table}。"
         )
     payload = {
@@ -684,11 +695,11 @@ def main(argv: list[str] | None = None) -> int:
         if "mean_f1" in entry:
             bits.append(f"mean_f1={entry['mean_f1']:.3f}")
         if "micro_f1" in entry:
-            bits.append(f"ext_micro={entry['micro_f1']:.3f}")
-        if "strict_micro_f1" in entry:
-            bits.append(f"strict_micro={entry['strict_micro_f1']:.3f}")
-        if "strict_macro_f1" in entry:
-            bits.append(f"strict_macro={entry['strict_macro_f1']:.3f}")
+            bits.append(f"micro_f1={entry['micro_f1']:.3f}")
+        if "ext_micro_f1" in entry:
+            bits.append(f"ext_micro={entry['ext_micro_f1']:.3f}")
+        if "ext_macro_f1" in entry:
+            bits.append(f"ext_macro={entry['ext_macro_f1']:.3f}")
         if "mean_top1" in entry:
             bits.append(f"mean_top1={entry['mean_top1']:.3f}")
         elif "mean_exact_match_rate" in entry:

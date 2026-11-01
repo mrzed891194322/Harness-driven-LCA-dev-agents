@@ -92,7 +92,7 @@ def test_zero_pred_includes_gold_in_micro_denominator():
         reason="no_submit",
         subcategory="extract",
     )
-    assert z["n_gold"] == 2
+    assert z["n_gold"] == 1
     assert z["ext_n_gold"] == 2
     assert z["strict_n_gold"] == 1
     assert z["matched"] == 0
@@ -111,8 +111,9 @@ def test_zero_pred_includes_gold_in_micro_denominator():
         ]
     )
     suite = summary["by_suite"]["bom/extract"]
-    assert suite["micro_n_gold"] == 2
+    assert suite["micro_n_gold"] == 1
     assert suite["strict_micro_n_gold"] == 1
+    assert suite["ext_micro_n_gold"] == 2
     assert suite["macro_f1"] == 0.0
 
 

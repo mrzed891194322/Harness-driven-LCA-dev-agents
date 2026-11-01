@@ -329,7 +329,7 @@ def write_outputs(out_dir: Path, batches: list[BatchRescore]) -> None:
             )
     md_path = out_dir / "rescore_table.md"
     lines = [
-        "# Extract batch rescore (extended + strict)",
+        "# Extract batch rescore（主结果=strict micro；ext 列=调试）",
         "",
         f"Batches: {len(batches)}",
         "",
