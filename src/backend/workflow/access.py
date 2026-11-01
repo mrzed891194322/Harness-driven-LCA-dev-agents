@@ -121,6 +121,7 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     if toggles["artifacts"]:
         if bom_extract:
             read.add(str(layout.run_deliverables_root(ws)) + "/**")
+            read.add(str(ws / layout.RUN_NOTES_REL / node.run_key) + "/**")
         else:
             read.add(str(art) + "/**")
     # Specs / skills may cite JSON Schema files and rules outside the produce dirs.
@@ -129,16 +130,20 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         read.add(str(root / "harness/rules") + "/**")
 
     write: set[str] = set()
+    notes_glob = layout.agent_intermediate_write_glob(ws, node, node.run_key, agent_key)
     # Produces writers: access.write.produces (orthogonal to deliver.submit / primary). Others: notes only.
     if produces_write_enabled(node, agent_key):
-        write.add(str(layout.node_dir(ws, node.run_key)) + "/**")
+        if bom_extract:
+            write.add(notes_glob)
+        else:
+            write.add(str(layout.node_dir(ws, node.run_key)) + "/**")
         if node_uses_run_checklist(root, node):
             write.add(str(layout.node_checklist_path(ws, node.run_key)))
         for prod in node.produces:
             write.add(layout.produce_write_glob(ws, node, prod.path))
     else:
         # reviewer / primary orch / other non-writers: notes dir only
-        write.add(str(layout.node_dir(ws, node.run_key) / agent_key) + "/**")
+        write.add(notes_glob)
     denied = [str(art / "plan") + "/**"]  # lock 1 beats everything
     if node.rev:
         # rev k: originals and other revs in the produce dirs are write-denied; only rev k is writable

@@ -2,7 +2,7 @@ description: |
   ## 方法（短指针）
 
   - executor：`harness/tools/skills/bom-claims-flow-04/SKILL.md`（读文前写题面契约 checklist → 读原文 → 写 claims；04 executor 不挂 check MCP）
-  - reviewer：`harness/tools/skills/bom-claims-review/SKILL.md`（**先** MCP `bom_claims_check` / `check_claims(checklist=…)`，再对照 knowledge 长文）
+  - reviewer：`harness/tools/skills/bom-claims-review/SKILL.md`（**先** MCP `mcp__bom_claims_check__check_claims(checklist=…)`，再对照 knowledge 长文）
 
   ## 交付物
 

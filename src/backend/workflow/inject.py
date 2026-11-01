@@ -270,7 +270,18 @@ class Injector:
         if rule_skipped(rule_ref, skip_files):
             return ""
         trim_ids = rule_trim_ids(rule_ref, trim_map)
-        return assemble_rule_prompt(rule, skip_item_ids=trim_ids).strip()
+        text = assemble_rule_prompt(rule, skip_item_ids=trim_ids).strip()
+        if layout.node_uses_run_deliverables(node) and "write_boundary" not in trim_ids:
+            ref = (rule_ref or "").replace("\\", "/")
+            if ref.endswith("00-redlines.yaml") or ref.endswith("rules/global/00-redlines.yaml"):
+                old = (
+                    "- 只能写入宿主授予的目录：本节点的 `workspace/runs/<节点>/` "
+                    "和本节点交付物对应的 `workspace/artifacts/<类型>/`。越界读写会被宿主拦截并记录。"
+                )
+                new = f"- {layout.BOM_EXTRACT_WRITE_BOUNDARY_ITEM}"
+                if old in text:
+                    text = text.replace(old, new)
+        return text
 
     # ---- system prompt (1, 3, 4) ----
     def system(self, node: Node, agent: str) -> str:
@@ -346,8 +357,9 @@ class Injector:
                 note = "，最新版本" if ".rev" in req else ""
                 inputs.append(f"- `{target}`（{kind}{count}{note}，上游产物，只读）")
             out.append(_section("inputs", "\n".join(inputs) or "（本节点没有上游产物）"))
-        runs = layout.node_dir(self.ws, node.run_key)
         checklist_path = layout.node_checklist_path(self.ws, node.run_key)
+        run_deliverables = layout.node_uses_run_deliverables(node)
+        runs = layout.node_dir(self.ws, node.run_key)
         for prod in node.produces:
             spec = specs[prod.spec]
             body = [f"交付路径：`{layout.produce_target(self.ws, node, prod.path)}`", spec.prompt.strip()]
@@ -373,10 +385,23 @@ class Injector:
         if role == "reviewer":
             if last:
                 out.append(_section("executor_submit", json.dumps(last, ensure_ascii=False, indent=2)))
-            notes = runs / agent / "notes.md"
-            out.append(f"审核笔记可写到 `{notes}`（必须是该文件路径；`{runs / agent}` 是节点目录，禁止用 write 覆盖成文件）。")
+            if run_deliverables:
+                notes = layout.run_agent_notes_path(self.ws, node.run_key, agent)
+                work_dir = layout.run_agent_work_dir(self.ws, node.run_key, agent)
+                out.append(
+                    f"审核笔记可写到 `{notes}`（必须是该文件 path；`{work_dir}` 是中间目录，禁止用 write 覆盖成文件）。"
+                )
+            else:
+                notes = runs / agent / "notes.md"
+                out.append(
+                    f"审核笔记可写到 `{notes}`（必须是该文件路径；`{runs / agent}` 是节点目录，禁止用 write 覆盖成文件）。"
+                )
         else:
-            out.append(f"中间文件写到 `{runs}`。")
+            if run_deliverables:
+                inter = layout.run_agent_work_dir(self.ws, node.run_key, agent)
+                out.append(f"中间文件写到 `{inter}`。")
+            else:
+                out.append(f"中间文件写到 `{runs}`。")
             if node.id.startswith("bom-extract-04"):
                 out.append(
                     f"题面短清单（checklist）写到 `{checklist_path}`，"

@@ -103,9 +103,23 @@ def test_bom_extract_01_submit_tool_and_deliverable_path():
     sys = inj.system(node, "executor")
     assert "mcp__submit__submit" in sys
     assert "完成时调用 submit。" not in sys
+    assert "workspace/artifacts/<类型>" not in sys
+    assert "runs/_run/artifacts" in sys
+    assert "runs/_run/notes" in sys
     user = inj(node, "executor", 1, None, specs)
     assert "runs/_run/artifacts/bom/claims.json" in user
+    assert "runs/_run/notes/bom-extract-01/executor" in user
+    assert "runs/bom-extract-01" not in user
     report = inj.build_session_injection_report(node, "executor", attempt=1, user_prompt=user, run_id="dry")
     ft = report["sections"]["tools"]["file_tools"]
     assert "mcp__submit__submit" in ft
     assert "submit" not in ft
+
+
+def test_bom_extract_01_reviewer_notes_under_run():
+    _, nodes = load_workflow(REPO, "bom-extract-04")
+    node = nodes[0]
+    specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
+    text = Injector(REPO)(node, "reviewer", 1, None, specs)
+    assert "runs/_run/notes/bom-extract-04/reviewer/notes.md" in text
+    assert "runs/bom-extract-04/reviewer" not in text

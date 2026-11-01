@@ -101,8 +101,11 @@ def test_bom_extract_read_scope():
         assert str(ref.resolve()) in ex.read_globs
         assert str(readme.resolve()) not in ex.read_globs
         run_art = str((ws / "runs/_run/artifacts/bom").resolve())
+        notes = str((ws / "runs/_run/notes/bom-extract-01/executor").resolve())
         assert any(run_art in g for g in ex.write_globs)
+        assert any(notes in g for g in ex.write_globs)
         assert not any(str((ws / "artifacts/bom").resolve()) + "/**" == g for g in ex.write_globs)
+        assert not any(str((ws / "runs/bom-extract-01").resolve()) in g for g in ex.write_globs)
     finally:
         if not ref_existed:
             ref.unlink(missing_ok=True)

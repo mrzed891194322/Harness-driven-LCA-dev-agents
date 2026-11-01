@@ -46,6 +46,14 @@ RUNS = WORKSPACE / "runs"
 RUN_META = RUNS / "_run"
 # Per workflow-run deliverables (under workspace root, cleared with runs/_run on prepare_fresh).
 RUN_DELIVERABLES_REL = Path("runs") / "_run" / "artifacts"
+# Agent-owned intermediates (notes, drafts); cleared with ``runs/_run`` on prepare_fresh.
+RUN_NOTES_REL = Path("runs") / "_run" / "notes"
+
+# Injected on bom-extract tiers instead of the LCA ``write_boundary`` bullet in 00-redlines.yaml.
+BOM_EXTRACT_WRITE_BOUNDARY_ITEM = (
+    "只能写入宿主授予的目录：本节点的 `workspace/runs/_run/notes/<节点>/`（中间笔记与草稿）"
+    "和本节点交付物对应的 `workspace/runs/_run/artifacts/<类型>/`。越界读写会被宿主拦截并记录。"
+)
 
 # Pi / MCP tool id exposed to the model for harness submit.
 SUBMIT_TOOL = "mcp__submit__submit"
@@ -108,6 +116,21 @@ def node_checklist_dir(workspace: Path) -> Path:
 
 def node_checklist_path(workspace: Path, node_run_key: str) -> Path:
     return node_checklist_dir(workspace) / f"{node_run_key}.json"
+
+
+def run_agent_work_dir(workspace: Path, node_run_key: str, agent: str) -> Path:
+    """Per-run agent intermediates (notes, drafts); not host status/feedback under ``runs/<node>/``."""
+    return workspace / RUN_NOTES_REL / node_run_key / agent
+
+
+def run_agent_notes_path(workspace: Path, node_run_key: str, agent: str) -> Path:
+    return run_agent_work_dir(workspace, node_run_key, agent) / "notes.md"
+
+
+def agent_intermediate_write_glob(workspace: Path, node, node_run_key: str, agent_key: str) -> str:
+    if node_uses_run_deliverables(node):
+        return str(run_agent_work_dir(workspace, node_run_key, agent_key)) + "/**"
+    return str(node_dir(workspace, node_run_key) / agent_key) + "/**"
 
 
 def orch_dirs() -> tuple[Path, ...]:

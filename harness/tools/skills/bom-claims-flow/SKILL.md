@@ -10,5 +10,5 @@
    - **合并**：同一清单项仅给同单位、同口径、不重叠分项且可清晰相加时，只交相加总和，不另交分项；禁止跨指标乘除。
    - **不交**：未问分项、同值换单位重复、定义常数、`value=null`、清单外。
    - **字段**：每条尽量含 `claim_id`；`value`/`unit`/`text`/`evidence` 按 spec；`unit` 用短符号。
-4. **核对**：`check_claims(checklist=[清单项...])` → 有告警则改 → 再 check。多报/范围外类告警须删多余条后再 check；条数≠N 不硬卡。
+4. **核对**：`mcp__bom_claims_check__check_claims(checklist=[清单项...])` → 有告警则改 → 再 check。多报/范围外类告警须删多余条后再 check；条数≠N 不硬卡。
 5. **交付**：无文档依据则交 `claims: []`。有 `<rework>` 时只改所列问题。

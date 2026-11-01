@@ -1,6 +1,6 @@
 # BOM 数量抽取 · 审核护栏（04 · MCP check · 压多报）
 
-审核者专用。**必须先**调用 MCP `check_claims(checklist=[清单项...])`（对照 executor 写入的 checklist 中 `items` 或题面短清单），把 checklist 与告警写进判定；再读同一份 knowledge 长文对照 `claims.json`；按条核对后立刻交卷。
+审核者专用。**必须先**调用 MCP `mcp__bom_claims_check__check_claims(checklist=[清单项...])`（对照 executor 写入的 checklist 中 `items` 或题面短清单），把 checklist 与告警写进判定；再读同一份 knowledge 长文对照 `claims.json`；按条核对后立刻交卷。
 
 ## 角色分工
 

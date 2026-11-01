@@ -69,7 +69,7 @@ def _sources() -> list[str] | None:
 
 @mcp.tool(
     description=(
-        "只读核对 workspace/artifacts/bom/claims.json（或给定 path）：value 是否以同一数值出现在 evidence 中、"
+        "只读核对 workspace/runs/_run/artifacts/bom/claims.json（或给定 path）：value 是否以同一数值出现在 evidence 中、"
         "unit（原文单位短语）是否在 evidence 中按整词边界出现并与该数相邻、"
         "evidence 能否在知识库原文中逐字找到，另列结构提醒；"
         "数量：传 checklist=[题面所问「对象×指标」, ...]（只依题面，非金标），N=len(checklist)；"

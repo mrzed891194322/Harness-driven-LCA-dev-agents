@@ -54,3 +54,5 @@ def test_bom_01_inject_skips_language_and_uses_plan_not_embedded_doc():
     assert "Query:" not in user and "Document text:" not in user
     assert "<inputs>" not in user and "<redo_policy>" not in user
     assert "<deliverable_bom-claims-01>" in user
+    assert "runs/_run/notes/bom-extract-01/executor" in user
+    assert "workspace/artifacts/<类型>" not in sys
