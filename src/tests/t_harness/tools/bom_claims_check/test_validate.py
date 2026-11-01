@@ -6,6 +6,9 @@ from pathlib import Path
 
 import harness.tools.shared.bom_claims_check as pkg
 from harness.tools.shared.bom_claims_check.validate import (
+    WARN_CHECKLIST_ITEM_UNCOVERED,
+    WARN_CLAIMS_COUNT_MISMATCH,
+    WARN_CLAIMS_UNMATCHED_CHECKLIST,
     WARN_INFERRED_FORMULA_VALUE_MISSING,
     check_claims_file,
     check_claims_payload,
@@ -171,8 +174,8 @@ def test_checklist_sets_count_and_flags_missing():
 
 
 def test_checklist_match_no_count_warning():
-    data = {"claims": [{"claim_id": "a", "value": 3, "unit": "kg", "evidence": "3 kg"}]}
-    out = check_claims_payload(data, checklist=["x"])
+    data = {"claims": [{"claim_id": "a", "text": "steel mass", "value": 3, "unit": "kg", "evidence": "3 kg"}]}
+    out = check_claims_payload(data, checklist=["steel mass"])
     assert not out["warnings"]
 
 
@@ -262,3 +265,84 @@ def test_inferred_evidence_not_reported_missing_in_source():
     out = _one(c, sources=["unrelated text"], expected_count=1)
     assert out["claims"][0]["evidence_source"] == "inferred"
     assert not out["warnings"] and not any("未逐字找到" in w for w in out["warnings"])
+
+
+def test_d210_convertible_unit_dupes_no_unmatched():
+    checklist = ["keyboard × unit weight (product weight excluding packaging) in lb or g/kg"]
+    claims = [
+        {
+            "claim_id": "c1",
+            "text": "Keyboard Unit Weight is 1.32 lbs (0.6 kg).",
+            "item_id": "m1",
+            "field": "unit weight",
+            "value": 1.32,
+            "unit": "lb",
+            "evidence": "Product Dimensions — Keyboard Unit Weight: 1.32lbs (0.6kg)",
+        },
+        {
+            "claim_id": "c2",
+            "text": "Keyboard Unit Weight is 0.6 kg.",
+            "item_id": "m1",
+            "field": "unit weight",
+            "value": 0.6,
+            "unit": "kg",
+            "evidence": "Product Dimensions — Keyboard Unit Weight: 1.32lbs (0.6kg)",
+        },
+    ]
+    out = check_claims_payload({"claims": claims, "abstained": False}, checklist=checklist)
+    codes = out.get("warning_codes", [])
+    assert WARN_CLAIMS_UNMATCHED_CHECKLIST not in codes
+    assert WARN_CLAIMS_COUNT_MISMATCH in codes
+
+
+def test_c7ff_same_slot_distinct_percent_overflow_unmatched():
+    checklist = [
+        "Steel used by Bisley has recycled content typical of European steel production",
+    ]
+    claims = [
+        {
+            "claim_id": "bom-04-c1",
+            "text": "Steel used by Bisley has a recycled content typical of European steel production, quoted as 56% by steel suppliers in 2018.",
+            "value": 56,
+            "unit": "%",
+            "evidence": "quoted as 56% by steel suppliers in 2018.",
+        },
+        {
+            "claim_id": "bom-04-c2",
+            "text": "The 56% recycled content of Bisley cabinet steel is assumed to be 32% pre-consumer scrap.",
+            "value": 32,
+            "unit": "%",
+            "evidence": "assumed to be 32% pre-consumer, 24% post-consumer scrap",
+        },
+        {
+            "claim_id": "bom-04-c3",
+            "text": "The 56% recycled content of Bisley cabinet steel is assumed to be 24% post-consumer scrap.",
+            "value": 24,
+            "unit": "%",
+            "evidence": "32% pre-consumer, 24% post-consumer scrap",
+        },
+    ]
+    out = check_claims_payload({"claims": claims}, checklist=checklist)
+    codes = out.get("warning_codes", [])
+    assert WARN_CLAIMS_UNMATCHED_CHECKLIST in codes
+    unmatched = next(d for d in out["warning_details"] if d["code"] == WARN_CLAIMS_UNMATCHED_CHECKLIST)
+    assert "bom-04-c2" in unmatched["msg"] and "bom-04-c3" in unmatched["msg"]
+
+
+def test_clear_miss_still_unmatched():
+    data = {
+        "claims": [
+            {"claim_id": "a", "text": "unrelated glass mass", "value": 1, "unit": "kg", "evidence": "1 kg"},
+            {"claim_id": "b", "text": "steel frame mass", "value": 2, "unit": "kg", "evidence": "2 kg"},
+        ],
+    }
+    out = check_claims_payload(data, checklist=["steel frame mass"])
+    assert WARN_CLAIMS_UNMATCHED_CHECKLIST in out.get("warning_codes", [])
+
+
+def test_under_report_uncovered_not_unmatched():
+    data = {"claims": [{"claim_id": "a", "text": "steel frame mass", "value": 3, "unit": "kg", "evidence": "3 kg"}]}
+    out = check_claims_payload(data, checklist=["steel frame mass", "glass mass"])
+    codes = out.get("warning_codes", [])
+    assert WARN_CHECKLIST_ITEM_UNCOVERED in codes
+    assert WARN_CLAIMS_UNMATCHED_CHECKLIST not in codes

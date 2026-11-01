@@ -40,4 +40,5 @@
 
 ## 禁止
 
-- 橡皮图章；自己当抽数人；为凑全而补无依据的量；漏题面/脱靶多报/有数却空 claims 时仍 `approve`。
+- 橡皮图章；自己当抽数人；为凑全而补无依据的量；
+- **漏题面/脱靶多报/有数却空 claims 时仍 `approve`**；宿主在 `approve` 提交时会复检 `CLAIMS_UNMATCHED_CHECKLIST` / `CHECKLIST_ITEM_UNCOVERED` / 空 claims 并拒收。

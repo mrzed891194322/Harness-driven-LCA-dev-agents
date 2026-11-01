@@ -12,6 +12,8 @@ import yaml
 from backend.workflow import layout
 from backend.workflow.config import Node, Spec
 from harness.tools.shared.bom_claims_check.validate import (
+    WARN_CHECKLIST_ITEM_UNCOVERED,
+    WARN_CLAIMS_EMPTY_NO_ABSTAIN,
     WARN_CLAIMS_UNMATCHED_CHECKLIST,
     check_claims_file,
 )
@@ -161,6 +163,11 @@ def _resolve_runner(check: dict[str, Any]) -> CheckRunner | None:
 _HARD_WARNING_CODES = frozenset({
     WARN_CLAIMS_UNMATCHED_CHECKLIST,
 })
+_APPROVE_GATE_WARNING_CODES = frozenset({
+    WARN_CLAIMS_UNMATCHED_CHECKLIST,
+    WARN_CHECKLIST_ITEM_UNCOVERED,
+    WARN_CLAIMS_EMPTY_NO_ABSTAIN,
+})
 _CHECKLIST_CONTRACT_MISSING = "CHECKLIST_CONTRACT_MISSING"
 
 
@@ -192,6 +199,91 @@ def _bom_hard_messages(result: dict[str, Any]) -> list[str]:
         if code in _HARD_WARNING_CODES and isinstance(msg, str):
             out.append(msg)
     return out
+
+
+def _bom_approve_gate_messages(result: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    for detail in result.get("warning_details") or []:
+        if not isinstance(detail, dict):
+            continue
+        code = detail.get("code")
+        msg = detail.get("msg")
+        if code in _APPROVE_GATE_WARNING_CODES and isinstance(msg, str):
+            out.append(f"{code}: {msg}")
+    return out
+
+
+def node_uses_bom_claims_hard(node: Node, specs: dict[str, Spec]) -> bool:
+    """True when this node runs bom_claims_hard_warns with checklist_from_run (04-style)."""
+    for prod in node.produces:
+        spec = specs.get(prod.spec)
+        if spec is None or not spec.checks:
+            continue
+        for raw in spec.checks:
+            if not isinstance(raw, dict):
+                continue
+            if raw.get("id") == "bom_claims_hard_warns" and raw.get("checklist_from_run"):
+                return True
+    return False
+
+
+def _run_bom_claims_check_for_node(
+    workspace: Path,
+    node: Node,
+    specs: dict[str, Spec],
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """(check_dict, check_claims_file result) for each bom_claims_hard_warns produce."""
+    artifacts = workspace / "artifacts"
+    out: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for prod in node.produces:
+        spec = specs.get(prod.spec)
+        if spec is None or not spec.checks:
+            continue
+        for raw in spec.checks:
+            if not isinstance(raw, dict):
+                continue
+            if raw.get("id") != "bom_claims_hard_warns" or not raw.get("checklist_from_run"):
+                continue
+            target = layout.produce_target(workspace, node, prod.path)
+            checklist = raw.get("checklist")
+            if checklist is not None and not isinstance(checklist, list):
+                checklist = None
+            contract_errors: list[str] = []
+            if raw.get("checklist_from_run"):
+                loaded, contract_errors = _load_run_checklist(artifacts, node)
+                if loaded is not None:
+                    checklist = loaded
+            if contract_errors:
+                out.append((raw, {"status": "checked", "warning_details": [
+                    {"code": _CHECKLIST_CONTRACT_MISSING, "msg": m} for m in contract_errors
+                ]}))
+                continue
+            sources = _knowledge_sources(artifacts) if raw.get("load_knowledge") else None
+            path = target if target.is_file() else target / "claims.json"
+            result = check_claims_file(path, sources=sources, checklist=checklist)
+            out.append((raw, result))
+    return out
+
+
+def review_claims_gate_errors(workspace: Path, node: Node, specs: dict[str, Spec]) -> list[str]:
+    """Re-run bom claims check before reviewer approve; block on UNMATCHED / UNCOVERED / empty claims."""
+    if not node_uses_bom_claims_hard(node, specs):
+        return []
+    errors: list[str] = []
+    for _raw, result in _run_bom_claims_check_for_node(workspace, node, specs):
+        if result.get("status") == "unavailable":
+            errors.append(str(result.get("warnings") or result.get("structural_warnings") or "claims 不可用"))
+            continue
+        for detail in result.get("warning_details") or []:
+            if not isinstance(detail, dict):
+                continue
+            code = detail.get("code")
+            if code == _CHECKLIST_CONTRACT_MISSING:
+                msg = detail.get("msg")
+                if isinstance(msg, str):
+                    errors.append(f"{code}: {msg}")
+        errors.extend(_bom_approve_gate_messages(result))
+    return errors
 
 
 def _knowledge_sources(artifacts: Path | None) -> list[str] | None:

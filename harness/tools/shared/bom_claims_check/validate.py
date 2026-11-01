@@ -344,10 +344,18 @@ def check_claims_payload(
             WARN_CLAIMS_COUNT_MISMATCH,
             f"claims 条数 {len(claims)} ≠ 题面清单 N={expected_count}：请逐条说明其对应的清单项",
         )
-        if checklist_items is not None:
-            for w, d in _coverage_hints(checklist_items, claims):
-                warnings.append(w)
-                warning_details.append(d)
+
+    if checklist_items is not None:
+        if not claims and abstained is not True:
+            _add_warn(
+                warnings,
+                warning_details,
+                WARN_CLAIMS_EMPTY_NO_ABSTAIN,
+                "题面清单非空但 claims 为空；原文有可答数字时应交付 claims",
+            )
+        for w, d in _checklist_coverage(checklist_items, claims):
+            warnings.append(w)
+            warning_details.append(d)
 
     for i, claim in enumerate(claims):
         where = f"claims[{i}]"
@@ -367,8 +375,12 @@ _TOKEN_RE = re.compile("[A-Za-z0-9]+|[\u4e00-\u9fff]+")
 
 
 def _tokens(s: str) -> set[str]:
-    """Alnum / CJK runs longer than 1 char (for checklist↔claim matching)."""
-    return {t.lower() for t in _TOKEN_RE.findall(s) if len(t) > 1}
+    """Alnum / CJK runs longer than 1 char; pure-digit tokens dropped (e.g. ``1.32`` → ``32``)."""
+    return {
+        t.lower()
+        for t in _TOKEN_RE.findall(s)
+        if len(t) > 1 and not t.isdigit()
+    }
 
 
 def _label_matches_item(label: str, item_key: str) -> bool:
@@ -403,28 +415,120 @@ def _claim_label(claim: Any) -> str:
     return _squash(" ".join(str(p) for p in parts if isinstance(p, str))).lower()
 
 
-def _coverage_hints(items: list[str], claims: list[Any]) -> list[tuple[str, dict[str, str]]]:
-    """Best-effort missing/extra hints by token/substring match (hint only)."""
+# Mass-family convertibility for same-slot duplicate units (slot overflow only; not rewriting).
+_MASS_TO_KG: dict[str, Decimal] = {
+    "kg": Decimal(1),
+    "g": Decimal("0.001"),
+    "gram": Decimal("0.001"),
+    "grams": Decimal("0.001"),
+    "lb": Decimal("0.45359237"),
+    "lbs": Decimal("0.45359237"),
+    "pound": Decimal("0.45359237"),
+    "pounds": Decimal("0.45359237"),
+}
+
+
+def _normalize_mass_kg(value: Any, unit: str | None) -> Decimal | None:
+    if value is None or not unit or not isinstance(unit, str):
+        return None
+    dec = _as_decimal(value)
+    if dec is None:
+        return None
+    factor = _MASS_TO_KG.get(_squash(unit).lower())
+    if factor is None:
+        return None
+    return dec * factor
+
+
+def _claims_convertible(c1: dict[str, Any], c2: dict[str, Any]) -> bool:
+    """True when two numeric claims express the same measurement (e.g. lb ↔ kg)."""
+    v1, u1 = c1.get("value"), c1.get("unit")
+    v2, u2 = c2.get("value"), c2.get("unit")
+    if v1 is None or v2 is None:
+        return False
+    d1, d2 = _as_decimal(v1), _as_decimal(v2)
+    if d1 is None or d2 is None:
+        return False
+    if isinstance(u1, str) and isinstance(u2, str) and _squash(u1).lower() == _squash(u2).lower():
+        return d1 == d2
+    m1, m2 = _normalize_mass_kg(v1, u1 if isinstance(u1, str) else None), _normalize_mass_kg(
+        v2, u2 if isinstance(u2, str) else None
+    )
+    if m1 is not None and m2 is not None:
+        tol = max(Decimal("0.02"), abs(m1) * Decimal("0.02"))
+        return abs(m1 - m2) <= tol
+    return False
+
+
+def _claim_id_at(claim: Any, index: int) -> str:
+    if isinstance(claim, dict):
+        return str(claim.get("claim_id") or f"claims[{index}]")
+    return f"claims[{index}]"
+
+
+def _slot_overflow_ids(claims: list[Any], indices: list[int]) -> list[str]:
+    """Within one checklist slot, keep primary + unit-convertible dupes; flag conflicting extras."""
+    if len(indices) <= 1:
+        return []
+    ordered = sorted(indices)
+    primary = claims[ordered[0]]
+    if not isinstance(primary, dict):
+        return [_claim_id_at(claims[i], i) for i in ordered[1:]]
+    overflow: list[str] = []
+    for i in ordered[1:]:
+        c = claims[i]
+        if not isinstance(c, dict):
+            overflow.append(_claim_id_at(c, i))
+            continue
+        if isinstance(primary, dict) and _claims_convertible(primary, c):
+            continue
+        overflow.append(_claim_id_at(c, i))
+    return overflow
+
+
+def _assign_claims_to_items(
+    items: list[str],
+    claims: list[Any],
+    labels: list[str],
+    keys: list[str],
+) -> tuple[list[list[int]], list[str]]:
+    """Map each claim index to one checklist item; return clear misses separately."""
+    buckets: list[list[int]] = [[] for _ in items]
+    clear_miss: list[str] = []
+    for n, (c, lb) in enumerate(zip(claims, labels)):
+        if not isinstance(c, dict) or not lb:
+            continue
+        matching = [i for i, k in enumerate(keys) if _label_matches_item(lb, k)]
+        if not matching:
+            clear_miss.append(_claim_id_at(c, n))
+            continue
+        target = min(matching, key=lambda i: (len(buckets[i]), i))
+        buckets[target].append(n)
+    return buckets, clear_miss
+
+
+def _checklist_coverage(items: list[str], claims: list[Any]) -> list[tuple[str, dict[str, str]]]:
+    """Slot by checklist item: uncovered items, clear misses, same-slot conflicting overflow."""
     labels = [_claim_label(c) for c in claims]
     keys = [_squash(i).lower() for i in items]
     out: list[tuple[str, dict[str, str]]] = []
-    if len(claims) < len(items):
-        missing = [
-            i for i, k in zip(items, keys)
-            if not any(_label_matches_item(lb, k) for lb in labels)
-        ]
-        if missing and len(missing) < len(items):
-            msg = f"清单项可能无对应 claim：{missing}"
-            out.append((msg, {"code": WARN_CHECKLIST_ITEM_UNCOVERED, "msg": msg}))
-    elif len(claims) > len(items):
-        extra = [
-            str(c.get("claim_id") or f"claims[{n}]")
-            for n, (c, lb) in enumerate(zip(claims, labels))
-            if isinstance(c, dict) and lb and not any(_label_matches_item(lb, k) for k in keys)
-        ]
-        if extra and len(extra) < len(claims):
-            msg = f"这些 claim 未匹配任何清单项（可能多报）：{extra}"
-            out.append((msg, {"code": WARN_CLAIMS_UNMATCHED_CHECKLIST, "msg": msg}))
+    buckets, clear_miss = _assign_claims_to_items(items, claims, labels, keys)
+
+    missing = [
+        items[i]
+        for i, k in enumerate(keys)
+        if not any(_label_matches_item(lb, k) for lb in labels if lb)
+    ]
+    if missing and len(missing) < len(items):
+        msg = f"清单项可能无对应 claim：{missing}"
+        out.append((msg, {"code": WARN_CHECKLIST_ITEM_UNCOVERED, "msg": msg}))
+
+    overflow: list[str] = list(clear_miss)
+    for idxs in buckets:
+        overflow.extend(_slot_overflow_ids(claims, idxs))
+    if overflow:
+        msg = f"这些 claim 未匹配任何清单项（可能多报）：{overflow}"
+        out.append((msg, {"code": WARN_CLAIMS_UNMATCHED_CHECKLIST, "msg": msg}))
     return out
 
 

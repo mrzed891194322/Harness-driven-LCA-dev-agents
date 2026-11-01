@@ -104,6 +104,20 @@ def test_bom_no_hard_empty_claims_with_checklist(tmp_path: Path):
     assert not errs
 
 
+def test_bom_empty_claims_blocks_approve_gate_not_done_hard(tmp_path: Path):
+    from backend.workflow.checks import review_claims_gate_errors
+
+    ws = _workspace(tmp_path)
+    node = _node([_prod("s")])
+    cl = _checklist_path(ws)
+    cl.parent.mkdir(parents=True, exist_ok=True)
+    cl.write_text(json.dumps({"items": ["a"]}), encoding="utf-8")
+    _write_claims(ws, node, {"claims": []})
+    spec = Spec(id="best", prompt="p", schema_=None, checks=[_best_check()])
+    assert run_spec_checks(ws, node, {"s": spec}) == []
+    assert any("CLAIMS_EMPTY_NO_ABSTAIN" in e for e in review_claims_gate_errors(ws, node, {"s": spec}))
+
+
 def test_bom_no_hard_unit_phrase(tmp_path: Path):
     ws = _workspace(tmp_path)
     node = _node([_prod("s")])

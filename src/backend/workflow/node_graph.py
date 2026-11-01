@@ -20,7 +20,7 @@ from langgraph.types import RetryPolicy
 from backend.workflow import layout
 from backend.workflow.config import SUBMIT_FIELD, TERMINALS, Node, Spec
 from backend.workflow.events import EventLog
-from backend.workflow.inject import injection_event_payload, write_session_injection_doc
+from backend.workflow.checks import review_claims_gate_errors
 from backend.workflow.turn import AgentDriver, PromptBuilder, TurnRequest
 
 from harness.tools.mcp.submit.schemas import validate as validate_submit
@@ -305,6 +305,14 @@ class NodeGraph:
                 update["outcome"] = {"kind": "failed", "reason": "submit_invalid: " + "; ".join(errors)}
                 return update
             ev.emit("submit", **_submit_event(sub))
+            if kind == "verdict" and sub.get("verdict") == "approve":
+                gate_errs = review_claims_gate_errors(ctx.workspace, node, ctx.specs)
+                if gate_errs:
+                    ev.emit("submit_rejected", errors=gate_errs, by="host", gate="review_claims_gate")
+                    lead = "claims 复检未通过，不得 approve：\n" + "\n".join(f"- {e}" for e in gate_errs)
+                    update["feedback"] = self._write_feedback(attempt, "review_claims_gate", lead)
+                    update["next"] = agent
+                    return update
             if kind == "artifact" and sub["status"] == "done":
                 gate = _review_gate_blocks_done(node, state)
                 if gate:
