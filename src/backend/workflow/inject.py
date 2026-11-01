@@ -17,6 +17,7 @@ from typing import Any
 import yaml
 
 from backend.workflow import layout
+from backend.workflow.access import node_uses_run_checklist
 from backend.workflow.config import (
     Node,
     Spec,
@@ -360,6 +361,7 @@ class Injector:
         checklist_path = layout.node_checklist_path(self.ws, node.run_key)
         run_deliverables = layout.node_uses_run_deliverables(node)
         runs = layout.node_dir(self.ws, node.run_key)
+        fb_dir = layout.node_feedback_dir(self.ws, node.run_key)
         for prod in node.produces:
             spec = specs[prod.spec]
             body = [f"交付路径：`{layout.produce_target(self.ws, node, prod.path)}`", spec.prompt.strip()]
@@ -402,11 +404,20 @@ class Injector:
                 out.append(f"中间文件写到 `{inter}`。")
             else:
                 out.append(f"中间文件写到 `{runs}`。")
-            if node.id.startswith("bom-extract-04"):
+            if node.is_writer(agent) and node_uses_run_checklist(self.root, node):
                 out.append(
                     f"题面短清单（checklist）写到 `{checklist_path}`，"
                     f'形状 {{"items":["对象×所问指标", ...]}}（只依题面，读文前写入）。'
                 )
+        fb_rounds = sorted(
+            int(p.stem.split("_")[1]) for p in fb_dir.glob("round_*.md") if p.stem.startswith("round_")
+        )
+        if fb_rounds:
+            fb_lines = "\n".join(f"- `{fb_dir / f'round_{r}.md'}`" for r in fb_rounds)
+            fb_body = f"目录 `{fb_dir}`（只读）：\n{fb_lines}"
+        else:
+            fb_body = f"目录 `{fb_dir}`（只读；尚无 round_*.md）。"
+        out.append(_section("host_feedback", fb_body))
         if role == "reviewer" and attempt > 1:
             # Cursor B: re-review must newly submit; prior reject issues optional.
             parts = [

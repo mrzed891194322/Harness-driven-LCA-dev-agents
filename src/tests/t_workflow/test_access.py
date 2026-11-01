@@ -23,10 +23,12 @@ def test_checklist_path_only_when_checklist_from_run():
     ws = REPO / "workspace"
     n04 = load_node(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract-04.yaml")
     cl = str(layout.node_checklist_path(ws, n04.run_key))
+    cl_write = layout.node_checklist_write_glob(ws)
     ex = compute_scope(REPO, n04, "executor", n04.agents["executor"].definition.access)
     assert cl in ex.read_globs
-    assert cl in ex.write_globs
-    assert not any("checklists" in g and g != cl for g in ex.read_globs)
+    assert cl_write in ex.write_globs
+    assert cl not in ex.write_globs
+    assert not any("checklists" in g and g != cl and g != cl_write for g in ex.read_globs)
 
     plain = load_node(REPO, node_ref("lca-mapping"))
     ex_plain = compute_scope(REPO, plain, "executor", plain.agents["executor"].definition.access)

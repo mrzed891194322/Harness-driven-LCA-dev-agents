@@ -68,9 +68,9 @@ CLAIMS_REL = RUN_CLAIMS_REL  # 兼容旧引用
 BOM_REL = RUN_BOM_REL
 MAPPING_REL = Path("artifacts/mapping/mapping.json")
 DISCONNECT_RE = re.compile(
-    r"model_error|model_retry|断连|disconnect|host_error|ConfigError|"
+    r"model_error|model_retry|断连|\bdisconnect\b|host_error|ConfigError|"
     r"ECONNRESET|socket hang up|fetch failed|APIConnectionError|"
-    r"rate.?limit|429|overloaded|timeout.*(model|openai|anthropic|deepseek)",
+    r"\brate.?limit\b|\b429\b|overloaded|timeout.*(model|openai|anthropic|deepseek)",
     re.I,
 )
 RATE_LIMIT_RE = re.compile(
@@ -623,21 +623,48 @@ def fetch_events_blob(api: str) -> str:
         return f"<events_fetch_error {e}>"
 
 
+def _disconnect_in(text: str) -> bool:
+    return bool(text and DISCONNECT_RE.search(text))
+
+
+def _event_disconnect_fields(event: dict) -> str | None:
+    kind = str(event.get("kind") or "")
+    if kind in ("model_retry", "turn_aborted"):
+        detail = str(event.get("detail") or event.get("error") or "")
+        if _disconnect_in(detail):
+            return detail[:200]
+    for key in ("error", "abort_reason", "reason"):
+        val = event.get(key)
+        if isinstance(val, str) and _disconnect_in(val):
+            return val[:200]
+    return None
+
+
 def detect_model_disconnect(status: dict, events_blob: str) -> tuple[bool, str]:
-    hay = json.dumps(status, ensure_ascii=False) + "\n" + events_blob
-    m = DISCONNECT_RE.search(hay)
-    if not m:
-        for n in status.get("nodes") or []:
-            err = n.get("error") or ""
-            if DISCONNECT_RE.search(err):
-                return True, err[:200]
-        reason = status.get("reason") or ""
-        if DISCONNECT_RE.search(reason):
-            return True, reason[:200]
-        return False, ""
-    i = m.start()
-    ctx = hay[max(0, i - 40) : i + 80].replace("\n", " ")
-    return True, ctx
+    reason = str(status.get("reason") or "")
+    if _disconnect_in(reason):
+        return True, reason[:200]
+    for n in status.get("nodes") or []:
+        err = str(n.get("error") or "")
+        if _disconnect_in(err):
+            return True, err[:200]
+    try:
+        parsed = json.loads(events_blob)
+    except (json.JSONDecodeError, TypeError):
+        parsed = None
+    if isinstance(parsed, dict):
+        items = parsed.get("events") or parsed.get("items") or []
+    elif isinstance(parsed, list):
+        items = parsed
+    else:
+        items = []
+    for event in items:
+        if not isinstance(event, dict):
+            continue
+        hit = _event_disconnect_fields(event)
+        if hit:
+            return True, hit
+    return False, ""
 
 
 

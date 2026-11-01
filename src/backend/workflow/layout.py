@@ -118,6 +118,16 @@ def node_checklist_path(workspace: Path, node_run_key: str) -> Path:
     return node_checklist_dir(workspace) / f"{node_run_key}.json"
 
 
+def node_checklist_write_glob(workspace: Path) -> str:
+    """PathGuard write root for run checklists (directory, not the contract file path)."""
+    return str(node_checklist_dir(workspace)) + "/**"
+
+
+def node_feedback_dir(workspace: Path, node_run_key: str) -> Path:
+    """Host rework files for one node run (under ``runs/<run_key>/``, not ``runs/_run/``)."""
+    return node_dir(workspace, node_run_key) / "feedback"
+
+
 def run_agent_work_dir(workspace: Path, node_run_key: str, agent: str) -> Path:
     """Per-run agent intermediates (notes, drafts); not host status/feedback under ``runs/<node>/``."""
     return workspace / RUN_NOTES_REL / node_run_key / agent

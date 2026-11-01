@@ -195,6 +195,8 @@ class NodeGraph:
                 feedback = state.get("feedback")
             elif kind == "verdict" and attempt > 1:
                 feedback = state.get("feedback")
+            elif node.is_primary(agent) and not node.is_writer(agent):
+                feedback = state.get("feedback")
             else:
                 feedback = None
             prompt = ctx.prompt_builder(node, agent, attempt, feedback, ctx.specs, context)
