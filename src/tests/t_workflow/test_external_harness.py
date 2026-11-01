@@ -83,6 +83,8 @@ def test_bom_extract_tier_switches():
     assert n04[0].produces[0].spec == (
         ".benchmark/bom/harness/specs/bom-claims-best.yaml"
     )
+    best = load_spec(REPO, ".benchmark/bom/harness/specs/bom-claims-best.yaml")
+    assert best.checks and any(c.get("id") == "bom_claims_hard_warns" for c in best.checks)
     assert n01[0].agents["executor"].tools.skills == []
     assert n02[0].agents["executor"].tools.skills == ["bom-claims-flow"]
     assert n02[0].agents["executor"].tools.mcp == ["bom_claims_check"]

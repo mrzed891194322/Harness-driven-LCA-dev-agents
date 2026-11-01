@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 
 from backend.workflow.config import Node, Spec
+from harness.tools.shared.bom_claims_check.validate import check_claims_file
 
 # id → runner(path, check_dict, *, artifacts, produce_path) -> list[str] errors
 CheckRunner = Callable[..., list[str]]
@@ -145,6 +146,89 @@ def _resolve_runner(check: dict[str, Any]) -> CheckRunner | None:
             _CHECK_RUNNERS[cid] = fn  # cache
             return fn
     return _CHECK_RUNNERS.get(cid)
+
+
+# Host hard gate (04 bom-claims-best only): MCP stays warn-only; these classes fail produce checks.
+_SOFT_WARN_FRAGMENTS = (
+    "在知识库原文中未逐字找到",
+    "相距较远",
+    "未提供 checklist/expected_count",
+)
+_HARD_WARN_FRAGMENTS = (
+    "claims 为空且未 abstained",
+    "claims 条数",
+    "abstained=true 且 claims 条数",
+    "清单项可能无对应 claim",
+    "这些 claim 未匹配任何清单项",
+    "未在 evidence 中作为原文单位短语逐字出现",
+)
+_HARD_STRUCTURAL_FRAGMENTS = (
+    "abstained=true 但 claims 非空",
+)
+
+
+def _bom_hard_messages(result: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    for msg in result.get("warnings") or []:
+        if not isinstance(msg, str):
+            continue
+        if any(s in msg for s in _SOFT_WARN_FRAGMENTS):
+            continue
+        if any(h in msg for h in _HARD_WARN_FRAGMENTS):
+            out.append(msg)
+    for msg in result.get("structural_warnings") or []:
+        if isinstance(msg, str) and any(h in msg for h in _HARD_STRUCTURAL_FRAGMENTS):
+            out.append(msg)
+    return out
+
+
+def _knowledge_sources(artifacts: Path | None) -> list[str] | None:
+    """Best-effort source texts for check_claims (evidence-not-found stays soft)."""
+    if artifacts is None:
+        return None
+    ws = artifacts.parent
+    root = ws.parent
+    texts: list[str] = []
+    for base in (root / "harness" / "knowledge" / "inputs", ws / "knowledge" / "inputs"):
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json"}:
+                try:
+                    texts.append(path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError):
+                    continue
+    return texts or None
+
+
+@register_check("bom_claims_hard_warns")
+def check_bom_claims_hard_warns(
+    target: Path,
+    check: dict[str, Any],
+    *,
+    artifacts: Path | None = None,
+    produce_path: str | None = None,
+) -> list[str]:
+    """Re-run bom_claims_check logic; promote selected WARN classes to host errors.
+
+    Optional check fields: ``checklist`` (list[str]) for N / coverage / abstain-vs-N;
+    ``load_knowledge: true`` to pass workspace knowledge into evidence lookup (soft only).
+    Without checklist, hard-rejects empty/abstain inconsistency and unit-phrase warns only.
+    """
+    path = target if target.is_file() else target / "claims.json"
+    checklist = check.get("checklist")
+    if checklist is not None and not isinstance(checklist, list):
+        checklist = None
+    sources = _knowledge_sources(artifacts) if check.get("load_knowledge") else None
+    result = check_claims_file(
+        path,
+        sources=sources,
+        checklist=checklist,
+    )
+    if result.get("status") == "unavailable":
+        return [f"bom_claims_hard_warns: {result.get('warnings') or result.get('structural_warnings') or '不可用'}"]
+    hard = _bom_hard_messages(result)
+    return [f"bom_claims_hard_warns: {m}" for m in hard]
 
 
 def run_spec_checks(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list[str]:

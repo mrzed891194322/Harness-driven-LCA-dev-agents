@@ -12,6 +12,7 @@
 ## 强制：先跑 check，再读原文
 
 - **禁止未跑 check 就 approve**（橡皮图章禁止）：须先 `check_claims(checklist=[题面短清单项...])`，记录告警；再读 knowledge 长文核对。
+- **条数/单位/空集/多报类 MCP 告警**：一律 **`reject`**，禁止「记 warn 再 approve」。宿主在 approve/done 路径会复检，带硬类告警的 approve 也会被退回。
 - **禁止不读原文就 approve**：不得仅凭题面、check 输出或 claims 字面全过。
 - **应读** knowledge 长文：按需 `read` / `grep` / 分段窗口；题面未覆盖的数字/单位必须在原文找到出处再判。
 - 找不到原文支持 → 按下方「删」处理，勿猜、勿换算补洞。
@@ -20,7 +21,8 @@
 
 - **多报 / 范围外**（含「可能多报」「未匹配任何清单项」等 MCP 告警）：**必须 reject**；`expected` 要求**删除**多余条（claim_id / value+unit），禁止告警后仍 approve。
 - **单位**：数值与单位只抄原文完整短语；**禁止换算**（含 MJ↔kWh 等）。`unit` 须与原文写法一致；禁止缩短/改写单位散文（勿丢 `of X` / `glass` / `per kg …`；`lbm`≠`lb`）。不对 → **reject**：`expected` 写**改回原文完整单位短语**，或若无法对齐则**删**该条。同一量勿双单位双 claim。
-- 其它 check 告警：结合原文核对；能明确对应 executor 应删/改/补的 → **reject** 并写清 `expected`；勿带错 approve。
+- **条数不符、清单未覆盖、空 claims 未 abstain** 等 count/empty 类告警：一律 **reject**（与多报/单位同级，勿 approve）。
+- 其它 check 告警：结合原文核对；能明确对应 executor 应删/改/补的 → **reject** 并写清 `expected`；勿带错 approve。证据仅「知识库未逐字找到 / 相距较远」等不确定类可结合原文再判，但仍有硬类告警时不得 approve。
 
 ## 审核动作（reject 时 expected 写清要 executor 怎么改）
 

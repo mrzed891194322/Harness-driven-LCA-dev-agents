@@ -83,6 +83,25 @@ def _issues_text(issues: list[dict]) -> str:
                      for i in issues)
 
 
+def _verdict_agent_names(node: Node) -> list[str]:
+    return [name for name in node.agents if node.kind(name) == "verdict"]
+
+
+def _review_gate_blocks_done(node: Node, state: NodeState) -> str | None:
+    """When the node has a verdict agent, orch ``done`` requires latest reviewer ``approve``."""
+    names = _verdict_agent_names(node)
+    if not names:
+        return None
+    last = state.get("last") or {}
+    for name in names:
+        sub = last.get(name)
+        if not sub or sub.get("verdict") != "approve":
+            if sub and sub.get("verdict") == "reject":
+                return "审核者上一轮为 reject，不得直接 done"
+            return "审核者尚未 approve，不得直接 done"
+    return None
+
+
 def _submit_event(sub: dict) -> dict:
     keep = {k: sub[k] for k in ("status", "verdict", "target_node", "artifact", "field") if k in sub}
     for k in ("summary", "reason", "comment", "evidence", "requested_change"):
@@ -284,6 +303,19 @@ class NodeGraph:
                 return update
             ev.emit("submit", **_submit_event(sub))
             if kind == "artifact" and sub["status"] == "done":
+                gate = _review_gate_blocks_done(node, state)
+                if gate:
+                    primary = node.primary
+                    ev.emit("submit_rejected", errors=[gate], by="host", gate="review_gate")
+                    lead = (
+                        f"{gate}。请先用 assign_executor 派写作者返工，修完后再 assign_reviewer；"
+                        "勿在未获 approve 时 submit done。\n"
+                    )
+                    update["feedback"] = self._write_feedback(
+                        attempts.get(primary, attempt), "review_gate", lead
+                    )
+                    update["next"] = primary
+                    return update
                 errs = ctx.host_checks(node)
                 ev.emit("host_checks", ok=not errs, errors=errs[:50])
                 if errs:

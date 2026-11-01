@@ -44,4 +44,6 @@ schema:
         anyOf:
           - {required: [text]}
           - {required: [value, unit]}
-checks: []
+checks:
+  - id: bom_claims_hard_warns
+    load_knowledge: true
