@@ -46,6 +46,7 @@ def test_inject_uses_produce_spec_path_not_stem():
     assert "bom-claims" not in specs  # keyed by path, not stem
     text = Injector(REPO)(node, "executor", 1, None, specs)
     assert "<deliverable_bom-claims-01>" in text
+    assert "runs/_run/artifacts/bom/claims.json" in text
     assert ".benchmark/bom/harness/specs/bom-claims-01.yaml" in text
 
 

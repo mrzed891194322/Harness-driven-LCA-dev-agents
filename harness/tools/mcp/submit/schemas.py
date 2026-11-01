@@ -90,7 +90,7 @@ def _norm(entry: str, root: str) -> str:
     p = entry.strip()
     if root and p.startswith(root.rstrip("/") + "/"):
         p = p[len(root.rstrip("/")) + 1:]
-    for pre in ("./", "workspace/artifacts/", "artifacts/"):
+    for pre in ("./", "workspace/artifacts/", "artifacts/", "workspace/runs/_run/artifacts/", "runs/_run/artifacts/"):
         if p.startswith(pre):
             p = p[len(pre):]
     return p.strip("/")

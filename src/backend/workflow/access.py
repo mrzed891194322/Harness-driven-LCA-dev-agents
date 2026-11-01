@@ -87,6 +87,7 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
     agent = node.agents[agent_key]
     toggles = merge_toggles(agent_access, agent.access)
 
+    bom_extract = layout.node_uses_run_deliverables(node)
     read = {
         str(art / "plan") + "/**",  # lock 1
         str(layout.node_dir(ws, node.run_key)) + "/**",
@@ -111,14 +112,21 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         read.add(str(art / req))
         read.add(str(art / req) + "/**")
     for prod in node.produces:
-        read.add(str(art / produce_dir(prod.path)) + "/**")
+        read.add(layout.produce_write_glob(ws, node, prod.path))
     if toggles["knowledge"]:
-        read.add(str(root / layout.KNOWLEDGE) + "/**")
+        if bom_extract:
+            read.update(layout.bom_extract_knowledge_read_paths(root))
+        else:
+            read.add(str(root / layout.KNOWLEDGE) + "/**")
     if toggles["artifacts"]:
-        read.add(str(art) + "/**")
+        if bom_extract:
+            read.add(str(layout.run_deliverables_root(ws)) + "/**")
+        else:
+            read.add(str(art) + "/**")
     # Specs / skills may cite JSON Schema files and rules outside the produce dirs.
     read.add(str(root / ".benchmark/schemas") + "/**")
-    read.add(str(root / "harness/rules") + "/**")
+    if not bom_extract:
+        read.add(str(root / "harness/rules") + "/**")
 
     write: set[str] = set()
     # Produces writers: access.write.produces (orthogonal to deliver.submit / primary). Others: notes only.
@@ -127,7 +135,7 @@ def compute_scope(root: Path, node: Node, agent_key: str, agent_access: Access, 
         if node_uses_run_checklist(root, node):
             write.add(str(layout.node_checklist_path(ws, node.run_key)))
         for prod in node.produces:
-            write.add(str(art / produce_dir(prod.path)) + "/**")
+            write.add(layout.produce_write_glob(ws, node, prod.path))
     else:
         # reviewer / primary orch / other non-writers: notes dir only
         write.add(str(layout.node_dir(ws, node.run_key) / agent_key) + "/**")

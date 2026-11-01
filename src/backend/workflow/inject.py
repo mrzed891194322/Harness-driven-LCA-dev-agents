@@ -188,7 +188,7 @@ class Injector:
         from backend.workflow.pi_driver import effective_file_tools
         file_tools = effective_file_tools(node, agent)
         # Report tools must match real MCP/permission: submit only for primary or verdict.
-        report_file_tools = list(file_tools) + (["submit"] if node.kind(agent) is not None else [])
+        report_file_tools = list(file_tools) + ([layout.SUBMIT_TOOL] if node.kind(agent) is not None else [])
         skill_rows: list[dict[str, Any]] = []
         tool_errors: list[dict[str, str]] = []
         for skill in tools.skills:
@@ -295,9 +295,9 @@ class Injector:
         can_write = node.is_writer(agent)
         # Finish copy follows real submit MCP: only primary (artifact) or verdict may submit.
         if kind is None:
-            finish = "本角色无交卷；写完产物后结束本回合即可（不要调用 submit）。"
+            finish = f"本角色无交卷；写完产物后结束本回合即可（不要调用 {layout.SUBMIT_TOOL}）。"
         else:
-            finish = "完成时调用 submit。"
+            finish = f"完成时调用 {layout.SUBMIT_TOOL}。"
         tool_bits = "read、ls、grep、find"
         if can_write:
             tool_bits += "、write、edit"
@@ -350,7 +350,7 @@ class Injector:
         checklist_path = layout.node_checklist_path(self.ws, node.run_key)
         for prod in node.produces:
             spec = specs[prod.spec]
-            body = [f"交付路径：`{art / prod.path}`", spec.prompt.strip()]
+            body = [f"交付路径：`{layout.produce_target(self.ws, node, prod.path)}`", spec.prompt.strip()]
             if node.rev:
                 n = node.rev
                 body.insert(1, f"本次是第 {n} 版（rev {n}）：原文件和更早版本保持不动（只读）。本节点在产出目录写的每个文件/目录都在扩展名前加 "
@@ -386,7 +386,7 @@ class Injector:
             # Cursor B: re-review must newly submit; prior reject issues optional.
             parts = [
                 "执行者已按上轮 issues 改过产物；请重读当前交付文件，"
-                "**本回合必须再次调用 submit 提交新的 verdict**；"
+                f"**本回合必须再次调用 {layout.SUBMIT_TOOL} 提交新的 verdict**；"
                 "上轮已接受的 verdict 不算本回合交付。"
             ]
             if rework:

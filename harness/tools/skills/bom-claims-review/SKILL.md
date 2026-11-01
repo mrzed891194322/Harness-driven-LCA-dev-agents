@@ -36,7 +36,7 @@
 2. **单位/数值 → 与官方 rule 及原文一致**；不对 → **reject** 或**删**  
 3. **漏报 → 高门槛才补**  
 4. **对错**：数值/对象张冠李戴或编造 → `reject`  
-5. **交卷**：立刻 `submit`（`verdict=approve|reject|…`，**必须带参**）
+5. **交卷**：立刻 `mcp__submit__submit`（`verdict=approve|reject|…`，**必须带参**）
 
 ## 禁止
 

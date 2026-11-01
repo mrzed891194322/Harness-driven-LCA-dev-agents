@@ -198,10 +198,11 @@ class NodeGraph:
             else:
                 feedback = None
             prompt = ctx.prompt_builder(node, agent, attempt, feedback, ctx.specs, context)
+            ws = self.ctx.workspace
             submit_context = {
-                "kind": kind or "assistant", "artifacts_root": str(self.art),
-                "produces": [{"path": str(self.art / p.path), "schema": ctx.specs[p.spec].schema_}
-                             for p in node.produces] if kind == "artifact" else [],
+                "kind": kind or "assistant", "artifacts_root": str(layout.artifacts_root_for_submit(ws, self.node)),
+                "produces": [{"path": str(layout.produce_target(ws, self.node, p.path)), "schema": ctx.specs[p.spec].schema_}
+                             for p in self.node.produces] if kind == "artifact" else [],
                 "redo_targets": ctx.redo_targets, "executor_last": executor_last,
             }
             # Astra B: isolate verdict sessions by attempt. resume=False alone is not enough —

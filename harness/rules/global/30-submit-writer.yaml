@@ -5,9 +5,9 @@ order: 30
 inject_when: writer
 prompt_items:
   - id: submit_required
-    text: 产物交付与结案**必须**调用交付工具 `submit`（MCP 交卷）。写完 claims 等交付物后立刻 `submit`；不要只落盘不交卷。
+    text: 产物交付与结案**必须**调用 `mcp__submit__submit`（MCP 交卷）。写完 claims 等交付物后立刻 `mcp__submit__submit`；不要只落盘不交卷。
   - id: artifacts_array
-    text: "`submit` 的 `artifacts`：**必须是 JSON 数组**（真 array），**禁止**先序列化成字符串再传入（否则 schema 报 `artifacts: must be array`）。"
+    text: "`mcp__submit__submit` 的 `artifacts`：**必须是 JSON 数组**（真 array），**禁止**先序列化成字符串再传入（否则 schema 报 `artifacts: must be array`）。"
   - id: write_content_string
     text: "对比：`write` / `edit` 的 `content` 仍须是 **string**（对象先序列化成文本）——两条不要写反。"
   - id: executor_status_fields

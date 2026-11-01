@@ -110,12 +110,13 @@ def requires_errors(artifacts: Path, node: Node, plan_required: bool = True) -> 
     return errors
 
 
-def produce_errors(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list[str]:
+def produce_errors(workspace: Path, node: Node, specs: dict[str, Spec]) -> list[str]:
     import jsonschema
 
     errors = []
+    art = workspace / "artifacts"
     for prod in node.produces:
-        target = artifacts / prod.path
+        target = layout.produce_target(workspace, node, prod.path)
         reason = check_path(target)
         if reason:
             errors.append(f"交付物 {prod.path}: {reason}")
@@ -130,7 +131,11 @@ def produce_errors(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list[
             data = json.loads(file.read_text(encoding="utf-8"))
             for err in jsonschema.Draft202012Validator(spec.schema_).iter_errors(data):
                 where = "/".join(str(p) for p in err.absolute_path) or "(根)"
-                errors.append(f"{file.relative_to(artifacts)} {where}: {err.message}")
+                try:
+                    rel = file.relative_to(art)
+                except ValueError:
+                    rel = file.relative_to(workspace)
+                errors.append(f"{rel} {where}: {err.message}")
     return errors
 
 
@@ -248,18 +253,19 @@ def check_bom_claims_hard_warns(
     return [f"bom_claims_hard_warns: {m}" for m in hard]
 
 
-def run_spec_checks(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list[str]:
+def run_spec_checks(workspace: Path, node: Node, specs: dict[str, Spec]) -> list[str]:
     """Execute ``spec.checks`` declared on each produce (generic host check interface).
 
     Each check is a dict with at least ``id``. Built-ins are registered via
     :func:`register_check`; unknown ids without ``module`` become errors.
     """
     errors: list[str] = []
+    artifacts = workspace / "artifacts"
     for prod in node.produces:
         spec = specs.get(prod.spec)
         if spec is None or not spec.checks:
             continue
-        target = artifacts / prod.path
+        target = layout.produce_target(workspace, node, prod.path)
         for raw in spec.checks:
             if not isinstance(raw, dict):
                 errors.append(f"{prod.path}: check 必须是 object，收到 {type(raw).__name__}")
@@ -287,6 +293,6 @@ def run_spec_checks(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list
     return errors
 
 
-def host_produce_errors(artifacts: Path, node: Node, specs: dict[str, Spec]) -> list[str]:
+def host_produce_errors(workspace: Path, node: Node, specs: dict[str, Spec]) -> list[str]:
     """Schema validate produces, then run ``spec.checks`` (post-deliver host gate)."""
-    return produce_errors(artifacts, node, specs) + run_spec_checks(artifacts, node, specs)
+    return produce_errors(workspace, node, specs) + run_spec_checks(workspace, node, specs)

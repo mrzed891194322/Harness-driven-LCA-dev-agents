@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from backend.workflow.access import produce_dir
+from backend.workflow import layout
 from backend.workflow.turn import TurnRequest, TurnResult
 
 ISSUES = [{"where": "第一段", "problem": "第一段太短", "expected": "至少三句"}]
@@ -39,14 +39,12 @@ class FakeDriver:
         return "ok"
 
     def _write(self, req: TurnRequest, body: str | None) -> None:
-        art = req.workspace / "artifacts"
         for prod in req.node.produces:
-            target = art / prod.path
+            target = layout.produce_target(req.workspace, req.node, prod.path)
             if target.suffix:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(body or f"{req.node.run_key} 的产出（第 {req.attempt} 轮）", encoding="utf-8")
             else:
-                (art / produce_dir(prod.path)).mkdir(parents=True, exist_ok=True)
                 target.mkdir(parents=True, exist_ok=True)
                 (target / "out.md").write_text(f"{req.node.run_key} 第 {req.attempt} 轮", encoding="utf-8")
 

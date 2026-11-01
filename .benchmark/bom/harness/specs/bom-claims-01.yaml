@@ -1,5 +1,5 @@
 description: |
-  写到 `workspace/artifacts/bom/claims.json`，完成后对交付路径调用 submit。
+  写到 `workspace/runs/_run/artifacts/bom/claims.json`，完成后对交付路径调用 `mcp__submit__submit`。
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   $id: urn:harness:spec:bom-claims-01

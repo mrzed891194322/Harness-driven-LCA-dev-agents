@@ -330,7 +330,7 @@ class Runner:
         self._set_item(item, "running", round=1)
         ctx = NodeContext(workspace=self.ws, run_id=self.run_id, driver=self.driver,
                           prompt_builder=self.prompt_builder, specs=self.specs, events=ev,
-                          host_checks=lambda n: host_produce_errors(self.art, n, self.specs),
+                          host_checks=lambda n: host_produce_errors(self.ws, n, self.specs),
                           stop_requested=self.stop_requested, redo_targets=self._redo_targets(item),
                           redo=item.reason, retry_interval=self.retry_interval)
         out = NodeGraph(node, ctx).run()

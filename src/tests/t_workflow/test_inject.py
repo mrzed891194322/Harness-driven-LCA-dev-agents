@@ -1,12 +1,12 @@
 
-from backend.workflow.config import load_node, load_spec
+from backend.workflow.config import load_node, load_spec, load_workflow
 from backend.workflow.inject import (
     Injector,
     injection_event_payload,
     schema_summary,
     write_session_injection_doc,
 )
-from tests.t_workflow.conftest import make_node, node_ref, spec_ref
+from tests.t_workflow.conftest import REPO, make_node, node_ref, spec_ref
 
 
 def _node(root):
@@ -59,7 +59,7 @@ def test_reviewer_re_review_section(wf_root):
     assert "<re_review>" not in first
     second = inj(node, "reviewer", 2, "- 位置：claims[0]；问题：单位缩短", specs)
     assert "<re_review>" in second
-    assert "必须再次调用 submit" in second
+    assert "必须再次调用 mcp__submit__submit" in second
     assert "上轮已接受的 verdict 不算本回合交付" in second
     assert "上轮 reject 要点" in second and "单位缩短" in second
     assert "<rework>" not in second
@@ -93,3 +93,19 @@ def test_session_injection_doc(wf_root):
     assert payload["schema"] == "harness.injection.session/2"
     assert "system_prompt" in payload["sections"]
     assert report["ok"] is True
+
+
+def test_bom_extract_01_submit_tool_and_deliverable_path():
+    _, nodes = load_workflow(REPO, "bom-extract-01")
+    node = nodes[0]
+    specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
+    inj = Injector(REPO)
+    sys = inj.system(node, "executor")
+    assert "mcp__submit__submit" in sys
+    assert "完成时调用 submit。" not in sys
+    user = inj(node, "executor", 1, None, specs)
+    assert "runs/_run/artifacts/bom/claims.json" in user
+    report = inj.build_session_injection_report(node, "executor", attempt=1, user_prompt=user, run_id="dry")
+    ft = report["sections"]["tools"]["file_tools"]
+    assert "mcp__submit__submit" in ft
+    assert "submit" not in ft

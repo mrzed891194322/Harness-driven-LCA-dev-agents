@@ -129,8 +129,10 @@ class PiDriver:
         is_assistant = kind is None
         context = req.extra.get("submit_context")
         if context is None:
-            context = {"kind": kind or "assistant", "artifacts_root": str(ws / "artifacts"),
-                       "produces": [{"path": str(ws / "artifacts" / p.path), "schema": load_spec(self.root, p.spec).schema_}
+            art_root = layout.artifacts_root_for_submit(ws, req.node)
+            context = {"kind": kind or "assistant", "artifacts_root": str(art_root),
+                       "produces": [{"path": str(layout.produce_target(ws, req.node, p.path)),
+                                     "schema": load_spec(self.root, p.spec).schema_}
                                     for p in req.node.produces] if kind == "artifact" else [],
                        "redo_targets": {}, "executor_last": None}
         # Submit context (produces + JSON schemas, redo targets, executor's last submit) goes in a file, never
@@ -145,11 +147,12 @@ class PiDriver:
         else:
             bindings.pop("submit", None)
             mcp_allowed = [t for t in mcp_allowed if not t.startswith("mcp__submit__")]
+        art_root = layout.artifacts_root_for_submit(ws, req.node)
         scope_env = {
             "WORKFLOW_READ_GLOBS": json.dumps([remap(g) for g in scope.read_globs]),
             "WORKFLOW_WRITE_GLOBS": json.dumps([remap(g) for g in scope.write_globs]),
             "WORKFLOW_DENIED_WRITE_GLOBS": json.dumps([remap(g) for g in scope.denied_write_globs]),
-            "WORKFLOW_ARTIFACTS_ROOT": str(ws / "artifacts"),
+            "WORKFLOW_ARTIFACTS_ROOT": str(art_root),
         }
         for name, binding in bindings.items():
             if name != "submit":
@@ -173,8 +176,11 @@ class PiDriver:
                   "same_tool_limit": 0 if same_tool_limit is None else int(same_tool_limit)}
         if kind == "verdict" and req.attempt > 1:
             settle["nudge_text"] = (
-                "复审回合：上轮 verdict 不算本回合交付；请重读当前产物后再次调用 submit。"
+                f"复审回合：上轮 verdict 不算本回合交付；请重读当前产物后再次调用 {layout.SUBMIT_TOOL}。"
             )
+        read_globs = [remap(g) for g in scope.read_globs]
+        if not layout.node_uses_run_deliverables(req.node):
+            read_globs.append(str(self.root / layout.RULES_GLOBAL) + "/**")
         spec = SessionLaunchSpec(
             run_id=req.run_id,
             node=req.node.id,
@@ -194,7 +200,7 @@ class PiDriver:
             mcp_bindings=bindings,
             permission_policy=PermissionPolicy(
                 allowed_tools=file_tools + mcp_allowed,
-                allowed_read_globs=[remap(g) for g in scope.read_globs] + [str(self.root / layout.RULES_GLOBAL) + "/**"],
+                allowed_read_globs=read_globs,
                 allowed_write_globs=[remap(g) for g in scope.write_globs],
                 denied_write_globs=[remap(g) for g in scope.denied_write_globs],
                 deny_shell=True,

@@ -44,6 +44,52 @@ ARTIFACTS = WORKSPACE / "artifacts"
 PLAN_DIR = ARTIFACTS / "plan"
 RUNS = WORKSPACE / "runs"
 RUN_META = RUNS / "_run"
+# Per workflow-run deliverables (under workspace root, cleared with runs/_run on prepare_fresh).
+RUN_DELIVERABLES_REL = Path("runs") / "_run" / "artifacts"
+
+# Pi / MCP tool id exposed to the model for harness submit.
+SUBMIT_TOOL = "mcp__submit__submit"
+
+
+def node_uses_run_deliverables(node_or_id) -> bool:
+    """bom-extract tiers keep deliverables under ``runs/_run/artifacts/`` (per workflow run)."""
+    nid = node_or_id if isinstance(node_or_id, str) else getattr(node_or_id, "id", "")
+    return str(nid).startswith("bom-extract-")
+
+
+def run_deliverables_root(workspace: Path) -> Path:
+    return workspace / RUN_DELIVERABLES_REL
+
+
+def produce_target(workspace: Path, node_or_id, rel: str) -> Path:
+    if node_uses_run_deliverables(node_or_id):
+        return run_deliverables_root(workspace) / rel
+    return workspace / "artifacts" / rel
+
+
+def produce_write_glob(workspace: Path, node_or_id, rel: str) -> str:
+    target = produce_target(workspace, node_or_id, rel)
+    base = target.parent if target.suffix else target
+    return str(base) + "/**"
+
+
+def artifacts_root_for_submit(workspace: Path, node_or_id) -> Path:
+    if node_uses_run_deliverables(node_or_id):
+        return run_deliverables_root(workspace)
+    return workspace / "artifacts"
+
+
+def bom_extract_knowledge_read_paths(root: Path) -> list[str]:
+    """Allowlisted knowledge bodies for bom-extract (no README.md index files)."""
+    inputs = root / KNOWLEDGE / "inputs"
+    if not inputs.is_dir():
+        return []
+    out: list[str] = []
+    for path in sorted(inputs.iterdir()):
+        if path.is_file() and path.name.casefold() != "readme.md":
+            out.append(str(path))
+    return out
+
 
 # Host lock 3: openLCA writes only inside this category (single definition).
 from harness.tools.shared.control_openlca.category import (  # noqa: E402

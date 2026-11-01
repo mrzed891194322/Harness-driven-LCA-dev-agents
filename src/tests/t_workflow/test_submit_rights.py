@@ -30,7 +30,7 @@ def test_bom_tier_tools_and_submit_prompt_matrix():
         assert "交卷（写作者）" in sys or "写完 claims" in sys
         report = inj.build_session_injection_report(thin, agent, attempt=1, user_prompt="u", run_id="m")
         ft = report["sections"]["tools"]["file_tools"]
-        assert "write" in ft and "edit" in ft and "submit" in ft
+        assert "mcp__submit__submit" in ft
 
     assert not node.is_writer("orchestrator") and node.is_primary("orchestrator")
     assert node.is_writer("executor") and not node.is_primary("executor")
@@ -41,7 +41,7 @@ def test_bom_tier_tools_and_submit_prompt_matrix():
 
     ex_sys = inj.system(node, "executor")
     assert "交卷（写作者）" not in ex_sys
-    assert "不要调用 submit" in ex_sys or "无交卷" in ex_sys
+    assert "不要调用 mcp__submit__submit" in ex_sys or "无交卷" in ex_sys
 
     orch_sys = inj.system(node, "orchestrator")
     assert "交卷（主 agent）" in orch_sys
@@ -50,9 +50,9 @@ def test_bom_tier_tools_and_submit_prompt_matrix():
     ex_report = inj.build_session_injection_report(node, "executor", attempt=1, user_prompt="u", run_id="m")
     assert "submit" not in ex_report["sections"]["tools"]["file_tools"]
     orch_report = inj.build_session_injection_report(node, "orchestrator", attempt=1, user_prompt="u", run_id="m")
-    assert "submit" in orch_report["sections"]["tools"]["file_tools"]
+    assert "mcp__submit__submit" in orch_report["sections"]["tools"]["file_tools"]
     assert "write" not in orch_report["sections"]["tools"]["file_tools"]
 
     # 01 snapshot unchanged shape
     r01 = inj.build_session_injection_report(n01[0], "executor", attempt=1, user_prompt="u", run_id="m")
-    assert "submit" in r01["sections"]["tools"]["file_tools"]
+    assert "mcp__submit__submit" in r01["sections"]["tools"]["file_tools"]

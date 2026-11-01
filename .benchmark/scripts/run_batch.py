@@ -49,11 +49,13 @@ WORKFLOW_CASE_ROOTS: dict[str, tuple[str, str, str]] = {
     "lci-triage-04": ("lci", "triage", ".benchmark/lci/triage"),
 }
 # abstention 复用 bom-extract-03/04 orch；用 --cases-root 或 --include-imported 挂树
+RUN_CLAIMS_REL = Path("runs/_run/artifacts/bom/claims.json")
+RUN_BOM_REL = Path("runs/_run/artifacts/bom/bom.json")
 ARTIFACT_RELS: dict[str, tuple[Path, ...]] = {
-    "bom-extract-01": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
-    "bom-extract-02": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
-    "bom-extract-03": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
-    "bom-extract-04": (Path("artifacts/bom/claims.json"), Path("artifacts/bom/bom.json")),
+    "bom-extract-01": (RUN_CLAIMS_REL, RUN_BOM_REL),
+    "bom-extract-02": (RUN_CLAIMS_REL, RUN_BOM_REL),
+    "bom-extract-03": (RUN_CLAIMS_REL, RUN_BOM_REL),
+    "bom-extract-04": (RUN_CLAIMS_REL, RUN_BOM_REL),
     "bom-decomposition-01": (Path("artifacts/bom/decomposition.json"),),
     "lci-mapping-01": (Path("artifacts/mapping/mapping.json"),),
     "lci-mapping-03": (Path("artifacts/mapping/mapping.json"),),
@@ -62,8 +64,8 @@ ARTIFACT_RELS: dict[str, tuple[Path, ...]] = {
     "lci-triage-03": (Path("artifacts/triage/triage.json"),),
     "lci-triage-04": (Path("artifacts/triage/triage.json"),),
 }
-CLAIMS_REL = Path("artifacts/bom/claims.json")  # 兼容旧引用
-BOM_REL = Path("artifacts/bom/bom.json")
+CLAIMS_REL = RUN_CLAIMS_REL  # 兼容旧引用
+BOM_REL = RUN_BOM_REL
 MAPPING_REL = Path("artifacts/mapping/mapping.json")
 DISCONNECT_RE = re.compile(
     r"model_error|model_retry|断连|disconnect|host_error|ConfigError|"
@@ -1055,7 +1057,7 @@ def copy_result_tree(
     for rel in (CLAIMS_REL, BOM_REL, MAPPING_REL):
         src = workspace / rel
         if src.is_file():
-            dest = out / "artifacts" / rel.relative_to("artifacts")
+            dest = out / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
     # Also copy workflow ARTIFACT_RELS primary (triage/decomposition) when present.

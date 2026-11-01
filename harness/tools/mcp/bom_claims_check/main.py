@@ -28,7 +28,7 @@ mcp = MCPServer(
     ),
 )
 
-DEFAULT_REL = "workspace/artifacts/bom/claims.json"
+DEFAULT_REL = "workspace/runs/_run/artifacts/bom/claims.json"
 KNOWLEDGE_REL = "harness/knowledge/inputs"
 _TEXT_SUFFIXES = {".md", ".txt", ".csv", ".json", ".html", ".htm", ".xml", ".tsv"}
 

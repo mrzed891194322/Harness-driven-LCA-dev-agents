@@ -263,7 +263,7 @@ def test_reviewer_rereview_injector_and_session_key(wf_root):
     assert [a for a, _, _ in rev] == [1, 2]
     assert rev[0][1] == "write.reviewer.1" and rev[1][1] == "write.reviewer.2"
     assert "<re_review>" not in rev[0][2]
-    assert "<re_review>" in rev[1][2] and "必须再次调用 submit" in rev[1][2]
+    assert "<re_review>" in rev[1][2] and "必须再次调用 mcp__submit__submit" in rev[1][2]
     assert "第一段太短" in rev[1][2] and "<rework>" not in rev[1][2]
 
 def test_lock_prevents_parallel_run(wf_root):

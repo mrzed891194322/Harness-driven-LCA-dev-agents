@@ -80,3 +80,31 @@ def test_schemas_and_rules_readable(wf_root):
     s = _scope(wf_root, agent="reviewer")
     assert any(g.endswith(".benchmark/schemas/**") for g in s.read_globs)
     assert any(g.endswith("harness/rules/**") for g in s.read_globs)
+
+
+def test_bom_extract_read_scope():
+    ws = REPO / "workspace"
+    inputs = REPO / "harness/knowledge/inputs"
+    inputs.mkdir(parents=True, exist_ok=True)
+    ref = inputs / "reference.md"
+    readme = inputs / "README.md"
+    ref_existed, readme_existed = ref.is_file(), readme.is_file()
+    if not ref_existed:
+        ref.write_text("fixture", encoding="utf-8")
+    if not readme_existed:
+        readme.write_text("index", encoding="utf-8")
+    try:
+        n01 = load_node(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract-01.yaml")
+        ex = compute_scope(REPO, n01, "executor", n01.agents["executor"].definition.access)
+        assert not any("harness/rules" in g for g in ex.read_globs)
+        assert not any(g.endswith("harness/knowledge/**") for g in ex.read_globs)
+        assert str(ref.resolve()) in ex.read_globs
+        assert str(readme.resolve()) not in ex.read_globs
+        run_art = str((ws / "runs/_run/artifacts/bom").resolve())
+        assert any(run_art in g for g in ex.write_globs)
+        assert not any(str((ws / "artifacts/bom").resolve()) + "/**" == g for g in ex.write_globs)
+    finally:
+        if not ref_existed:
+            ref.unlink(missing_ok=True)
+        if not readme_existed:
+            readme.unlink(missing_ok=True)

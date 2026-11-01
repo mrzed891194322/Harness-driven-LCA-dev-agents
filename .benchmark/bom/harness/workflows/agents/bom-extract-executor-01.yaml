@@ -1,5 +1,5 @@
 title: BOM extract · 01
-prompt: 将 claims 写入交付路径后调用 submit。
+prompt: 将 claims 写入交付路径后调用 `mcp__submit__submit`。
 access:
   read:
     knowledge: true

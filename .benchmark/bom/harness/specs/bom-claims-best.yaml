@@ -6,7 +6,7 @@ description: |
 
   ## 交付物
 
-  写到 `workspace/artifacts/bom/claims.json`，形状可对齐 `.benchmark/schemas/claim_set.schema.json`。
+  写到 `workspace/runs/_run/artifacts/bom/claims.json`，形状可对齐 `.benchmark/schemas/claim_set.schema.json`。
 
   ## 验收
 

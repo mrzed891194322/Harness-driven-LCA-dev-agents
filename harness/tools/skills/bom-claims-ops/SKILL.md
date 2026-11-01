@@ -22,14 +22,14 @@
 
 ## 输出契约
 
-- 写到 `workspace/artifacts/bom/claims.json`，对齐 `.benchmark/schemas/claim_set.schema.json`。
+- 写到 `workspace/runs/_run/artifacts/bom/claims.json`，对齐 `.benchmark/schemas/claim_set.schema.json`。
 - 有可用证据：`claims` 非空；每条尽量含 `claim_id`、`item_id`、`field`、`value`、`unit`、`text`、`evidence`。
 - 无可用文档或信息不足：交 **`claims: []`**，不要编造（`abstained` 字段可选，非必需）。
 - 只抽题面要求的量；完全无法恢复才交空数组。
 
 ## 交卷
 
-- 执行者写完 `claims.json` 后立刻 `submit`（`status=done` + `summary` + `artifacts`）。
-- 审核者只读核对后立刻 `submit`（`verdict=approve|reject|terminate|approve_redo_upstream`）；未用参数省略，勿传 null。
+- 执行者写完 `claims.json` 后立刻 `mcp__submit__submit`（`status=done` + `summary` + `artifacts`）。
+- 审核者只读核对后立刻 `mcp__submit__submit`（`verdict=approve|reject|terminate|approve_redo_upstream`）；未用参数省略，勿传 null。
 - 审核者若写笔记，只用 `workspace/runs/<node>/reviewer/notes.md`；禁止把 `…/reviewer` 目录本身写成文件。
 - 不要在仓库根目录 `ls`/`find`；只读允许的 artifacts / skills / specs 路径。

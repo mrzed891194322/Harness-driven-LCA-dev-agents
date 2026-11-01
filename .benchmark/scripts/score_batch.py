@@ -33,8 +33,8 @@ DECOMP_PATH = REPO / ".benchmark" / "bom" / "scorers" / "decomposition_f1.py"
 
 # subcategory → (pred relative under run dir, truth filename, scorer kind)
 SCORE_SPEC: dict[str, tuple[Path, str, str]] = {
-    "extract": (Path("artifacts/bom/claims.json"), "claims.json", "claim_f1"),
-    "abstention": (Path("artifacts/bom/claims.json"), "claims.json", "claim_f1"),
+    "extract": (Path("runs/_run/artifacts/bom/claims.json"), "claims.json", "claim_f1"),
+    "abstention": (Path("runs/_run/artifacts/bom/claims.json"), "claims.json", "claim_f1"),
     "decomposition": (Path("artifacts/bom/decomposition.json"), "decomposition.json", "decomposition"),
     "mapping": (Path("artifacts/mapping/mapping.json"), "mapping.json", "fabrication"),
     "triage": (Path("artifacts/triage/triage.json"), "triage.json", "triage"),
