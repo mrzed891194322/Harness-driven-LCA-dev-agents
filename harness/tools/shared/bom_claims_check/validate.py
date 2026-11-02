@@ -31,6 +31,7 @@ WARN_ABSTAIN_COUNT_MISMATCH = "ABSTAIN_COUNT_MISMATCH"
 WARN_CHECKLIST_ITEM_UNCOVERED = "CHECKLIST_ITEM_UNCOVERED"
 WARN_CLAIMS_UNMATCHED_CHECKLIST = "CLAIMS_UNMATCHED_CHECKLIST"
 WARN_CLAIMS_SAME_SLOT_EXTRA = "CLAIMS_SAME_SLOT_EXTRA"
+WARN_CLAIMS_DUPLICATE_VALUE_UNIT = "CLAIMS_DUPLICATE_VALUE_UNIT"
 WARN_CLAIMS_EMPTY_NO_ABSTAIN = "CLAIMS_EMPTY_NO_ABSTAIN"
 WARN_EVIDENCE_MISSING = "EVIDENCE_MISSING"
 WARN_INFERRED_BASIS_MISSING = "INFERRED_BASIS_MISSING"
@@ -272,6 +273,7 @@ def check_claims_payload(
     sources: Iterable[str] | None = None,
     expected_count: int | None = None,
     checklist: list[str] | None = None,
+    numeric_duplicates: bool = False,
 ) -> dict[str, Any]:
     """Warn-only check. Returns status/warnings; never mutates ``data``.
 
@@ -281,6 +283,8 @@ def check_claims_payload(
     ``expected_count`` is the agent-declared N from the question-facing short
     checklist (never gold). When provided and claim count differs, warn only.
     When omitted/None, skip the count check and remind that N was not supplied.
+    ``numeric_duplicates`` optionally lists exact value/unit candidates across labels;
+    the caller still decides whether their objects/metrics are the same.
     """
     src = [_squash(s) for s in sources] if sources is not None else None
     warnings: list[str] = []
@@ -293,6 +297,17 @@ def check_claims_payload(
         return _result("checked", warnings, warning_details, structural, per_claim, 0)
 
     claims = data["claims"]
+    duplicate_groups = _numeric_duplicate_groups(claims) if numeric_duplicates else []
+    for group in duplicate_groups:
+        _add_warn(
+            warnings,
+            warning_details,
+            WARN_CLAIMS_DUPLICATE_VALUE_UNIT,
+            f"跨 item_id/field 的同数值同单位候选：{group['claim_ids']} → "
+            f"{group['value']} {group['unit']}。请按题面主对象与被测量逐组核对："
+            "同组则合并并在 text 保留全部条件；分类维度不是新指标。"
+            "保留不同所问对象/指标的独立记录时，请写明题面依据。",
+        )
     abstained = data.get("abstained")
     if abstained is not None and not isinstance(abstained, bool):
         structural.append("abstained 应为布尔值")
@@ -369,7 +384,10 @@ def check_claims_payload(
         warnings.extend(w)
         warning_details.extend(wd)
         structural.extend(s)
-    return _result("checked", warnings, warning_details, structural, per_claim, len(claims))
+    result = _result("checked", warnings, warning_details, structural, per_claim, len(claims))
+    if numeric_duplicates:
+        result["numeric_duplicate_groups"] = duplicate_groups
+    return result
 
 
 _TOKEN_RE = re.compile("[A-Za-z0-9]+|[\u4e00-\u9fff]+")
@@ -459,6 +477,34 @@ def _claims_convertible(c1: dict[str, Any], c2: dict[str, Any]) -> bool:
         tol = max(Decimal("0.02"), abs(m1) * Decimal("0.02"))
         return abs(m1 - m2) <= tol
     return False
+
+
+
+def _numeric_duplicate_groups(claims: list[Any]) -> list[dict[str, Any]]:
+    """Exact numeric/text-unit candidates across labels; no semantic deletion.
+
+    Keep unit case and use no numeric tolerance or unit conversion, so nearby
+    range endpoints and distinct scales remain distinct. This opt-in diagnostic
+    leaves the existing checklist heuristics and default callers unchanged.
+    """
+    groups: dict[tuple[Decimal, str], list[str]] = {}
+    for index, claim in enumerate(claims):
+        if not isinstance(claim, dict):
+            continue
+        value, unit = claim.get("value"), claim.get("unit")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        if not isinstance(unit, str) or not unit.strip():
+            continue
+        number = _as_decimal(value)
+        if number is None or not number.is_finite():
+            continue
+        key = (number, _squash(unit))
+        groups.setdefault(key, []).append(_claim_id_at(claim, index))
+    return [
+        {"value": str(number), "unit": unit, "claim_ids": ids}
+        for (number, unit), ids in groups.items() if len(ids) > 1
+    ]
 
 
 def _claim_id_at(claim: Any, index: int) -> str:
@@ -637,6 +683,7 @@ def check_claims_file(
     sources: Iterable[str] | None = None,
     expected_count: int | None = None,
     checklist: list[str] | None = None,
+    numeric_duplicates: bool = False,
 ) -> dict[str, Any]:
     """Load JSON at ``path`` and run :func:`check_claims_payload` (read-only)."""
     try:
@@ -649,4 +696,7 @@ def check_claims_file(
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         return _result("unavailable", [], [], [f"JSON 无法解析：{exc}"], [], 0)
-    return check_claims_payload(data, sources=sources, expected_count=expected_count, checklist=checklist)
+    return check_claims_payload(
+        data, sources=sources, expected_count=expected_count, checklist=checklist,
+        numeric_duplicates=numeric_duplicates,
+    )

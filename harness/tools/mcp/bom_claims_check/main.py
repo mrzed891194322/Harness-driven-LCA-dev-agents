@@ -75,6 +75,7 @@ def _sources() -> list[str] | None:
         "数量：传 checklist=[题面所问「对象×指标」, ...]（只依题面，非金标），N=len(checklist)；"
         "claims 条数≠N 时仅提醒并尽量列出疑似漏/多项（旧参数 expected_count 仍可用）；未传则跳过条数核对。"
         "正确性：每条 value+unit 须在 evidence 中、evidence 须在原文中；无据且未标 [推断] 即提醒。"
+        "numeric_duplicates=true 时另列跨 item_id/field 的精确数值、同单位文本候选组（保留单位大小写），供按题面判定合并或保留。"
         "返回 status（checked/unavailable，仅表示核对是否执行，不代表正确）与 warnings。"
         "不删改任何 claim；请按告警逐条对照题面清单处置后再核。"
     )
@@ -83,10 +84,12 @@ def check_claims(
     path: str | None = None,
     checklist: list[str] | None = None,
     expected_count: int | None = None,
+    numeric_duplicates: bool = False,
 ) -> dict:
     target = _resolve(path)
     result = check_claims_file(
-        target, sources=_sources(), expected_count=expected_count, checklist=checklist
+        target, sources=_sources(), expected_count=expected_count, checklist=checklist,
+        numeric_duplicates=numeric_duplicates,
     )
     result["path"] = str(target)
     result["auto_deleted"] = False  # contract: this tool never mutates
