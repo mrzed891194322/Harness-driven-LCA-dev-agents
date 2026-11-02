@@ -11,7 +11,7 @@
   bom-extract tiers put host feedback under `runs/_run/feedback/<run_key>/` (cleared with `_run` on `prepare_fresh`).
   `runs/_run/` — manifest, `events.jsonl`, `orchestrator.lock`, per-run deliverables (`artifacts/`), notes,
   checklists, feedback (bom-extract); `revisions.json` (revise runs).
-- `workspace/tmp/` — scratch (pi sessions under `tmp/pi-workflow/`).
+- `workspace/tmp/` — scratch. Workflow sessions live at `tmp/pi-workflow/<run_id>/<node_run_key>.<agent>/session.jsonl`; the sibling `submit_context.json` is refreshed on each turn. Each role retains its session through review, host-check and transport retries; roles and runs have separate histories. Live sessions are released together when the workflow finishes.
 
 A fresh full-lca clears `artifacts/` (except `README.md`), `runs/` (keeps the lock) and `tmp/`.
 
