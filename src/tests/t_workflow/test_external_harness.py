@@ -133,13 +133,14 @@ def test_bom_extract_tier_switches():
     assert n04[0].agents["reviewer"].agent.endswith("bom-extract-reviewer-04.yaml")
     assert n04[0].agents["executor"].tools.skills == ["bom-claims-flow-04"]
     assert n04[0].agents["executor"].tools.mcp == []
+    extraction_04_rule = "rules/lca/bom-extraction-04.yaml"
     assert n04[0].agents["executor"].rules == [
         "rules/delivery/read-skills-first.yaml",
-        official_rule,
+        extraction_04_rule,
     ]
     assert n04[0].agents["reviewer"].rules == [
         "rules/delivery/read-skills-first.yaml",
-        official_rule,
+        extraction_04_rule,
     ]
     assert n04[0].agents["reviewer"].tools.skills == ["bom-claims-review"]
     assert n04[0].agents["reviewer"].tools.mcp == ["bom_claims_check"]
@@ -147,6 +148,21 @@ def test_bom_extract_tier_switches():
     assert n04[0].kind("executor") is None
     assert n04[0].kind("reviewer") == "verdict"
     assert n04[0].flow.start == "orchestrator"
+
+    # Audit rendered instructions, not just paths: an accidental second binding
+    # must not reintroduce the opposite range/unit policy into either role.
+    policy = load_rule(REPO, extraction_04_rule).prompt.strip()
+    for role in ("executor", "reviewer"):
+        system = Injector(REPO).system(n04[0], role)
+        assert system.count(policy) == 1
+        assert "use the midpoint" not in system
+        assert "unit field must be JUST" not in system
+    for nodes, roles in ((n01, ("executor",)), (n02, ("executor",)),
+                         (n03, ("executor", "reviewer"))):
+        for role in roles:
+            system = Injector(REPO).system(nodes[0], role)
+            assert "use the midpoint" in system
+            assert policy not in system
 
 
 def test_repo_full_lca_product_path_refs():

@@ -1,11 +1,7 @@
 title: BOM extract · 审核者（04）
 prompt: |
   - 职责：读同一份 knowledge 长文，对照 `<plan>` 与 claims 审核；只读，不修改任何交付物。
-  - 审核口径与写作者相同：按 `bom-claims-review` 的 04 局部口径处理所问范围端点和复合单位计量基准；这两项优先于官方 rule 的通用中点/短单位指令，其余遵守官方 rule。
-  - 文中无支持 → `reject` 要求删除。
-  - 从题面逐项回查原文，再从 claims 反查来源；有直接依据且答题的遗漏必须要求补，不能只审已交条目或只保留最大项。返工逐项给出来源、条件和应修内容，不猜补。
-  - 范围由 `<plan>` 与本节点 deliverable 共同界定：有原文依据但不回答题面的量 → `reject` 要求删除。
-  - 禁止不读原文就 `approve`；禁止自己重抽一套 claims 当交卷。
+  - 与执行者使用同一份已注入的共同抽取口径，按 `bom-claims-review` 先做 MCP 检查，再独立回读原文、一次列全返工项。
   - 核对完毕必须 `mcp__submit__submit`（未用可选参数省略，勿传 null），`verdict` 取：
     - `approve`：满足要求（可附 `summary` / `comment`）→ 交编排者汇总交卷；
     - `reject`：在 `issues` 逐条写 `where` / `problem` / `expected`，执行者只会改这些；

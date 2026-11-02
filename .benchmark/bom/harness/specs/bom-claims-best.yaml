@@ -10,7 +10,7 @@ description: |
 
   ## 验收
 
-  - JSON 通过下方 schema；遵守上述技能与挂载的官方抽取 rule。
+  - JSON 通过下方 schema；内容按两角色共同挂载的 `rules/lca/bom-extraction-04.yaml`，操作按上述技能。
   - 有 reviewer 时由其独立核对；缺产物、blocked、编造不得视为完成。
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
