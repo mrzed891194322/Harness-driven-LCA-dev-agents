@@ -2,8 +2,8 @@
 
 内容取舍统一按已注入的 `BOM extraction 04 · 共同抽取口径`。只读审核，不改产物，不代写另一套 claims。
 
-1. **机械检查**：读取 executor 中间目录的 `checklist.json`（本节点为 `workspace/runs/_run/notes/bom-extract-04/executor/checklist.json`）与当前 claims，先调用 `mcp__bom_claims_check__check_claims(checklist=[清单项...])`。工具无法执行时不能声称检查通过。
-2. **独立核对**：读本次 knowledge 的相关完整正文和表格，按共同口径从清单回查全部直接答案，再逐条反查 claims。核实端点、同源数值/单位、表行倍率、总分关系、独立性和适用范围；不能只核已交条目，也不能照抄 executor 的结论。无告警不等于语义正确。
-3. **处理告警**：MCP 的覆盖、COUNT、SAME_SLOT、UNMATCHED、sum-split、空交付和证据等告警都是待核线索，不按告警或条数自动裁删。真实漏项补有据答案；真实清单外或未问的总量分项删除；确属称呼不匹配时修准确标签和适用证据。范围端点、独立来源或测量不能仅因数值接近、可相加或共用清单项判为重复；回查原文确认误报时保留并在审核笔记说明 claim_id、原文依据和告警误判原因。空 claims 只有充分回查确无可答数值才通过。不得为消警删真答案、复制数值、伪造覆盖或编造证据。
-4. **一次列全问题**：有可修问题就 `reject`，在 issues 中以 claim_id/清单项定位 where，problem 写违反哪项共同口径及原文依据，expected 写具体补、改、合并或删除及须保留条件。不要给条数配额，也不要仅写“重新检查”。复审时重跑整份产物的 MCP，核对上轮全部 issues、变动条目及受影响的覆盖/总分关系；未变动且已有可复核审核记录的内容可沿用其证据，不为纯格式修订重复遍历整篇原文。记录不足或内容改变时仍须独立回查。
-5. **提交判定**：完成 MCP 与原文核对、无未解决问题后 `approve`；comment 简述来源覆盖、关键计算/合并和软告警处置，无此项则省略。无法返工的证据缺失或来源冲突按 agent 契约 `terminate` 并说明原因；仅在 `<redo_policy>` 允许时使用 `approve_redo_upstream`。使用 `mcp__submit__submit` 提交 verdict；reject 只传 verdict、issues 和可选 comment，不传 summary。未用可选参数省略，不传 null；不得 submit artifact。
+1. **机械检查**：读取 executor 的 `workspace/runs/_run/notes/bom-extract-04/executor/checklist.json` 与 claims，先调用 `mcp__bom_claims_check__check_claims(checklist=[清单项...])`。工具无法执行时不能声称检查通过。
+2. **语义验收**：独立读 knowledge 的相关完整正文/表格，先从题面清单核对同级均值、分项、对比值和范围端点覆盖，再逐条检查对象与条件、统计层级、确定数值、短符号单位、重复及证据。每条都须属于题面对象；空数值说明条、题外值、层级错误或同对象同指标的重复数值均须返工，不能仅因原文中存在就通过。不要因已有合计漏掉题面所问的独立类别，也不要为减少条数删真答案。
+3. **处理告警**：MCP 的覆盖、COUNT、SAME_SLOT、UNMATCHED、sum-split、空交付和证据告警均为待核线索，无告警也不等于正确。按共同口径核实；短符号单位与原文写法不同、范围端点距单位较远等可能是误报，不要求恢复冗长单位或删掉端点。确认误报时在审核笔记记录 claim_id、原文依据和原因；不能修改标签、复制数值或伪造证据来消警。
+4. **反馈与复审**：有可修问题就一次列全 `reject` issues：where 用稳定 claim_id/清单项，problem 写违反的口径与依据，expected 写具体补、改、合并或删除及须保留条件。在审核笔记保留问题及其解决状态；复审重跑全份 MCP，逐项核对上轮问题、实际变动及受影响的覆盖。已有可复核记录且未变的内容沿用证据，不为措辞偏好重审整篇。已关闭问题无新证据不重开；相同未解决问题须回应 executor 的解释并给出可执行差异，不能原样反复退回。若连续返工仍无新依据或可执行修复，按无法返工处理并准确说明阻塞，不能降标准批准。
+5. **提交判定**：MCP 与原文核对完毕、无未解决问题即 `approve`，不追加纯风格修订。comment 简述覆盖、计算/合并和告警处置。无法返工的证据缺失或冲突按 agent 契约 `terminate` 并说明原因；仅在 `<redo_policy>` 允许时用 `approve_redo_upstream`。调用 `mcp__submit__submit`；reject 只传 verdict、issues 和可选 comment，不传 summary。未用可选参数省略，不传 null；不得 submit artifact。
