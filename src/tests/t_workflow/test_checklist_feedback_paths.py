@@ -21,6 +21,8 @@ def test_checklist_path_same_in_inject_scope_and_host_checks(tmp_path: Path):
     ws = tmp_path / "workspace"
     (ws / "artifacts").mkdir(parents=True)
     n04 = load_node(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract-04.yaml")
+    n04 = n04.model_copy(update={"produces": [n04.produces[0].model_copy(update={
+        "spec": ".benchmark/bom/harness/specs/bom-claims-best.yaml"})]})
     cl = _checklist_contract_path(ws, n04)
     scope = compute_scope(REPO, n04, "executor", n04.agents["executor"].definition.access, workspace=ws)
     assert str(cl) in scope.read_globs
@@ -37,7 +39,7 @@ def test_checklist_path_same_in_inject_scope_and_host_checks(tmp_path: Path):
     assert str(cl.relative_to(ws)) in errs[0]
 
 
-def test_orchestrator_does_not_get_checklist_write_hint():
+def test_04_checklist_uses_existing_notes_scope():
     _, nodes = load_workflow(REPO, "bom-extract-04")
     node = nodes[0]
     specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
@@ -45,8 +47,17 @@ def test_orchestrator_does_not_get_checklist_write_hint():
     orch_user = inj(node, "orchestrator", 2, None, specs)
     exec_user = inj(node, "executor", 1, None, specs)
     assert "题面短清单" not in orch_user
-    assert "题面短清单" in exec_user
-    assert str(layout.node_checklist_path(REPO / "workspace", node.run_key)) in exec_user
+    assert "题面短清单" not in exec_user
+    assert not node_uses_run_checklist(REPO, node)
+    ws = REPO / "workspace"
+    notes = layout.run_agent_work_dir(ws, node.run_key, "executor")
+    assert str(notes) in exec_user
+    writer = compute_scope(REPO, node, "executor", node.agents["executor"].definition.access)
+    reviewer = compute_scope(REPO, node, "reviewer", node.agents["reviewer"].definition.access)
+    assert str(notes) + "/**" in writer.write_globs
+    assert any(str(notes / "checklist.json").startswith(g.removesuffix("**")) for g in reviewer.read_globs)
+    assert not any("checklists" in g for g in writer.write_globs)
+    assert not any("/artifacts/" in g for g in reviewer.write_globs)
 
 
 def test_host_feedback_dir_injected_for_orchestrator_and_executor(tmp_path: Path):
@@ -78,3 +89,17 @@ def test_bom_extract_02_03_no_checklist_from_run():
         ws = REPO / "workspace"
         ex = compute_scope(REPO, node, "executor", node.agents["executor"].definition.access)
         assert not any("checklists" in g for g in ex.write_globs)
+
+
+def test_04_still_rejects_invalid_claim_schema(tmp_path):
+    ws = tmp_path / "workspace"
+    _, nodes = load_workflow(REPO, "bom-extract-04")
+    node = nodes[0]
+    specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
+    target = layout.produce_target(ws, node, node.produces[0].path)
+    target.parent.mkdir(parents=True)
+    target.write_text(json.dumps({"claims": [{"value": "invented", "unit": "kg"}]}))
+    assert host_produce_errors(ws, node, specs)
+    target.write_text(json.dumps({"claims": [{"value": 0.4, "unit": "kWh/kg"},
+                                           {"value": 0.6, "unit": "kWh/kg"}]}))
+    assert host_produce_errors(ws, node, specs) == []

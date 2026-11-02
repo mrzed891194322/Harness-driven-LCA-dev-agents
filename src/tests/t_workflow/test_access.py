@@ -22,6 +22,8 @@ def test_executor_writes_only_produces_and_runs(wf_root):
 def test_checklist_path_only_when_checklist_from_run():
     ws = REPO / "workspace"
     n04 = load_node(REPO, ".benchmark/bom/harness/workflows/nodes/bom-extract-04.yaml")
+    n04 = n04.model_copy(update={"produces": [n04.produces[0].model_copy(update={
+        "spec": ".benchmark/bom/harness/specs/bom-claims-best.yaml"})]})
     cl = str(layout.node_checklist_path(ws, n04.run_key))
     cl_write = layout.node_checklist_write_glob(ws)
     ex = compute_scope(REPO, n04, "executor", n04.agents["executor"].definition.access)

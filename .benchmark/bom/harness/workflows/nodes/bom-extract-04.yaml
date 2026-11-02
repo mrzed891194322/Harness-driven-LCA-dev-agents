@@ -1,7 +1,7 @@
 id: bom-extract-04
 title: 数量声明抽取（04 · 技能+三件套）
 produces:
-  - {spec: .benchmark/bom/harness/specs/bom-claims-best.yaml, path: bom/claims.json}
+  - {spec: .benchmark/bom/harness/specs/bom-claims-04.yaml, path: bom/claims.json}
 rules_skip:
   - rules/global/10-language.yaml
 rules_trim:

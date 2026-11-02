@@ -88,12 +88,15 @@ def test_bom_extract_tier_switches():
     assert shared.checks == []
     assert "废弃" in phrase.prompt or "deprecated" in phrase.prompt.lower()
     assert n04[0].produces[0].spec == (
-        ".benchmark/bom/harness/specs/bom-claims-best.yaml"
+        ".benchmark/bom/harness/specs/bom-claims-04.yaml"
     )
     best = load_spec(REPO, ".benchmark/bom/harness/specs/bom-claims-best.yaml")
     assert best.checks and any(
         c.get("id") == "bom_claims_hard_warns" and c.get("checklist_from_run") for c in best.checks
     )
+    s04 = load_spec(REPO, n04[0].produces[0].spec)
+    assert s04.checks == []
+    assert s04.schema_ == best.schema_  # Host JSON validation is unchanged.
     assert n01[0].agents["executor"].tools.mcp == []
     assert official_rule in n02[0].agents["executor"].rules
     assert n02[0].agents["executor"].rules == [
