@@ -28,8 +28,8 @@ class TurnRequest:
     prompt: str
     workspace: Path
     run_id: str
-    session_key: str  # "<node>.<agent>"; verdict isolates as "<node>.<agent>.<attempt>"
-    resume: bool  # continue the same session (artifact agent after reject / host-check failure)
+    session_key: str  # "<node>.<agent>", stable across role re-entries
+    resume: bool  # role re-entry; driver also reuses sessions on transport retries
     step: int = 0  # agent turns in this node so far, including this one
     extra: dict[str, Any] = field(default_factory=dict)  # system, submit_context
 

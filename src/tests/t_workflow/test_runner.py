@@ -61,21 +61,21 @@ def test_pass_through(wf_root):
     assert all(e.get("run_id") for e in _events(wf_root) if e["kind"] != "plan_written")
 
 
-def test_reject_then_pass_reuses_executor_session(wf_root):
+def test_reject_then_pass_reuses_role_sessions(wf_root):
     d = FakeDriver({("write", "reviewer"): ["reject", "approve"]})
     assert _run(wf_root, d) == "completed"
     write_calls = [c for c in d.calls if c[0] == "write"]
     assert write_calls == [("write", "executor", 1, False), ("write", "reviewer", 1, False),
-                           ("write", "executor", 2, True), ("write", "reviewer", 2, False)]
+                           ("write", "executor", 2, True), ("write", "reviewer", 2, True)]
     assert "第一段太短" in (wf_root / "workspace/runs/write/feedback/round_1.md").read_text(encoding="utf-8")
     assert "<rework>" in d.prompts[2] and "第一段太短" in d.prompts[2] and "<rework>" not in d.prompts[0]
-    # Astra B: verdict session_key isolates by attempt; writers keep stable key for resume.
+    # Every role keeps its own stable session key.
     keys = [r.session_key for r in d.reqs if r.node.run_key == "write"]
     assert keys == [
         "write.executor",
-        "write.reviewer.1",
+        "write.reviewer",
         "write.executor",
-        "write.reviewer.2",
+        "write.reviewer",
     ]
     # Cursor B: reviewer attempt>1 gets prior reject issues as <re_review>.
     assert "<re_review>" in d.prompts[3] and "第一段太短" in d.prompts[3]
@@ -253,7 +253,7 @@ def test_runner_with_injector_prompts(wf_root):
 
 
 def test_reviewer_rereview_injector_and_session_key(wf_root):
-    """B tip: Injector <re_review> on reject→re-entry; verdict session_key includes attempt."""
+    """Injector <re_review> on reject→re-entry keeps the reviewer session."""
     from backend.workflow.inject import Injector
 
     wf, nodes = _setup(wf_root, order=("write",))
@@ -261,7 +261,7 @@ def test_reviewer_rereview_injector_and_session_key(wf_root):
     assert Runner(wf_root, wf, nodes, d, prompt_builder=Injector(wf_root)).run(plans=PLAN) == "completed"
     rev = [(r.attempt, r.session_key, r.prompt) for r in d.reqs if r.agent == "reviewer"]
     assert [a for a, _, _ in rev] == [1, 2]
-    assert rev[0][1] == "write.reviewer.1" and rev[1][1] == "write.reviewer.2"
+    assert rev[0][1] == "write.reviewer" and rev[1][1] == "write.reviewer"
     assert "<re_review>" not in rev[0][2]
     assert "<re_review>" in rev[1][2] and "必须再次调用 mcp__submit__submit" in rev[1][2]
     assert "第一段太短" in rev[1][2] and "<rework>" not in rev[1][2]

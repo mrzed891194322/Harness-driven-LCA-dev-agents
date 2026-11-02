@@ -138,7 +138,8 @@ class PiDriver:
         # Submit context (produces + JSON schemas, redo targets, executor's last submit) goes in a file, never
         # inline: pi resolves MCP env values as templates, so "$schema"/"$id" broke the server (I-30). The path is
         # stable per session so a live session's MCP env stays valid; the host rewrites it every turn.
-        context_file = ws / "tmp" / "pi-workflow" / req.session_key / "submit_context.json"
+        storage = ws / "tmp" / "pi-workflow" / req.run_id / req.session_key
+        context_file = storage / "submit_context.json"
         context_file.parent.mkdir(parents=True, exist_ok=True)
         context_file.write_text(json.dumps(context, ensure_ascii=False), encoding="utf-8")
         if not is_assistant:
@@ -161,7 +162,6 @@ class PiDriver:
         # Writers get exec tools; verdict gets notes write; primary non-writer (orch) read-only.
         file_tools = effective_file_tools(req.node, req.agent)
         system = req.extra.get("system", "")
-        storage = ws / "tmp" / "pi-workflow" / req.session_key
         max_turns = req.node.agents[req.agent].max_turns or (deliver.max_turns if deliver else DEFAULT_MAX_TURNS)
         timeout_min = deliver.timeout_min if deliver else 120.0
         max_nudges = deliver.max_nudges if deliver else 0
@@ -187,7 +187,7 @@ class PiDriver:
             rev=req.node.rev,
             agent=req.agent,
             attempt=req.attempt,
-            session_key=f"wf:{req.run_id[:8]}:{req.session_key}",
+            session_key=f"wf:{req.run_id}:{req.session_key}",
             model_profile=self.model,
             system_sections=[SystemSection(id="workflow_system", content=system, source_hash=_sha(system))],
             turn_context={"engine": "workflow", "node": req.node.id, "rev": req.node.rev, "attempt": req.attempt,
@@ -235,9 +235,9 @@ class PiDriver:
         seen_rejections = _count_lines(rejections)
         payload = {"launch_spec": spec.to_dict()}
         try:
-            if req.resume and spec.session_key in self.live:
-                pass  # same live session keeps its context
-            elif req.resume and Path(spec.session_storage["session_file"]).is_file():
+            if spec.session_key in self.live:
+                pass  # Re-entry and transport retries both keep the live history.
+            elif Path(spec.session_storage["session_file"]).is_file():
                 self.runtime.request("session.resume", {"session_key": spec.session_key, **payload}, timeout=CREATE_TIMEOUT_S)
                 self.live.add(spec.session_key)
             else:
@@ -271,8 +271,6 @@ class PiDriver:
                 keep = submit_file.parent / f"attempt_{req.attempt}" / "submit.json"
                 keep.parent.mkdir(parents=True, exist_ok=True)
                 submit_file.replace(keep)
-        if req.node.kind(req.agent) == "verdict":
-            self._release(spec.session_key)
         settle = result.get("settle") if isinstance(result, dict) else None
         settle = settle if isinstance(settle, dict) else {}
         for item in settle.get("log") or []:

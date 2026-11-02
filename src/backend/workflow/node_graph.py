@@ -208,15 +208,11 @@ class NodeGraph:
                              for p in self.node.produces] if kind == "artifact" else [],
                 "redo_targets": ctx.redo_targets, "executor_last": executor_last,
             }
-            # Astra B: isolate verdict sessions by attempt. resume=False alone is not enough —
-            # SessionManager.open still reloads an existing session_file at a stable path.
-            if kind == "verdict":
-                session_key = f"{node.run_key}.{agent}.{attempt}"
-            else:
-                session_key = f"{node.run_key}.{agent}"
+            # One independent session per role; every re-entry keeps that role's history.
+            session_key = f"{node.run_key}.{agent}"
             req = TurnRequest(node=node, agent=agent, attempt=attempt, prompt=prompt, workspace=ctx.workspace,
                               run_id=ctx.run_id, session_key=session_key,
-                              resume=node.is_writer(agent) and attempt > 1, step=step,
+                              resume=attempt > 1, step=step,
                               extra={"submit_context": submit_context})
             system_fn = getattr(ctx.prompt_builder, "system", None)
             if system_fn is not None:

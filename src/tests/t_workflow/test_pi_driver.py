@@ -28,7 +28,8 @@ class FakeRuntime:
         if method == self.raise_on:
             raise RuntimeError("401 api_key_expired")
         if method == "session.run_turn" and self.submit is not None:
-            spec = next(p["launch_spec"] for m, p in reversed(self.calls) if "launch_spec" in p)
+            spec = next(p["launch_spec"] for m, p in reversed(self.calls)
+                        if p.get("launch_spec", {}).get("session_key") == params["session_key"])
             f = Path(spec["mcp_bindings"]["submit"]["env"]["WORKFLOW_SUBMIT_FILE"])
             f.parent.mkdir(parents=True, exist_ok=True)
             f.write_text(json.dumps(self.submit), encoding="utf-8")
