@@ -1,7 +1,7 @@
 # `.benchmark/bom/harness`
 
 BOM 测评用的工作流 / 节点 / spec，与产品侧 `harness/` **同构**（`workflows/orchestrations|nodes`、`specs`）。
-专用 agent 可放本树 `workflows/agents/`，节点里用**仓根相对路径**引用（勿复用产品 `executor`/`reviewer` 短名——03 起）。
+专用 agent 可放本树 `workflows/agents/`，节点里用**仓根相对路径**引用（02–04 均用专用三角色 agent）。
 
 YAML 里的 `nodes:` / `produces.spec` 一律写**相对仓库根**的路径（禁止短名、禁止 `..`、禁止绝对路径），例如：
 
@@ -14,22 +14,27 @@ produces:
 API 开跑仍可用 orch 文件 stem（`workflow: bom-extract-01`）；`list_workflows` 会扫描
 `harness/workflows/orchestrations/` 与本目录及 `.benchmark/lci/harness/` 的 `workflows/orchestrations/`。
 
-规则正文继续共用 `harness/rules/`（节点 `inject:` 照常引用）。
+规则正文继续共用 `harness/rules/`（通过节点角色的 `rules:` 绑定）。
 全局三条（`rules/global/00-redlines` / `10-language` / `20-knowledge`）由宿主对所有档注入，不写在节点 YAML。
 
-## 档位（工作流名后加 01–04 · 同一骨架只拨开关）
+## 档位
 
-| stem | reviewer | node.inject | skills / agents | produce spec |
-| --- | --- | --- | --- | --- |
-| `bom-decomposition-01` | 产品组成（PCFBench task1）真薄 | 已有 |
-| `bom-extract-01` | 无 | **无** | 产品 `executor`；无 skills | 共用 `bom-claims.yaml`（unit=原文短语） |
-| `bom-extract-02` | 无 | **无**（技能到达用 **agent.rules**） | 产品 `executor` + **`bom-claims-flow`** + `rules/delivery/read-skills-first.yaml` + 薄 MCP `bom_claims_check`（只告警） | 同 01 共用 `bom-claims.yaml` |
-| `bom-extract-03` | **有** | **无** | **三件套** orch+executor(助手)+reviewer（专用 agent）；**不挂技能** | 同 01 |
-| `bom-extract-04` | **有** | **无** | 独立的 04 三角色；executor `bom-claims-flow-04`（无 MCP），reviewer `bom-claims-review` + MCP `bom_claims_check`；两者共用 `bom-extraction-04` rule | `bom-claims-04.yaml`，JSON schema 硬校验，语义告警交 reviewer 核实 |
+02/03 基于 04 拆分，均为单节点 Orchestrator + Executor + Reviewer，沿用现有 LangGraph 三角色图；不是逐档叠加。01 与 04 保留作对照。
 
-- **01 真薄**：题面 ≈ 短指令 + 案题 query；交付 claims submit。
-- **02**：同 01 拓扑；挂 `bom-claims-flow` + executor `agent.rules: read-skills-first`（**node.inject 仍空**）+ 薄 MCP `bom_claims_check`。技能为重构版单文件 SKILL：读技能→grep 定位小窗读（不足可扩窗）→题意/图例锚定、只交所问→claims（`claim_id`、`value`+`unit` 成对；**unit 照抄原文单位短语**含限定语；SKILL 附评分器 `UNIT_NORMALIZATION` 同义表作规则词汇、非金标；evidence 可回源：文件/位置/逐字引文；原文不足时 evidence 以 `[推断]` 开头写依据）→`check_claims`（对照 evidence 整词匹配 unit 短语，只提醒、不删、不拦交卷）→submit；有数字就交、全无才弃权。无黑名单、无反例、不引用金标答案。**01/02/03 共用** `bom-claims.yaml`（unit=原文短语；`checks: []`；同义表只在 02 技能，不进 spec）。给法仍官方 query + `reference.md`。
-- **03**：三件套（orchestrator 主交卷 / executor 写作者助手 / reviewer）；LangGraph 强制审核环；**不靠技能抬分**（04 再挂）。tip 不开批。
-- **04 单一内容口径**：orch 调度并最终交卷、executor 写 claims、reviewer 独立查原文并审核；节点图和权限不变。两角色共用 `harness/rules/lca/bom-extraction-04.yaml`，各自技能只规定操作。题面清单写入 executor 中间目录的 `checklist.json`。MCP 告警须逐条核实，不能因数值接近误删真实范围端点；宿主保留 schema、角色权限与 approve 前不得完成的约束。同一次运行的每个角色复用各自会话，返工与拒收重试保留上下文；不同运行隔离。
+| stem | 角色与侧重 | 技能 / MCP / 内容规则 | produce spec |
+| --- | --- | --- | --- |
+| `bom-decomposition-01` | 产品组成（PCFBench task1） | 原装配 | `bom-decomposition.yaml` |
+| `bom-extract-01` | 单 executor，官方口径 | 无技能、无 MCP；官方英文 rule | `bom-claims-01.yaml` |
+| `bom-extract-02` | 三角色，技能与工具工作流 | executor `bom-claims-flow-02`；reviewer `bom-claims-review-02` + `bom_claims_check`；共用短 rule `bom-extraction-02-03` | `bom-claims-02.yaml`，沿用 04 schema 形状，`checks: []` |
+| `bom-extract-03` | 三角色，最小硬编排 | 无技能；reviewer `bom_claims_check`；同一短 rule `bom-extraction-02-03` | `bom-claims-03.yaml`，必填数值 `value` 与非空 `unit`，`checks: []` |
+| `bom-extract-04` | 三角色，原完整基线 | executor `bom-claims-flow-04`；reviewer `bom-claims-review` + MCP；共用 `bom-extraction-04` | `bom-claims-04.yaml` |
+
+- **02 技能与工具工作流**：executor 先按题面写 checklist，再取证、抽取、自查；reviewer 核实清单，调用 MCP（含 `numeric_duplicates=true`），独立回原文后交 verdict。checklist 是笔记，不是宿主验收协议；语义约束由技能与审核落实，不新增 checklist、条数、覆盖或数值去重硬闸。
+- **03 最小硬编排**：agent 只承载职责、派工与 verdict 契约，不挂长技能、不要求 executor checklist 文件。reviewer 直接按题面组织 MCP 清单并核对原文；schema 拒收缺失/空值/非数值 value 和空白 unit。空 claims 仍合法，是否确无答案由 reviewer 审核，不用启发式告警强行拦截。
+- **共同机制**：orchestrator 唯一交 artifact，executor 只写产物，reviewer 只读产物并交 verdict。两档均走默认 LangGraph 三角色图和原有预算；宿主 schema、权限、最新 approve 才能 done 的门禁不移除。编排者读取本档 `runs/bom-extract-0N/reviewer/attempt_<N>/submit.json` 中最大 N 的已提交 verdict；reject 后派返工再复审，旧 feedback 不覆盖新 approve，审后修改须复审。各角色会话按现有运行机制连续。
+- **内容口径**：02/03 共用从 04 提炼的短规则，覆盖题面对象与统计粒度、过报邻档、单位符号照抄、范围端点、总量与独立分项、同对象同指标同值合并及连续证据。避免同时挂载官方中点规则造成冲突。MCP 告警仅作回原文核查线索，不决定语义裁决。
+- **路径**：产物仍为 `workspace/runs/_run/artifacts/bom/claims.json`；中间笔记放 `workspace/runs/_run/notes/bom-extract-02/<role>/` 或 `bom-extract-03/<role>/`。02 checklist 为其 `executor/checklist.json`；03 无强制清单文件；04 路径不变。
+
+旧 02 的单 executor 与旧 03 的通用角色绑定由新档就地替换；旧 `bom-claims-flow` 和通用 agent 文件不再由这两档引用，保留以免影响其他调用。04 的 rule、技能、agent、spec 均不修改。
 
 abstention 复用任一 extract stem（`--cases-root .benchmark/bom/abstention`），无单独 abstention orch。

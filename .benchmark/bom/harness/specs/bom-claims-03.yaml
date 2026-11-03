@@ -1,0 +1,45 @@
+description: |-
+  写到 workspace/runs/_run/artifacts/bom/claims.json；内容按两角色共用的 bom-extraction-02-03 规则。无依据时交 claims: []。
+  每条必须有数值 value 和非空 unit；schema 硬校验，语义与 MCP 告警由 reviewer 核实，不增加内容启发式硬闸。
+  executor 写文件，reviewer 交 verdict，orchestrator 在最新 approve 后交卷；角色权限与审核门禁沿用现有 LangGraph。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:bom-claims-03
+  title: Claim set (03)
+  type: object
+  additionalProperties: false
+  required:
+  - claims
+  properties:
+    abstained:
+      type: boolean
+      description: 可选兼容字段；无依据时交空 claims 即可。
+    claims:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        properties:
+          claim_id:
+            type: string
+            minLength: 1
+          text:
+            type: string
+          item_id:
+            type: string
+          field:
+            type: string
+          value:
+            type: number
+          unit:
+            type: string
+            minLength: 1
+            pattern: \S
+          evidence:
+            type:
+            - string
+            - 'null'
+        required:
+        - value
+        - unit
+checks: []

@@ -1,0 +1,10 @@
+title: BOM extract · executor（02 · 技能与工具工作流）
+prompt: |-
+  按 <plan> 与共同抽取口径写指定 claims；依 bom-claims-flow-02 完成清单、取证、自查和返工。
+  本角色无交卷，不调用 mcp__submit__submit；写完结束回合。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write:
+    produces: true

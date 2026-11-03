@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from backend.workflow.config import (
+    default_flow,
     load_rule,
     ConfigError,
     list_workflows,
@@ -51,13 +52,13 @@ def test_inject_uses_produce_spec_path_not_stem():
 
 
 def test_bom_extract_tier_switches():
-    """01–04 share orch skeleton; reviewer / inject / skills / agents flip per tier."""
+    """02 uses skills; 03 uses a strict numeric contract; both keep the LangGraph trio."""
     _, n01 = load_workflow(REPO, "bom-extract-01")
     _, n02 = load_workflow(REPO, "bom-extract-02")
     _, n03 = load_workflow(REPO, "bom-extract-03")
     _, n04 = load_workflow(REPO, "bom-extract-04")
     assert set(n01[0].agents) == {"executor"}
-    assert set(n02[0].agents) == {"executor"}  # 02: still no reviewer
+    assert set(n02[0].agents) == {"orchestrator", "executor", "reviewer"}
     assert set(n03[0].agents) == {"orchestrator", "executor", "reviewer"}  # 03: trio
     assert set(n04[0].agents) == {"orchestrator", "executor", "reviewer"}
     assert n01[0].inject == n02[0].inject == n03[0].inject == n04[0].inject == []
@@ -74,7 +75,21 @@ def test_bom_extract_tier_switches():
     assert "含限定语" not in s01.prompt
     assert s01.schema_["properties"]["claims"]["items"]["required"] == ["value", "unit"]
     assert set(s01.schema_["properties"]["claims"]["items"]["properties"]) == {"value", "unit"}
-    assert n02[0].produces[0].spec == n03[0].produces[0].spec == shared_spec
+    for tier, nodes in (("02", n02), ("03", n03)):
+        node = nodes[0]
+        assert node.produces[0].spec == f".benchmark/bom/harness/specs/bom-claims-{tier}.yaml"
+        assert load_spec(REPO, node.produces[0].spec).checks == []
+        assert node.flow.start == "orchestrator"
+        assert [e.model_dump(exclude_none=True, by_alias=True) for e in node.flow.edges] == default_flow(node.agents)["edges"]
+        for role in ("orchestrator", "executor", "reviewer"):
+            assert node.agents[role].agent.endswith(f"bom-extract-{role}-{tier}.yaml")
+        assert node.kind("orchestrator") == "artifact"
+        assert node.kind("executor") is None
+        assert node.kind("reviewer") == "verdict"
+        assert node.agents["orchestrator"].tools.mcp == []
+        assert node.agents["executor"].tools.mcp == []
+        assert node.agents["reviewer"].tools.mcp == ["bom_claims_check"]
+        assert f"runs/bom-extract-{tier}/reviewer/attempt_<N>/submit.json" in node.agents["orchestrator"].definition.prompt
     for n in (n02, n03, n04):
         assert skip_lang in n[0].rules_skip
         assert trim_red in n[0].rules_trim
@@ -98,29 +113,22 @@ def test_bom_extract_tier_switches():
     assert s04.checks == []
     assert s04.schema_ == best.schema_  # Host JSON validation is unchanged.
     assert n01[0].agents["executor"].tools.mcp == []
-    assert official_rule in n02[0].agents["executor"].rules
-    assert n02[0].agents["executor"].rules == [
-        "rules/delivery/read-skills-first.yaml",
-        official_rule,
-    ]
-    assert n02[0].agents["executor"].tools.skills == ["bom-claims-flow"]
+    split_rule = "rules/lca/bom-extraction-02-03.yaml"
+    for role, skill in (("executor", "bom-claims-flow-02"), ("reviewer", "bom-claims-review-02")):
+        assert n02[0].agents[role].rules == ["rules/delivery/read-skills-first.yaml", split_rule]
+        assert n02[0].agents[role].tools.skills == [skill]
+        assert n03[0].agents[role].rules == [split_rule]
+        assert n03[0].agents[role].tools.skills == []
     assert n01[0].agents["executor"].tools.skills == []
     assert n01[0].agents["executor"].agent.endswith("bom-extract-executor-01.yaml")
-    assert n02[0].agents["executor"].tools.mcp == ["bom_claims_check"]
-    assert n01[0].agents["executor"].tools.mcp == []
-    assert n03[0].agents["orchestrator"].tools.mcp == []
-    assert n02[0].agents["executor"].agent == "executor"
     assert n01[0].agents["executor"].rules == [official_rule]
-    assert n02[0].agents["executor"].rules == ["rules/delivery/read-skills-first.yaml", official_rule]
-    assert n03[0].agents["orchestrator"].rules == []
-    assert n03[0].agents["executor"].rules == [official_rule]
-    assert n03[0].agents["reviewer"].rules == [official_rule]
+    assert n02[0].agents["orchestrator"].rules == n03[0].agents["orchestrator"].rules == []
     rsf = load_rule(REPO, "rules/delivery/read-skills-first.yaml")
     assert set(rsf.applies_to or []) >= {"executor", "assistant", "reviewer"} and "先读" in rsf.prompt
     # 03: trio — orchestrator (artifact) + executor (assistant writer) + reviewer; no skills
     assert n03[0].agents["orchestrator"].agent.endswith("bom-extract-orchestrator-03.yaml")
-    assert n03[0].agents["executor"].agent.endswith("bom-extract-executor.yaml")
-    assert n03[0].agents["reviewer"].agent.endswith("bom-extract-reviewer.yaml")
+    assert n03[0].agents["executor"].agent.endswith("bom-extract-executor-03.yaml")
+    assert n03[0].agents["reviewer"].agent.endswith("bom-extract-reviewer-03.yaml")
     assert n03[0].agents["executor"].tools.skills == []
     assert n03[0].agents["reviewer"].tools.skills == []
     assert n03[0].agents["orchestrator"].tools.skills == []
@@ -160,11 +168,14 @@ def test_bom_extract_tier_switches():
         assert system.count(policy) == 1
         assert "use the midpoint" not in system
         assert "unit field must be JUST" not in system
-    for nodes, roles in ((n01, ("executor",)), (n02, ("executor",)),
-                         (n03, ("executor", "reviewer"))):
-        for role in roles:
+    assert "use the midpoint" in Injector(REPO).system(n01[0], "executor")
+    split_policy = load_rule(REPO, split_rule).prompt.strip()
+    for nodes in (n02, n03):
+        for role in ("executor", "reviewer"):
             system = Injector(REPO).system(nodes[0], role)
-            assert "use the midpoint" in system
+            assert system.count(split_policy) == 1
+            assert "use the midpoint" not in system
+            assert "unit field must be JUST" not in system
             assert policy not in system
 
 

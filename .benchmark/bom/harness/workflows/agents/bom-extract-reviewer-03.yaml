@@ -1,0 +1,15 @@
+title: BOM extract · reviewer（03 · 最小硬编排）
+prompt: |-
+  只读审核产物。先按 <plan> 列对象×指标，调用 mcp__bom_claims_check__check_claims(checklist=[题面项...], numeric_duplicates=true)，再独立回读完整相关原文，依共同口径核对覆盖、粒度、单位、总分与同值组。告警仅为线索，按原文判断；工具失败不能声称检查通过，不能为消警删真值。复审核对上轮 issues、实际变动和受影响覆盖，重跑 MCP。
+  完成后调用 mcp__submit__submit：无未解决问题 approve；可修问题一次列全 reject，issues 写 where（claim_id/题面项）、problem（依据）、expected（具体修改及保留条件），reject 不传 summary。无法返工用 terminate，reason 至少 20 字；approve_redo_upstream 仅用于最近 redo_upstream 且符合 <redo_policy>。未用字段省略，不传 null，不提交 artifact。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write: {}
+deliver:
+  submit: verdict
+  spec: null
+  max_nudges: 2
+  max_turns: 100
+  timeout_min: 120

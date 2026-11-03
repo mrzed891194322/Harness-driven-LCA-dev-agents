@@ -1,21 +1,29 @@
 id: bom-extract-03
-title: 数量声明抽取（03 · 三件套编排）
+title: 数量声明抽取（03 · 最小硬编排）
 produces:
-  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
+- spec: .benchmark/bom/harness/specs/bom-claims-03.yaml
+  path: bom/claims.json
 rules_skip:
-  - rules/global/10-language.yaml
+- rules/global/10-language.yaml
 rules_trim:
-  rules/global/00-redlines.yaml: [plan_readonly, openlca_scope, network_sources]
-  rules/global/20-knowledge.yaml: [read_on_demand_cite, plan_overrides_conflict]
-# 三件套：orchestrator（主/交卷）+ executor（写产物助手）+ reviewer
+  rules/global/00-redlines.yaml:
+  - plan_readonly
+  - openlca_scope
+  - network_sources
+  rules/global/20-knowledge.yaml:
+  - read_on_demand_cite
+  - plan_overrides_conflict
 agents:
   orchestrator:
     agent: .benchmark/bom/harness/workflows/agents/bom-extract-orchestrator-03.yaml
   executor:
-    agent: .benchmark/bom/harness/workflows/agents/bom-extract-executor.yaml
+    agent: .benchmark/bom/harness/workflows/agents/bom-extract-executor-03.yaml
     rules:
-      - rules/lca/pcfbench-extraction-official.yaml
+    - rules/lca/bom-extraction-02-03.yaml
   reviewer:
-    agent: .benchmark/bom/harness/workflows/agents/bom-extract-reviewer.yaml
+    agent: .benchmark/bom/harness/workflows/agents/bom-extract-reviewer-03.yaml
     rules:
-      - rules/lca/pcfbench-extraction-official.yaml
+    - rules/lca/bom-extraction-02-03.yaml
+    tools:
+      mcp:
+      - bom_claims_check

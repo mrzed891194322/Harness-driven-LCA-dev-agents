@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from backend.workflow import layout
 from backend.workflow.access import compute_scope, node_uses_run_checklist
 from backend.workflow.checks import host_produce_errors
@@ -39,8 +41,9 @@ def test_checklist_path_same_in_inject_scope_and_host_checks(tmp_path: Path):
     assert str(cl.relative_to(ws)) in errs[0]
 
 
-def test_04_checklist_uses_existing_notes_scope():
-    _, nodes = load_workflow(REPO, "bom-extract-04")
+@pytest.mark.parametrize("tier", ["02", "03", "04"])
+def test_checklist_uses_existing_notes_scope(tier):
+    _, nodes = load_workflow(REPO, f"bom-extract-{tier}")
     node = nodes[0]
     specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
     inj = Injector(REPO)
@@ -60,10 +63,11 @@ def test_04_checklist_uses_existing_notes_scope():
     assert not any("/artifacts/" in g for g in reviewer.write_globs)
 
 
-def test_host_feedback_dir_injected_for_orchestrator_and_executor(tmp_path: Path):
+@pytest.mark.parametrize("tier", ["02", "03", "04"])
+def test_host_feedback_dir_injected_for_orchestrator_and_executor(tmp_path: Path, tier):
     ws = tmp_path / "workspace"
     (ws / "artifacts").mkdir(parents=True)
-    _, nodes = load_workflow(REPO, "bom-extract-04")
+    _, nodes = load_workflow(REPO, f"bom-extract-{tier}")
     node = nodes[0]
     fb = layout.node_feedback_dir(ws, node.run_key, node.id)
     fb.mkdir(parents=True)
@@ -91,9 +95,10 @@ def test_bom_extract_02_03_no_checklist_from_run():
         assert not any("checklists" in g for g in ex.write_globs)
 
 
-def test_04_still_rejects_invalid_claim_schema(tmp_path):
+@pytest.mark.parametrize("tier", ["02", "03", "04"])
+def test_still_rejects_invalid_claim_schema(tmp_path, tier):
     ws = tmp_path / "workspace"
-    _, nodes = load_workflow(REPO, "bom-extract-04")
+    _, nodes = load_workflow(REPO, f"bom-extract-{tier}")
     node = nodes[0]
     specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
     target = layout.produce_target(ws, node, node.produces[0].path)
@@ -103,3 +108,31 @@ def test_04_still_rejects_invalid_claim_schema(tmp_path):
     target.write_text(json.dumps({"claims": [{"value": 0.4, "unit": "kWh/kg"},
                                            {"value": 0.6, "unit": "kWh/kg"}]}))
     assert host_produce_errors(ws, node, specs) == []
+
+
+@pytest.mark.parametrize("claim", [{"text": "definition"}, {"value": None, "unit": "kg"},
+                                    {"value": 1, "unit": ""}, {"value": 1, "unit": "  "}])
+def test_03_numeric_contract_rejects_non_answers(tmp_path, claim):
+    ws = tmp_path / "workspace"
+    for tier in ("02", "03"):
+        _, nodes = load_workflow(REPO, f"bom-extract-{tier}")
+        node = nodes[0]
+        specs = {p.spec: load_spec(REPO, p.spec) for p in node.produces}
+        target = layout.produce_target(ws, node, node.produces[0].path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps({"claims": [claim]}))
+        # 02 delegates semantic validity to review; 03 enforces value/unit structurally.
+        assert bool(host_produce_errors(ws, node, specs)) == (tier == "03")
+        target.write_text(json.dumps({"claims": []}))
+        assert host_produce_errors(ws, node, specs) == []
+
+
+def test_02_skill_paths_match_runtime_notes_scope():
+    _, nodes = load_workflow(REPO, "bom-extract-02")
+    node = nodes[0]
+    ws = REPO / "workspace"
+    checklist = layout.run_agent_work_dir(ws, node.run_key, "executor") / "checklist.json"
+    for skill in ("bom-claims-flow-02", "bom-claims-review-02"):
+        text = (REPO / "harness/tools/skills" / skill / "SKILL.md").read_text()
+        assert checklist.relative_to(REPO).as_posix() in text
+        assert "bom-extract-04" not in text

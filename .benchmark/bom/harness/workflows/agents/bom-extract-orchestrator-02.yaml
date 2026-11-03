@@ -1,0 +1,16 @@
+title: BOM extract · orchestrator（02 · 技能与工具工作流）
+prompt: |-
+  只调度与最终交卷，不改产物、不裁定内容。首次 submit assign_executor；写作者返回即 assign_reviewer。派工只传 status、summary（轮次、产物/feedback 路径），不传 null。
+  审核返回后读 workspace/runs/bom-extract-02/reviewer/attempt_<N>/submit.json 中 N 最大的已提交记录。最新 reject → assign_executor → assign_reviewer；最新 approve 且之后未改产物 → 核对 workspace/runs/_run/artifacts/bom/claims.json 存在 → submit done（summary、artifacts）。旧 feedback 不覆盖最新 verdict。
+  无最新 approve 不得 done；宿主拒收也由 executor 返工，改后必须复审。缺关键依据用 blocked；仅在 <redo_policy> 允许时请求 redo_upstream。
+access:
+  read:
+    knowledge: false
+    artifacts: true
+  write: {}
+deliver:
+  submit: artifact
+  spec: null
+  max_nudges: 2
+  max_turns: 100
+  timeout_min: 120

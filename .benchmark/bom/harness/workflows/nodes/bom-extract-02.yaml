@@ -1,18 +1,36 @@
 id: bom-extract-02
-title: 数量声明抽取（02 · 真薄+自检工作流）
+title: 数量声明抽取（02 · 技能与工具工作流）
 produces:
-  - {spec: .benchmark/bom/harness/specs/bom-claims.yaml, path: bom/claims.json}
+- spec: .benchmark/bom/harness/specs/bom-claims-02.yaml
+  path: bom/claims.json
 rules_skip:
-  - rules/global/10-language.yaml
+- rules/global/10-language.yaml
 rules_trim:
-  rules/global/00-redlines.yaml: [plan_readonly, openlca_scope, network_sources]
-  rules/global/20-knowledge.yaml: [read_on_demand_cite, plan_overrides_conflict]
+  rules/global/00-redlines.yaml:
+  - plan_readonly
+  - openlca_scope
+  - network_sources
+  rules/global/20-knowledge.yaml:
+  - read_on_demand_cite
+  - plan_overrides_conflict
 agents:
+  orchestrator:
+    agent: .benchmark/bom/harness/workflows/agents/bom-extract-orchestrator-02.yaml
   executor:
-    agent: executor
-    tools:
-      skills: [bom-claims-flow]
-      mcp: [bom_claims_check]
+    agent: .benchmark/bom/harness/workflows/agents/bom-extract-executor-02.yaml
     rules:
-      - rules/delivery/read-skills-first.yaml
-      - rules/lca/pcfbench-extraction-official.yaml
+    - rules/delivery/read-skills-first.yaml
+    - rules/lca/bom-extraction-02-03.yaml
+    tools:
+      skills:
+      - bom-claims-flow-02
+  reviewer:
+    agent: .benchmark/bom/harness/workflows/agents/bom-extract-reviewer-02.yaml
+    rules:
+    - rules/delivery/read-skills-first.yaml
+    - rules/lca/bom-extraction-02-03.yaml
+    tools:
+      skills:
+      - bom-claims-review-02
+      mcp:
+      - bom_claims_check

@@ -1,0 +1,10 @@
+title: BOM extract · executor（03 · 最小硬编排）
+prompt: |-
+  按 <plan> 与共同抽取口径读 knowledge，写指定 claims；满足交付 schema。返工逐条回应最新 issues，只改问题及其影响的内容，保持无关条目与 claim_id 稳定。
+  本角色无交卷，不调用 mcp__submit__submit；写完结束回合。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write:
+    produces: true

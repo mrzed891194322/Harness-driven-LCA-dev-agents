@@ -1,6 +1,8 @@
 """r20a: write vs submit orthogonality + inject_when global rules + bom tier matrix."""
 from __future__ import annotations
 
+import pytest
+
 from backend.workflow.config import default_flow, load_workflow
 from backend.workflow.inject import Injector
 from backend.workflow.pi_driver import effective_file_tools
@@ -16,13 +18,13 @@ def test_trio_default_flow_starts_at_orchestrator_hub():
     assert ("executor", None) in whens
 
 
-def test_bom_tier_tools_and_submit_prompt_matrix():
+@pytest.mark.parametrize("tier", ["02", "03", "04"])
+def test_bom_tier_tools_and_submit_prompt_matrix(tier):
     inj = Injector(REPO)
     _, n01 = load_workflow(REPO, "bom-extract-01")
-    _, n02 = load_workflow(REPO, "bom-extract-02")
-    _, n03 = load_workflow(REPO, "bom-extract-03")
-    node = n03[0]
-    for thin in (n01[0], n02[0]):
+    _, trio = load_workflow(REPO, f"bom-extract-{tier}")
+    node = trio[0]
+    for thin in (n01[0],):
         agent = "executor"
         assert thin.is_writer(agent) and thin.is_primary(agent)
         assert "write" in effective_file_tools(thin, agent)

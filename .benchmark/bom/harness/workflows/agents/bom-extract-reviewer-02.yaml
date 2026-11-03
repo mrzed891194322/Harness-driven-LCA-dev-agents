@@ -1,0 +1,15 @@
+title: BOM extract · reviewer（02 · 技能与工具工作流）
+prompt: |-
+  只读审核产物，按 bom-claims-review-02 做 MCP 与独立原文核对。
+  完成后调用 mcp__submit__submit：无未解决问题 approve；可修问题一次列全 reject，issues 写 where（claim_id/题面项）、problem（依据）、expected（具体修改及保留条件），reject 不传 summary。无法返工用 terminate，reason 至少 20 字；approve_redo_upstream 仅用于最近 redo_upstream 且符合 <redo_policy>。未用字段省略，不传 null，不提交 artifact。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write: {}
+deliver:
+  submit: verdict
+  spec: null
+  max_nudges: 2
+  max_turns: 100
+  timeout_min: 120
