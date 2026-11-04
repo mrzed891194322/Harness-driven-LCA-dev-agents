@@ -24,8 +24,8 @@ items:
 | 任务 | `query.md` 内容 |
 |------|-----------------|
 | **T4/T5 extract** | `input.query` 英文题原文；`source_url` 只在 `meta.yaml`（非附件）；知识另挂 `document_text`→`reference.md` |
-| **T2 triage** | 官方 user prompt：`MARKET` + `ROOT MATERIAL CONTEXT` 块 |
-| **T3 mapping** | 官方 user prompt：`Material` / `Description` / … + `Ecoinvent reference products`（`expected.options`） |
+| **T2 triage** | 官方 user prompt：`MARKET` + `ROOT MATERIAL CONTEXT` + 全量 `Ecoinvent activities` picklist（01 singleshot 对齐） |
+| **T3 mapping** | 官方 user prompt：`Material` / … + 全量 `Ecoinvent reference products` picklist（01 singleshot 对齐）；金标 `expected.options` 仍在 `options.json` 供 Exact-match top-1 |
 | **T1 decomposition** | 官方 user prompt：`Product` / `Description` / `Functional unit` + `List the BOM components.` |
 
 计划 `items[].content` = 该题面全文；`items[].title` 用上表英文任务名（见 `PLAN_ITEM_TITLE`）。
@@ -51,7 +51,7 @@ items:
 |----|-------------------|----------------------|--------------|
 | **extract** | `input.query` only | `document_text` → `reference.md`（knowledge） | `source_url` 元数据；PDF cache 可选核对 |
 | **T2 triage** | 官方 MARKET + ROOT CONTEXT | `pcfbench_input.json`（原 `input`） | — |
-| **T3 mapping** | 官方 Material/… + options 列表 | `pcfbench_input.json` + `options.json` | — |
+| **T3 mapping** | 官方 Material/… + 全量 picklist 题面 | `pcfbench_input.json` + `options.json`（金标封闭集） | — |
 
 上传走 `POST /api/references`，`types` 与文件一一对应。`run_batch.stage_case_references` 实现下列规则。
 

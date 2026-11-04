@@ -1,0 +1,14 @@
+title: LCI mapping · 01
+prompt: 将 mapping 写入交付路径后调用 `mcp__submit__submit`。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write:
+    produces: true
+deliver:
+  submit: artifact
+  spec: null
+  max_nudges: 2
+  max_turns: 100
+  timeout_min: 120

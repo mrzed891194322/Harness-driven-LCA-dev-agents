@@ -2,8 +2,6 @@
 
 LCI / mapping / triage 测评用的 orch / node / spec（与产品 `harness/` 同构）。
 
-
-> 注：`bom-extract` 01–04 已按「真薄 / 真薄+reviewer / 厚两技能 / 厚+reviewer」对齐；本目录 mapping/triage 本轮**未**跟，仍按下表旧语义。
 ## 档位（工作流名后加 01–04）
 
 | 档 | 含义 |
@@ -15,14 +13,14 @@ LCI / mapping / triage 测评用的 orch / node / spec（与产品 `harness/` �
 
 | API stem | 说明 | 状态 |
 | --- | --- | --- |
-| `lci-mapping-01` / `lci-triage-01` | 真·薄 | 已有 |
+| `lci-mapping-01` / `lci-triage-01` | 真·薄（extract-01 同级：官方英文 rule + 薄 executor + rules_skip/trim；import 全量 picklist 题面） | 已有 |
 | `lci-mapping-02` / `lci-triage-02` | 薄编排无 reviewer；注入同 best | 预留未建 |
 | `lci-mapping-03` | 封闭候选集映射（薄注入 + reviewer）；产物 `artifacts/mapping/mapping.json` | 已有 |
 | `lci-mapping-04` | 最好：短指针 spec + `lci-mapping-best` | 已有 |
 | `lci-triage-03` | PCFBench task2 映射分流（薄注入 + reviewer）；产物 `artifacts/triage/triage.json` | 已有 |
 | `lci-triage-04` | 最好：短指针 spec + `lci-triage-best` | 已有 |
 
-本轮仍以已有 **03 / 04** 为主；01/02 勿 invent。
+**02 / 03 / 04** 仍按上表旧语义，后续再对齐 extract 族。
 
 YAML 里的 `nodes:` / `produces.spec` 一律写**相对仓库根**的路径。API 开跑用 orch stem；`list_workflows` 会扫描本目录的 `workflows/orchestrations/`。
 

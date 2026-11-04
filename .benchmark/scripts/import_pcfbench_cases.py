@@ -6,7 +6,8 @@
 官方给法（与 PCFBench 一致）：
 - **extract**：plan/``query.md`` = ``input.query`` 题面-only；知识 = ``document_text`` → ``input/reference.md``；
   ``source_url`` 只写 ``meta.yaml``（非 agent 附件）。``--source-pdfs`` 可选落 ``.cache`` 供核对，非评测输入。
-- **T1/T2/T3**：plan = 官方英文 user prompt 题面-only；附件 = ``pcfbench_input.json``（mapping 另 ``options.json``）原件。
+- **T1/T2/T3**：plan = 官方英文 user prompt 题面-only；附件 = ``pcfbench_input.json``（mapping 另 ``options.json`` 金标封闭集，非题面列表）。
+- **T2/T3（01 singleshot 对齐）**：题面末尾追加全量 ecoinvent picklist（``pcfbench_official/ecoinvent_picklist.jsonl``）；mapping 打分仍用 ``expected.options``。
 
 跑批：extract 挂 ``reference.md`` ``type=knowledge``；T1/T2/T3 挂原件 ``type=bom``。
 
@@ -33,6 +34,36 @@ DEFAULT_CACHE = REPO / ".cache" / "benchmark"
 DEFAULT_OUT = REPO / ".benchmark" / "imported"
 # 本地旁路：.eval/data/pcfbench（.eval/* 已 ignore）
 FALLBACK_DATA = REPO / ".eval" / "data" / "pcfbench"
+
+ECOINVENT_PICKLIST_REL = Path(".benchmark/lci/pcfbench_official/ecoinvent_picklist.jsonl")
+
+
+def load_ecoinvent_picklist_names(repo: Path | None = None) -> list[str]:
+    """Load reference_product_name values from vendored picklist (file order, no filter)."""
+    root = repo or REPO
+    path = root / ECOINVENT_PICKLIST_REL
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing ecoinvent picklist: {path}")
+    names: list[str] = []
+    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            obj = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON in picklist {path}:{line_no}") from exc
+        if not isinstance(obj, dict):
+            raise ValueError(f"Expected JSON object in picklist {path}:{line_no}")
+        if "reference_product_name" not in obj:
+            raise ValueError(
+                f"Missing reference_product_name in picklist {path}:{line_no}"
+            )
+        names.append(str(obj["reference_product_name"]))
+    if not names:
+        raise ValueError(f"Empty ecoinvent picklist: {path}")
+    return names
+
 
 TASK_MAP: dict[str, dict[str, str]] = {
     "task1": {
@@ -129,8 +160,10 @@ def write_raw_input_json(case_dir: Path, inp: dict[str, Any]) -> None:
     )
 
 
-def pcfbench_triage_user_prompt(inp: dict[str, Any]) -> str:
-    """Official PCFBench triage user prompt (market + root context only)."""
+def pcfbench_triage_user_prompt(
+    inp: dict[str, Any], *, picklist_names: list[str] | None = None
+) -> str:
+    """Official PCFBench triage user prompt (market + root context; optional picklist)."""
     market = inp.get("market") or {}
     ctx = inp.get("material_context_data") or {}
     market_name = str(market.get("name") or "")
@@ -149,6 +182,8 @@ def pcfbench_triage_user_prompt(inp: dict[str, Any]) -> str:
         f"  name: {ctx_name if ctx_name not in (None, '') else 'Not provided'}\n"
         f"  description: {ctx_desc if ctx_desc not in (None, '') else 'Not provided'}\n"
     )
+    if picklist_names is not None:
+        body += "\n\nEcoinvent activities:\n" + "\n".join(picklist_names)
     return body
 
 
@@ -446,8 +481,9 @@ def write_mapping_case(
     expected = row.get("expected_output") or {}
     material = str(inp.get("material_name") or "").strip()
     options = list((expected or {}).get("options") or [])
-    # 题面-only：官方 mapping user prompt；封闭集用 expected.options（与打分同源）
-    query_md = pcfbench_mapping_user_prompt(inp, options=options)
+    picklist_names = load_ecoinvent_picklist_names()
+    # 题面-only：官方 mapping user prompt；列表 = 全量 picklist（金标 options 仍写 options.json）
+    query_md = pcfbench_mapping_user_prompt(inp, options=picklist_names)
     meta = {
         "case_id": case_id,
         "pcfbench_task": task_meta["pcfbench_task"],
@@ -515,8 +551,9 @@ def write_triage_case(
     market = inp.get("market") or {}
     market_name = str((market or {}).get("name") or "").strip()
     should_map = bool(expected.get("should_map"))
-    # 题面-only：官方 triage user prompt；禁止自拟中文壳 / 交卷路径说明
-    query_md = pcfbench_triage_user_prompt(inp)
+    picklist_names = load_ecoinvent_picklist_names()
+    # 题面-only：官方 triage user prompt + 全量 picklist；禁止自拟中文壳 / 交卷路径说明
+    query_md = pcfbench_triage_user_prompt(inp, picklist_names=picklist_names)
     meta = {
         "case_id": case_id,
         "pcfbench_task": task_meta["pcfbench_task"],
@@ -631,9 +668,11 @@ def import_task(
                 dest, case_id=case_id, row=row, task_meta=task_meta, dry_run=dry_run
             )
         info["pcfbench_id"] = upstream
-        info["path"] = str(
-            (dest / case_id).relative_to(REPO) if not dry_run else dest / case_id
-        )
+        case_path = dest / case_id
+        if not dry_run and case_path.is_relative_to(REPO):
+            info["path"] = str(case_path.relative_to(REPO))
+        else:
+            info["path"] = str(case_path)
         written.append(info)
     if ids is not None:
         got = {w["pcfbench_id"] for w in written}

@@ -1,9 +1,5 @@
 description: |
-  # 封闭候选集映射（PCFBench task3 · 01 真薄）
-
-  只根据题面物料与**封闭候选名单**选一个过程名，写 `workspace/artifacts/mapping/mapping.json`。
-  不查 openLCA、不依赖 BOM。每条 `items[]` 填 `item_id` 与所选 `process_name`（及 schema 要求字段）；
-  禁止编造集合外名字。完成后 submit。
+  写到 `workspace/artifacts/mapping/mapping.json`。每条 `items[]` 的 `process_name` 须为题面 ecoinvent 列表中的 exact string，完成后 submit。
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   $id: urn:harness:spec:lci-mapping-01
@@ -17,30 +13,8 @@ schema:
       items:
         type: object
         additionalProperties: false
-        required:
-          - item_id
-          - flow_name
-          - flow_id
-          - process_name
-          - process_id
-          - provider_name
-          - provider_id
-          - geography_requested
-          - geography_selected
-          - selection_reason
-          - candidates
+        required: [process_name]
         properties:
           item_id: {type: string, minLength: 1}
-          flow_name: {type: ["string", "null"]}
-          flow_id: {type: ["string", "null"]}
-          process_name: {type: ["string", "null"]}
-          process_id: {type: ["string", "null"]}
-          provider_name: {type: ["string", "null"]}
-          provider_id: {type: ["string", "null"]}
-          geography_requested: {type: ["string", "null"]}
-          geography_selected: {type: ["string", "null"]}
-          selection_reason: {type: string, minLength: 1}
-          candidates:
-            type: array
-            items: {type: string}
+          process_name: {type: string, minLength: 1}
 checks: []

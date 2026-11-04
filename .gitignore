@@ -64,6 +64,7 @@ harness/.user/
 /BENCHMARK_CACHE/
 benchmark-cache/
 ecoinvent_picklist.jsonl
+!/.benchmark/lci/pcfbench_official/ecoinvent_picklist.jsonl
 task1_decomposition.jsonl
 task2_triage.jsonl
 task3_mapping.jsonl

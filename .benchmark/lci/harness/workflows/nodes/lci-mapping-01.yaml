@@ -2,5 +2,16 @@ id: lci-mapping-01
 title: 封闭候选集映射（01 · 真薄）
 produces:
   - {spec: .benchmark/lci/harness/specs/lci-mapping-01.yaml, path: mapping/mapping.json}
+rules_skip:
+  - rules/global/10-language.yaml
+rules_trim:
+  rules/global/00-redlines.yaml: [plan_readonly, openlca_scope, network_sources]
+  rules/global/20-knowledge.yaml: [read_on_demand_cite, plan_overrides_conflict]
+  rules/global/30-submit-writer.yaml: [submit_required, write_content_string]
+user_inject:
+  omit_sections: [inputs, redo_policy]
 agents:
-  executor: executor
+  executor:
+    agent: .benchmark/lci/harness/workflows/agents/lci-mapping-executor-01.yaml
+    rules:
+      - rules/lca/pcfbench-mapping-official.yaml
