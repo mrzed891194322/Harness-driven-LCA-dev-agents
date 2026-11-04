@@ -1,5 +1,5 @@
 description: |
-  写到 `workspace/artifacts/triage/triage.json`（必有 `should_map`；可选 `confidence`、`candidate_name`、`rationale`），完成后 submit。
+  写到 `workspace/artifacts/triage/triage.json`（必有 `should_map`、`rationale`；可选 `confidence`、`candidate_name`），完成后 submit。
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   $id: urn:harness:spec:lci-triage-01
