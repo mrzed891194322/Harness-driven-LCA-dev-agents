@@ -1063,6 +1063,8 @@ def copy_result_tree(
     workspace: Path,
     status: dict,
     extra: dict[str, Any],
+    *,
+    workflow: str,
 ) -> Path:
     out = (
         REPO
@@ -1080,15 +1082,17 @@ def copy_result_tree(
     (out / "meta.json").write_text(
         json.dumps(extra, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    # 默认把常见评测产物都拷走（缺文件则跳过）
-    for rel in (CLAIMS_REL, BOM_REL, MAPPING_REL):
+    # 默认把常见评测产物 + 当前 workflow 的 ARTIFACT_RELS 都拷走（缺文件则跳过）
+    seen: set[Path] = set()
+    for rel in (CLAIMS_REL, BOM_REL, MAPPING_REL) + ARTIFACT_RELS.get(workflow, ()):
+        if rel in seen:
+            continue
+        seen.add(rel)
         src = workspace / rel
         if src.is_file():
             dest = out / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
-    # Also copy workflow ARTIFACT_RELS primary (triage/decomposition) when present.
-    # CLAIMS/BOM/MAPPING already covered above; skip duplicates.
     # Session injection + work-record: live _run first, then durable audit/<run_id>.
     _copy_injection_and_work_record(workspace, out, run_id)
     return out
@@ -1257,7 +1261,14 @@ def run_one(
         "tokens": tokens,
     }
     out_dir = copy_result_tree(
-        category, subcategory, case_id, str(rid or "norun"), workspace, st, meta
+        category,
+        subcategory,
+        case_id,
+        str(rid or "norun"),
+        workspace,
+        st,
+        meta,
+        workflow=workflow,
     )
     tee.log(f"  result_dir={out_dir.relative_to(REPO)}")
 
