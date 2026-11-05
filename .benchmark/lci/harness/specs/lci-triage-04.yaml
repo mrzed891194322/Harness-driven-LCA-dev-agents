@@ -1,0 +1,28 @@
+description: |
+  ## 方法（短指针）
+
+  - executor：`harness/tools/skills/lci-triage-flow-04/SKILL.md`（写 triage 前在 executor 中间目录写双轴 checklist.json → 合成决策 → 写 triage；04 executor 无 MCP）
+  - reviewer：`harness/tools/skills/lci-triage-review/SKILL.md`（读 checklist + triage.json，手检 picklist 逐字命中与 FP/FN 闸门）
+
+  ## 交付物
+
+  写到 `workspace/artifacts/triage/triage.json`，形状可对齐 `.benchmark/schemas/triage_deliverable.schema.json`。
+
+  ## 验收
+
+  - JSON 通过下方 schema；内容按两角色共同挂载的 `rules/lca/pcfbench-triage-official.yaml`，操作按上述技能。
+  - reviewer 必须独立核对题面 picklist 与双轴 checklist；`confidence` 高不足以代替清单证据。
+  - 宿主仍强制 JSON schema、角色权限及 reviewer approve 后才能完成；缺产物、blocked、编造清单外活动名不得视为完成。
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  $id: urn:harness:spec:lci-triage-04
+  title: Mapping triage deliverable (04 · trio + skills)
+  type: object
+  additionalProperties: false
+  required: [should_map, rationale]
+  properties:
+    should_map: {type: boolean}
+    confidence: {type: ["number", "null"], minimum: 0, maximum: 1}
+    rationale: {type: string, minLength: 1}
+    candidate_name: {type: ["string", "null"]}
+checks: []

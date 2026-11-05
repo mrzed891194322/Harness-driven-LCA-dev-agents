@@ -9,7 +9,7 @@ LCI / mapping / triage 测评用的 orch / node / spec（与产品 `harness/` �
 | **01** | 真·薄 |
 | **02** | 薄编排（无 reviewer）；提示词注入同 best |
 | **03** | 薄注入，但有 reviewer 编排 |
-| **04** | 最好 |
+| **04** | 最好（对齐 extract-04：orch + exec + rev + 分挂技能） |
 
 | API stem | 说明 | 状态 |
 | --- | --- | --- |
@@ -18,9 +18,9 @@ LCI / mapping / triage 测评用的 orch / node / spec（与产品 `harness/` �
 | `lci-mapping-03` | 封闭候选集映射（薄注入 + reviewer）；产物 `artifacts/mapping/mapping.json` | 已有 |
 | `lci-mapping-04` | 最好：短指针 spec + `lci-mapping-best` | 已有 |
 | `lci-triage-03` | PCFBench task2 映射分流（薄注入 + reviewer）；产物 `artifacts/triage/triage.json` | 已有 |
-| `lci-triage-04` | 最好：短指针 spec + `lci-triage-best` | 已有 |
+| `lci-triage-04` | 映射分流（官方 rule + orch/exec/rev；`lci-triage-flow-04` / `lci-triage-review`）；产物 `artifacts/triage/triage.json` | 已有 |
 
-**02 / 03 / 04** 仍按上表旧语义，后续再对齐 extract 族。
+**02 / mapping-04 / triage-03** 仍按上表旧语义；**triage-04** 已对齐 bom-extract-04 三角色槽位。`lci-triage-best` 技能仍保留于磁盘，不再挂接 04。
 
 YAML 里的 `nodes:` / `produces.spec` 一律写**相对仓库根**的路径。API 开跑用 orch stem；`list_workflows` 会扫描本目录的 `workflows/orchestrations/`。
 

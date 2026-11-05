@@ -269,3 +269,53 @@ def test_benchmark_lci_triage_orch_resolves():
     assert "bom-extract-04" in list_workflows(REPO)
     assert "lci-mapping-04" in list_workflows(REPO)
 
+
+def test_lci_triage_04_mirror_bom_extract_04():
+    """04: LangGraph trio + split skills + official triage rule (parallel to bom-extract-04)."""
+    _, n03 = load_workflow(REPO, "lci-triage-03")
+    _, n04 = load_workflow(REPO, "lci-triage-04")
+    assert set(n03[0].agents) == {"executor", "reviewer"}
+    assert n03[0].inject
+    assert set(n04[0].agents) == {"orchestrator", "executor", "reviewer"}
+    assert n04[0].inject == []
+    skip_lang = "rules/global/10-language.yaml"
+    trim_red = "rules/global/00-redlines.yaml"
+    official_rule = "rules/lca/pcfbench-triage-official.yaml"
+    assert skip_lang in n04[0].rules_skip
+    assert trim_red in n04[0].rules_trim
+    assert n04[0].produces[0].spec == ".benchmark/lci/harness/specs/lci-triage-04.yaml"
+    assert n04[0].produces[0].path == "triage/triage.json"
+    assert n04[0].flow.start == "orchestrator"
+    assert [e.model_dump(exclude_none=True, by_alias=True) for e in n04[0].flow.edges] == default_flow(
+        n04[0].agents
+    )["edges"]
+    for role in ("orchestrator", "executor", "reviewer"):
+        assert n04[0].agents[role].agent.endswith(f"lci-triage-{role}-04.yaml")
+    assert n04[0].kind("orchestrator") == "artifact"
+    assert n04[0].kind("executor") is None
+    assert n04[0].kind("reviewer") == "verdict"
+    assert n04[0].agents["orchestrator"].tools.mcp == []
+    assert n04[0].agents["executor"].tools.mcp == []
+    assert n04[0].agents["reviewer"].tools.mcp == []
+    assert n04[0].agents["executor"].tools.skills == ["lci-triage-flow-04"]
+    assert n04[0].agents["reviewer"].tools.skills == ["lci-triage-review"]
+    rsf = "rules/delivery/read-skills-first.yaml"
+    for role in ("executor", "reviewer"):
+        assert n04[0].agents[role].rules == [rsf, official_rule]
+    assert n04[0].agents["orchestrator"].rules == []
+    assert (
+        "runs/lci-triage-04/reviewer/attempt_<N>/submit.json"
+        in n04[0].agents["orchestrator"].definition.prompt
+    )
+    assert "workspace/artifacts/triage/triage.json" in n04[0].agents["orchestrator"].definition.prompt
+    s04 = load_spec(REPO, n04[0].produces[0].spec)
+    assert s04.checks == []
+    assert s04.schema_["required"] == ["should_map", "rationale"]
+    s01 = load_spec(REPO, ".benchmark/lci/harness/specs/lci-triage-01.yaml")
+    assert s04.schema_["properties"] == s01.schema_["properties"]
+    assert s04.schema_["additionalProperties"] == s01.schema_["additionalProperties"]
+    policy = load_rule(REPO, official_rule).prompt.strip()
+    for role in ("executor", "reviewer"):
+        system = Injector(REPO).system(n04[0], role)
+        assert system.count(policy) == 1
+

@@ -1,0 +1,11 @@
+title: LCI triage · 执行者（04 · 写作者助手）
+prompt: |
+  - 职责：按 `<plan>` 题面（MARKET + ROOT MATERIAL CONTEXT + Ecoinvent activities picklist），判定直接映射 vs 继续分解，**写入**指定交付路径。
+  - 按已注入的官方 PCFBench triage 口径判断内容，按 `lci-triage-flow-04` 执行写产物前 checklist、决策合成、自查和返工。
+  - **不要调用 `mcp__submit__submit`**（本角色无交卷）；写完文件后结束本回合，由审核者 / 编排者继续。
+access:
+  read:
+    knowledge: true
+    artifacts: true
+  write:
+    produces: true

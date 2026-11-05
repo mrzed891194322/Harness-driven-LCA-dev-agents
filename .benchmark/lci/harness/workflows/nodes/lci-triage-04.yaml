@@ -1,17 +1,26 @@
 id: lci-triage-04
-title: 映射分流判定（04 · 最好）
+title: 映射分流判定（04 · 技能+三件套）
 produces:
-  - {spec: .benchmark/lci/harness/specs/lci-triage-best.yaml, path: triage/triage.json}
-inject:
-  - rules/delivery/status.yaml
-  - rules/delivery/provenance.yaml
-  - rules/lca/knowledge-files.yaml
+  - {spec: .benchmark/lci/harness/specs/lci-triage-04.yaml, path: triage/triage.json}
+rules_skip:
+  - rules/global/10-language.yaml
+rules_trim:
+  rules/global/00-redlines.yaml: [plan_readonly, openlca_scope, network_sources]
+  rules/global/20-knowledge.yaml: [read_on_demand_cite, plan_overrides_conflict]
 agents:
+  orchestrator:
+    agent: .benchmark/lci/harness/workflows/agents/lci-triage-orchestrator-04.yaml
   executor:
-    agent: executor
+    agent: .benchmark/lci/harness/workflows/agents/lci-triage-executor-04.yaml
     tools:
-      skills: [lci-triage-best]
+      skills: [lci-triage-flow-04]
+    rules:
+      - rules/delivery/read-skills-first.yaml
+      - rules/lca/pcfbench-triage-official.yaml
   reviewer:
-    agent: reviewer
+    agent: .benchmark/lci/harness/workflows/agents/lci-triage-reviewer-04.yaml
     tools:
-      skills: [lci-triage-best]
+      skills: [lci-triage-review]
+    rules:
+      - rules/delivery/read-skills-first.yaml
+      - rules/lca/pcfbench-triage-official.yaml

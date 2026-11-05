@@ -16,4 +16,6 @@
 | `bom-claims-ops` | （档内保留；04 不挂） | 单位 / 只交所问 / 交卷 |
 | `bom-claims-best` | （无挂接） | **兼容别名** |
 | `lci-mapping-best` | `lci-mapping-04` | （本轮未拆） |
-| `lci-triage-best` | `lci-triage-04` | （本轮未拆） |
+| `lci-triage-flow-04` | `lci-triage-04` executor | 写 triage 前双轴 checklist → 合成 should_map |
+| `lci-triage-review` | `lci-triage-04` reviewer | 手检 picklist 逐字 + FP/FN 闸；无 MCP |
+| `lci-triage-best` | （无挂接） | 兼容保留；04 已改 flow/review 分挂 |
