@@ -1093,6 +1093,15 @@ def copy_result_tree(
             dest = out / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
+    # Triage keeps intermediates in its access-allowed node/agent directory.
+    # Promote only its checklist to the result notes layout; deliverables stay put.
+    if workflow == "lci-triage-04":
+        checklist_rel = Path("lci-triage-04/executor/checklist.json")
+        src = workspace / "runs" / checklist_rel
+        if src.is_file():
+            dest = out / "runs" / "_run" / "notes" / checklist_rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
     # Session injection + work-record: live _run first, then durable audit/<run_id>.
     _copy_injection_and_work_record(workspace, out, run_id)
     return out

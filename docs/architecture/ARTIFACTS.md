@@ -15,6 +15,11 @@
 
 A fresh full-lca clears `artifacts/` (except `README.md`), `runs/` (keeps the lock) and `tmp/`.
 
+For benchmark `lci-triage-04`, executor and reviewer use
+`workspace/runs/lci-triage-04/executor/checklist.json`. `copy_result_tree` promotes this file to
+`runs/_run/notes/lci-triage-04/executor/checklist.json` relative to the case/run result directory.
+The deliverable remains `artifacts/triage/triage.json`; a missing checklist is skipped during copy.
+
 ## revise-lca: rev files next to the originals
 - No `artifacts/previous/`. A fresh revise keeps every artifact untouched (it clears only `runs/` and `tmp/`).
 - Unit of revision = one entry directly inside a produce dir: a file (`bom/bom.json`, `bom/bom.md`,

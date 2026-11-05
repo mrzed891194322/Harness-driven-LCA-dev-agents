@@ -1,8 +1,10 @@
-"""run_batch.copy_result_tree must persist workflow ARTIFACT_RELS (triage/decomposition)."""
+"""run_batch.copy_result_tree persists deliverables and triage decision evidence."""
 
 from pathlib import Path
 import importlib.util
 import json
+
+import pytest
 
 REPO = Path(__file__).resolve().parents[3]
 PATH = REPO / ".benchmark/scripts/run_batch.py"
@@ -64,6 +66,46 @@ def test_copy_result_tree_includes_decomposition_json(tmp_path, monkeypatch):
         payload={"nodes": []},
     )
     assert (out / rel).is_file()
+
+
+@pytest.mark.parametrize(
+    ("workflow", "has_checklist"),
+    [("lci-triage-04", True), ("lci-triage-04", False), ("lci-triage-01", True)],
+)
+def test_copy_result_tree_promotes_triage_04_checklist(
+    tmp_path, monkeypatch, workflow, has_checklist
+):
+    workspace = tmp_path / "workspace"
+    source = workspace / "runs/lci-triage-04/executor/checklist.json"
+    checklist = {
+        "axis_a": {
+            "candidates": ["listed activity"],
+            "reasonable_direct_match": "yes",
+            "reason": "候选覆盖整体",
+        },
+        "axis_b": {"must_decompose_first": "no", "reason": "无实质拆分需求"},
+        "decision_preview": True,
+    }
+    if has_checklist:
+        source.parent.mkdir(parents=True)
+        source.write_text(json.dumps(checklist, ensure_ascii=False) + "\n", encoding="utf-8")
+    payload = {"should_map": True, "rationale": "Direct match; no decomposition needed."}
+    out, artifact_rel = _copy_in_tmp_repo(
+        tmp_path,
+        monkeypatch,
+        workflow=workflow,
+        rel=Path("artifacts/triage/triage.json"),
+        payload=payload,
+    )
+    dest = out / "runs/_run/notes/lci-triage-04/executor/checklist.json"
+    if workflow == "lci-triage-04" and has_checklist:
+        assert dest.read_bytes() == source.read_bytes()
+        assert json.loads(dest.read_text(encoding="utf-8")) == checklist
+        assert not (out / "runs/lci-triage-04/executor/checklist.json").exists()
+    else:
+        assert not dest.exists()
+    assert json.loads((out / artifact_rel).read_text(encoding="utf-8")) == payload
+    assert not (out / "runs/_run/artifacts/triage/triage.json").exists()
 
 
 def test_copy_result_tree_still_includes_mapping_without_duplicate(tmp_path, monkeypatch):
