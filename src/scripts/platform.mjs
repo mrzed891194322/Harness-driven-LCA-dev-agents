@@ -10,7 +10,36 @@ export const REPO_PROCESS_PATTERNS = [
 ];
 
 export function matchRepoProcess(args) {
-  return REPO_PROCESS_PATTERNS.find((pattern) => pattern.re.test(args))?.kind ?? null;
+  // Match the executable/entry point, never arbitrary later arguments (e.g. a
+  // Codex prompt describing "backend.api.app:app" or a shell -c script).
+  const words = Array.from(String(args).matchAll(/"([^"\n]*)"|'([^'\n]*)'|(\S+)/g),
+    (m) => m[1] ?? m[2] ?? m[3]);
+  const basename = (s = "") => s.replaceAll("\\", "/").split("/").at(-1).toLowerCase();
+  let exe = basename(words.shift());
+  if (exe === "uv" || exe === "uv.exe") {
+    if (words.shift() !== "run") return null;
+    exe = basename(words.shift());
+  }
+  if (/^next-server\b/.test(exe)) return "web";
+  if (/^uvicorn(?:\.exe)?$/.test(exe)) {
+    return words[0] === "backend.api.app:app" ? "backend" : null;
+  }
+  if (/^python(?:\d+(?:\.\d+)*)?(?:\.exe)?$/.test(exe)) {
+    if (words[0] === "-m" && words[1] === "uvicorn") {
+      return words[2] === "backend.api.app:app" ? "backend" : null;
+    }
+    const entry = words[0] ?? "";
+    if (/[/\\]uvicorn(?:\.exe)?$/.test(entry)) {
+      return words[1] === "backend.api.app:app" ? "backend" : null;
+    }
+    return REPO_PROCESS_PATTERNS.filter(p => ["orchestrator", "mcp"].includes(p.kind))
+      .find(p => p.re.test(entry))?.kind ?? null;
+  }
+  if (/^node(?:\.exe)?$/.test(exe)) {
+    return REPO_PROCESS_PATTERNS.filter(p => ["pi-runtime", "web", "mcp"].includes(p.kind))
+      .find(p => p.re.test(p.kind === "web" ? `${words[0] ?? ""} ${words[1] ?? ""}` : words[0] ?? ""))?.kind ?? null;
+  }
+  return null;
 }
 
 /** Windows ships bash.exe that starts another environment. Never use it. */
