@@ -1,3 +1,4 @@
+import { attachPreflightMetadata } from "./http_metadata.js";
 import crypto from "node:crypto";
 import { TurnObserver, type TurnOutcome } from "./turn_outcome.js";
 import fs from "node:fs";
@@ -349,6 +350,15 @@ async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession
   fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
 
   const modelRuntime = await createModelRuntimeForSpec(spec);
+  if (spec.run_id === "preflight" && spec.node === "preflight" &&
+      spec.model_profile?.provider === "Tongji" && spec.model_profile?.model_id === "Qwen3.8-27B") {
+    const diagnosticFile = path.join(spec.resource_bindings.project_root ?? process.cwd(),
+      ".local", "diagnostics", "tongji-http-metadata.jsonl");
+    attachPreflightMetadata(modelRuntime, (record) => {
+      fs.mkdirSync(path.dirname(diagnosticFile), { recursive: true });
+      fs.appendFileSync(diagnosticFile, JSON.stringify(record) + "\n", { mode: 0o600 });
+    }, spec.session_key);
+  }
   const model = await resolveModel(modelRuntime, spec.model_profile);
   if (!model) {
     throw new Error(
