@@ -105,3 +105,37 @@ def test_persisted_history_resumed_and_new_run_isolated(wf_root, role):
     assert other.session_storage["session_file"] != str(history)
     assert not driver.run_turn(new_req).error
     assert [m for m, _ in runtime.calls].count("session.create") == 1
+
+
+def test_each_accepted_dispatch_routes_once_and_approve_precedes_done(wf_root):
+    node = _trio(wf_root)
+
+    class DispatchRuntime(FakeRuntime):
+        def __init__(self):
+            super().__init__()
+            self.roles = []
+            self.dispatch = iter(["assign_executor", "assign_reviewer", "done"])
+
+        def request(self, method, params=None, *, timeout=0):
+            if method == "session.run_turn":
+                spec = next(p["launch_spec"] for _, p in reversed(self.calls)
+                            if p.get("launch_spec", {}).get("session_key") == params["session_key"])
+                role = spec["agent"]
+                self.roles.append(role)
+                self.submit = None
+                if role == "orchestrator":
+                    self.submit = {"status": next(self.dispatch), "summary": "dispatch"}
+                    if self.submit["status"] == "done":
+                        self.submit["artifacts"] = ["out/p.md"]
+                elif role == "reviewer":
+                    self.submit = {"verdict": "approve"}
+            return super().request(method, params, timeout=timeout)
+
+    runtime = DispatchRuntime()
+    driver = PiDriver(wf_root, MODEL, runtime=runtime)
+    ctx = NodeContext(workspace=wf_root / "workspace", run_id="dispatch-once", driver=driver,
+                      prompt_builder=lambda *a: "continue",
+                      specs={spec_ref("paragraph"): load_spec(wf_root, spec_ref("paragraph"))},
+                      events=EventLog(wf_root / "workspace"), host_checks=lambda n: [], retry_interval=0)
+    assert NodeGraph(node, ctx).run().kind == "passed"
+    assert runtime.roles == ["orchestrator", "executor", "orchestrator", "reviewer", "orchestrator"]

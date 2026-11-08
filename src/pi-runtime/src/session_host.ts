@@ -44,6 +44,7 @@ import {
 } from "./injection.js";
 import { exportTranscript, type TranscriptState } from "./transcript.js";
 import { SettleGuard, settlePolicyOf } from "./settle_guard.js";
+import { installSubmitBoundary } from "./submit_boundary.js";
 import { installArgCoerceOnSession } from "./arg_coerce.js";
 
 const PROTOCOL_VERSION = 1;
@@ -393,11 +394,11 @@ async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession
     systemPrompt: systemPromptFromSpec(spec),
     extensionFactories: [
       (pi) => {
-        pi.on("tool_call", (event) => {
+        pi.on("tool_call", (event, ctx) => {
           const input = event.input as Record<string, unknown>;
           const pathBlock = guard.onToolCall(event.toolName, input);
           if (pathBlock) return pathBlock;
-          if (settle) return settle.onToolCall(event.toolName, input, () => {});
+          if (settle) return settle.onToolCall(event.toolName, input, () => ctx.abort());
           return undefined;
         });
         // MCP may re-register tools after connect/reconnect; re-wrap prepareArguments.
@@ -406,6 +407,9 @@ async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession
         });
         hooks.guardMounted = true;
         if (settle) {
+          pi.on("tool_result", (_event, ctx) => {
+            settle.onToolResult(() => ctx.abort());
+          });
           pi.on("turn_end", (event, ctx) => {
             settle.onTurnEnd(() => ctx.abort(), event.message as { stopReason?: string; errorMessage?: string });
             return undefined;
@@ -453,6 +457,9 @@ async function createPiSessionOnce(spec: SessionLaunchSpec): Promise<LiveSession
     noTools: tools.length === 0 ? "all" : undefined,
     thinkingLevel: thinkingLevelOf(spec),
   });
+  // A submit commits a host handoff. No sibling tool may still be running or
+  // start after that commit (including writes, not just repeated submits).
+  if (settle) installSubmitBoundary(session.agent, settle);
   // Emits session_start: the MCP extension only connects its servers (and registers
   // mcp__<server>__<tool>) on that event; the first prompt then waits for direct tools.
   await session.bindExtensions({});
@@ -729,6 +736,8 @@ export async function handleRuntimeMethod(
     if (!session) {
       throw new Error(`session ${key} has no live Pi session`);
     }
+    // Never reset a live segment's guard or let SDK queue a second host prompt.
+    if (!session.isIdle) throw new Error(`session ${key} has an unsettled turn`);
     let text = "";
     if (live.guardSink) {
       live.guardSink.emit = (record) => {
@@ -891,8 +900,9 @@ export async function handleRuntimeMethod(
     if (!session) {
       return { cancelled: false };
     }
+    const was_active = !session.isIdle;
     await session.abort();
-    return { cancelled: true };
+    return { cancelled: true, was_active };
   }
   if (method === "runtime.shutdown") {
     if (!shutdownRequest) {

@@ -238,3 +238,60 @@ def test_model_retry_written_live_once_and_error_cleared_on_submit(wf_root):
     assert log.count('"model_retry"') == 1
     assert res.submit is not None and res.error == ""
     assert rt.handlers == []
+
+
+def test_lost_reply_commit_recovered_after_idle_fence_without_redispatch(wf_root):
+    node = _setup(wf_root)
+
+    class LostReply(FakeRuntime):
+        def request(self, method, params=None, *, timeout=0):
+            result = super().request(method, params, timeout=timeout)
+            if method == "session.run_turn":
+                raise RuntimeError("reply lost after submit committed")
+            return result
+
+    runtime = LostReply(submit={"status": "assign_executor", "summary": "first"})
+    driver = PiDriver(wf_root, MODEL, runtime=runtime)
+    req = _req(wf_root, node)
+    assert driver.run_turn(req).error
+    recovered = driver.run_turn(req)
+    assert recovered.submit["summary"] == "first"
+    assert not recovered.error
+    assert [m for m, _ in runtime.calls].count("session.run_turn") == 1
+    assert [m for m, _ in runtime.calls].count("session.cancel") == 1
+    assert not (wf_root / "workspace/runs/n1/executor/submit.json").exists()
+
+
+def test_failed_idle_fence_preserves_commit_and_does_not_retry(wf_root):
+    node = _setup(wf_root)
+    runtime = FakeRuntime(raise_on="session.cancel")
+    driver = PiDriver(wf_root, MODEL, runtime=runtime)
+    req = _req(wf_root, node)
+    spec, target = driver.launch_spec(req)
+    target.write_text('{"status":"assign_executor","summary":"first"}')
+    driver.live.add(spec.session_key)
+    result = driver.run_turn(req)
+    assert result.aborted and "did not settle" in result.error
+    assert target.exists()
+    assert [m for m, _ in runtime.calls] == ["session.cancel"]
+
+
+def test_cancelled_inflight_segment_never_reuses_commit_slot(wf_root):
+    node = _setup(wf_root)
+
+    class Inflight(FakeRuntime):
+        def request(self, method, params=None, *, timeout=0):
+            self.calls.append((method, params))
+            assert method == "session.cancel"
+            return {"cancelled": True, "was_active": True}
+
+    runtime = Inflight()
+    driver = PiDriver(wf_root, MODEL, runtime=runtime)
+    req = _req(wf_root, node)
+    spec, target = driver.launch_spec(req)
+    target.write_text('{"status":"assign_executor","summary":"late"}')
+    driver.live.add(spec.session_key)
+    result = driver.run_turn(req)
+    assert result.aborted and "retry suppressed" in result.error
+    assert target.exists()
+    assert len(runtime.calls) == 1

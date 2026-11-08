@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import time
+import tempfile
 from pathlib import Path
 from typing import Literal
 
@@ -59,10 +60,24 @@ def _accept(payload: dict) -> dict:
         raise ToolError("WORKFLOW_SUBMIT_FILE 未设置，无法落盘 submit.json")
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(".tmp")
-    tmp.write_text(json.dumps({**payload, "submitted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")},
-                              ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(target)
+    # Publish complete JSON atomically without replacing an earlier accepted handoff.
+    # Unique staging files also protect against concurrent MCP calls/processes.
+    # The driver archives the winner only after the SDK has become idle.
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=target.parent,
+                                     prefix=".submit-", delete=False) as fh:
+        tmp = Path(fh.name)
+        try:
+            json.dump({**payload, "submitted_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")},
+                      fh, ensure_ascii=False, indent=2)
+            fh.flush()
+            os.fsync(fh.fileno())
+            try:
+                os.link(tmp, target)
+            except FileExistsError:
+                return {"ok": True, "accepted": False, "already_submitted": True,
+                        "message": "本轮已有已接受提交；保留首次提交，等待宿主交接。"}
+        finally:
+            tmp.unlink(missing_ok=True)
     return {"ok": True, "accepted": True, "message": "已提交，本轮结束，请停止调用工具。"}
 
 

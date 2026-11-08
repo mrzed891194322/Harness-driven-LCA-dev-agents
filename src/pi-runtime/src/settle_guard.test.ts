@@ -185,3 +185,25 @@ test("require_submit false settles without submit file", async () => {
   g.begin(() => {});
   assert.equal(await g.beforeSettle(), undefined);
 });
+
+test("handoff abort is requested once, independent of tool name/summary; next segment resets", () => {
+  let exists = false;
+  let aborts = 0;
+  const g = new SettleGuard(policy, () => exists);
+  g.begin(() => {});
+  g.onToolResult(() => aborts++);
+  assert.equal(aborts, 0);
+  exists = true;
+  g.onToolResult(() => aborts++);
+  assert.equal(g.onToolCall("read", {}, () => aborts++)?.block, true);
+  g.onToolResult(() => aborts++);
+  assert.equal(aborts, 1);
+  assert.equal(g.summary().abort_reason, "");
+  exists = false;
+  g.begin(() => {});
+  assert.equal(g.onToolCall("mcp__submit__submit", { summary: "new segment" }), undefined);
+  exists = true;
+  g.onToolResult(() => aborts++);
+  assert.equal(aborts, 2);
+  g.clear();
+});

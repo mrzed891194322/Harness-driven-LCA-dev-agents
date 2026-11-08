@@ -67,6 +67,19 @@ export class SettleGuard {
   /** Live listener for each log entry (I-31): pi-runtime streams it to the host as it happens. */
   notify: ((entry: { ts: string; kind: string; detail?: string }) => void) | null = null;
   private lastError = "";
+  private handoffRequested = false;
+
+  /** Called after a tool has settled. The durable commit, not model text, is authoritative.
+   * Request abort synchronously; never await session.abort inside an SDK hook (it waits
+   * for this very hook to finish). session.prompt remains the outer idle barrier.
+   */
+  onToolResult(abort: () => void): void {
+    if (!this.submitted() || this.handoffRequested) return;
+    this.handoffRequested = true;
+    this.clear();
+    this.note("handoff", "accepted submit: ending host turn");
+    abort();
+  }
 
   constructor(
     private policy: SettlePolicy,
@@ -98,6 +111,7 @@ export class SettleGuard {
     this.log = [];
     this.modelErrors = 0;
     this.lastError = "";
+    this.handoffRequested = false;
     this.lastToolFp = "";
     this.sameToolStreak = 0;
     this.seenRejections = this.rejections();
@@ -126,6 +140,10 @@ export class SettleGuard {
 
   /** Consecutive identical tool calls (name+args). Returns block reason when limit hit. */
   onToolCall(toolName: string, input: Record<string, unknown>, abort?: () => void): { block: true; reason: string } | undefined {
+    if (this.submitted()) {
+      this.onToolResult(abort ?? (() => {}));
+      return { block: true, reason: "accepted submit: host handoff" };
+    }
     const limit = this.policy.same_tool_limit ?? 0;
     if (!limit || limit < 1) return undefined;
     let fp = toolName;
@@ -190,6 +208,8 @@ export class SettleGuard {
       this.modelErrors += 1;
       this.note("model_retry", `${this.modelErrors}/${delays.length} after ${wait}s: ${err}`);
       await this.sleep(wait * 1000);
+      // Cancellation/commit may arrive while waiting; never revive an aborted segment.
+      if (this.abortReason || this.submitted()) return undefined;
       return {
         entries: [{ type: "custom_message", customType: "workflow_nudge", content: `上一次模型请求失败（${err}）。从中断处继续完成任务，完成后调用 submit。`, display: true }],
         continue: true,

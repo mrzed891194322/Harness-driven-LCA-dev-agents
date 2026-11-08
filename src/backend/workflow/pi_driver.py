@@ -227,10 +227,27 @@ class PiDriver:
 
     # ---------- turn ----------
     def run_turn(self, req: TurnRequest) -> TurnResult:
+        # A transport failure may return before the previous SDK/MCP segment has
+        # settled. Fence it BEFORE rewriting context or removing its commit. A
+        # failed fence must not cause an automatic retry against a still-live turn.
+        runtime_key = f"wf:{req.run_id}:{req.session_key}"
+        was_live = runtime_key in self.live
+        if was_live:
+            try:
+                fence = self.runtime.request("session.cancel", {"session_key": runtime_key}, timeout=30.0)
+                if fence.get("was_active"):
+                    # MCP cancellation can settle the SDK before a remote tool has
+                    # acknowledged cancellation. Never reuse its mutable context or
+                    # commit slot automatically; fail closed for coordinator review.
+                    return TurnResult(error="previous turn was still active; automatic retry suppressed", aborted=True)
+            except Exception as exc:  # noqa: BLE001
+                return TurnResult(error=f"previous turn did not settle: {exc}", aborted=True)
         events = EventLog(req.workspace).bind(node=req.node.id, rev=req.node.rev, agent=req.agent,
                                               attempt=req.attempt, step=req.step or None)
         spec, submit_file = self.launch_spec(req)
-        submit_file.unlink(missing_ok=True)
+        recovered = was_live and submit_file.is_file()
+        if not recovered:
+            submit_file.unlink(missing_ok=True)
         rejections = submit_file.with_name("submit_rejections.jsonl")
         seen_rejections = _count_lines(rejections)
         payload = {"launch_spec": spec.to_dict()}
@@ -248,8 +265,13 @@ class PiDriver:
             self.active = spec.session_key
             streamed = self._stream_settle(spec.session_key, req, events)
             try:
-                result = self.runtime.request("session.run_turn",
-                                              {"session_key": spec.session_key, "prompt": req.prompt}, timeout=7200.0)
+                if recovered:
+                    # The previous segment committed before losing its RPC reply.
+                    # Consume it once; do not ask the model to dispatch again.
+                    result = {"status": "ok", "outcome": {"stop_reason": "stop"}}
+                else:
+                    result = self.runtime.request("session.run_turn",
+                                                  {"session_key": spec.session_key, "prompt": req.prompt}, timeout=7200.0)
             finally:
                 self.active = None
                 streamed.close()
