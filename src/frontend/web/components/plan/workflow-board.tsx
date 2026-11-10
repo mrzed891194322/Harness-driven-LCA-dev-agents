@@ -27,16 +27,11 @@ export function WorkflowBoard({
   mode,
   pickedId = null,
   onPickWorkflow,
-  liveWorkflowId = null,
-  liveRunStatus = "idle",
 }: {
   mode: WorkMode;
   /** When set (e.g. from 加载预设), canvas shows that orchestration. */
   pickedId?: string | null;
   onPickWorkflow?: (id: string | null) => void;
-  /** Active/finished orch from /api/workflow/status.workflow (null when idle). */
-  liveWorkflowId?: string | null;
-  liveRunStatus?: string;
 }) {
   const { t } = useLocale();
   const [catalog, setCatalog] = useState<WorkflowCard[]>([]);
@@ -198,16 +193,6 @@ export function WorkflowBoard({
           <SlidersHorizontal size={16} strokeWidth={1.75} aria-hidden="true" />
           {t("wf.configPanel")}
         </button>
-        {liveWorkflowId ? (
-          <span
-            className="flow-live-orch"
-            data-testid="flow-live-orch"
-            data-status={liveRunStatus}
-            title={t("wf.liveOrchHint", { id: liveWorkflowId, status: liveRunStatus })}
-          >
-            {t("wf.liveOrch", { id: liveWorkflowId, status: liveRunStatus })}
-          </span>
-        ) : null}
       </div>
 
       <div className="flow-stages" data-stage-count={workflow.details.length}>

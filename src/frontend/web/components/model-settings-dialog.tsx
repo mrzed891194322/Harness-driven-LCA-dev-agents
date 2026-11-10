@@ -55,7 +55,7 @@ type CustomForm = {
   previous_model_id: string;
 };
 
-const PROVIDER_RANK = ["openai", "anthropic", "deepseek"];
+const PROVIDER_RANK = ["openai", "anthropic", "deepseek", "xai"];
 const NO_BASE_URL = new Set(["deepseek", "google"]);
 
 function providerRank(id: string): number {
@@ -211,6 +211,14 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
           ...item,
           name: "OpenAI",
           hint: t("models.authKeyOrOauth"),
+          base_url_hint: t("models.v1Hint"),
+        };
+      }
+      if (item.id === "xai") {
+        return {
+          ...item,
+          name: "xAI",
+          hint: t("models.xaiAuthHint"),
           base_url_hint: t("models.v1Hint"),
         };
       }
@@ -717,7 +725,7 @@ export function ModelsSection({ onChanged }: { onChanged?: () => void }) {
                           </p>
                         </div>
                       ) : null}
-                      {item.id === "openai" ? (
+                      {item.id === "openai" || item.id === "xai" ? (
                         <p className="settings-meta" style={{ marginTop: 10 }}>
                           {t("models.oauthKeyOverride")}
                         </p>

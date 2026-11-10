@@ -47,6 +47,18 @@ POPULAR_PROVIDERS: tuple[dict[str, Any], ...] = (
         "supports_base_url": False,
     },
     {
+        "id": "xai",
+        "name": "xAI",
+        "hint": "xAI API key 或 SuperGrok / X Premium OAuth",
+        "placeholder": "xai-…",
+        "keys_url": "https://console.x.ai/",
+        "supports_oauth": True,
+        "oauth_label": "Sign in with SuperGrok or X Premium",
+        "supports_base_url": True,
+        "default_base_url": "https://api.x.ai/v1",
+        "base_url_hint": "要带 /v1。Pi 原样使用这段地址，路径接在后面。例如 https://api.x.ai/v1。",
+    },
+    {
         "id": "google",
         "name": "Google Gemini",
         "hint": "Google AI Studio / Gemini API key",

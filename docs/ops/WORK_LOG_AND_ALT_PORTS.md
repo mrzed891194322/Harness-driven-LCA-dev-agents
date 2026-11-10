@@ -12,7 +12,7 @@
 
 GUI：**结果浏览 → 工作记录**。最终交付侧栏只列 BOM / LCI / 报告；过程文件与注入记录都在工作记录。
 
-`issue-diag` 除 `.local/logs/backend.log` 外，也应先核对上述工作记录。
+`proj-ops` 使用中诊断（`advise.md`）除 `.local/logs/backend.log` 外，也应先核对上述工作记录。
 
 ## 计划模板（YAML）
 

@@ -64,6 +64,7 @@ const OAUTH_PROVIDERS = new Set([
   "github-copilot",
   "openrouter",
   "openai-codex",
+  "xai",
 ]);
 
 function ensureAuthFile(credentialsDir: string): string {

@@ -141,9 +141,6 @@ export default function PlanPage() {
   const [error, setError] = useState("");
   const [workMode, setWorkMode] = useState<"new" | "revise">("new");
   const [pickedWorkflowId, setPickedWorkflowId] = useState<string | null>(null);
-  /** When status is running/completed/…, board follows /api/workflow/status.workflow. */
-  const [liveWorkflowId, setLiveWorkflowId] = useState<string | null>(null);
-  const [liveRunStatus, setLiveRunStatus] = useState<string>("idle");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [panel, setPanel] = useState<Panel>("fields");
@@ -189,13 +186,10 @@ export default function PlanPage() {
         if (!response.ok || cancelled) return;
         const st = String(data.status || "idle");
         const wf = String(data.workflow || "").trim() || null;
-        setLiveRunStatus(st);
         if (FOLLOW.has(st) && wf) {
           wasFollowing = true;
-          setLiveWorkflowId(wf);
           setPickedWorkflowId(wf);
         } else {
-          setLiveWorkflowId(null);
           // Idle (or no workflow): drop auto-follow so default full-lca / revise-lca applies.
           // Do not clear a manual preset pick that was never driven by status.
           if (wasFollowing) {
@@ -811,8 +805,6 @@ export default function PlanPage() {
               mode={workMode}
               pickedId={pickedWorkflowId}
               onPickWorkflow={setPickedWorkflowId}
-              liveWorkflowId={liveWorkflowId}
-              liveRunStatus={liveRunStatus}
             />
           ) : panel === "preview" ? (
             <PreviewBoard mode={workMode} work={work} references={references} workflowId={pickedWorkflowId} />

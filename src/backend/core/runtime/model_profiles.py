@@ -1,7 +1,8 @@
 """Project model profiles (non-secret).
 
-Built-in profiles live in src/backend/core/runtime/model_profiles.json.
-Local overrides / custom endpoints: .local/model_profiles.json (merged on top).
+Shipped defaults in src/backend/core/runtime/model_profiles.json stay empty so a
+fresh checkout has no models until the user configures them. User profiles and
+custom endpoints live in .local/model_profiles.json (merged on top).
 """
 
 from __future__ import annotations
@@ -127,7 +128,7 @@ def upsert_local_profile(
 
 
 def delete_local_profile(project_root: Path, profile_id: str) -> None:
-    """Remove one local profile. Built-in profiles are left in place."""
+    """Remove one local profile entry."""
     pid = (profile_id or "").strip()
     if not pid:
         return
@@ -157,13 +158,16 @@ def resolve_model_profile(model_ref: str, *, project_root: Path) -> ModelProfile
             parameters=dict(raw.get("parameters") or {}),
         )
     provider, model_id = split_pi_model_ref(model_ref)
+    # Optional user-defined profile id "default" may fill blanks; never invent a vendor.
     if not provider and default:
         provider = str(default.get("provider") or "")
+    if not model_id and default:
+        model_id = str(default.get("model_id") or "")
     if not model_id:
-        model_id = str(default.get("model_id") or model_ref)
+        model_id = model_ref
     return ModelProfile(
-        profile_id=model_ref or "default",
-        provider=provider or "anthropic",
-        model_id=model_id or "claude-sonnet-4-5",
-        display_name=model_ref or "default",
+        profile_id=model_ref,
+        provider=provider,
+        model_id=model_id,
+        display_name=model_ref,
     )

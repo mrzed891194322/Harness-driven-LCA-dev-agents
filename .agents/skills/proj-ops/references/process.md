@@ -101,7 +101,7 @@ npm run stop
 不启动、不停止、不重启，除非用户的原话同时要求。
 
 1. `npm run status`：面板是就绪、残缺，还是没在运行。诊断本身不要因此去停服务。
-2. API 能连上时，请求 `http://127.0.0.1:<GUI_API_PORT>/api/diagnostics/environment`。只摘要 `ok` 不为真的项：`node`、`pi_agents`、`python_agent`、`openlca`、`model`、`harness_specs`。`openlca.status` 为 `busy` 时写明数据库正忙。不要粘贴整份 JSON。
+2. API 能连上时，请求 `http://127.0.0.1:<GUI_API_PORT>/api/diagnostics/environment`。只摘要 `ok` 不为真的项：`node`、`pi_agents`、`python_agent`、`openlca`、`model`、`harness_specs`。`openlca` 的含义与建议见 [advise.md](advise.md)。不要粘贴整份 JSON。
 3. pi-runtime 在跑时执行 `npm run doctor`（空会话自检，不调模型）。没在跑就执行 `npm run doctor -- --skip-runtime`，并写明注入自检被跳过。出现 `✗` 时附上脚本打印的那几行。
 4. 用户问的是某一次运行的注入或会话时，再用 `npm run inspect -- <run> --only-anomalies`。普通诊断不要翻 `.local/runs/`。
 5. 健康检查失败或进程已退出时，只读上述三个日志的末尾约 40 行，摘出错误原因。

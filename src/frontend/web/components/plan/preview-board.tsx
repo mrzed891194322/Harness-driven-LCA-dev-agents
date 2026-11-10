@@ -137,7 +137,7 @@ export function PreviewBoard({
                     <small>{t("preview.maxRounds", { n: node.max_rounds })}</small>
                   </div>
                   <ul>
-                    {Object.entries(node.agents).map(([name, agent]) => (
+                    {Object.keys(node.agents).map((name) => (
                       <li
                         key={name}
                         data-agent={name}
@@ -150,7 +150,6 @@ export function PreviewBoard({
                       >
                         <Bot size={13} strokeWidth={1.75} aria-hidden="true" />
                         <em>{label(name)}</em>
-                        <span>{agent.tools.mcp.length ? agent.tools.mcp.join(" · ") : agent.template || t("preview.inline")}</span>
                       </li>
                     ))}
                   </ul>
